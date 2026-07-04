@@ -1,0 +1,60 @@
+# ==========================================
+# Python
+# ==========================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual Environments
+.venv/
+venv/
+env/
+sugbogo_backend/.venv/
+
+# Environment Variables
+.env
+*.env
+sugbogo_backend/.env
+frontend/.env
+
+# Django
+db.sqlite3
+*.sqlite3
+
+media/
+staticfiles/
+
+# Logs
+*.log
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Python packaging
+*.egg-info/
+build/
+dist/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# React / Node
+# ==========================================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
