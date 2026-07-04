@@ -122,6 +122,9 @@ Example:
 
 ```env
 
+SECRET_KEY=?
+DEBUG=True
+
 DB_NAME=sugbogo
 DB_USER=postgres
 DB_PASSWORD=your_password
