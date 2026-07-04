@@ -1,0 +1,77 @@
+import { useEffect, useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { FiChevronDown, FiShield, FiUsers } from 'react-icons/fi'
+
+const linkBase =
+	'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition duration-200'
+
+function SidebarLink({ to, label, Icon }) {
+	return (
+		<NavLink
+			to={to}
+			className={({ isActive }) =>
+				`${linkBase} ${isActive ? 'bg-primary text-white' : 'text-gray-700 hover:bg-orange-50'}`
+			}
+		>
+			<Icon className="h-5 w-5 shrink-0" />
+			<span className="truncate">{label}</span>
+		</NavLink>
+	)
+}
+
+function UsersLinkDropdown() {
+	const location = useLocation()
+	const [isOpen, setIsOpen] = useState(location.pathname.startsWith('/admin-panel/users'))
+	const [isManuallyCollapsed, setIsManuallyCollapsed] = useState(false)
+
+	useEffect(() => {
+		if (location.pathname.startsWith('/admin-panel/users') && !isManuallyCollapsed) {
+			setIsOpen(true)
+		}
+
+		if (!location.pathname.startsWith('/admin-panel/users')) {
+			setIsManuallyCollapsed(false)
+		}
+	}, [location.pathname, isManuallyCollapsed])
+
+	return (
+		<div>
+			<button
+				type="button"
+				onClick={() => {
+					setIsOpen((current) => {
+						const nextIsOpen = !current
+
+						return nextIsOpen
+					})
+					setIsManuallyCollapsed(false)
+				}}
+				className={`${linkBase} w-full justify-between text-gray-700 hover:bg-orange-50`}
+				aria-expanded={isOpen}
+				aria-label="Toggle Users submenu"
+			>
+				<span className="flex min-w-0 items-center gap-3 rounded-lg">
+					<FiUsers className="h-5 w-5 shrink-0" />
+					<span className="truncate">Users</span>
+				</span>
+
+				<FiChevronDown
+					className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+				/>
+			</button>
+
+			{isOpen ? (
+				<div className="mt-2 space-y-2 pl-6">
+					<SidebarLink to="/admin-panel/users/all" label="All Users" Icon={FiUsers} />
+					<SidebarLink
+						to="/admin-panel/users/roles-permissions"
+						label="Roles & Permissions"
+						Icon={FiShield}
+					/>
+				</div>
+			) : null}
+		</div>
+	)
+}
+
+export default UsersLinkDropdown
