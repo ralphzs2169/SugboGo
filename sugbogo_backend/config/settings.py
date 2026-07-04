@@ -48,6 +48,17 @@ INSTALLED_APPS = [
     'apps.users.apps.UsersConfig',
     'apps.authentication.apps.AuthenticationConfig',
     'apps.merchant_operations.apps.MerchantOperationsConfig',
+
+    # Admin Operations
+    'apps.admin_operations.msme_management.apps.MsmeManagementConfig',
+    'apps.admin_operations.user_management.apps.UserManagementConfig',
+    'apps.admin_operations.landmark_management.apps.LandmarkManagementConfig',
+    'apps.admin_operations.tag_management.apps.TagManagementConfig',
+    'apps.admin_operations.content_management.apps.ContentManagementConfig',
+    'apps.admin_operations.role_management.apps.RoleManagementConfig',
+    'apps.admin_operations.suspicious_activity.apps.SuspiciousActivityConfig',
+    'apps.admin_operations.analytics.apps.AnalyticsConfig',
+    'apps.admin_operations.system_configuration.apps.SystemConfigurationConfig',
 ]
 
 MIDDLEWARE = [
