@@ -43,6 +43,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'corsheaders',
+
     "rest_framework",
 
     'apps.users.apps.UsersConfig',
@@ -50,11 +52,12 @@ INSTALLED_APPS = [
     'apps.merchant_operations.apps.MerchantOperationsConfig',
 
     # Admin Operations
+    'apps.admin_operations.dashboard.apps.DashboardConfig',
     'apps.admin_operations.msme_management.apps.MsmeManagementConfig',
     'apps.admin_operations.user_management.apps.UserManagementConfig',
     'apps.admin_operations.landmark_management.apps.LandmarkManagementConfig',
     'apps.admin_operations.tag_management.apps.TagManagementConfig',
-    'apps.admin_operations.content_management.apps.ContentManagementConfig',
+    'apps.admin_operations.activity_management.apps.ActivityManagementConfig',
     'apps.admin_operations.role_management.apps.RoleManagementConfig',
     'apps.admin_operations.suspicious_activity.apps.SuspiciousActivityConfig',
     'apps.admin_operations.analytics.apps.AnalyticsConfig',
@@ -69,6 +72,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware'
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
 ]
 
 ROOT_URLCONF = 'config.urls'

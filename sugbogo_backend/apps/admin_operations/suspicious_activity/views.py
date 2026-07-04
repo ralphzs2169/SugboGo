@@ -1,8 +1,8 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-@api_view(["POST"])
-def suspicious_activity(request):
+@api_view(["GET"])
+def get_suspicious_activity_data(request):
     return Response({
-        "message": "Suspicious Activity endpoint"
+        "message": "Get Suspicious Activity Data endpoint"
     })

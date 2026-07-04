@@ -1,8 +1,8 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-@api_view(["POST"])
-def system_configuration(request):
+@api_view(["GET"])
+def get_system_configuration_data(request):
     return Response({
-        "message": "System Configuration endpoint"
+        "message": "Get System Configuration Data endpoint"
     })

@@ -2,5 +2,5 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path("", views.tag_management, name="tag_management")
+    path("", views.get_tag_management_data, name="get_tag_management_data"),
 ]

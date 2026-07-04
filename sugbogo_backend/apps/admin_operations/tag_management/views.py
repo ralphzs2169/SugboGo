@@ -1,8 +1,8 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-@api_view(["POST"])
-def tag_management(request):
+@api_view(["GET"])
+def get_tag_management_data(request):
     return Response({
-        "message": "Tag Management endpoint"
+        "message": "Get Tag Management Data endpoint"
     })

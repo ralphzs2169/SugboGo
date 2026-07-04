@@ -2,8 +2,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 
-@api_view(["POST"])
-def msme_management(request):
+@api_view(["GET"])
+def get_msme_management_data(request):
     return Response({
-        "message": "MSME Management endpoint"
+        "message": "Get MSME Management Data endpoint"
     })
