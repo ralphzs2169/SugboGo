@@ -1,9 +1,8 @@
 # SugboGo
 
-SugboGo is a full-stack web application built with *Django*, *Django REST Framework*, *PostgreSQL*, and *React*.
+SugboGo is a full-stack web application built with **Django**, **Django REST Framework**, **PostgreSQL**, and **React**.
 
-**Current Status:** Backend setup completed. React frontend is planned.
-
+> **Current Status:** Backend setup completed. React frontend is in development.
 
 ---
 
@@ -11,130 +10,149 @@ SugboGo is a full-stack web application built with *Django*, *Django REST Framew
 
 ## Backend
 
-* Python 3.14+
-* Django 6
-* Django REST Framework
-* PostgreSQL
-* psycopg
-* python-dotenv
+- Python 3.14+
+- Django 6
+- Django REST Framework
+- PostgreSQL
+- psycopg
+- python-dotenv
 
 ## Frontend
 
-* React 19
-* Vite
-* JavaScript (ES6+)
-* Axios
-* React Router
-* Tailwind CSS
+- React 19
+- Vite
+- JavaScript (ES6+)
+- Axios
+- React Router
+- Tailwind CSS
 
 ---
 
-# Project Folder Structure 
+# Project Folder Structure
 
-Not final, constantly updated when new fetures and folders are added
+> **Note:** This structure is not final and will continue to evolve as new features are added.
 
-text
+```text
 SugboGo/
 │
 ├── sugbogo_backend/                 # Django backend
 │   ├── apps/                        # Feature-based Django applications
-│   │   ├── authentication/          # Login, logout, registration, authentication logic
-│   │   ├── users/                   # Custom user model and user-related functionality
-│   │   ├── admin_operations/        # Admin & Super Admin functionalities
-│   │   └── merchant_operations/     # Merchant management and business operations
+│   │   ├── authentication/          # User authentication (login, logout, registration)
+│   │   ├── users/                   # Custom user model and user-related features
+│   │   ├── admin_operations/        # Admin and Super Admin functionality
+│   │   └── merchant_operations/     # Merchant management features
 │   │
 │   ├── config/                      # Django project configuration (settings, URLs, ASGI/WSGI)
-│   ├── manage.py                    # Django management command entry point
-│   ├── requirements.txt             # Python project dependencies
+│   ├── manage.py                    # Django management entry point
+│   ├── requirements.txt             # Python dependencies
 │   └── .env                         # Local environment variables (not committed)
 │
 ├── sugbogo_frontend/
-│    └── web_app/
-│        ├── public/                 # Static assets served directly (favicon, icons, etc.)
-│        ├── src/                    # React application source code
-│        │   ├── assets/             # Images, fonts, and other bundled static assets
-│        │   ├── components/         # Reusable UI components
-│        │   ├── pages/              # Route-level pages
-│        │   └── services/           # API clients and backend communication
-│        └──  .gitignore              # Frontend-specific Git ignore rules
+│   └── web_app/                     # React application
+│       ├── public/                  # Static assets served directly
+│       ├── src/                     # React source code
+│       │   ├── assets/              # Images, fonts, and other assets
+│       │   ├── components/          # Reusable UI components
+│       │   ├── pages/               # Route-level pages
+│       │   └── services/            # API clients and backend communication
+│       └── .gitignore               # Frontend-specific Git ignore rules
 │
-├── .gitignore                       # Files and folders ignored by Git
-└── README.md                        # Project documentation and setup instructions
+├── .gitignore                       # Git ignore rules for the repository
+└── README.md                        # Project documentation and setup guide
+```
 
 ---
 
 # Prerequisites
 
-Before running the project, install:
+Install the following before setting up the project:
 
-* Python 3.14+
-* PostgreSQL
-* Node.js 22+
-* npm
-* Git
+- Python 3.14+
+- PostgreSQL
+- pgAdmin 4
+- Node.js 22+
+- npm
+- Git
+
+> **Optional:** DBeaver for database management.
 
 ---
 
 # Backend Setup
 
-## 1. Clone the repository
+## 1. Clone the Repository
 
+```bash
 git clone <repository-url>
 cd SugboGo
+```
 
 ---
 
-## 2. Create a virtual environment
+## 2. Create a Virtual Environment
 
-Windows
+Navigate to the backend.
 
+```bash
 cd sugbogo_backend
+```
 
+Create the virtual environment.
+
+```bash
 python -m venv .venv
+```
 
-Activate it
+### Activate the Virtual Environment
 
-PowerShell
+**PowerShell**
 
+```powershell
 .venv\Scripts\Activate.ps1
+```
 
-Command Prompt
+**Command Prompt**
 
-cmd
+```cmd
 .venv\Scripts\activate.bat
+```
 
 ---
 
-## 3. Install dependencies
+## 3. Install Dependencies
 
+```bash
 python -m pip install -r requirements.txt
+```
 
 ---
 
-## 4. Create the environment file
+## 4. Create the Environment File
 
 Inside:
 
-text
+```text
 sugbogo_backend/
+```
 
-Create:
+Create a file named:
 
-text
+```text
 .env
+```
 
 Example:
 
-env
-
-SECRET_KEY=? (ask from owner)
+```env
+SECRET_KEY=<ask the repository owner>
 DEBUG=True
 
-DB_NAME=sugbogo
+DB_NAME=sugbogo_db
 DB_USER=postgres
-DB_PASSWORD=your_password
+DB_PASSWORD=your_postgresql_password
 DB_HOST=localhost
 DB_PORT=5432
+```
 
 Replace the database credentials with your own PostgreSQL configuration.
 
@@ -142,76 +160,58 @@ Replace the database credentials with your own PostgreSQL configuration.
 
 ## 5. Create the PostgreSQL Database
 
-### Prerequisites
-
-Before creating the database, make sure you have the following installed:
-
-- **PostgreSQL** (Database Server)
-- **pgAdmin 4** (GUI for managing PostgreSQL databases)
-- **DBeaver** (Optional database management tool)
-
-> **Note:** Installing only pgAdmin or DBeaver is **not enough**. You must have the PostgreSQL server installed and running.
-
----
-
-### Step 1: Open pgAdmin
+### Step 1 – Open pgAdmin
 
 Launch **pgAdmin 4**.
 
-If prompted, enter the master password (if you configured one).
+If prompted, enter the master password.
 
 ---
 
-### Step 2: Connect to PostgreSQL
+### Step 2 – Connect to PostgreSQL
 
-1. Expand **Servers**.
-2. Select your PostgreSQL server (e.g., **PostgreSQL 17**).
-3. Enter the password you created during PostgreSQL installation.
+Expand:
 
----
+```text
+Servers
+└── PostgreSQL
+```
 
-### Step 3: Create a New Database
-
-1. Expand:
-
-   ```
-   Servers
-   └── PostgreSQL
-       └── Databases
-   ```
-
-2. Right-click **Databases**.
-
-3. Select:
-
-   ```
-   Create
-   └── Database...
-   ```
-
-4. Enter the following:
-
-   **Database Name**
-
-   ```
-   sugbogo_db
-   ```
-
-5. Leave **Owner** as:
-
-   ```
-   postgres
-   ```
-
-6. Click **Save**.
-
-Your database is now ready.
+Enter your PostgreSQL password if prompted.
 
 ---
 
-### Step 4: Update the Environment Variables
+### Step 3 – Create a Database
 
-Ensure your `.env` file matches the database you created.
+Expand:
+
+```text
+Servers
+└── PostgreSQL
+    └── Databases
+```
+
+Right-click **Databases**.
+
+Select:
+
+```text
+Create
+└── Database...
+```
+
+Enter:
+
+| Field | Value |
+|-------|-------|
+| Database Name | `sugbogo_db` |
+| Owner | `postgres` |
+
+Click **Save**.
+
+---
+
+### Step 4 – Verify the `.env` File
 
 ```env
 DB_NAME=sugbogo_db
@@ -221,79 +221,116 @@ DB_HOST=localhost
 DB_PORT=5432
 ```
 
-Replace `your_postgresql_password` with the password you set during PostgreSQL installation.
-
 ---
 
+## 6. Apply Migrations
 
-## 6. Apply migrations
-
+```bash
 python manage.py migrate
+```
+
+This creates all required database tables.
 
 ---
 
-## 7. Create a superuser
+## 7. Create a Superuser
 
+```bash
 python manage.py createsuperuser
+```
 
 Follow the prompts.
 
-**Note:** When entering the password, nothing will appear on the screen. This is normal behavior.
-
+> **Note:** When typing your password, nothing will appear on the screen. This is normal.
 
 ---
 
-## 8. Run the development server
+## 8. Run the Development Server
 
+```bash
 python manage.py runserver
+```
 
-The backend will be available at:
+Backend:
 
-text
+```text
 http://127.0.0.1:8000/
+```
 
 ---
 
 # Frontend Setup
 
-## 1. Navigate to the frontend
+## 1. Navigate to the Frontend
 
+```bash
 cd sugbogo_frontend/web_app
+```
 
-## 2. Install dependencies
+---
 
+## 2. Install Dependencies
+
+```bash
 npm install
+```
 
-## 3. Start the development server
+---
 
+## 3. Start the Development Server
+
+```bash
 npm run dev
+```
 
-The frontend will be available at:
+Frontend:
 
-text
+```text
 http://localhost:5173/
+```
+
+---
 
 # Running the Project
 
-Open two terminals.
+Open **two terminals**.
 
-### Terminal 1 - Backend
+## Terminal 1 — Backend
 
+```bash
 cd sugbogo_backend
 python manage.py runserver
+```
 
-### Terminal 2 - Frontend
+## Terminal 2 — Frontend
 
+```bash
 cd sugbogo_frontend/web_app
+npm install   # First time only
 npm run dev
+```
 
 ---
 
 # Updating Dependencies
 
-Whenever new Python packages are installed, regenerate the requirements file:
+Whenever you install new Python packages, regenerate `requirements.txt`.
 
+```bash
 python -m pip freeze > requirements.txt
+```
+
+After pulling new backend changes from GitHub, install any new dependencies.
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Similarly, after pulling frontend changes that modify `package.json`, install the updated Node.js dependencies.
+
+```bash
+npm install
+```
 
 ---
 
