@@ -49,13 +49,21 @@ SugboGo/
 │
 ├── sugbogo_frontend/
 │   └── web_app/                     # React application
-│       ├── public/                  # Static assets served directly
-│       ├── src/                     # React source code
-│       │   ├── assets/              # Images, fonts, and other assets
-│       │   ├── components/          # Reusable UI components
-│       │   ├── pages/               # Route-level pages
-│       │   └── services/            # API clients and backend communication
-│       └── .gitignore               # Frontend-specific Git ignore rules
+│   │   ├── public/                  # Static assets served directly
+│   │   ├── src/                     # React source code
+│   │   │   ├── assets/              # Images, fonts, and other assets
+│   │   │   ├── components/          # Reusable UI components
+│   │   │   ├── pages/               # Route-level pages
+│   │   │   └── services/            # API clients and backend communication
+│   │   └── .gitignore               # Frontend-specific Git ignore rules
+│   │   
+│   └── mobile/                      # Expo React Native application
+│       ├── src/
+│       │   └── app/                 # Expo Router screens (file-based routing)
+│       ├── assets/                  # Images, icons, splash screens
+│       ├── app.json                 # Expo app configuration
+│       ├── tailwind.config.js       # NativeWind/Tailwind configuration
+│       └── package.json
 │
 ├── .gitignore                       # Git ignore rules for the repository
 └── README.md                        # Project documentation and setup guide
@@ -259,7 +267,7 @@ http://127.0.0.1:8000/
 
 ---
 
-# Frontend Setup
+# Frontend (Web app) Setup
 
 ## 1. Navigate to the Frontend
 
@@ -283,7 +291,7 @@ npm install
 npm run dev
 ```
 
-Frontend:
+Web app Frontend:
 
 ```text
 http://localhost:5173/
@@ -291,9 +299,38 @@ http://localhost:5173/
 
 ---
 
+# Mobile App Setup (Expo)
+
+## 1. Navigate to the Mobile App
+
+```bash
+cd sugbogo_frontend/mobile
+```
+
+## 2. Install Dependencies
+
+```bash
+npm install
+```
+
+## 3. Start the Development Server
+
+```bash
+npx expo start
+```
+
+This opens the Expo Dev Tools in your terminal/browser. From here you can:
+
+- Press \`a\` to open on an Android emulator
+- Press \`i\` to open on an iOS simulator (Mac only)
+- Scan the QR code with the **Expo Go** app on a physical device
+
+
+---
+
 # Running the Project
 
-Open **two terminals**.
+Open **three terminals**.
 
 ## Terminal 1 — Backend
 
@@ -310,6 +347,14 @@ npm install   # First time only
 npm run dev
 ```
 
+## Terminal 3 — Mobile App
+
+```bash
+cd sugbogo_frontend/mobile
+npm install   # First time only
+npx expo start
+```
+
 ---
 
 # Updating Dependencies
@@ -321,7 +366,7 @@ python -m pip freeze > requirements.txt
 ```
 
 After pulling new backend changes from GitHub, install any new dependencies.
-
+raph
 ```bash
 python -m pip install -r requirements.txt
 ```
