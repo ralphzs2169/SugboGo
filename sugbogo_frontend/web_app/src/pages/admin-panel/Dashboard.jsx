@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getDashboardData } from '../../services/adminPanel/dashboardService'
+import { getDashboardData } from '../../services/admin-panel/dashboardService'
 
 export default function Dashboard() {
 	const [dashboardData, setDashboardData] = useState(null)

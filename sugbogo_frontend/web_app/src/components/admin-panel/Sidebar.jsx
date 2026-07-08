@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import UsersLinkDropdown from './UsersLinkDropdown'
+import SugboGoText from '../SugboGoText'
 import {
 	FiBarChart2,
 	FiChevronDown,
@@ -47,8 +48,7 @@ export default function Sidebar({ onLogout }) {
 					
 					<div className="flex flex-col gap-2">
 						<p className="text-3xl font-extrabold leading-none">
-							<span className="text-primary">Sugbo</span>
-							<span className="text-gray-900">Go</span>
+							<SugboGoText  />
 						</p>
 						<p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
 							SUPER ADMIN CONSOLE

@@ -59,7 +59,8 @@ SugboGo/
 │   │   
 │   └── mobile/                      # Expo React Native application
 │       ├── src/
-│       │   └── app/                 # Expo Router screens (file-based routing)
+│       │   ├── app/                 # Expo Router screens (file-based routing)
+│       │   └── constants/           # // App-wide constant values (colors, spacing, config) — single source of truth.
 │       ├── assets/                  # Images, icons, splash screens
 │       ├── app.json                 # Expo app configuration
 │       ├── tailwind.config.js       # NativeWind/Tailwind configuration

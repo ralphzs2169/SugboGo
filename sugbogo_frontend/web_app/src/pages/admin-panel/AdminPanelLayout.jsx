@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import Sidebar from '../../components/AdminPanel/Sidebar'
+import Sidebar from '../../components/admin-panel/Sidebar'
 
 export default function AdminPanelLayout() {
   const navigate = useNavigate()

@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
-import { getMSMEData } from '../../services/adminPanel/msmeService'
+import { getUserData } from '../../services/admin-panel/userService'
 
-export default function Msmes() {
-	const [msmesData, setMsmesData] = useState(null)
+export default function Users() {
+	const [usersData, setUsersData] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState(null)
 
 	useEffect(() => {
-		const fetchMsmesData = async () => {
+		const fetchUsersData = async () => {
 			try {
-				const response = await getMSMEData()
-				setMsmesData(response.data)
+				const response = await getUserData()
+				setUsersData(response.data)
 			} catch (fetchError) {
 				setError(fetchError.message)
 			} finally {
@@ -18,7 +18,7 @@ export default function Msmes() {
 			}
 		}
 
-		fetchMsmesData()
+		fetchUsersData()
 	}, [])
 
 	if (loading) {
@@ -29,5 +29,5 @@ export default function Msmes() {
 		return <p className="text-red-600">Error: {error}</p>
 	}
 
-	return <h1 className="text-3xl font-semibold tracking-tight text-slate-900">MSMEs</h1>
+	return <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Users</h1>
 }

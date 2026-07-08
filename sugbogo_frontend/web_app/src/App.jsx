@@ -1,14 +1,15 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import AdminPanelLayout from './pages/AdminPanel/AdminPanelLayout';
-import Dashboard from './pages/AdminPanel/Dashboard';
-import Msmes from './pages/AdminPanel/Msmes';
-import Users from './pages/AdminPanel/Users';
-import ExplorerActivities from './pages/AdminPanel/ExplorerActivities';
-import SpecialtyTags from './pages/AdminPanel/SpecialtyTags';
-import SuspiciousActivities from './pages/AdminPanel/SuspiciousActivities';
-import Analytics from './pages/AdminPanel/Analytics';
-import Settings from './pages/AdminPanel/Settings';
-import RolesPermissions from './pages/AdminPanel/RolesPermissions';
+import AdminPanelLayout from './pages/admin-panel/AdminPanelLayout';
+import Dashboard from './pages/admin-panel/Dashboard';
+import Msmes from './pages/admin-panel/Msmes';
+import Users from './pages/admin-panel/Users';
+import ExplorerActivities from './pages/admin-panel/ExplorerActivities';
+import SpecialtyTags from './pages/admin-panel/SpecialtyTags';
+import SuspiciousActivities from './pages/admin-panel/SuspiciousActivities';
+import Analytics from './pages/admin-panel/Analytics';
+import Settings from './pages/admin-panel/Settings';
+import RolesPermissions from './pages/admin-panel/RolesPermissions';
+import Login from './pages/admin-panel/Login';
 
 function App() {
   return (
@@ -26,6 +27,9 @@ function App() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
       </Route>
+
+      <Route path="/login" element={<Login />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }

@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
-import { getUserData } from '../../services/adminPanel/userService'
+import { getSettingsData } from '../../services/admin-panel/settingsService'
 
-export default function Users() {
-	const [usersData, setUsersData] = useState(null)
+export default function Settings() {
+	const [settingsData, setSettingsData] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState(null)
 
 	useEffect(() => {
-		const fetchUsersData = async () => {
+		const fetchSettingsData = async () => {
 			try {
-				const response = await getUserData()
-				setUsersData(response.data)
+				const response = await getSettingsData()
+				setSettingsData(response.data)
 			} catch (fetchError) {
 				setError(fetchError.message)
 			} finally {
@@ -18,7 +18,7 @@ export default function Users() {
 			}
 		}
 
-		fetchUsersData()
+		fetchSettingsData()
 	}, [])
 
 	if (loading) {
@@ -29,5 +29,5 @@ export default function Users() {
 		return <p className="text-red-600">Error: {error}</p>
 	}
 
-	return <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Users</h1>
+	return <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Settings</h1>
 }
