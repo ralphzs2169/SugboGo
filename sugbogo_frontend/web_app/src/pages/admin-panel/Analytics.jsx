@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAnalyticsData } from "../../services/adminPanel/analyticsService";
+import { getAnalyticsData } from "../../services/admin-panel/analyticsService";
 
 function Analytics() {
 

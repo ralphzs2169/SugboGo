@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getExplorerActivityData } from '../../services/adminPanel/explorerActivityService'
+import { getExplorerActivityData } from '../../services/admin-panel/explorerActivityService'
 
 export default function ExplorerActivities() {
     const [activities, setActivities] = useState(null)

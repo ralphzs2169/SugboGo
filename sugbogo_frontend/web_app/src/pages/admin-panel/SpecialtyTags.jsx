@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getSpecialtyTagData } from '../../services/adminPanel/specialtyTagService'
+import { getSpecialtyTagData } from '../../services/admin-panel/specialtyTagService'
 
 export default function SpecialtyTags() {
 	const [specialtyTagsData, setSpecialtyTagsData] = useState(null)

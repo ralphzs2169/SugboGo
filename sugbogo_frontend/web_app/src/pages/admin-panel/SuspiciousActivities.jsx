@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getSuspiciousActivityData } from '../../services/adminPanel/SuspiciousActivityService'
+import { getSuspiciousActivityData } from '../../services/admin-panel/SuspiciousActivityService'
 
 export default function SuspiciousActivities() {
 	const [suspiciousActivitiesData, setSuspiciousActivitiesData] = useState(null)

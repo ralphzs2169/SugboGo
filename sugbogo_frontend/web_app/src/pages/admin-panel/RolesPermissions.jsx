@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getRolesPermissionsData } from '../../services/adminPanel/rolesPermissionsService'
+import { getRolesPermissionsData } from '../../services/admin-panel/rolesPermissionsService'
 
 export default function RolesPermissions() {
   const [rolesPermissionsData, setRolesPermissionsData] = useState(null)
