@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { FiChevronDown, FiShield, FiUsers } from 'react-icons/fi'
 
 const linkBase =
-	'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition duration-200'
+	'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-[13px] font-medium transition duration-200'
 
 function SidebarLink({ to, label, Icon }) {
 	return (
@@ -46,7 +46,7 @@ function UsersLinkDropdown() {
 					})
 					setIsManuallyCollapsed(false)
 				}}
-				className={`${linkBase} w-full justify-between text-gray-700 hover:bg-orange-50`}
+				className={`${linkBase} w-full justify-between  text-gray-700 hover:bg-orange-50`}
 				aria-expanded={isOpen}
 				aria-label="Toggle Users submenu"
 			>
@@ -61,7 +61,7 @@ function UsersLinkDropdown() {
 			</button>
 
 			{isOpen ? (
-				<div className="mt-2 space-y-2 pl-6">
+				<div className="mt-2 border-l border-stroke-strong ml-6">
 					<SidebarLink to="/admin-panel/users/all" label="All Users" Icon={FiUsers} />
 					<SidebarLink
 						to="/admin-panel/users/roles-permissions"

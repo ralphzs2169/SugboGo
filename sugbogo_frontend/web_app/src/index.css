@@ -2,5 +2,17 @@
 
 @theme {
   --color-primary: #F27F0D;
+
+  --color-background-primary: #FDFDFD;      /* white */
+  --color-background-secondary: #F8FAFC80;  /* slate-50 with 80% opacity */
+
+
+  /* Stroke Borders */
+  --color-stroke: #E5E7EB;           /* gray-200 */
+  --color-stroke-strong: #D1D5DB;    /* gray-300 */
+
+  /* Text Colors */
+  --color-text-primary: #0F172A;     /* slate-800 */
+  --color-text-secondary: #94a3b8;   /* slate-400 */
 }
 
