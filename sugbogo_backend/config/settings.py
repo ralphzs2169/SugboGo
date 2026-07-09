@@ -32,6 +32,7 @@ DEBUG = os.environ.get("DEBUG") == "True"
 
 ALLOWED_HOSTS = []
 
+AUTH_USER_MODEL = "users.User"
 
 # Application definition
 
@@ -46,6 +47,8 @@ INSTALLED_APPS = [
     'corsheaders',
 
     "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
 
     'apps.users.apps.UsersConfig',
     'apps.authentication.apps.AuthenticationConfig',
@@ -96,6 +99,12 @@ TEMPLATES = [
     },
 ]
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+}
+
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
@@ -110,6 +119,7 @@ DATABASES = {
         "PASSWORD": os.environ.get("DB_PASSWORD", ""),
         "HOST": os.environ.get("DB_HOST", ""),
         "PORT": os.environ.get("DB_PORT", "5432"),
+        "OPTIONS": { "sslmode": "require"},
     }
 }
 
