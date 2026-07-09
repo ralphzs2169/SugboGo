@@ -10,21 +10,21 @@ function QuickActions() {
         description="43 pending listings need validation" 
         Icon={CheckSquare} 
         iconColor="text-orange-600" 
-        iconBg="bg-orange-50/60"
+        iconBg="bg-action-icon-background"
       />
       <ActionCard 
         title="Approve Pending Tags" 
         description="Categorization requests awaiting audit" 
         Icon={Tag} 
         iconColor="text-orange-600" 
-        iconBg="bg-orange-50/60"
+        iconBg="bg-action-icon-background"
       />
       <ActionCard 
         title="Review Flagged Activity" 
         description="Audit reports for community violations" 
         Icon={Flag} 
         iconColor="text-orange-600" 
-        iconBg="bg-orange-50/60"
+        iconBg="bg-action-icon-background"
       />
 
       {/* Floating Action Button Overlapping Bottom Right */}

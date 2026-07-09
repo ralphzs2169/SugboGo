@@ -14,5 +14,23 @@
   /* Text Colors */
   --color-text-primary: #0F172A;     /* slate-800 */
   --color-text-secondary: #94a3b8;   /* slate-400 */
+
+  --color-sidebar-hover: #E5E7EB;
+  --color-action-icon-background: #FFF7ED;
+}
+
+/* Dark Theme */
+html.dark {
+  --color-background-primary: #1f1f1f; 
+  --color-background-secondary: #121212;
+
+  --color-stroke: #121418;
+  --color-stroke-strong: #475569;
+
+  --color-text-primary: #F8FAFC;
+  --color-text-secondary: #CBD5E1;
+
+  --color-sidebar-hover: #2A2A2A;
+  --color-action-icon-background: #2A2A2A;
 }
 

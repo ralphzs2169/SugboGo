@@ -20,7 +20,7 @@ export default function AdminPanelLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background-primary text-text-primary">
+    <div className="min-h-screen bg-background-secondary text-text-primary">
       <Sidebar
         onLogout={handleLogout}
         isOpen={isSidebarOpen}

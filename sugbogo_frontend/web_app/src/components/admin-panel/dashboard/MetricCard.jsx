@@ -3,7 +3,7 @@ import MetricBadge from './MetricBadge'
 
 function MetricCard({ title, value, badgeVariant, badgeText, footerText, footerColor, Icon }) {
   return (
-    <div className="relative overflow-hidden rounded-[24px] border border-stroke bg-background-primary p-6 shadow-sm transition-all hover:shadow-md flex flex-col justify-between min-h-[165px]">
+    <div className="relative overflow-hidden rounded-[24px] border border-stroke bg-background-primary p-6 shadow-sm  hover:shadow-md flex flex-col justify-between min-h-[165px]">
 
       {/* Top Section: Title & Top Right MetricBadge */}
       <div className="relative z-10 flex items-start justify-between gap-4">

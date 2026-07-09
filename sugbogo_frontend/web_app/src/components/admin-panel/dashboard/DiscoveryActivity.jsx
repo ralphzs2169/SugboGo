@@ -23,9 +23,9 @@ function DiscoveryActivity() {
         </div>
         
         {/* Compass Action Icon */}
-        <button className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50/60 text-[#f27e13] transition-colors hover:bg-orange-100/70">
+        {/* <button className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50/60 text-[#f27e13] transition-colors hover:bg-orange-100/70">
           <Compass className="h-5 w-5 stroke-[2]" />
-        </button>
+        </button> */}
       </div>
 
       {/* Reusable Bar Chart Component */}

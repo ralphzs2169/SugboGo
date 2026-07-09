@@ -1,11 +1,24 @@
 import React from 'react';
 import { Search, Bell, Menu } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import ThemeToggle from '../ThemeToggle';
 
-const Header = ({
-  title = 'Dashboard',
-  subtitle = 'Monitor platform activity and business discovery at a glance.',
-  onMenuClick,
-}) => {
+function Header({ title, subtitle, onMenuClick,}){
+
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem('theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+  
   return (
     <header className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
       {/* Left Side */}
@@ -47,6 +60,8 @@ const Header = ({
 
         {/* Divider */}
         <div className="hidden h-6 w-px bg-stroke sm:block" />
+
+        <ThemeToggle />
 
         {/* Notifications */}
         <button

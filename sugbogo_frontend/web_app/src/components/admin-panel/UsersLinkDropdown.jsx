@@ -10,7 +10,7 @@ function SidebarLink({ to, label, Icon }) {
 		<NavLink
 			to={to}
 			className={({ isActive }) =>
-				`${linkBase} ${isActive ? 'bg-primary text-white' : 'text-gray-700 hover:bg-orange-50'}`
+				`${linkBase} ${isActive ? 'bg-primary text-white' : 'text-text-primary hover:bg-sidebar-hover'}`
 			}
 		>
 			<Icon className="h-5 w-5 shrink-0" />
@@ -46,7 +46,7 @@ function UsersLinkDropdown() {
 					})
 					setIsManuallyCollapsed(false)
 				}}
-				className={`${linkBase} w-full justify-between  text-gray-700 hover:bg-orange-50`}
+				className={`${linkBase} w-full justify-between text-text-primary hover:bg-sidebar-hover`}
 				aria-expanded={isOpen}
 				aria-label="Toggle Users submenu"
 			>

@@ -31,7 +31,7 @@ function SidebarLink({ to, label, Icon, onClick }) {
         `${linkBase} ${
           isActive
             ? 'bg-primary text-white'
-            : 'text-gray-700 hover:bg-orange-50'
+            : 'text-text-primary hover:bg-sidebar-hover'
         }`
       }
     >
