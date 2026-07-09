@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getDashboardData } from '../../services/admin-panel/dashboardService'
 import useDocumentTitle from '../../hooks/useDocumentTitle'
+import MetricRow from '../../components/admin-panel/dashboard/MetricRow'
+import DiscoveryActivity from '../../components/admin-panel/dashboard/DiscoveryActivity'
+import LowerDashboardSection from '../../components/admin-panel/dashboard/LowerDashboardSection'
 
 export default function Dashboard() {
 
@@ -33,5 +36,13 @@ export default function Dashboard() {
 		return <p className="text-red-600">Error: {error}</p>
 	}
 
-	return <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
+	return (
+		<div className="flex flex-col gap-6">
+
+			<MetricRow />
+			<DiscoveryActivity />
+
+			<LowerDashboardSection />
+		</div>
+	)
 }
