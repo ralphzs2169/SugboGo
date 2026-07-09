@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getDashboardData } from '../../services/admin-panel/dashboardService'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 export default function Dashboard() {
+
+	useDocumentTitle('Dashboard | SugboGo Admin')
+
 	const [dashboardData, setDashboardData] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState(null)

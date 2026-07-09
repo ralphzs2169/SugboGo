@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getSuspiciousActivityData } from '../../services/admin-panel/SuspiciousActivityService'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 export default function SuspiciousActivities() {
+
+	useDocumentTitle('Suspicious Activities | SugboGo Admin')
+
 	const [suspiciousActivitiesData, setSuspiciousActivitiesData] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState(null)

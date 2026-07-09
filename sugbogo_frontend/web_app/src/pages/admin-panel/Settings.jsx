@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getSettingsData } from '../../services/admin-panel/settingsService'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 export default function Settings() {
+
+	useDocumentTitle('Settings | SugboGo Admin')
+
 	const [settingsData, setSettingsData] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState(null)

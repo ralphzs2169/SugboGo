@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getExplorerActivityData } from '../../services/admin-panel/explorerActivityService'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 export default function ExplorerActivities() {
+
+    useDocumentTitle('Activity | SugboGo Admin')
+
     const [activities, setActivities] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)

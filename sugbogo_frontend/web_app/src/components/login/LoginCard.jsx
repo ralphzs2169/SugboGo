@@ -1,64 +1,36 @@
-import PasswordInput from './PasswordInput'
-import SugboGoText from '../SugboGoText'
-import TextInput from './TextInput'
+import LoginForm from './LoginForm'
+import LoginIllustration from './LoginIllustration'
+import WaveBackground from '../WaveBackground'
+import loginBackground from '../../assets/backgrounds/admin-login-bg.svg'
 
-export default function LoginCard() {
+function LoginCard() {
 	return (
-		<article className="rounded-2xl bg-white p-0">
-			<div className="mb-8">
-			
+		<main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gray-100 px-4 py-8 text-gray-900 sm:px-6 lg:px-8">
 
-				<h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-					Welcome to <SugboGoText includeAdmin />
-				</h1>
-				<p className="mt-2 text-sm text-gray-500">Admin Dashboard</p>
+			{/* Background Image */}
+			<img
+				src={loginBackground}
+				alt=""
+				aria-hidden="true"
+				className="absolute inset-0 h-full w-full object-cover opacity-40"
+			/>
+
+			{/* Login Card */}
+			<div className="relative z-10 w-full max-w-6xl overflow-hidden rounded-3xl bg-white shadow-[0_20px_60px_rgba(15,23,42,0.12)] ring-1 ring-gray-200/80">
+				<div className="grid grid-cols-1 lg:grid-cols-[0.45fr_0.55fr]">
+
+					<LoginIllustration />
+
+					<section className="flex items-center justify-center px-6 py-8 sm:px-10 sm:py-10 lg:px-12 lg:py-12">
+						<div className="w-full max-w-md">
+							<LoginForm />
+						</div>
+					</section>
+				</div>
 			</div>
 
-			<form className="space-y-6" onSubmit={(event) => event.preventDefault()}>
-				<div className="space-y-4">
-					<TextInput
-						id="identifier"
-						name="identifier"
-						label="Email/Username"
-						autoComplete="username"
-						placeholder="admin@example.com"
-					/>
-
-					<PasswordInput
-						id="password"
-						name="password"
-						label="Password"
-						autoComplete="current-password"
-						placeholder="Enter your password"
-					/>
-				</div>
-
-				<div className="flex items-center justify-between gap-4 text-sm">
-					<label htmlFor="remember-me" className="flex select-none items-center gap-2 text-gray-600">
-						<input
-							id="remember-me"
-							name="remember-me"
-							type="checkbox"
-							className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-						/>
-						<span>Remember Me</span>
-					</label>
-
-					<a
-						href="#forgot-password"
-						className="font-medium text-primary transition hover:opacity-80 focus:outline-none focus-visible:text-primary"
-					>
-						Forgot Password?
-					</a>
-				</div>
-
-				<button
-					type="submit"
-					className="flex w-full items-center justify-center rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white transition duration-200 hover:brightness-95 active:translate-y-px focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
-				>
-					Login
-				</button>
-			</form>
-		</article>
+		</main>
 	)
 }
+
+export default LoginCard
