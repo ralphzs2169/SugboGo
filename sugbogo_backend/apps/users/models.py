@@ -4,6 +4,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
+# Custom user manager to handle user creation and superuser creation.
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -21,6 +22,9 @@ class UserManager(BaseUserManager):
         return self.create_user(email, password, **extra_fields)
 
 
+# Custom user model, replacing Django's default User model. This is
+# necessary because the default model uses a username field, but our ERD/data   
+# dictionary specifies that users are identified by email instead.
 class User(AbstractBaseUser, PermissionsMixin):
     class UserRole(models.TextChoices):
         EXPLORER = 'explorer', 'Explorer'
@@ -58,8 +62,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     USER_REPUTATION = models.DecimalField(
         max_digits=3, decimal_places=2, blank=True, null=True,
         validators=[MinValueValidator(0.01), MaxValueValidator(1.00)],
+    )   
+
+    
+    last_login = models.DateTimeField(
+        db_column="USER_LAST_LOGIN_AT",
+        blank=True,
+        null=True,
     )
-    USER_LAST_LOGIN_AT = models.DateTimeField(blank=True, null=True)
+
     USER_CREATED_AT = models.DateTimeField(auto_now_add=True)
     USER_UPDATED_AT = models.DateTimeField(auto_now=True)
 
