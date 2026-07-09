@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getUserData } from '../../services/admin-panel/userService'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 export default function Users() {
+
+	useDocumentTitle('Users | SugboGo Admin')
+
 	const [usersData, setUsersData] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState(null)

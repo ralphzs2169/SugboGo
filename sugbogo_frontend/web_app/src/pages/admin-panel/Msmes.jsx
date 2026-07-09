@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getMSMEData } from '../../services/admin-panel/msmeService'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 export default function Msmes() {
+
+	useDocumentTitle('MSMEs | SugboGo Admin')
+
 	const [msmesData, setMsmesData] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState(null)

@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { getAnalyticsData } from "../../services/admin-panel/analyticsService";
+import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 function Analytics() {
+
+    useDocumentTitle('Analytics | SugboGo Admin')
 
     const [analyticsData, setAnalyticsData] = useState(null);
     const [loading, setLoading] = useState(true);

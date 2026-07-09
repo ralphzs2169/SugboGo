@@ -1,7 +1,11 @@
-import LoginForm from '../../components/login/LoginForm'
+import LoginCard from '../../components/login/LoginCard'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 function Login() {
-  return <LoginForm />
+
+  useDocumentTitle('Login | SugboGo Admin')
+
+  return <LoginCard />
 }
 
 export default Login

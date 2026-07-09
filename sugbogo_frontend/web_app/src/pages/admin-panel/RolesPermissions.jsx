@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getRolesPermissionsData } from '../../services/admin-panel/rolesPermissionsService'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 export default function RolesPermissions() {
+
+  useDocumentTitle('Roles & Permissions | SugboGo Admin')
+
   const [rolesPermissionsData, setRolesPermissionsData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)

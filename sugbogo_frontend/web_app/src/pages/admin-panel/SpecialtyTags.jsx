@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getSpecialtyTagData } from '../../services/admin-panel/specialtyTagService'
+import useDocumentTitle from '../../hooks/useDocumentTitle'
 
 export default function SpecialtyTags() {
+
+	useDocumentTitle('Specialty Tags | SugboGo Admin')
+
 	const [specialtyTagsData, setSpecialtyTagsData] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState(null)
