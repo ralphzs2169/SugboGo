@@ -58,6 +58,10 @@ const topTrendingItems = [
   },
 ];
 
+/**
+ * LowerDashboardSection component that renders the lower section of the admin dashboard.
+ * It includes two business insight cards and a right-side stack with recent activity and quick actions.
+ */
 function LowerDashboardSection() {
   return (
     <div className="w-full bg-background-secondary">

@@ -1,23 +1,27 @@
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { useState } from 'react'
-import Sidebar from '../../components/admin-panel/Sidebar'
-import Header from '../../components/admin-panel/Header'
-import { PAGE_METADATA } from '../../constants/pageMetadata'
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
+import Sidebar from "../../components/admin-panel/Sidebar";
+import Header from "../../components/admin-panel/Header";
+import { PAGE_METADATA } from "../../constants/pageMetadata";
 
+/**
+ * AdminPanelLayout component that serves as the main layout for the admin panel.
+ * It includes a sidebar, header, and an outlet for rendering child routes.
+ */
 export default function AdminPanelLayout() {
-  const navigate = useNavigate()
-  const location = useLocation()
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const page = PAGE_METADATA[location.pathname] ?? {
-    title: 'SugboGo Admin',
-    subtitle: '',
-  }
+    title: "SugboGo Admin",
+    subtitle: "",
+  };
 
   const handleLogout = () => {
-    navigate('/admin-panel/dashboard')
-  }
+    navigate("/admin-panel/dashboard");
+  };
 
   return (
     <div className="min-h-screen bg-background-secondary text-text-primary">
@@ -35,10 +39,10 @@ export default function AdminPanelLayout() {
             onMenuClick={() => setIsSidebarOpen(true)}
           />
         </section>
-        <main className=" p-6 sm:p-8 "> 
+        <main className=" p-6 sm:p-8 ">
           <Outlet />
         </main>
       </div>
     </div>
-  )
+  );
 }
