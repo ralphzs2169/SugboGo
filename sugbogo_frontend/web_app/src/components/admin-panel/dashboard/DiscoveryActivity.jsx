@@ -1,7 +1,11 @@
-import React from 'react';
-import { Compass, TrendingUp, Activity } from 'lucide-react';
-import DiscoveryChart from './DiscoveryChart';
+import React from "react";
+import { Compass, TrendingUp, Activity } from "lucide-react";
+import DiscoveryChart from "./DiscoveryChart";
 
+/**
+ * DiscoveryActivity component that displays a summary of discovery metrics for the current week.
+ * It includes a header with an icon, a bar chart visualization, and a footer with trend information and a graph.
+ */
 function DiscoveryActivity() {
   return (
     <div className="w-full rounded-lg border border-stroke bg-background-primary p-6 shadow-sm">
@@ -11,7 +15,7 @@ function DiscoveryActivity() {
         <div className="flex items-start gap-3">
           {/* New Icon Before Title */}
           <Activity className="h-6 w-6 text-text-primary mt-1 stroke-[2.5]" />
-          
+
           <div>
             <h2 className="text-2xl font-bold text-text-primary">
               Discovery Activity
@@ -21,7 +25,7 @@ function DiscoveryActivity() {
             </p>
           </div>
         </div>
-        
+
         {/* Compass Action Icon */}
         {/* <button className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50/60 text-[#f27e13] transition-colors hover:bg-orange-100/70">
           <Compass className="h-5 w-5 stroke-[2]" />
@@ -40,15 +44,15 @@ function DiscoveryActivity() {
             <TrendingUp className="h-3.5 w-3.5 stroke-[2.5]" />
             +12.5% vs last week
           </span>
-          
+
           {/* Custom SVG Sparkline Graph */}
-          <svg 
-            className="h-6 w-16 text-emerald-500" 
-            viewBox="0 0 60 20" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2" 
-            strokeLinecap="round" 
+          <svg
+            className="h-6 w-16 text-emerald-500"
+            viewBox="0 0 60 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
             strokeLinejoin="round"
           >
             <path d="M2 16 Q 12 16, 20 13 T 36 4 T 48 10 T 58 2" />

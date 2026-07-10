@@ -4,6 +4,9 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 import MetricRow from "../../components/admin-panel/MetricRow";
 import MsmeTable from "../../components/admin-panel/msme/MsmeTable";
 
+/**
+ * Msmes component that displays a list of MSMEs.
+ */
 export default function Msmes() {
   useDocumentTitle("MSMEs | SugboGo Admin");
 

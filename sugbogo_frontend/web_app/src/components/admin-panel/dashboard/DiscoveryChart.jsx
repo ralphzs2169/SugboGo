@@ -1,5 +1,12 @@
-import React from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, Cell, LabelList } from 'recharts';
+import React from "react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  Cell,
+  LabelList,
+} from "recharts";
 
 const placeholderData = [
   {
@@ -28,12 +35,16 @@ const placeholderData = [
   },
 ];
 
+/**
+ * DiscoveryChart component that renders a bar chart visualizing key discovery metrics.
+ * Uses Recharts for rendering and includes custom styling for bars, labels, and axes.
+ */
 function DiscoveryChart() {
   return (
     <div className="mt-10 h-[200px] w-full border-b border-stroke pb-2">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart 
-          data={placeholderData} 
+        <BarChart
+          data={placeholderData}
           margin={{ top: 25, right: 10, left: 10, bottom: 5 }}
           barCategoryGap="5%" // Adds natural spacing between categories
         >
@@ -42,24 +53,25 @@ function DiscoveryChart() {
             dataKey="label"
             axisLine={false}
             tickLine={false}
-            tick={{ fill: 'var(--color-text-secondary)', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em' }}
+            tick={{
+              fill: "var(--color-text-secondary)",
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: "0.05em",
+            }}
             dy={10} // Pushes the text labels down slightly
           />
 
           {/* The Bar mapping with rounded top corners */}
-          <Bar 
-            dataKey="numericValue" 
-            maxBarSize={150} 
-            radius={[12, 12, 0, 0]}
-          >
+          <Bar dataKey="numericValue" maxBarSize={150} radius={[12, 12, 0, 0]}>
             {placeholderData.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
-                fill={entry.color} 
+              <Cell
+                key={`cell-${index}`}
+                fill={entry.color}
                 className="transition-opacity duration-300 hover:opacity-90 cursor-pointer"
               />
             ))}
-            
+
             {/* Value Label positioning on top of the bars */}
             <LabelList
               dataKey="displayValue"
@@ -74,6 +86,6 @@ function DiscoveryChart() {
       </ResponsiveContainer>
     </div>
   );
-};
+}
 
 export default DiscoveryChart;
