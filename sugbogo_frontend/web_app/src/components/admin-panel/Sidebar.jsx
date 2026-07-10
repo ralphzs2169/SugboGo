@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import SidebarLink from './SidebarLink'
 import UsersLinkDropdown from './UsersLinkDropdown'
 import SugboGoText from '../SugboGoText'
 import {
@@ -19,28 +19,16 @@ const navigation = [
   { to: '/admin-panel/settings', label: 'Settings', Icon: FiSettings },
 ]
 
-const linkBase =
-  'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-[13px] font-medium transition duration-200'
 
-function SidebarLink({ to, label, Icon, onClick }) {
-  return (
-    <NavLink
-      to={to}
-      onClick={onClick}
-      className={({ isActive }) =>
-        `${linkBase} ${
-          isActive
-            ? 'bg-primary text-white'
-            : 'text-text-primary hover:bg-sidebar-hover'
-        }`
-      }
-    >
-      <Icon className="h-5 w-5 shrink-0" />
-      <span className="truncate">{label}</span>
-    </NavLink>
-  )
-}
-
+/**
+ * Persistent left sidebar navigation for the super admin console.
+ * Includes site logo, primary navigation links, nested user dropdown, and a logout action.
+ *
+ * @component
+ * @param {function} onLogout - Callback event handler invoked when the logout button is pressed.
+ * @param {boolean} isOpen - Controls whether the mobile sidebar overlay and panel are visible.
+ * @param {function} onClose - Callback event handler invoked to close the mobile sidebar overlay or panel.
+ */
 export default function Sidebar({
   onLogout,
   isOpen,

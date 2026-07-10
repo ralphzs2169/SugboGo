@@ -4,7 +4,7 @@ import DiscoveryChart from './DiscoveryChart';
 
 function DiscoveryActivity() {
   return (
-    <div className="w-full rounded-[24px] border border-stroke bg-background-primary p-6 shadow-sm">
+    <div className="w-full rounded-lg border border-stroke bg-background-primary p-6 shadow-sm">
       {/* Top Header Section */}
       <div className="flex items-start justify-between">
         {/* Left Side: Icon + Text Wrapper */}

@@ -9,7 +9,7 @@ const activities = [
 
 function RecentActivity(){
   return (
-    <div className="rounded-[24px] border border-stroke bg-background-primary p-6 shadow-sm flex flex-col justify-between h-full">
+    <div className="rounded-lg border border-stroke bg-background-primary p-6 shadow-sm flex flex-col justify-between h-full">
       {/* Header Container wrapping both Icon and Text */}
       <div className="w-full flex items-center justify-between mb-5 pb-3 border-b border-stroke">
         <div className="flex items-center gap-2.5">
