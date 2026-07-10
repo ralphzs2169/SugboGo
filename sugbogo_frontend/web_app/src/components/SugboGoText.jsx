@@ -1,7 +1,15 @@
-import SugboGoLogo from '../assets/logos/sugbogo-logo.svg'
+import SugboGoLogo from "../assets/logos/sugbogo-logo.svg";
 
+/**
+ * SugboGoText component displays the SugboGo logo and text.
+ * @component
+
+ * @param {string} className - Optional additional CSS classes for the container.
+  * @param {boolean} includeAdmin - If true, appends "Admin" to the text.
+  * @param {boolean} includeLogo - If true, includes the SugboGo logo image.
+*/
 export default function SugboGoText({
-  className = '',
+  className = "",
   includeAdmin = false,
   includeLogo = false,
 }) {
@@ -21,5 +29,5 @@ export default function SugboGoText({
         {includeAdmin && <span> Admin</span>}
       </span>
     </span>
-  )
+  );
 }

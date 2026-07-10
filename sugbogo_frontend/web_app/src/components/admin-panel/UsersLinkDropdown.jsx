@@ -1,77 +1,71 @@
-import { useEffect, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
-import { FiChevronDown, FiShield, FiUsers } from 'react-icons/fi'
-
-const linkBase =
-	'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-[13px] font-medium transition duration-200'
-
-function SidebarLink({ to, label, Icon }) {
-	return (
-		<NavLink
-			to={to}
-			className={({ isActive }) =>
-				`${linkBase} ${isActive ? 'bg-primary text-white' : 'text-text-primary hover:bg-sidebar-hover'}`
-			}
-		>
-			<Icon className="h-5 w-5 shrink-0" />
-			<span className="truncate">{label}</span>
-		</NavLink>
-	)
-}
+import { useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { FiChevronDown, FiShield, FiUsers } from "react-icons/fi";
+import { linkBase } from "./SidebarLink";
+import SidebarLink from "./SidebarLink";
 
 function UsersLinkDropdown() {
-	const location = useLocation()
-	const [isOpen, setIsOpen] = useState(location.pathname.startsWith('/admin-panel/users'))
-	const [isManuallyCollapsed, setIsManuallyCollapsed] = useState(false)
+  const location = useLocation();
+  const [isOpen, setIsOpen] = useState(
+    location.pathname.startsWith("/admin-panel/users"),
+  );
+  const [isManuallyCollapsed, setIsManuallyCollapsed] = useState(false);
 
-	useEffect(() => {
-		if (location.pathname.startsWith('/admin-panel/users') && !isManuallyCollapsed) {
-			setIsOpen(true)
-		}
+  useEffect(() => {
+    if (
+      location.pathname.startsWith("/admin-panel/users") &&
+      !isManuallyCollapsed
+    ) {
+      setIsOpen(true);
+    }
 
-		if (!location.pathname.startsWith('/admin-panel/users')) {
-			setIsManuallyCollapsed(false)
-		}
-	}, [location.pathname, isManuallyCollapsed])
+    if (!location.pathname.startsWith("/admin-panel/users")) {
+      setIsManuallyCollapsed(false);
+    }
+  }, [location.pathname, isManuallyCollapsed]);
 
-	return (
-		<div>
-			<button
-				type="button"
-				onClick={() => {
-					setIsOpen((current) => {
-						const nextIsOpen = !current
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen((current) => {
+            const nextIsOpen = !current;
 
-						return nextIsOpen
-					})
-					setIsManuallyCollapsed(false)
-				}}
-				className={`${linkBase} w-full justify-between text-text-primary hover:bg-sidebar-hover`}
-				aria-expanded={isOpen}
-				aria-label="Toggle Users submenu"
-			>
-				<span className="flex min-w-0 items-center gap-3 rounded-lg">
-					<FiUsers className="h-5 w-5 shrink-0" />
-					<span className="truncate">Users</span>
-				</span>
+            return nextIsOpen;
+          });
+          setIsManuallyCollapsed(false);
+        }}
+        className={`${linkBase} w-full justify-between text-text-primary hover:bg-interaction-hover`}
+        aria-expanded={isOpen}
+        aria-label="Toggle Users submenu"
+      >
+        <span className="flex min-w-0 items-center gap-3 rounded-lg">
+          <FiUsers className="h-5 w-5 shrink-0" />
+          <span className="truncate">Users</span>
+        </span>
 
-				<FiChevronDown
-					className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-				/>
-			</button>
+        <FiChevronDown
+          className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
 
-			{isOpen ? (
-				<div className="mt-2 border-l border-stroke-strong ml-6">
-					<SidebarLink to="/admin-panel/users/all" label="All Users" Icon={FiUsers} />
-					<SidebarLink
-						to="/admin-panel/users/roles-permissions"
-						label="Roles & Permissions"
-						Icon={FiShield}
-					/>
-				</div>
-			) : null}
-		</div>
-	)
+      {isOpen ? (
+        <div className="mt-2 border-l border-stroke-strong ml-6">
+          <SidebarLink
+            to="/admin-panel/users/all"
+            label="All Users"
+            Icon={FiUsers}
+          />
+          <SidebarLink
+            to="/admin-panel/users/roles-permissions"
+            label="Roles & Permissions"
+            Icon={FiShield}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-export default UsersLinkDropdown
+export default UsersLinkDropdown;

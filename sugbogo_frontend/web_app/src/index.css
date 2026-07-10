@@ -10,12 +10,15 @@
   /* Stroke Borders */
   --color-stroke: #E5E7EB;           /* gray-200 */
   --color-stroke-strong: #D1D5DB;    /* gray-300 */
+  --color-stroke-active: #3481fb;
 
   /* Text Colors */
   --color-text-primary: #0F172A;     /* slate-800 */
   --color-text-secondary: #94a3b8;   /* slate-400 */
 
-  --color-sidebar-hover: #E5E7EB;
+  --color-interaction-hover: #F3F4F6;
+  --color-text-hover: #737373;
+
   --color-action-icon-background: #FFF7ED;
 }
 
@@ -28,9 +31,11 @@ html.dark {
   --color-stroke-strong: #475569;
 
   --color-text-primary: #F8FAFC;
-  --color-text-secondary: #CBD5E1;
+  --color-text-secondary: #a6a4a3;
 
-  --color-sidebar-hover: #2A2A2A;
+  --color-interaction-hover: #2A2A2A;
+  --color-text-hover: #9CA3AF;
+
   --color-action-icon-background: #2A2A2A;
 }
 

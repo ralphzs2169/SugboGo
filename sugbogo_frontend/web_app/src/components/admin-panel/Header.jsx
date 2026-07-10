@@ -1,24 +1,31 @@
-import React from 'react';
-import { Search, Bell, Menu } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import ThemeToggle from '../ThemeToggle';
+import React from "react";
+import { Search, Bell, Menu } from "lucide-react";
+import { useEffect, useState } from "react";
+import ThemeToggle from "../ThemeToggle";
 
-function Header({ title, subtitle, onMenuClick,}){
-
+/**
+ * Admin panel top navigation header with search, theme toggle, notifications, and profile actions.
+ *
+ * @component
+ * @param {string} title - Main heading text displayed in the header.
+ * @param {string} subtitle - Supporting description text shown below the heading.
+ * @param {function} onMenuClick - Callback event handler invoked when the mobile hamburger button is pressed.
+ */
+function Header({ title, subtitle, onMenuClick }) {
   const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('theme') === 'dark';
+    return localStorage.getItem("theme") === "dark";
   });
 
   useEffect(() => {
     if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
     } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
     }
   }, [darkMode]);
-  
+
   return (
     <header className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
       {/* Left Side */}
@@ -35,11 +42,11 @@ function Header({ title, subtitle, onMenuClick,}){
 
         {/* Title & Subtitle */}
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-extrabold tracking-tight text-text-primary sm:text-xl">
+          <h1 className="truncate text-lg font-bold  text-text-primary sm:text-xl">
             {title}
           </h1>
 
-          <p className="mt-1 hidden truncate text-xs tracking-wide text-text-secondary sm:block sm:text-sm">
+          <p className="hidden truncate text-xs text-text-secondary sm:block sm:text-sm">
             {subtitle}
           </p>
         </div>
@@ -85,6 +92,6 @@ function Header({ title, subtitle, onMenuClick,}){
       </div>
     </header>
   );
-};
+}
 
 export default Header;
