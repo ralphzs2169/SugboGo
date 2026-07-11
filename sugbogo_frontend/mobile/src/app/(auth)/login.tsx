@@ -15,7 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { googleLogoSvg } from '../../utils/svg/googleLogo';
 
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function Login() {
   const router = useRouter();
@@ -100,9 +100,13 @@ export default function Login() {
 
           {errorMsg ? <Text className="mb-3 text-[12px] font-semibold text-[#DC2626]">{errorMsg}</Text> : null}
 
-          <TouchableOpacity className="mb-5 mt-2 items-center rounded-lg bg-[#F27F0D] px-4 py-4" onPress={handleLogin}>
-            <Text className="text-[16px] font-bold text-white">Login →</Text>
-          </TouchableOpacity>
+          <TouchableOpacity 
+  className="mb-5 mt-2 flex-row items-center justify-center rounded-lg bg-[#F27F0D] px-4 py-4" 
+  onPress={handleLogin}
+>
+  <Text className="mr-2 text-[16px] font-bold text-white">Login</Text>
+  <MaterialCommunityIcons name="login" size={20} color="white" />
+</TouchableOpacity>
 
           <View className="mb-5 flex-row items-center">
             <View style={styles.dividerLine} />

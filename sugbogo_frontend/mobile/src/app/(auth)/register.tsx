@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 
 export default function Register() {
   const router = useRouter();
@@ -156,11 +157,12 @@ export default function Register() {
           {errorMsg ? <Text className="mb-3 text-[12px] font-semibold text-[#DC2626]">{errorMsg}</Text> : null}
 
           <TouchableOpacity
-            className="mb-5 mt-2 items-center rounded-lg bg-[#F27F0D] px-4 py-4"
-            onPress={handleRegister}
-          >
-            <Text className="text-[16px] font-bold text-white">Create Account →</Text>
-          </TouchableOpacity>
+  className="mb-5 mt-2 flex-row items-center justify-center rounded-lg bg-[#F27F0D] px-4 py-4"
+  onPress={handleRegister}
+>
+  <Text className="mr-2 text-[16px] font-bold text-white">Create Account</Text>
+  <MaterialIcons name="keyboard-arrow-right" size={20} color="white" />
+</TouchableOpacity>
 
           <View className="mb-5 flex-row items-center">
             <View style={styles.dividerLine} />
