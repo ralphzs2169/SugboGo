@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .serializers import LoginSerializer, LogoutSerializer
+from .serializers import LoginSerializer, LogoutSerializer, RegisterSerializer
 
 from apps.users.models import User
 
@@ -77,9 +77,34 @@ def login_view(request):
 
 @api_view(["POST"])
 def register_view(request):
-    return Response({
-        "message": "Register endpoint"
-    })
+    serializer = RegisterSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    data = serializer.validated_data
+
+    user = User.objects.create_user(
+        email=data["email"],
+        password=data["password"],
+        USER_FNAME=data["first_name"],
+        USER_LNAME=data["last_name"],
+        USER_ROLE=User.UserRole.EXPLORER,   # hardcoded — never client-controlled
+        USER_STATUS=User.UserStatus.ACTIVE,  # Explorers are active immediately
+    )
+
+    tokens = _issue_tokens(user, remember_me=False)
+
+    return Response(
+        {
+            "user": {
+                "id": user.USER_ID,
+                "email": user.USER_EMAIL,
+                "role": user.USER_ROLE,
+                "status": user.USER_STATUS,
+            },
+            **tokens,
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 
 @api_view(["POST"])
