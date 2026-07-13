@@ -54,7 +54,7 @@ export default function Register() {
 
     if (email === MOCK_EMAIL && password === MOCK_PASSWORD) {
       setErrorMsg("");
-      router.push("/(auth)/login");
+      router.push("/(auth)/interest");
     } else {
       setErrorMsg(
         "Registration failed (demo). Please use the mock email/password.",
@@ -67,7 +67,7 @@ export default function Register() {
       <AuthHeader />
 
       <AuthCard>
-        <Text className="mb-6 text-center text-[20px] font-bold text-[#1A1A1A]">
+        <Text className="mb-6 text-center text-lg font-bold text-dark">
           Create your Account
         </Text>
 
@@ -103,7 +103,7 @@ export default function Register() {
         />
 
         {errorMsg ? (
-          <Text className="mb-3 text-[12px] font-semibold text-[#DC2626]">
+          <Text className="mb-3 text-small font-semibold text-error">
             {errorMsg}
           </Text>
         ) : null}
@@ -138,7 +138,7 @@ export default function Register() {
       <BottomAuthLink
         text="Already have an account?"
         actionText="Login"
-        onPress={() => router.push("/(auth)/login")}
+        onPress={() => router.push("/(auth)/interest")}
       />
     </AuthLayout>
   );

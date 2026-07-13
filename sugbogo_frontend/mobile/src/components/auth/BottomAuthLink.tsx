@@ -19,10 +19,10 @@ export default function BottomAuthLink({
 }: BottomAuthLinkProps) {
   return (
     <View className="mt-6 flex-row items-center">
-      <Text className="text-[14px] text-[#666]">{text} </Text>
+      <Text className="text-body text-muted">{text} </Text>
 
       <TouchableOpacity onPress={onPress}>
-        <Text className="text-[14px] font-bold text-[#F27F0D]">
+        <Text className="text-body font-bold text-brand">
           {actionText}
         </Text>
       </TouchableOpacity>

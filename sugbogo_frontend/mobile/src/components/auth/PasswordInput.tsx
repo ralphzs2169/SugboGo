@@ -30,17 +30,17 @@ export default function PasswordInput({
   return (
     <View className="mb-4">
       <View className="mb-1.5 flex-row items-center justify-between">
-        <Text className="text-[11px] font-bold tracking-[0.5px] text-[#444]">
+        <Text className="text-xs font-bold tracking-[0.5px] text-dark">
           {label}
         </Text>
 
         {rightElement}
       </View>
 
-      <View className="flex-row items-center rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] px-[14px]">
+      <View className="flex-row items-center rounded-input border border-disabled bg-surface px-[14px]">
         <TextInput
-          className="flex-1 py-[14px] text-[14px] text-[#333]"
-          placeholderTextColor="#999"
+          className="flex-1 py-[14px] text-body text-dark"
+          placeholderTextColor="#999999" // matches `placeholder` token
           secureTextEntry={!showPassword}
           {...props}
         />
@@ -49,7 +49,7 @@ export default function PasswordInput({
           <Ionicons
             name={showPassword ? "eye-outline" : "eye-off-outline"}
             size={18}
-            color="#999"
+            color="#999999" // matches `placeholder` token
           />
         </TouchableOpacity>
       </View>

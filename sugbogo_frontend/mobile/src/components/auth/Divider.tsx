@@ -11,9 +11,10 @@ interface DividerProps {
 export default function Divider({ text }: DividerProps) {
   return (
     <View className="mb-8 flex-row items-center">
-      <View className="h-px flex-1 bg-gray-200" />
+      <View className="h-px flex-1 bg-border" />
 
-      <Text className="mx-3 text-[11px] font-semibold tracking-[0.5px] text-[#999]">
+      <Text className="mx-3 text-xs font-semibold tracking-[0.5px] text-placeholder"
+      >
         {text}
       </Text>
 
