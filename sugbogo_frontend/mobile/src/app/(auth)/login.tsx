@@ -1,18 +1,18 @@
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Text, TouchableOpacity } from "react-native";
-import { useRouter } from "expo-router";
 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import AuthLayout from "@/components/auth/AuthLayout";
-import AuthHeader from "@/components/auth/AuthHeader";
-import AuthCard from "@/components/auth/AuthCard";
-import FormInput from "@/components/auth/FormInput";
-import PasswordInput from "@/components/auth/PasswordInput";
-import AuthButton from "@/components/auth/AuthButton";
-import Divider from "@/components/auth/Divider";
-import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
-import BottomAuthLink from "@/components/auth/BottomAuthLink";
+import AuthButton from "@/features/auth/components/AuthButton";
+import AuthCard from "@/features/auth/components/AuthCard";
+import AuthHeader from "@/features/auth/components/AuthHeader";
+import AuthLayout from "@/features/auth/components/AuthLayout";
+import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import Divider from "@/features/auth/components/Divider";
+import FormInput from "@/features/auth/components/FormInput";
+import PasswordInput from "@/features/auth/components/PasswordInput";
+import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
 
 /**
  * Login component provides a user interface for logging into the application.
