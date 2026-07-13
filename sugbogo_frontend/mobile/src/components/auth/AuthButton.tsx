@@ -28,11 +28,11 @@ export default function AuthButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
-      className={`mb-8 mt-2 flex-row items-center justify-center rounded-lg bg-[#F27F0D] px-4 py-4 ${
+      className={`mb-8 mt-2 flex-row items-center justify-center rounded-btn bg-brand px-4 py-4 ${
         disabled ? "opacity-50" : ""
       } ${className}`}
     >
-      <Text className="mr-2 text-[16px] font-bold text-white">{title}</Text>
+      <Text className="mr-2 text-md font-bold text-white">{title}</Text>
 
       {icon}
     </TouchableOpacity>

@@ -16,15 +16,15 @@ function AuthLayout({ children }: AuthLayoutProps) {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        className="flex-1 bg-[#F5F5F5]"
+        className="flex-1 bg-background"
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           flexGrow: 1,
           alignItems: "center",
           justifyContent: "center",
-          paddingHorizontal: 24,
-          paddingTop: 60,
-          paddingBottom: 40,
+          paddingHorizontal: 24, // screen-x
+          paddingTop: 60,        // screen-top
+          paddingBottom: 32,     // xl
         }}
       >
         {children}

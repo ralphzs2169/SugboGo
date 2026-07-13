@@ -10,9 +10,9 @@ interface LoginFooterProps {
 export default function LoginFooter({ onPressRegister }: LoginFooterProps) {
   return (
     <View className="mt-6 flex-row items-center">
-      <Text className="text-[14px] text-[#666]">New to SugboGo? </Text>
+      <Text className="text-body text-muted">New to SugboGo? </Text>
       <TouchableOpacity onPress={onPressRegister}>
-        <Text className="text-[14px] font-bold text-[#F27F0D]">
+        <Text className="text-body font-bold text-brand">
           Create an account
         </Text>
       </TouchableOpacity>

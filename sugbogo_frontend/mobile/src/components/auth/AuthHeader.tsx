@@ -15,12 +15,12 @@ export default function AuthHeader({
         resizeMode="contain"
       />
 
-      <Text className="text-[32px] font-bold tracking-[0.5px]">
-        <Text className="text-[#F27F0D]">Sugbo</Text>
-        <Text className="text-[#1A1A1A]">Go</Text>
+      <Text className="text-logo text-[32px] font-bold tracking-[0.5px]">
+        <Text className="text-brand">Sugbo</Text>
+        <Text className="text-dark">Go</Text>
       </Text>
 
-      <Text className="mt-1 text-[13px] text-[#666]">{subtitle}</Text>
+      <Text className="mt-1 text-body text-muted">{subtitle}</Text>
     </View>
   );
 }

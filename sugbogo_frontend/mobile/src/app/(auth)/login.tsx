@@ -42,7 +42,7 @@ export default function Login() {
       <AuthHeader />
 
       <AuthCard>
-        <Text className="mb-6 text-center text-[20px] font-bold text-[#1A1A1A]">
+        <Text className="mb-6 text-center text-lg font-bold text-dark">
           Login to your account
         </Text>
 
@@ -62,7 +62,7 @@ export default function Login() {
           onChangeText={setPassword}
           rightElement={
             <TouchableOpacity>
-              <Text className="text-[11px] font-bold tracking-[0.5px] text-[#F27F0D]">
+              <Text className="text-xs font-bold tracking-[0.5px] text-brand">
                 FORGOT?
               </Text>
             </TouchableOpacity>
@@ -70,7 +70,7 @@ export default function Login() {
         />
 
         {errorMsg ? (
-          <Text className="mb-3 text-[12px] font-semibold text-[#DC2626]">
+          <Text className="mb-3 text-small font-semibold text-error">
             {errorMsg}
           </Text>
         ) : null}
