@@ -30,6 +30,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         EXPLORER = 'explorer', 'Explorer'
         MERCHANT = 'merchant', 'Merchant'
         ADMIN = 'admin', 'Admin'
+        SUPER_ADMIN = 'super_admin', 'Super Admin'
 
     class UserStatus(models.TextChoices):
         PENDING = 'pending', 'Pending'
@@ -59,6 +60,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     USER_MI = models.CharField(max_length=1, blank=True, null=True)
     USER_GENDER = models.CharField(max_length=10, choices=Gender.choices, blank=True, null=True)
     USER_IS_VERIFIED = models.BooleanField(default=False)
+    HAS_COMPLETED_INTEREST_SELECTION = models.BooleanField(default=False)
     USER_REPUTATION = models.DecimalField(
         max_digits=3, decimal_places=2, blank=True, null=True,
         validators=[MinValueValidator(0.01), MaxValueValidator(1.00)],
