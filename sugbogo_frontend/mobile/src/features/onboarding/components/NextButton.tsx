@@ -1,4 +1,5 @@
-import { Text, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Text, TouchableOpacity, View } from "react-native";
 
 interface NextButtonProps {
   title: string;
@@ -14,9 +15,14 @@ export default function NextButton({ title, onPress }: NextButtonProps) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="mx-6 mt-8 h-14 items-center justify-center rounded-full bg-[#F27F0D]"
+      activeOpacity={0.8}
+      className="h-12 flex-row items-center justify-center rounded-full bg-brand px-5"
     >
-      <Text className="text-lg font-semibold text-white">{title}</Text>
+      <View className="flex-row items-center gap-2">
+        <Text className="text-base font-semibold text-white">{title}</Text>
+
+        <Ionicons name="arrow-forward" size={18} color="white" />
+      </View>
     </TouchableOpacity>
   );
 }

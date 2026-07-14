@@ -8,10 +8,8 @@ import {
   useWindowDimensions,
 } from "react-native";
 
-import NextButton from "./components/NextButton";
+import OnboardingFooter from "./components/OnboardingFooter";
 import OnboardingSlide from "./components/OnboardingSlide";
-import PaginationDots from "./components/PaginationDots";
-import SkipButton from "./components/SkipButton";
 import { onboardingData } from "./constants/onboardingData";
 import { OnboardingItem } from "./types";
 
@@ -59,6 +57,7 @@ export default function Onboarding() {
     setCurrentIndex(index);
   };
 
+  const isLastPage = currentIndex === onboardingData.length - 1;
   return (
     <View className="flex-1 bg-white">
       <FlatList
@@ -76,21 +75,13 @@ export default function Onboarding() {
         onMomentumScrollEnd={handleMomentumScrollEnd}
       />
 
-      <View className="pb-10">
-        <SkipButton onPress={handleSkip} />
-
-        <PaginationDots
-          total={onboardingData.length}
-          currentIndex={currentIndex}
-        />
-
-        <NextButton
-          title={
-            currentIndex === onboardingData.length - 1 ? "Get Started" : "Next"
-          }
-          onPress={handleNext}
-        />
-      </View>
+      <OnboardingFooter
+        isLastPage={isLastPage}
+        total={onboardingData.length}
+        currentIndex={currentIndex}
+        onSkip={handleSkip}
+        onNext={handleNext}
+      />
     </View>
   );
 }

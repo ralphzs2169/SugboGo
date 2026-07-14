@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Text, TouchableOpacity, View, SafeAreaView } from "react-native";
 import { useRouter } from "expo-router";
+import { useState } from "react";
+import { Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import InterestGrid from "../../components/interests/InterestGrid";
 
 const MIN_SELECTION = 3;
@@ -11,7 +12,7 @@ export default function Interests() {
 
   const handleToggle = (id: string) => {
     setSelected((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -29,7 +30,9 @@ export default function Interests() {
           <Text className="text-dark">Go</Text>
         </Text>
 
-        <TouchableOpacity onPress={() => router.push("/(explorer)/(tabs)/explore")}>
+        <TouchableOpacity
+          onPress={() => router.push("/(explorer)/(tabs)/explore")}
+        >
           <Text className="text-body font-semibold tracking-widest text-placeholder">
             SKIP FOR NOW
           </Text>

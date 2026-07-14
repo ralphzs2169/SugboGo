@@ -10,7 +10,10 @@ export default function AuthHeader({
   return (
     <View className="mb-6 items-center">
       <SugboGoLogo />
-
+      <Text className="text-logo text-[32px] font-bold tracking-[0.5px]">
+        <Text className="text-brand">Sugbo</Text>
+        <Text className="text-dark">Go</Text>
+      </Text>
       <Text className="mt-1 text-body text-muted">{subtitle}</Text>
     </View>
   );
