@@ -1,15 +1,15 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
-import AdminPanelLayout from './pages/admin-panel/AdminPanelLayout';
-import Dashboard from './pages/admin-panel/Dashboard';
-import Msmes from './pages/admin-panel/Msmes';
-import Users from './pages/admin-panel/Users';
-import ExplorerActivities from './pages/admin-panel/ExplorerActivities';
-import SpecialtyTags from './pages/admin-panel/SpecialtyTags';
-import SuspiciousActivities from './pages/admin-panel/SuspiciousActivities';
-import Analytics from './pages/admin-panel/Analytics';
-import Settings from './pages/admin-panel/Settings';
-import RolesPermissions from './pages/admin-panel/RolesPermissions';
-import Login from './pages/admin-panel/Login';
+import { Navigate, Route, Routes } from "react-router-dom";
+import AdminPanelLayout from "@/features/admin-panel/pages/AdminPanelLayout";
+import Dashboard from "@/features/admin-panel/pages/Dashboard";
+import Msmes from "@/features/admin-panel/pages/Msmes";
+import Users from "@/features/admin-panel/pages/Users";
+import ExplorerActivities from "@/features/admin-panel/pages/ExplorerActivities";
+import SpecialtyTags from "@/features/admin-panel/pages/SpecialtyTags";
+import SuspiciousActivities from "@/features/admin-panel/pages/SuspiciousActivities";
+import Analytics from "@/features/admin-panel/pages/Analytics";
+import Settings from "@/features/admin-panel/pages/Settings";
+import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
+import Login from "@/features/admin-panel/pages/Login";
 
 function App() {
   return (
@@ -31,7 +31,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
-  )
+  );
 }
 
-export default App
+export default App;
