@@ -12,7 +12,7 @@ interface AuthCardProps {
 export default function AuthCard({ children }: AuthCardProps) {
   return (
     <View
-      className="w-full rounded-card bg-white px-8 py-12"
+      className="w-full rounded-card bg-surface px-8 py-12"
       style={{
         shadowColor: "#000",
         shadowOffset: {

@@ -2,9 +2,9 @@
  * InterestTag component renders a single selectable tag/chip.
  * Used inside InterestGrid to represent individual MSME specialty categories.
  *
-**/
+ **/
 
-import { TouchableOpacity, Text } from "react-native";
+import { Text, TouchableOpacity } from "react-native";
 
 interface InterestTagProps {
   /** The label text displayed inside the tag */
@@ -24,16 +24,12 @@ export default function InterestTag({
     <TouchableOpacity
       onPress={onPress}
       className={`m-1 rounded-tag border px-4 py-2 ${
-        isSelected
-          ? "border-brand bg-brand"   
-          : "border-disabled bg-white" 
+        isSelected ? "border-brand bg-brand" : "border-disabled bg-white"
       }`}
     >
       <Text
         className={`text-body font-medium ${
-          isSelected
-            ? "text-white"  
-            : "text-dark"   
+          isSelected ? "text-white" : "text-text-primary"
         }`}
       >
         {label}

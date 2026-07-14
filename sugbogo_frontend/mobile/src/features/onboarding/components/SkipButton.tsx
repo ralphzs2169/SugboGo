@@ -11,7 +11,7 @@ interface SkipButtonProps {
 export default function SkipButton({ onPress }: SkipButtonProps) {
   return (
     <TouchableOpacity onPress={onPress} className="self-end px-6 py-4">
-      <Text className="text-[16px] font-semibold text-[#666666]">Skip</Text>
+      <Text className="text-base font-semibold text-[#666666]">Skip</Text>
     </TouchableOpacity>
   );
 }

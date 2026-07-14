@@ -10,7 +10,7 @@
 import { View } from "react-native";
 import InterestTag from "./InterestTag";
 
-/** 
+/**
  * Predefined list of SugboGo specialty interest tags.
  * These correspond to MSME specialty categories in the manuscript.
  */

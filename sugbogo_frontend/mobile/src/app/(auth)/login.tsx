@@ -31,7 +31,7 @@ export default function Login() {
   const handleLogin = () => {
     if (email === MOCK_EMAIL && password === MOCK_PASSWORD) {
       setErrorMsg("");
-      router.replace("/(explorer)/(tabs)/explore");
+      router.replace("/(setup)/interests");
     } else {
       setErrorMsg("Invalid email or password. Please try again.");
     }
@@ -42,7 +42,7 @@ export default function Login() {
       <AuthHeader />
 
       <AuthCard>
-        <Text className="mb-6 text-center text-lg font-bold text-dark">
+        <Text className="mb-6 text-center text-lg font-bold text-text-primary">
           Login to your account
         </Text>
 

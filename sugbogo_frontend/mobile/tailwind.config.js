@@ -6,12 +6,9 @@ module.exports = {
     extend: {
       // ── COLORS ──────────────────────────────
       colors: {
-        background: "#ebe8e8", // screen bg
-        surface: "#fcf9f9", // card/top bar bg
-
         brand: "#F27F0D", // SugboGo orange
-        dark: "#1A1A1A", // main text
-        muted: "#666666", // subtitle/gray text
+        background: "#F3F4F6", // screen bg
+        surface: "#FFFFFF", // card/top bar bg
 
         placeholder: "#999999", // skip button, disabled text
 
@@ -25,7 +22,6 @@ module.exports = {
           primary: "#1A1A1A",
           secondary: "#666666",
           tertiary: "#999999",
-          inverse: "#FFFFFF",
         },
       },
 
