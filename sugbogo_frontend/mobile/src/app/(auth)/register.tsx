@@ -1,17 +1,17 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Text } from "react-native";
-import { useRouter } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
 
-import AuthLayout from "../../components/auth/AuthLayout";
-import AuthHeader from "../../components/auth/AuthHeader";
-import AuthCard from "../../components/auth/AuthCard";
-import FormInput from "../../components/auth/FormInput";
-import PasswordInput from "../../components/auth/PasswordInput";
-import AuthButton from "../../components/auth/AuthButton";
-import Divider from "../../components/auth/Divider";
-import SocialLoginButtons from "../../components/auth/SocialLoginButtons";
-import BottomAuthLink from "../../components/auth/BottomAuthLink";
+import AuthButton from "@/features/auth/components/AuthButton";
+import AuthCard from "@/features/auth/components/AuthCard";
+import AuthHeader from "@/features/auth/components/AuthHeader";
+import AuthLayout from "@/features/auth/components/AuthLayout";
+import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import Divider from "@/features/auth/components/Divider";
+import FormInput from "@/features/auth/components/FormInput";
+import PasswordInput from "@/features/auth/components/PasswordInput";
+import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
 
 /**
  * Register component provides a user interface for creating a new account in the application.
@@ -54,7 +54,7 @@ export default function Register() {
 
     if (email === MOCK_EMAIL && password === MOCK_PASSWORD) {
       setErrorMsg("");
-      router.push("/(auth)/interest");
+      router.push("/(setup)/interests");
     } else {
       setErrorMsg(
         "Registration failed (demo). Please use the mock email/password.",
@@ -67,7 +67,7 @@ export default function Register() {
       <AuthHeader />
 
       <AuthCard>
-        <Text className="mb-6 text-center text-lg font-bold text-dark">
+        <Text className="mb-6 text-center text-lg font-bold text-text">
           Create your Account
         </Text>
 
@@ -138,7 +138,7 @@ export default function Register() {
       <BottomAuthLink
         text="Already have an account?"
         actionText="Login"
-        onPress={() => router.push("/(auth)/interest")}
+        onPress={() => router.push("/(auth)/login")}
       />
     </AuthLayout>
   );

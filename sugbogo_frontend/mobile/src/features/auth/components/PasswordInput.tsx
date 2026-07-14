@@ -30,7 +30,7 @@ export default function PasswordInput({
   return (
     <View className="mb-4">
       <View className="mb-1.5 flex-row items-center justify-between">
-        <Text className="text-xs font-bold tracking-[0.5px] text-dark">
+        <Text className="text-xs font-bold tracking-[0.5px] text-text-primary">
           {label}
         </Text>
 
@@ -39,7 +39,7 @@ export default function PasswordInput({
 
       <View className="flex-row items-center rounded-input border border-disabled bg-surface px-[14px]">
         <TextInput
-          className="flex-1 py-[14px] text-body text-dark"
+          className="flex-1 py-[14px] text-body text-text-primary"
           placeholderTextColor="#999999" // matches `placeholder` token
           secureTextEntry={!showPassword}
           {...props}

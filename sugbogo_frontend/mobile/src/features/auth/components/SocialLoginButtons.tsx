@@ -1,5 +1,6 @@
-import { Image, TouchableOpacity, View } from "react-native";
+import GoogleIcon from "@/shared/components/icons/GoogleIcon";
 import { Ionicons } from "@expo/vector-icons";
+import { TouchableOpacity, View } from "react-native";
 
 interface SocialLoginButtonsProps {
   onGooglePress?: () => void;
@@ -25,14 +26,7 @@ export default function SocialLoginButtons({
         accessibilityLabel="Continue with Google"
         className="mr-4 h-[52px] w-[52px] items-center justify-center rounded-full border border-gray-200 bg-white"
       >
-        <Image
-          source={require("../../../icons/google-logo.png")}
-          style={{
-            width: 26,
-            height: 26,
-            resizeMode: "contain",
-          }}
-        />
+        <GoogleIcon />
       </TouchableOpacity>
 
       <TouchableOpacity
