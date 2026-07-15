@@ -6,6 +6,7 @@
     "@expo/ui": "~57.0.4",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "axios": "^1.18.1",
     "expo": "~57.0.4",
     "expo-constants": "~57.0.3",
     "expo-device": "~57.0.0",
@@ -14,6 +15,7 @@
     "expo-image": "~57.0.0",
     "expo-linking": "~57.0.2",
     "expo-router": "~57.0.4",
+    "expo-secure-store": "~57.0.0",
     "expo-splash-screen": "~57.0.2",
     "expo-status-bar": "~57.0.0",
     "expo-symbols": "~57.0.0",
@@ -32,7 +34,8 @@
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.0",
     "tailwindcss": "^3.4.19",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

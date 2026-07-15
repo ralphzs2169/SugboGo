@@ -1,6 +1,6 @@
-import { Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Explore() {
   const router = useRouter();
@@ -11,7 +11,7 @@ export default function Explore() {
       <View className="flex-row justify-end px-4 pt-12">
         <TouchableOpacity
           className="flex-row items-center gap-1"
-          onPress={() => router.push('/(auth)/login')}
+          onPress={() => router.push("/(setup)/interests")}
         >
           <Ionicons name="log-out-outline" size={20} color="#F27F0D" />
           <Text className="text-[13px] font-semibold text-[#F27F0D]">
