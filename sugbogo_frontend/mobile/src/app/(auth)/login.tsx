@@ -3,6 +3,12 @@ import { useState } from "react";
 import { useLogin } from "@/features/auth/hooks/useLogin";
 import { Text, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  LoginErrors,
+  validateLoginForm,
+} from "@/features/auth/utils/loginValidator";
+
+import { mapLoginErrors } from "@/features/auth/utils/errorMapper";
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthCard from "@/features/auth/components/AuthCard";
 import AuthHeader from "@/features/auth/components/AuthHeader";
@@ -23,7 +29,43 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const { handleLogin, loading, error } = useLogin();
+  const [errors, setErrors] = useState<LoginErrors>({});
+  const [formError, setFormError] = useState("");
+  const { handleLogin, loading } = useLogin();
+
+  const clearFieldError = (field: keyof LoginErrors) => {
+    setErrors((prev) => ({
+      ...prev,
+      [field]: undefined,
+    }));
+
+    setFormError("");
+  };
+  const onLogin = async () => {
+    const validationErrors = validateLoginForm(email, password);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+    setFormError("");
+
+    const response = await handleLogin(email, password);
+
+    if (!response.success) {
+      if (response.errors?.detail) {
+        setFormError(response.errors.detail);
+      } else {
+        setErrors(mapLoginErrors(response.errors ?? {}));
+      }
+
+      return;
+    }
+
+    router.replace("/(setup)/interests");
+  };
 
   return (
     <AuthLayout>
@@ -41,6 +83,8 @@ export default function Login() {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          error={errors.email}
+          onFocus={() => clearFieldError("email")}
         />
 
         <PasswordInput
@@ -48,30 +92,20 @@ export default function Login() {
           placeholder="Enter your password"
           value={password}
           onChangeText={setPassword}
-          rightElement={
-            <TouchableOpacity>
-              <Text className="text-xs font-bold tracking-[0.5px] text-brand">
-                FORGOT?
-              </Text>
-            </TouchableOpacity>
-          }
+          error={errors.password}
+          onFocus={() => clearFieldError("password")}
         />
 
-        {error ? (
-          <Text className="mb-3 text-small font-semibold text-error">
-            {error}
+        {formError ? (
+          <Text className="mb-3 text-center text-sm font-semibold text-error">
+            {formError}
           </Text>
         ) : null}
 
         <AuthButton
           title="Login"
-          onPress={async () => {
-            const response = await handleLogin(email, password);
-
-            if (response) {
-              router.replace("/(setup)/interests");
-            }
-          }}
+          loading={loading}
+          onPress={onLogin}
           icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
         />
 

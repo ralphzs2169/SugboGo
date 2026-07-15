@@ -29,8 +29,6 @@ export default function Interests() {
   const handleLogout = async () => {
     await logout();
 
-    console.log(useAuthStore.getState());
-
     router.replace("/(auth)/login");
   };
   const hasMinSelection = selected.length >= MIN_SELECTION;

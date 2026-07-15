@@ -6,7 +6,7 @@ import { useRegister } from "@/features/auth/hooks/useRegister";
 import {
   RegisterErrors,
   validateRegisterForm,
-} from "@/features/auth/utils/validators";
+} from "@/features/auth/utils/registerValidator";
 import { mapRegisterErrors } from "@/features/auth/utils/errorMapper";
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthCard from "@/features/auth/components/AuthCard";
@@ -43,6 +43,8 @@ export default function Register() {
   };
 
   const onRegister = async () => {
+    if (loading) return;
+
     const validationErrors = validateRegisterForm(
       firstName,
       lastName,
@@ -130,6 +132,7 @@ export default function Register() {
         <AuthButton
           title="Create Account"
           onPress={onRegister}
+          loading={loading}
           icon={
             <MaterialIcons
               name="keyboard-arrow-right"

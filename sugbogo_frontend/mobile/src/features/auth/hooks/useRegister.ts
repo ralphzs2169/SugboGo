@@ -2,12 +2,9 @@ import { useState } from "react";
 import axios from "axios";
 
 import { register } from "../api/auth.service";
-import {
-  AuthResponse,
-  RegisterFieldErrors,
-  RegisterResult,
-} from "../api/auth.types";
+import { AuthResult } from "../api/auth.types";
 import { establishSession } from "../utils/authSession";
+import { RegisterFieldErrors } from "../api/auth.types";
 
 /**
  * Custom hook for handling user registration.
@@ -36,7 +33,7 @@ export function useRegister() {
     lastName: string,
     email: string,
     password: string,
-  ): Promise<RegisterResult> => {
+  ): Promise<AuthResult<RegisterFieldErrors>> => {
     setLoading(true);
 
     try {

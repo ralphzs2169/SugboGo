@@ -46,6 +46,24 @@ export interface RefreshResponse {
   refresh?: string;
 }
 
+/**
+ * Represents validation errors returned by the backend
+ * during user login.
+ *
+ * Field names follow the backend response format.
+ */
+export interface LoginFieldErrors {
+  email?: string[];
+  password?: string[];
+  detail?: string;
+}
+
+/**
+ * Represents validation errors returned by the backend
+ * during user registration.
+ *
+ * Field names follow the backend serializer naming convention.
+ */
 export interface RegisterFieldErrors {
   first_name?: string[];
   last_name?: string[];
@@ -53,8 +71,14 @@ export interface RegisterFieldErrors {
   password?: string[];
 }
 
-export interface RegisterResult {
+/**
+ * Represents the result of an authentication request.
+ *
+ * A successful request contains authentication data.
+ * A failed request contains structured validation errors.
+ */
+export interface AuthResult<TError = Record<string, string[]>> {
   success: boolean;
-  errors?: RegisterFieldErrors;
+  errors?: TError;
   data?: AuthResponse;
 }
