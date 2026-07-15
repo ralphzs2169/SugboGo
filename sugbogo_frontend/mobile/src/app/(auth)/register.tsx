@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Text } from "react-native";
+import { useRegister } from "@/features/auth/hooks/useRegister";
 
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthCard from "@/features/auth/components/AuthCard";
@@ -21,19 +22,22 @@ import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
 export default function Register() {
   const router = useRouter();
 
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const { handleRegister, loading, error } = useRegister();
 
-  // Demo-only mock rules
-  const MOCK_EMAIL = "sugbogo@gmail.com";
-  const MOCK_PASSWORD = "sugbogo123";
-
-  const handleRegister = () => {
-    if (!fullName.trim()) {
-      setErrorMsg("Full name is required.");
+  const onRegister = async () => {
+    setErrorMsg("");
+    if (!firstName.trim()) {
+      setErrorMsg("First name is required.");
+      return;
+    }
+    if (!lastName.trim()) {
+      setErrorMsg("Last name is required.");
       return;
     }
 
@@ -52,13 +56,10 @@ export default function Register() {
       return;
     }
 
-    if (email === MOCK_EMAIL && password === MOCK_PASSWORD) {
-      setErrorMsg("");
-      router.push("/(setup)/interests");
-    } else {
-      setErrorMsg(
-        "Registration failed (demo). Please use the mock email/password.",
-      );
+    const response = await handleRegister(firstName, lastName, email, password);
+
+    if (response) {
+      router.replace("/(setup)/interests");
     }
   };
 
@@ -72,13 +73,20 @@ export default function Register() {
         </Text>
 
         <FormInput
-          label="FULL NAME"
-          placeholder="Enter your full name"
-          value={fullName}
-          onChangeText={setFullName}
+          label="FIRST NAME"
+          placeholder="Enter your first name"
+          value={firstName}
+          onChangeText={setFirstName}
           autoCapitalize="words"
         />
 
+        <FormInput
+          label="LAST NAME"
+          placeholder="Enter your last name"
+          value={lastName}
+          onChangeText={setLastName}
+          autoCapitalize="words"
+        />
         <FormInput
           label="EMAIL ADDRESS"
           placeholder="Enter your email"
@@ -102,15 +110,15 @@ export default function Register() {
           onChangeText={setConfirmPassword}
         />
 
-        {errorMsg ? (
+        {errorMsg || error ? (
           <Text className="mb-3 text-small font-semibold text-error">
-            {errorMsg}
+            {errorMsg || error}
           </Text>
         ) : null}
 
         <AuthButton
           title="Create Account"
-          onPress={handleRegister}
+          onPress={onRegister}
           icon={
             <MaterialIcons
               name="keyboard-arrow-right"

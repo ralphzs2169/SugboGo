@@ -7,6 +7,16 @@ export interface LoginRequest {
 }
 
 /**
+ * Registration request payload.
+ */
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+}
+
+/**
  * Represents the authenticated user's basic profile information
  * returned by the authentication API.
  */
@@ -22,7 +32,7 @@ export interface User {
  * Includes the authenticated user information along with JWT access and
  * refresh tokens.
  */
-export interface LoginResponse {
+export interface AuthResponse {
   user: User;
   access: string;
   refresh: string;

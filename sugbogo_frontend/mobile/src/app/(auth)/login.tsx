@@ -88,13 +88,12 @@ export default function Login() {
             console.log("Apple Login");
           }}
         />
+        <BottomAuthLink
+          text="New to SugboGo?"
+          actionText="Create an account"
+          onPress={() => router.push("/(auth)/register")}
+        />
       </AuthCard>
-
-      <BottomAuthLink
-        text="New to SugboGo?"
-        actionText="Create an account"
-        onPress={() => router.push("/(auth)/register")}
-      />
     </AuthLayout>
   );
 }
