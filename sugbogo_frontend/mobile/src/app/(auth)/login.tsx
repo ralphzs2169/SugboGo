@@ -1,9 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { useLogin } from "@/features/auth/hooks/useLogin";
 import { Text, TouchableOpacity } from "react-native";
-
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthCard from "@/features/auth/components/AuthCard";
 import AuthHeader from "@/features/auth/components/AuthHeader";
@@ -23,19 +22,8 @@ export default function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
 
-  const MOCK_EMAIL = "sugbogo@gmail.com";
-  const MOCK_PASSWORD = "sugbogo123";
-
-  const handleLogin = () => {
-    if (email === MOCK_EMAIL && password === MOCK_PASSWORD) {
-      setErrorMsg("");
-      router.replace("/(setup)/interests");
-    } else {
-      setErrorMsg("Invalid email or password. Please try again.");
-    }
-  };
+  const { handleLogin, loading, error } = useLogin();
 
   return (
     <AuthLayout>
@@ -69,15 +57,21 @@ export default function Login() {
           }
         />
 
-        {errorMsg ? (
+        {error ? (
           <Text className="mb-3 text-small font-semibold text-error">
-            {errorMsg}
+            {error}
           </Text>
         ) : null}
 
         <AuthButton
           title="Login"
-          onPress={handleLogin}
+          onPress={async () => {
+            const response = await handleLogin(email, password);
+
+            if (response) {
+              router.replace("/(setup)/interests");
+            }
+          }}
           icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
         />
 

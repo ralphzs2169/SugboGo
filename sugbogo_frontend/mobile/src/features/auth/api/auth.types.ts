@@ -1,0 +1,29 @@
+/**
+ * Request payload sent to the authentication API when a user logs in.
+ */
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+/**
+ * Represents the authenticated user's basic profile information
+ * returned by the authentication API.
+ */
+export interface User {
+  id: number;
+  email: string;
+  role: string;
+  status: string;
+}
+
+/**
+ * Response returned by the authentication API after a successful login.
+ * Includes the authenticated user information along with JWT access and
+ * refresh tokens.
+ */
+export interface LoginResponse {
+  user: User;
+  access: string;
+  refresh: string;
+}
