@@ -1,7 +1,8 @@
 import apiClient from "@/shared/api/apiClient";
 import {
   LoginRequest,
-  LoginResponse,
+  RegisterRequest,
+  AuthResponse,
   User,
   RefreshResponse,
 } from "./auth.types";
@@ -14,11 +15,11 @@ import {
  * refresh tokens upon successful authentication.
  *
  * @param {LoginRequest} credentials - The user's login credentials.
- * @returns {Promise<LoginResponse>} The authenticated user and JWT tokens.
+ * @returns {Promise<AuthResponse >} The authenticated user and JWT tokens.
  * @throws {AxiosError} If the login request fails or the credentials are invalid.
  */
-export async function login(credentials: LoginRequest): Promise<LoginResponse> {
-  const response = await apiClient.post<LoginResponse>(
+export async function login(credentials: LoginRequest): Promise<AuthResponse> {
+  const response = await apiClient.post<AuthResponse>(
     "/auth/login/",
     credentials,
   );
@@ -54,6 +55,22 @@ export async function refreshAccessToken(
   const response = await apiClient.post<RefreshResponse>("/auth/refresh/", {
     refresh: refreshToken,
   });
+
+  return response.data;
+}
+
+/**
+ * Registers a new user.
+ *
+ * Sends the user's registration information to the backend and returns
+ * the authenticated user together with the issued JWT access and refresh tokens.
+ *
+ * @param {RegisterRequest} data - The user's registration information.
+ * @returns {Promise<AuthResponse>} The authenticated user and JWT tokens.
+ * @throws {AxiosError} If the registration request fails or validation errors occur.
+ */
+export async function register(data: RegisterRequest): Promise<AuthResponse> {
+  const response = await apiClient.post<AuthResponse>("/auth/register/", data);
 
   return response.data;
 }

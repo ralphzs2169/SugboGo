@@ -4,6 +4,8 @@ import { refreshSession } from "./refresh";
 import { clearTokens } from "@/shared/api/storage";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
+const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/refresh/"];
+
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
   timeout: 10000,
@@ -52,9 +54,24 @@ apiClient.interceptors.response.use(
   (response) => response,
 
   async (error) => {
+    // Preserve the failed request for a possible retry.
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Skip refresh logic for authentication endpoints.
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((endpoint) =>
+      originalRequest.url?.includes(endpoint),
+    );
+
+    if (isAuthEndpoint) {
+      return Promise.reject(error);
+    }
+
+    // Refresh the access token only once for protected requests.
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry
+    ) {
       originalRequest._retry = true;
 
       try {

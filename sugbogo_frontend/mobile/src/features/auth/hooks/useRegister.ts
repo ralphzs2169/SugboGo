@@ -1,29 +1,28 @@
 import { useState } from "react";
 import axios from "axios";
 
-import { login } from "../api/auth.service";
+import { register } from "../api/auth.service";
 import { AuthResponse } from "../api/auth.types";
 import { establishSession } from "../utils/authSession";
-import { useAuthStore } from "../store/auth.store";
 import { getApiErrorMessage } from "@/shared/api/error";
 
 /**
- * Custom hook for handling user login.
+ * Custom hook for handling user registration.
  */
-export function useLogin() {
+export function useRegister() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const setUser = useAuthStore((state) => state.setUser);
   /**
-   * Attempts to authenticate the user with the provided credentials.
+   * Attempts to register a new user.
    *
-   * @param {string} email - The user's email address.
-   * @param {string} password - The user's password.
-   * @returns {Promise<AuthResponse  | null>}
-   * Returns the login response on success, or null if authentication fails.
+   * @returns {Promise<AuthResponse | null>}
+   * Returns the authentication response on success,
+   * or null if registration fails.
    */
-  const handleLogin = async (
+  const handleRegister = async (
+    firstName: string,
+    lastName: string,
     email: string,
     password: string,
   ): Promise<AuthResponse | null> => {
@@ -31,7 +30,9 @@ export function useLogin() {
     setError("");
 
     try {
-      const response = await login({
+      const response = await register({
+        first_name: firstName,
+        last_name: lastName,
         email,
         password,
       });
@@ -41,8 +42,6 @@ export function useLogin() {
       return response;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const data = error.response?.data;
-
         setError(getApiErrorMessage(error.response?.data));
       } else {
         setError("Something went wrong. Please try again.");
@@ -55,7 +54,7 @@ export function useLogin() {
   };
 
   return {
-    handleLogin,
+    handleRegister,
     loading,
     error,
   };
