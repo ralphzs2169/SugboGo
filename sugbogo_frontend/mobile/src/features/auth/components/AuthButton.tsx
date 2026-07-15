@@ -34,7 +34,7 @@ export default function AuthButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
-      className={`mb-8 mt-2 flex-row items-center justify-center rounded-lg bg-brand px-4 py-4 ${
+      className={`mb-20 mt-2 flex-row items-center justify-center shadow rounded-lg bg-brand px-4 py-4 ${
         isDisabled ? "opacity-50" : ""
       } ${className}`}
     >

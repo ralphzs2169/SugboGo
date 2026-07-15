@@ -8,8 +8,8 @@ import {
   validateRegisterForm,
 } from "@/features/auth/utils/registerValidator";
 import { mapRegisterErrors } from "@/features/auth/utils/errorMapper";
+
 import AuthButton from "@/features/auth/components/AuthButton";
-import AuthCard from "@/features/auth/components/AuthCard";
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
@@ -73,89 +73,83 @@ export default function Register() {
   };
 
   return (
-    <AuthLayout>
+    <AuthLayout paddingBottom={92} paddingTop={64}>
       <AuthHeader />
 
-      <AuthCard>
-        <Text className="mb-6 text-center text-lg font-bold text-text">
-          Create your Account
-        </Text>
+      <Text className="mb-6 text-[17px] font-bold text-text-primary">
+        Create your Account
+      </Text>
 
-        <FormInput
-          label="FIRST NAME"
-          placeholder="Enter your first name"
-          value={firstName}
-          onChangeText={setFirstName}
-          autoCapitalize="words"
-          onFocus={() => clearFieldError("firstName")}
-          error={errors.firstName}
-        />
+      <FormInput
+        label="FIRST NAME"
+        placeholder="Enter your first name"
+        value={firstName}
+        onChangeText={setFirstName}
+        autoCapitalize="words"
+        onFocus={() => clearFieldError("firstName")}
+        error={errors.firstName}
+      />
 
-        <FormInput
-          label="LAST NAME"
-          placeholder="Enter your last name"
-          value={lastName}
-          onChangeText={setLastName}
-          autoCapitalize="words"
-          onFocus={() => clearFieldError("lastName")}
-          error={errors.lastName}
-        />
-        <FormInput
-          label="EMAIL ADDRESS"
-          placeholder="Enter your email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          onFocus={() => clearFieldError("email")}
-          error={errors.email}
-        />
+      <FormInput
+        label="LAST NAME"
+        placeholder="Enter your last name"
+        value={lastName}
+        onChangeText={setLastName}
+        autoCapitalize="words"
+        onFocus={() => clearFieldError("lastName")}
+        error={errors.lastName}
+      />
+      <FormInput
+        label="EMAIL ADDRESS"
+        placeholder="Enter your email"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        onFocus={() => clearFieldError("email")}
+        error={errors.email}
+      />
 
-        <PasswordInput
-          label="PASSWORD"
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          error={errors.password}
-          onFocus={() => clearFieldError("password")}
-        />
+      <PasswordInput
+        label="PASSWORD"
+        placeholder="Enter your password"
+        value={password}
+        onChangeText={setPassword}
+        error={errors.password}
+        onFocus={() => clearFieldError("password")}
+      />
 
-        <PasswordInput
-          label="CONFIRM PASSWORD"
-          placeholder="Confirm your password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          error={errors.confirmPassword}
-          onFocus={() => clearFieldError("confirmPassword")}
-        />
+      <PasswordInput
+        label="CONFIRM PASSWORD"
+        placeholder="Confirm your password"
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        error={errors.confirmPassword}
+        onFocus={() => clearFieldError("confirmPassword")}
+      />
 
-        <AuthButton
-          title="Create Account"
-          onPress={onRegister}
-          loading={loading}
-          icon={
-            <MaterialIcons
-              name="keyboard-arrow-right"
-              size={20}
-              color="white"
-            />
-          }
-        />
+      <AuthButton
+        title="Create Account"
+        onPress={onRegister}
+        loading={loading}
+        icon={
+          <MaterialIcons name="keyboard-arrow-right" size={20} color="white" />
+        }
+      />
 
-        <Divider text="OR SIGN UP WITH" />
+      <Divider text="OR SIGN UP WITH" />
 
-        <SocialLoginButtons
-          onGooglePress={() => {
-            console.log("Google Register");
-          }}
-          onFacebookPress={() => {
-            console.log("Facebook Register");
-          }}
-          onApplePress={() => {
-            console.log("Apple Register");
-          }}
-        />
-      </AuthCard>
+      <SocialLoginButtons
+        onGooglePress={() => {
+          console.log("Google Register");
+        }}
+        onFacebookPress={() => {
+          console.log("Facebook Register");
+        }}
+        onApplePress={() => {
+          console.log("Apple Register");
+        }}
+      />
 
       <BottomAuthLink
         text="Already have an account?"

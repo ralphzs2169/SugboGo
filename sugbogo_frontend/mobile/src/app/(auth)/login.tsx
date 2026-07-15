@@ -10,7 +10,7 @@ import {
 
 import { mapLoginErrors } from "@/features/auth/utils/errorMapper";
 import AuthButton from "@/features/auth/components/AuthButton";
-import AuthCard from "@/features/auth/components/AuthCard";
+// import AuthCard from "@/features/auth/components/AuthCard";
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
@@ -70,64 +70,69 @@ export default function Login() {
   return (
     <AuthLayout>
       <AuthHeader />
+      <Text className="mb-8 text-[17px] font-bold text-text-primary">
+        Login to your account
+      </Text>
 
-      <AuthCard>
-        <Text className="mb-6 text-center text-lg font-bold text-text-primary">
-          Login to your account
+      <FormInput
+        label="EMAIL ADDRESS"
+        placeholder="Enter your email"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        error={errors.email}
+        onFocus={() => clearFieldError("email")}
+      />
+
+      <PasswordInput
+        label="PASSWORD"
+        placeholder="Enter your password"
+        value={password}
+        onChangeText={setPassword}
+        error={errors.password}
+        onFocus={() => clearFieldError("password")}
+        rightElement={
+          <TouchableOpacity>
+            <Text className="text-xs font-bold tracking-[0.5px] text-brand">
+              FORGOT?
+            </Text>
+          </TouchableOpacity>
+        }
+      />
+
+      {formError ? (
+        <Text className="mb-3 text-sm font-semibold text-error">
+          {formError}
         </Text>
+      ) : null}
 
-        <FormInput
-          label="EMAIL ADDRESS"
-          placeholder="Enter your email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          error={errors.email}
-          onFocus={() => clearFieldError("email")}
-        />
+      <AuthButton
+        title="Login"
+        loading={loading}
+        onPress={onLogin}
+        icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
+      />
 
-        <PasswordInput
-          label="PASSWORD"
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          error={errors.password}
-          onFocus={() => clearFieldError("password")}
-        />
+      <Divider text="OR LOG IN WITH" />
 
-        {formError ? (
-          <Text className="mb-3 text-center text-sm font-semibold text-error">
-            {formError}
-          </Text>
-        ) : null}
+      <SocialLoginButtons
+        onGooglePress={() => {
+          console.log("Google Login");
+        }}
+        onFacebookPress={() => {
+          console.log("Facebook Login");
+        }}
+        onApplePress={() => {
+          console.log("Apple Login");
+        }}
+      />
 
-        <AuthButton
-          title="Login"
-          loading={loading}
-          onPress={onLogin}
-          icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
-        />
-
-        <Divider text="OR LOG IN WITH" />
-
-        <SocialLoginButtons
-          onGooglePress={() => {
-            console.log("Google Login");
-          }}
-          onFacebookPress={() => {
-            console.log("Facebook Login");
-          }}
-          onApplePress={() => {
-            console.log("Apple Login");
-          }}
-        />
-        <BottomAuthLink
-          text="New to SugboGo?"
-          actionText="Create an account"
-          onPress={() => router.push("/(auth)/register")}
-        />
-      </AuthCard>
+      <BottomAuthLink
+        text="New to SugboGo?"
+        actionText="Create an account"
+        onPress={() => router.push("/(auth)/register")}
+      />
     </AuthLayout>
   );
 }

@@ -26,7 +26,7 @@ export default function InputContainer({
   return (
     <View className="mb-6">
       <View className="mb-1.5 flex-row items-center justify-between">
-        <Text className="text-xs font-bold tracking-[0.5px] text-text-primary">
+        <Text className="text-xs font-bold tracking-[0.5px] text-text-secondary">
           {label}
         </Text>
 
