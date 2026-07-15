@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Text, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity } from "react-native";
 
 interface AuthButtonProps {
   title: string;
@@ -7,15 +7,18 @@ interface AuthButtonProps {
   icon?: ReactNode;
   className?: string;
   disabled?: boolean;
+  loading?: boolean;
 }
 
 /**
  * AuthButton component provides a customizable button for authentication actions.
+ *
  * @param {string} title - The text displayed on the button.
  * @param {() => void} onPress - The function to call when the button is pressed.
- * @param {ReactNode} icon - An optional icon to display on the button.
- * @param {string} className - Additional CSS classes for the button.
+ * @param {ReactNode} icon - An optional icon displayed beside the button text.
+ * @param {string} className - Additional CSS classes for customization.
  * @param {boolean} disabled - Whether the button is disabled.
+ * @param {boolean} loading - Whether the button is processing an async action.
  */
 export default function AuthButton({
   title,
@@ -23,18 +26,27 @@ export default function AuthButton({
   icon,
   className = "",
   disabled = false,
+  loading = false,
 }: AuthButtonProps) {
+  const isDisabled = disabled || loading;
+
   return (
     <TouchableOpacity
       onPress={onPress}
-      disabled={disabled}
-      className={`mb-8 mt-2 flex-row items-center justify-center rounded-lg bg-brand px-4 py-4 ${
-        disabled ? "opacity-50" : ""
+      disabled={isDisabled}
+      className={`mb-20 mt-2 flex-row items-center justify-center shadow rounded-lg bg-brand px-4 py-4 ${
+        isDisabled ? "opacity-50" : ""
       } ${className}`}
     >
-      <Text className="mr-2 text-md font-bold text-white">{title}</Text>
+      {loading ? (
+        <ActivityIndicator color="white" />
+      ) : (
+        <>
+          <Text className="mr-2 text-md font-bold text-white">{title}</Text>
 
-      {icon}
+          {icon}
+        </>
+      )}
     </TouchableOpacity>
   );
 }

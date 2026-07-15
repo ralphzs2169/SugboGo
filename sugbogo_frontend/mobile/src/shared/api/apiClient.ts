@@ -17,12 +17,21 @@ const apiClient = axios.create({
 /**
  * Axios request interceptor.
  *
- * Automatically attaches the stored JWT access token to outgoing API requests.
- * This allows authenticated endpoints to identify the current user without
- * manually adding authorization headers in every service function.
+ * Adds the stored JWT access token to requests targeting protected endpoints.
+ * Authentication endpoints are excluded since they do not require an existing
+ * session and should not receive stale or expired access tokens.
  */
 apiClient.interceptors.request.use(
   async (config) => {
+    // Skip attaching tokens to public authentication endpoints.
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((endpoint) =>
+      config.url?.includes(endpoint),
+    );
+
+    if (isAuthEndpoint) {
+      return config;
+    }
+
     const token = await getAccessToken();
 
     if (token) {

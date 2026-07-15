@@ -2,11 +2,10 @@ import { useState } from "react";
 import axios from "axios";
 
 import { login } from "../api/auth.service";
-import { AuthResponse } from "../api/auth.types";
 import { establishSession } from "../utils/authSession";
 import { useAuthStore } from "../store/auth.store";
-import { getApiErrorMessage } from "@/shared/api/error";
-
+import { AuthResult } from "../api/auth.types";
+import { LoginFieldErrors } from "../api/auth.types";
 /**
  * Custom hook for handling user login.
  */
@@ -26,9 +25,8 @@ export function useLogin() {
   const handleLogin = async (
     email: string,
     password: string,
-  ): Promise<AuthResponse | null> => {
+  ): Promise<AuthResult<LoginFieldErrors>> => {
     setLoading(true);
-    setError("");
 
     try {
       const response = await login({
@@ -38,17 +36,24 @@ export function useLogin() {
 
       await establishSession(response);
 
-      return response;
+      return {
+        success: true,
+        data: response,
+      };
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const data = error.response?.data;
-
-        setError(getApiErrorMessage(error.response?.data));
-      } else {
-        setError("Something went wrong. Please try again.");
+        return {
+          success: false,
+          errors: error.response?.data,
+        };
       }
 
-      return null;
+      return {
+        success: false,
+        errors: {
+          password: ["Something went wrong. Please try again."],
+        },
+      };
     } finally {
       setLoading(false);
     }
@@ -57,6 +62,5 @@ export function useLogin() {
   return {
     handleLogin,
     loading,
-    error,
   };
 }

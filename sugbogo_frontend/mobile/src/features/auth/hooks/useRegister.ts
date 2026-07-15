@@ -2,32 +2,39 @@ import { useState } from "react";
 import axios from "axios";
 
 import { register } from "../api/auth.service";
-import { AuthResponse } from "../api/auth.types";
+import { AuthResult } from "../api/auth.types";
 import { establishSession } from "../utils/authSession";
-import { getApiErrorMessage } from "@/shared/api/error";
+import { RegisterFieldErrors } from "../api/auth.types";
 
 /**
  * Custom hook for handling user registration.
  */
 export function useRegister() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   /**
    * Attempts to register a new user.
    *
-   * @returns {Promise<AuthResponse | null>}
+   * @param {string} firstName - User's first name.
+   * @param {string} lastName - User's last name.
+   * @param {string} email - User's email address.
+   * @param {string} password - User's password.
+   *
+   * @returns {Promise<
+   *   | { success: true; data: AuthResponse }
+   *   | { success: false; errors: RegisterFieldErrors }
+   * >}
+   *
    * Returns the authentication response on success,
-   * or null if registration fails.
+   * or structured field errors if registration fails.
    */
   const handleRegister = async (
     firstName: string,
     lastName: string,
     email: string,
     password: string,
-  ): Promise<AuthResponse | null> => {
+  ): Promise<AuthResult<RegisterFieldErrors>> => {
     setLoading(true);
-    setError("");
 
     try {
       const response = await register({
@@ -39,15 +46,24 @@ export function useRegister() {
 
       await establishSession(response);
 
-      return response;
+      return {
+        success: true,
+        data: response,
+      };
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        setError(getApiErrorMessage(error.response?.data));
-      } else {
-        setError("Something went wrong. Please try again.");
+        return {
+          success: false,
+          errors: error.response?.data ?? {},
+        };
       }
 
-      return null;
+      return {
+        success: false,
+        errors: {
+          password: ["Something went wrong. Please try again."],
+        },
+      };
     } finally {
       setLoading(false);
     }
@@ -56,6 +72,5 @@ export function useRegister() {
   return {
     handleRegister,
     loading,
-    error,
   };
 }
