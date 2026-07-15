@@ -1,6 +1,8 @@
 import axios from "axios";
 import { getAccessToken } from "@/shared/api/storage";
 import { refreshSession } from "./refresh";
+import { clearTokens } from "@/shared/api/storage";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
@@ -62,7 +64,11 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch (refreshError) {
-        console.log("Refresh failed:", refreshError);
+        console.error("Session refresh failed:", refreshError);
+
+        await clearTokens();
+
+        useAuthStore.getState().clearUser();
 
         return Promise.reject(refreshError);
       }
