@@ -32,8 +32,20 @@ apiClient.interceptors.request.use(
   },
 );
 
-let isRefreshing = false;
-
+/**
+ * Axios response interceptor.
+ *
+ * Handles failed authenticated requests caused by expired access tokens.
+ *
+ * When the backend returns a 401 Unauthorized response, this interceptor:
+ * - Prevents retrying the same request multiple times.
+ * - Requests a new access token using the stored refresh token.
+ * - Updates the failed request with the new access token.
+ * - Retries the original request automatically.
+ *
+ * If refreshing fails, the error is rejected so the application can
+ * handle session expiration (such as redirecting the user to login).
+ */
 apiClient.interceptors.response.use(
   (response) => response,
 
