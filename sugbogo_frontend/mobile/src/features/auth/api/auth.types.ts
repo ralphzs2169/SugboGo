@@ -45,3 +45,16 @@ export interface RefreshResponse {
   access: string;
   refresh?: string;
 }
+
+export interface RegisterFieldErrors {
+  first_name?: string[];
+  last_name?: string[];
+  email?: string[];
+  password?: string[];
+}
+
+export interface RegisterResult {
+  success: boolean;
+  errors?: RegisterFieldErrors;
+  data?: AuthResponse;
+}

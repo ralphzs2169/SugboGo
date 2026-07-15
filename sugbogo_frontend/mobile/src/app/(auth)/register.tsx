@@ -3,7 +3,11 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Text } from "react-native";
 import { useRegister } from "@/features/auth/hooks/useRegister";
-
+import {
+  RegisterErrors,
+  validateRegisterForm,
+} from "@/features/auth/utils/validators";
+import { mapRegisterErrors } from "@/features/auth/utils/errorMapper";
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthCard from "@/features/auth/components/AuthCard";
 import AuthHeader from "@/features/auth/components/AuthHeader";
@@ -19,6 +23,7 @@ import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
  * It includes input fields for full name, email, password, and confirm password,
  * along with social login buttons and navigation to the login page.
  */
+
 export default function Register() {
   const router = useRouter();
 
@@ -27,40 +32,42 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const { handleRegister, loading, error } = useRegister();
+  const [errors, setErrors] = useState<RegisterErrors>({});
+  const { handleRegister, loading } = useRegister();
+
+  const clearFieldError = (field: keyof RegisterErrors) => {
+    setErrors((prev) => ({
+      ...prev,
+      [field]: undefined,
+    }));
+  };
 
   const onRegister = async () => {
-    setErrorMsg("");
-    if (!firstName.trim()) {
-      setErrorMsg("First name is required.");
-      return;
-    }
-    if (!lastName.trim()) {
-      setErrorMsg("Last name is required.");
+    const validationErrors = validateRegisterForm(
+      firstName,
+      lastName,
+      email,
+      password,
+      confirmPassword,
+    );
+
+    // Display client-side validation errors and stop invalid submissions.
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       return;
     }
 
-    if (!email.trim()) {
-      setErrorMsg("Email address is required.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setErrorMsg("Password must be at least 6 characters.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMsg("Passwords do not match.");
-      return;
-    }
+    // Clear previous errors before sending a new registration request.
+    setErrors({});
 
     const response = await handleRegister(firstName, lastName, email, password);
 
-    if (response) {
-      router.replace("/(setup)/interests");
+    if (!response.success) {
+      setErrors(mapRegisterErrors(response.errors ?? {}));
+      return;
     }
+
+    router.replace("/(setup)/interests");
   };
 
   return (
@@ -78,6 +85,8 @@ export default function Register() {
           value={firstName}
           onChangeText={setFirstName}
           autoCapitalize="words"
+          onFocus={() => clearFieldError("firstName")}
+          error={errors.firstName}
         />
 
         <FormInput
@@ -86,6 +95,8 @@ export default function Register() {
           value={lastName}
           onChangeText={setLastName}
           autoCapitalize="words"
+          onFocus={() => clearFieldError("lastName")}
+          error={errors.lastName}
         />
         <FormInput
           label="EMAIL ADDRESS"
@@ -94,6 +105,8 @@ export default function Register() {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          onFocus={() => clearFieldError("email")}
+          error={errors.email}
         />
 
         <PasswordInput
@@ -101,6 +114,8 @@ export default function Register() {
           placeholder="Enter your password"
           value={password}
           onChangeText={setPassword}
+          error={errors.password}
+          onFocus={() => clearFieldError("password")}
         />
 
         <PasswordInput
@@ -108,13 +123,9 @@ export default function Register() {
           placeholder="Confirm your password"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
+          error={errors.confirmPassword}
+          onFocus={() => clearFieldError("confirmPassword")}
         />
-
-        {errorMsg || error ? (
-          <Text className="mb-3 text-small font-semibold text-error">
-            {errorMsg || error}
-          </Text>
-        ) : null}
 
         <AuthButton
           title="Create Account"

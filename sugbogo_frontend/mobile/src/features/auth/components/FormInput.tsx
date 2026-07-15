@@ -1,38 +1,29 @@
-import { ReactNode } from "react";
-import { Text, TextInput, TextInputProps, View } from "react-native";
+import { TextInput, TextInputProps } from "react-native";
+
+import InputContainer from "./InputContainer";
 
 interface FormInputProps extends TextInputProps {
   label: string;
-  rightElement?: ReactNode;
+  error?: string;
+  rightElement?: React.ReactNode;
 }
 
 /**
- * FormInput component provides a labeled text input field.
- * @param {string} label - The label text displayed above the input field.
- * @param {ReactNode} rightElement - An optional element on the right side of the label.
- * @param {TextInputProps} props - Additional props passed to the TextInput component.
+ * FormInput renders a standard text input within an InputContainer.
  */
 export default function FormInput({
   label,
+  error,
   rightElement,
   ...props
 }: FormInputProps) {
   return (
-    <View className="mb-6">
-      <View className="mb-1.5 flex-row items-center justify-between">
-        <Text className="text-xs font-bold tracking-[0.5px] text-text-primary">
-          {label}
-        </Text>
-        {rightElement}
-      </View>
-
-      <View className="flex-row items-center rounded-input border border-disabled bg-surface px-[14px]">
-        <TextInput
-          className="flex-1 py-[14px] text-body text-text-primary"
-          placeholderTextColor="#999999" // matches your `placeholder` token
-          {...props}
-        />
-      </View>
-    </View>
+    <InputContainer label={label} error={error} rightElement={rightElement}>
+      <TextInput
+        className="flex-1 py-[14px] text-body text-text-primary"
+        placeholderTextColor="#999999"
+        {...props}
+      />
+    </InputContainer>
   );
 }
