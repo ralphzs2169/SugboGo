@@ -27,3 +27,11 @@ export interface LoginResponse {
   access: string;
   refresh: string;
 }
+
+/**
+ * Response returned when refreshing JWT tokens.
+ */
+export interface RefreshResponse {
+  access: string;
+  refresh?: string;
+}

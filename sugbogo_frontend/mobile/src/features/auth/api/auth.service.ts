@@ -1,5 +1,10 @@
 import apiClient from "@/shared/api/apiClient";
-import { LoginRequest, LoginResponse, User } from "./auth.types";
+import {
+  LoginRequest,
+  LoginResponse,
+  User,
+  RefreshResponse,
+} from "./auth.types";
 
 /**
  * Authenticates a user with the backend.
@@ -33,6 +38,22 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
  */
 export async function getCurrentUser(): Promise<User> {
   const response = await apiClient.get<User>("/users/me/");
+
+  return response.data;
+}
+
+/**
+ * Requests a new access token using the stored refresh token.
+ *
+ * @param refreshToken - The user's refresh token.
+ * @returns A new access token.
+ */
+export async function refreshAccessToken(
+  refreshToken: string,
+): Promise<RefreshResponse> {
+  const response = await apiClient.post<RefreshResponse>("/auth/refresh/", {
+    refresh: refreshToken,
+  });
 
   return response.data;
 }
