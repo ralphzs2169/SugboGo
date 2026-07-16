@@ -37,6 +37,16 @@ ALLOWED_HOSTS = ["*"]
 
 AUTH_USER_MODEL = "users.User"
 
+BACKEND_URL = os.getenv(
+    "BACKEND_URL",
+    "http://localhost:8000",
+)
+
+EMAIL_VERIFICATION_URL = os.getenv(
+    "EMAIL_VERIFICATION_URL",
+    "http://localhost:8000/api/auth/verify-email/",
+)
+
 # Application definition
 
 INSTALLED_APPS = [

@@ -4,6 +4,8 @@ from django.template.loader import render_to_string
 from typing import Any
 import logging
 
+from apps.authentication.services.verification_service import EmailVerificationService
+
 
 if not settings.RESEND_API_KEY:
     raise ValueError("RESEND_API_KEY is not configured.")
@@ -69,3 +71,25 @@ class EmailService:
             )
             raise
             
+    
+    @staticmethod
+    def send_verification_email(user):
+        """
+        Send an email verification message to a newly registered user.
+        """
+        verification_link = (
+            EmailVerificationService.generate_verification_link(user)
+        )
+
+        context = {
+            "user": user,
+            "verification_link": verification_link,
+        }
+
+        return EmailService.send_email(
+            subject="Verify your email",
+            recipient=user.USER_EMAIL,
+            html_template_name="emails/verify_email.html",
+            text_template_name="emails/verify_email.txt",
+            context=context,
+        )

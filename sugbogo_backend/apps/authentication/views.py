@@ -1,12 +1,16 @@
 from datetime import timedelta
 
 from django.contrib.auth import authenticate
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenRefreshView
+
+from apps.authentication.services.email_service import EmailService
+from apps.authentication.services.verification_service import EmailVerificationService
 
 from .serializers import LoginSerializer, LogoutSerializer, RegisterSerializer
 
@@ -58,6 +62,16 @@ def login_view(request):
             {"detail": f"Account is {user.USER_STATUS}. Please contact support."},
             status=status.HTTP_403_FORBIDDEN,
         )
+    
+    if not user.EMAIL_VERIFIED:
+        return Response(
+            {
+                "detail": (
+                    "Please verify your email address before logging in."
+                )
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     tokens = _issue_tokens(user, remember_me)
 
@@ -92,17 +106,12 @@ def register_view(request):
         USER_STATUS=User.UserStatus.ACTIVE,  # Explorers are active immediately
     )
 
-    tokens = _issue_tokens(user, remember_me=False)
+    # tokens = _issue_tokens(user, remember_me=False)
+    EmailService.send_verification_email(user)
 
     return Response(
         {
-            "user": {
-                "id": user.USER_ID,
-                "email": user.USER_EMAIL,
-                "role": user.USER_ROLE,
-                "status": user.USER_STATUS,
-            },
-            **tokens,
+            "message": "Registration successful. Please verify your email."
         },
         status=status.HTTP_201_CREATED,
     )
@@ -134,3 +143,53 @@ def logout_view(request):
 # logic needed since ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION
 # in settings.py already handle blacklisting the old token automatically.
 token_refresh_view = TokenRefreshView.as_view()
+
+
+@api_view(["GET"])
+def verify_email_view(request):
+    uid = request.query_params.get("uid")
+    token = request.query_params.get("token")
+
+    if not uid or not token:
+        return Response(
+            {
+                "detail": "Missing verification credentials."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user = EmailVerificationService.verify_token(uid, token)
+
+    if user is None:
+        return Response(
+            {
+                "detail": "Invalid or expired verification link."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if user.EMAIL_VERIFIED:
+        return Response(
+            {
+                "message": "Email is already verified.",
+                "verified": True,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    user.EMAIL_VERIFIED = True
+    user.EMAIL_VERIFIED_AT = timezone.now()
+    user.save(
+        update_fields=[
+            "EMAIL_VERIFIED",
+            "EMAIL_VERIFIED_AT",
+        ]
+    )
+
+    return Response(
+        {
+            "message": "Email verified successfully.",
+            "verified": True,
+        },
+        status=status.HTTP_200_OK,
+    )
