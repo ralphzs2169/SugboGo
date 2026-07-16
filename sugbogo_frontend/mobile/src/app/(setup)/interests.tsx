@@ -2,13 +2,11 @@ import InterestFooter from "@/features/interest-selection/components/InterestFoo
 import InterestGrid from "@/features/interest-selection/components/InterestGrid";
 import InterestHeader from "@/features/interest-selection/components/InterestHeader";
 import SetupSkipButton from "@/features/interest-selection/components/SetupSkipButton";
-
+import { completeInterestSelection } from "@/features/auth/api/user.service";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLogout } from "@/features/auth/hooks/useLogout";
-import { Button } from "react-native";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 const MIN_SELECTION = 3;
 
@@ -16,28 +14,38 @@ export default function Interests() {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
 
+  const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
+
+  const handleCompleteSelection = async () => {
+    try {
+      await completeInterestSelection();
+
+      if (user) {
+        setUser({
+          ...user,
+          has_completed_interest_selection: true,
+        });
+      }
+
+      router.replace("/(explorer)/(tabs)/explore");
+    } catch (error) {
+      console.error("Failed to complete interest selection:", error);
+    }
+  };
+
   const handleToggle = (id: string) => {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
-  const handleContinue = () => {
-    router.push("/(explorer)/(tabs)/explore");
-  };
-  const { logout } = useLogout();
-  const handleLogout = async () => {
-    await logout();
-
-    router.replace("/(auth)/login");
-  };
   const hasMinSelection = selected.length >= MIN_SELECTION;
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
       <View className="px-6 pt-6">
-        <SetupSkipButton onPress={handleContinue} />
-        <Button title="Logout" onPress={handleLogout} />
+        <SetupSkipButton onPress={handleCompleteSelection} />
       </View>
 
       <View className="flex-1 px-6 pt-xl">
@@ -48,7 +56,7 @@ export default function Interests() {
 
       <InterestFooter
         hasMinSelection={hasMinSelection}
-        onPress={handleContinue}
+        onPress={handleCompleteSelection}
       />
     </SafeAreaView>
   );

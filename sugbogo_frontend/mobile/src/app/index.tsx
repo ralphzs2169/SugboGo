@@ -1,30 +1,41 @@
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 
-import * as onboardingStorage from "../shared/services/onboardingStorage";
+import * as onboardingStorage from "@/shared/services/onboardingStorage";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
-/**
- * Root route that determines the app's initial destination.
- */
 export default function Index() {
-  const [completed, setCompleted] = useState<boolean | null>(null);
+  const [completedOnboarding, setCompletedOnboarding] = useState<
+    boolean | null
+  >(null);
+
+  const { user, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    const checkOnboarding = async () => {
-      // Development only.
-      await onboardingStorage.resetOnboarding();
+    async function checkOnboarding() {
+      const completed = await onboardingStorage.hasCompletedOnboarding();
 
-      const hasCompleted = await onboardingStorage.hasCompletedOnboarding();
-
-      setCompleted(hasCompleted);
-    };
+      setCompletedOnboarding(completed);
+    }
 
     checkOnboarding();
   }, []);
 
-  if (completed === null) {
+  if (completedOnboarding === null) {
     return null;
   }
 
-  return <Redirect href={completed ? "/(auth)/login" : "/onboarding"} />;
+  if (!completedOnboarding) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  if (!user?.has_completed_interest_selection) {
+    return <Redirect href="/(setup)/interests" />;
+  }
+
+  return <Redirect href="/(explorer)/(tabs)/explore" />;
 }
