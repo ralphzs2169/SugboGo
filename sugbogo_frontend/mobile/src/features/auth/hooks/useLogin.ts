@@ -6,11 +6,16 @@ import { establishSession } from "../utils/authSession";
 import { useAuthStore } from "../store/auth.store";
 import { AuthResult } from "../api/auth.types";
 import { LoginFieldErrors } from "../api/auth.types";
+import { useVerificationStore } from "../store/verification.store";
 /**
  * Custom hook for handling user login.
  */
 export function useLogin() {
   const [loading, setLoading] = useState(false);
+
+  const clearPendingEmail = useVerificationStore(
+    (state) => state.clearPendingEmail,
+  );
 
   /**
    * Attempts to authenticate the user with the provided credentials.
@@ -33,6 +38,8 @@ export function useLogin() {
       });
 
       await establishSession(response);
+
+      clearPendingEmail();
 
       return {
         success: true,

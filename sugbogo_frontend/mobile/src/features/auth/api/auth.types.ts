@@ -57,6 +57,7 @@ export interface LoginFieldErrors {
   email?: string[];
   password?: string[];
   detail?: string;
+  code?: string;
 }
 
 /**

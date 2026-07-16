@@ -9,12 +9,14 @@ import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
 import { useState } from "react";
+import { useVerificationStore } from "@/features/auth/store/verification.store";
 
 export default function VerifyEmail() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{ email: string }>();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  const pendingEmail = useVerificationStore((state) => state.pendingEmail);
 
   const { handleResend, loading } = useResendVerification();
 
@@ -36,7 +38,7 @@ export default function VerifyEmail() {
 
   // Function to handle the resend verification email action
   const onResend = async () => {
-    if (!email) {
+    if (!pendingEmail) {
       setError("Email address is missing.");
       return;
     }
@@ -44,7 +46,7 @@ export default function VerifyEmail() {
     setMessage("");
     setError("");
 
-    const response = await handleResend(email);
+    const response = await handleResend(pendingEmail);
 
     if (!response.success) {
       const { retry_after } = response.error ?? {};
@@ -94,7 +96,7 @@ export default function VerifyEmail() {
       </Text>
 
       <Text className="mb-6 text-center text-base font-bold text-text-primary">
-        {email}
+        {pendingEmail}
       </Text>
 
       <Text className="mb-10 text-center text-base leading-6 text-text-secondary">
