@@ -1,7 +1,17 @@
+SugboGo
+Discover the hidden gems of Cebu.
+
+Hello {{ user.USER_FNAME }},
+
 Welcome to SugboGo!
 
-Hello {{ user.first_name }},
+Thank you for creating an account. To activate your account, please verify your email address by visiting the link below:
 
-Thank you for registering.
+{{ verification_link }}
 
-This is currently a test email.
+This verification link will expire in 24 hours.
+
+If you didn't create a SugboGo account, you can safely ignore this email.
+
+—
+The SugboGo Team

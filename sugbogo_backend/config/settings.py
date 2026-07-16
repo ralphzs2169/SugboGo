@@ -16,6 +16,7 @@ from pathlib import Path
 from datetime import timedelta
 
 from dotenv import load_dotenv
+import cloudinary
 
 import os
 
@@ -35,16 +36,29 @@ DEBUG = os.environ.get("DEBUG") == "True"
 
 ALLOWED_HOSTS = ["*"]
 
+
 AUTH_USER_MODEL = "users.User"
 
+# Application URLs
 BACKEND_URL = os.getenv(
     "BACKEND_URL",
     "http://localhost:8000",
 )
 
+# Email Verification URL
 EMAIL_VERIFICATION_URL = os.getenv(
     "EMAIL_VERIFICATION_URL",
     "http://localhost:8000/api/auth/verify-email/",
+)
+# Email verification / password reset token lifetime (24 hours)
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
+
+# Cloudinary Configuration
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True,
 )
 
 # Application definition
