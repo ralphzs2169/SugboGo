@@ -37,7 +37,19 @@ export default function VerifyEmail() {
     const response = await handleResend(email);
 
     if (!response.success) {
-      setError(response.error?.detail ?? "Unable to resend email.");
+      const { message, detail, retry_after } = response.error ?? {};
+
+      if (retry_after) {
+        const minutes = Math.ceil(retry_after / 60);
+
+        setError(
+          `${message ?? detail} Try again in ${minutes} minute${
+            minutes === 1 ? "" : "s"
+          }.`,
+        );
+      } else {
+        setError(message ?? detail ?? "Unable to resend email.");
+      }
 
       return;
     }
@@ -82,6 +94,7 @@ export default function VerifyEmail() {
           {error}
         </Text>
       ) : null}
+
       <AuthButton
         title="Open Email App"
         onPress={openEmailApp}
