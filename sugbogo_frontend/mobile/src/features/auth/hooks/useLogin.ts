@@ -11,9 +11,7 @@ import { LoginFieldErrors } from "../api/auth.types";
  */
 export function useLogin() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const setUser = useAuthStore((state) => state.setUser);
   /**
    * Attempts to authenticate the user with the provided credentials.
    *
