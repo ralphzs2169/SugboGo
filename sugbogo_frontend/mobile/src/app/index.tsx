@@ -1,30 +1,67 @@
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 
-import * as onboardingStorage from "../shared/services/onboardingStorage";
+import AppSplash from "@/shared/components/AppSplash";
+import * as onboardingStorage from "@/shared/services/onboardingStorage";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
-/**
- * Root route that determines the app's initial destination.
- */
 export default function Index() {
-  const [completed, setCompleted] = useState<boolean | null>(null);
+  const [completedOnboarding, setCompletedOnboarding] = useState<
+    boolean | null
+  >(null);
 
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+
+  console.log({
+    user,
+    isAuthenticated,
+    isLoading,
+    completedOnboarding,
+  });
   useEffect(() => {
     const checkOnboarding = async () => {
-      // Development only.
-      await onboardingStorage.resetOnboarding();
+      const completed = await onboardingStorage.hasCompletedOnboarding();
 
-      const hasCompleted = await onboardingStorage.hasCompletedOnboarding();
-
-      setCompleted(hasCompleted);
+      setCompletedOnboarding(completed);
     };
 
     checkOnboarding();
   }, []);
 
-  if (completed === null) {
-    return null;
+  /**
+   * Wait until:
+   * - onboarding status is loaded
+   * - authentication restoration is finished
+   */
+  if (completedOnboarding === null || isLoading) {
+    return <AppSplash />;
   }
 
-  return <Redirect href={completed ? "/(auth)/login" : "/onboarding"} />;
+  /**
+   * New user:
+   * Show onboarding first.
+   */
+  if (!completedOnboarding) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  /**
+   * No active session:
+   * Go to authentication.
+   */
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  /**
+   * Logged-in user who has not completed setup.
+   */
+  if (!user?.has_completed_interest_selection) {
+    return <Redirect href="/(setup)/interests" />;
+  }
+
+  /**
+   * Fully authenticated user.
+   */
+  return <Redirect href="/(explorer)/(tabs)/explore" />;
 }

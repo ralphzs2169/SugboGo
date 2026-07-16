@@ -12,7 +12,7 @@ import OnboardingFooter from "./components/OnboardingFooter";
 import OnboardingSlide from "./components/OnboardingSlide";
 import { onboardingData } from "./constants/onboardingData";
 import { OnboardingItem } from "./types";
-
+import * as onboardingStorage from "@/shared/services/onboardingStorage";
 /**
  * Onboarding displays the onboarding flow with swipeable slides.
  */
@@ -28,20 +28,23 @@ export default function Onboarding() {
   /**
    * Navigates to the authentication flow.
    */
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    await onboardingStorage.completeOnboarding();
+
     router.replace("/(auth)/login");
   };
 
   /**
    * Advances to the next onboarding screen or finishes onboarding.
    */
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < onboardingData.length - 1) {
       flatListRef.current?.scrollToIndex({
         index: currentIndex + 1,
         animated: true,
       });
     } else {
+      await onboardingStorage.completeOnboarding();
       router.replace("/(auth)/login");
     }
   };

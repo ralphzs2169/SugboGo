@@ -4,18 +4,14 @@ from rest_framework.response import Response
 
 from apps.authentication.permissions import HasRole
 from apps.users.models import User
+from apps.users.serializers import UserSerializer
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
-    user = request.user
-    return Response({
-        "id": user.USER_ID,
-        "email": user.USER_EMAIL,
-        "role": user.USER_ROLE,
-        "status": user.USER_STATUS,
-    })
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)
 
 
 @api_view(["GET"])

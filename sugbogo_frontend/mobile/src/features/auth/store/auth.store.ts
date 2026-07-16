@@ -28,7 +28,6 @@ interface AuthState {
 
   /**
    * Updates the authenticated user and marks the session as authenticated.
-   *
    * @param {User} user - The authenticated user's information.
    */
   setUser: (user: User) => void;
@@ -66,6 +65,5 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: null,
       isAuthenticated: false,
-      isLoading: false,
     }),
 }));

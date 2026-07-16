@@ -25,6 +25,7 @@ export interface User {
   email: string;
   role: string;
   status: string;
+  has_completed_interest_selection: boolean;
 }
 
 /**
