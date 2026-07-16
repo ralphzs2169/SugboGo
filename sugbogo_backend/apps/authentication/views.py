@@ -68,9 +68,8 @@ def login_view(request):
     if not user.EMAIL_VERIFIED:
         return Response(
             {
-                "detail": (
-                    "Please verify your email address before logging in."
-                )
+                "code": "EMAIL_NOT_VERIFIED",
+                "detail": "Please verify your email address before logging in."
             },
             status=status.HTTP_403_FORBIDDEN,
         )
