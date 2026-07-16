@@ -30,3 +30,12 @@ export async function clearTokens() {
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
   await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
 }
+
+/**
+ * Development helper.
+ * Removes only the refresh token.
+ */
+export async function clearRefreshToken() {
+  console.log("Clearing refresh token for development purposes.");
+  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+}
