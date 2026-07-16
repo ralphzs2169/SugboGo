@@ -27,3 +27,7 @@ class RegisterSerializer(serializers.Serializer):
         # (min length, common password check, numeric-only check, etc.)
         validate_password(value)
         return value
+    
+class ResendVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+ 

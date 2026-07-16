@@ -6,10 +6,16 @@ import { Text } from "react-native";
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
+import { useState } from "react";
 
 export default function VerifyEmail() {
   const router = useRouter();
   const { email } = useLocalSearchParams<{ email: string }>();
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const { handleResend, loading } = useResendVerification();
 
   const openEmailApp = async () => {
     const supported = await Linking.canOpenURL("mailto:");
@@ -17,6 +23,26 @@ export default function VerifyEmail() {
     if (supported) {
       await Linking.openURL("mailto:");
     }
+  };
+
+  const onResend = async () => {
+    if (!email) {
+      setError("Email address is missing.");
+      return;
+    }
+
+    setMessage("");
+    setError("");
+
+    const response = await handleResend(email);
+
+    if (!response.success) {
+      setError(response.error?.detail ?? "Unable to resend email.");
+
+      return;
+    }
+
+    setMessage("Verification email sent successfully.");
   };
 
   return (
@@ -45,6 +71,17 @@ export default function VerifyEmail() {
         in.
       </Text>
 
+      {message ? (
+        <Text className="mb-4 text-center text-sm font-semibold text-green-600">
+          {message}
+        </Text>
+      ) : null}
+
+      {error ? (
+        <Text className="mb-4 text-center text-sm font-semibold text-error">
+          {error}
+        </Text>
+      ) : null}
       <AuthButton
         title="Open Email App"
         onPress={openEmailApp}
@@ -59,13 +96,7 @@ export default function VerifyEmail() {
         className="mb-4"
       />
 
-      <AuthButton
-        title="Resend Email (Coming Soon)"
-        onPress={() => {}}
-        disabled
-        icon={<MaterialIcons name="refresh" size={20} color="white" />}
-        className="mb-6"
-      />
+      <AuthButton title="Resend Email" loading={loading} onPress={onResend} />
 
       <BottomAuthLink
         text=""

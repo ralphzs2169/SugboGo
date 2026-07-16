@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.contrib.auth import authenticate
+
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -11,6 +11,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.services.verification_service import EmailVerificationService
+from apps.authentication.serializers import ResendVerificationSerializer
 
 from .serializers import LoginSerializer, LogoutSerializer, RegisterSerializer
 
@@ -109,15 +110,7 @@ def register_view(request):
     try:
         EmailService.send_verification_email(user)
     except Exception:
-        return Response(
-            {
-                "detail": (
-                    "Account created, but we could not send "
-                    "the verification email. Please try again later."
-                )
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        pass
 
     return Response(
         {
@@ -200,6 +193,53 @@ def verify_email_view(request):
         {
             "message": "Email verified successfully.",
             "verified": True,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+@api_view(["POST"])
+def resend_verification_view(request):
+    serializer = ResendVerificationSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    email = serializer.validated_data["email"]
+
+    try:
+        user = User.objects.get(USER_EMAIL=email)
+
+    except User.DoesNotExist:
+        return Response(
+            {
+                "detail": "No account found with this email."
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    if user.EMAIL_VERIFIED:
+        return Response(
+            {
+                "detail": "Email is already verified."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        EmailService.send_verification_email(user)
+
+    except Exception:
+        return Response(
+            {
+                "detail": (
+                    "Unable to send verification email. "
+                    "Please try again later."
+                )
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    return Response(
+        {
+            "message": "Verification email sent successfully."
         },
         status=status.HTTP_200_OK,
     )

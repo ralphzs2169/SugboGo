@@ -74,3 +74,17 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
 
   return response.data;
 }
+
+/**
+ * Resends the email verification link to the user's email address.
+ * @param {string} email - The user's email address.
+ * @returns {Promise<any>} The response from the backend.
+ * @throws {AxiosError} If the request fails or the email is invalid.
+ */
+export async function resendVerification(email: string) {
+  const response = await apiClient.post("/auth/resend-verification/", {
+    email,
+  });
+
+  return response.data;
+}
