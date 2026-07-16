@@ -102,9 +102,7 @@ export default function Login() {
       />
 
       {formError ? (
-        <Text className="mb-3 text-sm font-semibold text-error">
-          {formError}
-        </Text>
+        <Text className="text-sm font-semibold text-error">{formError}</Text>
       ) : null}
 
       <AuthButton

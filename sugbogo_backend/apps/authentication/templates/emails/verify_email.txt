@@ -1,0 +1,7 @@
+Welcome to SugboGo!
+
+Hello {{ user.first_name }},
+
+Thank you for registering.
+
+This is currently a test email.

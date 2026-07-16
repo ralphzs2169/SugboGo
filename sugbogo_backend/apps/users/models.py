@@ -48,6 +48,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     USER_STATUS = models.CharField(max_length=20, choices=UserStatus.choices, default=UserStatus.PENDING)
     USER_EMAIL = models.EmailField(unique=True, max_length=100)
 
+    EMAIL_VERIFIED = models.BooleanField(default=False)
+    EMAIL_VERIFIED_AT = models.DateTimeField(null=True, blank=True)
+
     # CHANGE 1: explicitly override the inherited `password` field so the
     # actual database column is named USER_PASSWORD, matching the ERD/data
     # dictionary. The Python attribute stays `password` because Django's

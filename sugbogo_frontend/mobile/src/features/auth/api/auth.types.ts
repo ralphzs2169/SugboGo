@@ -70,6 +70,7 @@ export interface RegisterFieldErrors {
   last_name?: string[];
   email?: string[];
   password?: string[];
+  detail?: string;
 }
 
 /**

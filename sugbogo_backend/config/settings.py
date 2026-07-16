@@ -37,6 +37,16 @@ ALLOWED_HOSTS = ["*"]
 
 AUTH_USER_MODEL = "users.User"
 
+BACKEND_URL = os.getenv(
+    "BACKEND_URL",
+    "http://localhost:8000",
+)
+
+EMAIL_VERIFICATION_URL = os.getenv(
+    "EMAIL_VERIFICATION_URL",
+    "http://localhost:8000/api/auth/verify-email/",
+)
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -176,3 +186,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Email Verification Settings
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL",
+    "onboarding@resend.dev",
+)

@@ -90,7 +90,7 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch (refreshError) {
-        console.error("Session refresh failed:", refreshError);
+        console.log("Session expired. Logging out.");
 
         await clearTokens();
 

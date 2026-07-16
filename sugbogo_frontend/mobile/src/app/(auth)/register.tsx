@@ -32,7 +32,10 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
   const [errors, setErrors] = useState<RegisterErrors>({});
+  const [formError, setFormError] = useState("");
+
   const { handleRegister, loading } = useRegister();
 
   const clearFieldError = (field: keyof RegisterErrors) => {
@@ -40,6 +43,8 @@ export default function Register() {
       ...prev,
       [field]: undefined,
     }));
+
+    setFormError("");
   };
 
   const onRegister = async () => {
@@ -65,11 +70,21 @@ export default function Register() {
     const response = await handleRegister(firstName, lastName, email, password);
 
     if (!response.success) {
-      setErrors(mapRegisterErrors(response.errors ?? {}));
+      if (response.errors?.detail) {
+        setFormError(response.errors.detail);
+      } else {
+        setErrors(mapRegisterErrors(response.errors ?? {}));
+      }
+
       return;
     }
 
-    router.replace("/(setup)/interests");
+    router.replace({
+      pathname: "/(auth)/verify-email",
+      params: {
+        email,
+      },
+    });
   };
 
   return (
@@ -128,6 +143,9 @@ export default function Register() {
         onFocus={() => clearFieldError("confirmPassword")}
       />
 
+      {formError ? (
+        <Text className=" text-sm font-semibold text-error">{formError}</Text>
+      ) : null}
       <AuthButton
         title="Create Account"
         onPress={onRegister}
