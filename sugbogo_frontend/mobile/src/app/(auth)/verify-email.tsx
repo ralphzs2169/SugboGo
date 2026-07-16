@@ -1,15 +1,16 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { Text } from "react-native";
+import { useRouter } from "expo-router";
+import { Text, View } from "react-native";
 import Toast from "react-native-toast-message";
-
+import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
 import { useState } from "react";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
+import SecondaryAuthButton from "@/features/auth/components/SecondaryAuthButton";
 
 export default function VerifyEmail() {
   const router = useRouter();
@@ -80,15 +81,12 @@ export default function VerifyEmail() {
 
   return (
     <AuthLayout>
-      <MaterialIcons
-        name="mark-email-read"
-        size={72}
-        color="#16A34A"
-        style={{ alignSelf: "center", marginBottom: 24 }}
-      />
+      <View className="mb-6 items-center justify-center">
+        <EmailSentIcon width={200} height={200} />
+      </View>
 
       <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
-        Account Created!
+        Verify you email
       </Text>
 
       <Text className="mb-2 text-center text-base text-text-secondary">
@@ -97,11 +95,6 @@ export default function VerifyEmail() {
 
       <Text className="mb-6 text-center text-base font-bold text-text-primary">
         {pendingEmail}
-      </Text>
-
-      <Text className="mb-10 text-center text-base leading-6 text-text-secondary">
-        Please check your inbox and click the verification link before signing
-        in.
       </Text>
 
       {message ? (
@@ -123,18 +116,22 @@ export default function VerifyEmail() {
         className="mb-4"
       />
 
-      <AuthButton
-        title="I've Verified My Email"
-        onPress={() => router.replace("/(auth)/login")}
-        icon={<MaterialIcons name="check-circle" size={20} color="white" />}
-        className="mb-4"
+      <SecondaryAuthButton
+        title="Resend Email"
+        loading={loading}
+        onPress={onResend}
       />
-
-      <AuthButton title="Resend Email" loading={loading} onPress={onResend} />
-
       <BottomAuthLink
         text=""
-        actionText="← Back to Login"
+        actionText="Back to Login"
+        icon={
+          <MaterialIcons
+            name="arrow-back"
+            size={20}
+            color="#F27F0D"
+            style={{ marginRight: 4 }}
+          />
+        }
         onPress={() => router.replace("/(auth)/login")}
       />
     </AuthLayout>
