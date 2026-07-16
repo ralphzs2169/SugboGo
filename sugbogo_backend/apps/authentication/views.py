@@ -106,8 +106,18 @@ def register_view(request):
         USER_STATUS=User.UserStatus.ACTIVE,  # Explorers are active immediately
     )
 
-    # tokens = _issue_tokens(user, remember_me=False)
-    EmailService.send_verification_email(user)
+    try:
+        EmailService.send_verification_email(user)
+    except Exception:
+        return Response(
+            {
+                "detail": (
+                    "Account created, but we could not send "
+                    "the verification email. Please try again later."
+                )
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
     return Response(
         {

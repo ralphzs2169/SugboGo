@@ -44,8 +44,6 @@ export function useRegister() {
         password,
       });
 
-      await establishSession(response);
-
       return {
         success: true,
         data: response,
@@ -61,7 +59,7 @@ export function useRegister() {
       return {
         success: false,
         errors: {
-          password: ["Something went wrong. Please try again."],
+          detail: "Something went wrong. Please try again.",
         },
       };
     } finally {
