@@ -55,6 +55,19 @@ export default function Login() {
     const response = await handleLogin(email, password);
 
     if (!response.success) {
+      // If the backend indicates that the user's email is not verified, redirect to the email verification page.
+      if (response.errors?.code === "EMAIL_NOT_VERIFIED") {
+        router.push({
+          pathname: "/(auth)/verify-email",
+          params: {
+            email,
+          },
+        });
+
+        return;
+      }
+
+      // If there are field-specific errors, map them to the frontend format and display them.
       if (response.errors?.detail) {
         setFormError(response.errors.detail);
       } else {

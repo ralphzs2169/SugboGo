@@ -5,6 +5,7 @@ import { register } from "../api/auth.service";
 import { AuthResult } from "../api/auth.types";
 import { establishSession } from "../utils/authSession";
 import { RegisterFieldErrors } from "../api/auth.types";
+import { useVerificationStore } from "../store/verification.store";
 
 /**
  * Custom hook for handling user registration.
@@ -12,6 +13,9 @@ import { RegisterFieldErrors } from "../api/auth.types";
 export function useRegister() {
   const [loading, setLoading] = useState(false);
 
+  const setPendingEmail = useVerificationStore(
+    (state) => state.setPendingEmail,
+  );
   /**
    * Attempts to register a new user.
    *
@@ -43,6 +47,9 @@ export function useRegister() {
         email,
         password,
       });
+
+      setPendingEmail(email);
+      console.log("Pending verification email:", email);
 
       return {
         success: true,

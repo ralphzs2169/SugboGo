@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
@@ -12,6 +12,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.services.verification_service import EmailVerificationService
 from apps.authentication.serializers import ResendVerificationSerializer
+from apps.authentication.throttles import ResendVerificationThrottle
 
 from .serializers import LoginSerializer, LogoutSerializer, RegisterSerializer
 
@@ -67,9 +68,8 @@ def login_view(request):
     if not user.EMAIL_VERIFIED:
         return Response(
             {
-                "detail": (
-                    "Please verify your email address before logging in."
-                )
+                "code": "EMAIL_NOT_VERIFIED",
+                "detail": "Please verify your email address before logging in."
             },
             status=status.HTTP_403_FORBIDDEN,
         )
@@ -166,7 +166,10 @@ def verify_email_view(request):
     if user is None:
         return Response(
             {
-                "detail": "Invalid or expired verification link."
+                "detail": (
+                    "This verification link is invalid or has expired. "
+                    "Please request a new verification email."
+                )
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
@@ -198,6 +201,7 @@ def verify_email_view(request):
     )
 
 @api_view(["POST"])
+@throttle_classes([ResendVerificationThrottle])
 def resend_verification_view(request):
     serializer = ResendVerificationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)

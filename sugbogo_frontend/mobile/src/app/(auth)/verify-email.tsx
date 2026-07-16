@@ -1,32 +1,45 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { Text } from "react-native";
-
+import { useRouter } from "expo-router";
+import { Text, View } from "react-native";
+import Toast from "react-native-toast-message";
+import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
 import { useState } from "react";
+import { useVerificationStore } from "@/features/auth/store/verification.store";
+import SecondaryAuthButton from "@/features/auth/components/SecondaryAuthButton";
 
 export default function VerifyEmail() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{ email: string }>();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const pendingEmail = useVerificationStore((state) => state.pendingEmail);
+
   const { handleResend, loading } = useResendVerification();
 
+  // Function to open the default email application on the user's device
   const openEmailApp = async () => {
     const supported = await Linking.canOpenURL("mailto:");
 
-    if (supported) {
-      await Linking.openURL("mailto:");
+    if (!supported) {
+      Toast.show({
+        type: "error",
+        text1: "No email app found",
+        text2: "Please install an email application.",
+      });
+      return;
     }
+
+    await Linking.openURL("mailto:");
   };
 
+  // Function to handle the resend verification email action
   const onResend = async () => {
-    if (!email) {
+    if (!pendingEmail) {
       setError("Email address is missing.");
       return;
     }
@@ -34,28 +47,46 @@ export default function VerifyEmail() {
     setMessage("");
     setError("");
 
-    const response = await handleResend(email);
+    const response = await handleResend(pendingEmail);
 
     if (!response.success) {
-      setError(response.error?.detail ?? "Unable to resend email.");
+      const { retry_after } = response.error ?? {};
+
+      // Handle rate limiting error
+      if (retry_after) {
+        const minutes = Math.ceil(retry_after / 60);
+
+        Toast.show({
+          type: "error",
+          text1: "Too Many Requests",
+          text2: `Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: response.error?.detail ?? "Request Failed",
+          text2: response.error?.message,
+        });
+      }
 
       return;
     }
 
-    setMessage("Verification email sent successfully.");
+    Toast.show({
+      type: "success",
+      text1: "Verification Email Sent",
+      text2: "Please check your inbox.",
+    });
   };
 
   return (
     <AuthLayout>
-      <MaterialIcons
-        name="mark-email-read"
-        size={72}
-        color="#16A34A"
-        style={{ alignSelf: "center", marginBottom: 24 }}
-      />
+      <View className="mb-6 items-center justify-center">
+        <EmailSentIcon width={200} height={200} />
+      </View>
 
       <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
-        Account Created!
+        Verify you email
       </Text>
 
       <Text className="mb-2 text-center text-base text-text-secondary">
@@ -63,12 +94,7 @@ export default function VerifyEmail() {
       </Text>
 
       <Text className="mb-6 text-center text-base font-bold text-text-primary">
-        {email}
-      </Text>
-
-      <Text className="mb-10 text-center text-base leading-6 text-text-secondary">
-        Please check your inbox and click the verification link before signing
-        in.
+        {pendingEmail}
       </Text>
 
       {message ? (
@@ -82,6 +108,7 @@ export default function VerifyEmail() {
           {error}
         </Text>
       ) : null}
+
       <AuthButton
         title="Open Email App"
         onPress={openEmailApp}
@@ -89,18 +116,22 @@ export default function VerifyEmail() {
         className="mb-4"
       />
 
-      <AuthButton
-        title="I've Verified My Email"
-        onPress={() => router.replace("/(auth)/login")}
-        icon={<MaterialIcons name="check-circle" size={20} color="white" />}
-        className="mb-4"
+      <SecondaryAuthButton
+        title="Resend Email"
+        loading={loading}
+        onPress={onResend}
       />
-
-      <AuthButton title="Resend Email" loading={loading} onPress={onResend} />
-
       <BottomAuthLink
         text=""
-        actionText="← Back to Login"
+        actionText="Back to Login"
+        icon={
+          <MaterialIcons
+            name="arrow-back"
+            size={20}
+            color="#F27F0D"
+            style={{ marginRight: 4 }}
+          />
+        }
         onPress={() => router.replace("/(auth)/login")}
       />
     </AuthLayout>
