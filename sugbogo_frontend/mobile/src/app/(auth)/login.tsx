@@ -64,7 +64,7 @@ export default function Login() {
       return;
     }
 
-    router.replace("/(setup)/interests");
+    router.replace("/");
   };
 
   return (

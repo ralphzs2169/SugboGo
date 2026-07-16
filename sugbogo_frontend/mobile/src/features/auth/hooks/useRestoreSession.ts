@@ -24,31 +24,23 @@ export function useRestoreSession() {
 
     async function restoreSession() {
       try {
-        console.log("🔄 Restoring session...");
-
         const token = await getAccessToken();
 
-        console.log("🔑 Token:", token);
-
         if (!token) {
-          console.log("❌ No token found");
           clearUser();
           return;
         }
 
         const user = await getCurrentUser();
 
-        console.log("👤 User restored:", user);
-
         setUser(user);
       } catch (error) {
-        console.log("❌ Session restore failed:", error);
+        console.log(" Session restore failed:", error);
 
         await clearTokens();
         clearUser();
       } finally {
         setLoading(false);
-        console.log("✅ Auth loading finished");
       }
     }
 

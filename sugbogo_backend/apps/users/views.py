@@ -19,3 +19,16 @@ def profile(request):
     return Response({
         "message": "Profile endpoint"
     })
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def complete_interest_selection(request):
+
+    user = request.user
+
+    user.HAS_COMPLETED_INTEREST_SELECTION = True
+    user.save()
+
+    return Response({
+        "message": "Interest selection completed."
+    })

@@ -18,6 +18,8 @@ export default function Index() {
     isLoading,
     completedOnboarding,
   });
+
+  console.log("interest status:", user?.has_completed_interest_selection);
   useEffect(() => {
     const checkOnboarding = async () => {
       const completed = await onboardingStorage.hasCompletedOnboarding();
@@ -54,7 +56,7 @@ export default function Index() {
   }
 
   /**
-   * Logged-in user who has not completed setup.
+   * Logged-in user who skipped or finished interest selection.
    */
   if (!user?.has_completed_interest_selection) {
     return <Redirect href="/(setup)/interests" />;

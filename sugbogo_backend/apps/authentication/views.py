@@ -68,6 +68,7 @@ def login_view(request):
                 "email": user.USER_EMAIL,
                 "role": user.USER_ROLE,
                 "status": user.USER_STATUS,
+                "has_completed_interest_selection": user.HAS_COMPLETED_INTEREST_SELECTION,
             },
             **tokens,
         },
