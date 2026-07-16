@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Text } from "react-native";
+import Toast from "react-native-toast-message";
 
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthLayout from "@/features/auth/components/AuthLayout";
@@ -17,14 +18,23 @@ export default function VerifyEmail() {
 
   const { handleResend, loading } = useResendVerification();
 
+  // Function to open the default email application on the user's device
   const openEmailApp = async () => {
     const supported = await Linking.canOpenURL("mailto:");
 
-    if (supported) {
-      await Linking.openURL("mailto:");
+    if (!supported) {
+      Toast.show({
+        type: "error",
+        text1: "No email app found",
+        text2: "Please install an email application.",
+      });
+      return;
     }
+
+    await Linking.openURL("mailto:");
   };
 
+  // Function to handle the resend verification email action
   const onResend = async () => {
     if (!email) {
       setError("Email address is missing.");
@@ -37,24 +47,33 @@ export default function VerifyEmail() {
     const response = await handleResend(email);
 
     if (!response.success) {
-      const { message, detail, retry_after } = response.error ?? {};
+      const { retry_after } = response.error ?? {};
 
+      // Handle rate limiting error
       if (retry_after) {
         const minutes = Math.ceil(retry_after / 60);
 
-        setError(
-          `${message ?? detail} Try again in ${minutes} minute${
-            minutes === 1 ? "" : "s"
-          }.`,
-        );
+        Toast.show({
+          type: "error",
+          text1: "Too Many Requests",
+          text2: `Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+        });
       } else {
-        setError(message ?? detail ?? "Unable to resend email.");
+        Toast.show({
+          type: "error",
+          text1: response.error?.detail ?? "Request Failed",
+          text2: response.error?.message,
+        });
       }
 
       return;
     }
 
-    setMessage("Verification email sent successfully.");
+    Toast.show({
+      type: "success",
+      text1: "Verification Email Sent",
+      text2: "Please check your inbox.",
+    });
   };
 
   return (
