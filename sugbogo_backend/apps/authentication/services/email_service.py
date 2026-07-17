@@ -5,6 +5,7 @@ from typing import Any
 import logging
 
 from apps.authentication.services.verification_service import EmailVerificationService
+from apps.authentication.services.password_reset_service import PasswordResetService
 
 
 if not settings.RESEND_API_KEY:
@@ -91,5 +92,28 @@ class EmailService:
             recipient=user.USER_EMAIL,
             html_template_name="emails/verify_email.html",
             text_template_name="emails/verify_email.txt",
+            context=context,
+        )
+    
+
+    @staticmethod
+    def send_password_reset_email(user):
+        """
+        Send a password reset email to a user.
+        """
+        reset_link = (
+            PasswordResetService.generate_reset_link(user)
+        )
+
+        context = {
+            "user": user,
+            "reset_link": reset_link,
+        }
+
+        return EmailService.send_email(
+            subject="Reset your password",
+            recipient=user.USER_EMAIL,
+            html_template_name="emails/reset_password.html",
+            text_template_name="emails/reset_password.txt",
             context=context,
         )

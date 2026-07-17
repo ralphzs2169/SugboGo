@@ -11,10 +11,22 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.services.verification_service import EmailVerificationService
-from apps.authentication.serializers import ResendVerificationSerializer
-from apps.authentication.throttles import ResendVerificationThrottle
+from apps.authentication.services.password_reset_service import PasswordResetService
+from apps.authentication.services.session_service import SessionService
 
-from .serializers import LoginSerializer, LogoutSerializer, RegisterSerializer
+from apps.authentication.throttles import (
+    ResendVerificationThrottle,
+    ForgotPasswordThrottle,
+)
+
+from .serializers import (
+    LoginSerializer, 
+    LogoutSerializer, 
+    RegisterSerializer, 
+    ResendVerificationSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer
+)
 
 from apps.users.models import User
 
@@ -244,6 +256,77 @@ def resend_verification_view(request):
     return Response(
         {
             "message": "Verification email sent successfully."
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["POST"])
+@throttle_classes([ForgotPasswordThrottle])
+def forgot_password_view(request):
+    """Handle forgot password requests."""
+    serializer = ForgotPasswordSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    email = serializer.validated_data["email"]
+
+    try:
+        user = User.objects.get(USER_EMAIL__iexact=email)
+
+    except User.DoesNotExist:
+        user = None
+
+
+    if user is not None:
+        try:
+            EmailService.send_password_reset_email(user)
+        except Exception:
+            pass
+
+    # Always return the same response to avoid revealing
+    # whether an email address is registered.
+    return Response(
+    {
+        "message": (
+            "If an account exists with this email, "
+            "a password reset link has been sent."
+        )
+    },
+    status=status.HTTP_200_OK,
+)
+
+
+
+@api_view(["POST"])
+def reset_password_view(request):
+    """Reset a user's password using a valid reset token."""
+    serializer = ResetPasswordSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    uid = serializer.validated_data["uid"]
+    token = serializer.validated_data["token"]
+    password = serializer.validated_data["password"]
+
+    user = PasswordResetService.verify_token(uid, token)
+
+    if user is None:
+        return Response(
+            {
+                "detail": (
+                    "This password reset link is invalid or has expired."
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user.set_password(password)
+    user.save(update_fields=["password"])
+
+    SessionService.revoke_all_sessions(user)
+
+    return Response(
+        {
+            "message": "Password reset successfully."
         },
         status=status.HTTP_200_OK,
     )

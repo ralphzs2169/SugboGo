@@ -1,4 +1,4 @@
-from rest_framework.throttling import SimpleRateThrottle
+from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
 
 
 class ResendVerificationThrottle(SimpleRateThrottle):
@@ -18,3 +18,7 @@ class ResendVerificationThrottle(SimpleRateThrottle):
             "scope": self.scope,
             "ident": email.lower().strip(),
         }
+    
+class ForgotPasswordThrottle(AnonRateThrottle):
+    """Throttle forgot password requests from anonymous users."""
+    scope = "forgot_password"
