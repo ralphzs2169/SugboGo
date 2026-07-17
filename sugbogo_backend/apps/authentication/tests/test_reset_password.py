@@ -1,0 +1,189 @@
+from unittest.mock import patch
+
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from apps.users.models import User
+
+
+class ResetPasswordViewTests(APITestCase):
+    """Tests for the password reset endpoint."""
+
+    def setUp(self):
+        self.url = reverse("reset_password")
+
+        self.old_password = "StrongPassword123!"
+        self.new_password = "NewStrongPassword123!"
+
+        self.user = User.objects.create_user(
+            email="john@example.com",
+            password=self.old_password,
+            USER_FNAME="John",
+            USER_LNAME="Doe",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
+        )
+
+    @patch(
+        "apps.authentication.views.SessionService.revoke_all_sessions"
+    )
+    @patch(
+        "apps.authentication.views.PasswordResetService.verify_token"
+    )
+    def test_reset_password_successfully(
+        self,
+        mock_verify_token,
+        mock_revoke_sessions,
+    ):
+        mock_verify_token.return_value = self.user
+
+        response = self.client.post(
+            self.url,
+            {
+                "uid": "valid-uid",
+                "token": "valid-token",
+                "password": self.new_password,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data["message"],
+            "Password reset successfully.",
+        )
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(self.new_password)
+        )
+
+        self.assertFalse(
+            self.user.check_password(self.old_password)
+        )
+
+        mock_verify_token.assert_called_once_with(
+            "valid-uid",
+            "valid-token",
+        )
+
+        mock_revoke_sessions.assert_called_once_with(
+            self.user,
+        )
+
+    @patch(
+        "apps.authentication.views.PasswordResetService.verify_token"
+    )
+    def test_rejects_invalid_token(
+        self,
+        mock_verify_token,
+    ):
+        mock_verify_token.return_value = None
+
+        response = self.client.post(
+            self.url,
+            {
+                "uid": "invalid",
+                "token": "invalid",
+                "password": self.new_password,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertEqual(
+            response.data["detail"],
+            "This password reset link is invalid or has expired.",
+        )
+
+    def test_requires_uid(self):
+        response = self.client.post(
+            self.url,
+            {
+                "token": "token",
+                "password": self.new_password,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "uid",
+            response.data,
+        )
+
+    def test_requires_token(self):
+        response = self.client.post(
+            self.url,
+            {
+                "uid": "uid",
+                "password": self.new_password,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "token",
+            response.data,
+        )
+
+    def test_requires_password(self):
+        response = self.client.post(
+            self.url,
+            {
+                "uid": "uid",
+                "token": "token",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "password",
+            response.data,
+        )
+
+    def test_rejects_weak_password(self):
+        response = self.client.post(
+            self.url,
+            {
+                "uid": "uid",
+                "token": "token",
+                "password": "12345",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "password",
+            response.data,
+        )
