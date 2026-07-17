@@ -1,17 +1,15 @@
-import { validateLoginForm } from "./loginValidator";
+import { validateLoginForm } from "../loginValidator";
 
-/*
- * Unit tests for validateLoginForm().
+/**
+ * @file loginValidator.test.ts
+ * @description Unit tests for login form validation.
  *
- * These tests verify that client-side login validation
- * prevents invalid requests from being sent to the backend.
+ * Verifies that login input validation correctly
+ * handles missing fields, invalid email formats,
+ * and accepts valid login credentials.
  *
- * Test Cases
- * ----------
- * - should require both email and password
- * - should reject an invalid email address
- * - should require a password
- * - should return no validation errors for valid input
+ * Run:
+ * npm test -- loginValidator.test.ts
  */
 
 describe("loginValidator", () => {

@@ -1,21 +1,15 @@
-import { mapLoginErrors, mapRegisterErrors } from "./errorMapper";
+import { mapLoginErrors, mapRegisterErrors } from "../errorMapper";
 
 /**
- * Unit tests for backend-to-frontend error mapping.
+ * @file errorMapper.test.ts
+ * @description Unit tests for backend-to-frontend error mapping.
  *
- * These tests verify that backend validation errors
- * are correctly translated into frontend form errors.
+ * Verifies that backend validation errors are correctly
+ * transformed into frontend form error structures,
+ * including field mappings and handling missing errors.
  *
- * Test Cases
- * ----------
- * mapRegisterErrors()
- * ✓ should map backend register errors to frontend field names
- * ✓ should return an empty object when no errors exist
- *
- * mapLoginErrors()
- * ✓ should map backend login field errors
- * ✓ should ignore non-field authentication errors
- * ✓ should return an empty object when no field errors exist
+ * Run:
+ * npm test -- errorMapper.test.ts
  */
 
 describe("errorMapper", () => {
