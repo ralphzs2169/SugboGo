@@ -141,11 +141,13 @@ REST_FRAMEWORK = {
     # Throttle settings for resending verification emails
     "DEFAULT_THROTTLE_RATES": {
         "resend_verification": "5/hour",
-         "forgot_password": "5/hour",
+        "forgot_password": "5/hour",
     },
 
     # Custom exception handler for consistent error responses
-    "EXCEPTION_HANDLER": "config.exceptions.custom_exception_handler",
+    # "EXCEPTION_HANDLER": "config.exceptions.custom_exception_handler",
+
+    "EXCEPTION_HANDLER": "apps.core.exceptions.custom_exception_handler",
 }
 
 SIMPLE_JWT = {

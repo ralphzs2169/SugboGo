@@ -4,9 +4,10 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import User
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
 
-class LogoutViewTests(APITestCase):
+class LogoutViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the user logout endpoint."""
 
     def setUp(self):
@@ -54,14 +55,9 @@ class LogoutViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
+        self.assertValidationError(
+            response,
             "refresh",
-            response.data,
         )
 
 

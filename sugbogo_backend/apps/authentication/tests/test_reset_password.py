@@ -5,9 +5,10 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.users.models import User
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
 
-class ResetPasswordViewTests(APITestCase):
+class ResetPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the password reset endpoint."""
 
     def setUp(self):
@@ -106,15 +107,7 @@ class ResetPasswordViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
-            "uid",
-            response.data,
-        )
+        self.assertValidationError(response, "uid")
 
     def test_requires_token(self):
         response = self.client.post(
@@ -126,15 +119,7 @@ class ResetPasswordViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
-            "token",
-            response.data,
-        )
+        self.assertValidationError(response, "token")
 
     def test_requires_password(self):
         response = self.client.post(
@@ -146,15 +131,7 @@ class ResetPasswordViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
-            "password",
-            response.data,
-        )
+        self.assertValidationError(response, "password")
 
     def test_rejects_weak_password(self):
         response = self.client.post(
@@ -167,12 +144,4 @@ class ResetPasswordViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
-            "password",
-            response.data,
-        )
+        self.assertValidationError(response, "password")

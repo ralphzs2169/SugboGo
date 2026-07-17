@@ -4,9 +4,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.users.models import User
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
-
-class RegisterViewTests(APITestCase):
+class RegisterViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the user registration endpoint."""
 
     def setUp(self):
@@ -19,9 +19,7 @@ class RegisterViewTests(APITestCase):
             "last_name": "Doe",
         }
 
-    @patch(
-        "apps.authentication.services.email_service.EmailService.send_verification_email"
-    )
+    @patch("apps.authentication.services.email_service.EmailService.send_verification_email")
     def test_register_successfully_creates_user(self, mock_send_email):
         response = self.client.post(
             self.url,
@@ -74,12 +72,10 @@ class RegisterViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertValidationError(
+            response,
+            "email",
         )
-
-        self.assertIn("email", response.data)
 
         self.assertEqual(
             User.objects.filter(USER_EMAIL="john@example.com").count(),
@@ -99,12 +95,10 @@ class RegisterViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertValidationError(
+            response,
+            "email"
         )
-
-        self.assertIn("email", response.data)
 
         self.assertFalse(User.objects.filter(USER_EMAIL="not-an-email").exists())
 
@@ -121,12 +115,10 @@ class RegisterViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertValidationError(
+            response,
+            "password"
         )
-
-        self.assertIn("password", response.data)
 
         self.assertFalse(User.objects.filter(USER_EMAIL="john@example.com").exists())
 
@@ -141,15 +133,13 @@ class RegisterViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertValidationError(
+            response,
+            "email",
+            "password",
+            "first_name",
+            "last_name",
         )
-
-        self.assertIn("email", response.data)
-        self.assertIn("password", response.data)
-        self.assertIn("first_name", response.data)
-        self.assertIn("last_name", response.data)
 
         self.assertEqual(
             User.objects.count(),

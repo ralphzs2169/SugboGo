@@ -6,14 +6,15 @@ from rest_framework.test import APITestCase
 from django.core.cache import cache
 
 from apps.users.models import User
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
 
-class ForgotPasswordViewTests(APITestCase):
+class ForgotPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the forgot password endpoint."""
 
     def setUp(self):
         cache.clear()
-        
+
         self.url = reverse("forgot_password")
 
         self.user = User.objects.create_user(
@@ -118,12 +119,10 @@ class ForgotPasswordViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertValidationError(
+            response,
+            "email",
         )
-
-        self.assertIn("email", response.data)
 
     def test_rejects_invalid_email(self):
         response = self.client.post(
@@ -134,12 +133,10 @@ class ForgotPasswordViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertValidationError(
+            response,
+            "email",
         )
-
-        self.assertIn("email", response.data)
 
     def test_rejects_empty_email(self):
         response = self.client.post(
@@ -155,7 +152,10 @@ class ForgotPasswordViewTests(APITestCase):
             status.HTTP_400_BAD_REQUEST,
         )
 
-        self.assertIn("email", response.data)
+        self.assertValidationError(
+            response,
+            "email",
+        )
 
     @patch(
         "apps.authentication.views.EmailService.send_password_reset_email"

@@ -4,10 +4,11 @@ from rest_framework.test import APITestCase
 
 from apps.users.models import User
 from datetime import datetime, timezone
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
-class LoginViewTests(APITestCase):
+class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the user login endpoint."""
 
     def setUp(self):
@@ -153,8 +154,12 @@ class LoginViewTests(APITestCase):
             status.HTTP_400_BAD_REQUEST,
         )
 
-        self.assertIn("email", response.data)
-        self.assertIn("password", response.data)
+        self.assertValidationError(
+            response,
+            "email",
+            "password"
+        )
+
 
 
     def test_login_rejects_invalid_email(self):
@@ -167,12 +172,10 @@ class LoginViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertValidationError(
+            response,
+            "email",
         )
-
-        self.assertIn("email", response.data)
 
 
     def test_login_with_remember_me_false_uses_short_refresh_lifetime(self):
