@@ -47,3 +47,5 @@ dist/
 Thumbs.db
 Desktop.ini
 
+.coverage
+htmlcov/
