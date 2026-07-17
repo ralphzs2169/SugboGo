@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
+from django.db import transaction
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import (
     urlsafe_base64_encode,
@@ -7,6 +8,8 @@ from django.utils.http import (
 )
 from apps.users.models import User
 import logging
+
+from apps.authentication.services.session_service import SessionService
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,6 @@ class PasswordResetService:
             A signed reset URL containing the user's encoded ID and token.
         """
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-
         token = default_token_generator.make_token(user)
 
         return (
@@ -34,15 +36,17 @@ class PasswordResetService:
             f"?uid={uid}&token={token}"
         )
 
-
     @staticmethod
-    def verify_token(uid: str, token: str) -> User | None:
+    def verify_token(
+        uid: str,
+        token: str,
+    ) -> User | None:
         """
         Validate a password reset token.
 
         Args:
             uid: Base64 encoded user ID.
-            token: Password Reset token.
+            token: Password reset token.
 
         Returns:
             The matching user if the token is valid; otherwise None.
@@ -73,3 +77,31 @@ class PasswordResetService:
             return user
 
         return None
+
+    @staticmethod
+    @transaction.atomic
+    def reset_password(
+        uid: str,
+        token: str,
+        password: str,
+    ) -> User | None:
+        """
+        Reset a user's password and revoke all active sessions.
+
+        Returns:
+            The updated user if successful; otherwise None.
+        """
+        user = PasswordResetService.verify_token(
+            uid,
+            token,
+        )
+
+        if user is None:
+            return None
+
+        user.set_password(password)
+        user.save(update_fields=["password"])
+
+        SessionService.revoke_all_sessions(user)
+
+        return user

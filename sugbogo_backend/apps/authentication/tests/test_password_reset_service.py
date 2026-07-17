@@ -6,6 +6,7 @@ from django.utils.http import (
     urlsafe_base64_encode,
     urlsafe_base64_decode,
 )
+from unittest.mock import patch
 
 from apps.authentication.services.password_reset_service import (
     PasswordResetService,
@@ -116,3 +117,77 @@ class PasswordResetServiceTests(TestCase):
         )
 
         self.assertIsNone(result)
+
+
+    @patch("apps.authentication.services.password_reset_service.SessionService.revoke_all_sessions")
+    def test_reset_password_successfully(
+        self,
+        mock_revoke_sessions,
+    ):
+        uid = urlsafe_base64_encode(
+            force_bytes(self.user.pk),
+        )
+
+        token = default_token_generator.make_token(
+            self.user,
+        )
+
+        result = PasswordResetService.reset_password(
+            uid=uid,
+            token=token,
+            password="NewStrongPassword123!",
+        )
+
+        self.assertEqual(result, self.user)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                "NewStrongPassword123!"
+            )
+        )
+
+        self.assertFalse(
+            self.user.check_password(
+                self.password,
+            )
+        )
+
+        mock_revoke_sessions.assert_called_once_with(
+            self.user,
+        )
+
+
+    @patch("apps.authentication.services.password_reset_service.SessionService.revoke_all_sessions")
+    def test_reset_password_rejects_invalid_token(
+        self,
+        mock_revoke_sessions,
+    ):
+        uid = urlsafe_base64_encode(
+            force_bytes(self.user.pk),
+        )
+
+        result = PasswordResetService.reset_password(
+            uid=uid,
+            token="invalid-token",
+            password="NewStrongPassword123!",
+        )
+
+        self.assertIsNone(result)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                self.password,
+            )
+        )
+
+        self.assertFalse(
+            self.user.check_password(
+                "NewStrongPassword123!"
+            )
+        )
+
+        mock_revoke_sessions.assert_not_called()

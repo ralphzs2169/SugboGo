@@ -27,17 +27,13 @@ class ResetPasswordViewTests(APITestCase):
         )
 
     @patch(
-        "apps.authentication.views.SessionService.revoke_all_sessions"
-    )
-    @patch(
-        "apps.authentication.views.PasswordResetService.verify_token"
+        "apps.authentication.views.PasswordResetService.reset_password"
     )
     def test_reset_password_successfully(
         self,
-        mock_verify_token,
-        mock_revoke_sessions,
+        mock_reset_password,
     ):
-        mock_verify_token.return_value = self.user
+        mock_reset_password.return_value = self.user
 
         response = self.client.post(
             self.url,
@@ -59,33 +55,20 @@ class ResetPasswordViewTests(APITestCase):
             "Password reset successfully.",
         )
 
-        self.user.refresh_from_db()
-
-        self.assertTrue(
-            self.user.check_password(self.new_password)
-        )
-
-        self.assertFalse(
-            self.user.check_password(self.old_password)
-        )
-
-        mock_verify_token.assert_called_once_with(
-            "valid-uid",
-            "valid-token",
-        )
-
-        mock_revoke_sessions.assert_called_once_with(
-            self.user,
+        mock_reset_password.assert_called_once_with(
+            uid="valid-uid",
+            token="valid-token",
+            password=self.new_password,
         )
 
     @patch(
-        "apps.authentication.views.PasswordResetService.verify_token"
+        "apps.authentication.views.PasswordResetService.reset_password"
     )
     def test_rejects_invalid_token(
         self,
-        mock_verify_token,
+        mock_reset_password,
     ):
-        mock_verify_token.return_value = None
+        mock_reset_password.return_value = None
 
         response = self.client.post(
             self.url,
@@ -105,6 +88,12 @@ class ResetPasswordViewTests(APITestCase):
         self.assertEqual(
             response.data["detail"],
             "This password reset link is invalid or has expired.",
+        )
+
+        mock_reset_password.assert_called_once_with(
+            uid="invalid",
+            token="invalid",
+            password=self.new_password,
         )
 
     def test_requires_uid(self):

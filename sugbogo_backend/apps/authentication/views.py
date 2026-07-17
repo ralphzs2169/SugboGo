@@ -295,19 +295,17 @@ def forgot_password_view(request):
     status=status.HTTP_200_OK,
 )
 
-
-
 @api_view(["POST"])
 def reset_password_view(request):
     """Reset a user's password using a valid reset token."""
     serializer = ResetPasswordSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    uid = serializer.validated_data["uid"]
-    token = serializer.validated_data["token"]
-    password = serializer.validated_data["password"]
-
-    user = PasswordResetService.verify_token(uid, token)
+    user = PasswordResetService.reset_password(
+        uid=serializer.validated_data["uid"],
+        token=serializer.validated_data["token"],
+        password=serializer.validated_data["password"],
+    )
 
     if user is None:
         return Response(
@@ -318,11 +316,6 @@ def reset_password_view(request):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
-
-    user.set_password(password)
-    user.save(update_fields=["password"])
-
-    SessionService.revoke_all_sessions(user)
 
     return Response(
         {
