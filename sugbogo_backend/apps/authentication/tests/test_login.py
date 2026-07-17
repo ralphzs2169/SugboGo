@@ -26,7 +26,6 @@ class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
             EMAIL_VERIFIED=True,
         )
 
-
     def test_login_successfully_returns_tokens(self):
         response = self.client.post(
             self.url,
@@ -37,20 +36,19 @@ class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
+        self.assertSuccessResponse(
+            response,
+            message="Login successful.",
         )
 
-        self.assertIn("access", response.data)
-        self.assertIn("refresh", response.data)
-        self.assertIn("user", response.data)
+        self.assertIn("access", response.data["data"])
+        self.assertIn("refresh", response.data["data"])
+        self.assertIn("user", response.data["data"])
 
         self.assertEqual(
-            response.data["user"]["email"],
+            response.data["data"]["user"]["email"],
             "john@example.com",
         )
-
 
     def test_login_fails_with_wrong_password(self):
         response = self.client.post(
@@ -62,14 +60,11 @@ class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_401_UNAUTHORIZED,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Invalid email or password.",
+        self.assertErrorResponse(
+            response,
+            message="Invalid email or password.",
+            code="INVALID_CREDENTIALS",
+            status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
 
@@ -83,14 +78,11 @@ class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_401_UNAUTHORIZED,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Invalid email or password.",
+        self.assertErrorResponse(
+            response,
+            message="Invalid email or password.",
+            code="INVALID_CREDENTIALS",
+            status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
 
@@ -131,14 +123,11 @@ class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
-
-        self.assertIn(
-            "Account is suspended",
-            response.data["detail"],
+        self.assertErrorResponse(
+            response,
+            message="Account is suspended. Please contact support.",
+            code="ACCOUNT_INACTIVE",
+            status_code=status.HTTP_403_FORBIDDEN,
         )
 
 
@@ -194,7 +183,7 @@ class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
             status.HTTP_200_OK,
         )
 
-        refresh = RefreshToken(response.data["refresh"])
+        refresh = RefreshToken(response.data["data"]["refresh"])
 
         expires_at = datetime.fromtimestamp(
             refresh["exp"],
@@ -227,12 +216,12 @@ class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
+        self.assertSuccessResponse(
+            response,
+            message="Login successful.",
         )
 
-        refresh = RefreshToken(response.data["refresh"])
+        refresh = RefreshToken(response.data["data"]["refresh"])
 
         expires_at = datetime.fromtimestamp(
             refresh["exp"],

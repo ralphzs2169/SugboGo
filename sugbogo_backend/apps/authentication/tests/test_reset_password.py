@@ -81,14 +81,11 @@ class ResetPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "This password reset link is invalid or has expired.",
+        self.assertErrorResponse(
+            response,
+            message="This password reset link is invalid or has expired.",
+            code="INVALID_RESET_LINK",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
         mock_reset_password.assert_called_once_with(

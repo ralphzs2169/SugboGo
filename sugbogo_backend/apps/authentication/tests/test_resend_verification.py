@@ -59,14 +59,11 @@ class ResendVerificationViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_404_NOT_FOUND,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "No account found with this email.",
+        self.assertErrorResponse(
+            response,
+            message="No account found with this email.",
+            code="USER_NOT_FOUND",
+            status_code=status.HTTP_404_NOT_FOUND,
         )
 
     
@@ -82,14 +79,11 @@ class ResendVerificationViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Email is already verified.",
+        self.assertErrorResponse(
+            response,
+            message="Email is already verified.",
+            code="EMAIL_ALREADY_VERIFIED",
+            status_code=status.HTTP_409_CONFLICT,
         )
 
 
@@ -127,14 +121,11 @@ class ResendVerificationViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Unable to send verification email. Please try again later.",
+        self.assertErrorResponse(
+            response,
+            message="Unable to send verification email. Please try again later.",
+            code="EMAIL_SEND_FAILED",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
 

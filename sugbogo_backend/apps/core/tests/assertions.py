@@ -39,3 +39,29 @@ class APIResponseAssertionsMixin:
         self.assertEqual(response.data["code"],"RATE_LIMIT_EXCEEDED",)
         self.assertIn("detail",response.data["errors"],)
         self.assertIn("retry_after",response.data["errors"],)
+
+
+    def assertErrorResponse(
+        self,
+        response,
+        *,
+        message,
+        code,
+        status_code,
+    ):
+        self.assertEqual(response.status_code, status_code)
+        self.assertFalse(response.data["success"])
+        self.assertEqual(response.data["message"], message)
+        self.assertEqual(response.data["code"], code)
+
+
+    def assertSuccessResponse(
+        self,
+        response,
+        *,
+        message,
+        status_code=status.HTTP_200_OK,
+    ):
+        self.assertEqual(response.status_code, status_code)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(response.data["message"], message)

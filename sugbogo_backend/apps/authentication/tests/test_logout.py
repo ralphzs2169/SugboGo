@@ -37,14 +37,10 @@ class LogoutViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_205_RESET_CONTENT,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Successfully logged out.",
+        self.assertSuccessResponse(
+            response,
+            message="Successfully logged out.",
+            status_code=status.HTTP_205_RESET_CONTENT,
         )
 
 
@@ -70,14 +66,11 @@ class LogoutViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Invalid or already-blacklisted token.",
+        self.assertErrorResponse(
+            response,
+            message="Invalid refresh token.",
+            code="INVALID_TOKEN",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -105,12 +98,11 @@ class LogoutViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertErrorResponse(
+            response,
+            message="Invalid refresh token.",
+            code="INVALID_TOKEN",  
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-        self.assertEqual(
-            response.data["detail"],
-            "Invalid or already-blacklisted token.",
-        )
+  
