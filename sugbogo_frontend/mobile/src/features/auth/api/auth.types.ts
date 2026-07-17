@@ -49,19 +49,6 @@ export interface RefreshResponse {
 
 /**
  * Represents validation errors returned by the backend
- * during user login.
- *
- * Field names follow the backend response format.
- */
-export interface LoginFieldErrors {
-  email?: string[];
-  password?: string[];
-  detail?: string;
-  code?: string;
-}
-
-/**
- * Represents validation errors returned by the backend
  * during user registration.
  *
  * Field names follow the backend serializer naming convention.

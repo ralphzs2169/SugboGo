@@ -2,10 +2,10 @@ import { useState } from "react";
 import axios from "axios";
 
 import { register } from "../api/auth.service";
-import { AuthResult } from "../api/auth.types";
 import { establishSession } from "../utils/authSession";
-import { RegisterFieldErrors } from "../api/auth.types";
+import { AuthResponse, RegisterFieldErrors } from "../api/auth.types";
 import { useVerificationStore } from "../store/verification.store";
+import { ApiResult } from "@/shared/api/types";
 
 /**
  * Custom hook for handling user registration.
@@ -24,10 +24,7 @@ export function useRegister() {
    * @param {string} email - User's email address.
    * @param {string} password - User's password.
    *
-   * @returns {Promise<
-   *   | { success: true; data: AuthResponse }
-   *   | { success: false; errors: RegisterFieldErrors }
-   * >}
+   * @returns {Promise<ApiResult<AuthResponse>>}
    *
    * Returns the authentication response on success,
    * or structured field errors if registration fails.
@@ -37,7 +34,7 @@ export function useRegister() {
     lastName: string,
     email: string,
     password: string,
-  ): Promise<AuthResult<RegisterFieldErrors>> => {
+  ): Promise<ApiResult<AuthResponse>> => {
     setLoading(true);
 
     try {
@@ -51,23 +48,18 @@ export function useRegister() {
       setPendingEmail(email);
       console.log("Pending verification email:", email);
 
-      return {
-        success: true,
-        data: response,
-      };
+      return response;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        return {
-          success: false,
-          errors: error.response?.data ?? {},
-        };
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data;
+        }
       }
 
       return {
         success: false,
-        errors: {
-          detail: "Something went wrong. Please try again.",
-        },
+        message: "Something went wrong. Please try again.",
+        code: "UNKNOWN_ERROR",
       };
     } finally {
       setLoading(false);

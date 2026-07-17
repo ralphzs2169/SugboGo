@@ -50,11 +50,19 @@ export default function VerifyEmail() {
     const response = await handleResend(pendingEmail);
 
     if (!response.success) {
-      const { retry_after } = response.error ?? {};
+      if (response.code === "EMAIL_ALREADY_VERIFIED") {
+        Toast.show({
+          type: "success",
+          text1: "Email Already Verified",
+          text2: "Your email is already verified.",
+        });
+        return;
+      }
+      const retryAfter = response.errors?.retry_after as number | undefined;
 
       // Handle rate limiting error
-      if (retry_after) {
-        const minutes = Math.ceil(retry_after / 60);
+      if (retryAfter) {
+        const minutes = Math.ceil(retryAfter / 60);
 
         Toast.show({
           type: "error",
@@ -64,8 +72,8 @@ export default function VerifyEmail() {
       } else {
         Toast.show({
           type: "error",
-          text1: response.error?.detail ?? "Request Failed",
-          text2: response.error?.message,
+          text1: "Request Failed",
+          text2: response.message,
         });
       }
 

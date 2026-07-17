@@ -4,7 +4,6 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, throttle_classes
-from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -12,7 +11,10 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.services.verification_service import EmailVerificationService
 from apps.authentication.services.password_reset_service import PasswordResetService
-from apps.authentication.services.session_service import SessionService
+from rest_framework.exceptions import Throttled
+
+
+from apps.core.responses import error_response, success_response
 
 from apps.authentication.throttles import (
     ResendVerificationThrottle,
@@ -66,30 +68,31 @@ def login_view(request):
         user = None
 
     if user is None or not user.check_password(password):
-        return Response(
-            {"detail": "Invalid email or password."},
-            status=status.HTTP_401_UNAUTHORIZED,
+        return error_response(
+            message="Invalid email or password.",
+            code="INVALID_CREDENTIALS",
+            status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
     if not user.is_active:
-        return Response(
-            {"detail": f"Account is {user.USER_STATUS}. Please contact support."},
-            status=status.HTTP_403_FORBIDDEN,
+        return error_response(
+            message=f"Account is {user.USER_STATUS}. Please contact support.",
+            code="ACCOUNT_INACTIVE",
+            status_code=status.HTTP_403_FORBIDDEN,
         )
     
     if not user.EMAIL_VERIFIED:
-        return Response(
-            {
-                "code": "EMAIL_NOT_VERIFIED",
-                "detail": "Please verify your email address before logging in."
-            },
-            status=status.HTTP_403_FORBIDDEN,
+        return error_response(
+            message="Please verify your email address before logging in.",
+            code="EMAIL_NOT_VERIFIED",
+            status_code=status.HTTP_403_FORBIDDEN,
         )
 
     tokens = _issue_tokens(user, remember_me)
 
-    return Response(
-        {
+    return success_response(
+        message="Login successful.",
+        data={
             "user": {
                 "id": user.USER_ID,
                 "email": user.USER_EMAIL,
@@ -98,8 +101,7 @@ def login_view(request):
                 "has_completed_interest_selection": user.HAS_COMPLETED_INTEREST_SELECTION,
             },
             **tokens,
-        },
-        status=status.HTTP_200_OK,
+        }
     )
 
 
@@ -124,11 +126,9 @@ def register_view(request):
     except Exception:
         pass
 
-    return Response(
-        {
-            "message": "Registration successful. Please verify your email."
-        },
-        status=status.HTTP_201_CREATED,
+    return success_response(
+        message="Registration successful. Please verify your email.",
+        status_code=status.HTTP_201_CREATED,
     )
 
 
@@ -143,14 +143,15 @@ def logout_view(request):
         token = RefreshToken(refresh_token)
         token.blacklist()
     except TokenError:
-        return Response(
-            {"detail": "Invalid or already-blacklisted token."},
-            status=status.HTTP_400_BAD_REQUEST,
+        return error_response(
+            message="Invalid refresh token.",
+            code="INVALID_TOKEN",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    return Response(
-        {"detail": "Successfully logged out."},
-        status=status.HTTP_205_RESET_CONTENT,
+    return success_response(
+        message="Successfully logged out.",
+        status_code=status.HTTP_205_RESET_CONTENT,
     )
 
 
@@ -166,34 +167,26 @@ def verify_email_view(request):
     token = request.query_params.get("token")
 
     if not uid or not token:
-        return Response(
-            {
-                "detail": "Missing verification credentials."
-            },
-            status=status.HTTP_400_BAD_REQUEST,
+        return error_response(
+            message="Missing verification credentials.",
+            code="MISSING_CREDENTIALS",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     user = EmailVerificationService.verify_token(uid, token)
 
     if user is None:
-        return Response(
-            {
-                "detail": (
-                    "This verification link is invalid or has expired. "
-                    "Please request a new verification email."
-                )
-            },
-            status=status.HTTP_400_BAD_REQUEST,
+       return error_response(
+            message=(
+                "This verification link is invalid or has expired. "
+                "Please request a new verification email."
+            ),
+            code="INVALID_VERIFICATION_LINK",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     if user.EMAIL_VERIFIED:
-        return Response(
-            {
-                "message": "Email is already verified.",
-                "verified": True,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return success_response(message="Email is already verified.")
 
     user.EMAIL_VERIFIED = True
     user.EMAIL_VERIFIED_AT = timezone.now()
@@ -204,16 +197,9 @@ def verify_email_view(request):
         ]
     )
 
-    return Response(
-        {
-            "message": "Email verified successfully.",
-            "verified": True,
-        },
-        status=status.HTTP_200_OK,
-    )
+    return success_response(message="Email verified successfully.")
 
 @api_view(["POST"])
-@throttle_classes([ResendVerificationThrottle])
 def resend_verification_view(request):
     serializer = ResendVerificationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -224,41 +210,39 @@ def resend_verification_view(request):
         user = User.objects.get(USER_EMAIL=email)
 
     except User.DoesNotExist:
-        return Response(
-            {
-                "detail": "No account found with this email."
-            },
-            status=status.HTTP_404_NOT_FOUND,
+        return error_response(
+            message="No account found with this email.",
+            code="USER_NOT_FOUND",
+            status_code=status.HTTP_404_NOT_FOUND,
         )
 
     if user.EMAIL_VERIFIED:
-        return Response(
-            {
-                "detail": "Email is already verified."
-            },
-            status=status.HTTP_400_BAD_REQUEST,
+         return error_response(
+            message="Email is already verified.",
+            code="EMAIL_ALREADY_VERIFIED",
+            status_code=status.HTTP_409_CONFLICT,
         )
+
+    throttle = ResendVerificationThrottle()
+
+    if not throttle.allow_request(request, view=None):
+        raise Throttled(wait=throttle.wait())
+    
 
     try:
         EmailService.send_verification_email(user)
-
+    
     except Exception:
-        return Response(
-            {
-                "detail": (
-                    "Unable to send verification email. "
-                    "Please try again later."
-                )
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        return error_response(
+            message=(
+                "Unable to send verification email. "
+                "Please try again later."
+            ),
+            code="EMAIL_SEND_FAILED",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    return Response(
-        {
-            "message": "Verification email sent successfully."
-        },
-        status=status.HTTP_200_OK,
-    )
+    return success_response(message="Verification email sent successfully.")
 
 
 @api_view(["POST"])
@@ -285,15 +269,12 @@ def forgot_password_view(request):
 
     # Always return the same response to avoid revealing
     # whether an email address is registered.
-    return Response(
-    {
-        "message": (
+    return success_response(
+        message=(
             "If an account exists with this email, "
             "a password reset link has been sent."
         )
-    },
-    status=status.HTTP_200_OK,
-)
+    )
 
 @api_view(["POST"])
 def reset_password_view(request):
@@ -308,18 +289,10 @@ def reset_password_view(request):
     )
 
     if user is None:
-        return Response(
-            {
-                "detail": (
-                    "This password reset link is invalid or has expired."
-                )
-            },
-            status=status.HTTP_400_BAD_REQUEST,
+        return error_response(
+            message="This password reset link is invalid or has expired.",
+            code="INVALID_RESET_LINK",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    return Response(
-        {
-            "message": "Password reset successfully."
-        },
-        status=status.HTTP_200_OK,
-    )
+    return success_response(message="Password reset successfully.")   

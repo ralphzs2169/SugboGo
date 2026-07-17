@@ -7,8 +7,8 @@ import {
   LoginErrors,
   validateLoginForm,
 } from "@/features/auth/utils/loginValidator";
+import { getFieldError } from "@/shared/api/errors";
 
-import { mapLoginErrors } from "@/features/auth/utils/errorMapper";
 import AuthButton from "@/features/auth/components/AuthButton";
 // import AuthCard from "@/features/auth/components/AuthCard";
 import AuthHeader from "@/features/auth/components/AuthHeader";
@@ -41,6 +41,7 @@ export default function Login() {
 
     setFormError("");
   };
+
   const onLogin = async () => {
     const validationErrors = validateLoginForm(email, password);
 
@@ -55,25 +56,28 @@ export default function Login() {
     const response = await handleLogin(email, password);
 
     if (!response.success) {
-      // If the backend indicates that the user's email is not verified, redirect to the email verification page.
-      if (response.errors?.code === "EMAIL_NOT_VERIFIED") {
+      if (response.code === "EMAIL_NOT_VERIFIED") {
         router.push({
           pathname: "/(auth)/verify-email",
-          params: {
-            email,
-          },
+          params: { email },
         });
 
         return;
       }
 
-      // If there are field-specific errors, map them to the frontend format and display them.
-      if (response.errors?.detail) {
-        setFormError(response.errors.detail);
-      } else {
-        setErrors(mapLoginErrors(response.errors ?? {}));
+      const emailError = getFieldError(response, "email");
+      const passwordError = getFieldError(response, "password");
+
+      if (emailError || passwordError) {
+        setErrors({
+          email: emailError,
+          password: passwordError,
+        });
+
+        return;
       }
 
+      setFormError(response.message);
       return;
     }
 
