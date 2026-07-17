@@ -4,9 +4,10 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import User
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
 
-class TokenRefreshViewTests(APITestCase):
+class TokenRefreshViewTests(APIResponseAssertionsMixin, APITestCase):
     def setUp(self):
         self.url = reverse("token_refresh")
 
@@ -53,16 +54,8 @@ class TokenRefreshViewTests(APITestCase):
             },
             format="json",
         )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_401_UNAUTHORIZED,
-        )
-
-        self.assertIn(
-            "detail",
-            response.data,
-        )
+        print(response.data)
+        self.assertAuthenticationError(response)
 
 
     def test_refresh_requires_refresh_token(self):
@@ -72,14 +65,9 @@ class TokenRefreshViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
+        self.assertValidationError(
+            response,
             "refresh",
-            response.data,
         )
 
 

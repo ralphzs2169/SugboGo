@@ -50,6 +50,13 @@ EMAIL_VERIFICATION_URL = os.getenv(
     "EMAIL_VERIFICATION_URL",
     "http://localhost:8000/api/auth/verify-email/",
 )
+
+# Password Reset URL
+PASSWORD_RESET_URL = os.getenv(
+    "PASSWORD_RESET_URL",
+    "http://localhost:8000/api/auth/reset-password/",
+)
+
 # Email verification / password reset token lifetime (24 hours)
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
 
@@ -134,10 +141,13 @@ REST_FRAMEWORK = {
     # Throttle settings for resending verification emails
     "DEFAULT_THROTTLE_RATES": {
         "resend_verification": "5/hour",
+        "forgot_password": "5/hour",
     },
 
     # Custom exception handler for consistent error responses
-    "EXCEPTION_HANDLER": "config.exceptions.custom_exception_handler",
+    # "EXCEPTION_HANDLER": "config.exceptions.custom_exception_handler",
+
+    "EXCEPTION_HANDLER": "apps.core.exceptions.custom_exception_handler",
 }
 
 SIMPLE_JWT = {

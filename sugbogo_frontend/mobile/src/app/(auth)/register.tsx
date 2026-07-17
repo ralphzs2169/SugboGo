@@ -7,7 +7,6 @@ import {
   RegisterErrors,
   validateRegisterForm,
 } from "@/features/auth/utils/registerValidator";
-import { mapRegisterErrors } from "@/features/auth/utils/errorMapper";
 
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthHeader from "@/features/auth/components/AuthHeader";
@@ -17,6 +16,7 @@ import Divider from "@/features/auth/components/Divider";
 import FormInput from "@/features/auth/components/FormInput";
 import PasswordInput from "@/features/auth/components/PasswordInput";
 import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
+import getRegisterErrors from "@/features/auth/utils/registerErrors";
 
 /**
  * Register component provides a user interface for creating a new account in the application.
@@ -70,12 +70,19 @@ export default function Register() {
     const response = await handleRegister(firstName, lastName, email, password);
 
     if (!response.success) {
-      if (response.errors?.detail) {
-        setFormError(response.errors.detail);
-      } else {
-        setErrors(mapRegisterErrors(response.errors ?? {}));
+      const registerErrors = getRegisterErrors(response);
+
+      if (
+        registerErrors.firstName ||
+        registerErrors.lastName ||
+        registerErrors.email ||
+        registerErrors.password
+      ) {
+        setErrors(registerErrors);
+        return;
       }
 
+      setFormError(response.message);
       return;
     }
 

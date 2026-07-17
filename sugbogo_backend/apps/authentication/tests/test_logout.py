@@ -4,9 +4,10 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import User
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
 
-class LogoutViewTests(APITestCase):
+class LogoutViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the user logout endpoint."""
 
     def setUp(self):
@@ -36,14 +37,10 @@ class LogoutViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_205_RESET_CONTENT,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Successfully logged out.",
+        self.assertSuccessResponse(
+            response,
+            message="Successfully logged out.",
+            status_code=status.HTTP_205_RESET_CONTENT,
         )
 
 
@@ -54,14 +51,9 @@ class LogoutViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
+        self.assertValidationError(
+            response,
             "refresh",
-            response.data,
         )
 
 
@@ -74,14 +66,11 @@ class LogoutViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Invalid or already-blacklisted token.",
+        self.assertErrorResponse(
+            response,
+            message="Invalid refresh token.",
+            code="INVALID_TOKEN",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -109,12 +98,11 @@ class LogoutViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+        self.assertErrorResponse(
+            response,
+            message="Invalid refresh token.",
+            code="INVALID_TOKEN",  
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-        self.assertEqual(
-            response.data["detail"],
-            "Invalid or already-blacklisted token.",
-        )
+  

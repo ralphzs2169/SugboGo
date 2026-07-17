@@ -31,3 +31,17 @@ class RegisterSerializer(serializers.Serializer):
 class ResendVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField()
  
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate_password(self, value):
+        # Reuse Django's AUTH_PASSWORD_VALIDATORS
+        validate_password(value)
+        return value

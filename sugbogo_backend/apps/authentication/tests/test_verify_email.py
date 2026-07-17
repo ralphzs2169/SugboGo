@@ -6,9 +6,10 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.users.models import User
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
 
-class VerifyEmailViewTests(APITestCase):
+class VerifyEmailViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the email verification endpoint."""
 
 
@@ -89,14 +90,11 @@ class VerifyEmailViewTests(APITestCase):
     def test_verify_email_requires_uid_and_token(self):
         response = self.client.get(self.url)
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Missing verification credentials.",
+        self.assertErrorResponse(
+            response,
+            message="Missing verification credentials.",
+            code="MISSING_CREDENTIALS",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -109,14 +107,11 @@ class VerifyEmailViewTests(APITestCase):
             },
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
-            "invalid or has expired",
-            response.data["detail"],
+        self.assertErrorResponse(
+            response,
+            message="This verification link is invalid or has expired. Please request a new verification email.",
+            code="INVALID_VERIFICATION_LINK",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -129,12 +124,12 @@ class VerifyEmailViewTests(APITestCase):
             },
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
-            "invalid or has expired",
-            response.data["detail"],
+        self.assertErrorResponse(
+            response,
+            message=(
+                "This verification link is invalid or has expired. "
+                "Please request a new verification email."
+            ),
+            code="INVALID_VERIFICATION_LINK",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )

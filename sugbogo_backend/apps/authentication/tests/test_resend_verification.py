@@ -6,9 +6,10 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.users.models import User
+from apps.core.tests.assertions import APIResponseAssertionsMixin
 
 
-class ResendVerificationViewTests(APITestCase):
+class ResendVerificationViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the resend verification email endpoint."""
 
 
@@ -58,14 +59,11 @@ class ResendVerificationViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_404_NOT_FOUND,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "No account found with this email.",
+        self.assertErrorResponse(
+            response,
+            message="No account found with this email.",
+            code="USER_NOT_FOUND",
+            status_code=status.HTTP_404_NOT_FOUND,
         )
 
     
@@ -81,14 +79,11 @@ class ResendVerificationViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Email is already verified.",
+        self.assertErrorResponse(
+            response,
+            message="Email is already verified.",
+            code="EMAIL_ALREADY_VERIFIED",
+            status_code=status.HTTP_409_CONFLICT,
         )
 
 
@@ -101,15 +96,7 @@ class ResendVerificationViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
-            "email",
-            response.data,
-        )
+        self.assertValidationError(response, "email")
 
 
     def test_resend_verification_requires_email(self):
@@ -119,15 +106,7 @@ class ResendVerificationViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertIn(
-            "email",
-            response.data,
-        )
+        self.assertValidationError(response, "email")
 
 
     @patch("apps.authentication.services.email_service.EmailService.send_verification_email")
@@ -142,14 +121,11 @@ class ResendVerificationViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-        self.assertEqual(
-            response.data["detail"],
-            "Unable to send verification email. Please try again later.",
+        self.assertErrorResponse(
+            response,
+            message="Unable to send verification email. Please try again later.",
+            code="EMAIL_SEND_FAILED",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
 
@@ -179,15 +155,7 @@ class ResendVerificationViewTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_429_TOO_MANY_REQUESTS,
-        )
-
-        self.assertIn(
-            "detail",
-            response.data,
-        )
+        self.assertRateLimitError(response)
 
         self.assertEqual(
             mock_send.call_count,

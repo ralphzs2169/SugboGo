@@ -3,9 +3,8 @@ import axios from "axios";
 
 import { login } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
-import { useAuthStore } from "../store/auth.store";
-import { AuthResult } from "../api/auth.types";
-import { LoginFieldErrors } from "../api/auth.types";
+import { ApiResult } from "@/shared/api/types";
+import { AuthResponse } from "../api/auth.types";
 import { useVerificationStore } from "../store/verification.store";
 /**
  * Custom hook for handling user login.
@@ -28,7 +27,7 @@ export function useLogin() {
   const handleLogin = async (
     email: string,
     password: string,
-  ): Promise<AuthResult<LoginFieldErrors>> => {
+  ): Promise<ApiResult<AuthResponse>> => {
     setLoading(true);
 
     try {
@@ -37,27 +36,25 @@ export function useLogin() {
         password,
       });
 
-      await establishSession(response);
+      // Check if the response contains the expected authentication data
+      if (!response.data) {
+        throw new Error("Login response missing authentication data");
+      }
+
+      await establishSession(response.data);
 
       clearPendingEmail();
 
-      return {
-        success: true,
-        data: response,
-      };
+      return response;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        return {
-          success: false,
-          errors: error.response?.data,
-        };
+      if (axios.isAxiosError(error) && error.response?.data) {
+        return error.response.data;
       }
 
       return {
         success: false,
-        errors: {
-          password: ["Something went wrong. Please try again."],
-        },
+        message: "Something went wrong. Please try again.",
+        code: "UNKNOWN_ERROR",
       };
     } finally {
       setLoading(false);

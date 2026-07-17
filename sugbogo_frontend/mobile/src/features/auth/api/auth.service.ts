@@ -6,6 +6,7 @@ import {
   User,
   RefreshResponse,
 } from "./auth.types";
+import { ApiSuccessWithData, ApiSuccess } from "@/shared/api/types";
 
 /**
  * Authenticates a user with the backend.
@@ -15,18 +16,19 @@ import {
  * refresh tokens upon successful authentication.
  *
  * @param {LoginRequest} credentials - The user's login credentials.
- * @returns {Promise<AuthResponse >} The authenticated user and JWT tokens.
- * @throws {AxiosError} If the login request fails or the credentials are invalid.
+ * @returns {Promise<ApiSuccessWithData<AuthResponse>>} The authenticated user's information and JWT tokens.
+ *
  */
-export async function login(credentials: LoginRequest): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>(
+export async function login(
+  credentials: LoginRequest,
+): Promise<ApiSuccessWithData<AuthResponse>> {
+  const response = await apiClient.post<ApiSuccessWithData<AuthResponse>>(
     "/auth/login/",
     credentials,
   );
 
   return response.data;
 }
-
 /**
  * Retrieves the currently authenticated user's information.
  *
@@ -38,9 +40,9 @@ export async function login(credentials: LoginRequest): Promise<AuthResponse> {
  * @throws {AxiosError} If the access token is invalid, expired, or missing.
  */
 export async function getCurrentUser(): Promise<User> {
-  const response = await apiClient.get<User>("/users/me/");
+  const response = await apiClient.get<ApiSuccess<User>>("/users/me/");
 
-  return response.data;
+  return response.data.data!;
 }
 
 /**
@@ -66,25 +68,31 @@ export async function refreshAccessToken(
  * the authenticated user together with the issued JWT access and refresh tokens.
  *
  * @param {RegisterRequest} data - The user's registration information.
- * @returns {Promise<AuthResponse>} The authenticated user and JWT tokens.
+ * @returns {Promise<ApiSuccessWithData<AuthResponse>>} The authenticated user and JWT tokens.
  * @throws {AxiosError} If the registration request fails or validation errors occur.
  */
-export async function register(data: RegisterRequest): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>("/auth/register/", data);
+export async function register(
+  data: RegisterRequest,
+): Promise<ApiSuccess<AuthResponse>> {
+  const response = await apiClient.post<ApiSuccess<AuthResponse>>(
+    "/auth/register/",
+    data,
+  );
 
   return response.data;
 }
-
 /**
  * Resends the email verification link to the user's email address.
  * @param {string} email - The user's email address.
- * @returns {Promise<any>} The response from the backend.
- * @throws {AxiosError} If the request fails or the email is invalid.
+ * @returns {Promise<ApiSuccess>} The response from the backend.
  */
-export async function resendVerification(email: string) {
-  const response = await apiClient.post("/auth/resend-verification/", {
-    email,
-  });
+export async function resendVerification(email: string): Promise<ApiSuccess> {
+  const response = await apiClient.post<ApiSuccess>(
+    "/auth/resend-verification/",
+    {
+      email,
+    },
+  );
 
   return response.data;
 }
