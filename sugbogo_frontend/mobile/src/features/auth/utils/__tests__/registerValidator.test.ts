@@ -1,29 +1,19 @@
-import { validateRegisterForm } from "./registerValidator";
+import { validateRegisterForm } from "../registerValidator";
 
 /**
- * registerValidator.test.ts
+ * @file registerValidator.test.ts
+ * @description Unit tests for registration form validation.
  *
- * Unit tests for registerValidator.
+ * Verifies that registration input validation correctly
+ * handles required fields, email validation, password rules,
+ * password confirmation, and accepts valid registration data.
  *
- * These tests verify that client-side validation
- * behaves correctly before sending a request
- * to the backend.
- *
- * Test Cases
- * ----------
- * - should require all fields
- * - should reject an invalid email address
- * - should reject passwords shorter than 8 characters
- * - should reject passwords containing only numbers
- * - should reject common passwords
- * - should require password confirmation
- * - should reject mismatched passwords
- * - should return no validation errors for valid input
+ * Run:
+ * npm test -- registerValidator.test.ts
  */
 
 describe("registerValidator", () => {
   describe("validateRegisterForm", () => {
-    // Test Case 1:
     it("should require all fields", () => {
       // Arrange
       const firstName = "";
@@ -51,7 +41,6 @@ describe("registerValidator", () => {
       });
     });
 
-    // Test Case 2
     it("should reject an invalid email address", () => {
       // Arrange
       const firstName = "John";
@@ -73,7 +62,6 @@ describe("registerValidator", () => {
       expect(result.email).toBe("Enter a valid email address.");
     });
 
-    // Test Case 3
     it("should reject a password shorter than the minimum length", () => {
       // Arrange
       const firstName = "John";
@@ -118,8 +106,6 @@ describe("registerValidator", () => {
       expect(result.password).toBe("Password cannot contain only numbers.");
     });
 
-    // Test Case 5
-    // Test Case 5
     it("should reject common passwords", () => {
       // Arrange
       const firstName = "John";
@@ -141,8 +127,6 @@ describe("registerValidator", () => {
       expect(result.password).toBe("This password is too common.");
     });
 
-    // Test Case 6
-    // Test Case 6
     it("should require password confirmation", () => {
       // Arrange
       const firstName = "John";
@@ -164,7 +148,6 @@ describe("registerValidator", () => {
       expect(result.confirmPassword).toBe("Please confirm your password.");
     });
 
-    // Test Case 7
     it("should reject mismatched passwords", () => {
       // Arrange
       const firstName = "John";
@@ -186,7 +169,6 @@ describe("registerValidator", () => {
       expect(result.confirmPassword).toBe("Passwords do not match.");
     });
 
-    // Test Case 8
     it("should return no validation errors for valid input", () => {
       // Arrange
       const firstName = "John";

@@ -6,6 +6,7 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 
 const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/refresh/"];
 
+// Create an Axios instance with a base URL and default headers.
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
   timeout: 10000,
@@ -63,19 +64,16 @@ apiClient.interceptors.response.use(
   (response) => response,
 
   async (error) => {
-    // Preserve the failed request for a possible retry.
     const originalRequest = error.config;
 
-    // Skip refresh logic for authentication endpoints.
     const isAuthEndpoint = AUTH_ENDPOINTS.some((endpoint) =>
-      originalRequest.url?.includes(endpoint),
+      originalRequest?.url?.includes(endpoint),
     );
 
     if (isAuthEndpoint) {
       return Promise.reject(error);
     }
 
-    // Refresh the access token only once for protected requests.
     if (
       error.response?.status === 401 &&
       originalRequest &&
@@ -86,12 +84,13 @@ apiClient.interceptors.response.use(
       try {
         const newAccessToken = await refreshSession();
 
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        originalRequest.headers = {
+          ...originalRequest.headers,
+          Authorization: `Bearer ${newAccessToken}`,
+        };
 
         return apiClient(originalRequest);
       } catch (refreshError) {
-        console.log("Session expired. Logging out.");
-
         await clearTokens();
 
         useAuthStore.getState().clearUser();
@@ -102,6 +101,6 @@ apiClient.interceptors.response.use(
 
     return Promise.reject(error);
   },
-);
+); // <-- only this
 
 export default apiClient;
