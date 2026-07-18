@@ -20,10 +20,12 @@ export const toastConfig = {
       style={{
         borderLeftColor: "#16A34A",
         borderLeftWidth: 5,
+        height: 80,
       }}
       contentContainerStyle={{
         paddingHorizontal: 16,
       }}
+
       text1Style={{
         fontSize: 15,
         fontWeight: "700",
@@ -33,6 +35,7 @@ export const toastConfig = {
         fontSize: 13,
         color: "#6B7280",
       }}
+      text2NumberOfLines={3}
     />
   ),
 
@@ -53,7 +56,9 @@ export const toastConfig = {
       style={{
         borderLeftColor: "#DC2626",
         borderLeftWidth: 5,
+        height: 80,
       }}
+      text2NumberOfLines={3}
     />
   ),
 };

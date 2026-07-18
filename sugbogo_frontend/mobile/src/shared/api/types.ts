@@ -2,7 +2,7 @@ export interface ApiError {
   success: false;
   message: string;
   code: string;
-  errors?: Record<string, unknown>;
+  errors?: Record<string, string[]>;
 }
 
 export interface ApiSuccess<T = void> {

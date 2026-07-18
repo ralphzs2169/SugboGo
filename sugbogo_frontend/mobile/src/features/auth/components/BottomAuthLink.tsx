@@ -6,6 +6,7 @@ interface BottomAuthLinkProps {
   actionText: string;
   onPress: () => void;
   icon?: ReactNode;
+  marginTop?: number;
 }
 
 /**
@@ -14,15 +15,18 @@ interface BottomAuthLinkProps {
  * @param {string} actionText - The text displayed as the action link.
  * @param {() => void} onPress - The function to call when the action link is pressed.
  * @param {ReactNode} icon - An optional icon displayed beside the action text.
+ * @param {number} marginTop - An optional margin top value for spacing.
+ *
  */
 export default function BottomAuthLink({
   text,
   actionText,
   onPress,
   icon,
+  marginTop = 8,
 }: BottomAuthLinkProps) {
   return (
-    <View className="mt-8 flex-row justify-center items-center">
+    <View className={`mt-${marginTop} flex-row justify-center items-center`}>
       <Text className="text-body text-text-secondary">{text} </Text>
       {icon}
       <TouchableOpacity onPress={onPress}>

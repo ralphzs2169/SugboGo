@@ -61,14 +61,12 @@ export interface RegisterFieldErrors {
   detail?: string;
 }
 
-/**
- * Represents the result of an authentication request.
- *
- * A successful request contains authentication data.
- * A failed request contains structured validation errors.
- */
-export interface AuthResult<TError = Record<string, string[]>> {
-  success: boolean;
-  errors?: TError;
-  data?: AuthResponse;
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  uid: string;
+  token: string;
+  password: string;
 }
