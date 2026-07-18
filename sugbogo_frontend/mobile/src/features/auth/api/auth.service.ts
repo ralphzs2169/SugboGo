@@ -31,6 +31,20 @@ export async function login(
 
   return response.data;
 }
+
+export async function googleLogin(
+  idToken: string,
+): Promise<ApiSuccessWithData<AuthResponse>> {
+  const response = await apiClient.post<ApiSuccessWithData<AuthResponse>>(
+    "/auth/google-login/",
+    {
+      id_token: idToken,
+    },
+  );
+
+  return response.data;
+}
+
 /**
  * Retrieves the currently authenticated user's information.
  *

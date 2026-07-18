@@ -1,4 +1,4 @@
-from authentication.models import User
+from apps.users.models import User
 from django.utils import timezone
 
 from .base import OAuthUser
@@ -26,10 +26,8 @@ class OAuthAccountService:
         ).first()
 
 
-        """
-        If the user exists, we update their email verification 
-        status and account status if necessary. 
-        """
+        # If the user exists, we update their email verification 
+        # status and account status if necessary. 
         if user:
             if not user.EMAIL_VERIFIED:
                 user.EMAIL_VERIFIED = True
@@ -48,9 +46,8 @@ class OAuthAccountService:
 
             return user
 
-        """
-        If the user does not exist, we create a new account with the provided OAuth information.
-        """
+
+        # If the user does not exist, we create a new account with the provided OAuth information.
         user = User.objects.create_user(
             email=oauth_user.email,
 

@@ -10,7 +10,6 @@ import {
 import { getFieldError } from "@/shared/api/errors";
 
 import AuthButton from "@/features/auth/components/AuthButton";
-// import AuthCard from "@/features/auth/components/AuthCard";
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
@@ -18,6 +17,7 @@ import Divider from "@/features/auth/components/Divider";
 import FormInput from "@/features/auth/components/FormInput";
 import PasswordInput from "@/features/auth/components/PasswordInput";
 import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
+import { useGoogleLogin } from "@/features/auth/hooks/useGoogleLogin";
 
 /**
  * Login component provides a user interface for logging into the application.
@@ -32,6 +32,8 @@ export default function Login() {
   const [errors, setErrors] = useState<LoginErrors>({});
   const [formError, setFormError] = useState("");
   const { handleLogin, loading } = useLogin();
+
+  const { handleGoogleLogin } = useGoogleLogin();
 
   const clearFieldError = (field: keyof LoginErrors) => {
     setErrors((prev) => ({
@@ -135,9 +137,7 @@ export default function Login() {
       <Divider text="OR LOG IN WITH" />
 
       <SocialLoginButtons
-        onGooglePress={() => {
-          console.log("Google Login");
-        }}
+        onGooglePress={handleGoogleLogin}
         onFacebookPress={() => {
           console.log("Facebook Login");
         }}
@@ -145,21 +145,7 @@ export default function Login() {
           console.log("Apple Login");
         }}
       />
-      {/* <TouchableOpacity
-        onPress={() =>
-          router.push({
-            pathname: "/(auth)/reset-password",
-            params: {
-              uid: "MzI",
-              token: "dbx0gv-dfa9bd8c2d3c3ee6fc7b9d852663bf73",
-            },
-          })
-        }
-      >
-        <Text className="mt-4 text-center text-sm font-bold text-brand">
-          TEST RESET PASSWORD
-        </Text>
-      </TouchableOpacity> */}
+
       <BottomAuthLink
         text="New to SugboGo?"
         actionText="Create an account"
