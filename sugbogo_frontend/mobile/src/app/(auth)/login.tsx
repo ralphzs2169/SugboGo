@@ -87,6 +87,7 @@ export default function Login() {
   return (
     <AuthLayout>
       <AuthHeader />
+
       <Text className="mb-8 text-[17px] font-bold text-text-primary">
         Login to your account
       </Text>
@@ -110,7 +111,9 @@ export default function Login() {
         error={errors.password}
         onFocus={() => clearFieldError("password")}
         rightElement={
-          <TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push("/(auth)/forgot-password")}
+          >
             <Text className="text-xs font-bold tracking-[0.5px] text-brand">
               FORGOT?
             </Text>
@@ -142,7 +145,21 @@ export default function Login() {
           console.log("Apple Login");
         }}
       />
-
+      {/* <TouchableOpacity
+        onPress={() =>
+          router.push({
+            pathname: "/(auth)/reset-password",
+            params: {
+              uid: "MzI",
+              token: "dbx0gv-dfa9bd8c2d3c3ee6fc7b9d852663bf73",
+            },
+          })
+        }
+      >
+        <Text className="mt-4 text-center text-sm font-bold text-brand">
+          TEST RESET PASSWORD
+        </Text>
+      </TouchableOpacity> */}
       <BottomAuthLink
         text="New to SugboGo?"
         actionText="Create an account"

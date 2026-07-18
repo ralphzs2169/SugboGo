@@ -5,6 +5,8 @@ import {
   AuthResponse,
   User,
   RefreshResponse,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
 } from "./auth.types";
 import { ApiSuccessWithData, ApiSuccess } from "@/shared/api/types";
 
@@ -81,6 +83,7 @@ export async function register(
 
   return response.data;
 }
+
 /**
  * Resends the email verification link to the user's email address.
  * @param {string} email - The user's email address.
@@ -92,6 +95,40 @@ export async function resendVerification(email: string): Promise<ApiSuccess> {
     {
       email,
     },
+  );
+
+  return response.data;
+}
+
+/**
+ * Sends a password reset email.
+ *
+ * @param {ForgotPasswordRequest} data - The user's email address.
+ * @returns {Promise<ApiSuccess>} Backend response.
+ */
+export async function forgotPassword(
+  data: ForgotPasswordRequest,
+): Promise<ApiSuccess> {
+  const response = await apiClient.post<ApiSuccess>(
+    "/auth/forgot-password/",
+    data,
+  );
+
+  return response.data;
+}
+
+/**
+ * Resets a user's password using a valid reset token.
+ *
+ * @param data - Password reset request payload.
+ * @returns Backend response.
+ */
+export async function resetPassword(
+  data: ResetPasswordRequest,
+): Promise<ApiSuccess> {
+  const response = await apiClient.post<ApiSuccess>(
+    "/auth/reset-password/",
+    data,
   );
 
   return response.data;

@@ -1,3 +1,5 @@
+import { validatePassword } from "./passwordValidator";
+
 export interface RegisterErrors {
   firstName?: string;
   lastName?: string;
@@ -34,6 +36,7 @@ export function validateRegisterForm(
   ];
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const passwordError = validatePassword(password);
 
   if (!firstName.trim()) {
     errors.firstName = "First name is required.";
@@ -49,14 +52,8 @@ export function validateRegisterForm(
     errors.email = "Enter a valid email address.";
   }
 
-  if (!password.trim()) {
-    errors.password = "Password is required.";
-  } else if (password.length < 8) {
-    errors.password = "Password must be at least 8 characters.";
-  } else if (/^\d+$/.test(password)) {
-    errors.password = "Password cannot contain only numbers.";
-  } else if (commonPasswords.includes(password.toLowerCase())) {
-    errors.password = "This password is too common.";
+  if (passwordError) {
+    errors.password = passwordError;
   }
 
   if (!confirmPassword.trim()) {
