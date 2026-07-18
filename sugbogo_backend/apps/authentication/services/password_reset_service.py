@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class PasswordResetService:
     """Service for generating and validating password reset tokens."""
-
+    
     @staticmethod
     def generate_reset_link(user: User) -> str:
         """
@@ -32,8 +32,9 @@ class PasswordResetService:
         token = default_token_generator.make_token(user)
 
         return (
-            f"{settings.PASSWORD_RESET_URL}"
-            f"?uid={uid}&token={token}"
+            f"com.sugbogo.app://reset-password"
+            f"?uid={uid}"
+            f"&token={token}"
         )
 
     @staticmethod
