@@ -68,6 +68,9 @@ cloudinary.config(
     secure=True,
 )
 
+# Google OAuth Client ID
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+
 # Application definition
 
 INSTALLED_APPS = [

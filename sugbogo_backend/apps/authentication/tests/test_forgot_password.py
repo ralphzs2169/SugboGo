@@ -27,7 +27,7 @@ class ForgotPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
             EMAIL_VERIFIED=True,
         )
 
-    @patch("apps.authentication.views.EmailService.send_password_reset_email")
+    @patch("apps.authentication.views.register.EmailService.send_password_reset_email")
     def test_existing_email_sends_reset_email(self, mock_send):
         response = self.client.post(
             self.url,
@@ -53,7 +53,7 @@ class ForgotPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
         mock_send.assert_called_once_with(self.user)
 
     @patch(
-        "apps.authentication.views.EmailService.send_password_reset_email"
+        "apps.authentication.views.register.EmailService.send_password_reset_email"
     )
     def test_nonexistent_email_returns_same_response(
         self,
@@ -83,7 +83,7 @@ class ForgotPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
         mock_send.assert_not_called()
 
     @patch(
-        "apps.authentication.views.EmailService.send_password_reset_email"
+        "apps.authentication.views.register.EmailService.send_password_reset_email"
     )
     def test_email_service_failure_still_returns_success(
         self,
@@ -157,9 +157,7 @@ class ForgotPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
             "email",
         )
 
-    @patch(
-        "apps.authentication.views.EmailService.send_password_reset_email"
-    )
+    @patch(  "apps.authentication.views.forgot_password.EmailService.send_password_reset_email")
     def test_email_lookup_is_case_insensitive(
         self,
         mock_send,

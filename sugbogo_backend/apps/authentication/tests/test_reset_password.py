@@ -28,7 +28,7 @@ class ResetPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.authentication.views.PasswordResetService.reset_password"
+        "apps.authentication.views.password_reset.PasswordResetService.reset_password"
     )
     def test_reset_password_successfully(
         self,
@@ -63,7 +63,7 @@ class ResetPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.authentication.views.PasswordResetService.reset_password"
+        "apps.authentication.views.password_reset.PasswordResetService.reset_password"
     )
     def test_rejects_invalid_token(
         self,

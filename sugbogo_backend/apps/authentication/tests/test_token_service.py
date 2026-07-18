@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from apps.authentication.views import _issue_tokens
+from apps.authentication.utils.jwt import issue_tokens
 from apps.users.models import User
 
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -20,8 +20,8 @@ class TokenServiceTests(TestCase):
         )
 
 
-    def test_issue_tokens_with_remember_me(self):
-        tokens = _issue_tokens(
+    def testissue_tokens_with_remember_me(self):
+        tokens = issue_tokens(
             self.user,
             True,
         )
@@ -37,8 +37,8 @@ class TokenServiceTests(TestCase):
         )
 
 
-    def test_issue_tokens_without_remember_me(self):
-        tokens = _issue_tokens(
+    def testissue_tokens_without_remember_me(self):
+        tokens = issue_tokens(
             self.user,
             False,
         )
