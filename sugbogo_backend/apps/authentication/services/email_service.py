@@ -8,6 +8,7 @@ from apps.authentication.services.verification_service import EmailVerificationS
 from apps.authentication.services.password_reset_service import PasswordResetService
 
 
+
 if not settings.RESEND_API_KEY:
     raise ValueError("RESEND_API_KEY is not configured.")
 
@@ -104,7 +105,7 @@ class EmailService:
         reset_link = (
             PasswordResetService.generate_reset_link(user)
         )
-
+        
         context = {
             "user": user,
             "reset_link": reset_link,

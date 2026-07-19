@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Text, View } from "react-native";
 import Toast from "react-native-toast-message";
 import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
@@ -8,9 +8,10 @@ import AuthButton from "@/features/auth/components/AuthButton";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
 import SecondaryAuthButton from "@/features/auth/components/SecondaryAuthButton";
+import { useVerifyEmail } from "@/features/auth/hooks/useVerifyEmail";
 
 export default function VerifyEmail() {
   const router = useRouter();
@@ -20,7 +21,38 @@ export default function VerifyEmail() {
   const pendingEmail = useVerificationStore((state) => state.pendingEmail);
 
   const { handleResend, loading } = useResendVerification();
+  const { handleVerifyEmail, loading: verifying } = useVerifyEmail();
 
+  const { uid, token } = useLocalSearchParams();
+
+  useEffect(() => {
+    if (!uid || !token) return;
+
+    const verify = async () => {
+      const response = await handleVerifyEmail(
+        uid.toString(),
+        token.toString(),
+      );
+
+      if (response.success) {
+        Toast.show({
+          type: "success",
+          text1: "Email Verified",
+          text2: "Your account has been verified.",
+        });
+
+        router.replace("/(auth)/login");
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Verification Failed",
+          text2: response.message,
+        });
+      }
+    };
+
+    verify();
+  }, [uid, token]);
   // Function to open the default email application on the user's device
   const openEmailApp = async () => {
     const supported = await Linking.canOpenURL("mailto:");
@@ -58,6 +90,7 @@ export default function VerifyEmail() {
         });
         return;
       }
+
       const retryAfter = response.errors?.retry_after as number | undefined;
 
       // Handle rate limiting error
@@ -85,6 +118,10 @@ export default function VerifyEmail() {
       text1: "Verification Email Sent",
       text2: "Please check your inbox.",
     });
+
+    setTimeout(() => {
+      router.replace("/(auth)/login");
+    }, 300);
   };
 
   return (

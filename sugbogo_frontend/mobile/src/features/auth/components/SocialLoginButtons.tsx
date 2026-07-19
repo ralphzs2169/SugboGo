@@ -20,7 +20,7 @@ export default function SocialLoginButtons({
   onApplePress,
 }: SocialLoginButtonsProps) {
   return (
-    <View className="flex-row justify-center">
+    <View className="flex-row justify-center  mb-8">
       <TouchableOpacity
         onPress={onGooglePress}
         accessibilityLabel="Continue with Google"

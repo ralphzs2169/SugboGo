@@ -1,0 +1,61 @@
+from requests.exceptions import RequestException
+
+from rest_framework.decorators import api_view
+from rest_framework import status
+
+from apps.authentication.serializers import FacebookLoginSerializer
+
+from apps.authentication.services.oauth.facebook import FacebookOAuthService
+from apps.authentication.services.oauth.account import OAuthAccountService
+
+from apps.authentication.utils.jwt import issue_tokens
+
+from apps.core.responses import error_response, success_response
+
+
+@api_view(["POST"])
+def facebook_login_view(request):
+    serializer = FacebookLoginSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    try:
+        oauth_user = FacebookOAuthService.verify_access_token(
+            serializer.validated_data["access_token"]
+        )
+
+    except RequestException:
+        return error_response(
+            message="Unable to verify Facebook token.",
+            code="FACEBOOK_SERVICE_UNAVAILABLE",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    except ValueError:
+        return error_response(
+            message="Invalid Facebook token.",
+            code="INVALID_FACEBOOK_TOKEN",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    user = OAuthAccountService.get_or_create_user(oauth_user)
+
+    tokens = issue_tokens(
+        user=user,
+        remember_me=True,
+    )
+
+    return success_response(
+        message="Facebook login successful.",
+        data={
+            "user": {
+                "id": user.USER_ID,
+                "email": user.USER_EMAIL,
+                "role": user.USER_ROLE,
+                "status": user.USER_STATUS,
+                "has_completed_interest_selection": (
+                    user.HAS_COMPLETED_INTEREST_SELECTION
+                ),
+            },
+            **tokens,
+        },
+    )

@@ -11,4 +11,7 @@ urlpatterns = [
     path("resend-verification/", views.resend_verification_view, name="resend_verification"),
     path("forgot-password/", views.forgot_password_view, name="forgot_password"),
     path("reset-password/", views.reset_password_view, name="reset_password"),
+
+    path("google-login/", views.google_login_view, name="google_login"),
+    path("facebook-login/",views.facebook_login_view,name="facebook_login"),
 ]

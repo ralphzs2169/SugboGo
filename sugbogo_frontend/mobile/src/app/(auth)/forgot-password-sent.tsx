@@ -8,15 +8,18 @@ import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import { useEffect } from "react";
 
 export default function ForgotPasswordSent() {
   const router = useRouter();
 
-  Toast.show({
-    type: "success",
-    text1: "Reset Link Sent",
-    text2: "Check your inbox for the password reset email.",
-  });
+  useEffect(() => {
+    Toast.show({
+      type: "success",
+      text1: "Reset Link Sent",
+      text2: "Check your inbox for the password reset email.",
+    });
+  }, []);
 
   const { email } = useLocalSearchParams<{
     email: string;
