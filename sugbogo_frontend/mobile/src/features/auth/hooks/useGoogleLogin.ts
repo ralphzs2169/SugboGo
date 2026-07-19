@@ -5,6 +5,7 @@ import { useGoogleAuth } from "../oauth/google";
 import { googleLogin } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
 import type { TokenResponse } from "expo-auth-session";
+import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 export function useGoogleLogin() {
   const [request, response, promptAsync] = useGoogleAuth();
@@ -38,12 +39,21 @@ export function useGoogleLogin() {
       const idToken = authentication.idToken;
 
       if (!idToken) {
-        throw new Error("Google ID token missing");
+        if (!idToken) {
+          Toast.show({
+            type: "error",
+            text1: "Google Sign-In Failed",
+            text2: "Unable to retrieve your Google credentials.",
+          });
+
+          return;
+        }
       }
 
       const result = await googleLogin(idToken);
       await establishSession(result.data);
-      router.replace("/(explorer)/(tabs)/explore");
+
+      router.replace("/");
     } catch (error) {
       console.log("Google login error:", error);
     } finally {
