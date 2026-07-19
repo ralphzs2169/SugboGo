@@ -27,6 +27,11 @@ interface AuthState {
   isLoading: boolean;
 
   /**
+   * True while the user is actively signing in.
+   */
+  isSigningIn: boolean;
+
+  /**
    * Updates the authenticated user and marks the session as authenticated.
    * @param {User} user - The authenticated user's information.
    */
@@ -37,6 +42,8 @@ interface AuthState {
    * @param {boolean} loading - Whether authentication is currently being initialized.
    */
   setLoading: (loading: boolean) => void;
+
+  setSigningIn: (loading: boolean) => void;
 
   /**
    * Clears the authenticated user and resets the authentication state.
@@ -51,6 +58,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   isLoading: true,
 
+  isSigningIn: false,
+
   setLoading: (loading) =>
     set({
       isLoading: loading,
@@ -59,6 +68,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user,
       isAuthenticated: true,
+    }),
+
+  setSigningIn: (loading) =>
+    set({
+      isSigningIn: loading,
     }),
 
   clearUser: () =>

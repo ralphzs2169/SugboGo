@@ -6,7 +6,7 @@ import { LoginManager, AccessToken } from "react-native-fbsdk-next";
 
 import { facebookLogin } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
-
+import { useAuthStore } from "../store/auth.store";
 /**
  * Handles Facebook OAuth login.
  *
@@ -15,13 +15,12 @@ import { establishSession } from "../utils/authSession";
  * and navigates to the home screen.
  */
 export function useFacebookLogin() {
-  const [loading, setLoading] = useState(false);
-
   /**
    * Starts the Facebook login flow.
    */
   async function handleFacebookLogin() {
-    setLoading(true);
+    const setSigningIn = useAuthStore.getState().setSigningIn;
+    setSigningIn(true);
 
     try {
       const result = await LoginManager.logInWithPermissions([
@@ -59,12 +58,11 @@ export function useFacebookLogin() {
         text2: "Please try again.",
       });
     } finally {
-      setLoading(false);
+      setSigningIn(false);
     }
   }
 
   return {
     handleFacebookLogin,
-    loading,
   };
 }

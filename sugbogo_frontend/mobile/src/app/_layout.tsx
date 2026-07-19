@@ -7,24 +7,28 @@ import Toast from "react-native-toast-message";
 import { toastConfig } from "@/shared/components/ToastConfig";
 
 import AppSplash from "@/shared/components/AppSplash";
+import SigningInOverlay from "@/features/auth/components/SigningInOverlay";
 
 export default function RootLayout() {
   useRestoreSession();
 
   const isLoading = useAuthStore((state) => state.isLoading);
+  const isSigningIn = useAuthStore((state) => state.isSigningIn);
 
   if (isLoading) {
     return <AppSplash />;
   }
+
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false, animation: "none" }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(explorer)" />
         <Stack.Screen name="(setup)" />
       </Stack>
 
+      {isSigningIn && <SigningInOverlay />}
       <Toast config={toastConfig} />
     </>
   );

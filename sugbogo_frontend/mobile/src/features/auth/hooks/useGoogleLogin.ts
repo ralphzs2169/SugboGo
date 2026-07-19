@@ -6,11 +6,11 @@ import { googleLogin } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
 import type { TokenResponse } from "expo-auth-session";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
+import { useAuthStore } from "../store/auth.store";
 
 export function useGoogleLogin() {
   const [request, response, promptAsync] = useGoogleAuth();
 
-  const [loading, setLoading] = useState(false);
   const handledResponse = useRef(false);
 
   useEffect(() => {
@@ -33,7 +33,8 @@ export function useGoogleLogin() {
    * @param {TokenResponse} authentication - The authentication response from Google.
    */
   async function authenticate(authentication: TokenResponse) {
-    setLoading(true);
+    const setSigningIn = useAuthStore.getState().setSigningIn;
+    setSigningIn(true);
 
     try {
       const idToken = authentication.idToken;
@@ -57,12 +58,11 @@ export function useGoogleLogin() {
     } catch (error) {
       console.log("Google login error:", error);
     } finally {
-      setLoading(false);
+      setSigningIn(false);
     }
   }
 
   return {
     handleGoogleLogin: () => promptAsync(),
-    loading: loading || !request,
   };
 }

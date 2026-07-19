@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
-import { theme } from '@/constants/theme';
+import { Ionicons } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import { theme } from "@/constants/theme";
 
 export default function TabLayout() {
   return (
@@ -13,21 +13,23 @@ export default function TabLayout() {
         },
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
+        animation: "none",
       }}
     >
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Explore',
+          title: "Explore",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="search" size={size} color={color} />
           ),
+          animation: "none",
         }}
       />
       <Tabs.Screen
         name="map"
         options={{
-          title: 'Map',
+          title: "Map",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="map" size={size} color={color} />
           ),
@@ -36,7 +38,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          title: 'Community',
+          title: "Community",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={size} color={color} />
           ),
@@ -45,7 +47,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: "Profile",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
