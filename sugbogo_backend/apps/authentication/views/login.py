@@ -31,7 +31,11 @@ def login_view(request):
             provider = oauth_account.get_OAUTH_PROVIDER_display()
 
             return error_response(
-                message=f"This account uses {provider} Sign-In. Please continue with {provider}.",
+                 message=(
+                    f"This account was created with {provider}. "
+                    f"Continue with {provider} or use Forgot Password "
+                    "to create a password."
+                ),
                 code="OAUTH_ACCOUNT",
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
