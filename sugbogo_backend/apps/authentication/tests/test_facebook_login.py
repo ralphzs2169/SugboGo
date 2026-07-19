@@ -1,31 +1,34 @@
 from unittest.mock import patch
 
-from google.auth.exceptions import GoogleAuthError
+from requests.exceptions import RequestException
 
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.authentication.services.oauth.base import OAuthUser
+from apps.authentication.models import OAuthAccount
 from apps.users.models import User
 from apps.core.tests.assertions import APIResponseAssertionsMixin
-from apps.authentication.models import OAuthAccount
 
 
-class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
+class FacebookLoginViewTests(
+    APIResponseAssertionsMixin,
+    APITestCase,
+):
     def setUp(self):
-        self.url = reverse("google_login")
+        self.url = reverse("facebook_login")
 
         self.oauth_user = OAuthUser(
-            provider="google",
-            provider_id="google-123",
+            provider="facebook",
+            provider_id="facebook-123",
             email="john@example.com",
             first_name="John",
             last_name="Doe",
         )
 
     @patch(
-        "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
     def test_existing_user_can_login(
         self,
@@ -46,7 +49,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         response = self.client.post(
             self.url,
             {
-                "id_token": "fake-google-token",
+                "access_token": "fake-facebook-token",
             },
             format="json",
         )
@@ -58,7 +61,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
 
         self.assertSuccessResponse(
             response,
-            message="Google login successful.",
+            message="Facebook login successful.",
             status_code=status.HTTP_200_OK,
         )
 
@@ -71,7 +74,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
     def test_new_user_is_created(
         self,
@@ -84,7 +87,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         response = self.client.post(
             self.url,
             {
-                "id_token": "fake-google-token",
+                "access_token": "fake-facebook-token",
             },
             format="json",
         )
@@ -99,26 +102,25 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         user = User.objects.first()
 
         self.assertTrue(user.EMAIL_VERIFIED)
+
         self.assertEqual(
             user.USER_STATUS,
             User.UserStatus.ACTIVE,
         )
 
     @patch(
-        "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
-    def test_invalid_google_token_returns_401(
+    def test_invalid_facebook_token_returns_401(
         self,
         mock_verify,
     ):
-        mock_verify.side_effect = GoogleAuthError(
-            "Invalid token"
-        )
+        mock_verify.side_effect = ValueError()
 
         response = self.client.post(
             self.url,
             {
-                "id_token": "invalid-token",
+                "access_token": "invalid-token",
             },
             format="json",
         )
@@ -130,13 +132,42 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
 
         self.assertErrorResponse(
             response,
-            code="INVALID_GOOGLE_TOKEN",
-            message="Invalid Google token.",
+            code="INVALID_FACEBOOK_TOKEN",
+            message="Invalid Facebook token.",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
     @patch(
-        "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+    )
+    def test_facebook_service_unavailable_returns_503(
+        self,
+        mock_verify,
+    ):
+        mock_verify.side_effect = RequestException()
+
+        response = self.client.post(
+            self.url,
+            {
+                "access_token": "fake-token",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+        self.assertErrorResponse(
+            response,
+            code="FACEBOOK_SERVICE_UNAVAILABLE",
+            message="Unable to verify Facebook token.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    @patch(
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
     def test_pending_user_is_activated(
         self,
@@ -157,7 +188,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         self.client.post(
             self.url,
             {
-                "id_token": "fake-token",
+                "access_token": "fake-token",
             },
             format="json",
         )
@@ -176,9 +207,9 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-    "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
-    def test_existing_user_is_linked_to_google_account(
+    def test_existing_user_is_linked_to_facebook_account(
         self,
         mock_verify,
     ):
@@ -199,7 +230,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         self.client.post(
             self.url,
             {
-                "id_token": "fake-token",
+                "access_token": "fake-token",
             },
             format="json",
         )
@@ -209,17 +240,21 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         oauth = OAuthAccount.objects.get(USER=user)
 
         self.assertEqual(oauth.USER, user)
-        self.assertEqual(oauth.OAUTH_PROVIDER, "google")
+
+        self.assertEqual(
+            oauth.OAUTH_PROVIDER,
+            "facebook",
+        )
+
         self.assertEqual(
             oauth.OAUTH_PROVIDER_ID,
             self.oauth_user.provider_id,
         )
 
-
     @patch(
-        "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
-    def test_new_google_user_creates_oauth_account(
+    def test_new_facebook_user_creates_oauth_account(
         self,
         mock_verify,
     ):
@@ -228,29 +263,35 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         self.client.post(
             self.url,
             {
-                "id_token": "fake-token",
+                "access_token": "fake-token",
             },
             format="json",
         )
 
         self.assertEqual(User.objects.count(), 1)
+
         self.assertEqual(OAuthAccount.objects.count(), 1)
 
         user = User.objects.first()
+
         oauth = OAuthAccount.objects.get(USER=user)
 
         self.assertEqual(oauth.USER, user)
-        self.assertEqual(oauth.OAUTH_PROVIDER, "google")
+
+        self.assertEqual(
+            oauth.OAUTH_PROVIDER,
+            "facebook",
+        )
+
         self.assertEqual(
             oauth.OAUTH_PROVIDER_ID,
             self.oauth_user.provider_id,
         )
 
-    
     @patch(
-        "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
-    def test_google_user_has_unusable_password(
+    def test_facebook_user_has_unusable_password(
         self,
         mock_verify,
     ):
@@ -259,7 +300,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         self.client.post(
             self.url,
             {
-                "id_token": "fake-token",
+                "access_token": "fake-token",
             },
             format="json",
         )
@@ -268,11 +309,10 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
 
         self.assertFalse(user.has_usable_password())
 
-
     @patch(
-        "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
-    def test_google_login_twice_does_not_create_duplicates(
+    def test_facebook_login_twice_does_not_create_duplicates(
         self,
         mock_verify,
     ):
@@ -281,7 +321,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         self.client.post(
             self.url,
             {
-                "id_token": "fake-token",
+                "access_token": "fake-token",
             },
             format="json",
         )
@@ -289,17 +329,17 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         self.client.post(
             self.url,
             {
-                "id_token": "fake-token",
+                "access_token": "fake-token",
             },
             format="json",
         )
 
         self.assertEqual(User.objects.count(), 1)
+
         self.assertEqual(OAuthAccount.objects.count(), 1)
 
-
     @patch(
-        "apps.authentication.views.google_login.GoogleOAuthService.verify_id_token"
+        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
     )
     def test_existing_oauth_account_is_reused(
         self,
@@ -322,17 +362,18 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
 
         OAuthAccount.objects.create(
             USER=user,
-            OAUTH_PROVIDER="google",
+            OAUTH_PROVIDER="facebook",
             OAUTH_PROVIDER_ID=self.oauth_user.provider_id,
         )
 
         self.client.post(
             self.url,
             {
-                "id_token": "fake-token",
+                "access_token": "fake-token",
             },
             format="json",
         )
 
         self.assertEqual(User.objects.count(), 1)
+
         self.assertEqual(OAuthAccount.objects.count(), 1)

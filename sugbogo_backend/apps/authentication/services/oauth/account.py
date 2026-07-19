@@ -39,7 +39,20 @@ class OAuthAccountService:
             if oauth_account:
                 oauth_account.OAUTH_LAST_LOGIN = timezone.now()
                 oauth_account.save(update_fields=["OAUTH_LAST_LOGIN"])
-                return oauth_account.USER
+
+                user = oauth_account.USER
+
+                if not user.EMAIL_VERIFIED:
+                    user.EMAIL_VERIFIED = True
+                    user.EMAIL_VERIFIED_AT = timezone.now()
+                    user.save(
+                        update_fields=[
+                            "EMAIL_VERIFIED",
+                            "EMAIL_VERIFIED_AT",
+                        ]
+                    )
+
+                return user
 
             user = User.objects.filter(
                 USER_EMAIL=oauth_user.email

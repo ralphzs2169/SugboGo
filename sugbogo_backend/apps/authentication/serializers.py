@@ -50,3 +50,6 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField()
+
+class FacebookLoginSerializer(serializers.Serializer):
+    access_token = serializers.CharField()

@@ -46,6 +46,29 @@ export async function googleLogin(
 }
 
 /**
+ * Authenticates a user with the backend using a Facebook access token.
+ *
+ * Sends the user's Facebook access token to the login endpoint and returns
+ * the authenticated user's information along with the JWT access and
+ * refresh tokens upon successful authentication.
+ *
+ * @param {string} accessToken - The user's Facebook access token.
+ * @returns {Promise<ApiSuccessWithData<AuthResponse>>} The authenticated user's information and JWT tokens.
+ */
+export async function facebookLogin(
+  accessToken: string,
+): Promise<ApiSuccessWithData<AuthResponse>> {
+  const response = await apiClient.post<ApiSuccessWithData<AuthResponse>>(
+    "/auth/facebook-login/",
+    {
+      access_token: accessToken,
+    },
+  );
+
+  return response.data;
+}
+
+/**
  * Retrieves the currently authenticated user's information.
  *
  * Sends a request to the backend using the current JWT access token.
@@ -94,6 +117,27 @@ export async function register(
     "/auth/register/",
     data,
   );
+
+  return response.data;
+}
+
+/**
+ * Verifies a user's email using the uid and token from the email link.
+ *
+ * @param uid - Base64 encoded user id.
+ * @param token - Django verification token.
+ * @returns Backend response.
+ */
+export async function verifyEmail(
+  uid: string,
+  token: string,
+): Promise<ApiSuccess> {
+  const response = await apiClient.get<ApiSuccess>("/auth/verify-email/", {
+    params: {
+      uid,
+      token,
+    },
+  });
 
   return response.data;
 }

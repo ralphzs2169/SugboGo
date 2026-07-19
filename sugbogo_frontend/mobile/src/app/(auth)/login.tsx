@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useLogin } from "@/features/auth/hooks/useLogin";
-import { Text, TouchableOpacity } from "react-native";
+import { Button, Text, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   LoginErrors,
@@ -18,6 +18,7 @@ import FormInput from "@/features/auth/components/FormInput";
 import PasswordInput from "@/features/auth/components/PasswordInput";
 import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
 import { useGoogleLogin } from "@/features/auth/hooks/useGoogleLogin";
+import { useFacebookLogin } from "@/features/auth/hooks/useFacebookLogin";
 
 /**
  * Login component provides a user interface for logging into the application.
@@ -31,9 +32,10 @@ export default function Login() {
 
   const [errors, setErrors] = useState<LoginErrors>({});
   const [formError, setFormError] = useState("");
-  const { handleLogin, loading } = useLogin();
 
+  const { handleLogin, loading } = useLogin();
   const { handleGoogleLogin } = useGoogleLogin();
+  const { handleFacebookLogin } = useFacebookLogin();
 
   const clearFieldError = (field: keyof LoginErrors) => {
     setErrors((prev) => ({
@@ -89,7 +91,6 @@ export default function Login() {
   return (
     <AuthLayout>
       <AuthHeader />
-
       <Text className="mb-8 text-[17px] font-bold text-text-primary">
         Login to your account
       </Text>
@@ -138,9 +139,7 @@ export default function Login() {
 
       <SocialLoginButtons
         onGooglePress={handleGoogleLogin}
-        onFacebookPress={() => {
-          console.log("Facebook Login");
-        }}
+        onFacebookPress={handleFacebookLogin}
         onApplePress={() => {
           console.log("Apple Login");
         }}

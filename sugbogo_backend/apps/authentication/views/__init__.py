@@ -16,4 +16,5 @@ from .forgot_password import (
     forgot_password_view as forgot_password_view,
 )
 
-from .oauth import google_login_view as google_login_view
+from .google_login import google_login_view as google_login_view
+from .facebook_login import facebook_login_view as facebook_login_view

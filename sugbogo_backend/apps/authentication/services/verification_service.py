@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import (
@@ -30,8 +29,9 @@ class EmailVerificationService:
         token = default_token_generator.make_token(user)
 
         return (
-            f"{settings.EMAIL_VERIFICATION_URL}"
-            f"?uid={uid}&token={token}"
+            "com.sugbogo.app://verify-email"
+            f"?uid={uid}"
+            f"&token={token}"
         )
 
 

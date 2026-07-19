@@ -5,6 +5,7 @@ from apps.authentication.serializers import LoginSerializer
 from apps.users.models import User
 from apps.core.responses import error_response, success_response
 from apps.authentication.utils.jwt import issue_tokens
+from apps.authentication.models import OAuthAccount
 
 
 
@@ -22,13 +23,19 @@ def login_view(request):
     except User.DoesNotExist:
         user = None
 
-
+    
     if user is not None and not user.has_usable_password():
-        return error_response(
-            message="This account uses Google Sign-In. Please continue with Google.",
-            code="OAUTH_ACCOUNT",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        )
+        oauth_account = OAuthAccount.objects.filter(USER=user).first()
+
+        if oauth_account:
+            provider = oauth_account.get_OAUTH_PROVIDER_display()
+
+            return error_response(
+                message=f"This account uses {provider} Sign-In. Please continue with {provider}.",
+                code="OAUTH_ACCOUNT",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
 
     if user is None or not user.check_password(password):
         return error_response(
