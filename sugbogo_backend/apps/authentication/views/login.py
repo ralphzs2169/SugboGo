@@ -22,6 +22,14 @@ def login_view(request):
     except User.DoesNotExist:
         user = None
 
+
+    if user is not None and not user.has_usable_password():
+        return error_response(
+            message="This account uses Google Sign-In. Please continue with Google.",
+            code="OAUTH_ACCOUNT",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
     if user is None or not user.check_password(password):
         return error_response(
             message="Invalid email or password.",

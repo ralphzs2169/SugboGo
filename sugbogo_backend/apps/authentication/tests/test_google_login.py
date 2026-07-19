@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 from apps.authentication.services.oauth.base import OAuthUser
 from apps.users.models import User
 from apps.core.tests.assertions import APIResponseAssertionsMixin
+from apps.authentication.models import OAuthAccount
 
 
 class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
@@ -173,3 +174,165 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
         self.assertIsNotNone(
             user.EMAIL_VERIFIED_AT,
         )
+
+    @patch(
+    "apps.authentication.views.oauth.GoogleOAuthService.verify_id_token"
+    )
+    def test_existing_user_is_linked_to_google_account(
+        self,
+        mock_verify,
+    ):
+        mock_verify.return_value = self.oauth_user
+
+        user = User.objects.create_user(
+            email="john@example.com",
+            password="Password123!",
+            USER_FNAME="John",
+            USER_LNAME="Doe",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
+        )
+
+        self.assertEqual(OAuthAccount.objects.count(), 0)
+
+        self.client.post(
+            self.url,
+            {
+                "id_token": "fake-token",
+            },
+            format="json",
+        )
+
+        self.assertEqual(OAuthAccount.objects.count(), 1)
+
+        oauth = OAuthAccount.objects.get(USER=user)
+
+        self.assertEqual(oauth.USER, user)
+        self.assertEqual(oauth.OAUTH_PROVIDER, "google")
+        self.assertEqual(
+            oauth.OAUTH_PROVIDER_ID,
+            self.oauth_user.provider_id,
+        )
+
+
+    @patch(
+        "apps.authentication.views.oauth.GoogleOAuthService.verify_id_token"
+    )
+    def test_new_google_user_creates_oauth_account(
+        self,
+        mock_verify,
+    ):
+        mock_verify.return_value = self.oauth_user
+
+        self.client.post(
+            self.url,
+            {
+                "id_token": "fake-token",
+            },
+            format="json",
+        )
+
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(OAuthAccount.objects.count(), 1)
+
+        user = User.objects.first()
+        oauth = OAuthAccount.objects.get(USER=user)
+
+        self.assertEqual(oauth.USER, user)
+        self.assertEqual(oauth.OAUTH_PROVIDER, "google")
+        self.assertEqual(
+            oauth.OAUTH_PROVIDER_ID,
+            self.oauth_user.provider_id,
+        )
+
+    
+    @patch(
+        "apps.authentication.views.oauth.GoogleOAuthService.verify_id_token"
+    )
+    def test_google_user_has_unusable_password(
+        self,
+        mock_verify,
+    ):
+        mock_verify.return_value = self.oauth_user
+
+        self.client.post(
+            self.url,
+            {
+                "id_token": "fake-token",
+            },
+            format="json",
+        )
+
+        user = User.objects.first()
+
+        self.assertFalse(user.has_usable_password())
+
+
+    @patch(
+        "apps.authentication.views.oauth.GoogleOAuthService.verify_id_token"
+    )
+    def test_google_login_twice_does_not_create_duplicates(
+        self,
+        mock_verify,
+    ):
+        mock_verify.return_value = self.oauth_user
+
+        self.client.post(
+            self.url,
+            {
+                "id_token": "fake-token",
+            },
+            format="json",
+        )
+
+        self.client.post(
+            self.url,
+            {
+                "id_token": "fake-token",
+            },
+            format="json",
+        )
+
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(OAuthAccount.objects.count(), 1)
+
+
+    @patch(
+        "apps.authentication.views.oauth.GoogleOAuthService.verify_id_token"
+    )
+    def test_existing_oauth_account_is_reused(
+        self,
+        mock_verify,
+    ):
+        mock_verify.return_value = self.oauth_user
+
+        user = User.objects.create_user(
+            email="john@example.com",
+            password=None,
+            USER_FNAME="John",
+            USER_LNAME="Doe",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
+        )
+
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+
+        OAuthAccount.objects.create(
+            USER=user,
+            OAUTH_PROVIDER="google",
+            OAUTH_PROVIDER_ID=self.oauth_user.provider_id,
+        )
+
+        self.client.post(
+            self.url,
+            {
+                "id_token": "fake-token",
+            },
+            format="json",
+        )
+
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(OAuthAccount.objects.count(), 1)
