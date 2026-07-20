@@ -11,6 +11,8 @@ from apps.authentication.services.password_reset_service import (
     PasswordResetService,
 )
 from apps.users.models import User
+from apps.authentication.constants import Platform
+from config import settings
 
 
 class PasswordResetServiceTests(TestCase):
@@ -29,18 +31,49 @@ class PasswordResetServiceTests(TestCase):
             EMAIL_VERIFIED=True,
         )
 
-    def test_generate_reset_link_returns_valid_link(self):
+    def test_generate_mobile_reset_link_returns_valid_link(self):
         link = PasswordResetService.generate_reset_link(
             self.user,
+            platform=Platform.MOBILE,
         )
 
         self.assertTrue(
-            link.startswith("com.sugbogo.app://reset-password"),
+            link.startswith(f"{settings.MOBILE_SCHEME}reset-password"),
         )
 
         self.assertIn("uid=", link)
-
         self.assertIn("token=", link)
+
+
+    def test_generate_web_reset_link_returns_valid_link(self):
+        link = PasswordResetService.generate_reset_link(
+            self.user,
+            platform=Platform.WEB,
+        )
+
+        self.assertTrue(
+            link.startswith(f"{settings.WEB_APP_URL}/reset-password"),
+        )
+
+        self.assertIn("uid=", link)
+        self.assertIn("token=", link)
+
+
+    def test_generate_reset_link_returns_different_links_per_platform(self):
+        mobile_link = PasswordResetService.generate_reset_link(
+            self.user,
+            platform=Platform.MOBILE,
+        )
+
+        web_link = PasswordResetService.generate_reset_link(
+            self.user,
+            platform=Platform.WEB,
+        )
+
+        self.assertNotEqual(
+            mobile_link,
+            web_link,
+        )
 
     def test_generate_reset_link_contains_correct_uid(self):
         link = PasswordResetService.generate_reset_link(

@@ -5,6 +5,7 @@ from apps.authentication.services.login_service import LoginService
 from apps.authentication.utils.jwt import issue_tokens
 from apps.core.responses import success_response, error_response
 from apps.users.models import User
+from apps.authentication.permissions import user_has_role
 
 
 @api_view(["POST"])
@@ -24,10 +25,7 @@ def admin_login_view(request):
     if response:
         return response
 
-    if user.USER_ROLE not in {
-        User.UserRole.ADMIN,
-        User.UserRole.SUPER_ADMIN,
-    }:
+    if not user_has_role(user, User.UserRole.ADMIN):
         return error_response(
             message="You do not have permission to access the admin portal.",
             code="ADMIN_ACCESS_DENIED",

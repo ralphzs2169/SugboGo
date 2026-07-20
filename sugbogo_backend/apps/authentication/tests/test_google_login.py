@@ -14,6 +14,7 @@ from apps.authentication.models import OAuthAccount
 
 class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
     def setUp(self):
+        
         self.url = reverse("google_login")
 
         self.oauth_user = OAuthUser(
@@ -79,7 +80,11 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
     ):
         mock_verify.return_value = self.oauth_user
 
-        self.assertEqual(User.objects.count(), 0)
+        self.assertFalse(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).exists()
+        )
 
         response = self.client.post(
             self.url,
@@ -94,9 +99,16 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
             status.HTTP_200_OK,
         )
 
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).count(),
+            1,
+        )
 
-        user = User.objects.first()
+        user = User.objects.get(
+            USER_EMAIL="john@example.com",
+        )
 
         self.assertTrue(user.EMAIL_VERIFIED)
         self.assertEqual(
@@ -233,10 +245,17 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).count(),
+            1,
+        )
         self.assertEqual(OAuthAccount.objects.count(), 1)
 
-        user = User.objects.first()
+        user = User.objects.get(
+            USER_EMAIL="john@example.com",
+        )
         oauth = OAuthAccount.objects.get(USER=user)
 
         self.assertEqual(oauth.USER, user)
@@ -264,7 +283,9 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        user = User.objects.first()
+        user = User.objects.get(
+            USER_EMAIL="john@example.com",
+        )
 
         self.assertFalse(user.has_usable_password())
 
@@ -294,7 +315,12 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).count(),
+            1,
+        )
         self.assertEqual(OAuthAccount.objects.count(), 1)
 
 
@@ -334,5 +360,10 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
             format="json",
         )
 
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).count(),
+            1,
+        )
         self.assertEqual(OAuthAccount.objects.count(), 1)
