@@ -2,8 +2,12 @@ import { useState } from "react";
 import axios from "axios";
 
 import { login } from "../api/auth.service";
-import { establishSession } from "../utils/auth.utils";
+import { establishSession } from "../utils/authSession";
 
+/**
+ * Custom hook for handling user login.
+ * Provides a function to perform login and manage loading state.
+ */
 export function useLogin() {
   const [loading, setLoading] = useState(false);
 
@@ -21,9 +25,8 @@ export function useLogin() {
       }
 
       await establishSession(response.data);
-
-      return response;
-
+      console.log(localStorage.getItem("access_token"));
+      console.log(localStorage.getItem("refresh_token"));
       return response;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.data) {

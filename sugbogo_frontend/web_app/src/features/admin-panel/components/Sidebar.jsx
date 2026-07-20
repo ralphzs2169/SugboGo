@@ -10,15 +10,17 @@ import {
   FiTag,
   FiUser,
 } from "react-icons/fi";
-import { logout } from "@/features/auth/utils/auth.utils";
+import { logout } from "@/features/auth/utils/authSession";
 import { useNavigate } from "react-router-dom";
 
+// Navigation links for the super admin console sidebar, each with a route, label, and icon.
 const navigation = [
   {
     to: "/admin-panel/explorer-activity",
     label: "Explorer Activity",
     Icon: FiUser,
   },
+
   { to: "/admin-panel/specialty-tags", label: "Specialty Tags", Icon: FiTag },
   {
     to: "/admin-panel/flags-suspicious",
@@ -45,6 +47,7 @@ export default function Sidebar({ onLogout, isOpen, onClose }) {
     logout();
     navigate("/login");
   }
+
   return (
     <>
       {/* Mobile Backdrop */}

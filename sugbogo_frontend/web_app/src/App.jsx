@@ -1,4 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
+import { useAuthStore } from "@/features/auth/storage/auth.store";
+
 import AdminPanelLayout from "@/features/admin-panel/pages/AdminPanelLayout";
 import Dashboard from "@/features/admin-panel/pages/Dashboard";
 import Msmes from "@/features/admin-panel/pages/Msmes";
@@ -13,6 +16,14 @@ import Login from "@/features/admin-panel/pages/Login";
 import ProtectedRoute from "@/features/auth/components/ProtectedRoute";
 
 function App() {
+  useRestoreSession();
+
+  const isLoading = useAuthStore((state) => state.isLoading);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

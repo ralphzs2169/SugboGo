@@ -1,3 +1,8 @@
+/**
+ * Utility functions for managing authentication tokens in local storage.
+ * These functions provide a simple interface for getting, setting, and clearing access and refresh tokens.
+ */
+
 export function getAccessToken() {
   return localStorage.getItem("access_token");
 }

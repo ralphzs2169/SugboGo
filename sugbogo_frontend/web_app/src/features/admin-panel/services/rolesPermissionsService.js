@@ -1,4 +1,4 @@
-import { adminPanelApi } from "@/shared/services/api";
+import apiClient from "@/shared/api/apiClient";
 
 export const getRolesPermissionsData = async () =>
-  adminPanelApi.get("/roles-permissions/");
+  apiClient.get("/admin-panel/roles-permissions/");

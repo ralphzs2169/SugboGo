@@ -1,3 +1,3 @@
-import { adminPanelApi } from "@/shared/services/api";
+import apiClient from "@/shared/api/apiClient";
 
-export const getMSMEData = async () => adminPanelApi.get("/msmes/");
+export const getMSMEData = async () => apiClient.get("/admin-panel/msmes/");
