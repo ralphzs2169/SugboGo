@@ -29,6 +29,8 @@ export default function ForgotPassword() {
   };
 
   const handleSendResetLink = async () => {
+    if (loading || navigating) return;
+
     const validationErrors = validateForgotPasswordForm(email);
 
     if (Object.keys(validationErrors).length > 0) {

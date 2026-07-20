@@ -10,6 +10,8 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
  * @param {string} label - The label for the input field.
  * @param {string} autoComplete - The autocomplete attribute for the input field.
  * @param {string} placeholder - The placeholder text for the input field.
+ * @param {string} value - The value of the input field.
+ * @param {function} onChange - The onChange event handler for the input field.
  */
 export default function PasswordInput({
   id,
@@ -17,6 +19,8 @@ export default function PasswordInput({
   label,
   autoComplete,
   placeholder,
+  value,
+  onChange,
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -35,6 +39,8 @@ export default function PasswordInput({
           type={showPassword ? "text" : "password"}
           autoComplete={autoComplete}
           placeholder={placeholder}
+          value={value}
+          onChange={onChange}
           className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 pr-12 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-primary focus:ring-4 focus:ring-primary/15"
         />
         <button

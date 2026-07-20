@@ -10,25 +10,32 @@ import Analytics from "@/features/admin-panel/pages/Analytics";
 import Settings from "@/features/admin-panel/pages/Settings";
 import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
 import Login from "@/features/admin-panel/pages/Login";
+import ProtectedRoute from "@/features/auth/components/ProtectedRoute";
 
 function App() {
   return (
     <Routes>
-      <Route path="/admin-panel" element={<AdminPanelLayout />}>
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="msmes" element={<Msmes />} />
-        <Route path="users" element={<Users />} />
-        <Route path="users/all" element={<Users />} />
-        <Route path="users/roles-permissions" element={<RolesPermissions />} />
-        <Route path="explorer-activity" element={<ExplorerActivities />} />
-        <Route path="specialty-tags" element={<SpecialtyTags />} />
-        <Route path="flags-suspicious" element={<SuspiciousActivities />} />
-        <Route path="analytics" element={<Analytics />} />
-        <Route path="settings" element={<Settings />} />
+      <Route path="/login" element={<Login />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/admin-panel" element={<AdminPanelLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="msmes" element={<Msmes />} />
+          <Route path="users" element={<Users />} />
+          <Route path="users/all" element={<Users />} />
+          <Route
+            path="users/roles-permissions"
+            element={<RolesPermissions />}
+          />
+          <Route path="explorer-activity" element={<ExplorerActivities />} />
+          <Route path="specialty-tags" element={<SpecialtyTags />} />
+          <Route path="flags-suspicious" element={<SuspiciousActivities />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
       </Route>
 
-      <Route path="/login" element={<Login />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

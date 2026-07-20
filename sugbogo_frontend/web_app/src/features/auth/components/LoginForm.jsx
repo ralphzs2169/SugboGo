@@ -1,6 +1,9 @@
 import PasswordInput from "./PasswordInput";
 import SugboGoText from "../../../shared/components/SugboGoText";
 import TextInput from "./TextInput";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useLogin } from "../hooks/useLogin";
 
 /**
  * LoginForm component renders a login form for the admin dashboard.
@@ -8,6 +11,26 @@ import TextInput from "./TextInput";
  * a "Forgot Password?" link, and a submit button.
  */
 function LoginForm() {
+  const { handleLogin, loading } = useLogin();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  async function onSubmit(event) {
+    event.preventDefault();
+
+    const result = await handleLogin(email, password);
+
+    if (result.success) {
+      navigate("/admin-panel/dashboard");
+      return;
+    }
+
+    // Display backend message
+    setError(result.message);
+  }
   return (
     <article className="rounded-2xl bg-white p-0">
       <div className="mb-8">
@@ -17,7 +40,7 @@ function LoginForm() {
         <p className="mt-2 text-sm text-gray-500">Admin Dashboard</p>
       </div>
 
-      <form className="space-y-6" onSubmit={(event) => event.preventDefault()}>
+      <form className="space-y-6" onSubmit={onSubmit}>
         <div className="space-y-4">
           <TextInput
             id="identifier"
@@ -25,6 +48,8 @@ function LoginForm() {
             label="Email/Username"
             autoComplete="username"
             placeholder="admin@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
 
           <PasswordInput
@@ -33,6 +58,8 @@ function LoginForm() {
             label="Password"
             autoComplete="current-password"
             placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
         </div>
 
@@ -57,12 +84,13 @@ function LoginForm() {
             Forgot Password?
           </a>
         </div>
-
+        {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           type="submit"
           className="flex w-full items-center justify-center rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white transition duration-200 hover:brightness-95 active:translate-y-px focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
+          disabled={loading}
         >
-          Login
+          {loading ? "Signing in..." : "Sign In"}
         </button>
       </form>
     </article>

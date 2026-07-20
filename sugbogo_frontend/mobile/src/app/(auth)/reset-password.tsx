@@ -43,6 +43,8 @@ export default function ResetPassword() {
   const { handleResetPassword: resetPassword, loading } = useResetPassword();
 
   const handleResetPassword = async () => {
+    if (loading) return;
+
     const validationErrors = validateResetPasswordForm(
       password,
       confirmPassword,

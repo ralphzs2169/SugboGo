@@ -1,4 +1,4 @@
-import LoginCard from "@/features/login/components/LoginCard";
+import LoginCard from "@/features/auth/components/LoginCard";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
 function Login() {

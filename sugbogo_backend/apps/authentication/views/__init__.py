@@ -18,3 +18,5 @@ from .forgot_password import (
 
 from .google_login import google_login_view as google_login_view
 from .facebook_login import facebook_login_view as facebook_login_view
+
+from .admin_login import admin_login_view as admin_login_view

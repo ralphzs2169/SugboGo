@@ -8,6 +8,8 @@
  * @param {string} type - The type of the input field.
  * @param {string} autoComplete - The autocomplete attribute for the input field.
  * @param {string} placeholder - The placeholder text for the input field.
+ * @param {string} value - The value of the input field.
+ * @param {function} onChange - The onChange event handler for the input field.
  */
 export default function TextInput({
   id,
@@ -16,6 +18,8 @@ export default function TextInput({
   type = "text",
   autoComplete,
   placeholder,
+  value,
+  onChange,
 }) {
   return (
     <div>
@@ -31,6 +35,8 @@ export default function TextInput({
         type={type}
         autoComplete={autoComplete}
         placeholder={placeholder}
+        value={value}
+        onChange={onChange}
         className="w-full rounded-md border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-primary focus:ring-4 focus:ring-primary/15"
       />
     </div>

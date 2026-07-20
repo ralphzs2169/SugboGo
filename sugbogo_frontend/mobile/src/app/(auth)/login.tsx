@@ -33,9 +33,12 @@ export default function Login() {
   const [errors, setErrors] = useState<LoginErrors>({});
   const [formError, setFormError] = useState("");
 
-  const { handleLogin, loading } = useLogin();
+  const { handleLogin } = useLogin();
+
   const { handleGoogleLogin } = useGoogleLogin();
   const { handleFacebookLogin } = useFacebookLogin();
+
+  const [loading, setLoading] = useState(false);
 
   const clearFieldError = (field: keyof LoginErrors) => {
     setErrors((prev) => ({
@@ -47,6 +50,8 @@ export default function Login() {
   };
 
   const onLogin = async () => {
+    if (loading) return;
+
     const validationErrors = validateLoginForm(email, password);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -57,35 +62,41 @@ export default function Login() {
     setErrors({});
     setFormError("");
 
-    const response = await handleLogin(email, password);
+    setLoading(true);
 
-    if (!response.success) {
-      if (response.code === "EMAIL_NOT_VERIFIED") {
-        router.push({
-          pathname: "/(auth)/verify-email",
-          params: { email },
-        });
+    try {
+      const response = await handleLogin(email, password);
 
+      if (!response.success) {
+        if (response.code === "EMAIL_NOT_VERIFIED") {
+          router.push({
+            pathname: "/(auth)/verify-email",
+            params: { email },
+          });
+
+          return;
+        }
+
+        const emailError = getFieldError(response, "email");
+        const passwordError = getFieldError(response, "password");
+
+        if (emailError || passwordError) {
+          setErrors({
+            email: emailError,
+            password: passwordError,
+          });
+
+          return;
+        }
+
+        setFormError(response.message);
         return;
       }
 
-      const emailError = getFieldError(response, "email");
-      const passwordError = getFieldError(response, "password");
-
-      if (emailError || passwordError) {
-        setErrors({
-          email: emailError,
-          password: passwordError,
-        });
-
-        return;
-      }
-
-      setFormError(response.message);
-      return;
+      router.replace("/");
+    } finally {
+      setLoading(false);
     }
-
-    router.replace("/");
   };
 
   return (

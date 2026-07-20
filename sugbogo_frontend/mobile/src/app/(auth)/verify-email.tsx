@@ -71,6 +71,8 @@ export default function VerifyEmail() {
 
   // Function to handle the resend verification email action
   const onResend = async () => {
+    if (loading) return;
+
     if (!pendingEmail) {
       setError("Email address is missing.");
       return;

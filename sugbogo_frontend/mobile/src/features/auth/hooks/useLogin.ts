@@ -10,8 +10,6 @@ import { useVerificationStore } from "../store/verification.store";
  * Custom hook for handling user login.
  */
 export function useLogin() {
-  const [loading, setLoading] = useState(false);
-
   const clearPendingEmail = useVerificationStore(
     (state) => state.clearPendingEmail,
   );
@@ -28,8 +26,6 @@ export function useLogin() {
     email: string,
     password: string,
   ): Promise<ApiResult<AuthResponse>> => {
-    setLoading(true);
-
     try {
       const response = await login({
         email,
@@ -56,13 +52,10 @@ export function useLogin() {
         message: "Something went wrong. Please try again.",
         code: "UNKNOWN_ERROR",
       };
-    } finally {
-      setLoading(false);
     }
   };
 
   return {
     handleLogin,
-    loading,
   };
 }
