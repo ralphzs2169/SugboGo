@@ -23,7 +23,7 @@ export default function SugboGoText({
         />
       )}
 
-      <span className="text-2xl font-extrabold leading-none">
+      <span className="text-2xl font-extrabold">
         <span className="text-primary">Sugbo</span>
         <span className="text-text-primary">Go</span>
         {includeAdmin && <span> Admin</span>}

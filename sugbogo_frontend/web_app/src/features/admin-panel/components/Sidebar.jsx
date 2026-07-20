@@ -1,6 +1,7 @@
 import SidebarLink from "./SidebarLink";
 import UsersLinkDropdown from "./UsersLinkDropdown";
 import SugboGoText from "@/shared/components/SugboGoText";
+import { useLogout } from "@/features/auth/hooks/useLogout";
 import {
   FiBarChart2,
   FiGrid,
@@ -12,24 +13,8 @@ import {
 } from "react-icons/fi";
 import { logout } from "@/features/auth/utils/authSession";
 import { useNavigate } from "react-router-dom";
-
-// Navigation links for the super admin console sidebar, each with a route, label, and icon.
-const navigation = [
-  {
-    to: "/admin-panel/explorer-activity",
-    label: "Explorer Activity",
-    Icon: FiUser,
-  },
-
-  { to: "/admin-panel/specialty-tags", label: "Specialty Tags", Icon: FiTag },
-  {
-    to: "/admin-panel/flags-suspicious",
-    label: "Flags/Suspicious",
-    Icon: FiShield,
-  },
-  { to: "/admin-panel/analytics", label: "Analytics", Icon: FiBarChart2 },
-  { to: "/admin-panel/settings", label: "Settings", Icon: FiSettings },
-];
+import { useAuthStore } from "@/features/auth/storage/auth.store";
+import navigation from "../config/sidebarNavigation";
 
 /**
  * Persistent left sidebar navigation for the super admin console.
@@ -41,13 +26,13 @@ const navigation = [
  * @param {function} onClose - Callback event handler invoked to close the mobile sidebar overlay or panel.
  */
 export default function Sidebar({ onLogout, isOpen, onClose }) {
-  const navigate = useNavigate();
+  const { handleLogout } = useLogout();
 
-  function handleLogout() {
-    logout();
-    navigate("/login");
-  }
+  const user = useAuthStore((state) => state.user);
 
+  const visibleNavigation = navigation.filter((item) =>
+    item.roles.includes(user.role),
+  );
   return (
     <>
       {/* Mobile Backdrop */}
@@ -71,7 +56,6 @@ export default function Sidebar({ onLogout, isOpen, onClose }) {
           lg:translate-x-0
         `}
       >
-        {/* Logo */}
         <div className="px-6 pt-4">
           <div className="flex flex-col gap-1">
             <p className="text-3xl font-extrabold leading-none">
@@ -101,14 +85,8 @@ export default function Sidebar({ onLogout, isOpen, onClose }) {
 
           <UsersLinkDropdown />
 
-          {navigation.map(({ to, label, Icon }) => (
-            <SidebarLink
-              key={to}
-              to={to}
-              label={label}
-              Icon={Icon}
-              onClick={onClose}
-            />
+          {visibleNavigation.map((item) => (
+            <SidebarLink key={item.to} {...item} onClick={onClose} />
           ))}
         </nav>
 
