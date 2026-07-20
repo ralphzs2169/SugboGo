@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getSuspiciousActivityData } from "../services/SuspiciousActivityService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 export default function SuspiciousActivities() {
   useDocumentTitle("Suspicious Activities | SugboGo Admin");

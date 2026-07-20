@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getSpecialtyTagData } from "../services/specialtyTagService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 export default function SpecialtyTags() {
   useDocumentTitle("Specialty Tags | SugboGo Admin");

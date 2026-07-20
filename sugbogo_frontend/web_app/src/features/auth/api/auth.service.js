@@ -25,3 +25,17 @@ export async function refreshAccessToken(refreshToken) {
 
   return response.data;
 }
+
+export async function forgotPassword(email) {
+  const response = await authClient.post("/auth/admin/forgot-password/", {
+    email,
+  });
+
+  return response.data;
+}
+
+export async function resetPassword(payload) {
+  const response = await authClient.post("/auth/reset-password/", payload);
+
+  return response.data;
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getAnalyticsData } from "../services/analyticsService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 function Analytics() {
   useDocumentTitle("Analytics | SugboGo Admin");

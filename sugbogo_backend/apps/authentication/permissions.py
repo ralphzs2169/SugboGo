@@ -14,6 +14,16 @@ def _user_effective_roles(user) -> set:
     accounting for the Super Admin -> Admin inheritance."""
     return ROLE_HIERARCHY.get(user.USER_ROLE, {user.USER_ROLE})
 
+
+def user_has_role(user, *allowed_roles):
+    """
+    Check whether a user has one of the allowed roles.
+    """
+    return bool(
+        _user_effective_roles(user)
+        & set(allowed_roles)
+    )
+
 class HasRole(BasePermission):
     """
     Usage:

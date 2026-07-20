@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
 
+import Login from "@/features/auth/pages/Login";
+
 import AdminPanelLayout from "@/features/admin-panel/pages/AdminPanelLayout";
 import Dashboard from "@/features/admin-panel/pages/Dashboard";
 import Msmes from "@/features/admin-panel/pages/Msmes";
@@ -12,10 +14,14 @@ import SuspiciousActivities from "@/features/admin-panel/pages/SuspiciousActivit
 import Analytics from "@/features/admin-panel/pages/Analytics";
 import Settings from "@/features/admin-panel/pages/Settings";
 import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
-import Login from "@/features/admin-panel/pages/Login";
 import ProtectedRoute from "@/features/auth/components/ProtectedRoute";
 
+import ForgotPassword from "@/features/auth/pages/ForgotPassword";
+import ForgotPasswordSent from "@/features/auth/pages/ForgotPasswordSent";
+import ResetPassword from "@/features/auth/pages/ResetPassword";
+
 function App() {
+  console.log("APP RENDERED");
   useRestoreSession();
 
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -27,6 +33,9 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/forgot-password/sent" element={<ForgotPasswordSent />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route element={<ProtectedRoute />}>
         <Route path="/admin-panel" element={<AdminPanelLayout />}>

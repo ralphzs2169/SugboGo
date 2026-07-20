@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getRolesPermissionsData } from "../services/rolesPermissionsService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 export default function RolesPermissions() {
   useDocumentTitle("Roles & Permissions | SugboGo Admin");

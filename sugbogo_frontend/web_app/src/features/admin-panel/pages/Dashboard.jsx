@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getDashboardData } from "../services/dashboardService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import MetricRow from "@/features/admin-panel/dashboard/components/MetricRow";
 import DiscoveryActivity from "@/features/admin-panel/dashboard/components/DiscoveryActivity";
 import LowerDashboardSection from "@/features/admin-panel/dashboard/components/LowerDashboardSection";

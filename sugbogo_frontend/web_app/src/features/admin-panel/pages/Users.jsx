@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getUserData } from "../services/userService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 export default function Users() {
   useDocumentTitle("Users | SugboGo Admin");

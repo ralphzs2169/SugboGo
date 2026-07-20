@@ -4,7 +4,7 @@ import TextInput from "./TextInput";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLogin } from "../hooks/useLogin";
-
+import { Link } from "react-router-dom";
 /**
  * LoginForm component renders a login form for the admin dashboard.
  * It includes fields for email/username and password, a "Remember Me" checkbox,
@@ -77,12 +77,12 @@ function LoginForm() {
             <span>Remember Me</span>
           </label>
 
-          <a
-            href="#forgot-password"
+          <Link
+            to="/forgot-password"
             className="font-medium text-primary transition hover:opacity-80 focus:outline-none focus-visible:text-primary"
           >
             Forgot Password?
-          </a>
+          </Link>
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button

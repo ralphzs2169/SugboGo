@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getMSMEData } from "../services/msmeService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import MetricRow from "@/features/admin-panel/components/MetricRow";
 import MsmeTable from "@/features/admin-panel/msme/components/MsmeTable";
 
