@@ -25,8 +25,7 @@ export function useLogin() {
       }
 
       await establishSession(response.data);
-      console.log(localStorage.getItem("access_token"));
-      console.log(localStorage.getItem("refresh_token"));
+
       return response;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.data) {

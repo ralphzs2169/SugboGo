@@ -1,13 +1,13 @@
-import PasswordInput from "./PasswordInput";
-import TextInput from "./TextInput";
-import AuthTextButton from "./AuthTextButton";
-import PrimaryButton from "./PrimaryButton";
+import PasswordInput from "../password/PasswordInput";
+import TextInput from "../common/TextInput";
+import AuthTextButton from "../common/AuthTextButton";
+import PrimaryButton from "../common/PrimaryButton";
 
 import { LogIn } from "lucide-react";
-import { validateLoginForm } from "../utils/loginValidator";
+import { validateLoginForm } from "../../utils/loginValidator";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useLogin } from "../hooks/useLogin";
+import { useLogin } from "../../hooks/useLogin";
 import { ArrowRight, Anchor } from "lucide-react";
 
 /**

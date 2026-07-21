@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
-import LoginForm from "../components/LoginForm";
-import AuthSplitLayout from "../components/AuthSplitLayout";
+import LoginForm from "../components/forms/LoginForm";
+import AuthSplitLayout from "../components/common/AuthSplitLayout";
 
 /**
  * Login page component for the admin dashboard.

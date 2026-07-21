@@ -15,20 +15,24 @@ import SuspiciousActivities from "@/features/admin-panel/pages/SuspiciousActivit
 import Analytics from "@/features/admin-panel/pages/Analytics";
 import Settings from "@/features/admin-panel/pages/Settings";
 import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
-import ProtectedRoute from "@/features/auth/components/ProtectedRoute";
+import ProtectedRoute from "@/features/auth/routes/ProtectedRoute";
 
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
 import EmailSentPage from "@/features/auth/pages/EmailSentPage";
 import NotFound from "@/shared/components/errors/NotFound";
 
+import PageLoader from "@/shared/components/loading/PageLoader";
+import { useDelayedLoading } from "@/shared/hooks/useDelayedLoading";
+
 function App() {
   useRestoreSession();
 
   const isLoading = useAuthStore((state) => state.isLoading);
+  const showLoader = useDelayedLoading(isLoading, 300);
 
-  if (isLoading) {
-    return <div>Loading...</div>;
+  if (showLoader) {
+    return <PageLoader />;
   }
 
   return (

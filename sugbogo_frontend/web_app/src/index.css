@@ -20,7 +20,26 @@
   --color-text-hover: #737373;
 
   --color-action-icon-background: #FFF7ED;
+
+  
+  /* Animations  */
+  --animate-loading: loading 1.8s ease-in-out infinite;
+
+  @keyframes loading {
+    0% {
+      width: 10%;
+    }
+
+    50% {
+      width: 60%;
+    }
+
+    100% {
+      width: 90%;
+    }
+  }
 }
+
 
 /* Dark Theme */
 html.dark {
@@ -38,4 +57,5 @@ html.dark {
 
   --color-action-icon-background: #2A2A2A;
 }
+
 

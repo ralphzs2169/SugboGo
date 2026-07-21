@@ -3,13 +3,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { KeyRound } from "lucide-react";
 import { FiArrowLeft } from "react-icons/fi";
 
-import PrimaryButton from "./PrimaryButton";
-import PasswordInput from "./PasswordInput";
-import AuthTextButton from "./AuthTextButton";
-import PasswordRequirementsList from "./PasswordRequirementsList";
+import PrimaryButton from "../common/PrimaryButton";
+import PasswordInput from "../password/PasswordInput";
+import AuthTextButton from "../common/AuthTextButton";
+import PasswordRequirementsList from "../password/PasswordRequirementsList";
 
-import { validateResetPassword } from "../utils/resetPasswordValidator";
-import { useResetPassword } from "../hooks/useResetPassword";
+import { validateResetPassword } from "../../utils/resetPasswordValidator";
+import { useResetPassword } from "../../hooks/useResetPassword";
 
 /**
  * ResetPasswordForm component renders a form for users to reset their password.

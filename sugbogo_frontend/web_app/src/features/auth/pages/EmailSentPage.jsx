@@ -4,8 +4,8 @@ import toast from "react-hot-toast";
 
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
-import AuthSplitLayout from "../components/AuthSplitLayout";
-import EmailSentCard from "../components/EmailSentCard";
+import AuthSplitLayout from "../components/common/AuthSplitLayout";
+import EmailSent from "../components/states/EmailSent";
 import { useForgotPassword } from "../hooks/useForgotPassword";
 
 const DEFAULT_RESEND_DELAY = 60;
@@ -69,7 +69,7 @@ export default function EmailSentPage() {
 
   return (
     <AuthSplitLayout>
-      <EmailSentCard
+      <EmailSent
         resendDisabled={loading || countdown > 0}
         resendCountdown={countdown}
         onResend={handleResend}

@@ -1,5 +1,5 @@
-import ForgotPasswordForm from "../components/ForgotPasswordForm";
-import AuthSplitLayout from "../components/AuthSplitLayout";
+import ForgotPasswordForm from "../components/forms/ForgotPasswordForm";
+import AuthSplitLayout from "../components/common/AuthSplitLayout";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 export default function ForgotPasswordPage() {

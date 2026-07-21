@@ -1,9 +1,9 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { RotateCw, Clock, Pencil, ArrowLeft } from "lucide-react";
-import EmailSentIllustration from "../assets/email-sent.svg?react";
-import PrimaryButton from "./PrimaryButton";
+import EmailSentIllustration from "../../assets/email-sent.svg?react";
+import PrimaryButton from "../common/PrimaryButton";
 
-export default function EmailSentCard({
+export default function EmailSent({
   resendDisabled = true,
   resendCountdown = 60,
   onResend,

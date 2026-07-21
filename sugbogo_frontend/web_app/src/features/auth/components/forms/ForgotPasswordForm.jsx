@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { ArrowLeft, Mail, ShieldCheck } from "lucide-react";
-import PrimaryButton from "./PrimaryButton";
+import PrimaryButton from "../common/PrimaryButton";
 
-import TextInput from "./TextInput";
-import AuthTextButton from "./AuthTextButton";
-import { validateEmail } from "../../../shared/utils/validators/auth.validator";
-import { useForgotPassword } from "../hooks/useForgotPassword";
+import TextInput from "../common/TextInput";
+import AuthTextButton from "../common/AuthTextButton";
+import { validateEmail } from "../../../../shared/utils/validators/auth.validator";
+import { useForgotPassword } from "../../hooks/useForgotPassword";
 import { useNavigate, useLocation } from "react-router-dom";
-import { usePasswordResetConfig } from "../hooks/usePasswordResetConfig";
+import { usePasswordResetConfig } from "../../hooks/usePasswordResetConfig";
 
 export default function ForgotPasswordForm() {
   const navigate = useNavigate();

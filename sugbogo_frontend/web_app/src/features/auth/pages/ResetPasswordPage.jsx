@@ -3,9 +3,9 @@ import { useSearchParams } from "react-router-dom";
 
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
-import AuthSplitLayout from "../components/AuthSplitLayout";
-import ResetPasswordForm from "../components/ResetPasswordForm";
-import InvalidResetLink from "../components/InvalidResetLink";
+import AuthSplitLayout from "../components/common/AuthSplitLayout";
+import ResetPasswordForm from "../components/forms/ResetPasswordForm";
+import InvalidResetLink from "../components/states/InvalidResetLink";
 
 import { useValidateResetToken } from "../hooks/useValidateResetToken";
 

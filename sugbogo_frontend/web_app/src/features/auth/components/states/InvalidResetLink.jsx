@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RotateCw, TriangleAlert } from "lucide-react";
-import LinkExpiredIllustration from "../assets/link-expired3.svg?react";
-import PrimaryButton from "./PrimaryButton";
+import LinkExpiredIllustration from "../../assets/link-expired.svg?react";
+import PrimaryButton from "../common/PrimaryButton";
 
-import AuthTextButton from "./AuthTextButton";
+import AuthTextButton from "../common/AuthTextButton";
 
 export default function InvalidResetLink() {
   const navigate = useNavigate();

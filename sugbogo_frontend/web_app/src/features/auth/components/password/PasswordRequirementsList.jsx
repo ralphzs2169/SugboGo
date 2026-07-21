@@ -1,5 +1,5 @@
 import PasswordRequirementItem from "./PasswordRequirementItem";
-import { getPasswordRequirements } from "../utils/passwordRules";
+import { getPasswordRequirements } from "../../utils/passwordRules";
 
 /**
  * Live-updating checklist of password requirements, shown once the user

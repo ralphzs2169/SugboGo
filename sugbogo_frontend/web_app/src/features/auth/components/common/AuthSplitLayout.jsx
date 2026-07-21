@@ -1,6 +1,6 @@
 import SugboGoLogo from "@/assets/logos/sugbogo-logo.svg";
 import SugboGoText from "@/shared/components/SugboGoText";
-import LoginIllustration from "./LoginIllustration";
+import LoginIllustration from "../LoginIllustration";
 
 export default function AuthSplitLayout({ children }) {
   return (
