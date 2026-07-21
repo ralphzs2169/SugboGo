@@ -1,12 +1,5 @@
-import { useLocalSearchParams } from "expo-router";
-import { useEffect } from "react";
+import { Redirect } from "expo-router";
 
 export default function OAuthRedirect() {
-  const params = useLocalSearchParams();
-
-  useEffect(() => {
-    console.log("OAuth callback params:", params);
-  }, []);
-
-  return null;
+  return <Redirect href="/(auth)/login" />;
 }

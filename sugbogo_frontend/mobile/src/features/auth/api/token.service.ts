@@ -1,4 +1,4 @@
-import apiClient from "@/shared/api/authClient";
+import apiClient from "@/shared/api/apiClient";
 import { RefreshResponse } from "./auth.types";
 
 /**

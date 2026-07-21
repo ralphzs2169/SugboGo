@@ -1,23 +1,19 @@
 import { useState } from "react";
 
-import { resetPassword } from "../api/auth.service";
+import { forgotPassword } from "../api/auth.service";
 import { ApiMessageResponse } from "@/shared/api/types";
 
-export function useResetPassword() {
+export function useResendPasswordReset() {
   const [loading, setLoading] = useState(false);
 
-  const handleResetPassword = async (
-    uid: string,
-    token: string,
-    password: string,
+  const handleResendPasswordReset = async (
+    email: string,
   ): Promise<ApiMessageResponse> => {
     setLoading(true);
 
     try {
-      return await resetPassword({
-        uid,
-        token,
-        password,
+      return await forgotPassword({
+        email,
       });
     } finally {
       setLoading(false);
@@ -25,7 +21,7 @@ export function useResetPassword() {
   };
 
   return {
-    handleResetPassword,
+    handleResendPasswordReset,
     loading,
   };
 }

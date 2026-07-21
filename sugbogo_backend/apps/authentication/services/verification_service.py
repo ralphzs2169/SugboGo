@@ -33,13 +33,13 @@ class EmailVerificationService:
 
         if platform == Platform.WEB:
             return (
-                f"{settings.WEB_APP_URL}/reset-password"
+                f"{settings.WEB_APP_URL}/verify-email"
                 f"?uid={uid}"
                 f"&token={token}"
             )
 
         return (
-            f"{settings.MOBILE_SCHEME}reset-password"
+            f"{settings.MOBILE_SCHEME}verify-email"
             f"?uid={uid}"
             f"&token={token}"
         )

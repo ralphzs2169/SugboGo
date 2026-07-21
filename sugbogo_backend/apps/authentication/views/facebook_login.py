@@ -11,6 +11,8 @@ from apps.authentication.services.oauth.account import OAuthAccountService
 from apps.authentication.utils.jwt import issue_tokens
 
 from apps.core.responses import error_response, success_response
+from apps.authentication.permissions import user_has_role
+from apps.users.models import User
 
 
 @api_view(["POST"])
@@ -37,6 +39,22 @@ def facebook_login_view(request):
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
+     # Check if the user already exists and has an admin role
+    existing_user = User.objects.filter(
+        USER_EMAIL=oauth_user.email
+    ).first()
+
+    if existing_user and user_has_role(
+        existing_user,
+        User.UserRole.ADMIN,
+    ):
+        return error_response(
+            message="Admin accounts cannot use OAuth login.",
+            code="OAUTH_LOGIN_DENIED",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    
+     # If the user does not exist or is not an admin, proceed to get or create the user
     user = OAuthAccountService.get_or_create_user(oauth_user)
 
     tokens = issue_tokens(

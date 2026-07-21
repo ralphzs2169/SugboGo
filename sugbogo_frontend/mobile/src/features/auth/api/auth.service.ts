@@ -8,7 +8,8 @@ import {
   ForgotPasswordRequest,
   ResetPasswordRequest,
 } from "./auth.types";
-import { ApiSuccessWithData, ApiSuccess } from "@/shared/api/types";
+import { ApiMessageResponse, ApiResponse } from "@/shared/api/types";
+import { request } from "@/shared/api/request";
 
 /**
  * Authenticates a user with the backend.
@@ -18,31 +19,25 @@ import { ApiSuccessWithData, ApiSuccess } from "@/shared/api/types";
  * refresh tokens upon successful authentication.
  *
  * @param {LoginRequest} credentials - The user's login credentials.
- * @returns {Promise<ApiSuccessWithData<AuthResponse>>} The authenticated user's information and JWT tokens.
+ * @returns {Promise<ApiResponse<AuthResponse>>} The authenticated user's information and JWT tokens.
  *
  */
 export async function login(
   credentials: LoginRequest,
-): Promise<ApiSuccessWithData<AuthResponse>> {
-  const response = await apiClient.post<ApiSuccessWithData<AuthResponse>>(
-    "/auth/login/",
-    credentials,
+): Promise<ApiResponse<AuthResponse>> {
+  return request(
+    apiClient.post<ApiResponse<AuthResponse>>("/auth/login/", credentials),
   );
-
-  return response.data;
 }
 
-export async function googleLogin(
+export function googleLogin(
   idToken: string,
-): Promise<ApiSuccessWithData<AuthResponse>> {
-  const response = await apiClient.post<ApiSuccessWithData<AuthResponse>>(
-    "/auth/google-login/",
-    {
+): Promise<ApiResponse<AuthResponse>> {
+  return request(
+    apiClient.post<ApiResponse<AuthResponse>>("/auth/google-login/", {
       id_token: idToken,
-    },
+    }),
   );
-
-  return response.data;
 }
 
 /**
@@ -53,19 +48,16 @@ export async function googleLogin(
  * refresh tokens upon successful authentication.
  *
  * @param {string} accessToken - The user's Facebook access token.
- * @returns {Promise<ApiSuccessWithData<AuthResponse>>} The authenticated user's information and JWT tokens.
+ * @returns {Promise<ApiMessageResponse>} The authenticated user's information and JWT tokens.
  */
-export async function facebookLogin(
+export function facebookLogin(
   accessToken: string,
-): Promise<ApiSuccessWithData<AuthResponse>> {
-  const response = await apiClient.post<ApiSuccessWithData<AuthResponse>>(
-    "/auth/facebook-login/",
-    {
+): Promise<ApiResponse<AuthResponse>> {
+  return request(
+    apiClient.post<ApiResponse<AuthResponse>>("/auth/facebook-login/", {
       access_token: accessToken,
-    },
+    }),
   );
-
-  return response.data;
 }
 
 /**
@@ -79,9 +71,13 @@ export async function facebookLogin(
  * @throws {AxiosError} If the access token is invalid, expired, or missing.
  */
 export async function getCurrentUser(): Promise<User> {
-  const response = await apiClient.get<ApiSuccess<User>>("/users/me/");
+  const response = await apiClient.get<ApiResponse<User>>("/users/me/");
 
-  return response.data.data!;
+  if (!response.data.success) {
+    throw new Error(response.data.message);
+  }
+
+  return response.data.data;
 }
 
 /**
@@ -107,18 +103,15 @@ export async function refreshAccessToken(
  * the authenticated user together with the issued JWT access and refresh tokens.
  *
  * @param {RegisterRequest} data - The user's registration information.
- * @returns {Promise<ApiSuccessWithData<AuthResponse>>} The authenticated user and JWT tokens.
+ * @returns {Promise<ApiMessageResponse>} The authenticated user and JWT tokens.
  * @throws {AxiosError} If the registration request fails or validation errors occur.
  */
-export async function register(
+export function register(
   data: RegisterRequest,
-): Promise<ApiSuccess<AuthResponse>> {
-  const response = await apiClient.post<ApiSuccess<AuthResponse>>(
-    "/auth/register/",
-    data,
+): Promise<ApiResponse<AuthResponse>> {
+  return request(
+    apiClient.post<ApiResponse<AuthResponse>>("/auth/register/", data),
   );
-
-  return response.data;
 }
 
 /**
@@ -128,51 +121,45 @@ export async function register(
  * @param token - Django verification token.
  * @returns Backend response.
  */
-export async function verifyEmail(
+export function verifyEmail(
   uid: string,
   token: string,
-): Promise<ApiSuccess> {
-  const response = await apiClient.get<ApiSuccess>("/auth/verify-email/", {
-    params: {
-      uid,
-      token,
-    },
-  });
-
-  return response.data;
+): Promise<ApiMessageResponse> {
+  return request(
+    apiClient.get<ApiMessageResponse>("/auth/verify-email/", {
+      params: {
+        uid,
+        token,
+      },
+    }),
+  );
 }
 
 /**
  * Resends the email verification link to the user's email address.
  * @param {string} email - The user's email address.
- * @returns {Promise<ApiSuccess>} The response from the backend.
+ * @returns {Promise<ApiMessageResponse>} The response from the backend.
  */
-export async function resendVerification(email: string): Promise<ApiSuccess> {
-  const response = await apiClient.post<ApiSuccess>(
-    "/auth/resend-verification/",
-    {
+export function resendVerification(email: string): Promise<ApiMessageResponse> {
+  return request(
+    apiClient.post<ApiMessageResponse>("/auth/resend-verification/", {
       email,
-    },
+    }),
   );
-
-  return response.data;
 }
 
 /**
  * Sends a password reset email.
  *
  * @param {ForgotPasswordRequest} data - The user's email address.
- * @returns {Promise<ApiSuccess>} Backend response.
+ * @returns {Promise<ApiMessageResponse>} Backend response.
  */
-export async function forgotPassword(
+export function forgotPassword(
   data: ForgotPasswordRequest,
-): Promise<ApiSuccess> {
-  const response = await apiClient.post<ApiSuccess>(
-    "/auth/forgot-password/",
-    data,
+): Promise<ApiMessageResponse> {
+  return request(
+    apiClient.post<ApiMessageResponse>("/auth/forgot-password/", data),
   );
-
-  return response.data;
 }
 
 /**
@@ -181,13 +168,10 @@ export async function forgotPassword(
  * @param data - Password reset request payload.
  * @returns Backend response.
  */
-export async function resetPassword(
+export function resetPassword(
   data: ResetPasswordRequest,
-): Promise<ApiSuccess> {
-  const response = await apiClient.post<ApiSuccess>(
-    "/auth/reset-password/",
-    data,
+): Promise<ApiMessageResponse> {
+  return request(
+    apiClient.post<ApiMessageResponse>("/auth/reset-password/", data),
   );
-
-  return response.data;
 }

@@ -12,6 +12,10 @@ import FormInput from "@/features/auth/components/FormInput";
 import { validateForgotPasswordForm } from "@/features/auth/utils/forgotPasswordValidator";
 import { useForgotPassword } from "@/features/auth/hooks/useForgotPassword";
 
+/**
+ * ForgotPassword component provides a user interface for users to request a password reset.
+ * It includes an input field for the user's email address and a button to send the reset link.
+ */
 export default function ForgotPassword() {
   const router = useRouter();
 
@@ -19,13 +23,11 @@ export default function ForgotPassword() {
 
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState<{ email?: string }>({});
-  const [formError, setFormError] = useState("");
 
   const [navigating, setNavigating] = useState(false);
 
   const clearEmailError = () => {
     setErrors({});
-    setFormError("");
   };
 
   const handleSendResetLink = async () => {
@@ -39,7 +41,6 @@ export default function ForgotPassword() {
     }
 
     setErrors({});
-    setFormError("");
 
     const response = await handleForgotPassword(email);
 
@@ -75,10 +76,6 @@ export default function ForgotPassword() {
         Enter your email address and we'll send you a link to reset your
         password.
       </Text>
-
-      {formError ? (
-        <Text className="text-sm font-semibold text-error">{formError}</Text>
-      ) : null}
 
       <FormInput
         label="EMAIL ADDRESS"

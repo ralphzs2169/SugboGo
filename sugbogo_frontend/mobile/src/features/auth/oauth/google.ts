@@ -4,9 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const redirectUri = AuthSession.makeRedirectUri({
-  native: "com.sugbogo.app:/oauthredirect",
-});
+const redirectUri = "com.sugbogo.app:/oauthredirect";
 
 console.log("Explicit redirect:", redirectUri);
 

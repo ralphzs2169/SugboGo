@@ -34,7 +34,6 @@ export default function Login() {
   const [formError, setFormError] = useState("");
 
   const { handleLogin } = useLogin();
-
   const { handleGoogleLogin } = useGoogleLogin();
   const { handleFacebookLogin } = useFacebookLogin();
 
@@ -68,6 +67,8 @@ export default function Login() {
       const response = await handleLogin(email, password);
 
       if (!response.success) {
+        setLoading(false);
+
         if (response.code === "EMAIL_NOT_VERIFIED") {
           router.push({
             pathname: "/(auth)/verify-email",
@@ -94,8 +95,11 @@ export default function Login() {
       }
 
       router.replace("/");
-    } finally {
+    } catch (error) {
+      console.error("Unexpected login error:", error);
+
       setLoading(false);
+      setFormError("Something unexpected happened. Please try again.");
     }
   };
 

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { router } from "expo-router";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 
@@ -7,6 +6,7 @@ import { LoginManager, AccessToken } from "react-native-fbsdk-next";
 import { facebookLogin } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
 import { useAuthStore } from "../store/auth.store";
+
 /**
  * Handles Facebook OAuth login.
  *
@@ -20,6 +20,7 @@ export function useFacebookLogin() {
    */
   async function handleFacebookLogin() {
     const setSigningIn = useAuthStore.getState().setSigningIn;
+
     setSigningIn(true);
 
     try {
@@ -46,17 +47,31 @@ export function useFacebookLogin() {
 
       const response = await facebookLogin(token.accessToken.toString());
 
+      if (!response.success) {
+        Toast.show({
+          type: "error",
+          text1: "Facebook Sign-In Failed",
+          text2: response.message,
+        });
+
+        router.replace("/(auth)/login");
+
+        return;
+      }
+
       await establishSession(response.data);
 
       router.replace("/");
     } catch (error) {
-      console.log("Facebook login error:", error);
+      console.error("Facebook login error:", error);
 
       Toast.show({
         type: "error",
         text1: "Facebook Sign-In Failed",
-        text2: "Please try again.",
+        text2: "Something unexpected happened. Please try again.",
       });
+
+      router.replace("/(auth)/login");
     } finally {
       setSigningIn(false);
     }

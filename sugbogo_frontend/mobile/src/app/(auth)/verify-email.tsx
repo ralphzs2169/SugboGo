@@ -1,27 +1,24 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Text, View } from "react-native";
+import { useEffect, useState } from "react";
 import Toast from "react-native-toast-message";
-import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
-import AuthButton from "@/features/auth/components/AuthButton";
-import AuthLayout from "@/features/auth/components/AuthLayout";
+
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import EmailSentLayout from "@/features/auth/components/EmailSentLayout";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
-import { useState, useEffect } from "react";
-import { useVerificationStore } from "@/features/auth/store/verification.store";
-import SecondaryAuthButton from "@/features/auth/components/SecondaryAuthButton";
 import { useVerifyEmail } from "@/features/auth/hooks/useVerifyEmail";
+import { useVerificationStore } from "@/features/auth/store/verification.store";
 
 export default function VerifyEmail() {
   const router = useRouter();
-  const [message, setMessage] = useState("");
+
   const [error, setError] = useState("");
 
   const pendingEmail = useVerificationStore((state) => state.pendingEmail);
 
   const { handleResend, loading } = useResendVerification();
-  const { handleVerifyEmail, loading: verifying } = useVerifyEmail();
+  const { handleVerifyEmail } = useVerifyEmail();
 
   const { uid, token } = useLocalSearchParams();
 
@@ -29,47 +26,68 @@ export default function VerifyEmail() {
     if (!uid || !token) return;
 
     const verify = async () => {
-      const response = await handleVerifyEmail(
-        uid.toString(),
-        token.toString(),
-      );
+      try {
+        const response = await handleVerifyEmail(
+          uid.toString(),
+          token.toString(),
+        );
 
-      if (response.success) {
-        Toast.show({
-          type: "success",
-          text1: "Email Verified",
-          text2: "Your account has been verified.",
-        });
+        if (response.success) {
+          Toast.show({
+            type: "success",
+            text1: "Email Verified",
+            text2: "Your account has been verified.",
+          });
 
-        router.replace("/(auth)/login");
-      } else {
+          router.replace("/(auth)/login");
+          return;
+        }
+
         Toast.show({
           type: "error",
           text1: "Verification Failed",
           text2: response.message,
+        });
+      } catch (error) {
+        console.error("Unexpected email verification error:", error);
+
+        Toast.show({
+          type: "error",
+          text1: "Verification Failed",
+          text2: "Something unexpected happened. Please try again.",
         });
       }
     };
 
     verify();
   }, [uid, token]);
-  // Function to open the default email application on the user's device
-  const openEmailApp = async () => {
-    const supported = await Linking.canOpenURL("mailto:");
 
-    if (!supported) {
+  const openEmailApp = async () => {
+    try {
+      const supported = await Linking.canOpenURL("mailto:");
+
+      if (!supported) {
+        Toast.show({
+          type: "error",
+          text1: "No email app found",
+          text2: "Please install an email application.",
+        });
+
+        return;
+      }
+
+      await Linking.openURL("mailto:");
+    } catch (error) {
+      console.error("Failed to open email app:", error);
+
       Toast.show({
         type: "error",
-        text1: "No email app found",
-        text2: "Please install an email application.",
+        text1: "Unable to open email app",
+        text2: "Please try again.",
       });
-      return;
     }
-
-    await Linking.openURL("mailto:");
   };
 
-  // Function to handle the resend verification email action
   const onResend = async () => {
     if (loading) return;
 
@@ -78,7 +96,6 @@ export default function VerifyEmail() {
       return;
     }
 
-    setMessage("");
     setError("");
 
     const response = await handleResend(pendingEmail);
@@ -90,27 +107,31 @@ export default function VerifyEmail() {
           text1: "Email Already Verified",
           text2: "Your email is already verified.",
         });
+
         return;
       }
 
       const retryAfter = response.errors?.retry_after as number | undefined;
 
-      // Handle rate limiting error
       if (retryAfter) {
         const minutes = Math.ceil(retryAfter / 60);
 
         Toast.show({
           type: "error",
           text1: "Too Many Requests",
-          text2: `Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+          text2: `Please try again in ${minutes} minute${
+            minutes === 1 ? "" : "s"
+          }.`,
         });
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Request Failed",
-          text2: response.message,
-        });
+
+        return;
       }
+
+      Toast.show({
+        type: "error",
+        text1: "Request Failed",
+        text2: response.message,
+      });
 
       return;
     }
@@ -120,54 +141,18 @@ export default function VerifyEmail() {
       text1: "Verification Email Sent",
       text2: "Please check your inbox.",
     });
-
-    setTimeout(() => {
-      router.replace("/(auth)/login");
-    }, 300);
   };
 
   return (
-    <AuthLayout>
-      <View className="mb-6 items-center justify-center">
-        <EmailSentIcon width={200} height={200} />
-      </View>
-
-      <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
-        Verify you email
-      </Text>
-
-      <Text className="mb-2 text-center text-base text-text-secondary">
-        We've sent a verification email to
-      </Text>
-
-      <Text className="mb-6 text-center text-base font-bold text-text-primary">
-        {pendingEmail}
-      </Text>
-
-      {message ? (
-        <Text className="mb-4 text-center text-sm font-semibold text-green-600">
-          {message}
-        </Text>
-      ) : null}
-
-      {error ? (
-        <Text className="mb-4 text-center text-sm font-semibold text-error">
-          {error}
-        </Text>
-      ) : null}
-
-      <AuthButton
-        title="Open Email App"
-        onPress={openEmailApp}
-        icon={<MaterialIcons name="open-in-new" size={20} color="white" />}
-        className="mb-4"
-      />
-
-      <SecondaryAuthButton
-        title="Resend Email"
-        loading={loading}
-        onPress={onResend}
-      />
+    <EmailSentLayout
+      title="Verify your email"
+      description="We've sent a verification email to"
+      email={pendingEmail}
+      openEmailApp={openEmailApp}
+      resendTitle="Resend Email"
+      onResend={onResend}
+      resendLoading={loading}
+    >
       <BottomAuthLink
         text=""
         actionText="Back to Login"
@@ -181,6 +166,6 @@ export default function VerifyEmail() {
         }
         onPress={() => router.replace("/(auth)/login")}
       />
-    </AuthLayout>
+    </EmailSentLayout>
   );
 }

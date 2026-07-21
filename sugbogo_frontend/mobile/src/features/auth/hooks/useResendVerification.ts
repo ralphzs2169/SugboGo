@@ -1,8 +1,7 @@
 import { useState } from "react";
-import axios from "axios";
 
 import { resendVerification } from "../api/auth.service";
-import { ApiResult } from "@/shared/api/types";
+import { ApiMessageResponse } from "@/shared/api/types";
 
 /**
  * Custom hook for resending email verification.
@@ -10,23 +9,11 @@ import { ApiResult } from "@/shared/api/types";
 export function useResendVerification() {
   const [loading, setLoading] = useState(false);
 
-  const handleResend = async (email: string): Promise<ApiResult<void>> => {
+  const handleResend = async (email: string): Promise<ApiMessageResponse> => {
     setLoading(true);
 
     try {
-      const response = await resendVerification(email);
-
-      return response;
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.data) {
-        return error.response.data;
-      }
-
-      return {
-        success: false,
-        message: "Something went wrong. Please try again.",
-        code: "UNKNOWN_ERROR",
-      };
+      return await resendVerification(email);
     } finally {
       setLoading(false);
     }
