@@ -5,6 +5,7 @@ from apps.users.models import User
 from apps.core.responses import success_response
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.throttles import ForgotPasswordThrottle
+from apps.authentication.constants import Platform
 
 
 @api_view(["POST"])
@@ -25,7 +26,7 @@ def forgot_password_view(request):
 
     if user is not None:
         try:
-            EmailService.send_password_reset_email(user)
+            EmailService.send_password_reset_email(user, platform=Platform.MOBILE)
         except Exception:
             pass
 

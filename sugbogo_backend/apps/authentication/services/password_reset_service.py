@@ -9,6 +9,8 @@ from apps.users.models import User
 import logging
 
 from apps.authentication.services.session_service import SessionService
+from apps.authentication.constants import Platform
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +18,11 @@ logger = logging.getLogger(__name__)
 class PasswordResetService:
     """Service for generating and validating password reset tokens."""
     
+    def get_reset_expiry_hours():
+        return settings.PASSWORD_RESET_TIMEOUT 
+
     @staticmethod
-    def generate_reset_link(user: User) -> str:
+    def generate_reset_link(user: User, platform: str = Platform.MOBILE,) -> str:
         """
         Generate a password reset link for a user.
 
@@ -30,8 +35,15 @@ class PasswordResetService:
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
 
+        if platform == Platform.WEB:
+            return (
+                f"{settings.WEB_APP_URL}/reset-password"
+                f"?uid={uid}"
+                f"&token={token}"
+            )
+
         return (
-            f"com.sugbogo.app://reset-password"
+            f"{settings.MOBILE_SCHEME}reset-password"
             f"?uid={uid}"
             f"&token={token}"
         )

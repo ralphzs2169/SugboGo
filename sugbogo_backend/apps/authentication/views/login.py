@@ -1,12 +1,10 @@
 from rest_framework.decorators import api_view
-from rest_framework import status
 
 from apps.authentication.serializers import LoginSerializer
-from apps.users.models import User
-from apps.core.responses import error_response, success_response
+from apps.authentication.services.login_service import LoginService
 from apps.authentication.utils.jwt import issue_tokens
-from apps.authentication.models import OAuthAccount
-
+from apps.core.responses import error_response, success_response
+from apps.users.models import User
 
 
 @api_view(["POST"])
@@ -18,48 +16,22 @@ def login_view(request):
     password = serializer.validated_data["password"]
     remember_me = serializer.validated_data["remember_me"]
 
-    try:
-        user = User.objects.get(USER_EMAIL=email)
-    except User.DoesNotExist:
-        user = None
+    response, user = LoginService.authenticate(
+        email=email,
+        password=password,
+    )
 
-    
-    if user is not None and not user.has_usable_password():
-        oauth_account = OAuthAccount.objects.filter(USER=user).first()
+    if response:
+        return response
 
-        if oauth_account:
-            provider = oauth_account.get_OAUTH_PROVIDER_display()
-
-            return error_response(
-                 message=(
-                    f"This account was created with {provider}. "
-                    f"Continue with {provider} or use Forgot Password "
-                    "to create a password."
-                ),
-                code="OAUTH_ACCOUNT",
-                status_code=status.HTTP_401_UNAUTHORIZED,
-            )
-
-
-    if user is None or not user.check_password(password):
+    if user.USER_ROLE not in {
+        User.UserRole.EXPLORER,
+        User.UserRole.MERCHANT,
+    }:
         return error_response(
-            message="Invalid email or password.",
-            code="INVALID_CREDENTIALS",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        )
-
-    if not user.is_active:
-        return error_response(
-            message=f"Account is {user.USER_STATUS}. Please contact support.",
-            code="ACCOUNT_INACTIVE",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    
-    if not user.EMAIL_VERIFIED:
-        return error_response(
-            message="Please verify your email address before logging in.",
-            code="EMAIL_NOT_VERIFIED",
-            status_code=status.HTTP_403_FORBIDDEN,
+            message="This account cannot be used in the mobile application.",
+            code="MOBILE_ACCESS_DENIED",
+            status_code=403,
         )
 
     tokens = issue_tokens(user, remember_me)
@@ -72,8 +44,10 @@ def login_view(request):
                 "email": user.USER_EMAIL,
                 "role": user.USER_ROLE,
                 "status": user.USER_STATUS,
-                "has_completed_interest_selection": user.HAS_COMPLETED_INTEREST_SELECTION,
+                "has_completed_interest_selection": (
+                    user.HAS_COMPLETED_INTEREST_SELECTION
+                ),
             },
             **tokens,
-        }
+        },
     )

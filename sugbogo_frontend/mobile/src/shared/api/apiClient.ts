@@ -10,6 +10,7 @@ const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/refresh/"];
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
   timeout: 10000,
+  validateStatus: (status) => status < 600,
   headers: {
     "Content-Type": "application/json",
   },
@@ -101,6 +102,6 @@ apiClient.interceptors.response.use(
 
     return Promise.reject(error);
   },
-); // <-- only this
+);
 
 export default apiClient;

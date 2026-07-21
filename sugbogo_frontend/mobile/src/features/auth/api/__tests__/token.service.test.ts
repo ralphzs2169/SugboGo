@@ -1,6 +1,6 @@
 import { refreshAccessToken } from "../token.service";
 
-import apiClient from "@/shared/api/authClient";
+import apiClient from "@/shared/api/apiClient";
 
 /**
  * @file token.service.test.ts
@@ -14,7 +14,7 @@ import apiClient from "@/shared/api/authClient";
  * npm test -- token.service.test.ts
  */
 
-jest.mock("@/shared/api/authClient", () => ({
+jest.mock("@/shared/api/apiClient", () => ({
   post: jest.fn(),
 }));
 

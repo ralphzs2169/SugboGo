@@ -5,10 +5,9 @@ export interface ApiError {
   errors?: Record<string, string[]>;
 }
 
-export interface ApiSuccess<T = void> {
+export interface ApiSuccess {
   success: true;
   message: string;
-  data?: T;
 }
 
 export interface ApiSuccessWithData<T> {
@@ -17,5 +16,6 @@ export interface ApiSuccessWithData<T> {
   data: T;
 }
 
-// This type represents the result of an API call, which can either be a success or an error.
-export type ApiResult<T> = ApiSuccess<T> | ApiError;
+export type ApiResponse<T> = ApiSuccessWithData<T> | ApiError;
+
+export type ApiMessageResponse = ApiSuccess | ApiError;

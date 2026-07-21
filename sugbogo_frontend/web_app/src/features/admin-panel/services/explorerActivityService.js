@@ -1,4 +1,4 @@
-import { adminPanelApi } from "@/shared/services/api";
+import apiClient from "@/shared/api/apiClient";
 
 export const getExplorerActivityData = async () =>
-  adminPanelApi.get("/explorer-activities/");
+  apiClient.get("/admin-panel/explorer-activities/");

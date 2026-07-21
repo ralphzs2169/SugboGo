@@ -4,8 +4,11 @@ from django.utils.http import (
     urlsafe_base64_encode,
     urlsafe_base64_decode,
 )
+from apps.authentication.constants import Platform
 from apps.users.models import User
 import logging
+
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +17,7 @@ class EmailVerificationService:
     """Service for generating and validating email verification tokens."""
 
     @staticmethod
-    def generate_verification_link(user: User) -> str:
+    def generate_verification_link(user: User, platform: Platform = Platform.MOBILE) -> str:
         """
         Generate an email verification link for a user.
 
@@ -28,8 +31,15 @@ class EmailVerificationService:
 
         token = default_token_generator.make_token(user)
 
+        if platform == Platform.WEB:
+            return (
+                f"{settings.WEB_APP_URL}/verify-email"
+                f"?uid={uid}"
+                f"&token={token}"
+            )
+
         return (
-            "com.sugbogo.app://verify-email"
+            f"{settings.MOBILE_SCHEME}verify-email"
             f"?uid={uid}"
             f"&token={token}"
         )

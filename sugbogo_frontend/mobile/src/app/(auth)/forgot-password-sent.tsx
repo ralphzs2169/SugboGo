@@ -1,17 +1,22 @@
 import * as Linking from "expo-linking";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { Text, View } from "react-native";
-import Toast from "react-native-toast-message";
-
-import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
-import AuthButton from "@/features/auth/components/AuthButton";
-import AuthLayout from "@/features/auth/components/AuthLayout";
-import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import { useEffect } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import Toast from "react-native-toast-message";
+import { MaterialIcons } from "@expo/vector-icons";
+
+import EmailSentLayout from "@/features/auth/components/EmailSentLayout";
+import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import SecondaryAuthButton from "@/features/auth/components/SecondaryAuthButton";
+import { useResendPasswordReset } from "@/features/auth/hooks/useResendPasswordReset";
 
 export default function ForgotPasswordSent() {
   const router = useRouter();
+
+  const { email } = useLocalSearchParams<{
+    email: string;
+  }>();
+
+  const { handleResendPasswordReset, loading } = useResendPasswordReset();
 
   useEffect(() => {
     Toast.show({
@@ -21,51 +26,90 @@ export default function ForgotPasswordSent() {
     });
   }, []);
 
-  const { email } = useLocalSearchParams<{
-    email: string;
-  }>();
-
   const openEmailApp = async () => {
-    const supported = await Linking.canOpenURL("mailto:");
+    try {
+      const supported = await Linking.canOpenURL("mailto:");
 
-    if (!supported) {
+      if (!supported) {
+        Toast.show({
+          type: "error",
+          text1: "No email app found",
+          text2: "Please install an email application.",
+        });
+
+        return;
+      }
+
+      await Linking.openURL("mailto:");
+    } catch (error) {
+      console.error("Failed to open email app:", error);
+
       Toast.show({
         type: "error",
-        text1: "No email app found",
-        text2: "Please install an email application.",
+        text1: "Unable to open email app",
+        text2: "Please try again.",
+      });
+    }
+  };
+
+  const onResend = async () => {
+    if (loading) return;
+
+    if (!email) {
+      Toast.show({
+        type: "error",
+        text1: "Missing Email",
+        text2: "Email address is unavailable.",
       });
 
       return;
     }
 
-    await Linking.openURL("mailto:");
+    const response = await handleResendPasswordReset(email);
+
+    if (!response.success) {
+      const retryAfter = response.errors?.retry_after as number | undefined;
+
+      if (retryAfter) {
+        const minutes = Math.ceil(retryAfter / 60);
+
+        Toast.show({
+          type: "error",
+          text1: "Too Many Requests",
+          text2: `Please try again in ${minutes} minute${
+            minutes === 1 ? "" : "s"
+          }.`,
+        });
+
+        return;
+      }
+
+      Toast.show({
+        type: "error",
+        text1: "Request Failed",
+        text2: response.message,
+      });
+
+      return;
+    }
+
+    Toast.show({
+      type: "success",
+      text1: "Reset Link Sent",
+      text2: "A new password reset email has been sent.",
+    });
   };
 
   return (
-    <AuthLayout>
-      <View className="mb-6 items-center justify-center">
-        <EmailSentIcon width={200} height={200} />
-      </View>
-      <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
-        Check your email
-      </Text>
-
-      <Text className="mb-2 text-center text-base text-text-secondary">
-        If an account exists with this email, we've sent a password reset link
-        to:
-      </Text>
-
-      <Text className="mb-8 text-center text-base font-bold text-text-primary">
-        {email}
-      </Text>
-
-      <AuthButton
-        title="Open Email App"
-        onPress={openEmailApp}
-        icon={<MaterialIcons name="open-in-new" size={20} color="white" />}
-        className="mb-4"
-      />
-
+    <EmailSentLayout
+      title="Check your email"
+      description="If an account exists with this email, we've sent a password reset link to:"
+      email={email}
+      openEmailApp={openEmailApp}
+      resendTitle="Resend Reset Link"
+      onResend={onResend}
+      resendLoading={loading}
+    >
       <BottomAuthLink
         text=""
         actionText="Back to Login"
@@ -79,6 +123,6 @@ export default function ForgotPasswordSent() {
         }
         onPress={() => router.replace("/(auth)/login")}
       />
-    </AuthLayout>
+    </EmailSentLayout>
   );
 }

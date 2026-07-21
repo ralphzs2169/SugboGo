@@ -66,32 +66,41 @@ export default function Register() {
 
     // Clear previous errors before sending a new registration request.
     setErrors({});
+    setFormError("");
 
-    const response = await handleRegister(firstName, lastName, email, password);
+    try {
+      const response = await handleRegister(
+        firstName,
+        lastName,
+        email,
+        password,
+      );
 
-    if (!response.success) {
-      const registerErrors = getRegisterErrors(response);
+      if (!response.success) {
+        const registerErrors = getRegisterErrors(response);
 
-      if (
-        registerErrors.firstName ||
-        registerErrors.lastName ||
-        registerErrors.email ||
-        registerErrors.password
-      ) {
-        setErrors(registerErrors);
+        if (
+          registerErrors.firstName ||
+          registerErrors.lastName ||
+          registerErrors.email ||
+          registerErrors.password
+        ) {
+          setErrors(registerErrors);
+          return;
+        }
+
+        setFormError(response.message);
         return;
       }
 
-      setFormError(response.message);
-      return;
+      router.replace({
+        pathname: "/(auth)/verify-email",
+        params: { email },
+      });
+    } catch (error) {
+      console.error("Unexpected registration error:", error);
+      setFormError("Something unexpected happened. Please try again.");
     }
-
-    router.replace({
-      pathname: "/(auth)/verify-email",
-      params: {
-        email,
-      },
-    });
   };
 
   return (

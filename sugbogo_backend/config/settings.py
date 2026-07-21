@@ -43,6 +43,9 @@ ALLOWED_HOSTS = ["*"]
 
 AUTH_USER_MODEL = "users.User"
 
+WEB_APP_URL = os.getenv("WEB_APP_URL", "http://localhost:5173")
+MOBILE_SCHEME = os.getenv("MOBILE_SCHEME", "com.sugbogo.app://")
+
 # Application URLs
 BACKEND_URL = os.getenv(
     "BACKEND_URL",
@@ -190,7 +193,7 @@ DATABASES = {
         "PASSWORD": os.environ.get("DB_PASSWORD", ""),
         "HOST": os.environ.get("DB_HOST", ""),
         "PORT": os.environ.get("DB_PORT", "5432"),
-        "OPTIONS": { "sslmode": "require"},
+        # "OPTIONS": { "sslmode": "require"},
     }
 }
 

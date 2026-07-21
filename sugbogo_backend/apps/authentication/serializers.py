@@ -48,6 +48,11 @@ class ResetPasswordSerializer(serializers.Serializer):
         return value
     
 
+class ValidateResetTokenSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+    
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField()
 

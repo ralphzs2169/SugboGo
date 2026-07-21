@@ -1,4 +1,4 @@
-import { adminPanelApi } from "@/shared/services/api";
+import apiClient from "@/shared/api/apiClient";
 
 export const getSuspiciousActivityData = async () =>
-  adminPanelApi.get("/suspicious-activities/");
+  apiClient.get("/admin-panel/suspicious-activities/");

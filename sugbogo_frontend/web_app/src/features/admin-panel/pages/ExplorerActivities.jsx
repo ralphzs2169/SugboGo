@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getExplorerActivityData } from "../services/explorerActivityService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 export default function ExplorerActivities() {
   useDocumentTitle("Activity | SugboGo Admin");

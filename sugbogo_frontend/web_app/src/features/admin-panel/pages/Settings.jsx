@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getSettingsData } from "../services/settingsService";
-import useDocumentTitle from "../hooks/useDocumentTitle";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 export default function Settings() {
   useDocumentTitle("Settings | SugboGo Admin");

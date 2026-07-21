@@ -4,6 +4,7 @@ from django.template.loader import render_to_string
 from typing import Any
 import logging
 
+from apps.authentication.constants import Platform
 from apps.authentication.services.verification_service import EmailVerificationService
 from apps.authentication.services.password_reset_service import PasswordResetService
 
@@ -98,12 +99,12 @@ class EmailService:
     
 
     @staticmethod
-    def send_password_reset_email(user):
+    def send_password_reset_email(user, platform: str = Platform.MOBILE,):
         """
         Send a password reset email to a user.
         """
         reset_link = (
-            PasswordResetService.generate_reset_link(user)
+            PasswordResetService.generate_reset_link(user, platform=platform)
         )
         
         context = {

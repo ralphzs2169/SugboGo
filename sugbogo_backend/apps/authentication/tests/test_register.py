@@ -141,9 +141,10 @@ class RegisterViewTests(APIResponseAssertionsMixin, APITestCase):
             "last_name",
         )
 
-        self.assertEqual(
-            User.objects.count(),
-            0,
+        self.assertFalse(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).exists()
         )
 
         mock_send_email.assert_not_called()

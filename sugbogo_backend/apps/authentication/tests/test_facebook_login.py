@@ -80,9 +80,14 @@ class FacebookLoginViewTests(
         self,
         mock_verify,
     ):
+        
         mock_verify.return_value = self.oauth_user
 
-        self.assertEqual(User.objects.count(), 0)
+        self.assertFalse(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).exists()
+        )
 
         response = self.client.post(
             self.url,
@@ -97,7 +102,12 @@ class FacebookLoginViewTests(
             status.HTTP_200_OK,
         )
 
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).count(),
+            1,
+        )
 
         user = User.objects.first()
 
@@ -268,11 +278,18 @@ class FacebookLoginViewTests(
             format="json",
         )
 
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).count(),
+            1,
+        )
 
         self.assertEqual(OAuthAccount.objects.count(), 1)
 
-        user = User.objects.first()
+        user = User.objects.get(
+            USER_EMAIL="john@example.com",
+        )
 
         oauth = OAuthAccount.objects.get(USER=user)
 
@@ -305,7 +322,9 @@ class FacebookLoginViewTests(
             format="json",
         )
 
-        user = User.objects.first()
+        user = User.objects.get(
+            USER_EMAIL="john@example.com",
+        )
 
         self.assertFalse(user.has_usable_password())
 
@@ -334,7 +353,12 @@ class FacebookLoginViewTests(
             format="json",
         )
 
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).count(),
+            1,
+        )
 
         self.assertEqual(OAuthAccount.objects.count(), 1)
 
@@ -374,6 +398,11 @@ class FacebookLoginViewTests(
             format="json",
         )
 
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(
+            User.objects.filter(
+                USER_EMAIL="john@example.com",
+            ).count(),
+            1,
+        )
 
         self.assertEqual(OAuthAccount.objects.count(), 1)

@@ -1,3 +1,4 @@
-import { adminPanelApi } from "@/shared/services/api";
+import apiClient from "@/shared/api/apiClient";
 
-export const getAnalyticsData = async () => adminPanelApi.get("/analytics/");
+export const getAnalyticsData = async () =>
+  apiClient.get("/admin-panel/analytics/");

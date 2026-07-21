@@ -11,6 +11,8 @@ from apps.authentication.services.password_reset_service import (
     PasswordResetService,
 )
 from apps.users.models import User
+from apps.authentication.constants import Platform
+from config import settings
 
 
 class PasswordResetServiceTests(TestCase):
@@ -29,18 +31,49 @@ class PasswordResetServiceTests(TestCase):
             EMAIL_VERIFIED=True,
         )
 
-    def test_generate_reset_link_returns_valid_link(self):
+    def test_generate_mobile_reset_link_returns_valid_link(self):
         link = PasswordResetService.generate_reset_link(
             self.user,
+            platform=Platform.MOBILE,
         )
 
         self.assertTrue(
-            link.startswith("com.sugbogo.app://reset-password"),
+            link.startswith(f"{settings.MOBILE_SCHEME}reset-password"),
         )
 
         self.assertIn("uid=", link)
-
         self.assertIn("token=", link)
+
+
+    def test_generate_web_reset_link_returns_valid_link(self):
+        link = PasswordResetService.generate_reset_link(
+            self.user,
+            platform=Platform.WEB,
+        )
+
+        self.assertTrue(
+            link.startswith(f"{settings.WEB_APP_URL}/reset-password"),
+        )
+
+        self.assertIn("uid=", link)
+        self.assertIn("token=", link)
+
+
+    def test_generate_reset_link_returns_different_links_per_platform(self):
+        mobile_link = PasswordResetService.generate_reset_link(
+            self.user,
+            platform=Platform.MOBILE,
+        )
+
+        web_link = PasswordResetService.generate_reset_link(
+            self.user,
+            platform=Platform.WEB,
+        )
+
+        self.assertNotEqual(
+            mobile_link,
+            web_link,
+        )
 
     def test_generate_reset_link_contains_correct_uid(self):
         link = PasswordResetService.generate_reset_link(
@@ -190,3 +223,67 @@ class PasswordResetServiceTests(TestCase):
         )
 
         mock_revoke_sessions.assert_not_called()
+
+
+    @patch(
+    "apps.authentication.services.password_reset_service.SessionService.revoke_all_sessions"
+    )
+    def test_reset_password_token_cannot_be_reused(
+        self,
+        mock_revoke_sessions,
+    ):
+        uid = urlsafe_base64_encode(
+            force_bytes(self.user.pk),
+        )
+
+        token = default_token_generator.make_token(
+            self.user,
+        )
+
+        # First password reset succeeds.
+        first_result = PasswordResetService.reset_password(
+            uid=uid,
+            token=token,
+            password="NewStrongPassword123!",
+        )
+
+        self.assertIsNotNone(first_result)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                "NewStrongPassword123!",
+            )
+        )
+
+        mock_revoke_sessions.assert_called_once_with(
+            self.user,
+        )
+
+        # Attempt to reuse the same token.
+        second_result = PasswordResetService.reset_password(
+            uid=uid,
+            token=token,
+            password="AnotherStrongPassword123!",
+        )
+
+        self.assertIsNone(second_result)
+
+        self.user.refresh_from_db()
+
+        # Password should remain the one set during the first reset.
+        self.assertTrue(
+            self.user.check_password(
+                "NewStrongPassword123!",
+            )
+        )
+
+        self.assertFalse(
+            self.user.check_password(
+                "AnotherStrongPassword123!",
+            )
+        )
+
+        # Sessions should only have been revoked once.
+        mock_revoke_sessions.assert_called_once()

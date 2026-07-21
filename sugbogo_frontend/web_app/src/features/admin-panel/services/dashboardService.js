@@ -1,3 +1,4 @@
-import { adminPanelApi } from "@/shared/services/api";
+import apiClient from "@/shared/api/apiClient";
 
-export const getDashboardData = async () => adminPanelApi.get("/dashboard/");
+export const getDashboardData = async () =>
+  apiClient.get("/admin-panel/dashboard/");

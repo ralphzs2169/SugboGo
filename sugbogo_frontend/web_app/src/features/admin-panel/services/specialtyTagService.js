@@ -1,4 +1,4 @@
-import { adminPanelApi } from "@/shared/services/api";
+import apiClient from "@/shared/api/apiClient";
 
 export const getSpecialtyTagData = async () =>
-  adminPanelApi.get("/specialty-tags/");
+  apiClient.get("/admin-panel/specialty-tags/");

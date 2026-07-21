@@ -1,3 +1,4 @@
-import { adminPanelApi } from "@/shared/services/api";
+import apiClient from "@/shared/api/apiClient";
 
-export const getSettingsData = async () => adminPanelApi.get("/settings/");
+export const getSettingsData = async () =>
+  apiClient.get("/admin-panel/settings/");
