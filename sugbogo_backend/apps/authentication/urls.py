@@ -15,7 +15,9 @@ urlpatterns = [
     path("forgot-password/", views.forgot_password_view, name="forgot_password"),
     path('admin/forgot-password/', views.admin_forgot_password_view, name='admin_forgot_password'),
     
+    path("reset-password/validate/", views.validate_reset_token_view, name="validate_reset_token"),
     path("reset-password/", views.reset_password_view, name="reset_password"),
+    path("password-reset-config/",views.password_reset_config_view,name="password_reset_config"),
 
     path("google-login/", views.google_login_view, name="google_login"),
     path("facebook-login/",views.facebook_login_view,name="facebook_login"),

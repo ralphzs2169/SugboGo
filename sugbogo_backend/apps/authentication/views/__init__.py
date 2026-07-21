@@ -15,6 +15,10 @@ from .password_reset import (
 from .forgot_password import (
     forgot_password_view as forgot_password_view,
 )
+from .validate_reset_token import (
+    validate_reset_token_view as validate_reset_token_view,
+)
+from .password_reset_config import password_reset_config_view as password_reset_config_view
 
 from .google_login import google_login_view as google_login_view
 from .facebook_login import facebook_login_view as facebook_login_view

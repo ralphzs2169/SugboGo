@@ -223,3 +223,67 @@ class PasswordResetServiceTests(TestCase):
         )
 
         mock_revoke_sessions.assert_not_called()
+
+
+    @patch(
+    "apps.authentication.services.password_reset_service.SessionService.revoke_all_sessions"
+    )
+    def test_reset_password_token_cannot_be_reused(
+        self,
+        mock_revoke_sessions,
+    ):
+        uid = urlsafe_base64_encode(
+            force_bytes(self.user.pk),
+        )
+
+        token = default_token_generator.make_token(
+            self.user,
+        )
+
+        # First password reset succeeds.
+        first_result = PasswordResetService.reset_password(
+            uid=uid,
+            token=token,
+            password="NewStrongPassword123!",
+        )
+
+        self.assertIsNotNone(first_result)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                "NewStrongPassword123!",
+            )
+        )
+
+        mock_revoke_sessions.assert_called_once_with(
+            self.user,
+        )
+
+        # Attempt to reuse the same token.
+        second_result = PasswordResetService.reset_password(
+            uid=uid,
+            token=token,
+            password="AnotherStrongPassword123!",
+        )
+
+        self.assertIsNone(second_result)
+
+        self.user.refresh_from_db()
+
+        # Password should remain the one set during the first reset.
+        self.assertTrue(
+            self.user.check_password(
+                "NewStrongPassword123!",
+            )
+        )
+
+        self.assertFalse(
+            self.user.check_password(
+                "AnotherStrongPassword123!",
+            )
+        )
+
+        # Sessions should only have been revoked once.
+        mock_revoke_sessions.assert_called_once()

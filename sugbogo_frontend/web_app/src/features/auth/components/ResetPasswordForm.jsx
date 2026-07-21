@@ -1,7 +1,14 @@
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { KeyRound } from "lucide-react";
+import { FiArrowLeft } from "react-icons/fi";
 
+import PrimaryButton from "./PrimaryButton";
 import PasswordInput from "./PasswordInput";
+import AuthTextButton from "./AuthTextButton";
+import PasswordRequirementsList from "./PasswordRequirementsList";
+
+import { validateResetPassword } from "../utils/resetPasswordValidator";
 import { useResetPassword } from "../hooks/useResetPassword";
 
 /**
@@ -19,57 +26,96 @@ export default function ResetPasswordForm() {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
+
+  const clearFieldError = (field) => {
+    setErrors((prev) => ({
+      ...prev,
+      [field]: undefined,
+    }));
+
+    setFormError("");
+  };
 
   async function onSubmit(event) {
     event.preventDefault();
 
-    setError("");
+    if (loading) return;
 
-    if (!uid || !token) {
-      setError("This password reset link is invalid.");
+    const validationErrors = validateResetPassword(password, confirmPassword);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
+    setErrors({});
+    setFormError("");
 
     const result = await handleResetPassword({
       uid,
       token,
       password,
+      confirm_password: confirmPassword,
     });
 
     if (!result.success) {
-      setError(result.message);
+      if (result.errors) {
+        setErrors(result.errors);
+        return;
+      }
+
+      setFormError(result.message);
       return;
     }
 
-    navigate("/login");
+    navigate("/login", {
+      replace: true,
+      state: {
+        successMessage: "Password updated successfully. You can now sign in.",
+      },
+    });
   }
 
   return (
-    <article className="rounded-2xl bg-white">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Reset Password</h1>
+    <article className="w-full">
+      <div className="mb-8 lg:mb-10 xl:mb-12">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+          Reset Password
+        </h1>
 
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2.5 text-sm text-gray-500 sm:text-base">
           Enter your new password below.
         </p>
       </div>
 
-      <form className="space-y-6" onSubmit={onSubmit}>
-        <PasswordInput
-          id="password"
-          name="password"
-          label="New Password"
-          autoComplete="new-password"
-          placeholder="Enter your new password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+      <form className="space-y-6 sm:space-y-7 lg:space-y-8" onSubmit={onSubmit}>
+        <div className="space-y-3">
+          <PasswordInput
+            id="password"
+            name="password"
+            label="New Password"
+            autoComplete="new-password"
+            placeholder="Enter your new password"
+            value={password}
+            error={errors.password}
+            onFocus={() => clearFieldError("password")}
+            onChange={(e) => {
+              setPassword(e.target.value);
+
+              if (errors.password || formError) {
+                clearFieldError("password");
+              }
+            }}
+          />
+
+          <PasswordRequirementsList
+            password={password}
+            confirmPassword={confirmPassword}
+          />
+        </div>
 
         <PasswordInput
           id="confirmPassword"
@@ -78,27 +124,37 @@ export default function ResetPasswordForm() {
           autoComplete="new-password"
           placeholder="Confirm your new password"
           value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
+          error={errors.confirmPassword}
+          onFocus={() => clearFieldError("confirmPassword")}
+          onChange={(e) => {
+            setConfirmPassword(e.target.value);
+
+            if (errors.confirmPassword || formError) {
+              clearFieldError("confirmPassword");
+            }
+          }}
         />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {formError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3.5 text-xs font-medium text-red-600 sm:text-sm">
+            {formError}
+          </div>
+        )}
 
-        <button
+        <PrimaryButton
           type="submit"
-          disabled={loading}
-          className="flex w-full justify-center rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
+          loading={loading}
+          icon={<KeyRound className="h-5 w-5" />}
         >
-          {loading ? "Resetting..." : "Reset Password"}
-        </button>
+          Reset Password
+        </PrimaryButton>
 
-        <div className="text-center">
-          <Link
-            to="/login"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            Back to Login
-          </Link>
-        </div>
+        <AuthTextButton
+          icon={<FiArrowLeft className="h-4 w-4" />}
+          onClick={() => navigate("/login")}
+        >
+          Back to Sign In
+        </AuthTextButton>
       </form>
     </article>
   );

@@ -39,3 +39,18 @@ export async function resetPassword(payload) {
 
   return response.data;
 }
+
+export async function validateResetToken(payload) {
+  const response = await apiClient.post(
+    "/auth/reset-password/validate/",
+    payload,
+  );
+
+  return response.data;
+}
+
+export async function getPasswordResetConfig() {
+  const response = await apiClient.get("/auth/password-reset-config/");
+
+  return response.data;
+}

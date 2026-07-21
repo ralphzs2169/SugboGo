@@ -1,8 +1,9 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
+import { Toaster } from "react-hot-toast";
 
-import Login from "@/features/auth/pages/Login";
+import LoginPage from "@/features/auth/pages/LoginPage";
 
 import AdminPanelLayout from "@/features/admin-panel/pages/AdminPanelLayout";
 import Dashboard from "@/features/admin-panel/pages/Dashboard";
@@ -16,12 +17,12 @@ import Settings from "@/features/admin-panel/pages/Settings";
 import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
 import ProtectedRoute from "@/features/auth/components/ProtectedRoute";
 
-import ForgotPassword from "@/features/auth/pages/ForgotPassword";
-import ForgotPasswordSent from "@/features/auth/pages/ForgotPasswordSent";
-import ResetPassword from "@/features/auth/pages/ResetPassword";
+import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
+import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
+import EmailSentPage from "@/features/auth/pages/EmailSentPage";
+import NotFound from "@/shared/components/errors/NotFound";
 
 function App() {
-  console.log("APP RENDERED");
   useRestoreSession();
 
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -31,33 +32,42 @@ function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/forgot-password/sent" element={<ForgotPasswordSent />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+    <>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
 
-      <Route element={<ProtectedRoute />}>
-        <Route path="/admin-panel" element={<AdminPanelLayout />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="msmes" element={<Msmes />} />
-          <Route path="users" element={<Users />} />
-          <Route path="users/all" element={<Users />} />
-          <Route
-            path="users/roles-permissions"
-            element={<RolesPermissions />}
-          />
-          <Route path="explorer-activity" element={<ExplorerActivities />} />
-          <Route path="specialty-tags" element={<SpecialtyTags />} />
-          <Route path="flags-suspicious" element={<SuspiciousActivities />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="settings" element={<Settings />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/forgot-password/sent" element={<EmailSentPage />} />
+
+        <Route element={<ProtectedRoute />}>
+          <Route path="/admin-panel" element={<AdminPanelLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="msmes" element={<Msmes />} />
+            <Route path="users" element={<Users />} />
+            <Route path="users/all" element={<Users />} />
+            <Route
+              path="users/roles-permissions"
+              element={<RolesPermissions />}
+            />
+            <Route path="explorer-activity" element={<ExplorerActivities />} />
+            <Route path="specialty-tags" element={<SpecialtyTags />} />
+            <Route path="flags-suspicious" element={<SuspiciousActivities />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+        }}
+      />
+    </>
   );
 }
 

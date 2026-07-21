@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 class PasswordResetService:
     """Service for generating and validating password reset tokens."""
     
+    def get_reset_expiry_hours():
+        return settings.PASSWORD_RESET_TIMEOUT 
+
     @staticmethod
     def generate_reset_link(user: User, platform: str = Platform.MOBILE,) -> str:
         """

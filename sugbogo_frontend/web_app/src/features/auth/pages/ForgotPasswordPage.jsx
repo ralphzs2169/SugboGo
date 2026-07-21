@@ -1,12 +1,13 @@
-import AuthLayout from "../components/AuthLayout";
 import ForgotPasswordForm from "../components/ForgotPasswordForm";
+import AuthSplitLayout from "../components/AuthSplitLayout";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
-export default function ForgotPassword() {
+export default function ForgotPasswordPage() {
   useDocumentTitle("Forgot Password | SugboGo Admin");
+
   return (
-    <AuthLayout>
+    <AuthSplitLayout>
       <ForgotPasswordForm />
-    </AuthLayout>
+    </AuthSplitLayout>
   );
 }
