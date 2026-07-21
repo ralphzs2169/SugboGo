@@ -25,9 +25,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
-# if os.name == 'nt':
-#     GDAL_LIBRARY_PATH = r'C:\OSGeo4W\bin\gdal313.dll'
-#     GEOS_LIBRARY_PATH = r'C:\OSGeo4W\bin\geos_c.dll'
+if os.name == 'nt':
+    GDAL_LIBRARY_PATH = r'C:\OSGeo4W\bin\gdal313.dll'
+    GEOS_LIBRARY_PATH = r'C:\OSGeo4W\bin\geos_c.dll'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -113,7 +113,7 @@ INSTALLED_APPS = [
     'apps.admin_operations.analytics.apps.AnalyticsConfig',
     'apps.admin_operations.system_configuration.apps.SystemConfigurationConfig',
 
-    # 'apps.msme.apps.MsmeConfig',
+    'apps.msme.apps.MsmeConfig',
 ]
 
 MIDDLEWARE = [
