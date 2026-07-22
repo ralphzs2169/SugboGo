@@ -52,15 +52,7 @@ class LoginService:
                 None,
             )
 
-        if not user.EMAIL_VERIFIED:
-            return (
-                error_response(
-                    message="Please verify your email address before logging in.",
-                    code="EMAIL_NOT_VERIFIED",
-                    status_code=status.HTTP_403_FORBIDDEN,
-                ),
-                None,
-            )
+       
 
         return None, user
 
