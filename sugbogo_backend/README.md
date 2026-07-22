@@ -12,6 +12,7 @@ The SugboGo backend is built with **Django** and **Django REST Framework**. It p
 
 ## Backend Folder Strucutre
 
+```text
 sugbogo_backend/
 │
 ├── apps/                         # Main Django applications
@@ -54,6 +55,7 @@ sugbogo_backend/
 ├── .env                          # Local environment variables
 ├── .env.example                  # Environment variable template
 └── README.md                     # Backend setup documentation
+```
 
 ## Requirements
 
