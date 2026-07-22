@@ -1,4 +1,5 @@
 import apiClient from "@/shared/api/apiClient";
+import authClient from "@/shared/api/authClient";
 import {
   LoginRequest,
   RegisterRequest,
@@ -26,7 +27,7 @@ export async function login(
   credentials: LoginRequest,
 ): Promise<ApiResponse<AuthResponse>> {
   return request(
-    apiClient.post<ApiResponse<AuthResponse>>("/auth/login/", credentials),
+    authClient.post<ApiResponse<AuthResponse>>("/auth/login/", credentials),
   );
 }
 
@@ -34,7 +35,7 @@ export function googleLogin(
   idToken: string,
 ): Promise<ApiResponse<AuthResponse>> {
   return request(
-    apiClient.post<ApiResponse<AuthResponse>>("/auth/google-login/", {
+    authClient.post<ApiResponse<AuthResponse>>("/auth/google-login/", {
       id_token: idToken,
     }),
   );
@@ -54,7 +55,7 @@ export function facebookLogin(
   accessToken: string,
 ): Promise<ApiResponse<AuthResponse>> {
   return request(
-    apiClient.post<ApiResponse<AuthResponse>>("/auth/facebook-login/", {
+    authClient.post<ApiResponse<AuthResponse>>("/auth/facebook-login/", {
       access_token: accessToken,
     }),
   );
@@ -89,7 +90,7 @@ export async function getCurrentUser(): Promise<User> {
 export async function refreshAccessToken(
   refreshToken: string,
 ): Promise<RefreshResponse> {
-  const response = await apiClient.post<RefreshResponse>("/auth/refresh/", {
+  const response = await authClient.post<RefreshResponse>("/auth/refresh/", {
     refresh: refreshToken,
   });
 
@@ -110,7 +111,7 @@ export function register(
   data: RegisterRequest,
 ): Promise<ApiResponse<AuthResponse>> {
   return request(
-    apiClient.post<ApiResponse<AuthResponse>>("/auth/register/", data),
+    authClient.post<ApiResponse<AuthResponse>>("/auth/register/", data),
   );
 }
 
@@ -126,7 +127,7 @@ export function verifyEmail(
   token: string,
 ): Promise<ApiMessageResponse> {
   return request(
-    apiClient.get<ApiMessageResponse>("/auth/verify-email/", {
+    authClient.get<ApiMessageResponse>("/auth/verify-email/", {
       params: {
         uid,
         token,
@@ -142,7 +143,7 @@ export function verifyEmail(
  */
 export function resendVerification(email: string): Promise<ApiMessageResponse> {
   return request(
-    apiClient.post<ApiMessageResponse>("/auth/resend-verification/", {
+    authClient.post<ApiMessageResponse>("/auth/resend-verification/", {
       email,
     }),
   );
@@ -158,7 +159,7 @@ export function forgotPassword(
   data: ForgotPasswordRequest,
 ): Promise<ApiMessageResponse> {
   return request(
-    apiClient.post<ApiMessageResponse>("/auth/forgot-password/", data),
+    authClient.post<ApiMessageResponse>("/auth/forgot-password/", data),
   );
 }
 
@@ -172,6 +173,6 @@ export function resetPassword(
   data: ResetPasswordRequest,
 ): Promise<ApiMessageResponse> {
   return request(
-    apiClient.post<ApiMessageResponse>("/auth/reset-password/", data),
+    authClient.post<ApiMessageResponse>("/auth/reset-password/", data),
   );
 }
