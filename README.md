@@ -1,385 +1,127 @@
 # SugboGo
 
-SugboGo is a full-stack web application built with **Django**, **Django REST Framework**, **PostgreSQL**, and **React**.
-
-> **Current Status:** Backend setup completed. React frontend is in development.
+SugboGo is a tourism platform that promotes hidden gems and Micro, Small, and Medium Enterprises (MSMEs) across Cebu. The platform consists of a Django REST API backend, a React-based administrative web application, and a React Native mobile application.
 
 ---
 
-# Tech Stack
-
-## Backend
-
-- Python 3.14+
-- Django 6
-- Django REST Framework
-- PostgreSQL
-- psycopg
-- python-dotenv
-
-## Frontend
-
-- React 19
-- Vite
-- JavaScript (ES6+)
-- Axios
-- React Router
-- Tailwind CSS
-
----
-
-# Project Folder Structure
-
-> **Note:** This structure is not final and will continue to evolve as new features are added.
+## Repository Structure
 
 ```text
 SugboGo/
 │
-├── sugbogo_backend/                 # Django backend
-│   ├── apps/                        # Feature-based Django applications
-│   │   ├── authentication/          # User authentication (login, logout, registration)
-│   │   ├── users/                   # Custom user model and user-related features
-│   │   ├── admin_operations/        # Admin and Super Admin functionality
-│   │   └── merchant_operations/     # Merchant management features
-│   │
-│   ├── config/                      # Django project configuration (settings, URLs, ASGI/WSGI)
-│   ├── manage.py                    # Django management entry point
-│   ├── requirements.txt             # Python dependencies
-│   └── .env                         # Local environment variables (not committed)
+├── sugbogo_backend/                 # Django REST API
+│   └── README.md                    # Backend setup guide
 │
 ├── sugbogo_frontend/
-│   └── web_app/                     # React application
-│   │   ├── public/                  # Static assets served directly
-│   │   ├── src/                     # React source code
-│   │   │   ├── assets/              # Images, fonts, and other assets
-│   │   │   ├── components/          # Reusable UI components
-│   │   │   ├── pages/               # Route-level pages
-│   │   │   └── services/            # API clients and backend communication
-│   │   └── .gitignore               # Frontend-specific Git ignore rules
-│   │   
-│   └── mobile/                      # Expo React Native application
-│       ├── src/
-│       │   ├── app/                 # Expo Router screens (file-based routing)
-│       │   └── constants/           # // App-wide constant values (colors, spacing, config) — single source of truth.
-│       ├── assets/                  # Images, icons, splash screens
-│       ├── app.json                 # Expo app configuration
-│       ├── tailwind.config.js       # NativeWind/Tailwind configuration
-│       └── package.json
+│   ├── web_app/                     # React + Vite admin web application
+│   │   └── README.md                # Web application setup guide
+│   │
+│   └── mobile/                      # React Native + Expo mobile application
+│       └── README.md                # Mobile application setup guide
 │
-├── .gitignore                       # Git ignore rules for the repository
-└── README.md                        # Project documentation and setup guide
+└── README.md                        # Project overview
 ```
 
 ---
 
-# Prerequisites
+## Project Architecture
 
-Install the following before setting up the project:
+The SugboGo platform consists of three main applications.
 
-- Python 3.14+
+### Backend
+
+Provides the REST API used by both the web and mobile applications.
+![Django](https://img.shields.io/badge/Django-6.x-green)
+**Technologies**
+
+- Python
+- Django
+- Django REST Framework
 - PostgreSQL
-- pgAdmin 4
-- Node.js 22+
-- npm
-- Git
-
-> **Optional:** DBeaver for database management.
+- JWT Authentication
 
 ---
 
-# Backend Setup
+### Web Application
 
-## 1. Clone the Repository
+Administrative dashboard used to manage users, MSMEs, specialty tags, analytics, and system configuration.
+
+**Technologies**
+
+- React
+- Vite
+- Tailwind CSS
+- React Router
+- Axios
+- Zustand
+
+---
+
+### Mobile Application
+
+Mobile application that allows users to discover hidden gems and MSMEs, manage their accounts, and access location-based features.
+
+**Technologies**
+
+- React Native
+- Expo
+- TypeScript
+- Expo Router
+
+---
+
+## Prerequisites
+
+Depending on which application you plan to run, you may need:
+
+- Git
+- Python 3.11+
+- PostgreSQL
+- Node.js (LTS recommended)
+- npm
+- Android Studio (optional, for Android emulator)
+- Android device (recommended for mobile testing)
+
+---
+
+## 1.) Clone the Repository
 
 ```bash
 git clone <repository-url>
+```
+
+Navigate to the project directory:
+
+```bash
 cd SugboGo
 ```
 
 ---
 
-## 2. Create a Virtual Environment
+## 2.) Choose an Application to Set Up
 
-Navigate to the backend.
+Each application has its own setup guide.
 
-```bash
-cd sugbogo_backend
-```
-
-Create the virtual environment.
-
-```bash
-python -m venv .venv
-```
-
-### Activate the Virtual Environment
-
-**PowerShell**
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-**Command Prompt**
-
-```cmd
-.venv\Scripts\activate.bat
-```
+| Application | Setup Guide |
+|-------------|-------------|
+| Backend | `sugbogo_backend/README.md` |
+| Web Application | `sugbogo_frontend/web_app/README.md` |
+| Mobile Application | `sugbogo_frontend/mobile/README.md` |
 
 ---
 
-## 3. Install Dependencies
+## Recommended Setup Order
 
-```bash
-python -m pip install -r requirements.txt
-```
+For first-time setup, configure the applications in the following order:
 
----
+1. Backend
+2. Web Application
+3. Mobile Application
 
-## 4. Create the Environment File
-
-Inside:
-
-```text
-sugbogo_backend/
-```
-
-Create a file named:
-
-```text
-.env
-```
-
-Example:
-
-```env
-SECRET_KEY=<ask the repository owner>
-DEBUG=True
-
-DB_NAME=sugbogo_db
-DB_USER=postgres
-DB_PASSWORD=your_postgresql_password
-DB_HOST=localhost
-DB_PORT=5432
-```
-
-Replace the database credentials with your own PostgreSQL configuration.
+The backend must be configured and running before the web or mobile applications can communicate with the API.
 
 ---
 
-## 5. Create the PostgreSQL Database
+## Contributors
 
-### Step 1 – Open pgAdmin
-
-Launch **pgAdmin 4**.
-
-If prompted, enter the master password.
-
----
-
-### Step 2 – Connect to PostgreSQL
-
-Expand:
-
-```text
-Servers
-└── PostgreSQL
-```
-
-Enter your PostgreSQL password if prompted.
-
----
-
-### Step 3 – Create a Database
-
-Expand:
-
-```text
-Servers
-└── PostgreSQL
-    └── Databases
-```
-
-Right-click **Databases**.
-
-Select:
-
-```text
-Create
-└── Database...
-```
-
-Enter:
-
-| Field | Value |
-|-------|-------|
-| Database Name | `sugbogo_db` |
-| Owner | `postgres` |
-
-Click **Save**.
-
----
-
-### Step 4 – Verify the `.env` File
-
-```env
-DB_NAME=sugbogo_db
-DB_USER=postgres
-DB_PASSWORD=your_postgresql_password
-DB_HOST=localhost
-DB_PORT=5432
-```
-
----
-
-## 6. Apply Migrations
-
-```bash
-python manage.py migrate
-```
-
-This creates all required database tables.
-
----
-
-## 7. Create a Superuser
-
-```bash
-python manage.py createsuperuser
-```
-
-Follow the prompts.
-
-> **Note:** When typing your password, nothing will appear on the screen. This is normal.
-
----
-
-## 8. Run the Development Server
-
-```bash
-python manage.py runserver
-```
-
-Backend:
-
-```text
-http://127.0.0.1:8000/
-```
-
----
-
-# Frontend (Web app) Setup
-
-## 1. Navigate to the Frontend
-
-```bash
-cd sugbogo_frontend/web_app
-```
-
----
-
-## 2. Install Dependencies
-
-```bash
-npm install
-```
-
----
-
-## 3. Start the Development Server
-
-```bash
-npm run dev
-```
-
-Web app Frontend:
-
-```text
-http://localhost:5173/
-```
-
----
-
-# Mobile App Setup (Expo)
-
-## 1. Navigate to the Mobile App
-
-```bash
-cd sugbogo_frontend/mobile
-```
-
-## 2. Install Dependencies
-
-```bash
-npm install
-```
-
-## 3. Start the Development Server
-
-```bash
-npx expo start
-```
-
-This opens the Expo Dev Tools in your terminal/browser. From here you can:
-
-- Press \`a\` to open on an Android emulator
-- Press \`i\` to open on an iOS simulator (Mac only)
-- Scan the QR code with the **Expo Go** app on a physical device
-
-
----
-
-# Running the Project
-
-Open **three terminals**.
-
-## Terminal 1 — Backend
-
-```bash
-cd sugbogo_backend
-python manage.py runserver
-```
-
-## Terminal 2 — Frontend
-
-```bash
-cd sugbogo_frontend/web_app
-npm install   # First time only
-npm run dev
-```
-
-## Terminal 3 — Mobile App
-
-```bash
-cd sugbogo_frontend/mobile
-npm install   # First time only
-npx expo start
-```
-
----
-
-# Updating Dependencies
-
-Whenever you install new Python packages, regenerate `requirements.txt`.
-
-```bash
-python -m pip freeze > requirements.txt
-```
-
-After pulling new backend changes from GitHub, install any new dependencies.
-raph
-```bash
-python -m pip install -r requirements.txt
-```
-
-Similarly, after pulling frontend changes that modify `package.json`, install the updated Node.js dependencies.
-
-```bash
-npm install
-```
-
----
-
-# License
-
-This project is intended for educational and development purposes.
+Developed as part of the **SugboGo** capstone project.
