@@ -31,9 +31,30 @@ export async function request<T>(promise: Promise<{ data: T }>): Promise<T> {
     const response = await promise;
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.data) {
-      return error.response.data;
+    if (axios.isAxiosError(error)) {
+      if (error.code === "ECONNABORTED") {
+        return {
+          success: false,
+          message: "The server took too long to respond. Please try again.",
+          code: "REQUEST_TIMEOUT",
+        } as T;
+      }
+
+      if (!error.response) {
+        return {
+          success: false,
+          message:
+            "Unable to connect to the server. Check your internet connection.",
+          code: "NETWORK_ERROR",
+        } as T;
+      }
+
+      if (error.response.data) {
+        return error.response.data;
+      }
     }
+
+    console.error("Unexpected error in API request:", error);
 
     return {
       success: false,
