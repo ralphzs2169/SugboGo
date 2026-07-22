@@ -9,7 +9,7 @@ const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/refresh/"];
 // Create an Axios instance with a base URL and default headers.
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
-  timeout: 10000,
+  timeout: 30000,
   validateStatus: (status) => status < 600,
   headers: {
     "Content-Type": "application/json",
