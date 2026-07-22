@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from apps.authentication.services.oauth.base import OAuthUser
 from apps.users.models import User
-from apps.core.tests.assertions import APIResponseAssertionsMixin
+from core.tests.assertions import APIResponseAssertionsMixin
 from apps.authentication.models import OAuthAccount
 
 

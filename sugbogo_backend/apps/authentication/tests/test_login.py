@@ -4,7 +4,7 @@ from rest_framework.test import APITestCase
 
 from apps.users.models import User
 from datetime import datetime, timezone
-from apps.core.tests.assertions import APIResponseAssertionsMixin
+from core.tests.assertions import APIResponseAssertionsMixin
 
 from rest_framework_simplejwt.tokens import RefreshToken
 

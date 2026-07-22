@@ -4,7 +4,7 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import User
-from apps.core.tests.assertions import APIResponseAssertionsMixin
+from core.tests.assertions import APIResponseAssertionsMixin
 
 
 class LogoutViewTests(APIResponseAssertionsMixin, APITestCase):

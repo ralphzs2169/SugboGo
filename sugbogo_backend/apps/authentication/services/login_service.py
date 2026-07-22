@@ -1,7 +1,7 @@
 from rest_framework import status
 
 from apps.authentication.models import OAuthAccount
-from apps.core.responses import error_response
+from core.responses import error_response
 from apps.users.models import User
 
 
@@ -52,15 +52,7 @@ class LoginService:
                 None,
             )
 
-        if not user.EMAIL_VERIFIED:
-            return (
-                error_response(
-                    message="Please verify your email address before logging in.",
-                    code="EMAIL_NOT_VERIFIED",
-                    status_code=status.HTTP_403_FORBIDDEN,
-                ),
-                None,
-            )
+       
 
         return None, user
 

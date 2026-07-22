@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 from apps.authentication.services.oauth.base import OAuthUser
 from apps.authentication.models import OAuthAccount
 from apps.users.models import User
-from apps.core.tests.assertions import APIResponseAssertionsMixin
+from core.tests.assertions import APIResponseAssertionsMixin
 
 
 class FacebookLoginViewTests(

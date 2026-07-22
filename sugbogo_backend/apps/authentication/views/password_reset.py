@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework import status
   
 from apps.authentication.serializers import ResetPasswordSerializer
-from apps.core.responses import error_response, success_response
+from core.responses import error_response, success_response
 from apps.authentication.services.password_reset_service import PasswordResetService
 
 @api_view(["POST"])

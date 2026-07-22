@@ -3,9 +3,9 @@ from rest_framework.decorators import api_view
 from apps.authentication.serializers import LoginSerializer
 from apps.authentication.services.login_service import LoginService
 from apps.authentication.utils.jwt import issue_tokens
-from apps.core.responses import error_response, success_response
+from core.responses import error_response, success_response
 from apps.users.models import User
-
+from rest_framework import status
 
 @api_view(["POST"])
 def login_view(request):
@@ -31,7 +31,14 @@ def login_view(request):
         return error_response(
             message="This account cannot be used in the mobile application.",
             code="MOBILE_ACCESS_DENIED",
-            status_code=403,
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    if not user.EMAIL_VERIFIED:
+        return error_response(
+            message="Please verify your email address before logging in.",
+            code="EMAIL_NOT_VERIFIED",
+            status_code=status.HTTP_403_FORBIDDEN,
         )
 
     tokens = issue_tokens(user, remember_me)

@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
 from apps.users.serializers import UserSerializer
-from apps.core.responses import success_response
+from core.responses import success_response
 
 
 @api_view(["GET"])

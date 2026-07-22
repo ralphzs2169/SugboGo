@@ -10,7 +10,7 @@ from apps.authentication.services.oauth.account import OAuthAccountService
 from apps.authentication.utils.jwt import issue_tokens
 from rest_framework import status
 
-from apps.core.responses import error_response, success_response
+from core.responses import error_response, success_response
 from apps.authentication.permissions import user_has_role
 
 @api_view(["POST"])

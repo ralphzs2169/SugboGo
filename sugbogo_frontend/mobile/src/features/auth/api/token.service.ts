@@ -1,16 +1,15 @@
-import apiClient from "@/shared/api/apiClient";
+import authClient from "@/shared/api/authClient";
 import { RefreshResponse } from "./auth.types";
 
 /**
- * Requests a new access token using a refresh token.
- *
- * @param refreshToken - The stored JWT refresh token.
- * @returns Newly generated JWT tokens.
+ * Refreshes the user's access token using the provided refresh token.
+ * @param refreshToken The refresh token to use for obtaining a new access token.
+ * @returns The new access token and optionally a new refresh token.
  */
 export async function refreshAccessToken(
   refreshToken: string,
 ): Promise<RefreshResponse> {
-  const response = await apiClient.post<RefreshResponse>("/auth/refresh/", {
+  const response = await authClient.post<RefreshResponse>("/auth/refresh/", {
     refresh: refreshToken,
   });
 

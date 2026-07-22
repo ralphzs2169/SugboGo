@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.users.models import User
-from apps.core.tests.assertions import APIResponseAssertionsMixin
+from core.tests.assertions import APIResponseAssertionsMixin
 
 
 class ResendVerificationViewTests(APIResponseAssertionsMixin, APITestCase):

@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view, throttle_classes
 
 from apps.authentication.serializers import ForgotPasswordSerializer
 from apps.users.models import User
-from apps.core.responses import success_response
+from core.responses import success_response
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.throttles import ForgotPasswordThrottle
 from apps.authentication.constants import Platform
