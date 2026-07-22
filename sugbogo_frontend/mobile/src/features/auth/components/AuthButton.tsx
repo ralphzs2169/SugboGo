@@ -42,9 +42,8 @@ export default function AuthButton({
         <ActivityIndicator color="white" />
       ) : (
         <>
-          <Text className="mr-2 text-md font-bold text-white">{title}</Text>
-
           {icon}
+          <Text className="ml-2 text-md font-bold text-white">{title}</Text>
         </>
       )}
     </TouchableOpacity>

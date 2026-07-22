@@ -1,4 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
@@ -92,6 +92,13 @@ export default function ForgotPassword() {
         title="Send Reset Link"
         loading={loading || navigating}
         onPress={handleSendResetLink}
+        icon={
+          <MaterialCommunityIcons
+            name="email-outline"
+            size={20}
+            color="white"
+          />
+        }
       />
 
       <BottomAuthLink

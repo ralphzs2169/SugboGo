@@ -1,4 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
@@ -139,6 +139,9 @@ export default function ResetPassword() {
         title="Reset Password"
         loading={loading}
         onPress={onResetPassword}
+        icon={
+          <MaterialCommunityIcons name="key-outline" size={20} color="white" />
+        }
       />
 
       <BottomAuthLink
