@@ -1,6 +1,6 @@
 from rest_framework.decorators import api_view
 from apps.authentication.services.password_reset_service import PasswordResetService
-from apps.core.responses import success_response
+from core.responses import success_response
 
 
 @api_view(["GET"])

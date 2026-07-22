@@ -3,7 +3,7 @@ from rest_framework import status
 
 from apps.authentication.serializers import RegisterSerializer
 from apps.users.models import User
-from apps.core.responses import success_response
+from core.responses import success_response
 from apps.authentication.services.email_service import EmailService
 
 

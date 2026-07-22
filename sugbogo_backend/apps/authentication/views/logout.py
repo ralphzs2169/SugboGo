@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework import status
 
 from apps.authentication.serializers import LogoutSerializer
-from apps.core.responses import error_response, success_response
+from core.responses import error_response, success_response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 

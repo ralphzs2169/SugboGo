@@ -1,7 +1,7 @@
 from rest_framework import status
 
 from apps.authentication.models import OAuthAccount
-from apps.core.responses import error_response
+from core.responses import error_response
 from apps.users.models import User
 
 

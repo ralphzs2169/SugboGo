@@ -10,7 +10,7 @@ from apps.authentication.services.oauth.account import OAuthAccountService
 
 from apps.authentication.utils.jwt import issue_tokens
 
-from apps.core.responses import error_response, success_response
+from core.responses import error_response, success_response
 from apps.authentication.permissions import user_has_role
 from apps.users.models import User
 

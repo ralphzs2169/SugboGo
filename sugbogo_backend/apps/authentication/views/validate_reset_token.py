@@ -5,7 +5,7 @@ from apps.authentication.serializers import ValidateResetTokenSerializer
 from apps.authentication.services.password_reset_service import (
     PasswordResetService,
 )
-from apps.core.responses import error_response, success_response
+from core.responses import error_response, success_response
 
 
 @api_view(["POST"])

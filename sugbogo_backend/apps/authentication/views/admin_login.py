@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view
 from apps.authentication.serializers import LoginSerializer
 from apps.authentication.services.login_service import LoginService
 from apps.authentication.utils.jwt import issue_tokens
-from apps.core.responses import success_response, error_response
+from core.responses import success_response, error_response
 from apps.users.models import User
 from apps.authentication.permissions import user_has_role
 

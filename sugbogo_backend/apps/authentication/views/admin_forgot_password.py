@@ -4,7 +4,7 @@ from apps.authentication.serializers import ForgotPasswordSerializer
 from apps.authentication.throttles import ForgotPasswordThrottle
 from apps.authentication.constants import Platform
 from apps.authentication.services.email_service import EmailService
-from apps.core.responses import success_response
+from core.responses import success_response
 from apps.users.models import User
 from apps.authentication.permissions import user_has_role
 

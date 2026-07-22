@@ -163,7 +163,7 @@ REST_FRAMEWORK = {
     # Custom exception handler for consistent error responses
     # "EXCEPTION_HANDLER": "config.exceptions.custom_exception_handler",
 
-    "EXCEPTION_HANDLER": "apps.core.exceptions.custom_exception_handler",
+    "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",
 }
 
 SIMPLE_JWT = {

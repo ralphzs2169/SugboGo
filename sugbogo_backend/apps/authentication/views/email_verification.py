@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from apps.authentication.serializers import ResendVerificationSerializer
 from apps.users.models import User
-from apps.core.responses import error_response, success_response
+from core.responses import error_response, success_response
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.services.verification_service import EmailVerificationService
 from apps.authentication.throttles import ResendVerificationThrottle
