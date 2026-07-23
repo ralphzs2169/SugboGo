@@ -19,6 +19,7 @@ class ResendVerificationThrottle(SimpleRateThrottle):
             "ident": email.lower().strip(),
         }
     
+    
 class ForgotPasswordThrottle(AnonRateThrottle):
     """Throttle forgot password requests from anonymous users."""
     scope = "forgot_password"

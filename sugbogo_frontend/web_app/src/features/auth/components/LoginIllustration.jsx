@@ -1,6 +1,7 @@
 import SugboGoLogo from "../../../assets/logos/sugbogo-logo.svg";
 import SugboGoText from "../../../shared/components/SugboGoText";
 import adminLoginIllustration from "../assets/admin-login-illustration.svg";
+
 /**
  * LoginIllustration component that renders the illustration section of the admin login page.
  * It includes the SugboGo logo, a title, and an illustration image.

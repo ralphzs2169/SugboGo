@@ -4,9 +4,7 @@ import { refreshSession } from "./refresh";
 import { clearTokens } from "@/shared/api/storage";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
-const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/refresh/"];
-
-// Create an Axios instance with a base URL and default headers.
+// Axios client for authenticated endpoints.
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
   timeout: 30000,
@@ -19,21 +17,11 @@ const apiClient = axios.create({
 /**
  * Axios request interceptor.
  *
- * Adds the stored JWT access token to requests targeting protected endpoints.
- * Authentication endpoints are excluded since they do not require an existing
- * session and should not receive stale or expired access tokens.
+ * Attaches the stored JWT access token to every request made through
+ * this client. This client is intended only for authenticated endpoints.
  */
 apiClient.interceptors.request.use(
   async (config) => {
-    // Skip attaching tokens to public authentication endpoints.
-    const isAuthEndpoint = AUTH_ENDPOINTS.some((endpoint) =>
-      config.url?.includes(endpoint),
-    );
-
-    if (isAuthEndpoint) {
-      return config;
-    }
-
     const token = await getAccessToken();
 
     if (token) {
@@ -42,38 +30,27 @@ apiClient.interceptors.request.use(
 
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
 /**
  * Axios response interceptor.
  *
- * Handles failed authenticated requests caused by expired access tokens.
+ * Automatically refreshes expired access tokens for authenticated requests.
  *
- * When the backend returns a 401 Unauthorized response, this interceptor:
+ * When a request receives a 401 Unauthorized response, this interceptor:
  * - Prevents retrying the same request multiple times.
- * - Requests a new access token using the stored refresh token.
- * - Updates the failed request with the new access token.
- * - Retries the original request automatically.
+ * - Obtains a new access token using the refresh token.
+ * - Retries the original request with the new access token.
  *
- * If refreshing fails, the error is rejected so the application can
- * handle session expiration (such as redirecting the user to login).
+ * If the refresh fails, the stored session is cleared and the error is
+ * propagated so the application can redirect the user to sign in.
  */
 apiClient.interceptors.response.use(
   (response) => response,
 
   async (error) => {
     const originalRequest = error.config;
-
-    const isAuthEndpoint = AUTH_ENDPOINTS.some((endpoint) =>
-      originalRequest?.url?.includes(endpoint),
-    );
-
-    if (isAuthEndpoint) {
-      return Promise.reject(error);
-    }
 
     if (
       error.response?.status === 401 &&
@@ -93,7 +70,6 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         await clearTokens();
-
         useAuthStore.getState().clearUser();
 
         return Promise.reject(refreshError);

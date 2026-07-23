@@ -5,6 +5,9 @@ from apps.users.models import User
 class UserSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="USER_ID", read_only=True)
     email = serializers.EmailField(source="USER_EMAIL", read_only=True)
+    first_name = serializers.CharField(source="USER_FNAME", read_only=True)
+    last_name = serializers.CharField(source="USER_LNAME", read_only=True)
+
     role = serializers.CharField(source="USER_ROLE", read_only=True)
     status = serializers.CharField(source="USER_STATUS", read_only=True)
     has_completed_interest_selection = serializers.BooleanField(
@@ -17,6 +20,8 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "email",
+            "first_name",
+            "last_name",
             "role",
             "status",
             "has_completed_interest_selection",
