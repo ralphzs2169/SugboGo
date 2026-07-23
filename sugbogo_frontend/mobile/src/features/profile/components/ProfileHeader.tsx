@@ -1,6 +1,7 @@
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
+import { useState } from "react";
 
 type ProfileHeaderProps = {
   firstname: string;
@@ -24,19 +25,26 @@ export default function ProfileHeader({
   avatarUrl,
   onEditProfile,
 }: ProfileHeaderProps) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+
   return (
     <View className="flex-row items-center rounded-md bg-surface p-5">
-      {avatarUrl ? (
-        <Image
-          source={{ uri: avatarUrl }}
-          className="h-20 w-20 rounded-full"
-          resizeMode="cover"
-        />
-      ) : (
-        <View className="h-20 w-20 items-center justify-center rounded-full bg-background">
-          <MaterialCommunityIcons name="account" size={42} color="#999999" />
-        </View>
-      )}
+      <View className="h-20 w-20">
+        {!imageLoaded && (
+          <View className="absolute inset-0 items-center justify-center rounded-full bg-background">
+            <MaterialCommunityIcons name="account" size={42} color="#999999" />
+          </View>
+        )}
+
+        {avatarUrl && (
+          <Image
+            source={{ uri: avatarUrl }}
+            className="h-20 w-20 rounded-full"
+            resizeMode="cover"
+            onLoad={() => setImageLoaded(true)}
+          />
+        )}
+      </View>
 
       <View className="ml-4 flex-1">
         <View className="flex-row items-center justify-between">

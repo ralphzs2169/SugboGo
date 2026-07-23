@@ -25,11 +25,6 @@ class FacebookOAuthService:
     def verify_access_token(token: str) -> OAuthUser:
         """
         Verifies a Facebook access token and returns the authenticated user.
-
-        This method:
-        1. Confirms the token is valid and belongs to this app.
-        2. Retrieves the user's Facebook profile.
-        3. Converts the profile into an OAuthUser.
         """
 
         # Verify that the access token is valid and was issued
@@ -65,7 +60,7 @@ class FacebookOAuthService:
         profile_response = requests.get(
             "https://graph.facebook.com/me",
             params={
-                "fields": "id,email,first_name,last_name",
+                "fields": "id,email,first_name,last_name,picture.type(large)",
                 "access_token": token,
             },
             timeout=10,
@@ -90,4 +85,7 @@ class FacebookOAuthService:
             email=email,
             first_name=profile.get("first_name", ""),
             last_name=profile.get("last_name", ""),
+            avatar_url=profile.get("picture", {})
+                .get("data", {})
+                .get("url"),
         )

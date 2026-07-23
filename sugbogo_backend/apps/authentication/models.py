@@ -24,6 +24,12 @@ class OAuthAccount(models.Model):
         choices=OAuthProvider.choices,
     )
 
+    OAUTH_AVATAR_URL = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+    )
+
     OAUTH_PROVIDER_ID = models.CharField(max_length=255,)
     OAUTH_CREATED_AT = models.DateTimeField(auto_now_add=True,)
     OAUTH_LAST_LOGIN = models.DateTimeField(auto_now=True,)

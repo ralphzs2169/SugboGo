@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from apps.users.models import User
 
 
@@ -29,3 +30,11 @@ class UserSerializer(serializers.ModelSerializer):
             "status",
             "has_completed_interest_selection",
         )
+
+
+class ProfilePictureSerializer(serializers.Serializer):
+    """
+    Validates a profile picture upload request.
+    """
+
+    image = serializers.ImageField()

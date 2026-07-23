@@ -19,6 +19,7 @@ import {
  * Run:
  * npm test -- storage.test.ts
  */
+
 jest.mock("expo-secure-store", () => ({
   setItemAsync: jest.fn(),
   getItemAsync: jest.fn(),

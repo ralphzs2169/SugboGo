@@ -1,6 +1,6 @@
 from rest_framework.decorators import api_view
 
-from apps.authentication.serializers import LoginSerializer
+from apps.authentication.serializers import LoginResponseSerializer, LoginSerializer
 from apps.authentication.services.login_service import LoginService
 from apps.authentication.utils.jwt import issue_tokens
 from core.responses import error_response, success_response
@@ -43,18 +43,14 @@ def login_view(request):
 
     tokens = issue_tokens(user, remember_me)
 
+    response = LoginResponseSerializer(
+        {
+            "user": user,
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
+        }
+    )
     return success_response(
         message="Login successful.",
-        data={
-            "user": {
-                "id": user.USER_ID,
-                "email": user.USER_EMAIL,
-                "role": user.USER_ROLE,
-                "status": user.USER_STATUS,
-                "has_completed_interest_selection": (
-                    user.HAS_COMPLETED_INTEREST_SELECTION
-                ),
-            },
-            **tokens,
-        },
+        data=response.data,
     )

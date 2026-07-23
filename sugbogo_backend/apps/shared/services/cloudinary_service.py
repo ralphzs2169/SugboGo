@@ -9,3 +9,9 @@ class CloudinaryService:
             file,
             folder=folder,
         )
+
+    @staticmethod
+    def delete_image(public_id):
+        return cloudinary.uploader.destroy(
+            public_id
+        )

@@ -2,7 +2,7 @@ from google.auth.exceptions import GoogleAuthError
 from apps.users.models import User
 from rest_framework.decorators import api_view
 
-from apps.authentication.serializers import GoogleLoginSerializer
+from apps.authentication.serializers import GoogleLoginSerializer, LoginResponseSerializer
 
 from apps.authentication.services.oauth.google import GoogleOAuthService
 from apps.authentication.services.oauth.account import OAuthAccountService
@@ -53,17 +53,16 @@ def google_login_view(request):
         remember_me=True,
     )
 
+    response = LoginResponseSerializer(
+        {
+            "user": user,
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
+        }
+    )
+
     return success_response(
         message="Google login successful.",
-        data={
-            "user": {
-                "id": user.USER_ID,
-                "email": user.USER_EMAIL,
-                "role": user.USER_ROLE,
-                "status": user.USER_STATUS,
-                "has_completed_interest_selection": user.HAS_COMPLETED_INTEREST_SELECTION,
-            },
-            **tokens,
-        },
+        data=response.data,
     )
 
