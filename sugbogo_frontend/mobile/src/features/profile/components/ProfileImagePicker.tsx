@@ -1,8 +1,9 @@
-import { Pressable } from "react-native";
+import { Pressable, View } from "react-native";
 import { useImagePicker } from "../hooks/useImagePicker";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 import Avatar from "@/shared/components/Avatar";
 import { useActionSheet } from "@expo/react-native-action-sheet";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Props = {
   imageUrl?: string | null;
@@ -23,8 +24,6 @@ export function ProfileImagePicker({
   const { showActionSheetWithOptions } = useActionSheet();
   const { pickFromGallery, takePhoto } = useImagePicker();
 
-  // Handles the image selection process, allowing users to choose an image from the gallery,
-  // take a new photo, or remove the current profile picture.
   async function handlePickImage() {
     const options = ["Choose Photo", "Take Photo"];
 
@@ -50,6 +49,7 @@ export function ProfileImagePicker({
           }
 
           const selectedOption = options[selectedIndex];
+
           let imageUri: string | null = null;
 
           switch (selectedOption) {
@@ -74,7 +74,6 @@ export function ProfileImagePicker({
           }
 
           onImageSelected?.(imageUri);
-          console.log("Selected image:", imageUri);
         } catch (error) {
           console.error("Image selection failed:", error);
 
@@ -89,8 +88,18 @@ export function ProfileImagePicker({
   }
 
   return (
-    <Pressable onPress={handlePickImage}>
-      <Avatar imageUrl={imageUrl} size={120} />
+    <Pressable onPress={handlePickImage} className="active:opacity-80">
+      <View className="relative">
+        {/* Avatar */}
+        <View className="rounded-full border-1 border-white">
+          <Avatar imageUrl={imageUrl} size={120} />
+        </View>
+
+        {/* Camera button */}
+        <View className=" absolute bottom-0 right-0 h-10 w-10 items-center justify-center rounded-full border-1border-white">
+          <MaterialCommunityIcons name="camera" size={20} color="white" />
+        </View>
+      </View>
     </Pressable>
   );
 }

@@ -10,13 +10,6 @@ import {
 import { ApiResponse } from "@/shared/api/types";
 import { request } from "@/shared/api/request";
 
-/**
- * Retrieves the authenticated user's profile.
- *
- * Sends a request to the backend using the stored JWT access token.
- *
- * @returns {Promise<User>} The authenticated user's profile.
- */
 export async function getProfile(): Promise<User> {
   const response = await apiClient.get<User>("/users/me/");
 
@@ -29,9 +22,6 @@ export function updateProfile(data: UpdateProfileRequest) {
   );
 }
 
-// =======================================================
-// Profile Picture related APIs
-// =======================================================
 export function updateProfilePicture(
   formData: FormData,
 ): Promise<ApiResponse<UpdateProfilePictureResponse>> {

@@ -55,13 +55,6 @@ module.exports = {
         "screen-x": "24px", // horizontal screen padding
         "screen-top": "60px", // top padding for screens
       },
-
-      // ── SHADOWS (for inline style reference) ─
-      // Note: NativeWind shadow support is limited
-      // Use these as reference for inline styles:
-      // shadow-sm = elevation: 2
-      // shadow-md = elevation: 4
-      // shadow-lg = elevation: 8
     },
   },
   plugins: [],

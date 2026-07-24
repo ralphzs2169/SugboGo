@@ -24,9 +24,9 @@ export default function InputContainer({
   children,
 }: InputContainerProps) {
   return (
-    <View className="mb-6">
+    <View className="mb-5">
       <View className="mb-1.5 flex-row items-center justify-between">
-        <Text className="text-xs font-bold tracking-[0.5px] text-text-secondary">
+        <Text className="text-xs font-semibold tracking-[0.5px] text-text-secondary">
           {label}
         </Text>
 
