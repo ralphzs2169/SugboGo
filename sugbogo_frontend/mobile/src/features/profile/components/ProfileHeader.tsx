@@ -44,7 +44,7 @@ export default function ProfileHeader({
               <MaterialCommunityIcons
                 name="pencil-outline"
                 size={16}
-                color={theme.colors.brand}
+                color={theme.extends.colors.brand}
               />
 
               <Text className="ml-1 text-sm font-medium text-brand">Edit</Text>

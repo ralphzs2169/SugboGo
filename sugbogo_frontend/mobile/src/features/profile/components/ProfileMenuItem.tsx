@@ -54,7 +54,11 @@ export default function ProfileMenuItem({
       <MaterialCommunityIcons
         name={icon}
         size={24}
-        color={isDanger ? theme.colors.error : theme.colors.text.secondary}
+        color={
+          isDanger
+            ? theme.extends.colors.error
+            : theme.extends.colors.text.secondary
+        }
       />
 
       <Text
@@ -79,7 +83,7 @@ export default function ProfileMenuItem({
         <MaterialCommunityIcons
           name="chevron-right"
           size={24}
-          color={theme.colors.text.tertiary}
+          color={theme.extends.colors.text.tertiary}
         />
       )}
     </Pressable>

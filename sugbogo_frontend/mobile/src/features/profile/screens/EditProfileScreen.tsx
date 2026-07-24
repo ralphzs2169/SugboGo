@@ -11,12 +11,17 @@ import {
   UpdateProfileErrors,
   validateProfileForm,
 } from "../utils/updateProfileValidator";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import FormInput from "@/features/auth/components/FormInput";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChanges";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 import getUpdateProfileErrors from "../utils/updateProfileErrors";
 import { useRemoveProfilePicture } from "../hooks/useRemoveProfilePicture";
 
+/**
+ * EditProfileScreen component allows users to edit their profile information,
+ * including first name, last name, and profile picture.
+ */
 export default function EditProfileScreen() {
   const user = useAuthStore((state) => state.user);
 
@@ -56,12 +61,6 @@ export default function EditProfileScreen() {
     setFormError("");
   };
 
-  function handleRemovePicture() {
-    setSelectedImage(null);
-    setPreviewImage(null);
-    setRemoveProfilePicture(true);
-  }
-
   function confirmRemovePicture() {
     setSelectedImage(null);
     setPreviewImage(null);
@@ -80,6 +79,7 @@ export default function EditProfileScreen() {
     setErrors({});
     setFormError("");
 
+    // If the user has chosen to remove their profile picture, call the removePicture function
     if (removeProfilePicture) {
       const removeResponse = await removePicture();
 
@@ -89,6 +89,7 @@ export default function EditProfileScreen() {
       }
     }
 
+    // If a new profile picture is selected, upload it
     if (selectedImage) {
       const pictureResponse = await uploadProfilePicture(selectedImage);
 
@@ -98,6 +99,7 @@ export default function EditProfileScreen() {
       }
     }
 
+    // Update first name and last name if they have changed
     if (firstName !== user?.first_name || lastName !== user?.last_name) {
       const response = await updateUserProfile({
         first_name: firstName,
@@ -145,8 +147,11 @@ export default function EditProfileScreen() {
         <Text className="mt-2 text-sm text-brand">
           Tap to change profile picture
         </Text>
+
+        {/* Informational message Section */}
+
         {!user?.has_custom_profile_picture && user?.use_oauth_avatar && (
-          <View className="mt-4 flex-row items-center rounded-xl bg-blue-300 px-4 py-3">
+          <View className="mt-4 flex-row items-start  rounded-xl  px-4 py-3">
             <MaterialCommunityIcons
               name="information-outline"
               size={18}
@@ -155,7 +160,6 @@ export default function EditProfileScreen() {
 
             <Text className="ml-2 flex-1 text-xs text-blue-700">
               Your social profile photo is currently being used as your avatar.
-              {"\n"}
               You can change this preference in Account Settings.
             </Text>
           </View>
@@ -184,30 +188,15 @@ export default function EditProfileScreen() {
         <Text className="mt-4 text-center text-sm text-error">{formError}</Text>
       ) : null}
 
-      <Modal visible={showRemoveModal} transparent animationType="fade">
-        <View className="flex-1 items-center justify-center bg-black/50">
-          <View className="w-80 rounded-2xl bg-white p-6">
-            <Text className="text-lg font-bold text-gray-900">
-              Remove profile picture?
-            </Text>
-
-            <Text className="mt-3 text-sm text-gray-600">
-              Your profile picture will change back to your Google or Facebook
-              profile photo. You can change this anytime in Account Settings.
-            </Text>
-
-            <View className="mt-6 flex-row justify-end gap-3">
-              <Pressable onPress={() => setShowRemoveModal(false)}>
-                <Text className="text-gray-500">Cancel</Text>
-              </Pressable>
-
-              <Pressable onPress={confirmRemovePicture}>
-                <Text className="font-bold text-red-500">Remove</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <ConfirmModal
+        visible={showRemoveModal}
+        title="Remove profile picture?"
+        message="Your profile picture will change back to your Google or Facebook profile photo. You can change this anytime in Account Settings."
+        confirmText="Remove"
+        destructive
+        onCancel={() => setShowRemoveModal(false)}
+        onConfirm={confirmRemovePicture}
+      />
       <Button
         title="Save Changes"
         onPress={handleSaveChanges}

@@ -34,13 +34,13 @@ export default function Avatar({ imageUrl, size = 80 }: AvatarProps) {
           alignItems: "center",
           backgroundColor: "#F3F4F6",
           borderWidth: PLACEHOLDER_BORDER_WIDTH,
-          borderColor: theme.colors.text.secondary,
+          borderColor: theme.extends.colors.text.secondary,
         }}
       >
         <MaterialCommunityIcons
           name="account"
           size={iconSize}
-          color={theme.colors.text.secondary}
+          color={theme.extends.colors.text.secondary}
         />
       </View>
 
