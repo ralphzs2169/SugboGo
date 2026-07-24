@@ -6,6 +6,7 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "@/shared/components/ToastConfig";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
 import AppSplash from "@/shared/components/AppSplash";
 import SigningInOverlay from "@/features/auth/components/SigningInOverlay";
@@ -24,15 +25,17 @@ export default function RootLayout() {
     <>
       <ActionSheetProvider>
         <SafeAreaProvider>
-          <Stack screenOptions={{ headerShown: false, animation: "none" }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(explorer)" />
-            <Stack.Screen name="(setup)" />
-          </Stack>
+          <BottomSheetModalProvider>
+            <Stack screenOptions={{ headerShown: false, animation: "none" }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(explorer)" />
+              <Stack.Screen name="(setup)" />
+            </Stack>
 
-          {isSigningIn && <SigningInOverlay />}
-          <Toast config={toastConfig} />
+            {isSigningIn && <SigningInOverlay />}
+            <Toast config={toastConfig} />
+          </BottomSheetModalProvider>
         </SafeAreaProvider>
       </ActionSheetProvider>
     </>

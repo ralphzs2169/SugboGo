@@ -8,6 +8,7 @@ class UserSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="USER_EMAIL", read_only=True)
     first_name = serializers.CharField(source="USER_FNAME", read_only=True)
     last_name = serializers.CharField(source="USER_LNAME", read_only=True)
+    gender = serializers.CharField(source="USER_GENDER", read_only=True)
 
     avatar_url = serializers.ReadOnlyField()
     use_oauth_avatar = serializers.BooleanField(
@@ -29,6 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email",
             "first_name",
             "last_name",
+            "gender",
 
             "avatar_url",
             "has_custom_profile_picture",
@@ -51,12 +53,19 @@ class ProfilePictureSerializer(serializers.Serializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source="USER_FNAME")
     last_name = serializers.CharField(source="USER_LNAME")
-    
+    gender = serializers.ChoiceField(
+        source="USER_GENDER",
+        choices=User.Gender.choices,
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = User
         fields = [
             "first_name",
             "last_name",
+            "gender",
         ]
 
 class AvatarPreferencesSerializer(serializers.Serializer):

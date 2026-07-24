@@ -5,6 +5,7 @@ export type UpdateProfilePictureResponse = User;
 export type UpdateProfileRequest = {
   first_name: string;
   last_name: string;
+  gender: "male" | "female" | "non_binary" | "prefer_not_to_say" | null;
 };
 
 export type UpdateProfileResponse = User;

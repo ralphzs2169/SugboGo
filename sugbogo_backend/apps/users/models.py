@@ -41,7 +41,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     class Gender(models.TextChoices):
         MALE = 'male', 'Male'
         FEMALE = 'female', 'Female'
-        OTHER = 'other', 'Other'
+        NON_BINARY = "non_binary", "Non-binary"
+        PREFER_NOT_TO_SAY = "prefer_not_to_say", "Prefer not to say"
 
     USER_ID = models.AutoField(primary_key=True)
     USER_ROLE = models.CharField(max_length=20, choices=UserRole.choices)
@@ -77,7 +78,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     USER_FNAME = models.CharField(max_length=50)
     USER_LNAME = models.CharField(max_length=50)
     USER_MI = models.CharField(max_length=1, blank=True, null=True)
-    USER_GENDER = models.CharField(max_length=10, choices=Gender.choices, blank=True, null=True)
+    USER_GENDER = models.CharField(max_length=20, choices=Gender.choices, blank=True, null=True)
     USER_IS_VERIFIED = models.BooleanField(default=False)
     HAS_COMPLETED_INTEREST_SELECTION = models.BooleanField(default=False)
     USER_REPUTATION = models.DecimalField(
@@ -139,6 +140,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return None
     
     @property
+
     def has_custom_profile_picture(self):
         return bool(self.USER_PROFILE_PICTURE)
 

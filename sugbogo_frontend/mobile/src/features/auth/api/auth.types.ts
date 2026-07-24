@@ -24,6 +24,7 @@ export interface User {
   id: number;
   first_name: string;
   last_name: string;
+  gender: "male" | "female" | "non_binary" | "prefer_not_to_say" | null;
   avatar_url?: string | null;
   email: string;
   role: string;
