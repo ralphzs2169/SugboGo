@@ -1,14 +1,17 @@
 import axios from "axios";
+import { router } from "expo-router";
 import { getAccessToken } from "@/shared/api/storage";
 import { refreshSession } from "./refresh";
 import { clearTokens } from "@/shared/api/storage";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { Toast } from "react-native-toast-message/lib/src/Toast";
+
+let isRedirectingToLogin = false;
 
 // Axios client for authenticated endpoints.
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
   timeout: 30000,
-  validateStatus: (status) => status < 600,
   headers: {
     "Content-Type": "application/json",
   },
@@ -46,6 +49,7 @@ apiClient.interceptors.request.use(
  * If the refresh fails, the stored session is cleared and the error is
  * propagated so the application can redirect the user to sign in.
  */
+
 apiClient.interceptors.response.use(
   (response) => response,
 
@@ -69,8 +73,23 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch (refreshError) {
+        // Clear the stored session and redirect to login if refresh fails
         await clearTokens();
         useAuthStore.getState().clearUser();
+
+        if (!isRedirectingToLogin) {
+          isRedirectingToLogin = true;
+
+          Toast.show({
+            type: "error",
+            text1: "Session Expired",
+            text2: "Please sign in again.",
+          });
+
+          setTimeout(() => {
+            router.replace("/(auth)/login");
+          }, 1000);
+        }
 
         return Promise.reject(refreshError);
       }

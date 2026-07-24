@@ -2,6 +2,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { getProfile } from "../api/profile.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 export function useProfile() {
   const setUser = useAuthStore((state) => state.setUser);
@@ -14,7 +15,11 @@ export function useProfile() {
 
           setUser(profile);
         } catch (error) {
-          console.log("Profile request failed.", error);
+          Toast.show({
+            type: "error",
+            text1: "Profile Fetch Failed",
+            text2: "Unable to fetch profile data. Please try again.",
+          });
         }
       };
 

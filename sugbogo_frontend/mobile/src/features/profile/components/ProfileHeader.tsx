@@ -1,7 +1,10 @@
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
-import { useState } from "react";
+
+const AVATAR_SIZE = 80;
 
 type ProfileHeaderProps = {
   firstname: string;
@@ -27,25 +30,34 @@ export default function ProfileHeader({
 }: ProfileHeaderProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
 
+  // Reset imageLoaded state when avatarUrl changes to ensure the
+  // placeholder is shown until the new image is loaded.
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [avatarUrl]);
+
   return (
     <View className="flex-row items-center rounded-md bg-surface p-5">
+      {/* Avatar Container */}
       <View className="h-20 w-20">
-        {!imageLoaded && (
-          <View className="absolute inset-0 items-center justify-center rounded-full bg-background">
-            <MaterialCommunityIcons name="account" size={42} color="#999999" />
-          </View>
-        )}
+        <View className="absolute inset-0 items-center justify-center rounded-full bg-background">
+          <MaterialCommunityIcons name="account" size={42} color="#999999" />
+        </View>
 
         {avatarUrl && (
           <Image
             source={{ uri: avatarUrl }}
-            className="h-20 w-20 rounded-full"
-            resizeMode="cover"
-            onLoad={() => setImageLoaded(true)}
+            style={{
+              width: AVATAR_SIZE,
+              height: AVATAR_SIZE,
+              borderRadius: AVATAR_SIZE / 2,
+            }}
+            contentFit="cover"
           />
         )}
       </View>
 
+      {/* User Information */}
       <View className="ml-4 flex-1">
         <View className="flex-row items-center justify-between">
           <Text
