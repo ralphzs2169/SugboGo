@@ -1,12 +1,12 @@
-import { Text, TextInput, View, Alert, TouchableOpacity } from "react-native";
+import { Text, Modal, View, Pressable } from "react-native";
 import Button from "@/shared/components/Button";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { ProfileImagePicker } from "../components/ProfileImagePicker";
 import { useUpdateProfile } from "../hooks/useUpdateProfile";
 import { useUpdateProfilePicture } from "../hooks/useUpdateProfilePicture";
-import { router, useNavigation } from "expo-router";
+import { router } from "expo-router";
 import {
   UpdateProfileErrors,
   validateProfileForm,
@@ -33,6 +33,7 @@ export default function EditProfileScreen() {
   );
   const [removeProfilePicture, setRemoveProfilePicture] = useState(false);
 
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [errors, setErrors] = useState<UpdateProfileErrors>({});
   const [formError, setFormError] = useState("");
 
@@ -59,6 +60,13 @@ export default function EditProfileScreen() {
     setSelectedImage(null);
     setPreviewImage(null);
     setRemoveProfilePicture(true);
+  }
+
+  function confirmRemovePicture() {
+    setSelectedImage(null);
+    setPreviewImage(null);
+    setRemoveProfilePicture(true);
+    setShowRemoveModal(false);
   }
 
   async function handleSaveChanges() {
@@ -125,17 +133,33 @@ export default function EditProfileScreen() {
       <View className="my-8  items-center">
         <ProfileImagePicker
           imageUrl={previewImage}
+          hasCustomProfilePicture={user?.has_custom_profile_picture ?? false}
           onImageSelected={(image) => {
             setSelectedImage(image);
             setPreviewImage(image);
             setRemoveProfilePicture(false);
           }}
-          onRemovePicture={handleRemovePicture}
+          onRemovePicture={() => setShowRemoveModal(true)}
         />
 
         <Text className="mt-2 text-sm text-brand">
           Tap to change profile picture
         </Text>
+        {!user?.has_custom_profile_picture && user?.use_oauth_avatar && (
+          <View className="mt-4 flex-row items-center rounded-xl bg-blue-300 px-4 py-3">
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={18}
+              color="#2563EB"
+            />
+
+            <Text className="ml-2 flex-1 text-xs text-blue-700">
+              Your social profile photo is currently being used as your avatar.
+              {"\n"}
+              You can change this preference in Account Settings.
+            </Text>
+          </View>
+        )}
       </View>
 
       <FormInput
@@ -160,6 +184,30 @@ export default function EditProfileScreen() {
         <Text className="mt-4 text-center text-sm text-error">{formError}</Text>
       ) : null}
 
+      <Modal visible={showRemoveModal} transparent animationType="fade">
+        <View className="flex-1 items-center justify-center bg-black/50">
+          <View className="w-80 rounded-2xl bg-white p-6">
+            <Text className="text-lg font-bold text-gray-900">
+              Remove profile picture?
+            </Text>
+
+            <Text className="mt-3 text-sm text-gray-600">
+              Your profile picture will change back to your Google or Facebook
+              profile photo. You can change this anytime in Account Settings.
+            </Text>
+
+            <View className="mt-6 flex-row justify-end gap-3">
+              <Pressable onPress={() => setShowRemoveModal(false)}>
+                <Text className="text-gray-500">Cancel</Text>
+              </Pressable>
+
+              <Pressable onPress={confirmRemovePicture}>
+                <Text className="font-bold text-red-500">Remove</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <Button
         title="Save Changes"
         onPress={handleSaveChanges}

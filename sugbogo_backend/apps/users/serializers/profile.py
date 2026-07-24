@@ -16,14 +16,11 @@ class UserSerializer(serializers.ModelSerializer):
     )
     role = serializers.CharField(source="USER_ROLE", read_only=True)
     status = serializers.CharField(source="USER_STATUS", read_only=True)
-    has_custom_profile_picture = serializers.SerializerMethodField()
+    has_custom_profile_picture = serializers.BooleanField(read_only=True)
     has_completed_interest_selection = serializers.BooleanField(
         source="HAS_COMPLETED_INTEREST_SELECTION",
         read_only=True,
     )
-
-    def get_has_custom_profile_picture(self, obj):
-        return bool(obj.USER_PROFILE_PICTURE)
     
     class Meta:
         model = User
@@ -36,7 +33,7 @@ class UserSerializer(serializers.ModelSerializer):
             "avatar_url",
             "has_custom_profile_picture",
             "use_oauth_avatar",
-            
+
             "role",
             "status",
             "has_completed_interest_selection",

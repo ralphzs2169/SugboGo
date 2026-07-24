@@ -8,3 +8,8 @@ export type UpdateProfileRequest = {
 };
 
 export type UpdateProfileResponse = User;
+
+export type UpdateAvatarPreferenceRequest = {
+  use_oauth_avatar: boolean;
+};
+export type UpdateAvatarPreferenceResponse = User;

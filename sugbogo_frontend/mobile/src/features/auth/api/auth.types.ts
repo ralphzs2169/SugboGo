@@ -30,6 +30,7 @@ export interface User {
   status: string;
   has_completed_interest_selection: boolean;
   has_custom_profile_picture: boolean;
+  use_oauth_avatar: boolean;
 }
 
 /**

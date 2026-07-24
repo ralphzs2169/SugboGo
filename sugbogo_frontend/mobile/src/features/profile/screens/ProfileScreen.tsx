@@ -9,6 +9,11 @@ import AppVersion from "../components/AppVersion";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { router } from "expo-router";
 
+/**
+ * ProfileScreen component.
+ *
+ * Displays the user's profile information, activity, and settings.
+ */
 export default function ProfileScreen({}) {
   const user = useAuthStore((state) => state.user);
 
@@ -46,7 +51,7 @@ export default function ProfileScreen({}) {
 
         <MerchantCard onPress={() => {}} />
 
-        {/* Menu Sections go here */}
+        {/* Menu Sections */}
         <ProfileMenuSection title="Your Activity">
           <ProfileMenuItem
             title="My Pockets"
@@ -90,7 +95,7 @@ export default function ProfileScreen({}) {
           <ProfileMenuItem
             title="Account Settings"
             icon="account-cog-outline"
-            onPress={() => {}}
+            onPress={() => router.push("/profile/account-settings")}
           />
 
           <ProfileMenuItem

@@ -4,6 +4,8 @@ import {
   UpdateProfilePictureResponse,
   UpdateProfileRequest,
   UpdateProfileResponse,
+  UpdateAvatarPreferenceRequest,
+  UpdateAvatarPreferenceResponse,
 } from "./profile.types";
 import { ApiResponse } from "@/shared/api/types";
 import { request } from "@/shared/api/request";
@@ -49,5 +51,14 @@ export function updateProfilePicture(
 export function removeProfilePicture() {
   return request<ApiResponse<User>>(
     apiClient.delete<ApiResponse<User>>("/users/me/profile-picture/"),
+  );
+}
+
+export function updateAvatarPreference(data: UpdateAvatarPreferenceRequest) {
+  return request<ApiResponse<UpdateAvatarPreferenceResponse>>(
+    apiClient.patch<ApiResponse<UpdateAvatarPreferenceResponse>>(
+      "/users/me/avatar-preferences/",
+      data,
+    ),
   );
 }

@@ -117,20 +117,30 @@ class User(AbstractBaseUser, PermissionsMixin):
 
         Priority:
         1. Custom uploaded profile picture.
-        2. OAuth avatar (if enabled).
-        3. None (frontend displays placeholder).
+        2. Latest connected OAuth avatar (if enabled).
+        3. None.
         """
 
         if self.USER_PROFILE_PICTURE:
             return self.USER_PROFILE_PICTURE
 
         if self.USER_USE_OAUTH_AVATAR:
-            oauth = self.OAUTH_ACCOUNTS.first()
+            oauth = (
+                self.OAUTH_ACCOUNTS
+                .filter(OAUTH_AVATAR_URL__isnull=False)
+                .exclude(OAUTH_AVATAR_URL="")
+                .order_by("-OAUTH_CREATED_AT")
+                .first()
+            )
 
-            if oauth and oauth.OAUTH_AVATAR_URL:
+            if oauth:
                 return oauth.OAUTH_AVATAR_URL
 
         return None
     
+    @property
+    def has_custom_profile_picture(self):
+        return bool(self.USER_PROFILE_PICTURE)
+
     def __str__(self):
         return self.USER_EMAIL
