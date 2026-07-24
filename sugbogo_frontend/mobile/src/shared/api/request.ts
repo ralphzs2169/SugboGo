@@ -31,6 +31,13 @@ export async function request<T>(promise: Promise<{ data: T }>): Promise<T> {
     const response = await promise;
     return response.data;
   } catch (error) {
+    // Preserve authentication failures from the Axios interceptor.
+    // These are already handled by redirecting the user to login.
+    if (error instanceof Error && error.name === "AUTH_ERROR") {
+      throw error;
+    }
+
+    // If the error is an Axios error, we check for specific cases like network errors or timeouts.
     if (axios.isAxiosError(error)) {
       if (error.code === "ECONNABORTED") {
         return {

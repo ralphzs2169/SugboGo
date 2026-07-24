@@ -1,13 +1,13 @@
 import { ExpoConfig } from "expo/config";
 
 export default (): ExpoConfig => ({
-  name: "mobile",
+  name: "SugboGo",
   slug: "sugbogo",
   version: "1.0.0",
 
   orientation: "portrait",
 
-  icon: "./assets/images/icon.png",
+  icon: "./assets/images/sugbogo-logo.png",
 
   scheme: ["sugbogo", "com.sugbogo.app"],
 
@@ -19,10 +19,8 @@ export default (): ExpoConfig => ({
 
   android: {
     adaptiveIcon: {
-      backgroundColor: "#E6F4FE",
-      foregroundImage: "./assets/images/android-icon-foreground.png",
-      backgroundImage: "./assets/images/android-icon-background.png",
-      monochromeImage: "./assets/images/android-icon-monochrome.png",
+      backgroundColor: "#FFFFFF",
+      foregroundImage: "./assets/images/sugbogo-logo.png",
     },
 
     predictiveBackGestureEnabled: false,
@@ -41,14 +39,14 @@ export default (): ExpoConfig => ({
     [
       "expo-splash-screen",
       {
-        backgroundColor: "#208AEF",
-        image: "./assets/images/splash-icon.png",
+        backgroundColor: "#FFFFFF",
+        image: "./assets/images/sugbogo-logo.png",
         imageWidth: 76,
       },
     ],
-
     "expo-secure-store",
     "expo-image",
+    "expo-image-picker",
     "expo-status-bar",
     "expo-web-browser",
 

@@ -6,7 +6,6 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 import EmailSentLayout from "@/features/auth/components/EmailSentLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
-import SecondaryAuthButton from "@/features/auth/components/SecondaryAuthButton";
 import { useResendPasswordReset } from "@/features/auth/hooks/useResendPasswordReset";
 
 export default function ForgotPasswordSent() {

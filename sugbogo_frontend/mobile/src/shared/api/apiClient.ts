@@ -1,16 +1,16 @@
 import axios from "axios";
-import { getAccessToken } from "@/shared/api/storage";
+import { router } from "expo-router";
+import { getAccessToken, clearTokens } from "@/shared/api/storage";
 import { refreshSession } from "./refresh";
-import { clearTokens } from "@/shared/api/storage";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { Toast } from "react-native-toast-message/lib/src/Toast";
 
-const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/refresh/"];
+let isRedirectingToLogin = false;
 
-// Create an Axios instance with a base URL and default headers.
+// Axios client for authenticated endpoints.
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
   timeout: 30000,
-  validateStatus: (status) => status < 600,
   headers: {
     "Content-Type": "application/json",
   },
@@ -19,21 +19,10 @@ const apiClient = axios.create({
 /**
  * Axios request interceptor.
  *
- * Adds the stored JWT access token to requests targeting protected endpoints.
- * Authentication endpoints are excluded since they do not require an existing
- * session and should not receive stale or expired access tokens.
+ * Attaches the stored JWT access token to authenticated requests.
  */
 apiClient.interceptors.request.use(
   async (config) => {
-    // Skip attaching tokens to public authentication endpoints.
-    const isAuthEndpoint = AUTH_ENDPOINTS.some((endpoint) =>
-      config.url?.includes(endpoint),
-    );
-
-    if (isAuthEndpoint) {
-      return config;
-    }
-
     const token = await getAccessToken();
 
     if (token) {
@@ -42,38 +31,20 @@ apiClient.interceptors.request.use(
 
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
 /**
  * Axios response interceptor.
  *
- * Handles failed authenticated requests caused by expired access tokens.
- *
- * When the backend returns a 401 Unauthorized response, this interceptor:
- * - Prevents retrying the same request multiple times.
- * - Requests a new access token using the stored refresh token.
- * - Updates the failed request with the new access token.
- * - Retries the original request automatically.
- *
- * If refreshing fails, the error is rejected so the application can
- * handle session expiration (such as redirecting the user to login).
+ * Refreshes expired access tokens automatically.
+ * If refreshing fails, clears the session and redirects to login.
  */
 apiClient.interceptors.response.use(
   (response) => response,
 
   async (error) => {
     const originalRequest = error.config;
-
-    const isAuthEndpoint = AUTH_ENDPOINTS.some((endpoint) =>
-      originalRequest?.url?.includes(endpoint),
-    );
-
-    if (isAuthEndpoint) {
-      return Promise.reject(error);
-    }
 
     if (
       error.response?.status === 401 &&
@@ -91,12 +62,30 @@ apiClient.interceptors.response.use(
         };
 
         return apiClient(originalRequest);
-      } catch (refreshError) {
+      } catch {
+        // If refreshing the token fails, clear the session and redirect to login.
         await clearTokens();
-
         useAuthStore.getState().clearUser();
 
-        return Promise.reject(refreshError);
+        if (!isRedirectingToLogin) {
+          isRedirectingToLogin = true;
+
+          Toast.show({
+            type: "error",
+            text1: "Session Expired",
+            text2: "Please sign in again.",
+          });
+
+          setTimeout(() => {
+            router.replace("/(auth)/login");
+          }, 1000);
+        }
+
+        // Create a custom error to indicate that the session has expired.
+        const authError = new Error("SESSION_EXPIRED");
+        authError.name = "AUTH_ERROR";
+
+        return Promise.reject(authError);
       }
     }
 

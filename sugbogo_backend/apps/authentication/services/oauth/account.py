@@ -33,7 +33,7 @@ class OAuthAccountService:
                 .select_related("USER")
                 .first()
             )
-
+           
             # If the user has previously logged in with this OAuth provider, 
             # we update their last login timestamp and return the associated User.
             if oauth_account:
@@ -68,7 +68,7 @@ class OAuthAccountService:
 
                 if user.USER_STATUS == User.UserStatus.PENDING:
                     user.USER_STATUS = User.UserStatus.ACTIVE
-
+                
                 user.save(
                     update_fields=[
                         "EMAIL_VERIFIED",
@@ -98,13 +98,15 @@ class OAuthAccountService:
                 user.set_unusable_password()
                 user.save(update_fields=["password"])
 
+            # print("OAUTH USER:", model_to_dict(oauth_user))
             # Link the user to this OAuth provider.
             # If the link already exists, update the provider ID if necessary.
             OAuthAccount.objects.update_or_create(
                 USER=user,
                 OAUTH_PROVIDER=oauth_user.provider,
                 defaults={
-                    "OAUTH_PROVIDER_ID": oauth_user.provider_id
+                    "OAUTH_PROVIDER_ID": oauth_user.provider_id,
+                    "OAUTH_AVATAR_URL": oauth_user.avatar_url,
                 },
             )
 

@@ -23,11 +23,12 @@ class GoogleOAuthService:
             requests.Request(),
             settings.GOOGLE_OAUTH_CLIENT_ID,
         )
-
+        print(payload)
         return OAuthUser(
             provider="google",
             provider_id=payload["sub"],
             email=payload["email"],
             first_name=payload.get("given_name", ""),
             last_name=payload.get("family_name", ""),
+            avatar_url=payload.get("picture", ""),
         )

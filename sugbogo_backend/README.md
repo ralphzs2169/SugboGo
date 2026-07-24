@@ -36,10 +36,10 @@ sugbogo_backend/
 │   │   ├── activity_management/  # Admin activity monitoring
 │   │   └── system_configuration/ # System settings management
 │   │
-│   ├── core/                     # Shared backend utilities (responses, exceptions, helpers)
-│   │
 │   └── shared/                   # Shared services used across applications
 │       └── services/             # External service integrations
+│
+├── core/                         # Shared backend utilities (responses, exceptions, helpers)
 │
 ├── config/                       # Django project configuration
 │   ├── settings.py               # Django settings
@@ -71,7 +71,7 @@ Install the following before setting up the project:
 git clone <repository-url>
 cd SugboGo/sugbogo_backend
 ```
-
+---
 ## 2.) Create a Virtual Environment
 
 ```bash
@@ -91,7 +91,7 @@ Activate the virtual environment.
 ```bash
 source .venv/bin/activate
 ```
-
+---
 ## 3.) Install Dependencies
 
 Upgrade pip (recommended):
@@ -105,7 +105,7 @@ Install the project dependencies:
 ```bash
 pip install -r requirements.txt
 ```
-
+--- 
 ## 4.) Configure Environment Variables
 
 Copy the example environment file.
@@ -245,7 +245,7 @@ Once your SQL Query Tool or Editor is open:
 ```sql
 CREATE EXTENSION IF NOT EXISTS postgis;
 ```
----
+
 #### 5.3) Configure Database Environment Variables
 
 Update the following variables in your `sugbogo_backend/.env`
@@ -287,6 +287,7 @@ SugboGo uses **Resend** for sending transactional emails, such as email verifica
 ```env
 RESEND_API_KEY=your-resend-api-key
 ```
+> **Development Note:** Without a verified custom domain, Resend can only send emails to your own verified email address. This is expected during development. To send emails to any recipient, you must verify and use a custom domain in Resend.
 ---
 **For the following sections, Ask MIGUEL for the credentials**
 

@@ -10,10 +10,11 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: theme.colors.background,
           borderTopColor: theme.colors.surface,
+          // height: 60,
+          // paddingBottom: 0,
         },
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textSecondary,
-        animation: "none",
+        tabBarActiveTintColor: theme.colors.brand,
+        tabBarInactiveTintColor: theme.colors.text.secondary,
       }}
     >
       <Tabs.Screen

@@ -1,5 +1,5 @@
 import "../../global.css";
-
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -21,15 +21,17 @@ export default function RootLayout() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false, animation: "none" }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(explorer)" />
-        <Stack.Screen name="(setup)" />
-      </Stack>
+      <SafeAreaProvider>
+        <Stack screenOptions={{ headerShown: false, animation: "none" }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(explorer)" />
+          <Stack.Screen name="(setup)" />
+        </Stack>
 
-      {isSigningIn && <SigningInOverlay />}
-      <Toast config={toastConfig} />
+        {isSigningIn && <SigningInOverlay />}
+        <Toast config={toastConfig} />
+      </SafeAreaProvider>
     </>
   );
 }

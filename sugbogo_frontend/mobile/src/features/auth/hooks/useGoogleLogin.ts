@@ -14,8 +14,6 @@ export function useGoogleLogin() {
   const handledResponse = useRef(false);
 
   useEffect(() => {
-    console.log("Google response:", response?.type);
-
     if (
       !response ||
       response.type !== "success" ||
@@ -27,14 +25,10 @@ export function useGoogleLogin() {
 
     handledResponse.current = true;
 
-    console.log("Calling authenticate");
-
     authenticate(response.authentication);
   }, [response]);
 
   async function authenticate(authentication: TokenResponse) {
-    console.log("Entered authenticate");
-
     const setSigningIn = useAuthStore.getState().setSigningIn;
 
     setSigningIn(true);
@@ -55,8 +49,6 @@ export function useGoogleLogin() {
       }
 
       const result = await googleLogin(idToken);
-
-      console.log("Google login result:", result);
 
       if (!result.success) {
         Toast.show({

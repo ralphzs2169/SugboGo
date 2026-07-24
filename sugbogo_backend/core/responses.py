@@ -20,7 +20,8 @@ def success_response(
             "success": True,
             "message": "Registration successful.",
             "data": {
-                ...
+                "user_id": 123,
+                "email": "user@example.com"
             }
         }
     """
@@ -44,10 +45,16 @@ def error_response(
     """
     Return a standardized error API response.
 
-    Args:
-        message (str): A human-readable error message.
-        code (str | None): An optional error code for programmatic handling.
-        errors (dict | list | None): Optional detailed error information.
+    Example
+    -------
+    {
+        "success": False,
+        "message": "Invalid credentials.",
+        "code": "INVALID_CREDENTIALS",
+        "errors": {
+            
+        }
+    }
     """
     payload = {
         "success": False,

@@ -13,6 +13,6 @@ import { useAuthStore } from "../store/auth.store";
 export async function establishSession(response: AuthResponse): Promise<void> {
   await saveAccessToken(response.access);
   await saveRefreshToken(response.refresh);
-
+  console.log("establishSession response.user:", response.user);
   useAuthStore.getState().setUser(response.user);
 }

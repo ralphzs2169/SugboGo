@@ -48,6 +48,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     USER_STATUS = models.CharField(max_length=20, choices=UserStatus.choices, default=UserStatus.PENDING)
     USER_EMAIL = models.EmailField(unique=True, max_length=100)
 
+    USER_PROFILE_PICTURE = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+    )
+    # This field stores the public ID of the user's profile picture in the cloud storage service (e.g., Cloudinary). 
+    # It is used for managing the image, such as deleting or updating it.
+    USER_PROFILE_PICTURE_PUBLIC_ID = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True
+    )
+    
     EMAIL_VERIFIED = models.BooleanField(default=False)
     EMAIL_VERIFIED_AT = models.DateTimeField(null=True, blank=True)
 
@@ -94,5 +107,26 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_active(self):
         return self.USER_STATUS == self.UserStatus.ACTIVE
 
+    @property
+    def avatar_url(self):
+        """
+        Returns the avatar that should be displayed.
+
+        Priority:   
+        1. User uploaded profile picture.
+        2. OAuth provider avatar.
+        3. None (frontend displays placeholder).
+        """
+
+        if self.USER_PROFILE_PICTURE:
+            return self.USER_PROFILE_PICTURE
+
+        oauth = self.OAUTH_ACCOUNTS.first()
+
+        if oauth and oauth.OAUTH_AVATAR_URL:
+            return oauth.OAUTH_AVATAR_URL
+
+        return None
+    
     def __str__(self):
         return self.USER_EMAIL

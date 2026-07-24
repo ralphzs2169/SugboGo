@@ -16,3 +16,4 @@ class OAuthUser:
     email: str
     first_name: str
     last_name: str
+    avatar_url: str | None = None
