@@ -2,15 +2,15 @@ import { useState } from "react";
 import { updateProfilePicture } from "../api/profile.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getCurrentUser } from "@/features/auth/api/auth.service";
+import type { ApiResponse } from "@/shared/api/types";
+import type { UpdateProfilePictureResponse } from "../api/profile.types";
 
-/**
- * Custom hook to handle updating the user's profile picture.
- * @returns {Object} An object containing the uploadProfilePicture function and isUploading state.
- */
 export function useUpdateProfilePicture() {
   const [isUploading, setIsUploading] = useState(false);
 
-  async function uploadProfilePicture(imageUri: string) {
+  async function uploadProfilePicture(
+    imageUri: string,
+  ): Promise<ApiResponse<UpdateProfilePictureResponse>> {
     setIsUploading(true);
 
     try {
@@ -24,17 +24,13 @@ export function useUpdateProfilePicture() {
 
       const response = await updateProfilePicture(formData);
 
-      if (!response.success) {
-        throw new Error(response.message);
+      if (response.success) {
+        const user = await getCurrentUser();
+
+        useAuthStore.getState().setUser(user);
       }
 
-      // Update the user in the auth store with the new avatar URL
-      const user = await getCurrentUser();
-      console.log("3. User refreshed");
-      useAuthStore.getState().setUser(user);
-      console.log("4. Store updated");
-
-      return response.data.avatar_url;
+      return response;
     } finally {
       setIsUploading(false);
     }

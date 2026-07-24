@@ -1,8 +1,7 @@
 import axios from "axios";
 import { router } from "expo-router";
-import { getAccessToken } from "@/shared/api/storage";
+import { getAccessToken, clearTokens } from "@/shared/api/storage";
 import { refreshSession } from "./refresh";
-import { clearTokens } from "@/shared/api/storage";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 
@@ -20,8 +19,7 @@ const apiClient = axios.create({
 /**
  * Axios request interceptor.
  *
- * Attaches the stored JWT access token to every request made through
- * this client. This client is intended only for authenticated endpoints.
+ * Attaches the stored JWT access token to authenticated requests.
  */
 apiClient.interceptors.request.use(
   async (config) => {
@@ -39,17 +37,9 @@ apiClient.interceptors.request.use(
 /**
  * Axios response interceptor.
  *
- * Automatically refreshes expired access tokens for authenticated requests.
- *
- * When a request receives a 401 Unauthorized response, this interceptor:
- * - Prevents retrying the same request multiple times.
- * - Obtains a new access token using the refresh token.
- * - Retries the original request with the new access token.
- *
- * If the refresh fails, the stored session is cleared and the error is
- * propagated so the application can redirect the user to sign in.
+ * Refreshes expired access tokens automatically.
+ * If refreshing fails, clears the session and redirects to login.
  */
-
 apiClient.interceptors.response.use(
   (response) => response,
 
@@ -72,8 +62,8 @@ apiClient.interceptors.response.use(
         };
 
         return apiClient(originalRequest);
-      } catch (refreshError) {
-        // Clear the stored session and redirect to login if refresh fails
+      } catch {
+        // If refreshing the token fails, clear the session and redirect to login.
         await clearTokens();
         useAuthStore.getState().clearUser();
 
@@ -91,7 +81,11 @@ apiClient.interceptors.response.use(
           }, 1000);
         }
 
-        return Promise.reject(refreshError);
+        // Create a custom error to indicate that the session has expired.
+        const authError = new Error("SESSION_EXPIRED");
+        authError.name = "AUTH_ERROR";
+
+        return Promise.reject(authError);
       }
     }
 

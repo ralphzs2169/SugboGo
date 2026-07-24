@@ -1,9 +1,11 @@
 import * as ImagePicker from "expo-image-picker";
 
+const PROFILE_IMAGE_ASPECT: [number, number] = [1, 1];
+const IMAGE_PICKER_QUALITY = 1;
+
 /**
  * Custom hook for picking an image from the device's media library.
- *
- * @returns {Object} An object containing the `pickImage` function.
+ * Returns null if the user cancels the image picker or if permission is denied.
  */
 export function useImagePicker() {
   async function pickImage() {
@@ -13,12 +15,11 @@ export function useImagePicker() {
       throw new Error("Permission to access photos was denied.");
     }
 
-    // Launch the image picker and allow the user to select an image
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
+      aspect: PROFILE_IMAGE_ASPECT,
+      quality: IMAGE_PICKER_QUALITY,
     });
 
     if (result.canceled) {

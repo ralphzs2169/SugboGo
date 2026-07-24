@@ -38,3 +38,15 @@ class ProfilePictureSerializer(serializers.Serializer):
     """
 
     image = serializers.ImageField()
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="USER_FNAME")
+    last_name = serializers.CharField(source="USER_LNAME")
+    
+    class Meta:
+        model = User
+        fields = [
+            "first_name",
+            "last_name",
+        ]

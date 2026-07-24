@@ -1,32 +1,31 @@
-import { ActivityIndicator, Image, Pressable, View } from "react-native";
+import { Image, Pressable, View } from "react-native";
 import { useImagePicker } from "../hooks/useImagePicker";
-import { useUpdateProfilePicture } from "../hooks/useUpdateProfilePicture";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
-import { useAuthStore } from "@/features/auth/store/auth.store";
+import { useState } from "react";
 
 type Props = {
   imageUrl?: string | null;
+  onImageSelected?: (imageUri: string) => void;
 };
 
 /**
  * ProfileImagePicker component allows users to pick and upload a new profile image.
- * @param {string} imageUrl - The current URL of the user's profile image.
- * @returns {JSX.Element} The rendered ProfileImagePicker component.
  */
-export function ProfileImagePicker({ imageUrl }: Props) {
+export function ProfileImagePicker({ imageUrl, onImageSelected }: Props) {
   const { pickImage } = useImagePicker();
-  const { uploadProfilePicture, isUploading } = useUpdateProfilePicture();
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   async function handlePickImage() {
     let imageUri: string | null = null;
 
     try {
       imageUri = await pickImage();
-    } catch {
+    } catch (error) {
+      console.error("Image selection failed:", error);
       Toast.show({
         type: "error",
-        text1: "Unable to Select Image",
-        text2: "Please try again.",
+        text1: "Image Error",
+        text2: "Unable to process this image. Please try another one.",
       });
       return;
     }
@@ -37,29 +36,17 @@ export function ProfileImagePicker({ imageUrl }: Props) {
       return;
     }
 
-    try {
-      await uploadProfilePicture(imageUri);
-    } catch (error) {
-      const user = useAuthStore.getState().user;
-
-      if (!user) {
-        // Session already expired and redirect is happening.
-        return;
-      }
-      Toast.show({
-        type: "error",
-        text1: "Upload Failed",
-        text2: "Unable to update your profile picture. Please try again.",
-      });
-    }
+    // Update the selected image state and notify the parent component
+    setSelectedImage(imageUri);
+    onImageSelected?.(imageUri);
   }
 
   return (
-    <Pressable onPress={handlePickImage} disabled={isUploading}>
+    <Pressable onPress={handlePickImage}>
       <View>
         <Image
           source={{
-            uri: imageUrl ?? "https://via.placeholder.com/150",
+            uri: selectedImage ?? imageUrl ?? "https://via.placeholder.com/150",
           }}
           style={{
             width: 120,
@@ -67,24 +54,6 @@ export function ProfileImagePicker({ imageUrl }: Props) {
             borderRadius: 60,
           }}
         />
-
-        {isUploading && (
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-              borderRadius: 60,
-              backgroundColor: "rgba(0,0,0,0.35)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <ActivityIndicator size="large" color="#fff" />
-          </View>
-        )}
       </View>
     </Pressable>
   );

@@ -9,9 +9,6 @@ type ProfileMenuSectionProps = {
 /**
  * ProfileMenuSection component represents a section in the profile menu.
  * It displays a title and a list of ProfileMenuItem components.
- * @param {title} title - The title of the menu section.
- * @param {children} children - The ProfileMenuItem components to be displayed in the section.
- * @returns {JSX.Element} The rendered ProfileMenuSection component.
  */
 export default function ProfileMenuSection({
   title,

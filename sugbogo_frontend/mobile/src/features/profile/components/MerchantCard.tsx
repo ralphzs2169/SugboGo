@@ -9,7 +9,7 @@ type MerchantCardProps = {
 
 export default function MerchantCard({ onPress }: MerchantCardProps) {
   return (
-    <View className="mt-6  rounded-l-[50px] bg-[#F27F0D]/90 p-5">
+    <View className="mt-6  rounded-l-[40px] bg-[#ff860e]/90 p-5">
       <View className="flex-row items-center">
         <View style={{ width: 110, height: 92 }}>
           <MerchantIllustration width={110} height={92} />

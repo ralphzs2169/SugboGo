@@ -7,11 +7,11 @@ import ProfileMenuSection from "../components/ProfileMenuSection";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import AppVersion from "../components/AppVersion";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { ProfileImagePicker } from "../components/ProfileImagePicker";
+import { router } from "expo-router";
 
 export default function ProfileScreen({}) {
   const user = useAuthStore((state) => state.user);
-  console.log("ProfileScreen user:", user);
+
   const { logout } = useLogout();
 
   const handleLogout = () => {
@@ -41,9 +41,9 @@ export default function ProfileScreen({}) {
           lastname={user?.last_name ?? ""}
           email={user?.email ?? ""}
           avatarUrl={user?.avatar_url ?? null}
-          onEditProfile={() => {}}
+          onEditProfile={() => router.push("/profile/edit-profile")}
         />
-        <ProfileImagePicker imageUrl={user?.avatar_url} />
+
         <MerchantCard onPress={() => {}} />
 
         {/* Menu Sections go here */}

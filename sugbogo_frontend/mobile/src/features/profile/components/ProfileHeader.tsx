@@ -58,10 +58,10 @@ export default function ProfileHeader({
       </View>
 
       {/* User Information */}
-      <View className="ml-4 flex-1">
+      <View className="ml-6 flex-1">
         <View className="flex-row items-center justify-between">
           <Text
-            className="flex-1 text-xl font-semibold text-text-primary"
+            className="flex-1 text-md font-bold text-text-primary"
             numberOfLines={1}
           >
             {firstname} {lastname}

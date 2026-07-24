@@ -2,23 +2,42 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from apps.users.services.profile_picture_service import ProfilePictureService
 
-from apps.users.serializers.profile import UserSerializer
 from apps.users.serializers.profile import (
-    ProfilePictureSerializer,
+    UserSerializer, ProfilePictureSerializer, UserUpdateSerializer
 )
 
 from core.responses import success_response
 
 
-@api_view(["GET"])
+
+
+@api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def me(request):
-    serializer = UserSerializer(request.user)
-    print(serializer.data)
-    return success_response(
-        message="User retrieved successfully.",
-        data=serializer.data
+
+    if request.method == "GET":
+        serializer = UserSerializer(request.user)
+        print(serializer.data)
+        return success_response(
+            message="User retrieved successfully.",
+            data=serializer.data
+        )
+
+    # PATCH request to update user profile
+    serializer = UserUpdateSerializer(
+        request.user,
+        data=request.data,
+        partial=True
     )
+
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+
+    return success_response(
+        message="Profile updated successfully.",
+        data=UserSerializer(request.user).data
+    )
+
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
@@ -41,7 +60,7 @@ def update_profile_picture(request):
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
-def has_completed_interest_selection(request):
+def complete_interest_selection(request):
 
     user = request.user
 

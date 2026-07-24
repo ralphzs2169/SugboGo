@@ -1,6 +1,10 @@
 import apiClient from "@/shared/api/apiClient";
 import { User } from "@/features/auth/api/auth.types";
-import { UpdateProfilePictureResponse } from "./profile.types";
+import {
+  UpdateProfilePictureResponse,
+  UpdateProfileRequest,
+  UpdateProfileResponse,
+} from "./profile.types";
 import { ApiResponse } from "@/shared/api/types";
 import { request } from "@/shared/api/request";
 
@@ -33,5 +37,11 @@ export function updateProfilePicture(
         },
       },
     ),
+  );
+}
+
+export function updateProfile(data: UpdateProfileRequest) {
+  return request<ApiResponse<UpdateProfileResponse>>(
+    apiClient.patch<ApiResponse<UpdateProfileResponse>>("/users/me/", data),
   );
 }

@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { getProfile } from "../api/profile.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
+import { isAuthError } from "@/shared/errors/auth.error";
 
 export function useProfile() {
   const setUser = useAuthStore((state) => state.setUser);
@@ -15,6 +16,10 @@ export function useProfile() {
 
           setUser(profile);
         } catch (error) {
+          if (isAuthError(error)) {
+            return;
+          }
+
           Toast.show({
             type: "error",
             text1: "Profile Fetch Failed",
