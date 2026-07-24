@@ -14,15 +14,17 @@
  */
 
 export const theme = {
-  colors: {
-    brand: "#F27F0D",
-    background: "#ffffff",
-    surface: "#f3f4f6",
+  extends: {
+    colors: {
+      brand: "#F27F0D",
+      background: "#ffffff",
+      surface: "#f3f4f6",
 
-    text: {
-      secondary: "#6b7280",
-      tertiary: "#999999",
+      text: {
+        secondary: "#6b7280",
+        tertiary: "#999999",
+      },
+      error: "#DC2626",
     },
-    error: "#DC2626",
   },
 };

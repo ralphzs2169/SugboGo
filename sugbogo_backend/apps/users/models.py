@@ -60,6 +60,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         null=True,
         blank=True
     )
+    USER_USE_OAUTH_AVATAR = models.BooleanField(
+        default=True,
+    )
     
     EMAIL_VERIFIED = models.BooleanField(default=False)
     EMAIL_VERIFIED_AT = models.DateTimeField(null=True, blank=True)
@@ -112,21 +115,32 @@ class User(AbstractBaseUser, PermissionsMixin):
         """
         Returns the avatar that should be displayed.
 
-        Priority:   
-        1. User uploaded profile picture.
-        2. OAuth provider avatar.
-        3. None (frontend displays placeholder).
+        Priority:
+        1. Custom uploaded profile picture.
+        2. Latest connected OAuth avatar (if enabled).
+        3. None.
         """
 
         if self.USER_PROFILE_PICTURE:
             return self.USER_PROFILE_PICTURE
 
-        oauth = self.OAUTH_ACCOUNTS.first()
+        if self.USER_USE_OAUTH_AVATAR:
+            oauth = (
+                self.OAUTH_ACCOUNTS
+                .filter(OAUTH_AVATAR_URL__isnull=False)
+                .exclude(OAUTH_AVATAR_URL="")
+                .order_by("-OAUTH_CREATED_AT")
+                .first()
+            )
 
-        if oauth and oauth.OAUTH_AVATAR_URL:
-            return oauth.OAUTH_AVATAR_URL
+            if oauth:
+                return oauth.OAUTH_AVATAR_URL
 
         return None
     
+    @property
+    def has_custom_profile_picture(self):
+        return bool(self.USER_PROFILE_PICTURE)
+
     def __str__(self):
         return self.USER_EMAIL

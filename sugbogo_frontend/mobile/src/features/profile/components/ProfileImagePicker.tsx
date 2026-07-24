@@ -1,60 +1,96 @@
-import { Image, Pressable, View } from "react-native";
+import { Pressable } from "react-native";
 import { useImagePicker } from "../hooks/useImagePicker";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
-import { useState } from "react";
+import Avatar from "@/shared/components/Avatar";
+import { useActionSheet } from "@expo/react-native-action-sheet";
 
 type Props = {
   imageUrl?: string | null;
+  hasCustomProfilePicture: boolean;
   onImageSelected?: (imageUri: string) => void;
+  onRemovePicture?: () => void;
 };
 
 /**
  * ProfileImagePicker component allows users to pick and upload a new profile image.
  */
-export function ProfileImagePicker({ imageUrl, onImageSelected }: Props) {
-  const { pickImage } = useImagePicker();
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+export function ProfileImagePicker({
+  imageUrl,
+  hasCustomProfilePicture,
+  onImageSelected,
+  onRemovePicture,
+}: Props) {
+  const { showActionSheetWithOptions } = useActionSheet();
+  const { pickFromGallery, takePhoto } = useImagePicker();
 
+  // Handles the image selection process, allowing users to choose an image from the gallery,
+  // take a new photo, or remove the current profile picture.
   async function handlePickImage() {
-    let imageUri: string | null = null;
+    const options = ["Choose Photo", "Take Photo"];
 
-    try {
-      imageUri = await pickImage();
-    } catch (error) {
-      console.error("Image selection failed:", error);
-      Toast.show({
-        type: "error",
-        text1: "Image Error",
-        text2: "Unable to process this image. Please try another one.",
-      });
-      return;
+    if (hasCustomProfilePicture) {
+      options.push("Remove Current Photo");
     }
 
-    // If the user cancels the image picker, imageUri will be null.
-    // In that case, we simply return without doing anything.
-    if (!imageUri) {
-      return;
-    }
+    options.push("Cancel");
 
-    // Update the selected image state and notify the parent component
-    setSelectedImage(imageUri);
-    onImageSelected?.(imageUri);
+    const removeIndex = options.indexOf("Remove Current Photo");
+    const cancelIndex = options.indexOf("Cancel");
+
+    showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex: cancelIndex,
+        destructiveButtonIndex: removeIndex !== -1 ? removeIndex : undefined,
+      },
+      async (selectedIndex) => {
+        try {
+          if (selectedIndex === undefined) {
+            return;
+          }
+
+          const selectedOption = options[selectedIndex];
+          let imageUri: string | null = null;
+
+          switch (selectedOption) {
+            case "Choose Photo":
+              imageUri = await pickFromGallery();
+              break;
+
+            case "Take Photo":
+              imageUri = await takePhoto();
+              break;
+
+            case "Remove Current Photo":
+              onRemovePicture?.();
+              return;
+
+            default:
+              return;
+          }
+
+          if (!imageUri) {
+            return;
+          }
+
+          onImageSelected?.(imageUri);
+          console.log("Selected image:", imageUri);
+        } catch (error) {
+          console.error("Image selection failed:", error);
+
+          Toast.show({
+            type: "error",
+            text1: "Image Error",
+            text2: "Unable to process this image. Please try another one.",
+          });
+        }
+      },
+    );
   }
 
   return (
     <Pressable onPress={handlePickImage}>
-      <View>
-        <Image
-          source={{
-            uri: selectedImage ?? imageUrl ?? "https://via.placeholder.com/150",
-          }}
-          style={{
-            width: 120,
-            height: 120,
-            borderRadius: 60,
-          }}
-        />
-      </View>
+      <Avatar imageUrl={imageUrl} size={120} />
     </Pressable>
   );
 }

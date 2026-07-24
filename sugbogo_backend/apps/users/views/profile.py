@@ -3,10 +3,10 @@ from rest_framework.permissions import IsAuthenticated
 from apps.users.services.profile_picture_service import ProfilePictureService
 
 from apps.users.serializers.profile import (
-    UserSerializer, ProfilePictureSerializer, UserUpdateSerializer
+    AvatarPreferencesSerializer, UserSerializer, ProfilePictureSerializer, UserUpdateSerializer
 )
-
 from core.responses import success_response
+from apps.users.services.profile_service import ProfileService
 
 
 
@@ -27,34 +27,70 @@ def me(request):
     serializer = UserUpdateSerializer(
         request.user,
         data=request.data,
-        partial=True
+        partial=True,
     )
 
     serializer.is_valid(raise_exception=True)
-    serializer.save()
+
+    ProfileService.update_profile(
+        user=request.user,
+        validated_data=serializer.validated_data,
+    )
 
     return success_response(
         message="Profile updated successfully.",
-        data=UserSerializer(request.user).data
+        data=UserSerializer(request.user).data,
+    )
+
+
+@api_view(["PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def profile_picture(request):
+    """
+    PATCH
+        Upload or replace the user's profile picture.
+
+    DELETE
+        Remove the user's custom profile picture.
+    """
+
+    if request.method == "PATCH":
+        serializer = ProfilePictureSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        ProfilePictureService.upload(
+            user=request.user,
+            image=serializer.validated_data["image"],
+        )
+
+        return success_response(
+            message="Profile picture updated successfully.",
+            data=UserSerializer(request.user).data,
+        )
+
+    # DELETE request to remove the user's profile picture
+    ProfilePictureService.delete(user=request.user)
+
+    return success_response(
+        message="Profile picture removed successfully.",
+        data=UserSerializer(request.user).data,
     )
 
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
-def update_profile_picture(request):
-    serializer = ProfilePictureSerializer(data=request.data)
+def update_avatar_preferences(request):
+    serializer = AvatarPreferencesSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    avatar_url = ProfilePictureService.upload(
+    ProfileService.update_avatar_preferences(
         user=request.user,
-        image=serializer.validated_data["image"]
+        use_oauth_avatar=serializer.validated_data["use_oauth_avatar"],
     )
 
     return success_response(
-        message="Profile picture updated successfully.",
-        data={
-            "avatar_url": avatar_url
-        }
+        message="Avatar preferences updated successfully.",
+        data=UserSerializer(request.user).data,
     )
 
 

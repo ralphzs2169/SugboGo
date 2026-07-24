@@ -34,7 +34,7 @@ export default function MerchantCard({ onPress }: MerchantCardProps) {
             <MaterialCommunityIcons
               name="arrow-right"
               size={16}
-              color={theme.colors.brand}
+              color={theme.extends.colors.brand}
             />
           </TouchableOpacity>
         </View>

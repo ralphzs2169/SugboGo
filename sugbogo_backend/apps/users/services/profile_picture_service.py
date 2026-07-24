@@ -33,3 +33,32 @@ class ProfilePictureService:
         )
 
         return result["secure_url"]
+    
+
+    @staticmethod
+    def delete(user: User):
+        """
+        Removes the user's custom profile picture.
+
+        This deletes the image from Cloudinary (if one exists) and clears the
+        stored profile picture information. The frontend will automatically
+        fall back to the OAuth avatar (if enabled) or the default placeholder.
+        """
+
+        if not user.USER_PROFILE_PICTURE_PUBLIC_ID:
+            return
+
+        CloudinaryService.delete_image(
+            user.USER_PROFILE_PICTURE_PUBLIC_ID
+        )
+
+        user.USER_PROFILE_PICTURE = None
+        user.USER_PROFILE_PICTURE_PUBLIC_ID = None
+
+        user.save(
+            update_fields=[
+                "USER_PROFILE_PICTURE",
+                "USER_PROFILE_PICTURE_PUBLIC_ID",
+            ]
+        )
+
