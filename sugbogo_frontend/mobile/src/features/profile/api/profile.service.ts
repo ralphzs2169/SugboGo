@@ -21,9 +21,15 @@ export async function getProfile(): Promise<User> {
   return response.data;
 }
 
-/**
- * Uploads a new profile picture.
- */
+export function updateProfile(data: UpdateProfileRequest) {
+  return request<ApiResponse<UpdateProfileResponse>>(
+    apiClient.patch<ApiResponse<UpdateProfileResponse>>("/users/me/", data),
+  );
+}
+
+// =======================================================
+// Profile Picture related APIs
+// =======================================================
 export function updateProfilePicture(
   formData: FormData,
 ): Promise<ApiResponse<UpdateProfilePictureResponse>> {
@@ -40,8 +46,8 @@ export function updateProfilePicture(
   );
 }
 
-export function updateProfile(data: UpdateProfileRequest) {
-  return request<ApiResponse<UpdateProfileResponse>>(
-    apiClient.patch<ApiResponse<UpdateProfileResponse>>("/users/me/", data),
+export function removeProfilePicture() {
+  return request<ApiResponse<User>>(
+    apiClient.delete<ApiResponse<User>>("/users/me/profile-picture/"),
   );
 }

@@ -1,8 +1,6 @@
 import { User } from "@/features/auth/api/auth.types";
 
-export type UpdateProfilePictureResponse = {
-  avatar_url: string | null;
-};
+export type UpdateProfilePictureResponse = User;
 
 export type UpdateProfileRequest = {
   first_name: string;

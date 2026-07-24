@@ -1,4 +1,4 @@
-import { Text, TextInput, View, Alert } from "react-native";
+import { Text, TextInput, View, Alert, TouchableOpacity } from "react-native";
 import Button from "@/shared/components/Button";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState, useEffect, useRef } from "react";
@@ -15,26 +15,34 @@ import FormInput from "@/features/auth/components/FormInput";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChanges";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 import getUpdateProfileErrors from "../utils/updateProfileErrors";
+import { useRemoveProfilePicture } from "../hooks/useRemoveProfilePicture";
 
 export default function EditProfileScreen() {
   const user = useAuthStore((state) => state.user);
 
   const { updateUserProfile, isUpdating } = useUpdateProfile();
   const { uploadProfilePicture, isUploading } = useUpdateProfilePicture();
+  const { removePicture, isRemoving } = useRemoveProfilePicture();
 
   const [firstName, setFirstName] = useState(user?.first_name ?? "");
   const [lastName, setLastName] = useState(user?.last_name ?? "");
+
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(
+    user?.avatar_url ?? null,
+  );
+  const [removeProfilePicture, setRemoveProfilePicture] = useState(false);
 
   const [errors, setErrors] = useState<UpdateProfileErrors>({});
   const [formError, setFormError] = useState("");
 
-  const isSaving = isUploading || isUpdating;
+  const isSaving = isUploading || isUpdating || isRemoving;
 
   const hasChanges =
     firstName !== (user?.first_name ?? "") ||
     lastName !== (user?.last_name ?? "") ||
-    selectedImage !== null;
+    selectedImage !== null ||
+    removeProfilePicture;
 
   const { allowLeave } = useUnsavedChangesGuard(hasChanges);
 
@@ -47,6 +55,12 @@ export default function EditProfileScreen() {
     setFormError("");
   };
 
+  function handleRemovePicture() {
+    setSelectedImage(null);
+    setPreviewImage(null);
+    setRemoveProfilePicture(true);
+  }
+
   async function handleSaveChanges() {
     const validationErrors = validateProfileForm(firstName, lastName);
 
@@ -57,6 +71,15 @@ export default function EditProfileScreen() {
 
     setErrors({});
     setFormError("");
+
+    if (removeProfilePicture) {
+      const removeResponse = await removePicture();
+
+      if (!removeResponse.success) {
+        setFormError(removeResponse.message);
+        return;
+      }
+    }
 
     if (selectedImage) {
       const pictureResponse = await uploadProfilePicture(selectedImage);
@@ -91,18 +114,28 @@ export default function EditProfileScreen() {
       text1: "Profile Updated",
     });
 
+    setSelectedImage(null);
+    setRemoveProfilePicture(false);
+
     allowLeave();
     router.back();
   }
   return (
     <View className="flex-1 bg-surface p-5">
-      <View className="mt-8 items-center">
+      <View className="my-8  items-center">
         <ProfileImagePicker
-          imageUrl={user?.avatar_url}
-          onImageSelected={setSelectedImage}
+          imageUrl={previewImage}
+          onImageSelected={(image) => {
+            setSelectedImage(image);
+            setPreviewImage(image);
+            setRemoveProfilePicture(false);
+          }}
+          onRemovePicture={handleRemovePicture}
         />
 
-        <Text className="mt-2 text-sm text-brand">Change profile picture</Text>
+        <Text className="mt-2 text-sm text-brand">
+          Tap to change profile picture
+        </Text>
       </View>
 
       <FormInput
