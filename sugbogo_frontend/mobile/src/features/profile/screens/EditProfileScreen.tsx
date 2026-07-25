@@ -169,10 +169,12 @@ export default function EditProfileScreen() {
       }
     }
 
-    Toast.show({
-      type: "success",
-      text1: "Profile Updated",
-    });
+    setTimeout(() => {
+      Toast.show({
+        type: "success",
+        text1: "Profile Updated",
+      });
+    }, 1000);
 
     setSelectedImage(null);
     setRemoveProfilePicture(false);

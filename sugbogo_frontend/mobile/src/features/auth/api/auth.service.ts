@@ -47,9 +47,6 @@ export function googleLogin(
  * Sends the user's Facebook access token to the login endpoint and returns
  * the authenticated user's information along with the JWT access and
  * refresh tokens upon successful authentication.
- *
- * @param {string} accessToken - The user's Facebook access token.
- * @returns {Promise<ApiMessageResponse>} The authenticated user's information and JWT tokens.
  */
 export function facebookLogin(
   accessToken: string,
@@ -62,14 +59,21 @@ export function facebookLogin(
 }
 
 /**
+ * Fetches the current user directly via apiClient — deliberately NOT
+ * using request(), because request() intentionally never resolves its
+ * promise when the session has expired (see request.ts). That's correct
+ * for screens the user is actively viewing (the global redirect unmounts
+ * them shortly after), but WRONG here: this function's only caller,
+ * useRestoreSession, runs at app boot and its `finally` block is what
+ * clears the initial loading screen. If this hung forever, the app would
+ * be stuck on the splash screen permanently for any expired session.
+ */
+/**
  * Retrieves the currently authenticated user's information.
  *
  * Sends a request to the backend using the current JWT access token.
  * This endpoint is primarily used to restore the user's session when
  * the application starts.
- *
- * @returns {Promise<User>} The authenticated user's information.
- * @throws {AxiosError} If the access token is invalid, expired, or missing.
  */
 export async function getCurrentUser(): Promise<User> {
   const response = await apiClient.get<ApiResponse<User>>("/users/me/");

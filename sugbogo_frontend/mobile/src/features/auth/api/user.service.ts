@@ -1,8 +1,7 @@
 import apiClient from "@/shared/api/apiClient";
 import { ApiSuccess } from "@/shared/api/types";
+import { request } from "@/shared/api/request";
 
-export async function completeInterestSelection(): Promise<ApiSuccess> {
-  const response = await apiClient.patch<ApiSuccess>("/users/me/interests/");
-
-  return response.data;
+export function completeInterestSelection(): Promise<ApiSuccess> {
+  return request(apiClient.patch<ApiSuccess>("/users/me/interests/"));
 }

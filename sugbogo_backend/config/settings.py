@@ -12,13 +12,12 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 
 
-from pathlib import Path
-from datetime import timedelta
-
-from dotenv import load_dotenv
-import cloudinary
-
 import os
+from datetime import timedelta
+from pathlib import Path
+
+import cloudinary
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -167,8 +166,8 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),  # used when "remember me" is checked; 12-hour case handled in the login view
+    "ACCESS_TOKEN_LIFETIME": timedelta(seconds=5),
+    "REFRESH_TOKEN_LIFETIME": timedelta(seconds=10),  # used when "remember me" is checked; 12-hour case handled in the login view
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,

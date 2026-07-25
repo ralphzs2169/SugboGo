@@ -18,6 +18,7 @@ export default function AccountSettingsScreen() {
   );
 
   async function handleSocialAvatarToggle(value: boolean) {
+    console.log("Toggle fired:", value);
     if (isUpdating) {
       return;
     }
@@ -46,8 +47,7 @@ export default function AccountSettingsScreen() {
 
       Toast.show({
         type: "error",
-        text1: "Update failed",
-        text2: response.message,
+        text1: "Couldn't update settings",
       });
     }
   }

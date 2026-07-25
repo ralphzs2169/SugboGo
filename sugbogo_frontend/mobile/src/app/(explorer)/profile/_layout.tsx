@@ -5,6 +5,12 @@ import {
   slideFromRight,
 } from "@/shared/navigation/stackOptions";
 
+/**
+ * Layout for the profile feature stack.
+ * This layout defines the navigation structure for the profile-related screens,
+ * including the main profile screen, edit profile screen, and account settings.
+ * It applies consistent navigation options for a cohesive user experience.
+ */
 export default function ProfileLayout() {
   return (
     <>
