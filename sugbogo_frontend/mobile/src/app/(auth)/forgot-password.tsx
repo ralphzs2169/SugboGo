@@ -45,11 +45,19 @@ export default function ForgotPassword() {
     const response = await handleForgotPassword(email);
 
     if (!response.success) {
-      Toast.show({
-        type: "error",
-        text1: "Couldn't send reset email",
-        text2: response.message,
-      });
+      if (response.code === "RATE_LIMIT_EXCEEDED") {
+        Toast.show({
+          type: "error",
+          text1: "Too Many Requests",
+        });
+        return;
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Couldn't send reset link",
+        });
+      }
+
       return;
     }
 

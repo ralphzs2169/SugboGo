@@ -178,7 +178,7 @@ export default function EditProfileScreen() {
     setRemoveProfilePicture(false);
 
     allowLeave();
-    router.back();
+    router.replace("/profile");
   }
   return (
     <ScrollView
@@ -199,7 +199,11 @@ export default function EditProfileScreen() {
 
       {/* Info message */}
       <AvatarInfoCard
-        visible={!user?.has_custom_profile_picture && !!user?.use_oauth_avatar}
+        visible={
+          !user?.has_custom_profile_picture &&
+          !!user?.use_oauth_avatar &&
+          !!user?.has_oauth_accounts
+        }
       />
 
       {/* Form content */}
