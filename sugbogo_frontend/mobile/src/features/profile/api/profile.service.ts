@@ -1,12 +1,12 @@
 import apiClient from "@/shared/api/apiClient";
-import { User } from "@/features/auth/api/auth.types";
+import { User } from "@/features/users/types/user.types";
 import {
   UpdateProfilePictureResponse,
   UpdateProfileRequest,
   UpdateProfileResponse,
   UpdateAvatarPreferenceRequest,
   UpdateAvatarPreferenceResponse,
-} from "./profile.types";
+} from "../types/profile.types";
 import { ApiResponse } from "@/shared/api/types";
 import { request } from "@/shared/api/request";
 

@@ -6,20 +6,21 @@ import {
 } from "react-native";
 import type { ReactNode } from "react";
 
-type AppButtonProps = {
+type ButtonProps = {
   title: string;
   onPress: () => void | Promise<void>;
   loading?: boolean;
   disabled?: boolean;
   icon?: ReactNode;
   className?: string;
+  fontClassName?: string;
   variant?: "primary" | "secondary" | "danger";
 };
 
 /**
- * AppButton component provides a customizable button for various actions.
+ * Button component provides a customizable button for various actions.
  */
-export default function AppButton({
+export default function Button({
   title,
   onPress,
   loading = false,
@@ -27,7 +28,8 @@ export default function AppButton({
   icon,
   className = "",
   variant = "primary",
-}: AppButtonProps) {
+  fontClassName = "text-base font-semibold",
+}: ButtonProps) {
   const isDisabled = disabled || loading;
 
   const variantClass = {
@@ -46,7 +48,7 @@ export default function AppButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
-      className={`flex-row items-center justify-center rounded-lg px-4 py-4 ${
+      className={`flex-row items-center justify-center rounded-lg px-4 py-4  ${
         isDisabled ? "opacity-50" : ""
       } ${variantClass} ${className}`}
     >
@@ -57,7 +59,7 @@ export default function AppButton({
           {icon}
 
           <Text
-            className={`text-base font-semibold ${textColorClass} ${
+            className={`${fontClassName}  ${textColorClass} ${
               icon ? "ml-2" : ""
             }`}
           >

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { User } from "../api/auth.types";
+import { User } from "@/features/users/types/user.types";
 
 /**
  * Global authentication store.
@@ -66,10 +66,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   sessionExpired: false,
 
+  // State update methods
   setLoading: (loading) =>
     set({
       isLoading: loading,
     }),
+
   setUser: (user) =>
     set({
       user,

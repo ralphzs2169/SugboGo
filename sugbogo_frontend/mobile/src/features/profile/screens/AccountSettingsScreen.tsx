@@ -18,7 +18,6 @@ export default function AccountSettingsScreen() {
   );
 
   async function handleSocialAvatarToggle(value: boolean) {
-    console.log("Toggle fired:", value);
     if (isUpdating) {
       return;
     }
@@ -27,20 +26,9 @@ export default function AccountSettingsScreen() {
 
     setUseSocialAvatar(value);
 
-    loadingTimeout.current = setTimeout(() => {
-      setShowLoading(true);
-    }, 300);
-
     const response = await updatePreference({
       use_oauth_avatar: value,
     });
-
-    if (loadingTimeout.current) {
-      clearTimeout(loadingTimeout.current);
-      loadingTimeout.current = null;
-    }
-
-    setShowLoading(false);
 
     if (!response.success) {
       setUseSocialAvatar(previousValue);
@@ -69,7 +57,7 @@ export default function AccountSettingsScreen() {
           title="Use connected social profile photo"
           description="Use your latest connected social account's profile photo when you don't have a custom picture."
           value={useSocialAvatar}
-          onValueChange={handleSocialAvatarToggle}
+          onValueChange={isUpdating ? undefined : handleSocialAvatarToggle}
           disabled={showLoading}
         />
       </ScrollView>

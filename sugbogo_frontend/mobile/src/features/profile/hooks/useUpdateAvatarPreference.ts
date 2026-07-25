@@ -5,7 +5,7 @@ import { ApiResponse } from "@/shared/api/types";
 import {
   UpdateAvatarPreferenceResponse,
   UpdateAvatarPreferenceRequest,
-} from "../api/profile.types";
+} from "../types/profile.types";
 
 export function useUpdateAvatarPreference() {
   const [isUpdating, setIsUpdating] = useState(false);

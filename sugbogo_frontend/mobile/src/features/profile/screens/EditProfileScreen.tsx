@@ -56,7 +56,8 @@ export default function EditProfileScreen() {
     selectedImage !== null ||
     removeProfilePicture;
 
-  const { allowLeave } = useUnsavedChangesGuard(hasChanges);
+  const { showConfirm, confirmLeave, cancelLeave } =
+    useUnsavedChangesGuard(hasChanges);
 
   const clearFieldError = (field: keyof UpdateProfileErrors) => {
     setErrors((prev) => ({
@@ -179,7 +180,6 @@ export default function EditProfileScreen() {
     setSelectedImage(null);
     setRemoveProfilePicture(false);
 
-    allowLeave();
     router.replace("/profile");
   }
   return (
@@ -273,6 +273,15 @@ export default function EditProfileScreen() {
               color="white"
             />
           }
+        />
+        <ConfirmModal
+          visible={showConfirm}
+          title="Discard changes?"
+          message="You have unsaved changes. Are you sure you want to leave?"
+          confirmText="Discard"
+          destructive
+          onCancel={cancelLeave}
+          onConfirm={confirmLeave}
         />
       </View>
     </ScrollView>

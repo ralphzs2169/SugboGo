@@ -94,11 +94,6 @@ export function ProfileImagePicker({
         <View className="rounded-full border-1 border-white">
           <Avatar imageUrl={imageUrl} size={120} />
         </View>
-
-        {/* Camera button */}
-        <View className=" absolute bottom-0 right-0 h-10 w-10 items-center justify-center rounded-full border-1border-white">
-          <MaterialCommunityIcons name="camera" size={20} color="white" />
-        </View>
       </View>
     </Pressable>
   );

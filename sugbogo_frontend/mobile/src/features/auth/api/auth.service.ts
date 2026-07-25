@@ -1,14 +1,14 @@
 import apiClient from "@/shared/api/apiClient";
 import authClient from "@/shared/api/authClient";
+import { User } from "@/features/users/types/user.types";
 import {
   LoginRequest,
   RegisterRequest,
   AuthResponse,
-  User,
   RefreshResponse,
   ForgotPasswordRequest,
   ResetPasswordRequest,
-} from "./auth.types";
+} from "../types/auth.types";
 import { ApiMessageResponse, ApiResponse } from "@/shared/api/types";
 import { request } from "@/shared/api/request";
 

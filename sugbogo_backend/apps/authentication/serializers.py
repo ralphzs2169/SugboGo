@@ -4,19 +4,23 @@ from rest_framework import serializers
 from apps.users.models import User
 from apps.users.serializers.profile import UserSerializer
 
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
     remember_me = serializers.BooleanField(default=False)
 
+
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+
 
 class LoginResponseSerializer(serializers.Serializer):
     user = UserSerializer(read_only=True)
     access = serializers.CharField(read_only=True)
     refresh = serializers.CharField(read_only=True)
-    
+
+
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -34,6 +38,7 @@ class RegisterSerializer(serializers.Serializer):
         # (min length, common password check, numeric-only check, etc.)
         validate_password(value)
         return value
+
     
 class ResendVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -61,6 +66,7 @@ class ValidateResetTokenSerializer(serializers.Serializer):
     
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField()
+
 
 class FacebookLoginSerializer(serializers.Serializer):
     access_token = serializers.CharField()

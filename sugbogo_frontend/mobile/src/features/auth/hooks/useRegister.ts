@@ -1,10 +1,16 @@
 import { useState } from "react";
 
 import { register } from "../api/auth.service";
-import { AuthResponse } from "../api/auth.types";
+import { AuthResponse } from "../types/auth.types";
 import { ApiResponse } from "@/shared/api/types";
 import { useVerificationStore } from "../store/verification.store";
 
+/**
+ * Hook for handling user registration.
+ *
+ * Manages the registration request lifecycle and stores the
+ * email for the verification flow after successful account creation.
+ */
 export function useRegister() {
   const [loading, setLoading] = useState(false);
 

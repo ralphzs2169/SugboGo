@@ -1,8 +1,12 @@
-import { useState } from "react";
-
 import { forgotPassword } from "../api/auth.service";
 import { ApiMessageResponse } from "@/shared/api/types";
-
+import { useState } from "react";
+/**
+ * Hook for handling forgot password requests.
+ *
+ * Sends the password reset request and returns the API response
+ * for the screen to handle navigation and error presentation.
+ */
 export function useForgotPassword() {
   const [loading, setLoading] = useState(false);
 
@@ -15,14 +19,6 @@ export function useForgotPassword() {
       return await forgotPassword({
         email,
       });
-    } catch (error) {
-      console.error("Unexpected forgot password error:", error);
-
-      return {
-        success: false,
-        message: "Something went wrong",
-        code: "UNKNOWN_ERROR",
-      };
     } finally {
       setLoading(false);
     }

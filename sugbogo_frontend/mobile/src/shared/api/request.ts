@@ -55,15 +55,6 @@ export async function request<T>(promise: Promise<{ data: T }>): Promise<T> {
       return error.response.data;
     }
 
-    console.log("isAxiosError:", axios.isAxiosError(error));
-
-    if (axios.isAxiosError(error)) {
-      console.log("name:", error.name);
-      console.log("message:", error.message);
-      console.log("code:", error.code);
-      console.log("response:", error.response);
-    }
-
     return {
       success: false,
       message: "An unexpected error occurred. Please try again later.",

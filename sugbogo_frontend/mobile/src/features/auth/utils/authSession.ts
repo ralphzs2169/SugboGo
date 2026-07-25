@@ -1,4 +1,4 @@
-import { AuthResponse } from "../api/auth.types";
+import { AuthResponse } from "../types/auth.types";
 import { saveAccessToken, saveRefreshToken } from "@/shared/api/storage";
 import { useAuthStore } from "../store/auth.store";
 
