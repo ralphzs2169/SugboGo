@@ -64,11 +64,11 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = [
+        fields = (
             "first_name",
             "last_name",
             "gender",
-        ]
+        )
 
 class AvatarPreferencesSerializer(serializers.Serializer):
     use_oauth_avatar = serializers.BooleanField()

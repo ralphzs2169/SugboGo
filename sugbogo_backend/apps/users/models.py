@@ -101,7 +101,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "USER_EMAIL"
-    REQUIRED_FIELDS = ["USER_FNAME", "USER_LNAME"]
+    REQUIRED_FIELDS = ("USER_FNAME", "USER_LNAME")
 
     # CHANGE 2: computed property, not a real column. Satisfies Django/DRF
     # code that checks `user.is_active`, while USER_STATUS remains the

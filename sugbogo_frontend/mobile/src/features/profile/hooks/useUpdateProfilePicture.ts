@@ -14,8 +14,6 @@ export function useUpdateProfilePicture() {
   ): Promise<ApiResponse<UpdateProfilePictureResponse>> {
     setIsUploading(true);
 
-    console.log("Uploading:", imageUri);
-
     try {
       const formData = new FormData();
 
@@ -26,12 +24,9 @@ export function useUpdateProfilePicture() {
       } as any);
 
       const response = await updateProfilePicture(formData);
-      console.log("Response:", response);
 
       if (response.success) {
         setUser(response.data);
-        console.log("NEW USER", response.data.avatar_url);
-        console.log("STORE", useAuthStore.getState().user?.avatar_url);
       }
 
       return response;

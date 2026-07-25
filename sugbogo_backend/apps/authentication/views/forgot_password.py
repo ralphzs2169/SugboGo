@@ -1,12 +1,15 @@
+import logging
+
+from core.responses import success_response
 from rest_framework.decorators import api_view, throttle_classes
 
+from apps.authentication.constants import Platform
 from apps.authentication.serializers import ForgotPasswordSerializer
-from apps.users.models import User
-from core.responses import success_response
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.throttles import ForgotPasswordThrottle
-from apps.authentication.constants import Platform
+from apps.users.models import User
 
+logger = logging.getLogger(__name__)
 
 @api_view(["POST"])
 @throttle_classes([ForgotPasswordThrottle])
@@ -28,7 +31,7 @@ def forgot_password_view(request):
         try:
             EmailService.send_password_reset_email(user, platform=Platform.MOBILE)
         except Exception:
-            pass
+            logger.exception("Failed to send password reset email")
 
     # Always return the same response to avoid revealing
     # whether an email address is registered.

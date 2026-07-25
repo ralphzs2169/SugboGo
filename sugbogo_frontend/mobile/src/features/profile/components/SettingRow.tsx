@@ -8,6 +8,10 @@ type Props = {
   disabled?: boolean;
 };
 
+/**
+ * SettingRow component represents a single row in the settings screen.
+ * It displays a title, an optional description, and an optional switch for toggling a setting.
+ */
 export default function SettingRow({
   title,
   description,
