@@ -9,7 +9,7 @@ import { Text, View } from "react-native";
 
 import Toast from "react-native-toast-message";
 import ForgotPasswordIllustration from "@/features/auth/assets/icons/forgot-password.svg";
-import AuthButton from "@/features/auth/components/AuthButton";
+import Button from "@/shared/components/Button";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import FormInput from "@/features/auth/components/FormInput";
@@ -112,7 +112,7 @@ export default function ForgotPasswordScreen() {
         onFocus={() => clearEmailError()}
       />
 
-      <AuthButton
+      <Button
         title="Send Reset Link"
         loading={loading}
         onPress={onSendResetLink}
@@ -123,8 +123,9 @@ export default function ForgotPasswordScreen() {
             color="white"
           />
         }
+        className="mb-20 mt-2 shadow"
+        fontClassName="text-md font-bold"
       />
-
       <BottomAuthLink
         text=""
         actionText="Back to Login"

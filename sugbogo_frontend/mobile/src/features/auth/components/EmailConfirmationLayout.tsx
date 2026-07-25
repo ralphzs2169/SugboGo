@@ -2,7 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
-import AuthButton from "./AuthButton";
+import Button from "@/shared/components/Button";
 import AuthLayout from "./AuthLayout";
 import SecondaryAuthButton from "./SecondaryAuthButton";
 
@@ -60,11 +60,12 @@ export default function EmailSentLayout({
         </>
       )}
 
-      <AuthButton
+      <Button
         title="Open Email App"
         onPress={openEmailApp}
         icon={<MaterialIcons name="open-in-new" size={20} color="white" />}
-        className="mb-4"
+        className="mb-4 mt-2 shadow"
+        fontClassName="text-md font-bold"
       />
 
       {onResend ? (

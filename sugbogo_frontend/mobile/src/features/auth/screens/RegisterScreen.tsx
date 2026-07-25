@@ -10,7 +10,7 @@ import { useState } from "react";
 import { Text } from "react-native";
 
 import Toast from "react-native-toast-message";
-import AuthButton from "@/features/auth/components/AuthButton";
+import Button from "@/shared/components/Button";
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
@@ -167,13 +167,16 @@ export default function RegisterScreen() {
       {formError ? (
         <Text className=" text-sm font-semibold text-error">{formError}</Text>
       ) : null}
-      <AuthButton
+
+      <Button
         title="Create Account"
-        onPress={onRegister}
         loading={loading}
+        onPress={onRegister}
         icon={
           <MaterialIcons name="keyboard-arrow-right" size={20} color="white" />
         }
+        className="mb-20 mt-2 shadow"
+        fontClassName="text-md font-bold"
       />
 
       <Divider text="OR SIGN UP WITH" />

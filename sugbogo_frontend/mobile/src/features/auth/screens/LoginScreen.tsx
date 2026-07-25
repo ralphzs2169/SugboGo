@@ -10,7 +10,7 @@ import {
 
 import { getFieldError } from "@/shared/api/errors";
 
-import AuthButton from "@/features/auth/components/AuthButton";
+import Button from "@/shared/components/Button";
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
@@ -170,17 +170,18 @@ export default function LoginScreen() {
         <Text className="text-sm font-semibold text-error">{formError}</Text>
       ) : null}
 
-      <AuthButton
+      <Button
         title="Login"
         loading={loading || navigating}
         onPress={onLogin}
         icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
+        className="mb-20 mt-2 shadow"
+        fontClassName="text-md font-bold"
       />
 
       <Divider text="OR LOG IN WITH" />
 
       <SocialLoginButtons
-        disabled={loading || navigating}
         onGooglePress={handleGoogleLogin}
         onFacebookPress={handleFacebookLogin}
         onApplePress={() => {

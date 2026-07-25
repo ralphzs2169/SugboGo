@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 
-import AuthButton from "@/features/auth/components/AuthButton";
+import Button from "@/shared/components/Button";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import PasswordResetSuccessIcon from "@/features/auth/assets/icons/password-reset-success.svg";
 
@@ -30,10 +30,12 @@ export default function PasswordResetSuccessScreen() {
         your new password.
       </Text>
 
-      <AuthButton
+      <Button
         title="Sign In"
         onPress={() => router.replace("/(auth)/login")}
         icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
+        className="mb-20 mt-2 shadow"
+        fontClassName="text-md font-bold"
       />
     </AuthLayout>
   );

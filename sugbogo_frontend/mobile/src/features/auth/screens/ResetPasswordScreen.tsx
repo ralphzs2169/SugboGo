@@ -12,7 +12,7 @@ import {
 import { handleSystemError } from "@/shared/api/errors";
 
 import ResetPasswordIcon from "@/features/auth/assets/icons/reset-password.svg";
-import AuthButton from "@/features/auth/components/AuthButton";
+import Button from "@/shared/components/Button";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import PasswordInput from "@/features/auth/components/PasswordInput";
@@ -145,13 +145,15 @@ export default function ResetPasswordScreen() {
         onFocus={() => clearFieldError("confirmPassword")}
       />
 
-      <AuthButton
+      <Button
         title="Reset Password"
-        loading={loading}
         onPress={onResetPassword}
+        loading={loading}
         icon={
           <MaterialCommunityIcons name="key-outline" size={20} color="white" />
         }
+        className="mb-20 mt-2 shadow"
+        fontClassName="text-md font-bold"
       />
 
       <BottomAuthLink
