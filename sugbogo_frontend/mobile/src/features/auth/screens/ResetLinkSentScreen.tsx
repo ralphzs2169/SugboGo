@@ -1,28 +1,22 @@
 import * as Linking from "expo-linking";
-import { useEffect } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
 import { MaterialIcons } from "@expo/vector-icons";
 
-import EmailSentLayout from "@/features/auth/components/EmailSentLayout";
+import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
+import { handleSystemError } from "@/shared/api/errors";
+import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
-import { useResendPasswordReset } from "@/features/auth/hooks/useResendPasswordReset";
+import { useResendResetLink } from "@/features/auth/hooks/useResendResetLink";
 
-export default function ForgotPasswordSent() {
+export default function ResetLinkSentScreen() {
   const router = useRouter();
 
   const { email } = useLocalSearchParams<{
     email: string;
   }>();
 
-  const { handleResendPasswordReset, loading } = useResendPasswordReset();
-
-  useEffect(() => {
-    Toast.show({
-      type: "success",
-      text1: "Reset Link Sent",
-    });
-  }, []);
+  const { handleResendPasswordReset, loading } = useResendResetLink();
 
   const openEmailApp = async () => {
     try {
@@ -60,39 +54,49 @@ export default function ForgotPasswordSent() {
       return;
     }
 
-    const response = await handleResendPasswordReset(email);
+    try {
+      const response = await handleResendPasswordReset(email);
 
-    if (!response.success) {
-      const retryAfter = response.errors?.retry_after as number | undefined;
+      if (!response.success) {
+        if (response.code === "RATE_LIMIT_EXCEEDED") {
+          const retryAfter = response.errors?.retry_after as number | undefined;
 
-      if (retryAfter) {
-        const minutes = Math.ceil(retryAfter / 60);
+          Toast.show({
+            type: "error",
+            text1: getRetryAfterMessage(retryAfter),
+          });
+
+          return;
+        }
+
+        if (handleSystemError(response)) {
+          return;
+        }
 
         Toast.show({
           type: "error",
-          text1: `Too many requests — try again in ${minutes} minute${minutes === 1 ? "" : "s"}`,
+          text1: "Unable to resend reset link.",
         });
 
         return;
       }
 
       Toast.show({
-        type: "error",
-        text1: "Request Failed",
-        text2: response.message,
+        type: "success",
+        text1: "Reset Link Sent",
       });
+    } catch (error) {
+      console.error("Unexpected resend reset link error:", error);
 
-      return;
+      Toast.show({
+        type: "error",
+        text1: "Something went wrong. Please try again.",
+      });
     }
-
-    Toast.show({
-      type: "success",
-      text1: "Reset Link Sent",
-    });
   };
 
   return (
-    <EmailSentLayout
+    <EmailConfirmationLayout
       title="Check your email"
       description="If an account exists with this email, we've sent a password reset link to:"
       email={email}
@@ -114,6 +118,6 @@ export default function ForgotPasswordSent() {
         }
         onPress={() => router.replace("/(auth)/login")}
       />
-    </EmailSentLayout>
+    </EmailConfirmationLayout>
   );
 }

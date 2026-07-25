@@ -6,7 +6,7 @@ import { LoginManager, AccessToken } from "react-native-fbsdk-next";
 import { facebookLogin } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
 import { useAuthStore } from "../store/auth.store";
-
+import { showOAuthError } from "../utils/oauthError";
 /**
  * Handles Facebook OAuth login.
  *
@@ -15,9 +15,6 @@ import { useAuthStore } from "../store/auth.store";
  * and navigates to the home screen.
  */
 export function useFacebookLogin() {
-  /**
-   * Starts the Facebook login flow.
-   */
   async function handleFacebookLogin() {
     const setSigningIn = useAuthStore.getState().setSigningIn;
 
@@ -36,26 +33,16 @@ export function useFacebookLogin() {
       const token = await AccessToken.getCurrentAccessToken();
 
       if (!token) {
-        Toast.show({
-          type: "error",
-          text1: "Facebook Sign-In Failed",
-          text2: "Unable to retrieve your Facebook credentials.",
-        });
-
+        showOAuthError("Facebook");
+        router.replace("/(auth)/login");
         return;
       }
 
       const response = await facebookLogin(token.accessToken.toString());
 
       if (!response.success) {
-        Toast.show({
-          type: "error",
-          text1: "Facebook Sign-In Failed",
-          text2: response.message,
-        });
-
+        showOAuthError("Facebook");
         router.replace("/(auth)/login");
-
         return;
       }
 
@@ -65,12 +52,7 @@ export function useFacebookLogin() {
     } catch (error) {
       console.error("Facebook login error:", error);
 
-      Toast.show({
-        type: "error",
-        text1: "Facebook Sign-In Failed",
-        text2: "Something unexpected happened. Please try again.",
-      });
-
+      showOAuthError("Facebook");
       router.replace("/(auth)/login");
     } finally {
       setSigningIn(false);

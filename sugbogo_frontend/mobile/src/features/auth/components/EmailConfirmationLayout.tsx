@@ -6,11 +6,12 @@ import AuthButton from "./AuthButton";
 import AuthLayout from "./AuthLayout";
 import SecondaryAuthButton from "./SecondaryAuthButton";
 
-type EmailSentLayoutProps = {
+type EmailConfirmationLayoutProps = {
   title: string;
   description: string;
   email?: string | null;
 
+  verifying?: boolean;
   openEmailApp: () => void;
 
   resendTitle?: string;
@@ -24,12 +25,13 @@ export default function EmailSentLayout({
   title,
   description,
   email,
+  verifying = false,
   openEmailApp,
   resendTitle = "Resend Email",
   onResend,
   resendLoading = false,
   children,
-}: EmailSentLayoutProps) {
+}: EmailConfirmationLayoutProps) {
   return (
     <AuthLayout>
       <View className="mb-6 items-center justify-center">
@@ -40,15 +42,23 @@ export default function EmailSentLayout({
         {title}
       </Text>
 
-      <Text className="mb-2 text-center text-base text-text-secondary">
-        {description}
-      </Text>
-
-      {email ? (
-        <Text className="mb-8 text-center text-base font-bold text-text-primary">
-          {email}
+      {verifying ? (
+        <Text className="mb-8 text-center text-base text-text-secondary">
+          Verifying your email...
         </Text>
-      ) : null}
+      ) : (
+        <>
+          <Text className="mb-2 text-center text-base text-text-secondary">
+            {description}
+          </Text>
+
+          {email ? (
+            <Text className="mb-8 text-center text-base font-bold text-text-primary">
+              {email}
+            </Text>
+          ) : null}
+        </>
+      )}
 
       <AuthButton
         title="Open Email App"

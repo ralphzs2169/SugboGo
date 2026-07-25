@@ -13,10 +13,12 @@ export function useLogout() {
   async function logout() {
     try {
       await clearTokens();
-
-      clearUser();
+      return true;
     } catch (error) {
-      console.log("Logout failed:", error);
+      console.error("Logout failed:", error);
+      return false;
+    } finally {
+      clearUser();
     }
   }
 

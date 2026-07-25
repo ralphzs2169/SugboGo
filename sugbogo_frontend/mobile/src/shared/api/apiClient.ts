@@ -15,7 +15,7 @@ import { API_ERROR_NAMES, createTaggedError } from "@/shared/api/errors";
 // Axios client for authenticated endpoints.
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
-  timeout: 20000,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -81,9 +81,6 @@ apiClient.interceptors.response.use(
     // AxiosError, so request.ts can identify it by name — see errors.ts.
     if (axios.isAxiosError(error) && !error.response) {
       const isTimeout = error.code === "ECONNABORTED";
-
-      console.log("Axios code:", error.code);
-      console.log("Has response:", !!error.response);
 
       return Promise.reject(
         createTaggedError(
