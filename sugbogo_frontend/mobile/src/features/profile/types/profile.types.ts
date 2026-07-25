@@ -1,4 +1,4 @@
-import { User } from "@/features/auth/api/auth.types";
+import { User } from "@/features/users/types/user.types";
 
 export type UpdateProfilePictureResponse = User;
 

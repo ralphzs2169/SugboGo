@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { login } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
-import { AuthResponse } from "../api/auth.types";
+import { AuthResponse } from "../types/auth.types";
 import { useVerificationStore } from "../store/verification.store";
 import { ApiResponse } from "@/shared/api/types";
 

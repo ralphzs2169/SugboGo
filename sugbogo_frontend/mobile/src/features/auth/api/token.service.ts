@@ -1,5 +1,5 @@
 import authClient from "@/shared/api/authClient";
-import { RefreshResponse } from "./auth.types";
+import { RefreshResponse } from "../types/auth.types";
 
 /**
  * Refreshes the user's access token using the provided refresh token.

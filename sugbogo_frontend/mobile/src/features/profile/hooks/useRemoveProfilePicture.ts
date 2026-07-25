@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { removeProfilePicture } from "../api/profile.service";
 import { ApiResponse } from "@/shared/api/types";
-import { User } from "@/features/auth/api/auth.types";
+import { User } from "@/features/auth/types/auth.types";
 
 export function useRemoveProfilePicture() {
   const [isRemoving, setIsRemoving] = useState(false);

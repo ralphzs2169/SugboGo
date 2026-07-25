@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { updateProfilePicture } from "../api/profile.service";
 import type { ApiResponse } from "@/shared/api/types";
-import type { UpdateProfilePictureResponse } from "../api/profile.types";
+import type { UpdateProfilePictureResponse } from "../types/profile.types";
 
 export function useUpdateProfilePicture() {
   const [isUploading, setIsUploading] = useState(false);
