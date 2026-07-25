@@ -14,9 +14,16 @@ export async function establishSession(authData) {
     refresh: authData.refresh,
   });
 
-  const user = await getCurrentUser();
-
-  useAuthStore.getState().setUser(user);
+  try {
+    const user = await getCurrentUser();
+    useAuthStore.getState().setUser(user);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AUTH_ERROR") {
+      // Already handled globally (toast + redirect already fired).
+      return;
+    }
+    throw error;
+  }
 }
 
 export function logout() {

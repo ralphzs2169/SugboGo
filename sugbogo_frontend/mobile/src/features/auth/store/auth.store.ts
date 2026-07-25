@@ -31,6 +31,8 @@ interface AuthState {
    */
   isSigningIn: boolean;
 
+  sessionExpired: boolean;
+
   /**
    * Updates the authenticated user and marks the session as authenticated.
    * @param {User} user - The authenticated user's information.
@@ -49,6 +51,8 @@ interface AuthState {
    * Clears the authenticated user and resets the authentication state.
    */
   clearUser: () => void;
+
+  setSessionExpired: (expired: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -59,6 +63,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   isSigningIn: false,
+
+  sessionExpired: false,
 
   setLoading: (loading) =>
     set({
@@ -79,5 +85,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: null,
       isAuthenticated: false,
+    }),
+
+  setSessionExpired: (expired: boolean) =>
+    set({
+      sessionExpired: expired,
     }),
 }));

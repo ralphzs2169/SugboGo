@@ -20,7 +20,7 @@ export function useForgotPassword() {
 
       return {
         success: false,
-        message: "Something unexpected happened. Please try again.",
+        message: "Something went wrong",
         code: "UNKNOWN_ERROR",
       };
     } finally {

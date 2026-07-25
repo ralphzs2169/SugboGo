@@ -35,7 +35,7 @@ export function useRestoreSession() {
 
         setUser(user);
       } catch (error) {
-        console.log(" Session restore failed:", error);
+        console.error(" Session restore failed:", error);
 
         await clearTokens();
         clearUser();

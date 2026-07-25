@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLogin } from "@/features/auth/hooks/useLogin";
 import { Button, Text, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -8,7 +8,6 @@ import {
   validateLoginForm,
 } from "@/features/auth/utils/loginValidator";
 import { getFieldError } from "@/shared/api/errors";
-
 import AuthButton from "@/features/auth/components/AuthButton";
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
@@ -19,6 +18,7 @@ import PasswordInput from "@/features/auth/components/PasswordInput";
 import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
 import { useGoogleLogin } from "@/features/auth/hooks/useGoogleLogin";
 import { useFacebookLogin } from "@/features/auth/hooks/useFacebookLogin";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 /**
  * Login component provides a user interface for logging into the application.
@@ -26,6 +26,10 @@ import { useFacebookLogin } from "@/features/auth/hooks/useFacebookLogin";
  */
 export default function Login() {
   const router = useRouter();
+
+  const sessionExpired = useAuthStore((state) => state.sessionExpired);
+
+  const setSessionExpired = useAuthStore((state) => state.setSessionExpired);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +42,19 @@ export default function Login() {
   const { handleFacebookLogin } = useFacebookLogin();
 
   const [loading, setLoading] = useState(false);
+
+  /**
+   * Shows a one-time message when the previous session expired.
+   * The flag is cleared immediately so it won't appear again.
+   */
+  useEffect(() => {
+    if (!sessionExpired) {
+      return;
+    }
+
+    setFormError("Your session has expired. Please sign in again.");
+    setSessionExpired(false);
+  }, [sessionExpired, setSessionExpired]);
 
   const clearFieldError = (field: keyof LoginErrors) => {
     setErrors((prev) => ({

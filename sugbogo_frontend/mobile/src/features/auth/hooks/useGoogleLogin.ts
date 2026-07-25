@@ -39,8 +39,7 @@ export function useGoogleLogin() {
       if (!idToken) {
         Toast.show({
           type: "error",
-          text1: "Google Sign-In Failed",
-          text2: "Unable to retrieve your Google credentials.",
+          text1: "Couldn't sign in with Google",
         });
 
         router.replace("/(auth)/login");
@@ -53,8 +52,7 @@ export function useGoogleLogin() {
       if (!result.success) {
         Toast.show({
           type: "error",
-          text1: "Google Sign-In Failed",
-          text2: result.message,
+          text1: "Couldn't sign in with Google",
         });
 
         router.replace("/(auth)/login");
@@ -70,8 +68,7 @@ export function useGoogleLogin() {
 
       Toast.show({
         type: "error",
-        text1: "Google Sign-In Failed",
-        text2: "Something unexpected happened. Please try again.",
+        text1: "Couldn't sign in with Google",
       });
 
       router.replace("/(auth)/login");

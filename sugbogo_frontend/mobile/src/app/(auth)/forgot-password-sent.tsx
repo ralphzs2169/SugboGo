@@ -21,7 +21,6 @@ export default function ForgotPasswordSent() {
     Toast.show({
       type: "success",
       text1: "Reset Link Sent",
-      text2: "Check your inbox for the password reset email.",
     });
   }, []);
 
@@ -33,7 +32,6 @@ export default function ForgotPasswordSent() {
         Toast.show({
           type: "error",
           text1: "No email app found",
-          text2: "Please install an email application.",
         });
 
         return;
@@ -46,7 +44,6 @@ export default function ForgotPasswordSent() {
       Toast.show({
         type: "error",
         text1: "Unable to open email app",
-        text2: "Please try again.",
       });
     }
   };
@@ -57,8 +54,7 @@ export default function ForgotPasswordSent() {
     if (!email) {
       Toast.show({
         type: "error",
-        text1: "Missing Email",
-        text2: "Email address is unavailable.",
+        text1: "Email not found",
       });
 
       return;
@@ -74,10 +70,7 @@ export default function ForgotPasswordSent() {
 
         Toast.show({
           type: "error",
-          text1: "Too Many Requests",
-          text2: `Please try again in ${minutes} minute${
-            minutes === 1 ? "" : "s"
-          }.`,
+          text1: `Too many requests — try again in ${minutes} minute${minutes === 1 ? "" : "s"}`,
         });
 
         return;
@@ -95,7 +88,6 @@ export default function ForgotPasswordSent() {
     Toast.show({
       type: "success",
       text1: "Reset Link Sent",
-      text2: "A new password reset email has been sent.",
     });
   };
 

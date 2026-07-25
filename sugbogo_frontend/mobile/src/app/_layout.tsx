@@ -10,6 +10,7 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
 import AppSplash from "@/shared/components/AppSplash";
 import SigningInOverlay from "@/features/auth/components/SigningInOverlay";
+import { StatusBar } from "expo-status-bar";
 
 export default function RootLayout() {
   useRestoreSession();
@@ -23,6 +24,7 @@ export default function RootLayout() {
 
   return (
     <>
+      <StatusBar style="dark" />
       <ActionSheetProvider>
         <SafeAreaProvider>
           <BottomSheetModalProvider>

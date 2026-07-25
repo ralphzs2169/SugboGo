@@ -144,5 +144,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     def has_custom_profile_picture(self):
         return bool(self.USER_PROFILE_PICTURE)
 
+    def has_oauth_accounts(self):
+        return self.OAUTH_ACCOUNTS.exists()
+
     def __str__(self):
         return self.USER_EMAIL

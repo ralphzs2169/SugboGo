@@ -169,16 +169,18 @@ export default function EditProfileScreen() {
       }
     }
 
-    Toast.show({
-      type: "success",
-      text1: "Profile Updated",
-    });
+    setTimeout(() => {
+      Toast.show({
+        type: "success",
+        text1: "Profile Updated",
+      });
+    }, 1000);
 
     setSelectedImage(null);
     setRemoveProfilePicture(false);
 
     allowLeave();
-    router.back();
+    router.replace("/profile");
   }
   return (
     <ScrollView
@@ -199,7 +201,11 @@ export default function EditProfileScreen() {
 
       {/* Info message */}
       <AvatarInfoCard
-        visible={!user?.has_custom_profile_picture && !!user?.use_oauth_avatar}
+        visible={
+          !user?.has_custom_profile_picture &&
+          !!user?.use_oauth_avatar &&
+          !!user?.has_oauth_accounts
+        }
       />
 
       {/* Form content */}

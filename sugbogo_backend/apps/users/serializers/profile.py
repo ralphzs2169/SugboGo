@@ -22,7 +22,8 @@ class UserSerializer(serializers.ModelSerializer):
         source="HAS_COMPLETED_INTEREST_SELECTION",
         read_only=True,
     )
-    
+    has_oauth_accounts = serializers.BooleanField(read_only=True,)
+
     class Meta:
         model = User
         fields = (
@@ -39,6 +40,7 @@ class UserSerializer(serializers.ModelSerializer):
             "role",
             "status",
             "has_completed_interest_selection",
+            "has_oauth_accounts",
         )
 
 
