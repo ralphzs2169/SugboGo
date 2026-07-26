@@ -1,16 +1,16 @@
-import "../../global.css";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Stack } from "expo-router";
+import SigningInOverlay from "@/features/auth/components/SigningInOverlay";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import Toast from "react-native-toast-message";
+import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-
-import AppSplash from "@/shared/components/AppSplash";
-import SigningInOverlay from "@/features/auth/components/SigningInOverlay";
+import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+import "../../global.css";
 
 export default function RootLayout() {
   useRestoreSession();
@@ -24,22 +24,24 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="dark" />
-      <ActionSheetProvider>
-        <SafeAreaProvider>
-          <BottomSheetModalProvider>
-            <Stack screenOptions={{ headerShown: false, animation: "none" }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(explorer)" />
-              <Stack.Screen name="(setup)" />
-            </Stack>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar style="dark" />
+        <ActionSheetProvider>
+          <SafeAreaProvider>
+            <BottomSheetModalProvider>
+              <Stack screenOptions={{ headerShown: false, animation: "none" }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(explorer)" />
+                <Stack.Screen name="(setup)" />
+              </Stack>
 
-            {isSigningIn && <SigningInOverlay />}
-            <Toast config={toastConfig} />
-          </BottomSheetModalProvider>
-        </SafeAreaProvider>
-      </ActionSheetProvider>
+              {isSigningIn && <SigningInOverlay />}
+              <Toast config={toastConfig} />
+            </BottomSheetModalProvider>
+          </SafeAreaProvider>
+        </ActionSheetProvider>
+      </GestureHandlerRootView>
     </>
   );
 }

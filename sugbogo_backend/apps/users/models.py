@@ -138,12 +138,24 @@ class User(AbstractBaseUser, PermissionsMixin):
                 return oauth.OAUTH_AVATAR_URL
 
         return None
-    
-    @property
 
+    @property
+    def oauth_avatar_url(self):
+        oauth = (
+            self.OAUTH_ACCOUNTS
+            .filter(OAUTH_AVATAR_URL__isnull=False)
+            .exclude(OAUTH_AVATAR_URL="")
+            .order_by("-OAUTH_CREATED_AT")
+            .first()
+        )
+
+        return oauth.OAUTH_AVATAR_URL if oauth else None
+
+    @property
     def has_custom_profile_picture(self):
         return bool(self.USER_PROFILE_PICTURE)
 
+    @property
     def has_oauth_accounts(self):
         return self.OAUTH_ACCOUNTS.exists()
 

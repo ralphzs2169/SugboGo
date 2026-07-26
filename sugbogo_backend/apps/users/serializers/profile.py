@@ -23,6 +23,10 @@ class UserSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     has_oauth_accounts = serializers.BooleanField(read_only=True,)
+    oauth_avatar_url = serializers.SerializerMethodField()
+
+    def get_oauth_avatar_url(self, obj):
+        return obj.oauth_avatar_url
 
     class Meta:
         model = User
@@ -34,6 +38,7 @@ class UserSerializer(serializers.ModelSerializer):
             "gender",
 
             "avatar_url",
+            "oauth_avatar_url",
             "has_custom_profile_picture",
             "use_oauth_avatar",
 
@@ -69,6 +74,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             "last_name",
             "gender",
         )
+
 
 class AvatarPreferencesSerializer(serializers.Serializer):
     use_oauth_avatar = serializers.BooleanField()

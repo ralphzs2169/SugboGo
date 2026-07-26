@@ -11,6 +11,8 @@ export interface User {
   email: string;
   role: string;
   status: string;
+
+  oauth_avatar_url?: string | null;
   has_completed_interest_selection: boolean;
   has_custom_profile_picture: boolean;
   use_oauth_avatar: boolean;
