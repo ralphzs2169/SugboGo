@@ -169,7 +169,7 @@ export default function EditProfileScreen() {
     setTimeout(() => {
       Toast.show({
         type: "success",
-        text1: "Profile Updated",
+        text1: "Profile updated successfully.",
       });
     }, 1000);
 

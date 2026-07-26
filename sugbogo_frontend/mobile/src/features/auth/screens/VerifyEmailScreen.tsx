@@ -2,7 +2,7 @@ import * as Linking from "expo-linking";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
 import Toast from "react-native-toast-message";
-import { Text } from "react-native";
+import LoadingScreen from "@/shared/components/LoadingScreen";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
 import { useVerifyEmail } from "@/features/auth/hooks/useVerifyEmail";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
@@ -46,12 +46,7 @@ export default function VerifyEmailScreen() {
         );
 
         if (response.success) {
-          Toast.show({
-            type: "success",
-            text1: "Email verified successfully.",
-          });
-
-          router.replace("/(auth)/login");
+          router.replace("/(auth)/email-verified");
           return;
         }
 
@@ -59,19 +54,21 @@ export default function VerifyEmailScreen() {
           return;
         }
 
+        setVerifying(false);
+
         Toast.show({
           type: "error",
           text1: "Email verification failed.",
         });
       } catch (error) {
+        setVerifying(false);
+
         console.error("Unexpected email verification error:", error);
 
         Toast.show({
           type: "error",
           text1: "Something went wrong. Please try again.",
         });
-      } finally {
-        setVerifying(false);
       }
     };
 
@@ -155,6 +152,15 @@ export default function VerifyEmailScreen() {
       text1: "Verification email sent.",
     });
   };
+
+  if (verifying) {
+    return (
+      <LoadingScreen
+        title="Verifying Email"
+        description="Please wait while we verify your email address."
+      />
+    );
+  }
 
   return (
     <EmailConfirmationLayout

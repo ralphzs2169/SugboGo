@@ -68,7 +68,6 @@ Each feature should be self-contained.
 <img src="/docs/diagrams/auth-flow.png" alt="Authentication Flow" width="700">
 
 
-(Include the full Mermaid diagram we created.)
 
 ---
 

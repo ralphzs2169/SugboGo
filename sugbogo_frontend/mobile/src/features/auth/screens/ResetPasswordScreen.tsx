@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
-import { Text, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { BackHandler, Text, View } from "react-native";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 import { useResetPassword } from "@/features/auth/hooks/useResetPassword";
@@ -40,6 +40,25 @@ export default function ResetPasswordScreen() {
   }>();
 
   const { handleResetPassword, loading } = useResetPassword();
+
+  /**
+   * Prevents Android hardware back navigation from returning
+   * to the password reset link flow. Users are redirected to
+   * the login screen instead.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          router.replace("/(auth)/login");
+          return true;
+        },
+      );
+
+      return () => subscription.remove();
+    }, [router]),
+  );
 
   const clearFieldError = (field: "password" | "confirmPassword") => {
     setErrors((prev) => ({
@@ -114,7 +133,7 @@ export default function ResetPasswordScreen() {
       </View>
 
       <Text className="mb-2 text-center text-3xl font-bold text-text-primary">
-        Reset Password
+        Reset your Password
       </Text>
 
       <Text className="mb-8 text-center text-base text-text-secondary">

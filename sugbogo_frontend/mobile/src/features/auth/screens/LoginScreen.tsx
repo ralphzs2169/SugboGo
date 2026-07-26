@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Text, TouchableOpacity } from "react-native";
 
+import LoadingScreen from "@/shared/components/LoadingScreen";
 import { useLogin } from "@/features/auth/hooks/useLogin";
 import {
   LoginErrors,
@@ -39,6 +40,7 @@ export default function LoginScreen() {
 
   const sessionExpired = useAuthStore((state) => state.sessionExpired);
   const setSessionExpired = useAuthStore((state) => state.setSessionExpired);
+  const signingIn = useAuthStore((state) => state.isSigningIn);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,6 +51,8 @@ export default function LoginScreen() {
   const { handleLogin, loading } = useLogin();
   const { handleGoogleLogin } = useGoogleLogin();
   const { handleFacebookLogin } = useFacebookLogin();
+
+  const isAuthenticating = loading || navigating || signingIn;
 
   /**
    * Shows a one-time message when the previous session expired.
@@ -73,7 +77,7 @@ export default function LoginScreen() {
   };
 
   const onLogin = async () => {
-    if (loading || navigating) return;
+    if (isAuthenticating) return;
 
     const validationErrors = validateLoginForm(email, password);
 
@@ -130,6 +134,15 @@ export default function LoginScreen() {
     }
   };
 
+  if (signingIn) {
+    return (
+      <LoadingScreen
+        title="Signing you in..."
+        description="Please wait while we securely sign you in."
+      />
+    );
+  }
+
   return (
     <AuthLayout>
       <AuthHeader />
@@ -172,7 +185,7 @@ export default function LoginScreen() {
 
       <Button
         title="Login"
-        loading={loading || navigating}
+        loading={isAuthenticating}
         onPress={onLogin}
         icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
         className="mb-20 mt-2 shadow"
@@ -182,6 +195,7 @@ export default function LoginScreen() {
       <Divider text="OR LOG IN WITH" />
 
       <SocialLoginButtons
+        disabled={isAuthenticating}
         onGooglePress={handleGoogleLogin}
         onFacebookPress={handleFacebookLogin}
         onApplePress={() => {
