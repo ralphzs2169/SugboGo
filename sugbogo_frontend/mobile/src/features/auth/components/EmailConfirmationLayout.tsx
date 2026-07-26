@@ -5,6 +5,8 @@ import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
 import Button from "@/shared/components/Button";
 import AuthLayout from "./AuthLayout";
 import SecondaryAuthButton from "./SecondaryAuthButton";
+import LottieView from "lottie-react-native";
+import emailSentAnimation from "../assets/animations/email-sent.json";
 
 type EmailConfirmationLayoutProps = {
   title: string;
@@ -35,7 +37,16 @@ export default function EmailSentLayout({
   return (
     <AuthLayout>
       <View className="mb-6 items-center justify-center">
-        <EmailSentIcon width={200} height={200} />
+        <LottieView
+          source={emailSentAnimation}
+          autoPlay
+          loop={false}
+          style={{
+            width: 180,
+            height: 180,
+          }}
+        />
+        {/* <EmailSentIcon width={200} height={200} /> */}
       </View>
 
       <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
@@ -62,6 +73,7 @@ export default function EmailSentLayout({
 
       <Button
         title="Open Email App"
+        disabled={verifying}
         onPress={openEmailApp}
         icon={<MaterialIcons name="open-in-new" size={20} color="white" />}
         className="mb-4 mt-2 shadow"
@@ -71,6 +83,7 @@ export default function EmailSentLayout({
       {onResend ? (
         <SecondaryAuthButton
           title={resendTitle}
+          disabled={verifying}
           loading={resendLoading}
           onPress={onResend}
         />

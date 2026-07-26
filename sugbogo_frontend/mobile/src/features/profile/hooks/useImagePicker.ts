@@ -40,7 +40,6 @@ export function useImagePicker() {
 
   /**
    * Opens the device camera and allows the user to capture a profile image.
-   *
    * Requests camera permission before opening the native camera.
    *
    * @returns The captured image URI or null if the user cancels.

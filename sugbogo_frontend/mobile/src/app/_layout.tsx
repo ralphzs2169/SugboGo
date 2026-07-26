@@ -1,4 +1,3 @@
-import SigningInOverlay from "@/features/auth/components/SigningInOverlay";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import AppSplash from "@/shared/components/AppSplash";
@@ -16,7 +15,6 @@ export default function RootLayout() {
   useRestoreSession();
 
   const isLoading = useAuthStore((state) => state.isLoading);
-  const isSigningIn = useAuthStore((state) => state.isSigningIn);
 
   if (isLoading) {
     return <AppSplash />;
@@ -36,7 +34,6 @@ export default function RootLayout() {
                 <Stack.Screen name="(setup)" />
               </Stack>
 
-              {isSigningIn && <SigningInOverlay />}
               <Toast config={toastConfig} />
             </BottomSheetModalProvider>
           </SafeAreaProvider>

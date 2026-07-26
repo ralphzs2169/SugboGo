@@ -93,7 +93,7 @@ export default function ForgotPasswordScreen() {
         <ForgotPasswordIllustration width={150} height={150} />
       </View>
       <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
-        Forgot Password
+        Forgot your password?
       </Text>
 
       <Text className="mb-8 text-center text-base text-text-secondary">

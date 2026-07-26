@@ -155,8 +155,8 @@ REST_FRAMEWORK = {
 
     # Throttle settings for resending verification emails
     "DEFAULT_THROTTLE_RATES": {
-        "resend_verification": "5/hour",
-        "forgot_password": "5/hour",
+        "resend_verification": "10/hour",
+        "forgot_password": "10/hour",
     },
 
     # Custom exception handler for consistent error responses
