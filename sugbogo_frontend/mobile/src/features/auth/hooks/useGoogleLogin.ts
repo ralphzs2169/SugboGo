@@ -1,6 +1,5 @@
 import { router } from "expo-router";
 import { useEffect, useRef } from "react";
-import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 import type { TokenResponse } from "expo-auth-session";
 import { googleLogin } from "../api/auth.service";
@@ -63,6 +62,7 @@ export function useGoogleLogin() {
       router.replace("/");
     } catch (error) {
       console.error("Unexpected Google login error:", error);
+
       showOAuthError("Google");
       router.replace("/(auth)/login");
     } finally {

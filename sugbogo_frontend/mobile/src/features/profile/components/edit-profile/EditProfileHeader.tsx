@@ -5,14 +5,16 @@ import ProfileBackground from "../../assets/profile-bg-illustration.svg";
 
 type Props = {
   imageUrl: string | null;
-  hasCustomProfilePicture: boolean;
+  isShowingCustomProfilePicture: boolean;
+  hasSelectedImage: boolean;
   onImageSelected: (image: string) => void;
   onRemovePicture: () => void;
 };
 
 export default function EditProfileHeader({
   imageUrl,
-  hasCustomProfilePicture,
+  isShowingCustomProfilePicture,
+  hasSelectedImage,
   onImageSelected,
   onRemovePicture,
 }: Props) {
@@ -35,7 +37,8 @@ export default function EditProfileHeader({
         >
           <ProfileImagePicker
             imageUrl={imageUrl}
-            hasCustomProfilePicture={hasCustomProfilePicture}
+            isShowingCustomProfilePicture={isShowingCustomProfilePicture}
+            hasSelectedImage={hasSelectedImage}
             onImageSelected={onImageSelected}
             onRemovePicture={onRemovePicture}
           />
