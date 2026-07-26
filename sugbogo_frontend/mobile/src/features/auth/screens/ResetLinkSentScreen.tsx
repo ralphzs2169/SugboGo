@@ -4,7 +4,7 @@ import Toast from "react-native-toast-message";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
-import { handleSystemError } from "@/shared/api/errors";
+import { handleSystemError } from "@/shared/api/error.utils";
 import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import { useResendResetLink } from "@/features/auth/hooks/useResendResetLink";

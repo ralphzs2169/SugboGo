@@ -20,6 +20,7 @@ import { useActionSheet } from "@expo/react-native-action-sheet";
 import SelectionField from "@/shared/components/form/SelectionField";
 import EditProfileHeader from "../components/edit-profile/EditProfileHeader";
 import AvatarInfoCard from "../components/edit-profile/AvatarInfoCard";
+import { handleSystemError } from "@/shared/api/error.utils";
 
 /**
  * EditProfileScreen component allows users to edit their profile information,
@@ -162,6 +163,15 @@ export default function EditProfileScreen() {
 
         if (fieldErrors.firstName || fieldErrors.lastName) {
           setErrors(fieldErrors);
+          return;
+        }
+
+        if (handleSystemError(response)) {
+          Toast.show({
+            type: "error",
+            text1:
+              response.message || "Unable to update profile. Please try again.",
+          });
           return;
         }
 

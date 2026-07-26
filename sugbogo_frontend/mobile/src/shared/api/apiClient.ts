@@ -3,16 +3,17 @@ import { router } from "expo-router";
 import { getAccessToken, clearTokens } from "@/shared/api/storage";
 import { refreshSession } from "./refresh";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { API_ERROR_NAMES, createTaggedError } from "@/shared/api/errors";
+import { createApiError } from "@/shared/api/error.utils";
+import { API_ERROR_CODE } from "@/shared/api/errorCodes";
+import NetInfo from "@react-native-community/netinfo";
 
-// TODO: uncomment once @react-native-community/netinfo is installed
-// AND the dev client has been rebuilt (native module — JS-only reload
-// won't pick it up). See conversation notes: npx expo install
-// @react-native-community/netinfo, then rebuild via expo run:ios/android
-// or eas build --profile development.
-// import NetInfo from "@react-native-community/netinfo";
-
-// Axios client for authenticated endpoints.
+/**
+ * Axios client for authenticated endpoints.
+ *
+ * This client automatically attaches the user's access token and
+ * transparently refreshes expired access tokens. It should be used for
+ * endpoints that require an authenticated session.
+ */
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
   timeout: 15000,
@@ -25,27 +26,23 @@ const apiClient = axios.create({
  * REQUEST INTERCEPTOR
  * Runs before every outgoing request.
  *
- * 1. Attaches the stored JWT access token, if one exists.
- * 2. (Once NetInfo is enabled) Checks device connectivity BEFORE sending.
- *    This lets us fail fast with NETWORK_ERROR when there's clearly no
- *    connection, instead of waiting up to `timeout` (20s) for a request
- *    that was never going to succeed — see errors.ts for why that delay
- *    happens without this check.
+ * 1. Verifies that the device has an active internet connection.
+ * 2. Attaches the stored JWT access token, if one exists.
+ *
+ * If the device is offline, the request is rejected immediately with a
+ * standardized API error instead of waiting for the request to fail or
+ * time out.
  */
 apiClient.interceptors.request.use(
   async (config) => {
-    // TODO: uncomment once NetInfo is installed + rebuilt
-    // const netState = await NetInfo.fetch();
-    //
-    // if (!netState.isConnected) {
-    //   // Reject here, before the request is ever sent. This throws
-    //   // synchronously into the SAME catch block in request.ts that
-    //   // already handles NETWORK_ERROR from the response interceptor —
-    //   // no changes needed there.
-    //   return Promise.reject(
-    //     createTaggedError(API_ERROR_NAMES.NETWORK_ERROR, "NETWORK_ERROR"),
-    //   );
-    // }
+    const netState = await NetInfo.fetch();
+
+    // Verify network connectivity before sending the request.
+    if (!netState.isConnected || netState.isInternetReachable === false) {
+      return Promise.reject(createApiError(API_ERROR_CODE.NETWORK_ERROR));
+    }
+
+    // Attach the current access token, if available.
     const token = await getAccessToken();
 
     if (token) {
@@ -59,45 +56,41 @@ apiClient.interceptors.request.use(
 
 /**
  * RESPONSE INTERCEPTOR
- * Runs whenever a request fails. Handles three cases, in order:
+ * Runs whenever a request fails.
  *
- *   1. Network / timeout errors — convert them into tagged errors.
- *   2. Expired access token (401) — silently refresh and retry once.
- *   3. Expired refresh token — clear the session, redirect to login,
- *      and mark the session as expired so the login screen can inform
- *      the user.
- *   4. Any other HTTP error — pass through as an AxiosError so
- *      request.ts can return the backend's structured response.
+ * Handles three categories of failures:
+ *
+ * 1. Transport-level failures (e.g. network unavailable or request timeout)
+ *    are converted into standardized API errors.
+ * 2. Expired access tokens (401) are refreshed automatically and the
+ *    original request is retried once.
+ * 3. If the refresh token is no longer valid, the local session is
+ *    cleared and the user is redirected to the login screen.
+ *
+ * Any other HTTP response (4xx/5xx) is passed through unchanged so
+ * request.ts can return the backend's structured error response.
  */
 apiClient.interceptors.response.use(
   (response) => response,
 
   async (error) => {
-    console.log("🔥 Response interceptor reached");
-    // Case 1: Network error or timeout
-    // `error.response` is undefined when no response was ever received
-    // (offline, DNS failure, server unreachable, or the request timed
-    // out). We re-throw as a plain, "tagged" Error instead of the raw
-    // AxiosError, so request.ts can identify it by name — see errors.ts.
+    // Transport-level failures do not receive an HTTP response.
+    // Convert them into standardized API errors so request.ts can
+    // normalize them into the application's standard API response format.
     if (axios.isAxiosError(error) && !error.response) {
       const isTimeout = error.code === "ECONNABORTED";
 
-      return Promise.reject(
-        createTaggedError(
-          isTimeout
-            ? API_ERROR_NAMES.REQUEST_TIMEOUT
-            : API_ERROR_NAMES.NETWORK_ERROR,
-          isTimeout ? "REQUEST_TIMEOUT" : "NETWORK_ERROR",
-        ),
-      );
+      const errorName = isTimeout
+        ? API_ERROR_CODE.REQUEST_TIMEOUT
+        : API_ERROR_CODE.NETWORK_ERROR;
+
+      return Promise.reject(createApiError(errorName));
     }
 
     const originalRequest = error.config;
 
-    // Case 2: Expired access token (401), not yet retried
-    // `_retry` is a flag we stamp onto the request config so we only
-    // ever attempt ONE silent refresh per request. Without it, a
-    // request that fails again after refreshing could loop forever.
+    // Retry requests once after silently refreshing an expired
+    // access token. The _retry flag prevents infinite refresh loops.
     if (
       error.response?.status === 401 &&
       originalRequest &&
@@ -116,29 +109,22 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch {
-        // Refreshing itself failed, meaning both the access and refresh
-        // tokens are no longer usable. Clear the local session, mark it as
-        // expired, and redirect to the login screen. The login screen reads
-        // the sessionExpired flag to display a one-time message to the user.
+        // Refreshing failed, meaning the session is no longer valid.
+        // Clear the local session, redirect the user to the login screen,
+        // and set a flag so the login screen can display a one-time
+        // "Your session has expired" message.
         await clearTokens();
         useAuthStore.getState().clearUser();
 
-        // Lets the login screen display a one-time
-        // "Your session has expired" message after redirecting.
         useAuthStore.getState().setSessionExpired(true);
 
         router.replace("/(auth)/login");
 
-        return Promise.reject(
-          createTaggedError(API_ERROR_NAMES.AUTH_ERROR, "SESSION_EXPIRED"),
-        );
+        return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
       }
     }
-
-    // Case 3: Any other error (4xx/5xx with a real response)
-    // Left as-is — a genuine AxiosError — so request.ts can read
-    // error.response.data, which is the backend's structured payload
-    // from success_response/error_response.
+    // Preserve structured backend error responses (4xx/5xx) so request.ts
+    // can return them unchanged to the caller.
     return Promise.reject(error);
   },
 );

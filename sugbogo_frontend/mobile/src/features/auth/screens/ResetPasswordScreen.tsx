@@ -9,7 +9,7 @@ import {
   validateResetPasswordForm,
   ResetPasswordErrors,
 } from "@/features/auth/utils/resetPasswordValidator";
-import { handleSystemError } from "@/shared/api/errors";
+import { handleSystemError } from "@/shared/api/error.utils";
 
 import ResetPasswordIcon from "@/features/auth/assets/icons/reset-password.svg";
 import Button from "@/shared/components/Button";

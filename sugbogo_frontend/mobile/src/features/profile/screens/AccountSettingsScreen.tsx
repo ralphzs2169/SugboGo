@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import SettingRow from "../components/SettingRow";
 import { useUpdateAvatarPreference } from "../hooks/useUpdateAvatarPreference";
+import { handleSystemError } from "@/shared/api/error.utils";
 
 export default function AccountSettingsScreen() {
   const user = useAuthStore((state) => state.user);
@@ -32,6 +33,10 @@ export default function AccountSettingsScreen() {
 
     if (!response.success) {
       setUseSocialAvatar(previousValue);
+
+      if (handleSystemError(response)) {
+        return;
+      }
 
       Toast.show({
         type: "error",
