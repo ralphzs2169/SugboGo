@@ -1,8 +1,8 @@
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ProfileHeader from "../components/ProfileHeader";
 import ProfileMenuItem from "../components/ProfileMenuItem";
-import MerchantCard from "../components/MerchantCard";
+import MerchantPortalCard from "../components/MerchantPortalCard";
 import ProfileMenuSection from "../components/ProfileMenuSection";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import AppVersion from "../components/AppVersion";
@@ -23,6 +23,10 @@ export default function ProfileScreen({}) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { logout } = useLogout();
 
+  const handleMerchantPress = () => {
+    router.push("/(explorer)/profile/merchant");
+  };
+
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -41,7 +45,12 @@ export default function ProfileScreen({}) {
             onEditProfile={() => router.push("/profile/edit-profile")}
           />
 
-          <MerchantCard onPress={() => {}} />
+          <MerchantPortalCard
+            title="Become a Merchant"
+            description="Digitize your shop and reach more explorers in Cebu."
+            buttonTitle="Start Registration"
+            onPress={handleMerchantPress}
+          />
 
           {/* Menu Sections */}
           <ProfileMenuSection title="Your Activity">
