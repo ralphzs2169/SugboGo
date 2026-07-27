@@ -2,6 +2,7 @@ import { Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import Avatar from "@/shared/components/Avatar";
+import RoleBadge from "@/shared/components/RoleBadge";
 
 type ProfileHeaderProps = {
   firstname: string;
@@ -48,6 +49,8 @@ export default function ProfileHeader({
           <Text className="mt-1 text-sm text-text-secondary" numberOfLines={1}>
             {email}
           </Text>
+
+          <RoleBadge role="explorer" />
         </View>
       </View>
     </View>

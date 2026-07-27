@@ -1,6 +1,9 @@
 import { Stack } from "expo-router";
 import { useAuthGuard } from "@/features/auth/hooks/useAuthGuard";
-
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 export default function ExplorerLayout() {
   useAuthGuard();
 

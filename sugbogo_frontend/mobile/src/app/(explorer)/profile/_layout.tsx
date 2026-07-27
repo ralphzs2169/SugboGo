@@ -32,11 +32,20 @@ export default function ProfileLayout() {
             title: "Edit Profile",
           }}
         />
+        <Stack.Screen
+          name="merchant-portal"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Merchant Registration Portal",
+          }}
+        />
 
         <Stack.Screen
           name="account-settings"
           options={{
             ...defaultStackScreenOptions,
+            ...slideFromRight,
             title: "Account Settings",
           }}
         />

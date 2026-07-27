@@ -17,6 +17,9 @@ export const theme = {
   extends: {
     colors: {
       brand: "#F27F0D",
+      brandLight: "#F27F0D33",
+      brandDark: "#F27F0D99",
+
       background: "#ffffff",
       surface: "#f3f4f6",
 
@@ -24,6 +27,7 @@ export const theme = {
         secondary: "#6b7280",
         tertiary: "#999999",
       },
+      success: "#22C55E",
       error: "#DC2626",
     },
   },

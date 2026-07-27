@@ -1,27 +1,43 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, TouchableOpacity, View } from "react-native";
-import MerchantIllustration from "../assets/merchant-register-illustration.svg";
+import { Text, TouchableOpacity, View } from "react-native";
+import MerchantIllustration from "../../merchant/assets/illustrations/merchant-portal-no-shadow.svg";
 import { theme } from "@/constants/theme";
 
-type MerchantCardProps = {
+type MerchantPortalCardProps = {
+  title: string;
+  description: string;
+  buttonTitle: string;
   onPress: () => void;
 };
 
-export default function MerchantCard({ onPress }: MerchantCardProps) {
+/**
+ * Displays the user's merchant entry point from the
+ * explorer profile.
+ *
+ * The card adapts its content according to the current
+ * merchant registration status and navigates users to
+ * the Merchant Portal.
+ */
+export default function MerchantCard({
+  title,
+  description,
+  buttonTitle,
+  onPress,
+}: MerchantPortalCardProps) {
   return (
-    <View className="mt-6  rounded-l-[40px]  bg-[#ff860e]/90 p-5">
+    <View className="mt-6  rounded-l-[40px]  bg-[#ff860e]/90 p-4">
       <View className="flex-row items-center">
-        <View style={{ width: 110, height: 92 }}>
-          <MerchantIllustration width={110} height={92} />
+        <View>
+          <MerchantIllustration width={120} height={112} />
         </View>
 
         <View className="flex-1 pl-3">
           <Text className="text-sm font-bold uppercase tracking-wide text-white">
-            Own a business?
+            {title}
           </Text>
 
           <Text className="mt-1 text-xs font-semibold text-white">
-            Digitize your shop and reach more explorers in Cebu.
+            {description}
           </Text>
 
           <TouchableOpacity
@@ -29,7 +45,7 @@ export default function MerchantCard({ onPress }: MerchantCardProps) {
             onPress={onPress}
           >
             <Text className="text-xs mr-2 font-bold text-brand">
-              Register my Business
+              {buttonTitle}
             </Text>
             <MaterialCommunityIcons
               name="arrow-right"
