@@ -23,10 +23,6 @@ export default function ProfileScreen({}) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { logout } = useLogout();
 
-  const handleMerchantPress = () => {
-    router.push("/(explorer)/profile/merchant");
-  };
-
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -48,8 +44,8 @@ export default function ProfileScreen({}) {
           <MerchantPortalCard
             title="Become a Merchant"
             description="Digitize your shop and reach more explorers in Cebu."
-            buttonTitle="Start Registration"
-            onPress={handleMerchantPress}
+            buttonTitle="Open Merchant Portal"
+            onPress={() => router.push("/profile/merchant-portal")}
           />
 
           {/* Menu Sections */}

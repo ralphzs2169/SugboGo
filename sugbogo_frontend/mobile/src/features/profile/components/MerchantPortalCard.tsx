@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, TouchableOpacity, View } from "react-native";
-import MerchantIllustration from "../../merchant/assets/illustrations/merchant-register-illustration.svg";
+import { Text, TouchableOpacity, View } from "react-native";
+import MerchantIllustration from "../../merchant/assets/illustrations/merchant-portal-no-shadow.svg";
 import { theme } from "@/constants/theme";
 
 type MerchantPortalCardProps = {
@@ -25,10 +25,10 @@ export default function MerchantCard({
   onPress,
 }: MerchantPortalCardProps) {
   return (
-    <View className="mt-6  rounded-l-[40px]  bg-[#ff860e]/90 p-5">
+    <View className="mt-6  rounded-l-[40px]  bg-[#ff860e]/90 p-4">
       <View className="flex-row items-center">
-        <View style={{ width: 110, height: 92 }}>
-          <MerchantIllustration width={110} height={92} />
+        <View>
+          <MerchantIllustration width={120} height={112} />
         </View>
 
         <View className="flex-1 pl-3">

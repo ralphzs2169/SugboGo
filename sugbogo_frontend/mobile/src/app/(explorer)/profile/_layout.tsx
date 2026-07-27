@@ -33,7 +33,7 @@ export default function ProfileLayout() {
           }}
         />
         <Stack.Screen
-          name="merchant/index"
+          name="merchant-portal"
           options={{
             ...defaultStackScreenOptions,
             ...slideFromRight,
@@ -45,6 +45,7 @@ export default function ProfileLayout() {
           name="account-settings"
           options={{
             ...defaultStackScreenOptions,
+            ...slideFromRight,
             title: "Account Settings",
           }}
         />

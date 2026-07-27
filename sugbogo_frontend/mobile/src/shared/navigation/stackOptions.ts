@@ -9,7 +9,7 @@ export const defaultStackScreenOptions = {
   headerTitleAlign: "center" as const,
   headerTitleStyle: {
     fontWeight: "700" as const,
-    fontSize: 18,
+    fontSize: 16,
   },
 };
 

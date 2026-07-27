@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
+import { theme } from "@/constants/theme";
 
 type ApplicationStatusCardProps = {
   status: "UNDER_REVIEW" | "APPROVED";
@@ -11,7 +12,8 @@ type ApplicationStatusCardProps = {
 /**
  * Displays the current merchant application status.
  *
- * Used for submitted and approved merchant applications.
+ * Shown after the user has submitted their merchant application
+ * and updated once the application has been approved.
  */
 export default function ApplicationStatusCard({
   status,
@@ -22,46 +24,93 @@ export default function ApplicationStatusCard({
   const isApproved = status === "APPROVED";
 
   return (
-    <View className="mx-6 mt-6 rounded-2xl bg-card p-5">
-      <View className="flex-row items-center">
-        <MaterialCommunityIcons
-          name={isApproved ? "check-decagram" : "clock-outline"}
-          size={22}
-          color={isApproved ? "#22C55E" : "#F59E0B"}
-        />
+    <View className="bg-surface px-6 py-6">
+      <Text className="mb-2 text-3xl font-bold text-text-primary">
+        Application Status
+      </Text>
 
-        <Text className="ml-2 text-lg font-bold text-foreground">
-          {isApproved ? "Approved" : "Under Review"}
-        </Text>
-      </View>
+      <Text className="mb-6 text-md text-text-secondary">
+        Track the progress of your merchant application.
+      </Text>
 
-      <View className="mt-5">
-        <Text className="text-sm font-semibold text-muted-foreground">
-          Submitted
-        </Text>
+      <View>
+        {/* Status */}
+        <View className="flex-row items-start gap-3 py-3 border-b border-border/60">
+          <MaterialCommunityIcons
+            name={isApproved ? "check-decagram" : "clock-outline"}
+            size={22}
+            color={
+              isApproved
+                ? theme.extends.colors.success
+                : theme.extends.colors.error
+            }
+            style={{ marginTop: 2 }}
+          />
 
-        <Text className="mt-1 text-base text-foreground">{submittedAt}</Text>
-      </View>
+          <View className="flex-1">
+            <Text className="text-base font-bold text-text-primary">
+              {isApproved ? "Approved" : "Under Review"}
+            </Text>
 
-      {isApproved ? (
-        <View className="mt-5">
-          <Text className="text-sm font-semibold text-muted-foreground">
-            Approved
-          </Text>
-
-          <Text className="mt-1 text-base text-foreground">{approvedAt}</Text>
+            <Text className="mt-1 text-sm leading-5 text-text-secondary">
+              {isApproved
+                ? "Your business has been approved and is now part of SugboGo."
+                : "Our team is currently reviewing your application."}
+            </Text>
+          </View>
         </View>
-      ) : (
-        <View className="mt-5">
-          <Text className="text-sm font-semibold text-muted-foreground">
-            Estimated Review
+
+        {/* Submitted */}
+        <View className="flex-row items-start gap-3 py-3 border-b border-border/60">
+          <Text className="w-6 pt-0.5 text-xl font-bold leading-6 text-text-primary">
+            1
           </Text>
 
-          <Text className="mt-1 text-base text-foreground">
-            {estimatedReview}
-          </Text>
+          <View className="flex-1">
+            <Text className="text-base font-bold text-text-primary">
+              Submitted
+            </Text>
+
+            <Text className="mt-1 text-sm leading-5 text-text-secondary">
+              {submittedAt}
+            </Text>
+          </View>
         </View>
-      )}
+
+        {isApproved ? (
+          <View className="flex-row items-start gap-3 py-3">
+            <Text className="w-6 pt-0.5 text-xl font-bold leading-6 text-text-primary">
+              2
+            </Text>
+
+            <View className="flex-1">
+              <Text className="text-base font-bold text-text-primary">
+                Approved
+              </Text>
+
+              <Text className="mt-1 text-sm leading-5 text-text-secondary">
+                {approvedAt}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View className="flex-row items-start gap-3 py-3">
+            <Text className="w-6 pt-0.5 text-xl font-bold leading-6 text-text-primary">
+              2
+            </Text>
+
+            <View className="flex-1">
+              <Text className="text-base font-bold text-text-primary">
+                Estimated Review
+              </Text>
+
+              <Text className="mt-1 text-sm leading-5 text-text-secondary">
+                {estimatedReview}
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
     </View>
   );
 }

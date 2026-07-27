@@ -5,11 +5,8 @@ import { MerchantRegistrationStatus } from "../types/merchant.types";
  * be rendered for a specific registration status.
  */
 export interface PortalConfig {
-  /** Hero content displayed on the Merchant Portal. */
-  hero: {
-    title: string;
-    description: string;
-  };
+  /** Controls whether the merchant portal hero section is visible. */
+  hero: boolean;
 
   /** Content displayed on the profile merchant card. */
   profileCard: {
@@ -35,26 +32,19 @@ export interface PortalConfig {
 }
 
 /**
- * Configuration describing how the Merchant Portal should
- * be rendered for each registration status.
+ * Portal rendering configuration for each merchant registration status.
  *
- * Each status determines:
- * - Hero content
- * - Primary action
- * - Visible portal sections
+ * Determines which content, sections, and actions are displayed
+ * throughout the merchant portal lifecycle.
  */
-
 export const portalConfig: Record<MerchantRegistrationStatus, PortalConfig> = {
   NONE: {
-    hero: {
-      title: "Become a SugboGo Merchant",
-      description:
-        "Register your business to reach more explorers, grow your presence, and manage your business through SugboGo.",
-    },
+    hero: true,
+
     profileCard: {
       title: "Become a Merchant",
       description: "Digitize your shop and reach more explorers in Cebu.",
-      buttonTitle: "Start Registration",
+      buttonTitle: "Open Merchant Portal",
     },
     primaryAction: {
       buttonTitle: "Start Registration",
@@ -70,11 +60,7 @@ export const portalConfig: Record<MerchantRegistrationStatus, PortalConfig> = {
   },
 
   DRAFT: {
-    hero: {
-      title: "Continue Your Registration",
-      description:
-        "Your application has been saved. Continue where you left off.",
-    },
+    hero: false,
 
     profileCard: {
       title: "Continue Registration",
@@ -97,11 +83,7 @@ export const portalConfig: Record<MerchantRegistrationStatus, PortalConfig> = {
   },
 
   SUBMITTED: {
-    hero: {
-      title: "Application Submitted",
-      description:
-        "Your application is currently being reviewed by our administrators.",
-    },
+    hero: false,
 
     profileCard: {
       title: "Application Under Review",
@@ -125,11 +107,7 @@ export const portalConfig: Record<MerchantRegistrationStatus, PortalConfig> = {
   },
 
   REJECTED: {
-    hero: {
-      title: "Application Requires Changes",
-      description:
-        "Your application needs additional updates before it can be approved.",
-    },
+    hero: false,
 
     profileCard: {
       title: "Action Required",
@@ -153,11 +131,7 @@ export const portalConfig: Record<MerchantRegistrationStatus, PortalConfig> = {
   },
 
   APPROVED: {
-    hero: {
-      title: "Welcome, Merchant!",
-      description:
-        "Your business has been approved and is now part of SugboGo.",
-    },
+    hero: false,
 
     profileCard: {
       title: "Merchant Dashboard",

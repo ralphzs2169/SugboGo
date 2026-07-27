@@ -1,60 +1,91 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
-
-/**
- * Displays the benefits of becoming a SugboGo merchant.
- *
- * This section is shown to users who have not yet started
- * their merchant registration and highlights the value
- * of joining the SugboGo merchant program.
- */
+import PromoteYourBusinessIllustration from "../../assets/illustrations/promote-business.svg";
+import ReachMoreExplorersIllustration from "../../assets/illustrations/reach-more.svg";
+import BuildYourReputationIllustration from "../../assets/illustrations/build-reputation.svg";
+import TrackYourGrowthIllustration from "../../assets/illustrations/track-growth.svg";
 
 const BENEFITS = [
   {
-    icon: "storefront-outline",
     title: "Promote your business",
+    description: "Showcase your shop and help explorers discover your place.",
+    illustration: PromoteYourBusinessIllustration,
   },
   {
-    icon: "account-group-outline",
     title: "Reach more explorers",
+    description: "Increase your visibility and connect with more visitors.",
+    illustration: ReachMoreExplorersIllustration,
   },
   {
-    icon: "star-outline",
-    title: "Receive reviews and ratings",
+    title: "Build your reputation",
+    description: "Collect reviews and build trust with the community.",
+    illustration: BuildYourReputationIllustration,
   },
   {
-    icon: "chart-line",
-    title: "Access merchant insights",
+    title: "Track your growth",
+    description: "Understand your performance through merchant insights.",
+    illustration: TrackYourGrowthIllustration,
   },
 ] as const;
 
+/**
+ * Displays the benefits users receive as SugboGo merchants.
+ *
+ * Highlights how merchants can promote their business,
+ * reach explorers, build trust, and monitor growth.
+ */
 export default function MerchantBenefits() {
   return (
-    <View className="mt-10 px-6">
-      <Text className="mb-4 text-lg font-bold text-foreground">
-        Why become a merchant?
+    <View className="p-6 bg-surface">
+      <Text className="mb-2 text-3xl font-bold  text-text-primary">
+        What you'll get as a merchant
+      </Text>
+      <Text className="mb-8 text-md text-text-secondary">
+        Discover how SugboGo helps your business reach more explorers and grow
+        online.
       </Text>
 
-      <View className="rounded-2xl bg-card p-5">
-        {BENEFITS.map((benefit, index) => (
-          <View
-            key={benefit.title}
-            className={`flex-row items-center ${
-              index !== BENEFITS.length - 1 ? "mb-4" : ""
-            }`}
-          >
-            <MaterialCommunityIcons
-              name={benefit.icon}
-              size={22}
-              color="#F27F0D"
-            />
+      {/* <View className="border border-border px-4 py-2 rounded-xl"> */}
+      <View>
+        {BENEFITS.map((benefit, index) => {
+          const Illustration = benefit.illustration;
 
-            <Text className="ml-3 flex-1 text-base text-foreground">
-              {benefit.title}
-            </Text>
-          </View>
-        ))}
+          return (
+            <View
+              key={benefit.title}
+              className={
+                "flex-row items-start gap-2 py-3" +
+                (index !== BENEFITS.length - 1
+                  ? " border-b border-border/60"
+                  : "")
+              }
+            >
+              {/* Number */}
+              <Text className="w-6 pt-0.5 text-xl font-bold leading-6 text-text-primary">
+                {index + 1}
+              </Text>
+
+              {/* Text */}
+              <View className="flex-1 pt-0.5">
+                <Text className="text-base font-bold text-text-primary">
+                  {benefit.title}
+                </Text>
+
+                <Text className="mt-1 text-sm leading-5 text-text-secondary">
+                  {benefit.description}
+                </Text>
+              </View>
+
+              {/* Illustration */}
+              {Illustration && (
+                <View className="ml-2">
+                  <Illustration width={72} height={72} />
+                </View>
+              )}
+            </View>
+          );
+        })}
       </View>
+      {/* </View> */}
     </View>
   );
 }

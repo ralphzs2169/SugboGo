@@ -1,6 +1,6 @@
-import { ScrollView, View, Button } from "react-native";
+import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
+import Button from "@/shared/components/Button";
 import MerchantHero from "../components/portal/MerchantHero";
 import MerchantBenefits from "../components/portal/MerchantBenefits";
 import MerchantRequirements from "../components/portal/MerchantRequirements";
@@ -10,7 +10,10 @@ import RegistrationProgressCard from "../components/portal/RegistrationProgressC
 import ApplicationStatusCard from "../components/portal/ApplicationStatusCard";
 import RejectionFeedbackCard from "../components/portal/RejectionFeedback";
 import MerchantDashboardCard from "../components/portal/MerchantDashboardCard";
-import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
+
+function SectionDivider() {
+  return <View className="mx-6 mt-3" />;
+}
 
 /**
  * MerchantPortalScreen serves as the entry point for all
@@ -21,7 +24,7 @@ import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
  * registration status.
  */
 export default function MerchantPortalScreen() {
-  const registrationStatus = MerchantRegistrationStatus.NONE; // This would typically come from user data or state
+  const registrationStatus = MerchantRegistrationStatus.NONE; // This will be fetched from the backend in the future.
   const config = portalConfig[registrationStatus];
 
   // Will be used when backend integration is complete to fetch real data for the portal.
@@ -33,19 +36,11 @@ export default function MerchantPortalScreen() {
   //     feedback,
   //     merchant,
   //   } = useMerchantPortalState();
+
   return (
-    <SafeAreaView edges={["bottom"]} className="flex-1 bg-surface">
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingBottom: 120,
-        }}
-        showsVerticalScrollIndicator={false}
-      >
-        <MerchantHero
-          title={config.hero.title}
-          description={config.hero.description}
-        />
+    <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {config.hero && <MerchantHero />}
 
         {config.sections.progress && (
           <RegistrationProgressCard
@@ -54,7 +49,6 @@ export default function MerchantPortalScreen() {
             lastUpdated="July 27, 2026"
           />
         )}
-
         {config.sections.status && (
           <ApplicationStatusCard
             status="UNDER_REVIEW"
@@ -62,7 +56,6 @@ export default function MerchantPortalScreen() {
             estimatedReview="2–5 business days"
           />
         )}
-
         {config.sections.feedback && (
           <RejectionFeedbackCard
             reviewedAt="July 28, 2026"
@@ -72,7 +65,6 @@ export default function MerchantPortalScreen() {
             ]}
           />
         )}
-
         {config.sections.dashboard && (
           <MerchantDashboardCard
             businessName="Cafe Sugbo"
@@ -80,12 +72,27 @@ export default function MerchantPortalScreen() {
             onOpenDashboard={() => {}}
           />
         )}
-        {config.sections.benefits && <MerchantBenefits />}
 
-        {config.sections.requirements && <MerchantRequirements />}
+        {config.sections.benefits && (
+          <>
+            <SectionDivider />
+            <MerchantBenefits />
+          </>
+        )}
 
-        <View className="absolute bottom-0 left-0 right-0 border-t border-border bg-background px-6 py-5">
-          <Button title={config.primaryAction.buttonTitle} onPress={() => {}} />
+        {config.sections.requirements && (
+          <>
+            <SectionDivider />
+            <MerchantRequirements />
+          </>
+        )}
+
+        <View className=" bg-surface px-6 py-5">
+          <Button
+            title={config.primaryAction.buttonTitle}
+            fontClassName="font-bold tracking wider"
+            onPress={() => {}}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>

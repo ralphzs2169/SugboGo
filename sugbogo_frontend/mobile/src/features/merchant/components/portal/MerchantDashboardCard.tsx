@@ -1,4 +1,5 @@
 import Button from "@/shared/components/Button";
+import { theme } from "@/constants/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
@@ -10,7 +11,10 @@ type MerchantDashboardCardProps = {
 
 /**
  * Welcomes newly approved merchants and provides
- * access to merchant-specific features.
+ * access to the Merchant Dashboard.
+ *
+ * Displayed once the merchant application has been
+ * approved by an administrator.
  */
 export default function MerchantDashboardCard({
   businessName,
@@ -18,33 +22,76 @@ export default function MerchantDashboardCard({
   onOpenDashboard,
 }: MerchantDashboardCardProps) {
   return (
-    <View className="mx-6 mt-6 rounded-2xl bg-card p-5">
-      <View className="items-center">
-        <MaterialCommunityIcons
-          name="check-decagram"
-          size={56}
-          color="#22C55E"
-        />
+    <View className="bg-surface px-6 py-6">
+      <Text className="mb-2 text-3xl font-bold text-text-primary">
+        Welcome to SugboGo
+      </Text>
 
-        <Text className="mt-3 text-xl font-bold text-foreground">
-          Welcome, Merchant!
-        </Text>
+      <Text className="mb-6 text-md text-text-secondary">
+        Your merchant account is now active and ready to help you grow your
+        business.
+      </Text>
 
-        <Text className="mt-2 text-center text-base text-muted-foreground">
-          {businessName}
-        </Text>
-      </View>
+      <View>
+        {/* Status */}
+        <View className="flex-row items-start gap-3 border-b border-border/60 py-3">
+          <MaterialCommunityIcons
+            name="check-decagram"
+            size={22}
+            color={theme.extends.colors.success}
+            style={{ marginTop: 2 }}
+          />
 
-      <View className="mt-6 border-t border-border pt-6">
-        <Text className="text-sm font-semibold text-muted-foreground">
-          Approved
-        </Text>
+          <View className="flex-1">
+            <Text className="text-base font-bold text-text-primary">
+              Merchant Approved
+            </Text>
 
-        <Text className="mt-1 text-base text-foreground">{approvedAt}</Text>
-      </View>
+            <Text className="mt-1 text-sm leading-5 text-text-secondary">
+              Congratulations! Your business is now visible on SugboGo.
+            </Text>
+          </View>
+        </View>
 
-      <View className="mt-6">
-        <Button title="Go to Merchant Dashboard" onPress={onOpenDashboard} />
+        {/* Business */}
+        <View className="flex-row items-start gap-3 border-b border-border/60 py-3">
+          <MaterialCommunityIcons
+            name="storefront-outline"
+            size={22}
+            color={theme.extends.colors.brand}
+            style={{ marginTop: 2 }}
+          />
+
+          <View className="flex-1">
+            <Text className="text-base font-bold text-text-primary">
+              Business
+            </Text>
+
+            <Text className="mt-1 text-sm leading-5 text-text-secondary">
+              {businessName}
+            </Text>
+          </View>
+        </View>
+
+        {/* Approval Date */}
+        <View className="flex-row items-start gap-3 py-3">
+          <MaterialCommunityIcons
+            name="calendar-check-outline"
+            size={22}
+            color={theme.extends.colors.brand}
+            style={{ marginTop: 2 }}
+          />
+
+          <View className="flex-1">
+            <Text className="text-base font-bold text-text-primary">
+              Approved On
+            </Text>
+
+            <Text className="mt-1 text-sm leading-5 text-text-secondary">
+              {approvedAt}
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );

@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, Text, View } from "react-native";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 import AvatarInfoCard from "../components/edit-profile/AvatarInfoCard";
@@ -197,116 +198,118 @@ export default function EditProfileScreen() {
     confirmRemovePicture();
   }
   return (
-    <ScrollView
-      className="flex-1 bg-surface"
-      contentContainerClassName="pb-8"
-      showsVerticalScrollIndicator={false}
-    >
-      <EditProfileHeader
-        imageUrl={previewImage}
-        isShowingCustomProfilePicture={
-          (user?.has_custom_profile_picture ?? false) && !removeProfilePicture
-        }
-        onImageSelected={(image) => {
-          setSelectedImage(image);
-          setPreviewImage(image);
-          setRemoveProfilePicture(false);
-        }}
-        onRemovePicture={handleRemovePicture}
-        hasSelectedImage={selectedImage !== null}
-      />
-
-      {/* Displays OAuth avatar information after a local custom picture removal. */}
-      <AvatarInfoCard
-        visible={
-          !isShowingCustomProfilePicture &&
-          !!user?.use_oauth_avatar &&
-          !!user?.oauth_avatar_url
-        }
-      />
-
-      {/* Form content */}
-      <View className="flex-1 p-5">
-        <FormInput
-          label="FIRST NAME"
-          placeholder="Enter your first name"
-          value={firstName}
-          onChangeText={setFirstName}
-          error={errors.firstName}
-          onFocus={() => clearFieldError("firstName")}
-        />
-
-        <FormInput
-          label="LAST NAME"
-          placeholder="Enter your last name"
-          value={lastName}
-          onChangeText={setLastName}
-          error={errors.lastName}
-          onFocus={() => clearFieldError("lastName")}
-        />
-
-        <SelectionField
-          label="Gender"
-          value={
-            gender
-              ? {
-                  male: "Male",
-                  female: "Female",
-                  non_binary: "Non-binary",
-                  prefer_not_to_say: "Prefer not to say",
-                }[gender]
-              : undefined
+    <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
+      <ScrollView
+        className="flex-1 bg-surface"
+        contentContainerClassName="pb-8"
+        showsVerticalScrollIndicator={false}
+      >
+        <EditProfileHeader
+          imageUrl={previewImage}
+          isShowingCustomProfilePicture={
+            (user?.has_custom_profile_picture ?? false) && !removeProfilePicture
           }
-          placeholder="Select your gender"
-          onPress={handleSelectGender}
+          onImageSelected={(image) => {
+            setSelectedImage(image);
+            setPreviewImage(image);
+            setRemoveProfilePicture(false);
+          }}
+          onRemovePicture={handleRemovePicture}
+          hasSelectedImage={selectedImage !== null}
         />
 
-        {formError ? (
-          <Text className="mt-4 text-center text-sm text-error">
-            {formError}
-          </Text>
-        ) : null}
-
-        <ConfirmModal
-          visible={showRemoveModal}
-          title="Remove uploaded profile picture?"
-          message="Your profile picture will change back to your Google or Facebook profile photo. You can change this anytime in Account Settings."
-          confirmText="Remove"
-          destructive
-          onCancel={() => setShowRemoveModal(false)}
-          onConfirm={confirmRemovePicture}
-        />
-
-        <Button
-          title="Save Changes"
-          onPress={handleSaveChanges}
-          loading={isSaving}
-          disabled={!hasChanges || isSaving}
-          className="mt-6 mb-10"
-          icon={
-            <MaterialCommunityIcons
-              name="content-save-outline"
-              size={20}
-              color="white"
-            />
+        {/* Displays OAuth avatar information after a local custom picture removal. */}
+        <AvatarInfoCard
+          visible={
+            !isShowingCustomProfilePicture &&
+            !!user?.use_oauth_avatar &&
+            !!user?.oauth_avatar_url
           }
         />
-        <ConfirmModal
-          visible={showConfirm}
-          title="Discard changes?"
-          message="You have unsaved changes. Are you sure you want to leave?"
-          confirmText="Discard"
-          destructive
-          onCancel={cancelLeave}
-          onConfirm={confirmLeave}
-        />
 
-        <GenderBottomSheet
-          sheetRef={genderSheetRef}
-          selectedGender={gender}
-          onSelectGender={setGender}
-        />
-      </View>
-    </ScrollView>
+        {/* Form content */}
+        <View className="flex-1 p-5">
+          <FormInput
+            label="FIRST NAME"
+            placeholder="Enter your first name"
+            value={firstName}
+            onChangeText={setFirstName}
+            error={errors.firstName}
+            onFocus={() => clearFieldError("firstName")}
+          />
+
+          <FormInput
+            label="LAST NAME"
+            placeholder="Enter your last name"
+            value={lastName}
+            onChangeText={setLastName}
+            error={errors.lastName}
+            onFocus={() => clearFieldError("lastName")}
+          />
+
+          <SelectionField
+            label="Gender"
+            value={
+              gender
+                ? {
+                    male: "Male",
+                    female: "Female",
+                    non_binary: "Non-binary",
+                    prefer_not_to_say: "Prefer not to say",
+                  }[gender]
+                : undefined
+            }
+            placeholder="Select your gender"
+            onPress={handleSelectGender}
+          />
+
+          {formError ? (
+            <Text className="mt-4 text-center text-sm text-error">
+              {formError}
+            </Text>
+          ) : null}
+
+          <ConfirmModal
+            visible={showRemoveModal}
+            title="Remove uploaded profile picture?"
+            message="Your profile picture will change back to your Google or Facebook profile photo. You can change this anytime in Account Settings."
+            confirmText="Remove"
+            destructive
+            onCancel={() => setShowRemoveModal(false)}
+            onConfirm={confirmRemovePicture}
+          />
+
+          <Button
+            title="Save Changes"
+            onPress={handleSaveChanges}
+            loading={isSaving}
+            disabled={!hasChanges || isSaving}
+            className="mt-6 mb-10"
+            icon={
+              <MaterialCommunityIcons
+                name="content-save-outline"
+                size={20}
+                color="white"
+              />
+            }
+          />
+          <ConfirmModal
+            visible={showConfirm}
+            title="Discard changes?"
+            message="You have unsaved changes. Are you sure you want to leave?"
+            confirmText="Discard"
+            destructive
+            onCancel={cancelLeave}
+            onConfirm={confirmLeave}
+          />
+
+          <GenderBottomSheet
+            sheetRef={genderSheetRef}
+            selectedGender={gender}
+            onSelectGender={setGender}
+          />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

@@ -25,7 +25,7 @@ export const toastConfig = {
           width: 30,
           height: 30,
           borderRadius: 15,
-          backgroundColor: "#D4EFE2",
+          backgroundColor: "#BFE8D0",
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -33,7 +33,7 @@ export const toastConfig = {
         <MaterialCommunityIcons name="check" size={16} color="#1B6E4A" />
       </View>
 
-      <View style={{ marginLeft: 10 }}>
+      <View style={{ marginLeft: 8 }}>
         <Text
           style={{
             fontSize: 13,
