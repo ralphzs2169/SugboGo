@@ -12,7 +12,7 @@ import ForgotPasswordIllustration from "@/features/auth/assets/icons/forgot-pass
 import Button from "@/shared/components/Button";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
-import FormInput from "@/features/auth/components/FormInput";
+import FormInput from "@/shared/components/form/FormInput";
 
 /**
  * Screen that allows users to request a password reset link.

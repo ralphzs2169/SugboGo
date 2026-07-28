@@ -1,4 +1,5 @@
 import { ScrollView, View } from "react-native";
+import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Button from "@/shared/components/Button";
 import MerchantHero from "../components/portal/MerchantHero";
@@ -91,7 +92,7 @@ export default function MerchantPortalScreen() {
           <Button
             title={config.primaryAction.buttonTitle}
             fontClassName="font-bold tracking wider"
-            onPress={() => {}}
+            onPress={() => router.push("/(explorer)/merchant-registration")}
           />
         </View>
       </ScrollView>

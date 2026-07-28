@@ -4,6 +4,7 @@ import {
   defaultStackScreenOptions,
   slideFromRight,
 } from "@/shared/navigation/stackOptions";
+
 export default function ExplorerLayout() {
   useAuthGuard();
 
@@ -14,7 +15,9 @@ export default function ExplorerLayout() {
       <Stack.Screen
         name="profile"
         options={{
-          animation: "slide_from_right",
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          title: "Profile",
         }}
       />
     </Stack>

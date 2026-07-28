@@ -15,7 +15,7 @@ import ResetPasswordIcon from "@/features/auth/assets/icons/reset-password.svg";
 import Button from "@/shared/components/Button";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
-import PasswordInput from "@/features/auth/components/PasswordInput";
+import PasswordInput from "@/shared/components/form/PasswordInput";
 
 /**
  * Screen responsible for allowing users to reset their password.
