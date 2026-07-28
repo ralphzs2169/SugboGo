@@ -1,3 +1,4 @@
+from core.pagination import StandardPagination
 from core.responses import success_response
 from rest_framework.decorators import api_view
 
@@ -11,11 +12,31 @@ from apps.msme.services.category_service import CategoryService
 
 @api_view(["GET"])
 def list_categories(request):
-    """Retrieve a list of all categories."""
-    categories = CategoryService.list_categories()
-    serializer = CategorySerializer(categories, many=True)
+    """Retrieve a paginated list of categories."""
 
-    return success_response(data=serializer.data)
+    search = request.query_params.get("search")
+    ordering = request.query_params.get("ordering")
+
+    queryset = CategoryService.list_categories(
+        search=search,
+        ordering=ordering,
+    )
+
+    paginator = StandardPagination()
+
+    page = paginator.paginate_queryset(
+        queryset,
+        request,
+    )
+
+    serializer = CategorySerializer(
+        page,
+        many=True,
+    )
+
+    return paginator.get_paginated_response(
+        serializer.data,
+    )
 
 
 @api_view(["GET"])

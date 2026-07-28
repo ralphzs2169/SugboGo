@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 from apps.msme.models import Cluster
@@ -6,9 +7,30 @@ from apps.msme.models import Cluster
 
 class ClusterService:
     @staticmethod
-    def list_clusters():
-        """Retrieve a list of all clusters."""
-        return Cluster.objects.all()
+    def list_clusters(search=None, ordering=None):
+        """Retrieve a list of all clusters, optionally filtered by search term and ordered by specified field."""
+        queryset = Cluster.objects.all()
+
+        if search:
+            queryset = queryset.filter(
+                Q(CLUS_NAME__icontains=search)
+                | Q(CLUS_DESCRIPTION__icontains=search)
+            )
+
+        ordering_map = {
+            "name": "CLUS_NAME",
+            "-name": "-CLUS_NAME",
+            "created_at": "CLUS_CREATED_AT",
+            "-created_at": "-CLUS_CREATED_AT",
+            "updated_at": "CLUS_UPDATED_AT",
+            "-updated_at": "-CLUS_UPDATED_AT",
+        }
+
+        queryset = queryset.order_by(
+            ordering_map.get(ordering, "CLUS_NAME")
+        )
+
+        return queryset
 
 
     @staticmethod

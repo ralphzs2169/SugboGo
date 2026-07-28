@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 from apps.msme.models import Category
@@ -6,9 +7,30 @@ from apps.msme.models import Category
 
 class CategoryService:
     @staticmethod
-    def list_categories():
-        """Retrieve a list of all categories."""
-        return Category.objects.select_related("CLUS_ID")
+    def list_categories(search=None, ordering=None):
+        """Retrieve a list of all categories, optionally filtered by search term."""
+        queryset = Category.objects.select_related("CLUS_ID")
+
+        if search:
+            queryset = queryset.filter(
+                Q(CTGRY_NAME__icontains=search)
+                | Q(CTGRY_DESCRIPTION__icontains=search)
+            )
+
+        ordering_map = {
+            "name": "CTGRY_NAME",
+            "-name": "-CTGRY_NAME",
+            "created_at": "CTGRY_CREATED_AT",
+            "-created_at": "-CTGRY_CREATED_AT",
+            "updated_at": "CTGRY_UPDATED_AT",
+            "-updated_at": "-CTGRY_UPDATED_AT",
+        }
+
+        queryset = queryset.order_by(
+            ordering_map.get(ordering, "CTGRY_NAME")
+        )
+
+        return queryset
 
    
     @staticmethod

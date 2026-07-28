@@ -1,3 +1,4 @@
+from core.pagination import StandardPagination
 from core.responses import success_response
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -14,16 +15,30 @@ from apps.msme.services.cluster_service import ClusterService
 
 @api_view(["GET"])
 def list_clusters(request):
-    """Retrieve a list of all clusters."""
-    clusters = ClusterService.list_clusters()
+    """Retrieve a paginated list of clusters."""
+
+    search = request.query_params.get("search")
+    ordering = request.query_params.get("ordering")
+    
+    queryset = ClusterService.list_clusters(
+        search=search,
+        ordering=ordering,
+    )
+
+    paginator = StandardPagination()
+
+    page = paginator.paginate_queryset(
+        queryset,
+        request,
+    )
 
     serializer = ClusterSerializer(
-        clusters,
+        page,
         many=True,
     )
 
-    return success_response(
-        data=serializer.data,
+    return paginator.get_paginated_response(
+        serializer.data,
     )
 
 
