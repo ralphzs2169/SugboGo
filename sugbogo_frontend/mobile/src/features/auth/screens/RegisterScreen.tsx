@@ -15,8 +15,8 @@ import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import Divider from "@/features/auth/components/Divider";
-import FormInput from "@/features/auth/components/FormInput";
-import PasswordInput from "@/features/auth/components/PasswordInput";
+import FormInput from "@/shared/components/form/FormInput";
+import PasswordInput from "@/shared/components/form/PasswordInput";
 import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
 import getRegisterErrors from "@/features/auth/utils/registerErrors";
 

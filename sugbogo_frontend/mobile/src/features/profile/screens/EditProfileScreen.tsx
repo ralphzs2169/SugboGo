@@ -1,18 +1,20 @@
-import FormInput from "@/features/auth/components/FormInput";
+import FormInput from "@/shared/components/form/FormInput";
+import Button from "@/shared/components/Button";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import FormSelect from "@/shared/components/form/FormSelect";
+import AvatarInfoCard from "../components/edit-profile/AvatarInfoCard";
+import EditProfileHeader from "../components/edit-profile/EditProfileHeader";
+
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { handleSystemError } from "@/shared/api/error.utils";
-import Button from "@/shared/components/Button";
-import SelectionField from "@/shared/components/form/SelectionField";
-import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
-import AvatarInfoCard from "../components/edit-profile/AvatarInfoCard";
-import EditProfileHeader from "../components/edit-profile/EditProfileHeader";
+import { GenderBottomSheet } from "../components/edit-profile/GenderBottomSheet";
 import { useRemoveProfilePicture } from "../hooks/useRemoveProfilePicture";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChanges";
 import { useUpdateProfile } from "../hooks/useUpdateProfile";
@@ -22,7 +24,6 @@ import {
   UpdateProfileErrors,
   validateProfileForm,
 } from "../utils/updateProfileValidator";
-import { GenderBottomSheet } from "../components/edit-profile/GenderBottomSheet";
 
 /**
  * EditProfileScreen component allows users to edit their profile information,
@@ -230,7 +231,7 @@ export default function EditProfileScreen() {
         {/* Form content */}
         <View className="flex-1 p-5">
           <FormInput
-            label="FIRST NAME"
+            label="First Name"
             placeholder="Enter your first name"
             value={firstName}
             onChangeText={setFirstName}
@@ -239,7 +240,7 @@ export default function EditProfileScreen() {
           />
 
           <FormInput
-            label="LAST NAME"
+            label="Last Name"
             placeholder="Enter your last name"
             value={lastName}
             onChangeText={setLastName}
@@ -247,7 +248,7 @@ export default function EditProfileScreen() {
             onFocus={() => clearFieldError("lastName")}
           />
 
-          <SelectionField
+          <FormSelect
             label="Gender"
             value={
               gender

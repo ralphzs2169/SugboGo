@@ -28,6 +28,9 @@ const REQUIREMENTS = [
 /**
  * Displays the information users should prepare before
  * starting their merchant registration.
+ *
+ * Shows the required details, verification needs, and
+ * estimated completion time for the registration process.
  */
 export default function MerchantRequirements() {
   return (

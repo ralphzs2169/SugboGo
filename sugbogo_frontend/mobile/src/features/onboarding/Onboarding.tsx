@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 
+import { SafeAreaView } from "react-native-safe-area-context";
 import OnboardingFooter from "./components/OnboardingFooter";
 import OnboardingSlide from "./components/OnboardingSlide";
 import { onboardingData } from "./constants/onboardingData";
@@ -62,29 +63,31 @@ export default function Onboarding() {
 
   const isLastPage = currentIndex === onboardingData.length - 1;
   return (
-    <View className="flex-1 bg-white">
-      <FlatList
-        ref={flatListRef}
-        data={onboardingData}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={{ width }}>
-            <OnboardingSlide item={item} />
-          </View>
-        )}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
-      />
+    <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
+      <View className="flex-1 bg-white">
+        <FlatList
+          ref={flatListRef}
+          data={onboardingData}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View style={{ width }}>
+              <OnboardingSlide item={item} />
+            </View>
+          )}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
+        />
 
-      <OnboardingFooter
-        isLastPage={isLastPage}
-        total={onboardingData.length}
-        currentIndex={currentIndex}
-        onSkip={handleSkip}
-        onNext={handleNext}
-      />
-    </View>
+        <OnboardingFooter
+          isLastPage={isLastPage}
+          total={onboardingData.length}
+          currentIndex={currentIndex}
+          onSkip={handleSkip}
+          onNext={handleNext}
+        />
+      </View>
+    </SafeAreaView>
   );
 }

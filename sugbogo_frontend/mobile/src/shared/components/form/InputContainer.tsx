@@ -6,6 +6,7 @@ interface InputContainerProps {
   error?: string;
   rightElement?: ReactNode;
   children: ReactNode;
+  required?: boolean;
 }
 
 /**
@@ -22,12 +23,14 @@ export default function InputContainer({
   error,
   rightElement,
   children,
+  required = false,
 }: InputContainerProps) {
   return (
     <View className="mb-5">
       <View className="mb-1.5 flex-row items-center justify-between">
-        <Text className="text-xs font-semibold tracking-[0.5px] text-text-secondary">
+        <Text className="text-xs font-bold tracking-[0.5px] text-text-secondary">
           {label}
+          {required && <Text className="text-error"> *</Text>}
         </Text>
 
         {rightElement}

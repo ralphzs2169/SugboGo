@@ -51,6 +51,21 @@ export default (): ExpoConfig => ({
     "expo-web-browser",
 
     [
+      "expo-location",
+      {
+        locationWhenInUsePermission:
+          "Allow SugboGo to access your location to verify your business location.",
+      },
+    ],
+
+    [
+      "expo-camera",
+      {
+        cameraPermission:
+          "Allow SugboGo to access your camera to capture verification photos.",
+      },
+    ],
+    [
       "react-native-fbsdk-next",
       {
         appID: process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "000000000000000",
