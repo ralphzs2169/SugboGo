@@ -1,71 +1,103 @@
 import { View, Text } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
-import { useEffect } from "react";
-import JeepneyIcon from "../../assets/icons/jeepney.svg";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-const STEPPER_ANIMATION_DURATION = 450;
-const JEEPNEY_SIZE = 40;
-const JEEPNEY_OFFSET_X = -(JEEPNEY_SIZE / 1.2);
-const JEEPNEY_OFFSET_Y = -28;
+const STEP_CIRCLE_SIZE = 36;
+const CONNECTOR_HEIGHT = 2;
 
 type RegistrationStepperProps = {
-  title: string;
   currentStep: number;
   totalSteps: number;
+  title: string;
 };
 
+const STEP_ICONS = [
+  "storefront-outline",
+  "map-marker-outline",
+  "clock-outline",
+  "image-outline",
+  "file-document-outline",
+  "clipboard-check-outline",
+] as const;
 /**
  * Displays the user's progress through the merchant
  * registration flow.
  *
- * Shared across all registration screens.
+ * Completed steps display a checkmark, the current step is
+ * highlighted, and upcoming steps remain muted.
  */
 export default function RegistrationStepper({
   currentStep,
   totalSteps,
   title,
 }: RegistrationStepperProps) {
-  const progress = useSharedValue(0);
-
-  useEffect(() => {
-    progress.value = withTiming(currentStep / totalSteps, {
-      duration: STEPPER_ANIMATION_DURATION,
-    });
-  }, [currentStep, totalSteps]);
-
-  const progressStyle = useAnimatedStyle(() => ({
-    width: `${progress.value * 100}%`,
-  }));
-
-  const jeepneyStyle = useAnimatedStyle(() => ({
-    left: `${progress.value * 100}%`,
-    top: JEEPNEY_OFFSET_Y,
-    transform: [{ translateX: JEEPNEY_OFFSET_X }],
-  }));
-
   return (
-    <View className="bg-surface px-6 pt-6 pb-4">
-      <Text className="text-2xl font-bold text-text-primary">{title}</Text>
-
-      <Text className="mt-1 text-sm font-medium text-text-secondary">
+    <View className="bg-surface pb-4 pt-2 border-b border-border">
+      <Text
+        className="mb-4 text-sm font-medium text-text-secondary"
+        style={{ marginLeft: STEP_CIRCLE_SIZE / 2 }}
+      >
         Step {currentStep} of {totalSteps}
+        <Text className="text-text-tertiary"> • </Text>
+        <Text className="font-semibold text-text-primary">{title}</Text>
       </Text>
 
-      <View className="relative mt-5">
-        <View className="h-2 overflow-hidden rounded-full bg-border">
-          <Animated.View
-            className="h-full rounded-full bg-brand"
-            style={progressStyle}
-          />
-        </View>
+      <View className="flex-row items-center">
+        {Array.from({ length: totalSteps }).map((_, index) => {
+          const step = index + 1;
 
-        <Animated.View className="absolute -top-3 z-10" style={jeepneyStyle}>
-          <JeepneyIcon width={JEEPNEY_SIZE} height={JEEPNEY_SIZE} />
-        </Animated.View>
+          const isCompleted = step < currentStep;
+          const isCurrent = step === currentStep;
+
+          return (
+            <View key={step} className="relative flex-1 items-center">
+              {/* Connector */}
+              {step !== totalSteps && (
+                <View
+                  className={[
+                    "absolute rounded-full",
+                    step < currentStep ? "bg-brand" : "bg-border",
+                  ].join(" ")}
+                  style={{
+                    left: STEP_CIRCLE_SIZE / 2,
+                    right: -(STEP_CIRCLE_SIZE / 2),
+                    top: STEP_CIRCLE_SIZE / 2 - CONNECTOR_HEIGHT / 2,
+                    height: CONNECTOR_HEIGHT,
+                  }}
+                />
+              )}
+
+              {/* Circle */}
+              <View
+                style={{
+                  width: STEP_CIRCLE_SIZE,
+                  height: STEP_CIRCLE_SIZE,
+                }}
+                className={[
+                  "z-10 items-center justify-center rounded-full border-2",
+                  isCompleted
+                    ? "border-brand bg-brand"
+                    : isCurrent
+                      ? "border-brand bg-white"
+                      : "border-border bg-surface",
+                ].join(" ")}
+              >
+                {isCompleted ? (
+                  <MaterialCommunityIcons
+                    name="check"
+                    size={18}
+                    color="white"
+                  />
+                ) : (
+                  <MaterialCommunityIcons
+                    name={STEP_ICONS[index]}
+                    size={18}
+                    color={isCurrent ? "#F27F0D" : "#6B7280"}
+                  />
+                )}
+              </View>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
