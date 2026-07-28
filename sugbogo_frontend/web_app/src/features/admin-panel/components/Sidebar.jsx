@@ -15,6 +15,7 @@ import { logout } from "@/features/auth/utils/authSession";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
 import navigation from "../config/sidebarNavigation";
+import MsmeLinkDropdown from "./MsmeLinkDropdown";
 
 /**
  * Persistent left sidebar navigation for the super admin console.
@@ -76,12 +77,7 @@ export default function Sidebar({ onLogout, isOpen, onClose }) {
             onClick={onClose}
           />
 
-          <SidebarLink
-            to="/admin-panel/msmes"
-            label="MSMEs"
-            Icon={FiShield}
-            onClick={onClose}
-          />
+          <MsmeLinkDropdown onClick={onClose} />
 
           <UsersLinkDropdown />
 
