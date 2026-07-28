@@ -10,12 +10,8 @@ const links = [
     label: "Businesses",
   },
   {
-    to: "/admin-panel/business-categories",
-    label: "Categories",
-  },
-  {
-    to: "/admin-panel/business-clusters",
-    label: "Clusters",
+    to: "/admin-panel/cluster-category",
+    label: "Clusters & Categories",
   },
   {
     to: "/admin-panel/specialty-tags",

@@ -7,9 +7,18 @@ from apps.msme.models import Category
 
 class CategoryService:
     @staticmethod
-    def list_categories(search=None, ordering=None):
-        """Retrieve a list of all categories, optionally filtered by search term."""
+    def list_categories(search=None, ordering=None, cluster_id=None):
+        """
+        Retrieve categories with optional search filtering,
+        cluster filtering, and ordering.
+        """
+
         queryset = Category.objects.select_related("CLUS_ID")
+
+        if cluster_id:
+            queryset = queryset.filter(
+                CLUS_ID=cluster_id
+            )
 
         if search:
             queryset = queryset.filter(
@@ -26,12 +35,9 @@ class CategoryService:
             "-updated_at": "-CTGRY_UPDATED_AT",
         }
 
-        queryset = queryset.order_by(
+        return queryset.order_by(
             ordering_map.get(ordering, "CTGRY_NAME")
         )
-
-        return queryset
-
    
     @staticmethod
     def get_category(category_id: int):

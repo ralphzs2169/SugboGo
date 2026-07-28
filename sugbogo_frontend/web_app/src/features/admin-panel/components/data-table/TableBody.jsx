@@ -14,14 +14,15 @@ import TableEmptyState from "./TableEmptyState";
  * @param {string} emptyState.description - Supporting message explaining the empty state.
  * @param {React.ReactNode} [emptyState.icon] - Optional icon or illustration displayed above the text.
  */
-function TableBody({ table, emptyState }) {
+function TableBody({ table, emptyState, onRowClick }) {
   return (
     <tbody className="divide-y divide-stroke/60">
       {table.getRowModel().rows.length > 0 ? (
         table.getRowModel().rows.map((row) => (
           <tr
             key={row.id}
-            className="hover:bg-interaction-hover transition-colors"
+            onClick={() => onRowClick?.(row.original)}
+            className={` hover:bg-interaction-hover transition-colors ${onRowClick ? "cursor-pointer" : ""} `}
           >
             {row.getVisibleCells().map((cell) => (
               <td key={cell.id} className="py-2 align-middle">

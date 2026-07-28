@@ -16,10 +16,12 @@ def list_categories(request):
 
     search = request.query_params.get("search")
     ordering = request.query_params.get("ordering")
+    cluster_id = request.query_params.get("cluster_id")
 
     queryset = CategoryService.list_categories(
         search=search,
         ordering=ordering,
+        cluster_id=cluster_id,
     )
 
     paginator = StandardPagination()

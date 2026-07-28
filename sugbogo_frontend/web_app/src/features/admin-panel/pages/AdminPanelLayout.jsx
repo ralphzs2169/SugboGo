@@ -2,7 +2,6 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import Sidebar from "@/features/admin-panel/components/Sidebar";
 import Header from "@/features/admin-panel/components/Header";
-import { PAGE_METADATA } from "../constants/pageMetadata";
 
 /**
  * AdminPanelLayout component that serves as the main layout for the admin panel.
@@ -13,11 +12,6 @@ export default function AdminPanelLayout() {
   const location = useLocation();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  const page = PAGE_METADATA[location.pathname] ?? {
-    title: "SugboGo Admin",
-    subtitle: "",
-  };
 
   const handleLogout = () => {
     navigate("/admin-panel/dashboard");
@@ -33,11 +27,7 @@ export default function AdminPanelLayout() {
 
       <div className="min-h-screen lg:ml-64">
         <section className="sticky top-0 z-50 border-b border-stroke bg-background-primary">
-          <Header
-            title={page.title}
-            subtitle={page.subtitle}
-            onMenuClick={() => setIsSidebarOpen(true)}
-          />
+          <Header onMenuClick={() => setIsSidebarOpen(true)} />
         </section>
         <main className=" p-6 sm:p-8 ">
           <Outlet />

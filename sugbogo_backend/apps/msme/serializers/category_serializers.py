@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.msme.models import Category
+from apps.msme.models import Category, Cluster
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -10,10 +10,15 @@ class CategorySerializer(serializers.ModelSerializer):
         source="CTGRY_DESCRIPTION",
         read_only=True,
     )
-    cluster_id = serializers.IntegerField(
-        source="CLUS_ID.CLUS_ID",
+    cluster_id = serializers.PrimaryKeyRelatedField(
+        source="CLUS_ID",
+        queryset=Cluster.objects.all(),
+    )
+    cluster_name = serializers.CharField(
+        source="CLUS_ID.CLUS_NAME",
         read_only=True,
     )
+    
 
     class Meta:
         model = Category
@@ -22,6 +27,7 @@ class CategorySerializer(serializers.ModelSerializer):
             "name",
             "description",
             "cluster_id",
+            "cluster_name",
         )
 
 

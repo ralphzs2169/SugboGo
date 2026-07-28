@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 
 from apps.msme.models import Cluster
@@ -8,8 +8,15 @@ from apps.msme.models import Cluster
 class ClusterService:
     @staticmethod
     def list_clusters(search=None, ordering=None):
-        """Retrieve a list of all clusters, optionally filtered by search term and ordered by specified field."""
-        queryset = Cluster.objects.all()
+        """
+        Retrieve clusters with optional search filtering,
+        ordering, and category count annotation.
+        """
+         
+        queryset = (
+            Cluster.objects
+            .annotate(category_count=Count("categories", distinct=True))
+        )
 
         if search:
             queryset = queryset.filter(
@@ -37,7 +44,9 @@ class ClusterService:
     def get_cluster(cluster_id: int):
         """Retrieve a specific cluster by ID."""
         return get_object_or_404(
-            Cluster,
+            Cluster.objects.annotate(
+                category_count=Count("categories", distinct=True)
+            ),
             CLUS_ID=cluster_id,
         )
 

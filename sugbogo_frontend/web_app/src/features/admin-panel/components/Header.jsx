@@ -2,7 +2,7 @@ import React from "react";
 import { Search, Bell, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import ThemeToggle from "@/shared/components/ThemeToggle";
-
+import { PAGE_METADATA } from "../constants/pageMetaData";
 /**
  * Admin panel top navigation header with search, theme toggle, notifications, and profile actions.
  *
@@ -11,7 +11,12 @@ import ThemeToggle from "@/shared/components/ThemeToggle";
  * @param {string} subtitle - Supporting description text shown below the heading.
  * @param {function} onMenuClick - Callback event handler invoked when the mobile hamburger button is pressed.
  */
-function Header({ title, subtitle, onMenuClick }) {
+function Header({ onMenuClick }) {
+  const metadata = PAGE_METADATA[window.location.pathname];
+
+  const title = metadata?.title || "SugboGo Admin";
+  const subtitle = metadata?.subtitle || "";
+
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem("theme") === "dark";
   });

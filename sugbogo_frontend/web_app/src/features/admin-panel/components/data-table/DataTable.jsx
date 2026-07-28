@@ -36,6 +36,7 @@ function DataTable({
   onColumnFiltersChange,
   hasActiveFilters,
   onResetFilters,
+  onRowClick,
   config = {},
   slots = {},
 }) {
@@ -91,7 +92,11 @@ function DataTable({
           <TableHeader table={table} />
 
           {/* Table Body */}
-          <TableBody table={table} emptyState={emptyState} />
+          <TableBody
+            table={table}
+            emptyState={emptyState}
+            onRowClick={onRowClick}
+          />
         </table>
       </div>
 
