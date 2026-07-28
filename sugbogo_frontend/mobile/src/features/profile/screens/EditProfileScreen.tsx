@@ -231,7 +231,7 @@ export default function EditProfileScreen() {
         {/* Form content */}
         <View className="flex-1 p-5">
           <FormInput
-            label="FIRST NAME"
+            label="First Name"
             placeholder="Enter your first name"
             value={firstName}
             onChangeText={setFirstName}
@@ -240,7 +240,7 @@ export default function EditProfileScreen() {
           />
 
           <FormInput
-            label="LAST NAME"
+            label="Last Name"
             placeholder="Enter your last name"
             value={lastName}
             onChangeText={setLastName}

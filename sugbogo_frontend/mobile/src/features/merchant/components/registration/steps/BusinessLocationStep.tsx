@@ -1,21 +1,72 @@
-import { Text, View } from "react-native";
+import RegistrationSection from "../RegistrationSection";
+import MapPlaceholder from "../MapPlaceholder";
+
+import RHFFormInput from "@/shared/components/form/RHFFormInput";
 
 /**
- * Placeholder for the business location step.
+ * Displays the business location fields for the
+ * merchant registration flow.
  *
- * This step will handle map pinning,
- * address selection, and location verification.
+ * Merchants first pin their business on the map,
+ * then verify the detected address and provide any
+ * additional location details.
  */
 export default function BusinessLocationStep() {
   return (
-    <View>
-      <Text className="text-lg font-semibold text-text-primary">
-        Business Location
-      </Text>
+    <>
+      <RegistrationSection
+        icon="map-marker-radius-outline"
+        title="Pin Your Business Location"
+        description="Tap the map to mark where your business is located. We'll automatically detect your address."
+      >
+        <MapPlaceholder />
+      </RegistrationSection>
 
-      <Text className="mt-2 text-text-secondary">
-        Location setup will be implemented here.
-      </Text>
-    </View>
+      <RegistrationSection
+        icon="home-map-marker"
+        title="Address Details"
+        description="Review the detected address and complete any missing information."
+      >
+        <RHFFormInput
+          name="province"
+          label="Province"
+          editable={false}
+          placeholder="Detected automatically"
+        />
+
+        <RHFFormInput
+          name="city"
+          label="City / Municipality"
+          editable={false}
+          placeholder="Detected automatically"
+        />
+
+        <RHFFormInput
+          name="barangay"
+          label="Barangay"
+          editable={false}
+          placeholder="Detected automatically"
+        />
+
+        <RHFFormInput
+          name="streetAddress"
+          label="Street Address"
+          required
+          placeholder="e.g. Gov. Cuenco Avenue"
+        />
+
+        <RHFFormInput
+          name="unit"
+          label="Unit / Building (Optional)"
+          placeholder="e.g. Unit 201, 2nd Floor"
+        />
+
+        <RHFFormInput
+          name="landmark"
+          label="Nearest Landmark (Optional)"
+          placeholder="e.g. Across Cebu IT Park"
+        />
+      </RegistrationSection>
+    </>
   );
 }

@@ -9,6 +9,7 @@ type FormSelectProps = {
   onPress: () => void;
   error?: string;
   disabled?: boolean;
+  required?: boolean;
   rightElement?: React.ReactNode;
 };
 
@@ -25,10 +26,16 @@ export default function FormSelect({
   onPress,
   error,
   disabled = false,
+  required = false,
   rightElement,
 }: FormSelectProps) {
   return (
-    <InputContainer label={label} error={error} rightElement={rightElement}>
+    <InputContainer
+      label={label}
+      error={error}
+      rightElement={rightElement}
+      required={required}
+    >
       <Pressable
         onPress={onPress}
         disabled={disabled}

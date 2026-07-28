@@ -1,5 +1,5 @@
 import Button from "@/shared/components/Button";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 
 type RegistrationFooterProps = {
   currentStep: number;
@@ -13,8 +13,8 @@ type RegistrationFooterProps = {
  * Displays the navigation controls for the merchant
  * registration flow.
  *
- * Shows Back and Next actions, replacing Next with
- * Submit on the final step.
+ * Shows Back and Continue actions, replacing Continue with
+ * Submit Application on the final step.
  */
 export default function RegistrationFooter({
   currentStep,
@@ -27,22 +27,32 @@ export default function RegistrationFooter({
   const isLastStep = currentStep === totalSteps;
 
   return (
-    <View className="mt-8 flex-row gap-3">
-      {!isFirstStep && (
-        <Button
-          title="Back"
-          variant="secondary"
-          className="flex-1"
-          onPress={onBack}
-        />
-      )}
+    <View className="border-t border-border bg-surface px-6 py-5">
+      <Text className="mb-4 text-sm text-text-secondary">
+        {isLastStep
+          ? "Review your information before submitting your application."
+          : "Complete each step to continue your merchant registration."}
+      </Text>
 
-      <Button
-        title={isLastStep ? "Submit Application" : "Next"}
-        className="flex-1"
-        loading={isSubmitting}
-        onPress={onNext}
-      />
+      <View className="flex-row gap-3">
+        {!isFirstStep && (
+          <Button
+            title="Back"
+            variant="secondary"
+            className="flex-1"
+            disabled={isSubmitting}
+            onPress={onBack}
+          />
+        )}
+
+        <Button
+          title={isLastStep ? "Submit Application" : "Continue"}
+          className="flex-1"
+          loading={isSubmitting}
+          disabled={isSubmitting}
+          onPress={onNext}
+        />
+      </View>
     </View>
   );
 }

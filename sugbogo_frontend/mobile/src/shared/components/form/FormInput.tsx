@@ -6,6 +6,7 @@ interface FormInputProps extends TextInputProps {
   label: string;
   error?: string;
   rightElement?: React.ReactNode;
+  required?: boolean;
 }
 
 /**
@@ -15,10 +16,16 @@ export default function FormInput({
   label,
   error,
   rightElement,
+  required = false,
   ...props
 }: FormInputProps) {
   return (
-    <InputContainer label={label} error={error} rightElement={rightElement}>
+    <InputContainer
+      label={label}
+      error={error}
+      rightElement={rightElement}
+      required={required}
+    >
       <TextInput
         className="flex-1 py-[14px] text-body text-text-primary"
         placeholderTextColor="#999999"

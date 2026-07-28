@@ -1,6 +1,7 @@
 export interface MerchantRegistrationForm {
   // Step 1: Business Identity
   businessName: string;
+  businessCluster: string;
   businessCategory: string;
   businessDescription: string;
 
@@ -8,11 +9,19 @@ export interface MerchantRegistrationForm {
   businessEmail: string;
   website: string;
 
+  representativeName: string;
+  representativeRole: string;
+
   // Step 2: Business Location
-  businessAddress: string;
+  province: string;
+  city: string;
+  barangay: string;
+  streetAddress: string;
+  unit: string;
+  landmark: string;
+
   latitude: number | null;
   longitude: number | null;
-  landmark: string;
 
   // Step 3: Operating Hours
   operatingHours: {

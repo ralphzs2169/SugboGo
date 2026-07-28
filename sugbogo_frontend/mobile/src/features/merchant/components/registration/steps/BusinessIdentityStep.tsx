@@ -2,6 +2,8 @@ import RHFFormInput from "@/shared/components/form/RHFFormInput";
 import RHFFormSelect from "@/shared/components/form/RHFFormSelect";
 import RHFFormTextArea from "@/shared/components/form/RHFFormTextArea";
 
+import RegistrationSection from "../RegistrationSection";
+
 /**
  * Displays the business identity fields for the
  * merchant registration flow.
@@ -9,46 +11,88 @@ import RHFFormTextArea from "@/shared/components/form/RHFFormTextArea";
 export default function BusinessIdentityStep() {
   return (
     <>
-      <RHFFormInput
-        name="businessName"
-        label="Business Name"
-        placeholder="e.g. Cafe Sugbo"
-      />
+      <RegistrationSection
+        icon="store-outline"
+        title="Business Details"
+        description="Tell us about the business you'd like to register."
+      >
+        <RHFFormInput
+          name="businessName"
+          label="Business Name"
+          placeholder="e.g. Cafe Sugbo"
+          required
+        />
 
-      <RHFFormSelect
-        name="businessCategory"
-        label="Business Category"
-        placeholder="Select a category"
-      />
+        <RHFFormSelect
+          name="businessCluster"
+          label="Cluster"
+          placeholder="Select a cluster"
+          required
+        />
 
-      <RHFFormTextArea
-        name="businessDescription"
-        label="Business Description"
-        placeholder="Tell explorers about your business..."
-        maxLength={500}
-      />
+        <RHFFormSelect
+          name="businessCategory"
+          label="Category"
+          placeholder="Select a category"
+          required
+        />
 
-      <RHFFormInput
-        name="contactNumber"
-        label="Contact Number"
-        placeholder="09XXXXXXXXX"
-        keyboardType="phone-pad"
-      />
+        <RHFFormTextArea
+          name="businessDescription"
+          label="Description"
+          placeholder="Tell explorers about your business..."
+          maxLength={500}
+        />
 
-      <RHFFormInput
-        name="businessEmail"
-        label="Business Email (Optional)"
-        placeholder="business@example.com"
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
+        <RHFFormInput
+          name="website"
+          label="Facebook Page / Website (Optional)"
+          placeholder="https://..."
+          autoCapitalize="none"
+        />
+      </RegistrationSection>
 
-      <RHFFormInput
-        name="website"
-        label="Facebook Page / Website (Optional)"
-        placeholder="https://..."
-        autoCapitalize="none"
-      />
+      <RegistrationSection
+        icon="account-outline"
+        title="Contact Information"
+        description="We'll use these details to contact you regarding your application."
+      >
+        <RHFFormInput
+          name="contactNumber"
+          label="Mobile Number"
+          placeholder="0912 345 6789"
+          keyboardType="phone-pad"
+          required
+        />
+
+        <RHFFormInput
+          name="businessEmail"
+          label="Email Address"
+          placeholder="business@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          required
+        />
+      </RegistrationSection>
+
+      <RegistrationSection
+        icon="account-outline"
+        title="Representative Information"
+        description="Provide the details of the person authorized to submit this application."
+      >
+        <RHFFormInput
+          name="representativeName"
+          label="Representative Name"
+          required
+          placeholder="e.g. Juan Dela Cruz"
+        />
+        <RHFFormSelect
+          name="representativeRole"
+          label="Position / Role"
+          required
+          placeholder="Select your role"
+        />
+      </RegistrationSection>
     </>
   );
 }

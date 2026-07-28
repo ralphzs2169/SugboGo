@@ -35,7 +35,7 @@ export default function RegistrationLayout({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View className="px-6 py-6">{children}</View>
+          <View>{children}</View>
         </ScrollView>
 
         {footer}
