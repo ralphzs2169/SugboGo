@@ -4,47 +4,63 @@ import { fetchCategories } from "../services/clusterCategoryService";
 /**
  * Handles fetching and managing category data.
  *
- * Owns the fetch lifecycle state including loading,
- * and manual refetching.
+ * Supports server-side:
+ * - Search
+ * - Sorting
+ * - Pagination
  *
- * @param {Object|null} selectedCluster - Selected cluster used
- * to filter categories.
+ * @param {Object} params - Query parameters passed to the API.
  *
  * @returns {{
  *   categories: Array,
+ *   totalItems: number,
+ *   pageCount: number,
  *   isLoading: boolean,
+ *   error: Error | null,
  *   refetch: Function
  * }}
  */
-export default function useCategories(selectedCluster) {
+export default function useCategories(params = {}) {
   const [categories, setCategories] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [pageCount, setPageCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   async function loadCategories() {
-    if (!selectedCluster) {
-      setCategories([]);
-      setIsLoading(false);
-      return;
-    }
-
     setIsLoading(true);
+    setError(null);
 
-    const response = await fetchCategories({
-      cluster_id: selectedCluster.id,
-    });
+    try {
+      const response = await fetchCategories(params);
 
-    setCategories(response.items);
+      setCategories(response.items ?? []);
 
-    setIsLoading(false);
+      setTotalItems(response.pagination?.total_items ?? 0);
+
+      setPageCount(response.pagination?.total_pages ?? 0);
+    } catch (error) {
+      console.error("Failed to load categories:", error);
+
+      setError(error);
+      setCategories([]);
+      setTotalItems(0);
+      setPageCount(0);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   useEffect(() => {
     loadCategories();
-  }, [selectedCluster]);
+  }, [params.search, params.page, params.page_size, params.ordering]);
 
   return {
     categories,
+    totalItems,
+    pageCount,
     isLoading,
+    error,
     refetch: loadCategories,
   };
 }

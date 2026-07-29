@@ -17,8 +17,9 @@ export default function Msmes() {
   useEffect(() => {
     const fetchMsmesData = async () => {
       try {
-        const response = await getMSMEData();
-        setMsmesData(response.data);
+        // const response = await getMSMEData();
+
+        setMsmesData("Hellow");
       } catch (fetchError) {
         setError(fetchError.message);
       } finally {

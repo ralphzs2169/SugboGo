@@ -7,23 +7,27 @@ import useClusters from "../hooks/useClusters";
 /**
  * Displays a searchable and sortable cluster table.
  *
- * Handles table state management and connects cluster selection
- * events to the parent management screen.
+ * Handles table state management and connects cluster actions.
  *
  * @param {Object} props
- * @param {Object|null} props.selectedCluster - Currently selected cluster.
- * @param {Function} props.onSelectCluster - Callback triggered when a row is selected.
+ * @param {Array} props.clusters - List of clusters.
+ * @param {boolean} props.isLoading - Whether clusters are loading.
+ * @param {Function} props.onEditCluster - Callback triggered when editing a cluster.
+ * @param {Function} props.onDeleteCluster - Callback triggered when deleting a cluster.
  *
- * @returns {JSX.Element} Cluster management table.
+ * @returns {JSX.Element}
  */
-export default function ClusterTable({ selectedCluster, onSelectCluster }) {
-  const columns = getClusterColumns(selectedCluster);
+export default function ClusterTable({
+  clusters,
+  isLoading,
+  onEditCluster,
+  onDeleteCluster,
+}) {
+  const columns = getClusterColumns(onEditCluster, onDeleteCluster);
 
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState([]);
   const [columnFilters, setColumnFilters] = useState([]);
-
-  const { clusters, isLoading } = useClusters();
 
   const handleResetFilters = () => {
     setGlobalFilter("");
@@ -44,7 +48,6 @@ export default function ClusterTable({ selectedCluster, onSelectCluster }) {
     <DataTable
       data={clusters}
       columns={columns}
-      onRowClick={onSelectCluster}
       state={{
         globalFilter,
         sorting,

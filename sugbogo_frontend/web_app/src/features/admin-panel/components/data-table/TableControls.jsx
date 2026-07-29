@@ -3,32 +3,41 @@ import { Search } from "lucide-react";
 import { FaRotateLeft } from "react-icons/fa6";
 
 /**
- * Control header bar that manages the layout for global search text inputs,
- * custom filter dropdown injection slots, and active sorting feedback labels.
+ * Table control toolbar containing global search,
+ * filter actions, and feature-specific header actions.
+ *
+ * Supports custom filter UI and action buttons through render props,
+ * allowing individual tables to inject feature-specific controls.
  *
  * @component
- * @param {string} globalFilter - The current text value typed inside the search field.
- * @param {function} setGlobalFilter - Parent state setter callback to handle search queries.
- * @param {string} [searchPlaceholder] - Customizable descriptive placeholder text for the input box.
- * @param {function} [renderFilters] - Render prop layout function that returns custom dropdown blocks.
- * @param {boolean} [hasActiveFilters] - Flag indicating if any filters are currently applied.
- * @param {function} [onResetFilters] - Callback function to reset all filters and sorting.
+ *
+ * @param {Object} props
+ * @param {string} props.globalFilter - Current search input value.
+ * @param {Function} props.setGlobalFilter - Updates the search query state.
+ * @param {string} props.searchPlaceholder - Search input placeholder text.
+ * @param {Function} [props.renderFilters] - Renders custom filter controls.
+ * @param {Function} [props.renderHeaderActions] - Renders action buttons.
+ * @param {boolean} props.hasActiveFilters - Determines whether reset action is shown.
+ * @param {Function} props.onResetFilters - Clears active filters and sorting.
+ *
+ * @returns {JSX.Element}
  */
-
 function TableControls({
   globalFilter,
   setGlobalFilter,
   searchPlaceholder,
   renderFilters,
+  renderHeaderActions,
   hasActiveFilters,
   onResetFilters,
 }) {
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+      <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-3">
         {/* Search Field */}
-        <div className="relative w-full sm:w-9/12 md:w-7/12 lg:w-5/12">
+        <div className="relative w-full sm:w-72 md:w-96 lg:w-[420px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+
           <input
             type="text"
             value={globalFilter}
@@ -38,22 +47,26 @@ function TableControls({
           />
         </div>
 
-        {/* Filter Controls */}
-        <div className="flex items-center gap-2">
-          {renderFilters && renderFilters()}
+        {renderFilters && renderFilters()}
 
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={onResetFilters}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-md  px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:border-stroke-active hover:bg-interaction-hover hover:text-text-primary"
-            >
-              <FaRotateLeft className="h-4 w-4" />
-              <span>Clear Filters</span>
-            </button>
-          )}
-        </div>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="inline-flex cursor-pointer items-center gap-1 rounded-md px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:border-stroke-active hover:bg-interaction-hover"
+          >
+            <FaRotateLeft className="h-4 w-4" />
+            <span>Clear Filters</span>
+          </button>
+        )}
       </div>
+
+      {/* Fixed right-side actions */}
+      {renderHeaderActions && (
+        <div className="flex items-center justify-end">
+          {renderHeaderActions()}
+        </div>
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ module.exports = {
         error: "#DC2626", // error/validation text
         success: "#16A34A", // success states
         white: "#FFFFFF", // pure white
+        danger: "#EF4444",
 
         text: {
           primary: "#1A1A1A",

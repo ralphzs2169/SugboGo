@@ -1,5 +1,5 @@
 from core.pagination import StandardPagination
-from core.responses import success_response
+from core.responses import error_response, success_response
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -110,7 +110,13 @@ def delete_cluster(request, cluster_id):
         Cluster,
         CLUS_ID=cluster_id,
     )
-
+    
+    if cluster.categories.exists():
+        return error_response(
+            message="Cannot delete cluster with existing categories.",
+            code="CLUSTER_HAS_CATEGORIES",
+        )
+    
     ClusterService.delete_cluster(cluster)
 
     return success_response(

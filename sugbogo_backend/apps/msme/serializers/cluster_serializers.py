@@ -10,6 +10,7 @@ class ClusterSerializer(serializers.ModelSerializer):
         source="CLUS_DESCRIPTION",
         read_only=True,
     )
+    created_at = serializers.DateTimeField(source="CLUS_CREATED_AT", read_only=True)
     category_count = serializers.IntegerField(read_only=True)
     
     class Meta:
@@ -19,6 +20,7 @@ class ClusterSerializer(serializers.ModelSerializer):
             "name",
             "description",
             "category_count",
+            "created_at",
         )
 
 

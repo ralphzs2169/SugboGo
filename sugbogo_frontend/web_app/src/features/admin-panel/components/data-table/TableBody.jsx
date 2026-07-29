@@ -25,7 +25,15 @@ function TableBody({ table, emptyState, onRowClick }) {
             className={` hover:bg-interaction-hover transition-colors ${onRowClick ? "cursor-pointer" : ""} `}
           >
             {row.getVisibleCells().map((cell) => (
-              <td key={cell.id} className="py-2 align-middle">
+              <td
+                key={cell.id}
+                className={`py-2 align-middle ${
+                  cell.column.id === "actions" ? "text-center" : ""
+                }`}
+                style={{
+                  width: cell.column.getSize(),
+                }}
+              >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </td>
             ))}

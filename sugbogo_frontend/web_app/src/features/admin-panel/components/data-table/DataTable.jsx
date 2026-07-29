@@ -1,97 +1,106 @@
 import React from "react";
-import { FaSort, FaSortUp, FaSortDown } from "react-icons/fa6";
 import TableTabs from "./TableTabs";
 import TableControls from "./TableControls";
 import TableHeader from "./TableHeader";
 import TableBody from "./TableBody";
 import TablePagination from "./TablePagination";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  flexRender,
-} from "@tanstack/react-table";
+import { useReactTable, getCoreRowModel } from "@tanstack/react-table";
 
 /**
- * A reusable, stateless data table core powered by TanStack Table.
- * Fully styled for the admin dashboard and controlled entirely by its parent.
+ * Reusable server-side capable data table powered by TanStack Table.
+ *
+ * Manages table rendering while keeping state controlled by the parent.
+ * Supports external filtering, sorting, pagination, custom actions,
+ * and feature-specific UI injection through slots.
  *
  * @component
- * @param {Array<Object>} data - The raw array of data objects from your API.
- * @param {Array<Object>} columns - TanStack column definitions.
- * @param {Object} state - Hoisted state containing sorting, globalFilter, and columnFilters.
- * @param {function} onSortingChange - Parent state setter for sorting.
- * @param {function} onGlobalFilterChange - Parent state setter for global search text.
- * @param {function} onColumnFiltersChange - Parent state setter for dropdown column filters.
- * @param {Object} [config] - Optional configuration settings for UI text and tabs.
- * @param {Object} [slots] - Optional UI markup injection layout fragments.
+ *
+ * @param {Object} props
+ * @param {Array<Object>} props.data - Current table records.
+ * @param {Array<Object>} props.columns - TanStack column definitions.
+ * @param {Object} props.state - Controlled table state.
+ * @param {Object} props.pagination - Current pagination state.
+ * @param {number} props.pageCount - Total available pages.
+ * @param {number} props.totalItems - Total records from API.
+ * @param {Function} props.onSortingChange - Updates sorting state.
+ * @param {Function} props.onGlobalFilterChange - Updates global search state.
+ * @param {Function} props.onColumnFiltersChange - Updates column filter state.
+ * @param {Function} props.onPaginationChange - Updates pagination state.
+ * @param {boolean} props.hasActiveFilters - Controls reset filter visibility.
+ * @param {Function} props.onResetFilters - Clears active filters.
+ * @param {Function} [props.onRowClick] - Handles row selection.
+ * @param {Object} [props.config] - Table UI configuration.
+ * @param {Object} [props.slots] - Custom UI render functions.
+ *
+ * @returns {JSX.Element}
  */
 function DataTable({
   data,
   columns,
   state,
+  pagination,
+  pageCount,
+  totalItems,
   onSortingChange,
   onGlobalFilterChange,
   onColumnFiltersChange,
+  onPaginationChange,
   hasActiveFilters,
   onResetFilters,
   onRowClick,
   config = {},
   slots = {},
 }) {
-  // Extract UI configurations with defaults
   const {
     tabs = [],
     activeTab,
     onTabChange,
     searchPlaceholder = "Search...",
-    footerMetaText,
     emptyState = {},
   } = config;
 
-  // Extract layout injection functions
-  const { renderFilters, renderFloatingAction } = slots;
+  const { renderFilters, renderHeaderActions, renderFloatingAction } = slots;
 
+  // TanStack delegates sorting, filtering, and pagination to external handlers.
   const table = useReactTable({
     data,
     columns,
-    state,
+
+    state: {
+      ...state,
+      pagination,
+    },
+
+    manualFiltering: true,
+    manualSorting: true,
+    manualPagination: true,
+
     onGlobalFilterChange,
     onColumnFiltersChange,
     onSortingChange,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
+    onPaginationChange,
 
-  const {
-    title = "No data available",
-    description = "There are currently no records to display.",
-    icon = null,
-  } = emptyState;
+    getCoreRowModel: getCoreRowModel(),
+  });
 
   return (
     <div className="w-full rounded-lg border border-stroke bg-background-primary pb-6 px-6 pt-2 shadow-sm relative">
-      {/* Category Navigation Tabs */}
       <TableTabs tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} />
 
-      {/* Command Controls Header Bar */}
       <TableControls
         globalFilter={state.globalFilter ?? ""}
         setGlobalFilter={onGlobalFilterChange}
         searchPlaceholder={searchPlaceholder}
         renderFilters={renderFilters}
+        renderHeaderActions={renderHeaderActions}
         hasActiveFilters={hasActiveFilters}
         onResetFilters={onResetFilters}
       />
 
-      {/* Render Table Content Viewframe */}
       <div className="w-full overflow-x-auto">
-        <table className="w-full border-collapse text-left">
+        <table className="w-full border-collapse table-fixed text-left">
           <TableHeader table={table} />
 
-          {/* Table Body */}
           <TableBody
             table={table}
             emptyState={emptyState}
@@ -100,10 +109,19 @@ function DataTable({
         </table>
       </div>
 
-      {/* Navigation Status Footer Component */}
-      <TablePagination footerMetaText={footerMetaText} />
+      <TablePagination
+        pageIndex={pagination.pageIndex}
+        pageCount={pageCount}
+        totalItems={totalItems}
+        pageSize={pagination.pageSize}
+        onPageChange={(pageIndex) =>
+          onPaginationChange({
+            ...pagination,
+            pageIndex,
+          })
+        }
+      />
 
-      {/* Floating Action Button Attachment */}
       {renderFloatingAction && renderFloatingAction()}
     </div>
   );

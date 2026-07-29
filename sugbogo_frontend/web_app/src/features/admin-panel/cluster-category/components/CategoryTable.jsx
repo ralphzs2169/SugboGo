@@ -1,29 +1,32 @@
 import { useState } from "react";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import { FiTag } from "react-icons/fi";
-
 import { getCategoryColumns } from "./columns/categoryColumns";
-import useCategories from "../hooks/useCategories";
 
 /**
- * Displays categories belonging to the selected cluster.
+ * Displays the category management table.
  *
- * Handles table state management and connects category data
- * with the reusable DataTable component.
+ * Handles table state management and connects category actions.
  *
  * @param {Object} props
- * @param {Object|null} props.selectedCluster - Currently selected cluster.
+ * @param {Array} props.categories - List of categories.
+ * @param {boolean} props.isLoading - Whether categories are loading.
+ * @param {Function} props.onEditCategory - Callback triggered when editing a category.
+ * @param {Function} props.onDeleteCategory - Callback triggered when deleting a category.
  *
- * @returns {JSX.Element} Category management table.
+ * @returns {JSX.Element}
  */
-export default function CategoryTable({ selectedCluster }) {
-  const columns = getCategoryColumns();
+export default function CategoryTable({
+  categories,
+  isLoading,
+  onEditCategory,
+  onDeleteCategory,
+}) {
+  const columns = getCategoryColumns(onEditCategory, onDeleteCategory);
 
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState([]);
   const [columnFilters, setColumnFilters] = useState([]);
-
-  const { categories, isLoading } = useCategories(selectedCluster);
 
   const handleResetFilters = () => {
     setGlobalFilter("");
@@ -58,12 +61,8 @@ export default function CategoryTable({ selectedCluster }) {
         searchPlaceholder: "Search categories...",
         footerMetaText: "Showing categories",
         emptyState: {
-          title: selectedCluster ? "No categories found" : "Select a cluster",
-
-          description: selectedCluster
-            ? "This cluster has no categories yet."
-            : "Choose a cluster to view its categories.",
-
+          title: "No categories found",
+          description: "Create a category to organize MSMEs.",
           icon: <FiTag className="h-10 w-10 text-text-secondary" />,
         },
       }}

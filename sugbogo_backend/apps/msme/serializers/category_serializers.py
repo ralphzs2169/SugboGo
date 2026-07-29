@@ -10,6 +10,8 @@ class CategorySerializer(serializers.ModelSerializer):
         source="CTGRY_DESCRIPTION",
         read_only=True,
     )
+    created_at = serializers.DateTimeField(source="CTGRY_CREATED_AT", read_only=True)
+
     cluster_id = serializers.PrimaryKeyRelatedField(
         source="CLUS_ID",
         queryset=Cluster.objects.all(),
@@ -28,6 +30,7 @@ class CategorySerializer(serializers.ModelSerializer):
             "description",
             "cluster_id",
             "cluster_name",
+            "created_at",
         )
 
 
