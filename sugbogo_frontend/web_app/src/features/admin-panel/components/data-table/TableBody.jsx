@@ -3,36 +3,28 @@ import { flexRender } from "@tanstack/react-table";
 import TableEmptyState from "./TableEmptyState";
 
 /**
- * Renders the table body rows. Automatically displays a configurable
- * empty state whenever no rows remain after filtering, searching,
- * or when the dataset itself is empty.
- *
- * @component
- * @param {Object} table - TanStack Table instance created by useReactTable().
- * @param {Object} emptyState - Configuration object passed to the empty state view.
- * @param {string} emptyState.title - Primary heading displayed when no rows exist.
- * @param {string} emptyState.description - Supporting message explaining the empty state.
- * @param {React.ReactNode} [emptyState.icon] - Optional icon or illustration displayed above the text.
+ * Renders the table body rows.
  */
-function TableBody({ table, emptyState, onRowClick }) {
+export default function TableBody({ table, emptyState, onRowClick }) {
+  const rows = table.getRowModel().rows;
+
   return (
-    <tbody className="divide-y divide-stroke/60">
-      {table.getRowModel().rows.length > 0 ? (
-        table.getRowModel().rows.map((row) => (
+    <tbody className="divide-y divide-stroke/60 bg-background/30">
+      {rows.length > 0 ? (
+        rows.map((row) => (
           <tr
             key={row.id}
             onClick={() => onRowClick?.(row.original)}
-            className={` hover:bg-interaction-hover transition-colors ${onRowClick ? "cursor-pointer" : ""} `}
+            className={`h-[52px] bg-background hover:bg-interaction-hover transition-colors ${
+              onRowClick ? "cursor-pointer" : ""
+            }`}
           >
             {row.getVisibleCells().map((cell) => (
               <td
                 key={cell.id}
-                className={`py-2 align-middle ${
+                className={`px-4 py-2 align-middle ${
                   cell.column.id === "actions" ? "text-center" : ""
                 }`}
-                style={{
-                  width: cell.column.getSize(),
-                }}
               >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </td>
@@ -41,7 +33,10 @@ function TableBody({ table, emptyState, onRowClick }) {
         ))
       ) : (
         <tr>
-          <td colSpan={table.getAllColumns().length} className="py-6">
+          <td
+            colSpan={table.getVisibleLeafColumns().length}
+            className="h-[420px]"
+          >
             <TableEmptyState {...emptyState} />
           </td>
         </tr>
@@ -49,5 +44,3 @@ function TableBody({ table, emptyState, onRowClick }) {
     </tbody>
   );
 }
-
-export default TableBody;

@@ -5,6 +5,8 @@ import TableHeader from "./TableHeader";
 import TableBody from "./TableBody";
 import TablePagination from "./TablePagination";
 import { useReactTable, getCoreRowModel } from "@tanstack/react-table";
+import TableSkeletonBody from "./TableSkeletonBody";
+import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
 
 /**
  * Reusable server-side capable data table powered by TanStack Table.
@@ -13,41 +15,34 @@ import { useReactTable, getCoreRowModel } from "@tanstack/react-table";
  * Supports external filtering, sorting, pagination, custom actions,
  * and feature-specific UI injection through slots.
  *
- * @component
- *
- * @param {Object} props
- * @param {Array<Object>} props.data - Current table records.
- * @param {Array<Object>} props.columns - TanStack column definitions.
- * @param {Object} props.state - Controlled table state.
- * @param {Object} props.pagination - Current pagination state.
- * @param {number} props.pageCount - Total available pages.
- * @param {number} props.totalItems - Total records from API.
- * @param {Function} props.onSortingChange - Updates sorting state.
- * @param {Function} props.onGlobalFilterChange - Updates global search state.
- * @param {Function} props.onColumnFiltersChange - Updates column filter state.
- * @param {Function} props.onPaginationChange - Updates pagination state.
- * @param {boolean} props.hasActiveFilters - Controls reset filter visibility.
- * @param {Function} props.onResetFilters - Clears active filters.
- * @param {Function} [props.onRowClick] - Handles row selection.
- * @param {Object} [props.config] - Table UI configuration.
- * @param {Object} [props.slots] - Custom UI render functions.
- *
- * @returns {JSX.Element}
  */
 function DataTable({
+  // Data
   data,
   columns,
+
+  // Loading state
+  isLoading = false,
+  isFetching = false,
+
+  // Controlled table state
   state,
   pagination,
   pageCount,
   totalItems,
+
+  // State change handlers
   onSortingChange,
   onGlobalFilterChange,
   onColumnFiltersChange,
   onPaginationChange,
+
+  // UI behavior
   hasActiveFilters,
   onResetFilters,
   onRowClick,
+
+  // Configuration
   config = {},
   slots = {},
 }) {
@@ -60,6 +55,8 @@ function DataTable({
   } = config;
 
   const { renderFilters, renderHeaderActions, renderFloatingAction } = slots;
+
+  const showSkeleton = useDelayedLoading(isLoading);
 
   // TanStack delegates sorting, filtering, and pagination to external handlers.
   const table = useReactTable({
@@ -84,7 +81,7 @@ function DataTable({
   });
 
   return (
-    <div className="w-full rounded-lg border border-stroke bg-background-primary pb-6 px-6 pt-2 shadow-sm relative">
+    <div className="w-full rounded-sm border border-stroke bg-background pb-6 px-6 pt-2 relative">
       <TableTabs tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} />
 
       <TableControls
@@ -98,15 +95,24 @@ function DataTable({
       />
 
       <div className="w-full overflow-x-auto">
-        <table className="w-full border-collapse table-fixed text-left">
-          <TableHeader table={table} />
+        <div className="min-h-[520px] bg-surface rounded-md">
+          <table className="w-full border-collapse table-fixed text-left">
+            <TableHeader table={table} />
 
-          <TableBody
-            table={table}
-            emptyState={emptyState}
-            onRowClick={onRowClick}
-          />
-        </table>
+            {showSkeleton ? (
+              <TableSkeletonBody
+                columns={table.getVisibleLeafColumns()}
+                rowCount={pagination.pageSize}
+              />
+            ) : (
+              <TableBody
+                table={table}
+                emptyState={emptyState}
+                onRowClick={onRowClick}
+              />
+            )}
+          </table>
+        </div>
       </div>
 
       <TablePagination

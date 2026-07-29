@@ -2,6 +2,9 @@ from django.urls import path
 
 from apps.admin_operations.msme_management.views.category_views import *
 from apps.admin_operations.msme_management.views.cluster_views import *
+from apps.admin_operations.msme_management.views.summary_views import (
+    get_cluster_category_summary,
+)
 
 urlpatterns = [
     # Cluster
@@ -17,4 +20,7 @@ urlpatterns = [
     path("categories/create/", create_category),
     path("categories/<int:category_id>/update/", update_category),
     path("categories/<int:category_id>/delete/", delete_category),
+
+    # Summary
+    path("cluster-category/summary/", get_cluster_category_summary),
 ]

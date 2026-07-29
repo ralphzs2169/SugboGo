@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import Sidebar from "@/features/admin-panel/components/Sidebar";
-import Header from "@/features/admin-panel/components/Header";
+import NavigationHeader from "@/features/admin-panel/components/NavigationHeader";
 
 /**
  * AdminPanelLayout component that serves as the main layout for the admin panel.
@@ -18,7 +18,7 @@ export default function AdminPanelLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-background-secondary text-text-primary">
+    <div className="min-h-screen bg-surface text-text-primary">
       <Sidebar
         onLogout={handleLogout}
         isOpen={isSidebarOpen}
@@ -26,10 +26,10 @@ export default function AdminPanelLayout() {
       />
 
       <div className="min-h-screen lg:ml-64">
-        <section className="sticky top-0 z-50 border-b border-stroke bg-background-primary">
-          <Header onMenuClick={() => setIsSidebarOpen(true)} />
+        <section className="sticky top-0 z-50 border-b border-stroke bg-background">
+          <NavigationHeader onMenuClick={() => setIsSidebarOpen(true)} />
         </section>
-        <main className=" p-6 sm:p-8 ">
+        <main className=" p-6 sm:p-4 ">
           <Outlet />
         </main>
       </div>

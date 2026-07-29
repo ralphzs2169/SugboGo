@@ -10,34 +10,34 @@ import { fetchCategories } from "../services/clusterCategoryService";
  * - Pagination
  *
  * @param {Object} params - Query parameters passed to the API.
- *
- * @returns {{
- *   categories: Array,
- *   totalItems: number,
- *   pageCount: number,
- *   isLoading: boolean,
- *   error: Error | null,
- *   refetch: Function
- * }}
+ * @param {Object} options - Options for the hook.
+ * @param {boolean} options.enabled - Whether to enable fetching categories. Defaults to true.
  */
-export default function useCategories(params = {}) {
+export default function useCategories(params = {}, { enabled = true } = {}) {
   const [categories, setCategories] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
   const [pageCount, setPageCount] = useState(0);
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState(null);
 
   async function loadCategories() {
-    setIsLoading(true);
+    const initialLoad = categories.length === 0;
+
+    if (initialLoad) {
+      setIsLoading(true);
+    } else {
+      setIsFetching(true);
+    }
+
     setError(null);
 
     try {
       const response = await fetchCategories(params);
 
       setCategories(response.items ?? []);
-
       setTotalItems(response.pagination?.total_items ?? 0);
-
       setPageCount(response.pagination?.total_pages ?? 0);
     } catch (error) {
       console.error("Failed to load categories:", error);
@@ -48,18 +48,31 @@ export default function useCategories(params = {}) {
       setPageCount(0);
     } finally {
       setIsLoading(false);
+      setIsFetching(false);
     }
   }
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     loadCategories();
-  }, [params.search, params.page, params.page_size, params.ordering]);
+  }, [
+    enabled,
+    params.search,
+    params.page,
+    params.page_size,
+    params.ordering,
+    params.cluster_id,
+  ]);
 
   return {
     categories,
     totalItems,
     pageCount,
     isLoading,
+    isFetching,
     error,
     refetch: loadCategories,
   };

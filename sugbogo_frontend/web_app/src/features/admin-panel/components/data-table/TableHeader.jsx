@@ -20,7 +20,7 @@ function TableHeader({ table }) {
   return (
     <thead>
       {table.getHeaderGroups().map((headerGroup) => (
-        <tr key={headerGroup.id} className="border-y border-stroke-strong">
+        <tr key={headerGroup.id} className="border-y border-stroke-strong ">
           {headerGroup.headers.map((header) => {
             const canSort = header.column.getCanSort();
             const isSorted = header.column.getIsSorted();
@@ -28,7 +28,7 @@ function TableHeader({ table }) {
             return (
               <th
                 key={header.id}
-                className={`py-3 text-[14px] font-medium text-text-primary select-none group/th ${
+                className={`px-4 py-3 text-[14px] bg-surface-muted font-medium text-text-primary select-none group/th ${
                   canSort ? "cursor-pointer hover:text-text-hover" : ""
                 } ${header.id === "actions" ? "text-center" : "text-left"}`}
                 style={{

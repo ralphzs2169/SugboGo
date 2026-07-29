@@ -39,7 +39,7 @@ function MetricRow() {
   ];
 
   return (
-    <div className="w-full bg-background-secondary">
+    <div className="w-full bg-surface">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 max-w-7xl mx-auto">
         {metrics.map((metric, index) => (
           <MetricCard

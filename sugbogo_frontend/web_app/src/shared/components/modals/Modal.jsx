@@ -53,7 +53,7 @@ export default function Modal({
       onClick={onClose}
     >
       <div
-        className={` w-full ${maxWidth} rounded-xl border border-stroke bg-background-primary shadow-x `}
+        className={` w-full ${maxWidth} rounded-xl border border-stroke bg-background shadow-x `}
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
@@ -70,7 +70,7 @@ export default function Modal({
             <button
               type="button"
               onClick={onClose}
-              className=" rounded-lg p-2 text-text-secondary transition hover:bg-background-secondary hover:text-text-primary "
+              className=" rounded-lg p-2 text-text-secondary transition hover:bg-surface hover:text-text-primary "
               aria-label="Close modal"
             >
               <X className="h-5 w-5" />

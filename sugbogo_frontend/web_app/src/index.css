@@ -1,11 +1,21 @@
 @import "tailwindcss";
 
+html {
+  font-family: "Inter", sans-serif;
+}
+
 @theme {
+  /* --font-sans: "Inter", sans-serif; */
+  
   --color-primary: #F27F0D;
 
-  --color-background-primary: #FDFDFD;      /* white */
-  --color-background-secondary: #F8FAFC80;  /* slate-50 with 80% opacity */
+  --color-background: #F8FAFC;
+  --color-surface: #F1F5F9;   
 
+  --color-surface-muted: #F8FAFC;
+  --color-surface-hover: #F1F5F9;
+
+  --color-skeleton: #E5E7EB;
 
   /* Stroke Borders */
   --color-stroke: #E5E7EB;           /* gray-200 */
@@ -43,8 +53,13 @@
 
 /* Dark Theme */
 html.dark {
-  --color-background-primary: #1f1f1f; 
-  --color-background-secondary: #121212;
+  --color-background: #1f1f1f; 
+  --color-surface: #121212;
+
+  --color-surface-muted: #2A2A2A;
+  --color-surface-hover: #333333;
+
+   --color-skeleton: #374151;
 
   --color-stroke: #121418;
   --color-stroke-strong: #475569;

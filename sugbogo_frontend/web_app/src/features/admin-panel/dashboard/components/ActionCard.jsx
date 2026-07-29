@@ -14,7 +14,7 @@ import { ArrowRight } from "lucide-react";
  */
 function ActionCard({ title, description, Icon, iconColor, iconBg }) {
   return (
-    <div className="group relative flex items-center justify-between rounded-lg border border-stroke bg-background-primary p-6 shadow-sm hover:shadow-md cursor-pointer">
+    <div className="group relative flex items-center justify-between rounded-lg border border-stroke bg-background p-6 shadow-sm hover:shadow-md cursor-pointer">
       <div className="flex items-center gap-4">
         <div
           className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}

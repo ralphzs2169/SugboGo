@@ -16,11 +16,14 @@ import useClusters from "../hooks/useClusters";
 import useCategories from "../hooks/useCategories";
 import useDeleteCluster from "../hooks/useDeleteCluster";
 import useDeleteCategory from "../hooks/useDeleteCategory";
+import useClusterCategorySummary from "../hooks/useClusterCategorySummary";
+import useClusterCategoryTableState from "../hooks/useClusterCategoryTableState";
 
 import CreateClusterModal from "./CreateClusterModal";
 import CreateCategoryModal from "./CreateCategoryModal";
 import EditClusterModal from "./EditClusterModal";
 import EditCategoryModal from "./EditCategoryModal";
+import CategoryFilters from "./CategoryFilters";
 
 /**
  * Combined data table for managing MSME clusters and categories.
@@ -52,17 +55,10 @@ export default function ClusterCategoryTable({
   onCreateCategory,
   onCreateSuccessReady,
 }) {
+  // Table state management
   const [currentTab, setCurrentTab] = useState("clusters");
 
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [sorting, setSorting] = useState([]);
-  const [columnFilters, setColumnFilters] = useState([]);
-
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-
+  // Modal state management
   const [isCreateClusterOpen, setIsCreateClusterOpen] = useState(false);
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
 
@@ -76,42 +72,85 @@ export default function ClusterCategoryTable({
   const [deletingItem, setDeletingItem] = useState(null);
   const [deleteType, setDeleteType] = useState(null);
 
+  // Mutations
   const { remove: deleteCluster } = useDeleteCluster();
   const { remove: deleteCategory } = useDeleteCategory();
 
-  const params = {
-    search: globalFilter || undefined,
-    ordering: getOrdering(sorting),
-    page: pagination.pageIndex + 1,
-    page_size: pagination.pageSize,
-  };
+  // Table state management hook for global filter, sorting, column filters, and pagination.
+  const {
+    globalFilter,
+    setGlobalFilter,
+    sorting,
+    setSorting,
+    columnFilters,
+    setColumnFilters,
+    pagination,
+    setPagination,
+    params,
+    hasActiveFilters,
+    handleResetFilters,
+  } = useClusterCategoryTableState(currentTab, setCurrentTab);
+
+  // Data fetching hooks for clusters, categories, and summary
+  const {
+    summary,
+    isLoading: isLoadingSummary,
+    refetch: refetchSummary,
+  } = useClusterCategorySummary();
 
   const {
     clusters,
     totalItems: clusterTotalItems,
     pageCount: clusterPageCount,
     isLoading: isLoadingClusters,
+    isFetching: isFetchingClusters,
     refetch: refetchClusters,
-  } = useClusters(params);
+  } = useClusters(params, {
+    enabled: currentTab === "clusters",
+  });
 
   const {
     categories,
     totalItems: categoryTotalItems,
     pageCount: categoryPageCount,
     isLoading: isLoadingCategories,
+    isFetching: isFetchingCategories,
     refetch: refetchCategories,
-  } = useCategories(params);
+  } = useCategories(params, {
+    enabled: currentTab === "categories",
+  });
 
-  const refreshClusters = async () => {
-    await refetchClusters();
-  };
+  // Refresh Helpers
+  async function refreshClusters() {
+    await Promise.all([refetchClusters(), refetchSummary()]);
+  }
 
-  const refreshCategories = async () => {
-    await refetchCategories();
-  };
+  async function refreshCategories() {
+    await Promise.all([refetchCategories(), refetchSummary()]);
+  }
 
+  // Derived state for conditional rendering and actions
   const isClusterTab = currentTab === "clusters";
+  const columns = isClusterTab
+    ? ClusterColumns(handleEditCluster, handleDeleteCluster)
+    : CategoryColumns(handleEditCategory, handleDeleteCategory);
 
+  const data = isClusterTab ? clusters : categories;
+  const isLoading = isClusterTab ? isLoadingClusters : isLoadingCategories;
+  const isFetching = isClusterTab ? isFetchingClusters : isFetchingCategories;
+  const totalItems = isClusterTab ? clusterTotalItems : categoryTotalItems;
+  const pageCount = isClusterTab ? clusterPageCount : categoryPageCount;
+
+  const { clusters: filterClusters } = useClusters(
+    {
+      page_size: 100,
+    },
+    {
+      enabled: currentTab === "categories",
+    },
+  );
+
+  // Event handlers for table actions, modals, and CRUD operations
   function handleDeleteCluster(cluster) {
     setDeletingItem(cluster);
     setDeleteType("cluster");
@@ -133,6 +172,37 @@ export default function ClusterCategoryTable({
     setEditingCategory(category);
     setIsEditCategoryOpen(true);
   }
+
+  function handleTabChange(tab) {
+    setCurrentTab(tab);
+
+    setPagination((prev) => ({
+      ...prev,
+      pageIndex: 0,
+    }));
+
+    handleResetFilters();
+  }
+
+  function handleClusterFilter(value) {
+    const filters = value
+      ? [
+          {
+            id: "cluster_id",
+            value,
+          },
+        ]
+      : [];
+
+    setColumnFilters(filters);
+
+    setPagination((prev) => ({
+      ...prev,
+      pageIndex: 0,
+    }));
+  }
+  const activeResource = isClusterTab ? "Cluster" : "Category";
+
   async function handleConfirmDelete() {
     let result;
 
@@ -140,7 +210,7 @@ export default function ClusterCategoryTable({
       result = await deleteCluster(deletingItem.id);
 
       if (result.success) {
-        await refetchClusters();
+        await refreshClusters();
 
         toast.success("Cluster deleted successfully.");
       }
@@ -150,7 +220,7 @@ export default function ClusterCategoryTable({
       result = await deleteCategory(deletingItem.id);
 
       if (result.success) {
-        await refetchCategories();
+        await refreshCategories();
 
         toast.success("Category deleted successfully.");
       }
@@ -165,31 +235,6 @@ export default function ClusterCategoryTable({
     setDeleteType(null);
   }
 
-  const columns = isClusterTab
-    ? ClusterColumns(handleEditCluster, handleDeleteCluster)
-    : CategoryColumns(handleEditCategory, handleDeleteCategory);
-
-  const data = isClusterTab ? clusters : categories;
-
-  const isLoading = isClusterTab ? isLoadingClusters : isLoadingCategories;
-
-  const totalItems = isClusterTab ? clusterTotalItems : categoryTotalItems;
-
-  const pageCount = isClusterTab ? clusterPageCount : categoryPageCount;
-
-  function handleResetFilters() {
-    setGlobalFilter("");
-    setColumnFilters([]);
-    setSorting([]);
-  }
-
-  const hasActiveFilters =
-    globalFilter.trim() !== "" ||
-    columnFilters.length > 0 ||
-    sorting.length > 0;
-
-  const activeResource = isClusterTab ? "Cluster" : "Category";
-
   useEffect(() => {
     onCreateSuccessReady?.({
       refreshClusters,
@@ -202,6 +247,8 @@ export default function ClusterCategoryTable({
       <DataTable
         data={data}
         columns={columns}
+        isLoading={isLoading}
+        isFetching={isFetching}
         pagination={pagination}
         state={{
           globalFilter,
@@ -221,25 +268,18 @@ export default function ClusterCategoryTable({
             {
               id: "clusters",
               label: "Clusters",
-              count: clusters.length,
+              count: summary.clusterCount,
               icon: FiLayers,
             },
             {
               id: "categories",
               label: "Categories",
-              count: categories.length,
+              count: summary.categoryCount,
               icon: FiTag,
             },
           ],
           activeTab: currentTab,
-          onTabChange: (tab) => {
-            setCurrentTab(tab);
-
-            setPagination({
-              pageIndex: 0,
-              pageSize: pagination.pageSize,
-            });
-          },
+          onTabChange: handleTabChange,
 
           searchPlaceholder: isClusterTab
             ? "Search clusters..."
@@ -266,6 +306,17 @@ export default function ClusterCategoryTable({
               Add {activeResource}
             </Button>
           ),
+          renderFilters: () =>
+            !isClusterTab && (
+              <CategoryFilters
+                clusters={filterClusters}
+                selectedCluster={
+                  columnFilters.find((filter) => filter.id === "cluster_id")
+                    ?.value ?? ""
+                }
+                onChange={handleClusterFilter}
+              />
+            ),
         }}
       />
 
@@ -273,7 +324,7 @@ export default function ClusterCategoryTable({
         isOpen={isCreateClusterOpen}
         onClose={() => setIsCreateClusterOpen(false)}
         onSuccess={async () => {
-          await refetchClusters();
+          await refreshClusters();
           toast.success("Cluster created successfully.");
         }}
       />
@@ -282,7 +333,7 @@ export default function ClusterCategoryTable({
         isOpen={isCreateCategoryOpen}
         onClose={() => setIsCreateCategoryOpen(false)}
         onSuccess={async () => {
-          await refetchCategories();
+          await refreshCategories();
           toast.success("Category created successfully.");
         }}
       />
@@ -295,8 +346,8 @@ export default function ClusterCategoryTable({
           setEditingCluster(null);
         }}
         onSuccess={async () => {
-          await refetchClusters();
-          toast.success("Cluster updated successfully.");
+          await refreshClusters();
+          toast.success("Cluster created successfully.");
         }}
       />
 
@@ -308,7 +359,7 @@ export default function ClusterCategoryTable({
           setEditingCategory(null);
         }}
         onSuccess={async () => {
-          await refetchCategories();
+          await refreshCategories();
           toast.success("Category updated successfully.");
         }}
       />

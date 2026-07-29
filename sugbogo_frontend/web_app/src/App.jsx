@@ -24,7 +24,7 @@ import EmailSentPage from "@/features/auth/pages/EmailSentPage";
 import NotFound from "@/shared/components/errors/NotFound";
 
 import PageLoader from "@/shared/components/loading/PageLoader";
-import { useDelayedLoading } from "@/shared/hooks/useDelayedLoading";
+import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
 
 function App() {
   useRestoreSession();

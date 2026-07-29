@@ -35,16 +35,30 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class CategoryCreateSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source="CTGRY_NAME")
+    name = serializers.CharField(
+        source="CTGRY_NAME",
+        error_messages={
+            "blank": "Category name is required.",
+            "null": "Category name is required.",
+            "required": "Category name is required.",
+        },
+    )
+
     description = serializers.CharField(
         source="CTGRY_DESCRIPTION",
         required=False,
         allow_blank=True,
         allow_null=True,
     )
+
     cluster_id = serializers.PrimaryKeyRelatedField(
+        queryset=Cluster.objects.all(),
         source="CLUS_ID",
-        queryset=Category._meta.get_field("CLUS_ID").remote_field.model.objects.all(),
+        error_messages={
+            "required": "Please select a cluster.",
+            "null": "Please select a cluster.",
+            "does_not_exist": "The selected cluster does not exist.",
+        },
     )
 
     class Meta:

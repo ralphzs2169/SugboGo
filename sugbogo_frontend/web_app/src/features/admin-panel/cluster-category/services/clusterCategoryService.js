@@ -67,3 +67,13 @@ export async function deleteCategory(categoryId) {
 
   return response.data;
 }
+
+// Summary API Services
+
+export async function fetchClusterCategorySummary() {
+  const response = await apiClient.get(
+    "/admin/msmes/cluster-category/summary/",
+  );
+
+  return response.data.data;
+}

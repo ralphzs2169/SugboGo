@@ -25,7 +25,7 @@ function MetricCard({
   valueColor,
 }) {
   return (
-    <div className="relative overflow-hidden rounded-lg border border-stroke bg-background-primary p-6 shadow-sm hover:shadow-md flex flex-col justify-between min-h-[165px]">
+    <div className="relative overflow-hidden rounded-lg border border-stroke bg-background p-6 shadow-sm hover:shadow-md flex flex-col justify-between min-h-[165px]">
       {/* Top Section: Circular Icon Graphic & Optional Right Badge */}
       <div className="flex items-center justify-between w-full">
         {Icon && (

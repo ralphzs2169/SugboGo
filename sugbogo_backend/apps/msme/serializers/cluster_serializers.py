@@ -25,7 +25,14 @@ class ClusterSerializer(serializers.ModelSerializer):
 
 
 class ClusterCreateSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source="CLUS_NAME")
+    name = serializers.CharField(
+        source="CLUS_NAME",
+        error_messages={
+            "blank": "Cluster name is required.",
+            "null": "Cluster name is required.",
+            "required": "Cluster name is required.",
+        },
+    )
     description = serializers.CharField(
         source="CLUS_DESCRIPTION",
         required=False,
@@ -53,7 +60,14 @@ class ClusterCreateSerializer(serializers.ModelSerializer):
 
 
 class ClusterUpdateSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source="CLUS_NAME", required=False)
+    name = serializers.CharField(
+        source="CLUS_NAME",
+        required=False,
+        error_messages={
+            "blank": "Cluster name is required.",
+            "null": "Cluster name is required.",
+        },
+    )
     description = serializers.CharField(
         source="CLUS_DESCRIPTION",
         required=False,

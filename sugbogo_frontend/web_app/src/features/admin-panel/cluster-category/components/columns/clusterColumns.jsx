@@ -18,7 +18,10 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
     columnHelper.display({
       id: "rowNumber",
       header: "No.",
-      size: 40,
+      size: 50,
+      meta: {
+        skeleton: "number",
+      },
       enableSorting: false,
       cell: ({ row, table }) => {
         const { pageIndex, pageSize } = table.getState().pagination;
@@ -31,6 +34,9 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
       header: "Cluster Name",
       size: 250,
       minSize: 200,
+      meta: {
+        skeleton: "longText",
+      },
       cell: (info) => {
         const cluster = info.row.original;
 
@@ -50,6 +56,9 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
 
     columnHelper.accessor("category_count", {
       header: "Categories",
+      meta: {
+        skeleton: "number",
+      },
       cell: (info) => (
         <span className="text-sm text-text-primary">
           {info.getValue() ?? 0}
@@ -59,6 +68,9 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
 
     columnHelper.accessor("msme_count", {
       header: "MSMEs",
+      meta: {
+        skeleton: "number",
+      },
       cell: (info) => (
         <span className="text-sm text-text-primary">
           {info.getValue() ?? 0}
@@ -68,6 +80,9 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
 
     columnHelper.accessor("created_at", {
       header: "Created",
+      meta: {
+        skeleton: "text",
+      },
       cell: (info) => (
         <span className="text-sm text-text-secondary">
           {formatDateTime(info.getValue())}
@@ -78,6 +93,9 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
     columnHelper.display({
       id: "actions",
       header: "Actions",
+      meta: {
+        skeleton: "actions",
+      },
       enableSorting: false,
       cell: ({ row }) => {
         const cluster = row.original;

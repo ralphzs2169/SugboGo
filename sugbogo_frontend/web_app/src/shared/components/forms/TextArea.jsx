@@ -45,7 +45,7 @@ export default function TextArea({
         onChange={onChange}
         className={`
           w-full rounded-lg border px-3 py-2.5
-          bg-background-primary
+          bg-background
           text-sm text-text-primary
           placeholder:text-text-secondary
           outline-none transition resize-none

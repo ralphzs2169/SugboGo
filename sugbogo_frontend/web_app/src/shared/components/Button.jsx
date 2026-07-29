@@ -42,7 +42,7 @@ export default function Button({
     primary: "bg-primary text-white hover:opacity-90 active:opacity-80",
 
     secondary:
-      "border border-stroke bg-background-primary text-text-primary hover:bg-background-secondary",
+      "border border-stroke bg-background text-text-primary hover:bg-surface",
 
     danger: "bg-red-600 text-white hover:bg-red-700 active:bg-red-800",
 
@@ -51,7 +51,7 @@ export default function Button({
     delete: "text-red-600 hover:bg-red-50 hover:text-red-700",
 
     ghost:
-      "bg-transparent text-text-secondary hover:bg-background-secondary hover:text-text-primary",
+      "bg-transparent text-text-secondary hover:bg-surface hover:text-text-primary",
   };
 
   return (
