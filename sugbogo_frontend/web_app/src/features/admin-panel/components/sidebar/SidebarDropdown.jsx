@@ -127,7 +127,11 @@ export default function SidebarDropdown({
               : "border-l border-stroke-strong"
           }`}
         >
-          <SidebarDropdownItems links={children} onClick={onClick} />
+          <SidebarDropdownItems
+            links={children}
+            onClick={onClick}
+            isSidebarCollapsed={isCollapsed}
+          />
         </div>
       )}
 
