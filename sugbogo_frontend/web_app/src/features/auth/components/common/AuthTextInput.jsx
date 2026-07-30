@@ -1,9 +1,9 @@
 import { User } from "lucide-react";
 
 /**
- * TextInput component that renders a text input field.
+ * AuthTextInput component that renders a text input field.
  */
-export default function TextInput({
+export default function AuthTextInput({
   id,
   name,
   label,

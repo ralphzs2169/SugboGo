@@ -23,7 +23,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => setDarkMode(!darkMode)}
-      className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-background-secondary hover:text-text-primary sm:h-10 sm:w-10"
+      className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface hover:text-text-primary sm:h-10 sm:w-10"
       aria-label="Toggle theme"
     >
       {darkMode ? (

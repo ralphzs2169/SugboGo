@@ -2,6 +2,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { RotateCw, Clock, Pencil, ArrowLeft } from "lucide-react";
 import EmailSentIllustration from "../../assets/email-sent.svg?react";
 import PrimaryButton from "../common/PrimaryButton";
+import LottieAnimation from "@/shared/components/LottieAnimation";
+import emailSentAnimation from "@/assets/animations/email-sent.json";
 
 export default function EmailSent({
   resendDisabled = true,
@@ -17,7 +19,11 @@ export default function EmailSent({
   return (
     <article className="w-full text-center">
       <div className="mx-auto flex h-42 w-42 items-center justify-center">
-        <EmailSentIllustration />
+        <LottieAnimation
+          animationData={emailSentAnimation}
+          width={180}
+          height={180}
+        />
       </div>
 
       <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">

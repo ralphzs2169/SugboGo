@@ -10,7 +10,7 @@
 
 function TableEmptyState({ title, description, icon }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16">
+    <div className="flex flex-col items-center justify-center h-full bg-surface">
       {icon}
 
       <h3 className="mt-4 text-lg font-semibold text-text-primary">{title}</h3>

@@ -4,6 +4,7 @@ import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import MetricRow from "@/features/admin-panel/dashboard/components/MetricRow";
 import DiscoveryActivity from "@/features/admin-panel/dashboard/components/DiscoveryActivity";
 import LowerDashboardSection from "@/features/admin-panel/dashboard/components/LowerDashboardSection";
+import PageHeader from "../components/PageHeader";
 
 export default function Dashboard() {
   useDocumentTitle("Dashboard | SugboGo Admin");
@@ -36,11 +37,24 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <MetricRow />
-      <DiscoveryActivity />
+    <>
+      <PageHeader
+        breadcrumbs={[
+          {
+            label: "SugboGo Admin",
+          },
+          {
+            label: "Dashboard",
+          },
+        ]}
+        title="Dashboard"
+      />
+      <div className="flex flex-col gap-6">
+        <MetricRow />
+        <DiscoveryActivity />
 
-      <LowerDashboardSection />
-    </div>
+        <LowerDashboardSection />
+      </div>
+    </>
   );
 }

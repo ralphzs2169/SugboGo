@@ -1,5 +1,5 @@
 import PasswordInput from "../password/PasswordInput";
-import TextInput from "../common/TextInput";
+import AuthTextInput from "../common/AuthTextInput";
 import AuthTextButton from "../common/AuthTextButton";
 import PrimaryButton from "../common/PrimaryButton";
 
@@ -84,7 +84,7 @@ function LoginForm() {
       <form className="space-y-6 sm:space-y-7 lg:space-y-8" onSubmit={onSubmit}>
         {/* Input Fields Container */}
         <div className="space-y-5 sm:space-y-6 lg:space-y-7">
-          <TextInput
+          <AuthTextInput
             id="identifier"
             name="identifier"
             label="Email or Username"

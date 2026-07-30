@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, Mail, ShieldCheck } from "lucide-react";
 import PrimaryButton from "../common/PrimaryButton";
 
-import TextInput from "../common/TextInput";
+import AuthTextInput from "../common/AuthTextInput";
 import AuthTextButton from "../common/AuthTextButton";
 import { validateEmail } from "../../../../shared/utils/validators/auth.validator";
 import { useForgotPassword } from "../../hooks/useForgotPassword";
@@ -70,7 +70,7 @@ export default function ForgotPasswordForm() {
 
       <form className="space-y-6 sm:space-y-7 lg:space-y-8" onSubmit={onSubmit}>
         {/* Email */}
-        <TextInput
+        <AuthTextInput
           id="email"
           name="email"
           label="Email Address"

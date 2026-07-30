@@ -16,6 +16,7 @@ import Analytics from "@/features/admin-panel/pages/Analytics";
 import Settings from "@/features/admin-panel/pages/Settings";
 import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
 import ProtectedRoute from "@/features/auth/routes/ProtectedRoute";
+import ClusterCategoryManagement from "@/features/admin-panel/pages/ClusterCategoryManagement";
 
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -23,7 +24,7 @@ import EmailSentPage from "@/features/auth/pages/EmailSentPage";
 import NotFound from "@/shared/components/errors/NotFound";
 
 import PageLoader from "@/shared/components/loading/PageLoader";
-import { useDelayedLoading } from "@/shared/hooks/useDelayedLoading";
+import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
 
 function App() {
   useRestoreSession();
@@ -49,6 +50,10 @@ function App() {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="msmes" element={<Msmes />} />
+            <Route
+              path="cluster-category"
+              element={<ClusterCategoryManagement />}
+            />
             <Route path="users" element={<Users />} />
             <Route path="users/all" element={<Users />} />
             <Route
