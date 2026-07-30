@@ -51,23 +51,23 @@ export default function ProfileScreen({}) {
           {/* Menu Sections */}
           <ProfileMenuSection title="Your Activity">
             <ProfileMenuItem
-  title="My Pockets"
-  icon="wallet-outline"
-  badge={5}
-  onPress={() => router.push("/profile/my-pockets")}
-/>
+              title="My Pockets"
+              icon="wallet-outline"
+              badge={5}
+              onPress={() => router.push("/profile/my-pockets")}
+            />
 
-<ProfileMenuItem
-  title="Vouch History"
-  icon="heart-outline"
-  onPress={() => router.push("/profile/vouch-history")}
-/>
+            <ProfileMenuItem
+              title="Vouch History"
+              icon="heart-outline"
+              onPress={() => router.push("/profile/vouch-history")}
+            />
 
-<ProfileMenuItem
-  title="My Reviews"
-  icon="comment-outline"
-  onPress={() => router.push("/profile/reviews-submitted")}
-/>
+            <ProfileMenuItem
+              title="My Reviews"
+              icon="comment-outline"
+              onPress={() => router.push("/profile/reviews-submitted")}
+            />
 
             <ProfileMenuItem
               title="Activity Timeline"

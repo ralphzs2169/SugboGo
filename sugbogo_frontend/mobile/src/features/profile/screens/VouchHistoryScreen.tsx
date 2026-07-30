@@ -11,7 +11,8 @@ const MOCK_VOUCHES = [
   {
     id: "1",
     msmeName: "Danao Weaves & Crafts",
-    photoUrl: "https://images.unsplash.com/photo-1528812969535-4bcefb361402?w=200&h=200&fit=crop",
+    photoUrl:
+      "https://images.unsplash.com/photo-1528812969535-4bcefb361402?w=200&h=200&fit=crop",
     category: "Handicrafts",
     tag: "Heritage Craft",
     availableTags: ["Heritage Craft", "Artisanal Product", "Family Business"],
@@ -20,16 +21,22 @@ const MOCK_VOUCHES = [
   {
     id: "2",
     msmeName: "Barako Brew Café",
-    photoUrl: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&h=200&fit=crop",
+    photoUrl:
+      "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&h=200&fit=crop",
     category: "Café & Coffee",
     tag: "Local Ingredient",
-    availableTags: ["Local Ingredient", "Traditional Recipe", "Family Business"],
+    availableTags: [
+      "Local Ingredient",
+      "Traditional Recipe",
+      "Family Business",
+    ],
     date: "Jul 22, 2026",
   },
   {
     id: "3",
     msmeName: "Maribago Bluewater Spa",
-    photoUrl: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=200&h=200&fit=crop",
+    photoUrl:
+      "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=200&h=200&fit=crop",
     category: "Wellness & Spa",
     tag: "Nature Spot",
     availableTags: ["Nature Spot", "Artisanal Product"],
@@ -38,7 +45,8 @@ const MOCK_VOUCHES = [
   {
     id: "4",
     msmeName: "Oslob Shell Craft Studio",
-    photoUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200&h=200&fit=crop",
+    photoUrl:
+      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200&h=200&fit=crop",
     category: "Souvenirs",
     tag: "Artisanal Product",
     availableTags: ["Artisanal Product", "Heritage Craft", "Family Business"],
@@ -47,10 +55,15 @@ const MOCK_VOUCHES = [
   {
     id: "5",
     msmeName: "Carcar Lechon House",
-    photoUrl: "https://images.unsplash.com/photo-1544025162-d76694265947?w=200&h=200&fit=crop",
+    photoUrl:
+      "https://images.unsplash.com/photo-1544025162-d76694265947?w=200&h=200&fit=crop",
     category: "Food & Dining",
     tag: "Traditional Recipe",
-    availableTags: ["Traditional Recipe", "Local Ingredient", "Family Business"],
+    availableTags: [
+      "Traditional Recipe",
+      "Local Ingredient",
+      "Family Business",
+    ],
     date: "Jul 26, 2026",
   },
 ];
@@ -67,13 +80,13 @@ export default function VouchHistoryScreen() {
   const filteredVouches = useMemo(() => {
     if (!searchQuery.trim()) return vouches;
     return vouches.filter((v) =>
-      v.msmeName.toLowerCase().includes(searchQuery.toLowerCase())
+      v.msmeName.toLowerCase().includes(searchQuery.toLowerCase()),
     );
   }, [vouches, searchQuery]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id],
     );
   };
 
@@ -92,7 +105,7 @@ export default function VouchHistoryScreen() {
 
   const handleTagChange = (newTag: string) => {
     setVouches((prev) =>
-      prev.map((v) => (v.id === editingVouchId ? { ...v, tag: newTag } : v))
+      prev.map((v) => (v.id === editingVouchId ? { ...v, tag: newTag } : v)),
     );
     setEditingVouchId(null);
   };
@@ -165,15 +178,23 @@ export default function VouchHistoryScreen() {
         <View
           className="absolute bottom-0 left-0 right-0 flex-row items-center justify-between bg-surface px-4 pt-4 border-t border-border"
           style={{ paddingBottom: insets.bottom + 16 }}
+        >
+          <Pressable
+            onPress={toggleSelectAll}
+            className="flex-row items-center"
+            hitSlop={8}
           >
-          <Pressable onPress={toggleSelectAll} className="flex-row items-center" hitSlop={8}>
             <View
               className={`mr-2 h-5 w-5 items-center justify-center rounded border ${
                 allSelected ? "bg-brand border-brand" : "border-border"
               }`}
             >
               {allSelected && (
-                <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
+                <MaterialCommunityIcons
+                  name="check"
+                  size={14}
+                  color="#FFFFFF"
+                />
               )}
             </View>
             <Text className="text-text-primary">All</Text>
