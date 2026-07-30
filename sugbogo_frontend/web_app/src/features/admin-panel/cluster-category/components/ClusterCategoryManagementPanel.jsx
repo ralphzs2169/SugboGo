@@ -141,13 +141,10 @@ export default function ClusterCategoryTable({
   const totalItems = isClusterTab ? clusterTotalItems : categoryTotalItems;
   const pageCount = isClusterTab ? clusterPageCount : categoryPageCount;
 
+  // Fetch clusters for the category filter dropdown.
   const { clusters: filterClusters } = useClusters(
-    {
-      page_size: 100,
-    },
-    {
-      enabled: currentTab === "categories",
-    },
+    { page_size: 100 },
+    { enabled: currentTab === "categories" },
   );
 
   // Event handlers for table actions, modals, and CRUD operations
@@ -242,6 +239,9 @@ export default function ClusterCategoryTable({
     });
   }, []);
 
+  const resourceLabel = isClusterTab ? "cluster" : "category";
+  const resourcePlural = isClusterTab ? "clusters" : "categories";
+
   return (
     <>
       <DataTable
@@ -285,10 +285,10 @@ export default function ClusterCategoryTable({
             ? "Search clusters..."
             : "Search categories...",
 
-          footerMetaText: `Showing ${data.length} ${activeResource.toLowerCase()}s`,
+          footerMetaText: `Showing ${data.length} ${resourcePlural}`,
 
           emptyState: {
-            title: `No ${activeResource.toLowerCase()}s found`,
+            title: `No ${resourcePlural} found`,
             description: "Try adjusting your search or create a new entry.",
             icon: <FaLayerGroup className="h-10 w-10 text-text-secondary" />,
           },
@@ -320,6 +320,8 @@ export default function ClusterCategoryTable({
         }}
       />
 
+      {/* Modals */}
+
       <CreateClusterModal
         isOpen={isCreateClusterOpen}
         onClose={() => setIsCreateClusterOpen(false)}
@@ -347,7 +349,7 @@ export default function ClusterCategoryTable({
         }}
         onSuccess={async () => {
           await refreshClusters();
-          toast.success("Cluster created successfully.");
+          toast.success("Cluster updated successfully.");
         }}
       />
 
