@@ -1,10 +1,8 @@
 from core.pagination import StandardPagination
 from core.responses import error_response, success_response
-from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view
 
-from apps.msme.models import Cluster
 from apps.msme.serializers.cluster_serializers import (
     ClusterCreateSerializer,
     ClusterSerializer,
@@ -44,16 +42,10 @@ def list_clusters(request):
 
 @api_view(["GET"])
 def retrieve_cluster(request, cluster_id):
-    """Retrieve a specific cluster by ID."""
-    cluster = get_object_or_404(
-        Cluster,
-        CLUS_ID=cluster_id,
-    )
-
-    serializer = ClusterSerializer(cluster)
+    cluster = ClusterService.get_cluster(cluster_id)
 
     return success_response(
-        data=serializer.data,
+        data=ClusterSerializer(cluster).data,
     )
 
 
@@ -79,11 +71,7 @@ def create_cluster(request):
 
 @api_view(["PUT", "PATCH"])
 def update_cluster(request, cluster_id):
-    """Update an existing cluster."""
-    cluster = get_object_or_404(
-        Cluster,
-        CLUS_ID=cluster_id,
-    )
+    cluster = ClusterService.get_cluster(cluster_id)
 
     serializer = ClusterUpdateSerializer(
         cluster,
@@ -105,18 +93,14 @@ def update_cluster(request, cluster_id):
 
 @api_view(["DELETE"])
 def delete_cluster(request, cluster_id):
-    """Delete a specific cluster by ID."""
-    cluster = get_object_or_404(
-        Cluster,
-        CLUS_ID=cluster_id,
-    )
-    
+    cluster = ClusterService.get_cluster(cluster_id)
+
     if cluster.categories.exists():
         return error_response(
             message="Cannot delete cluster with existing categories.",
             code="CLUSTER_HAS_CATEGORIES",
         )
-    
+
     ClusterService.delete_cluster(cluster)
 
     return success_response(

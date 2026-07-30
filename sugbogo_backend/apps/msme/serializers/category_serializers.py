@@ -57,7 +57,7 @@ class CategoryCreateSerializer(serializers.ModelSerializer):
         error_messages={
             "required": "Please select a cluster.",
             "null": "Please select a cluster.",
-            "does_not_exist": "The selected cluster does not exist.",
+            "does_not_exist": "The selected cluster was not found.",
         },
     )
 
@@ -85,6 +85,11 @@ class CategoryUpdateSerializer(serializers.ModelSerializer):
     name = serializers.CharField(
         source="CTGRY_NAME",
         required=False,
+        error_messages={
+                "blank": "Category name is required.",
+                "null": "Category name is required.",
+                "required": "Category name is required.",
+            },
     )
     description = serializers.CharField(
         source="CTGRY_DESCRIPTION",
@@ -96,6 +101,11 @@ class CategoryUpdateSerializer(serializers.ModelSerializer):
         source="CLUS_ID",
         queryset=Category._meta.get_field("CLUS_ID").remote_field.model.objects.all(),
         required=False,
+        error_messages={
+                "required": "Please select a cluster.",
+                "null": "Please select a cluster.",
+                "does_not_exist": "The selected cluster was not found.",
+            },
     )
 
     class Meta:
