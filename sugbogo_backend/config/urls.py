@@ -37,5 +37,5 @@ urlpatterns = [
     path('api/admin/analytics/', include('apps.admin_operations.analytics.urls')),
 
     path('api/admin/settings/', include('apps.admin_operations.system_configuration.urls')),
-
+    path('api/msme/', include('apps.msme.urls')),
 ]
