@@ -16,3 +16,16 @@ export const handleTableFilterChange = (id, value, setColumnFilters) => {
     return [...filtered, { id, value }];
   });
 };
+
+/**
+ * Converts the TanStack sorting state array into a single string for API requests.
+ * @param {Array<Object>} sorting - The current sorting state from TanStack Table.
+ * @returns {string|undefined} - A string like 'name' or '-created_at', or undefined if no sorting is applied.
+ */
+export function getOrdering(sorting) {
+  if (!sorting.length) return undefined;
+
+  const sort = sorting[0];
+
+  return sort.desc ? `-${sort.id}` : sort.id;
+}

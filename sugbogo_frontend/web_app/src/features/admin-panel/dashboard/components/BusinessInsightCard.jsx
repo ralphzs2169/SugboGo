@@ -10,7 +10,7 @@ import BusinessListItem from "./BusinessListItem";
  */
 function BusinessInsightCard({ title, Icon, items = [] }) {
   return (
-    <div className="rounded-lg border border-stroke bg-background-primary p-6 shadow-sm">
+    <div className="rounded-lg border border-stroke bg-background p-6 shadow-sm">
       <div className="mb-5 flex w-full items-center justify-between border-b border-stroke pb-3">
         <div className="flex items-center gap-2.5">
           <Icon className="h-5 w-5 stroke-[2.5] text-text-primary" />

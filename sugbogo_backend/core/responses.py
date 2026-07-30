@@ -1,5 +1,5 @@
-from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.response import Response
 
 """
 This module provides standardized response formats for API endpoints.
@@ -38,7 +38,7 @@ def success_response(
 def error_response(
     *,
     message: str = "An error occurred.",
-    code: str | None = None,
+    code: str = "UKNOWN_ERROR",
     errors=None,
     status_code: int = status.HTTP_400_BAD_REQUEST,
 ) -> Response:
@@ -59,10 +59,8 @@ def error_response(
     payload = {
         "success": False,
         "message": message,
+        "code": code,
     }
-
-    if code:
-        payload["code"] = code
 
     if errors is not None:
         payload["errors"] = errors

@@ -9,6 +9,12 @@ export const PAGE_METADATA = {
     subtitle: "Manage Micro, Small and Medium Enterprise Listings.",
   },
 
+  "/admin-panel/cluster-category": {
+    title: "Cluster & Category Management",
+    subtitle:
+      "Manage MSME business clusters and categories to organize enterprise listings and improve platform discovery.",
+  },
+
   "/admin-panel/users": {
     title: "User Management",
     subtitle: "Oversee and manage your platform community.",

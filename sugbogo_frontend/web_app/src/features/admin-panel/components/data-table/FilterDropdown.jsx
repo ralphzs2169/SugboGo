@@ -28,7 +28,7 @@ function FilterDropdown({
         onChange={(e) =>
           handleTableFilterChange(filterKey, e.target.value, setColumnFilters)
         }
-        className="h-9 appearance-none rounded-md border border-stroke-strong bg-background-primary hover:bg-interaction-hover py-2 pl-9 pr-8 text-xs text-text-primary outline-none cursor-pointer focus:border-stroke-active focus:ring- focus:ring-stroke-active/10"
+        className="h-9 appearance-none rounded-md border border-stroke-strong bg-background hover:bg-interaction-hover py-2 pl-9 pr-8 text-xs text-text-primary outline-none cursor-pointer focus:border-stroke-active focus:ring- focus:ring-stroke-active/10"
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (

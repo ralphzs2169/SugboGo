@@ -17,13 +17,14 @@ function LoginIllustration() {
       </div>
 
       {/* Center Hero Illustration & Caption */}
-      <div className="my-auto py-4 flex flex-col items-center justify-center w-full max-w-lg min-h-0 flex-1">
+      <div className="my-auto flex min-h-0 flex-1 flex-col items-center justify-center py-4 w-full max-w-2xl">
         <img
           src={adminLoginIllustration}
           alt="Admin login illustration"
-          className="h-auto max-h-[65vh] w-full max-w-[380px] lg:max-w-[420px] xl:max-w-[880px] object-contain mb-6"
+          className="mb-6 h-auto max-h-[70vh] w-full max-w-[460px] object-contain lg:max-w-[540px] xl:max-w-[620px]"
         />
-        <p className="text-sm text-gray-500 leading-relaxed max-w-md shrink-0">
+
+        <p className="max-w-md shrink-0 text-sm leading-relaxed text-gray-500">
           Simplify tourism management and operations seamlessly.
         </p>
       </div>

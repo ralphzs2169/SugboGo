@@ -4,7 +4,7 @@ import { updateProfile } from "../api/profile.service";
 import type {
   UpdateProfileRequest,
   UpdateProfileResponse,
-} from "../api/profile.types";
+} from "../types/profile.types";
 import type { ApiResponse } from "@/shared/api/types";
 
 export function useUpdateProfile() {

@@ -1,19 +1,19 @@
 import apiClient from "@/shared/api/apiClient";
-import { User } from "@/features/auth/api/auth.types";
+import { User } from "@/features/users/types/user.types";
 import {
   UpdateProfilePictureResponse,
   UpdateProfileRequest,
   UpdateProfileResponse,
   UpdateAvatarPreferenceRequest,
   UpdateAvatarPreferenceResponse,
-} from "./profile.types";
+} from "../types/profile.types";
 import { ApiResponse } from "@/shared/api/types";
 import { request } from "@/shared/api/request";
 
-export async function getProfile(): Promise<User> {
-  const response = await apiClient.get<User>("/users/me/");
-
-  return response.data;
+export function getProfile(): Promise<ApiResponse<User>> {
+  return request<ApiResponse<User>>(
+    apiClient.get<ApiResponse<User>>("/users/me/"),
+  );
 }
 
 export function updateProfile(data: UpdateProfileRequest) {

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { User } from "../api/auth.types";
+import { User } from "@/features/users/types/user.types";
 
 /**
  * Global authentication store.
@@ -31,6 +31,8 @@ interface AuthState {
    */
   isSigningIn: boolean;
 
+  sessionExpired: boolean;
+
   /**
    * Updates the authenticated user and marks the session as authenticated.
    * @param {User} user - The authenticated user's information.
@@ -49,6 +51,8 @@ interface AuthState {
    * Clears the authenticated user and resets the authentication state.
    */
   clearUser: () => void;
+
+  setSessionExpired: (expired: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -60,10 +64,14 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   isSigningIn: false,
 
+  sessionExpired: false,
+
+  // State update methods
   setLoading: (loading) =>
     set({
       isLoading: loading,
     }),
+
   setUser: (user) =>
     set({
       user,
@@ -79,5 +87,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: null,
       isAuthenticated: false,
+    }),
+
+  setSessionExpired: (expired: boolean) =>
+    set({
+      sessionExpired: expired,
     }),
 }));

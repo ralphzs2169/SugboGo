@@ -1,11 +1,12 @@
+from core.responses import error_response, success_response
+from rest_framework import status
 from rest_framework.decorators import api_view
 
 from apps.authentication.serializers import LoginResponseSerializer, LoginSerializer
 from apps.authentication.services.login_service import LoginService
 from apps.authentication.utils.jwt import issue_tokens
-from core.responses import error_response, success_response
 from apps.users.models import User
-from rest_framework import status
+
 
 @api_view(["POST"])
 def login_view(request):

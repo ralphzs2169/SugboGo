@@ -4,12 +4,18 @@ import { resendVerification } from "../api/auth.service";
 import { ApiMessageResponse } from "@/shared/api/types";
 
 /**
- * Custom hook for resending email verification.
+ * Hook for handling email verification resend requests.
+ *
+ * Manages the resend verification request lifecycle
+ * and returns the API response for the screen to handle
+ * user feedback and navigation.
  */
 export function useResendVerification() {
   const [loading, setLoading] = useState(false);
 
-  const handleResend = async (email: string): Promise<ApiMessageResponse> => {
+  const handleResendVerification = async (
+    email: string,
+  ): Promise<ApiMessageResponse> => {
     setLoading(true);
 
     try {
@@ -20,7 +26,7 @@ export function useResendVerification() {
   };
 
   return {
-    handleResend,
+    handleResendVerification,
     loading,
   };
 }

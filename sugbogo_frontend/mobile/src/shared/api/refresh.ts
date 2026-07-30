@@ -6,7 +6,6 @@ import { getRefreshToken, saveAccessToken, saveRefreshToken } from "./storage";
  *
  * Saves the newly issued tokens after successful refresh.
  *
- * @returns The new access token.
  */
 export async function refreshSession() {
   const refreshToken = await getRefreshToken();

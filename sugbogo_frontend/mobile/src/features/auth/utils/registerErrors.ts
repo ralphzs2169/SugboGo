@@ -1,4 +1,4 @@
-import { getFieldError } from "@/shared/api/errors";
+import { getFieldError } from "@/shared/api/error.utils";
 import { ApiError } from "@/shared/api/types";
 import { RegisterErrors } from "./registerValidator";
 

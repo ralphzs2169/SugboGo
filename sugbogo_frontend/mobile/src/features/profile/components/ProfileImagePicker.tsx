@@ -1,105 +1,114 @@
+import { useRef } from "react";
 import { Pressable, View } from "react-native";
-import { useImagePicker } from "../hooks/useImagePicker";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
+
 import Avatar from "@/shared/components/Avatar";
-import { useActionSheet } from "@expo/react-native-action-sheet";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+
+import { useImagePicker } from "../hooks/useImagePicker";
+import { ProfilePictureBottomSheet } from "./edit-profile/ProfilePictureBottomSheet";
 
 type Props = {
   imageUrl?: string | null;
-  hasCustomProfilePicture: boolean;
+  isShowingCustomProfilePicture: boolean;
+  hasSelectedImage: boolean;
   onImageSelected?: (imageUri: string) => void;
   onRemovePicture?: () => void;
 };
 
 /**
- * ProfileImagePicker component allows users to pick and upload a new profile image.
+ * ProfileImagePicker handles profile picture interactions.
+ *
+ * This component displays the user's avatar and provides actions for
+ * selecting a new image from the gallery, taking a photo, or removing
+ * the current profile picture.
+ *
+ * Image processing and uploading are handled by the parent component.
+ * This component only manages image selection and user interactions.
  */
 export function ProfileImagePicker({
   imageUrl,
-  hasCustomProfilePicture,
+  isShowingCustomProfilePicture,
+  hasSelectedImage,
   onImageSelected,
   onRemovePicture,
 }: Props) {
-  const { showActionSheetWithOptions } = useActionSheet();
   const { pickFromGallery, takePhoto } = useImagePicker();
 
-  async function handlePickImage() {
-    const options = ["Choose Photo", "Take Photo"];
+  const sheetRef = useRef<BottomSheetModal | null>(null);
 
-    if (hasCustomProfilePicture) {
-      options.push("Remove Current Photo");
+  // Opens the profile picture action bottom sheet.
+  function handlePickImage() {
+    sheetRef.current?.present();
+  }
+
+  // Opens the device gallery and returns the selected image URI.
+  async function handleChoosePhoto() {
+    try {
+      const imageUri = await pickFromGallery();
+
+      if (!imageUri) {
+        return;
+      }
+
+      onImageSelected?.(imageUri);
+    } catch (error) {
+      console.error("Gallery selection failed:", error);
+
+      Toast.show({
+        type: "error",
+        text1: "Image Error",
+        text2: "Unable to select this image. Please try another one.",
+      });
     }
+  }
 
-    options.push("Cancel");
+  //  Opens the device camera and returns the captured image URI.
+  async function handleTakePhoto() {
+    try {
+      const imageUri = await takePhoto();
 
-    const removeIndex = options.indexOf("Remove Current Photo");
-    const cancelIndex = options.indexOf("Cancel");
+      if (!imageUri) {
+        return;
+      }
 
-    showActionSheetWithOptions(
-      {
-        options,
-        cancelButtonIndex: cancelIndex,
-        destructiveButtonIndex: removeIndex !== -1 ? removeIndex : undefined,
-      },
-      async (selectedIndex) => {
-        try {
-          if (selectedIndex === undefined) {
-            return;
-          }
+      onImageSelected?.(imageUri);
+    } catch (error) {
+      console.error("Camera capture failed:", error);
 
-          const selectedOption = options[selectedIndex];
+      Toast.show({
+        type: "error",
+        text1: "Image Error",
+        text2: "Unable to capture this image. Please try again.",
+      });
+    }
+  }
 
-          let imageUri: string | null = null;
+  //Removes the current profile picture after dismissing the bottom sheet.
+  function handleRemovePicture() {
+    sheetRef.current?.dismiss();
 
-          switch (selectedOption) {
-            case "Choose Photo":
-              imageUri = await pickFromGallery();
-              break;
-
-            case "Take Photo":
-              imageUri = await takePhoto();
-              break;
-
-            case "Remove Current Photo":
-              onRemovePicture?.();
-              return;
-
-            default:
-              return;
-          }
-
-          if (!imageUri) {
-            return;
-          }
-
-          onImageSelected?.(imageUri);
-        } catch (error) {
-          console.error("Image selection failed:", error);
-
-          Toast.show({
-            type: "error",
-            text1: "Image Error",
-            text2: "Unable to process this image. Please try another one.",
-          });
-        }
-      },
-    );
+    onRemovePicture?.();
   }
 
   return (
-    <Pressable onPress={handlePickImage} className="active:opacity-80">
-      <View className="relative">
-        {/* Avatar */}
-        <View className="rounded-full border-1 border-white">
-          <Avatar imageUrl={imageUrl} size={120} />
+    <>
+      <Pressable onPress={handlePickImage} className="active:opacity-80">
+        <View className="relative">
+          <View className="rounded-full border-1 border-white">
+            <Avatar imageUrl={imageUrl} size={120} />
+          </View>
         </View>
+      </Pressable>
 
-        {/* Camera button */}
-        <View className=" absolute bottom-0 right-0 h-10 w-10 items-center justify-center rounded-full border-1border-white">
-          <MaterialCommunityIcons name="camera" size={20} color="white" />
-        </View>
-      </View>
-    </Pressable>
+      <ProfilePictureBottomSheet
+        sheetRef={sheetRef}
+        isShowingCustomProfilePicture={isShowingCustomProfilePicture}
+        hasSelectedImage={hasSelectedImage}
+        onChoosePhoto={handleChoosePhoto}
+        onTakePhoto={handleTakePhoto}
+        onRemovePicture={handleRemovePicture}
+      />
+    </>
   );
 }

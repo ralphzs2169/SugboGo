@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import SettingRow from "../components/SettingRow";
 import { useUpdateAvatarPreference } from "../hooks/useUpdateAvatarPreference";
+import { handleSystemError } from "@/shared/api/error.utils";
 
 export default function AccountSettingsScreen() {
   const user = useAuthStore((state) => state.user);
@@ -26,28 +27,20 @@ export default function AccountSettingsScreen() {
 
     setUseSocialAvatar(value);
 
-    loadingTimeout.current = setTimeout(() => {
-      setShowLoading(true);
-    }, 300);
-
     const response = await updatePreference({
       use_oauth_avatar: value,
     });
 
-    if (loadingTimeout.current) {
-      clearTimeout(loadingTimeout.current);
-      loadingTimeout.current = null;
-    }
-
-    setShowLoading(false);
-
     if (!response.success) {
       setUseSocialAvatar(previousValue);
 
+      if (handleSystemError(response)) {
+        return;
+      }
+
       Toast.show({
         type: "error",
-        text1: "Update failed",
-        text2: response.message,
+        text1: "Couldn't update settings",
       });
     }
   }
@@ -69,7 +62,7 @@ export default function AccountSettingsScreen() {
           title="Use connected social profile photo"
           description="Use your latest connected social account's profile photo when you don't have a custom picture."
           value={useSocialAvatar}
-          onValueChange={handleSocialAvatarToggle}
+          onValueChange={isUpdating ? undefined : handleSocialAvatarToggle}
           disabled={showLoading}
         />
       </ScrollView>

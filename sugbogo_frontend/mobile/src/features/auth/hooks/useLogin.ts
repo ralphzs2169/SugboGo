@@ -1,13 +1,21 @@
+import { useState } from "react";
+
 import { login } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
-import { AuthResponse } from "../api/auth.types";
+import { AuthResponse } from "../types/auth.types";
 import { useVerificationStore } from "../store/verification.store";
 import { ApiResponse } from "@/shared/api/types";
 
 /**
- * Custom hook for handling user login.
+ * Custom hook that handles user login.
+ *
+ * Authenticates the user, establishes the application session,
+ * manages the login request lifecycle, and clears pending
+ * verification state after successful login.
  */
 export function useLogin() {
+  const [loading, setLoading] = useState(false);
+
   const clearPendingEmail = useVerificationStore(
     (state) => state.clearPendingEmail,
   );
@@ -16,6 +24,8 @@ export function useLogin() {
     email: string,
     password: string,
   ): Promise<ApiResponse<AuthResponse>> => {
+    setLoading(true);
+
     try {
       const response = await login({
         email,
@@ -31,18 +41,13 @@ export function useLogin() {
       clearPendingEmail();
 
       return response;
-    } catch (error) {
-      console.error("Unexpected login error:", error);
-
-      return {
-        success: false,
-        message: "Something unexpected happened. Please try again.",
-        code: "UNKNOWN_ERROR",
-      };
+    } finally {
+      setLoading(false);
     }
   };
 
   return {
     handleLogin,
+    loading,
   };
 }

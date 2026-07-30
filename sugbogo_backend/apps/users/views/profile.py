@@ -1,14 +1,15 @@
+from core.responses import success_response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from apps.users.services.profile_picture_service import ProfilePictureService
 
 from apps.users.serializers.profile import (
-    AvatarPreferencesSerializer, UserSerializer, ProfilePictureSerializer, UserUpdateSerializer
+    AvatarPreferencesSerializer,
+    ProfilePictureSerializer,
+    UserSerializer,
+    UserUpdateSerializer,
 )
-from core.responses import success_response
+from apps.users.services.profile_picture_service import ProfilePictureService
 from apps.users.services.profile_service import ProfileService
-
-
 
 
 @api_view(["GET", "PATCH"])

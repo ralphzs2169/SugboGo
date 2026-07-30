@@ -12,13 +12,12 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 
 
-from pathlib import Path
-from datetime import timedelta
-
-from dotenv import load_dotenv
-import cloudinary
-
 import os
+from datetime import timedelta
+from pathlib import Path
+
+import cloudinary
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -156,8 +155,8 @@ REST_FRAMEWORK = {
 
     # Throttle settings for resending verification emails
     "DEFAULT_THROTTLE_RATES": {
-        "resend_verification": "5/hour",
-        "forgot_password": "5/hour",
+        "resend_verification": "10/hour",
+        "forgot_password": "10/hour",
     },
 
     # Custom exception handler for consistent error responses

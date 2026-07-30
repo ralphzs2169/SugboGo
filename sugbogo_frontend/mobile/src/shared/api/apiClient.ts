@@ -3,26 +3,46 @@ import { router } from "expo-router";
 import { getAccessToken, clearTokens } from "@/shared/api/storage";
 import { refreshSession } from "./refresh";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { Toast } from "react-native-toast-message/lib/src/Toast";
+import { createApiError } from "@/shared/api/error.utils";
+import { API_ERROR_CODE } from "@/shared/api/errorCodes";
+import NetInfo from "@react-native-community/netinfo";
 
-let isRedirectingToLogin = false;
-
-// Axios client for authenticated endpoints.
+/**
+ * Axios client for authenticated endpoints.
+ *
+ * This client automatically attaches the user's access token and
+ * transparently refreshes expired access tokens. It should be used for
+ * endpoints that require an authenticated session.
+ */
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
-  timeout: 30000,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
 /**
- * Axios request interceptor.
+ * REQUEST INTERCEPTOR
+ * Runs before every outgoing request.
  *
- * Attaches the stored JWT access token to authenticated requests.
+ * 1. Verifies that the device has an active internet connection.
+ * 2. Attaches the stored JWT access token, if one exists.
+ *
+ * If the device is offline, the request is rejected immediately with a
+ * standardized API error instead of waiting for the request to fail or
+ * time out.
  */
 apiClient.interceptors.request.use(
   async (config) => {
+    const netState = await NetInfo.fetch();
+
+    // Verify network connectivity before sending the request.
+    if (!netState.isConnected || netState.isInternetReachable === false) {
+      return Promise.reject(createApiError(API_ERROR_CODE.NETWORK_ERROR));
+    }
+
+    // Attach the current access token, if available.
     const token = await getAccessToken();
 
     if (token) {
@@ -35,17 +55,42 @@ apiClient.interceptors.request.use(
 );
 
 /**
- * Axios response interceptor.
+ * RESPONSE INTERCEPTOR
+ * Runs whenever a request fails.
  *
- * Refreshes expired access tokens automatically.
- * If refreshing fails, clears the session and redirects to login.
+ * Handles three categories of failures:
+ *
+ * 1. Transport-level failures (e.g. network unavailable or request timeout)
+ *    are converted into standardized API errors.
+ * 2. Expired access tokens (401) are refreshed automatically and the
+ *    original request is retried once.
+ * 3. If the refresh token is no longer valid, the local session is
+ *    cleared and the user is redirected to the login screen.
+ *
+ * Any other HTTP response (4xx/5xx) is passed through unchanged so
+ * request.ts can return the backend's structured error response.
  */
 apiClient.interceptors.response.use(
   (response) => response,
 
   async (error) => {
+    // Transport-level failures do not receive an HTTP response.
+    // Convert them into standardized API errors so request.ts can
+    // normalize them into the application's standard API response format.
+    if (axios.isAxiosError(error) && !error.response) {
+      const isTimeout = error.code === "ECONNABORTED";
+
+      const errorName = isTimeout
+        ? API_ERROR_CODE.REQUEST_TIMEOUT
+        : API_ERROR_CODE.NETWORK_ERROR;
+
+      return Promise.reject(createApiError(errorName));
+    }
+
     const originalRequest = error.config;
 
+    // Retry requests once after silently refreshing an expired
+    // access token. The _retry flag prevents infinite refresh loops.
     if (
       error.response?.status === 401 &&
       originalRequest &&
@@ -56,6 +101,7 @@ apiClient.interceptors.response.use(
       try {
         const newAccessToken = await refreshSession();
 
+        // Re-attach the new token and retry the original request.
         originalRequest.headers = {
           ...originalRequest.headers,
           Authorization: `Bearer ${newAccessToken}`,
@@ -63,32 +109,22 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch {
-        // If refreshing the token fails, clear the session and redirect to login.
+        // Refreshing failed, meaning the session is no longer valid.
+        // Clear the local session, redirect the user to the login screen,
+        // and set a flag so the login screen can display a one-time
+        // "Your session has expired" message.
         await clearTokens();
         useAuthStore.getState().clearUser();
 
-        if (!isRedirectingToLogin) {
-          isRedirectingToLogin = true;
+        useAuthStore.getState().setSessionExpired(true);
 
-          Toast.show({
-            type: "error",
-            text1: "Session Expired",
-            text2: "Please sign in again.",
-          });
+        router.replace("/(auth)/login");
 
-          setTimeout(() => {
-            router.replace("/(auth)/login");
-          }, 1000);
-        }
-
-        // Create a custom error to indicate that the session has expired.
-        const authError = new Error("SESSION_EXPIRED");
-        authError.name = "AUTH_ERROR";
-
-        return Promise.reject(authError);
+        return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
       }
     }
-
+    // Preserve structured backend error responses (4xx/5xx) so request.ts
+    // can return them unchanged to the caller.
     return Promise.reject(error);
   },
 );

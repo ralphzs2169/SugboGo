@@ -19,7 +19,12 @@ export default function Interests() {
 
   const handleCompleteSelection = async () => {
     try {
-      await completeInterestSelection();
+      const response = await completeInterestSelection();
+
+      if (!response.success) {
+        console.log(response.message);
+        return;
+      }
 
       if (user) {
         setUser({

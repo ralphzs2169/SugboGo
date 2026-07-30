@@ -31,7 +31,7 @@ const activities = [
  */
 function RecentActivity() {
   return (
-    <div className="rounded-lg border border-stroke bg-background-primary p-6 shadow-sm flex flex-col justify-between h-full">
+    <div className="rounded-lg border border-stroke bg-background p-6 shadow-sm flex flex-col justify-between h-full">
       {/* Header Container wrapping both Icon and Text */}
       <div className="w-full flex items-center justify-between mb-5 pb-3 border-b border-stroke">
         <div className="flex items-center gap-2.5">
@@ -44,7 +44,7 @@ function RecentActivity() {
 
       <div className="relative flex-1 flex flex-col justify-between pl-2">
         {/* Continuous Connecting Line Background */}
-        <div className="absolute left-[21px] top-4 bottom-4 w-px bg-background-secondary" />
+        <div className="absolute left-[21px] top-4 bottom-4 w-px bg-surface" />
 
         {activities.map((act, idx) => (
           <div

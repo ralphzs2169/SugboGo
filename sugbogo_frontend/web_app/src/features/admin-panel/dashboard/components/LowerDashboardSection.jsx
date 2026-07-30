@@ -64,7 +64,7 @@ const topTrendingItems = [
  */
 function LowerDashboardSection() {
   return (
-    <div className="w-full bg-background-secondary">
+    <div className="w-full bg-surface">
       <div className="max-w-7xl mx-auto grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left Column Stack */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:col-span-2">
