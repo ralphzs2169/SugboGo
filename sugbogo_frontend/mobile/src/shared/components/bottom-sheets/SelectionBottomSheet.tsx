@@ -9,6 +9,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 export type SelectionOption = {
   label: string;
   value: string;
+  icon?: string;
+  color?: string;
 };
 
 type Props = {
@@ -83,7 +85,20 @@ export default function SelectionBottomSheet({
               onPress={() => handleSelect(option.value)}
               className="flex-row items-center py-4"
             >
-              <Text className="flex-1 text-base text-gray-800">
+              {option.icon && (
+                <MaterialCommunityIcons
+                  name={option.icon as any}
+                  size={24}
+                  color={option.color ?? "#1B4D3E"}
+                />
+              )}
+
+              <Text
+                className={`flex-1 text-base ${option.icon ? "ml-4" : ""}`}
+                style={{
+                  color: option.color ?? "#1F2937",
+                }}
+              >
                 {option.label}
               </Text>
 
@@ -91,7 +106,7 @@ export default function SelectionBottomSheet({
                 <MaterialCommunityIcons
                   name="check"
                   size={22}
-                  color="#1B4D3E"
+                  color={option.color ?? "#1B4D3E"}
                 />
               )}
             </Pressable>

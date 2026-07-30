@@ -5,8 +5,8 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
 import RHFFormSelect from "@/shared/components/form/RHFFormSelect";
 import RHFFormTextArea from "@/shared/components/form/RHFFormTextArea";
+import FormFieldApiError from "@/shared/components/form/FormFieldApiError";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
-
 import RegistrationSection from "../RegistrationSection";
 
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
@@ -14,12 +14,17 @@ import {
   ClusterOption,
   CategoryOption,
 } from "@/features/merchant/types/merchantRegistration.types";
+import { ApiError } from "@/shared/api/types";
 
 type Props = {
   clusters: ClusterOption[];
   categories: CategoryOption[];
   isLoadingClusters: boolean;
   isLoadingCategories: boolean;
+  clustersError: ApiError | null;
+  categoriesError: ApiError | null;
+  refetchClusters?: () => void;
+  refetchCategories?: () => void;
 };
 
 /**
@@ -31,6 +36,10 @@ export default function BusinessIdentityStep({
   categories,
   isLoadingClusters,
   isLoadingCategories,
+  clustersError,
+  categoriesError,
+  refetchClusters,
+  refetchCategories,
 }: Props) {
   const clusterSheetRef = useRef<BottomSheetModal>(null);
   const categorySheetRef = useRef<BottomSheetModal>(null);
@@ -127,16 +136,24 @@ export default function BusinessIdentityStep({
           required
         />
 
+        {/* Cluster Select Input */}
         <RHFFormSelect
           name="businessCluster"
           label="Cluster"
           placeholder="Select a cluster"
           required
-          disabled={isLoadingClusters}
+          disabled={isLoadingClusters || clusters.length === 0}
           options={clusterOptions}
           onSelectPress={handleOpenClusterSheet}
         />
+        {clustersError && (
+          <FormFieldApiError
+            message="Unable to load clusters."
+            onRetry={refetchClusters}
+          />
+        )}
 
+        {/* Category Select Input */}
         <RHFFormSelect
           name="businessCategory"
           label="Category"
@@ -150,6 +167,12 @@ export default function BusinessIdentityStep({
           options={categoryOptions}
           onSelectPress={handleOpenCategorySheet}
         />
+        {categoriesError && selectedCluster && (
+          <FormFieldApiError
+            message="Unable to load categories."
+            onRetry={refetchCategories}
+          />
+        )}
 
         <RHFFormTextArea
           name="businessDescription"

@@ -32,12 +32,14 @@ export default function MerchantRegistrationScreen() {
     clusters,
     isLoading: isLoadingClusters,
     error: clustersError,
+    refetch: refetchClusters,
   } = useClusters();
 
   const {
     categories,
     isLoading: isLoadingCategories,
     error: categoriesError,
+    refetch: refetchCategories,
   } = useCategories();
 
   const renderStep = () => {
@@ -49,6 +51,10 @@ export default function MerchantRegistrationScreen() {
             categories={categories}
             isLoadingClusters={isLoadingClusters}
             isLoadingCategories={isLoadingCategories}
+            clustersError={clustersError}
+            categoriesError={categoriesError}
+            refetchClusters={refetchClusters}
+            refetchCategories={refetchCategories}
           />
         );
 

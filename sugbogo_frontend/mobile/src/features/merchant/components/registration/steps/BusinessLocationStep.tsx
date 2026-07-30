@@ -1,8 +1,10 @@
 import RegistrationSection from "../RegistrationSection";
-import MapPlaceholder from "../MapPlaceholder";
-
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
+import { useFormContext, useWatch } from "react-hook-form";
 
+import BusinessLocationMap from "../BusinessLocationMap";
+
+import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 /**
  * Displays the business location fields for the
  * merchant registration flow.
@@ -12,6 +14,30 @@ import RHFFormInput from "@/shared/components/form/RHFFormInput";
  * additional location details.
  */
 export default function BusinessLocationStep() {
+  const { setValue } = useFormContext<MerchantRegistrationForm>();
+
+  const latitude = useWatch({
+    name: "latitude",
+  });
+
+  const longitude = useWatch({
+    name: "longitude",
+  });
+
+  function handleLocationSelect(
+    selectedLatitude: number,
+    selectedLongitude: number,
+  ) {
+    setValue("latitude", selectedLatitude, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    setValue("longitude", selectedLongitude, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  }
   return (
     <>
       <RegistrationSection
@@ -19,7 +45,11 @@ export default function BusinessLocationStep() {
         title="Pin Your Business Location"
         description="Tap the map to mark where your business is located. We'll automatically detect your address."
       >
-        <MapPlaceholder />
+        <BusinessLocationMap
+          latitude={latitude}
+          longitude={longitude}
+          onLocationSelect={handleLocationSelect}
+        />
       </RegistrationSection>
 
       <RegistrationSection

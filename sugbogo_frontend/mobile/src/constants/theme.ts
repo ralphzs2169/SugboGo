@@ -24,6 +24,7 @@ export const theme = {
       surface: "#f3f4f6",
 
       text: {
+        primary: "#111827",
         secondary: "#6b7280",
         tertiary: "#999999",
       },

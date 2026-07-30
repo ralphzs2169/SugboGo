@@ -1,7 +1,6 @@
 import { Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ProfileImagePicker } from "../ProfileImagePicker";
-import ProfileBackground from "../../assets/profile-bg-illustration.svg";
 
 type Props = {
   imageUrl: string | null;
@@ -11,6 +10,10 @@ type Props = {
   onRemovePicture: () => void;
 };
 
+/**
+ * EditProfileHeader component displays the user's profile picture and provides an interface for changing it.
+ * It includes a ProfileImagePicker for selecting or capturing a new image, and an overlay indicating that the user can tap to change the photo.
+ */
 export default function EditProfileHeader({
   imageUrl,
   isShowingCustomProfilePicture,
