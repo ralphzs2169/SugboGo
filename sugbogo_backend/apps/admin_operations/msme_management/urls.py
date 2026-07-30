@@ -8,6 +8,9 @@ from apps.admin_operations.msme_management.views.cluster_views import (
     ClusterDetailView,
     ClusterListView,
 )
+from apps.admin_operations.msme_management.views.msme_views import (
+    MsmeVerifyView,
+)
 from apps.admin_operations.msme_management.views.summary_views import (
     get_cluster_category_summary,
 )
@@ -23,4 +26,7 @@ urlpatterns = [
 
     # Summary
     path("cluster-category/summary/", get_cluster_category_summary),
+
+
+    path('<int:MSME_ID>/verify/', MsmeVerifyView.as_view(), name='msme-verify'),
 ]

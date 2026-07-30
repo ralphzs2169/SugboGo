@@ -41,6 +41,15 @@ class ClusterService:
 
 
     @staticmethod
+    def list_registration_options():
+        return (
+            Cluster.objects
+            .annotate(category_count=Count("categories"))
+            .filter(category_count__gt=0)
+            .order_by("CLUS_NAME")
+        )
+
+    @staticmethod
     def get_cluster(cluster_id: int):
         """Retrieve a specific cluster by ID."""
         return get_object_or_404(

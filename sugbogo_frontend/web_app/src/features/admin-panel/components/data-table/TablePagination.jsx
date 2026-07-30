@@ -20,7 +20,6 @@ function TablePagination({
 }) {
   // Prevent invalid API values from breaking pagination display.
   const safeTotalItems = Number(totalItems) || 0;
-
   const startItem = safeTotalItems === 0 ? 0 : pageIndex * pageSize + 1;
 
   const endItem =

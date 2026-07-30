@@ -1,3 +1,4 @@
+from django.http import Http404
 from django.test import TestCase
 
 from apps.msme.models import Cluster
@@ -86,10 +87,8 @@ class ClusterServiceTests(TestCase):
         )
 
     def test_get_cluster_raises_404_when_not_found(self):
-        with self.assertRaises(Exception):
-            ClusterService.get_cluster(
-                9999,
-            )
+        with self.assertRaises(Http404):
+            ClusterService.get_cluster(9999)
 
     def test_create_cluster_strips_name_whitespace(self):
         cluster = ClusterService.create_cluster(

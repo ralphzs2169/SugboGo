@@ -70,3 +70,14 @@ export interface MerchantRegistrationForm {
 
   // Step 6: Review
 }
+
+export interface ClusterOption {
+  id: number;
+  name: string;
+}
+
+export interface CategoryOption {
+  id: number;
+  name: string;
+  cluster_id: number;
+}

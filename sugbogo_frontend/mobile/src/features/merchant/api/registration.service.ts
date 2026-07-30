@@ -1,0 +1,15 @@
+import apiClient from "@/shared/api/apiClient";
+import { request } from "@/shared/api/request";
+import { ApiResponse } from "@/shared/api/types";
+import {
+  CategoryOption,
+  ClusterOption,
+} from "../types/merchantRegistration.types";
+
+export async function getClusters(): Promise<ApiResponse<ClusterOption[]>> {
+  return request(apiClient.get("/msme/clusters/"));
+}
+
+export async function getCategories(): Promise<ApiResponse<CategoryOption[]>> {
+  return request(apiClient.get("/msme/categories/"));
+}

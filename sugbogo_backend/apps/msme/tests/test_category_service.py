@@ -1,181 +1,195 @@
-from rest_framework import status
-from rest_framework.test import APITestCase
+from django.http import Http404
+from django.test import TestCase
 
 from apps.msme.models import Category, Cluster
+from apps.msme.services.category_service import CategoryService
 
 
-class CategoryViewTests(APITestCase):
-    """Tests for Category CRUD API endpoints."""
-
+class CategoryServiceTests(TestCase):
     def setUp(self):
         self.cluster = Cluster.objects.create(
-            CLUS_NAME="Food & Beverage",
-            CLUS_DESCRIPTION="Food and beverage businesses.",
+            CLUS_NAME="Food & Dining",
+            CLUS_DESCRIPTION="Food businesses",
         )
 
         self.other_cluster = Cluster.objects.create(
-            CLUS_NAME="Tourism",
-            CLUS_DESCRIPTION="Tourism-related businesses.",
+            CLUS_NAME="Adventure",
+            CLUS_DESCRIPTION="Adventure businesses",
         )
 
         self.category = Category.objects.create(
             CTGRY_NAME="Restaurants",
-            CTGRY_DESCRIPTION="Restaurants and dining establishments.",
+            CTGRY_DESCRIPTION="Places that serve food",
             CLUS_ID=self.cluster,
         )
 
         self.other_category = Category.objects.create(
-            CTGRY_NAME="Hotels",
-            CTGRY_DESCRIPTION="Hotels and accommodations.",
+            CTGRY_NAME="Cafes",
+            CTGRY_DESCRIPTION="Coffee and light meals",
+            CLUS_ID=self.cluster,
+        )
+
+        self.adventure_category = Category.objects.create(
+            CTGRY_NAME="Hiking",
+            CTGRY_DESCRIPTION="Outdoor hiking activities",
             CLUS_ID=self.other_cluster,
         )
 
-    def test_list_categories_returns_categories(self):
-        response = self.client.get(
-            "/api/admin/msmes/categories/",
+    def test_list_categories_returns_all_categories(self):
+        categories = CategoryService.list_categories()
+
+        self.assertEqual(categories.count(), 3)
+
+    def test_list_categories_filters_by_name(self):
+        categories = CategoryService.list_categories(
+            search="restaurant",
         )
 
+        self.assertEqual(categories.count(), 1)
         self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
-        self.assertEqual(
-            response.data["data"]["pagination"]["total_items"],
-            2,
-        )
-
-        self.assertEqual(
-            len(response.data["data"]["items"]),
-            2,
-        )
-
-    def test_list_categories_filters_by_search(self):
-        response = self.client.get(
-            "/api/admin/msmes/categories/?search=restaurant",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
-        self.assertEqual(
-            response.data["data"]["pagination"]["total_items"],
-            1,
-        )
-
-        self.assertEqual(
-            response.data["data"]["items"][0]["name"],
+            categories.first().CTGRY_NAME,
             "Restaurants",
+        )
+
+    def test_list_categories_filters_by_description(self):
+        categories = CategoryService.list_categories(
+            search="coffee",
+        )
+
+        self.assertEqual(categories.count(), 1)
+        self.assertEqual(
+            categories.first().CTGRY_NAME,
+            "Cafes",
         )
 
     def test_list_categories_filters_by_cluster(self):
-        response = self.client.get(
-            f"/api/admin/msmes/categories/?cluster_id={self.cluster.CLUS_ID}",
+        categories = CategoryService.list_categories(
+            cluster_id=self.cluster.CLUS_ID,
+        )
+
+        self.assertEqual(categories.count(), 2)
+
+        self.assertNotIn(
+            self.adventure_category.CTGRY_ID,
+            categories.values_list("CTGRY_ID", flat=True),
+        )
+
+    def test_list_categories_filters_by_search_and_cluster(self):
+        categories = CategoryService.list_categories(
+            search="coffee",
+            cluster_id=self.cluster.CLUS_ID,
+        )
+
+        self.assertEqual(categories.count(), 1)
+        self.assertEqual(
+            categories.first().CTGRY_NAME,
+            "Cafes",
+        )
+
+    def test_list_categories_defaults_to_name_ordering(self):
+        categories = CategoryService.list_categories()
+
+        self.assertEqual(
+            list(categories.values_list("CTGRY_NAME", flat=True)),
+            [
+                "Cafes",
+                "Hiking",
+                "Restaurants",
+            ],
+        )
+
+    def test_list_categories_orders_by_name_descending(self):
+        categories = CategoryService.list_categories(
+            ordering="-name",
         )
 
         self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
+            list(categories.values_list("CTGRY_NAME", flat=True)),
+            [
+                "Restaurants",
+                "Hiking",
+                "Cafes",
+            ],
+        )
+
+    def test_list_categories_orders_by_created_at(self):
+        categories = CategoryService.list_categories(
+            ordering="created_at",
         )
 
         self.assertEqual(
-            response.data["data"]["pagination"]["total_items"],
-            1,
+            list(categories.values_list("CTGRY_ID", flat=True)),
+            [
+                self.category.CTGRY_ID,
+                self.other_category.CTGRY_ID,
+                self.adventure_category.CTGRY_ID,
+            ],
+        )
+
+    def test_list_categories_orders_by_created_at_descending(self):
+        categories = CategoryService.list_categories(
+            ordering="-created_at",
         )
 
         self.assertEqual(
-            response.data["data"]["items"][0]["name"],
-            "Restaurants",
+            list(categories.values_list("CTGRY_ID", flat=True)),
+            [
+                self.adventure_category.CTGRY_ID,
+                self.other_category.CTGRY_ID,
+                self.category.CTGRY_ID,
+            ],
         )
 
-    def test_list_categories_orders_by_name(self):
-        response = self.client.get(
-            "/api/admin/msmes/categories/?ordering=name",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
-        names = [
-            category["name"]
-            for category in response.data["data"]["items"]
-        ]
-
-        self.assertEqual(
-            names,
-            ["Hotels", "Restaurants"],
-        )
-
-    def test_retrieve_category_returns_category(self):
-        response = self.client.get(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/",
+    def test_list_categories_orders_by_updated_at(self):
+        categories = CategoryService.list_categories(
+            ordering="updated_at",
         )
 
         self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
+            list(categories.values_list("CTGRY_ID", flat=True)),
+            [
+                self.category.CTGRY_ID,
+                self.other_category.CTGRY_ID,
+                self.adventure_category.CTGRY_ID,
+            ],
+        )
+
+    def test_list_categories_orders_by_updated_at_descending(self):
+        categories = CategoryService.list_categories(
+            ordering="-updated_at",
         )
 
         self.assertEqual(
-            response.data["data"]["name"],
-            "Restaurants",
+            list(categories.values_list("CTGRY_ID", flat=True)),
+            [
+                self.adventure_category.CTGRY_ID,
+                self.other_category.CTGRY_ID,
+                self.category.CTGRY_ID,
+            ],
+        )
+
+    def test_list_categories_uses_name_ordering_for_invalid_ordering(self):
+        categories = CategoryService.list_categories(
+            ordering="invalid",
         )
 
         self.assertEqual(
-            response.data["data"]["description"],
-            "Restaurants and dining establishments.",
+            list(categories.values_list("CTGRY_NAME", flat=True)),
+            [
+                "Cafes",
+                "Hiking",
+                "Restaurants",
+            ],
+        )
+
+    def test_get_category_returns_category(self):
+        category = CategoryService.get_category(
+            self.category.CTGRY_ID,
         )
 
         self.assertEqual(
-            response.data["data"]["cluster_id"],
-            self.cluster.CLUS_ID,
-        )
-
-        self.assertEqual(
-            response.data["data"]["cluster_name"],
-            "Food & Beverage",
-        )
-
-    def test_retrieve_category_returns_404_when_not_found(self):
-        response = self.client.get(
-            "/api/admin/msmes/categories/9999/",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_404_NOT_FOUND,
-        )
-
-    def test_create_category_successfully(self):
-        payload = {
-            "name": "Cafes",
-            "description": "Coffee shops and cafes.",
-            "cluster_id": self.cluster.CLUS_ID,
-        }
-
-        response = self.client.post(
-            "/api/admin/msmes/categories/create/",
-            payload,
-            format="json",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_201_CREATED,
-        )
-
-        self.assertTrue(
-            Category.objects.filter(
-                CTGRY_NAME="Cafes",
-            ).exists()
-        )
-
-        category = Category.objects.get(
-            CTGRY_NAME="Cafes",
+            category.CTGRY_ID,
+            self.category.CTGRY_ID,
         )
 
         self.assertEqual(
@@ -183,182 +197,61 @@ class CategoryViewTests(APITestCase):
             self.cluster,
         )
 
-        self.assertEqual(
-            response.data["message"],
-            "Category created successfully.",
-        )
-
-        self.assertEqual(
-            response.data["data"]["name"],
-            "Cafes",
-        )
+    def test_get_category_raises_404_when_not_found(self):
+        with self.assertRaises(Http404):
+            CategoryService.get_category(9999)
 
     def test_create_category_strips_name(self):
-        payload = {
-            "name": "  Cafes  ",
-            "description": "Coffee shops and cafes.",
-            "cluster_id": self.cluster.CLUS_ID,
-        }
-
-        response = self.client.post(
-            "/api/admin/msmes/categories/create/",
-            payload,
-            format="json",
+        category = CategoryService.create_category(
+            {
+                "CTGRY_NAME": "  Beaches  ",
+                "CTGRY_DESCRIPTION": "Beach destinations",
+                "CLUS_ID": self.cluster,
+            }
         )
 
         self.assertEqual(
-            response.status_code,
-            status.HTTP_201_CREATED,
-        )
-
-        self.assertTrue(
-            Category.objects.filter(
-                CTGRY_NAME="Cafes",
-            ).exists()
-        )
-
-    def test_create_category_fails_with_invalid_data(self):
-        payload = {
-            "name": "",
-            "description": "Invalid category.",
-            "cluster_id": self.cluster.CLUS_ID,
-        }
-
-        response = self.client.post(
-            "/api/admin/msmes/categories/create/",
-            payload,
-            format="json",
+            category.CTGRY_NAME,
+            "Beaches",
         )
 
         self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertFalse(
-            Category.objects.filter(
-                CTGRY_DESCRIPTION="Invalid category.",
-            ).exists()
-        )
-
-    def test_create_category_fails_with_duplicate_name(self):
-        payload = {
-            "name": "restaurants",
-            "description": "Duplicate category.",
-            "cluster_id": self.cluster.CLUS_ID,
-        }
-
-        response = self.client.post(
-            "/api/admin/msmes/categories/create/",
-            payload,
-            format="json",
+            category.CTGRY_DESCRIPTION,
+            "Beach destinations",
         )
 
         self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+            category.CLUS_ID,
+            self.cluster,
         )
 
-        self.assertFalse(
-            Category.objects.filter(
-                CTGRY_DESCRIPTION="Duplicate category.",
-            ).exists()
-        )
-
-    def test_create_category_fails_when_cluster_does_not_exist(self):
-        payload = {
-            "name": "Cafes",
-            "description": "Coffee shops and cafes.",
-            "cluster_id": 9999,
-        }
-
-        response = self.client.post(
-            "/api/admin/msmes/categories/create/",
-            payload,
-            format="json",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.assertFalse(
-            Category.objects.filter(
-                CTGRY_NAME="Cafes",
-            ).exists()
-        )
-
-    def test_update_category_successfully(self):
-        payload = {
-            "name": "Updated Restaurants",
-        }
-
-        response = self.client.patch(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/update/",
-            payload,
-            format="json",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
+    def test_update_category_updates_provided_fields(self):
+        CategoryService.update_category(
+            self.category,
+            {
+                "CTGRY_NAME": "  Fine Dining  ",
+                "CTGRY_DESCRIPTION": "Upscale restaurants",
+            },
         )
 
         self.category.refresh_from_db()
 
         self.assertEqual(
             self.category.CTGRY_NAME,
-            "Updated Restaurants",
+            "Fine Dining",
         )
 
         self.assertEqual(
-            response.data["message"],
-            "Category updated successfully.",
-        )
-
-        self.assertEqual(
-            response.data["data"]["name"],
-            "Updated Restaurants",
-        )
-
-    def test_update_category_strips_name(self):
-        payload = {
-            "name": "  Updated Restaurants  ",
-        }
-
-        response = self.client.patch(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/update/",
-            payload,
-            format="json",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
-        self.category.refresh_from_db()
-
-        self.assertEqual(
-            self.category.CTGRY_NAME,
-            "Updated Restaurants",
+            self.category.CTGRY_DESCRIPTION,
+            "Upscale restaurants",
         )
 
     def test_update_category_updates_cluster(self):
-        payload = {
-            "cluster_id": self.other_cluster.CLUS_ID,
-        }
-
-        response = self.client.patch(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/update/",
-            payload,
-            format="json",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
+        CategoryService.update_category(
+            self.category,
+            {
+                "CLUS_ID": self.other_cluster,
+            },
         )
 
         self.category.refresh_from_db()
@@ -368,78 +261,13 @@ class CategoryViewTests(APITestCase):
             self.other_cluster,
         )
 
-        self.assertEqual(
-            response.data["data"]["cluster_id"],
-            self.other_cluster.CLUS_ID,
-        )
-
-    def test_update_category_returns_404_when_not_found(self):
-        response = self.client.patch(
-            "/api/admin/msmes/categories/9999/update/",
-            {
-                "name": "Updated",
-            },
-            format="json",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_404_NOT_FOUND,
-        )
-
-    def test_update_category_fails_with_duplicate_name(self):
-        payload = {
-            "name": "Hotels",
-        }
-
-        response = self.client.patch(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/update/",
-            payload,
-            format="json",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-
-        self.category.refresh_from_db()
-
-        self.assertEqual(
-            self.category.CTGRY_NAME,
-            "Restaurants",
-        )
-
-    def test_delete_category_successfully(self):
+    def test_delete_category_deletes_category(self):
         category_id = self.category.CTGRY_ID
 
-        response = self.client.delete(
-            f"/api/admin/msmes/categories/{category_id}/delete/",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
+        CategoryService.delete_category(self.category)
 
         self.assertFalse(
             Category.objects.filter(
                 CTGRY_ID=category_id,
             ).exists()
         )
-
-        self.assertEqual(
-            response.data["message"],
-            "Category deleted successfully.",
-        )
-
-    def test_delete_category_returns_404_when_not_found(self):
-        response = self.client.delete(
-            "/api/admin/msmes/categories/9999/delete/",
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_404_NOT_FOUND,
-        )
-

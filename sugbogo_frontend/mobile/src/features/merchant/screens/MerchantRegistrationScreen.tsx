@@ -10,6 +10,10 @@ import {
   merchantRegistrationSchema,
   MerchantRegistrationForm,
 } from "../validation/merchantRegistration.schema";
+
+import useClusters from "../hooks/useClusters";
+import useCategories from "../hooks/useCategories";
+
 import { REGISTRATION_STEPS } from "../constants/registrationSteps";
 import BusinessIdentityStep from "../components/registration/steps/BusinessIdentityStep";
 import BusinessLocationStep from "../components/registration/steps/BusinessLocationStep";
@@ -21,12 +25,32 @@ import ReviewStep from "../components/registration/steps/ReviewSubmitStep";
 export default function MerchantRegistrationScreen() {
   const [currentStep, setCurrentStep] = useState(1);
 
+  // Scroll to the top of the form when moving to the next step.
   const scrollRef = useRef<ScrollView>(null);
+
+  const {
+    clusters,
+    isLoading: isLoadingClusters,
+    error: clustersError,
+  } = useClusters();
+
+  const {
+    categories,
+    isLoading: isLoadingCategories,
+    error: categoriesError,
+  } = useCategories();
 
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <BusinessIdentityStep />;
+        return (
+          <BusinessIdentityStep
+            clusters={clusters}
+            categories={categories}
+            isLoadingClusters={isLoadingClusters}
+            isLoadingCategories={isLoadingCategories}
+          />
+        );
 
       case 2:
         return <BusinessLocationStep />;
