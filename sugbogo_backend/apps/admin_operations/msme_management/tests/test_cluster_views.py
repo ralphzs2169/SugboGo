@@ -140,7 +140,7 @@ class ClusterViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/clusters/create/",
+            "/api/admin/msmes/clusters/",
             payload,
             format="json",
         )
@@ -182,7 +182,7 @@ class ClusterViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/clusters/create/",
+            "/api/admin/msmes/clusters/",
             payload,
             format="json",
         )
@@ -205,7 +205,7 @@ class ClusterViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/clusters/create/",
+            "/api/admin/msmes/clusters/",
             payload,
             format="json",
         )
@@ -228,7 +228,7 @@ class ClusterViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/clusters/create/",
+            "/api/admin/msmes/clusters/",
             payload,
             format="json",
         )
@@ -250,7 +250,7 @@ class ClusterViewTests(APITestCase):
         }
 
         response = self.client.patch(
-            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/update/",
+            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/",
             payload,
             format="json",
         )
@@ -283,7 +283,7 @@ class ClusterViewTests(APITestCase):
         }
 
         response = self.client.patch(
-            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/update/",
+            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/",
             payload,
             format="json",
         )
@@ -306,7 +306,7 @@ class ClusterViewTests(APITestCase):
         }
 
         response = self.client.patch(
-            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/update/",
+            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/",
             payload,
             format="json",
         )
@@ -325,7 +325,7 @@ class ClusterViewTests(APITestCase):
 
     def test_update_cluster_returns_404_when_not_found(self):
         response = self.client.patch(
-            "/api/admin/msmes/clusters/9999/update/",
+            "/api/admin/msmes/clusters/9999/",
             {
                 "name": "Updated Cluster",
             },
@@ -343,7 +343,7 @@ class ClusterViewTests(APITestCase):
         }
 
         response = self.client.patch(
-            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/update/",
+            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/",
             payload,
             format="json",
         )
@@ -364,7 +364,7 @@ class ClusterViewTests(APITestCase):
         cluster_id = self.cluster.CLUS_ID
 
         response = self.client.delete(
-            f"/api/admin/msmes/clusters/{cluster_id}/delete/",
+            f"/api/admin/msmes/clusters/{cluster_id}/",
         )
 
         self.assertEqual(
@@ -391,7 +391,7 @@ class ClusterViewTests(APITestCase):
         )
 
         response = self.client.delete(
-            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/delete/",
+            f"/api/admin/msmes/clusters/{self.cluster.CLUS_ID}/",
         )
 
         self.assertEqual(
@@ -412,7 +412,7 @@ class ClusterViewTests(APITestCase):
 
     def test_delete_cluster_returns_404_when_not_found(self):
         response = self.client.delete(
-            "/api/admin/msmes/clusters/9999/delete/",
+            "/api/admin/msmes/clusters/9999/",
         )
 
         self.assertEqual(

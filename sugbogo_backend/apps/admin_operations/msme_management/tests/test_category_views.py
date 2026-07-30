@@ -158,7 +158,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/categories/create/",
+            "/api/admin/msmes/categories/",
             payload,
             format="json",
         )
@@ -201,7 +201,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/categories/create/",
+            "/api/admin/msmes/categories/",
             payload,
             format="json",
         )
@@ -225,7 +225,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/categories/create/",
+            "/api/admin/msmes/categories/",
             payload,
             format="json",
         )
@@ -249,7 +249,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/categories/create/",
+            "/api/admin/msmes/categories/",
             payload,
             format="json",
         )
@@ -273,7 +273,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.post(
-            "/api/admin/msmes/categories/create/",
+            "/api/admin/msmes/categories/",
             payload,
             format="json",
         )
@@ -295,7 +295,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.patch(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/update/",
+            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/",
             payload,
             format="json",
         )
@@ -328,7 +328,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.patch(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/update/",
+            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/",
             payload,
             format="json",
         )
@@ -351,7 +351,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.patch(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/update/",
+            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/",
             payload,
             format="json",
         )
@@ -375,7 +375,7 @@ class CategoryViewTests(APITestCase):
 
     def test_update_category_returns_404_when_not_found(self):
         response = self.client.patch(
-            "/api/admin/msmes/categories/9999/update/",
+            "/api/admin/msmes/categories/9999/",
             {
                 "name": "Updated",
             },
@@ -393,7 +393,7 @@ class CategoryViewTests(APITestCase):
         }
 
         response = self.client.patch(
-            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/update/",
+            f"/api/admin/msmes/categories/{self.category.CTGRY_ID}/",
             payload,
             format="json",
         )
@@ -414,7 +414,7 @@ class CategoryViewTests(APITestCase):
         category_id = self.category.CTGRY_ID
 
         response = self.client.delete(
-            f"/api/admin/msmes/categories/{category_id}/delete/",
+            f"/api/admin/msmes/categories/{category_id}/",
         )
 
         self.assertEqual(
@@ -435,7 +435,7 @@ class CategoryViewTests(APITestCase):
 
     def test_delete_category_returns_404_when_not_found(self):
         response = self.client.delete(
-            "/api/admin/msmes/categories/9999/delete/",
+            "/api/admin/msmes/categories/9999/",
         )
 
         self.assertEqual(
