@@ -19,7 +19,7 @@ import { NavLink } from "react-router-dom";
 export default function SidebarDropdownItems({
   links,
   onClick,
-  collapsed = false,
+  isSidebarCollapsed = false,
 }) {
   return (
     <>
@@ -30,15 +30,23 @@ export default function SidebarDropdownItems({
           onClick={onClick}
           className={({ isActive }) =>
             `block rounded-lg font-medium transition
-            ${collapsed ? "px-3 py-2 text-sm" : "px-2 py-2 text-[12px]"}
-            ${
-              isActive
-                ? "bg-primary text-white"
-                : "text-text-primary hover:bg-interaction-hover"
-            }`
+     px-2 py-2 text-[12px]
+     ${
+       isActive
+         ? "bg-primary text-white"
+         : "text-text-primary hover:bg-interaction-hover"
+     }`
           }
         >
-          {item.label}
+          <span
+            className={`
+      block truncate overflow-hidden whitespace-nowrap
+      transition-all duration-300
+      ${isSidebarCollapsed ? "max-w-0 opacity-0" : "max-w-32 opacity-100"}
+    `}
+          >
+            {item.label}
+          </span>
         </NavLink>
       ))}
     </>
