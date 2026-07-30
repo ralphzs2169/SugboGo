@@ -53,20 +53,20 @@ export default function ProfileScreen({}) {
             <ProfileMenuItem
               title="My Pockets"
               icon="wallet-outline"
-              badge={3}
-              onPress={() => {}}
+              badge={5}
+              onPress={() => router.push("/profile/my-pockets")}
             />
 
             <ProfileMenuItem
               title="Vouch History"
               icon="heart-outline"
-              onPress={() => {}}
+              onPress={() => router.push("/profile/vouch-history")}
             />
 
             <ProfileMenuItem
               title="My Reviews"
               icon="comment-outline"
-              onPress={() => {}}
+              onPress={() => router.push("/profile/reviews-submitted")}
             />
 
             <ProfileMenuItem
