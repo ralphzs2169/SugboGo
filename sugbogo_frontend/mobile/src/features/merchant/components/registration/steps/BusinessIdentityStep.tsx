@@ -14,7 +14,7 @@ import {
   ClusterOption,
   CategoryOption,
 } from "@/features/merchant/types/merchantRegistration.types";
-import { ApiError } from "@/shared/api/types";
+import { ApiError } from "@/shared/types/apiResponse.types";
 
 type Props = {
   clusters: ClusterOption[];

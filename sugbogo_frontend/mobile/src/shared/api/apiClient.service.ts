@@ -1,10 +1,10 @@
 import axios from "axios";
 import { router } from "expo-router";
-import { getAccessToken, clearTokens } from "@/shared/api/storage";
-import { refreshSession } from "./refresh";
+import { getAccessToken, clearTokens } from "@/shared/api/storage.service";
+import { refreshSession } from "./refresh.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { createApiError } from "@/shared/api/error.utils";
-import { API_ERROR_CODE } from "@/shared/api/errorCodes";
+import { createApiError } from "@/shared/utils/apiErrors";
+import { API_ERROR_CODE } from "@/shared/constants/errorCodes";
 import NetInfo from "@react-native-community/netinfo";
 
 /**

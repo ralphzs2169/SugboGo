@@ -13,7 +13,7 @@ import OnboardingFooter from "./components/OnboardingFooter";
 import OnboardingSlide from "./components/OnboardingSlide";
 import { onboardingData } from "./constants/onboardingData";
 import { OnboardingItem } from "./types";
-import * as onboardingStorage from "@/shared/services/onboardingStorage";
+import * as onboardingStorage from "@/shared/api/onboardingStorage.service";
 /**
  * Onboarding displays the onboarding flow with swipeable slides.
  */

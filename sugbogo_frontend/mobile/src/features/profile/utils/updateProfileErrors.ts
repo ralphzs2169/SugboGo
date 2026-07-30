@@ -1,4 +1,4 @@
-import { ApiError } from "@/shared/api/types";
+import { ApiError } from "@/shared/types/apiResponse.types";
 import { UpdateProfileErrors } from "../utils/updateProfileValidator";
 
 export default function getUpdateProfileErrors(

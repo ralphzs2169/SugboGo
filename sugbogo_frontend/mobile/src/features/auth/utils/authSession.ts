@@ -1,5 +1,8 @@
 import { AuthResponse } from "../types/auth.types";
-import { saveAccessToken, saveRefreshToken } from "@/shared/api/storage";
+import {
+  saveAccessToken,
+  saveRefreshToken,
+} from "@/shared/api/storage.service";
 import { useAuthStore } from "../store/auth.store";
 
 /**

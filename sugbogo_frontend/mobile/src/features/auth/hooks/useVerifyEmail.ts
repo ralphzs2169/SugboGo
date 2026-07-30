@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { verifyEmail } from "../api/auth.service";
-import { ApiMessageResponse } from "@/shared/api/types";
+import { ApiMessageResponse } from "@/shared/types/apiResponse.types";
 
 /**
  * Hook for handling email verification.

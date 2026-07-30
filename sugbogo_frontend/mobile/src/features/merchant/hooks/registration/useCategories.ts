@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { getCategories } from "../api/registration.service";
-import { CategoryOption } from "../types/merchantRegistration.types";
-import { ApiError } from "@/shared/api/types";
+import { getCategories } from "../../api/registration.service";
+import { CategoryOption } from "../../types/merchantRegistration.types";
+import { ApiError } from "@/shared/types/apiResponse.types";
 
 export default function useCategories() {
   const [categories, setCategories] = useState<CategoryOption[]>([]);

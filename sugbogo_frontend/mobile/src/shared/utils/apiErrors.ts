@@ -1,8 +1,8 @@
-import { ApiError } from "./types";
+import { ApiError } from "../types/apiResponse.types";
 
 import Toast from "react-native-toast-message";
-import { ApiResponse } from "@/shared/api/types";
-import { API_ERROR_MESSAGE } from "./errorMessages";
+import { ApiResponse } from "@/shared/types/apiResponse.types";
+import { API_ERROR_MESSAGE } from "../constants/errorMessages";
 
 /**
  * Shared API error identifiers used throughout the networking layer.

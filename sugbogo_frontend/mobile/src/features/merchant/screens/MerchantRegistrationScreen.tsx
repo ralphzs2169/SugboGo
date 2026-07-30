@@ -11,8 +11,8 @@ import {
   MerchantRegistrationForm,
 } from "../validation/merchantRegistration.schema";
 
-import useClusters from "../hooks/useClusters";
-import useCategories from "../hooks/useCategories";
+import useClusters from "../hooks/registration/useClusters";
+import useCategories from "../hooks/registration/useCategories";
 
 import { REGISTRATION_STEPS } from "../constants/registrationSteps";
 import BusinessIdentityStep from "../components/registration/steps/BusinessIdentityStep";

@@ -1,17 +1,19 @@
-import RegistrationSection from "../RegistrationSection";
-import RHFFormInput from "@/shared/components/form/RHFFormInput";
-import { useFormContext, useWatch } from "react-hook-form";
-
-import BusinessLocationMap from "../BusinessLocationMap";
-
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import { useFormContext, useWatch } from "react-hook-form";
+import { View } from "react-native";
+
+import RHFFormInput from "@/shared/components/form/RHFFormInput";
+import BusinessLocationSearch from "../BusinessLocationSearch";
+import BusinessLocationMap from "../BusinessLocationMap";
+import RegistrationSection from "../RegistrationSection";
+
 /**
  * Displays the business location fields for the
  * merchant registration flow.
  *
- * Merchants first pin their business on the map,
- * then verify the detected address and provide any
- * additional location details.
+ * Merchants can search for their business or tap the map
+ * to select its exact location, then provide any additional
+ * address details.
  */
 export default function BusinessLocationStep() {
   const { setValue } = useFormContext<MerchantRegistrationForm>();
@@ -27,7 +29,13 @@ export default function BusinessLocationStep() {
   function handleLocationSelect(
     selectedLatitude: number,
     selectedLongitude: number,
+    address?: string,
   ) {
+    console.log("SELECTED LOCATION:", {
+      latitude: selectedLatitude,
+      longitude: selectedLongitude,
+      address,
+    });
     setValue("latitude", selectedLatitude, {
       shouldValidate: true,
       shouldDirty: true,
@@ -37,19 +45,32 @@ export default function BusinessLocationStep() {
       shouldValidate: true,
       shouldDirty: true,
     });
+
+    if (address) {
+      setValue("streetAddress", address, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
   }
+
   return (
     <>
       <RegistrationSection
         icon="map-marker-radius-outline"
         title="Pin Your Business Location"
-        description="Tap the map to mark where your business is located. We'll automatically detect your address."
+        description="Search for your business or tap the map to mark its exact location."
+        showBorder={false}
       >
-        <BusinessLocationMap
-          latitude={latitude}
-          longitude={longitude}
-          onLocationSelect={handleLocationSelect}
-        />
+        <View>
+          <BusinessLocationSearch onPlaceSelect={handleLocationSelect} />
+
+          <BusinessLocationMap
+            latitude={latitude}
+            longitude={longitude}
+            onLocationSelect={handleLocationSelect}
+          />
+        </View>
       </RegistrationSection>
 
       <RegistrationSection

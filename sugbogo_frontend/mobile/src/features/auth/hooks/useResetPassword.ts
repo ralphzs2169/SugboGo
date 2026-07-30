@@ -1,5 +1,5 @@
 import { resetPassword } from "../api/auth.service";
-import { ApiMessageResponse } from "@/shared/api/types";
+import { ApiMessageResponse } from "@/shared/types/apiResponse.types";
 import { useState } from "react";
 /**
  * Custom hook that handles password reset requests.

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { getCurrentUser } from "../api/auth.service";
-import { getAccessToken, clearTokens } from "@/shared/api/storage";
+import { getAccessToken, clearTokens } from "@/shared/api/storage.service";
 import { useAuthStore } from "../store/auth.store";
 
 /**

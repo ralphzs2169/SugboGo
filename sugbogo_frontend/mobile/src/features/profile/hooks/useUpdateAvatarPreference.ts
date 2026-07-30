@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { updateAvatarPreference } from "../api/profile.service";
-import { ApiResponse } from "@/shared/api/types";
+import { ApiResponse } from "@/shared/types/apiResponse.types";
 import {
   UpdateAvatarPreferenceResponse,
   UpdateAvatarPreferenceRequest,

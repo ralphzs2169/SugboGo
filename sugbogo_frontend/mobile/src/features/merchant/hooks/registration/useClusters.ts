@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { getClusters } from "../api/registration.service";
-import { ClusterOption } from "../types/merchantRegistration.types";
-import { ApiError } from "@/shared/api/types";
+import { getClusters } from "../../api/registration.service";
+import { ClusterOption } from "../../types/merchantRegistration.types";
+import { ApiError } from "@/shared/types/apiResponse.types";
 
 export default function useClusters() {
   const [clusters, setClusters] = useState<ClusterOption[]>([]);

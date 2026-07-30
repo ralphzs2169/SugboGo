@@ -1,6 +1,10 @@
-import { refreshSession } from "../refresh";
+import { refreshSession } from "../refresh.service";
 
-import { getRefreshToken, saveAccessToken, saveRefreshToken } from "../storage";
+import {
+  getRefreshToken,
+  saveAccessToken,
+  saveRefreshToken,
+} from "../storage.service";
 
 import { refreshAccessToken } from "@/features/auth/api/token.service";
 

@@ -10,7 +10,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
-import { handleSystemError } from "@/shared/api/error.utils";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 /**
  * Screen responsible for handling email verification.

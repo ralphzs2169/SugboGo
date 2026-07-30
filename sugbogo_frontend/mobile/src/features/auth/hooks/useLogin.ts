@@ -4,7 +4,7 @@ import { login } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
 import { AuthResponse } from "../types/auth.types";
 import { useVerificationStore } from "../store/verification.store";
-import { ApiResponse } from "@/shared/api/types";
+import { ApiResponse } from "@/shared/types/apiResponse.types";
 
 /**
  * Custom hook that handles user login.

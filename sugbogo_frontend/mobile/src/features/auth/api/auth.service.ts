@@ -1,5 +1,5 @@
-import apiClient from "@/shared/api/apiClient";
-import authClient from "@/shared/api/authClient";
+import apiClient from "@/shared/api/apiClient.service";
+import authClient from "@/shared/api/authClient.service";
 import { User } from "@/features/users/types/user.types";
 import {
   LoginRequest,
@@ -9,8 +9,11 @@ import {
   ForgotPasswordRequest,
   ResetPasswordRequest,
 } from "../types/auth.types";
-import { ApiMessageResponse, ApiResponse } from "@/shared/api/types";
-import { request } from "@/shared/api/request";
+import {
+  ApiMessageResponse,
+  ApiResponse,
+} from "@/shared/types/apiResponse.types";
+import { request } from "@/shared/api/request.service";
 
 /**
  * Authenticates a user with the backend.

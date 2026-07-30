@@ -5,7 +5,7 @@ import type {
   UpdateProfileRequest,
   UpdateProfileResponse,
 } from "../types/profile.types";
-import type { ApiResponse } from "@/shared/api/types";
+import type { ApiResponse } from "@/shared/types/apiResponse.types";
 
 export function useUpdateProfile() {
   const [isUpdating, setIsUpdating] = useState(false);

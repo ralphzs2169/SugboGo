@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { resendVerification } from "../api/auth.service";
-import { ApiMessageResponse } from "@/shared/api/types";
+import { ApiMessageResponse } from "@/shared/types/apiResponse.types";
 
 /**
  * Hook for handling email verification resend requests.

@@ -3,7 +3,7 @@ import {
   RegisterErrors,
   validateRegisterForm,
 } from "@/features/auth/utils/registerValidator";
-import { handleSystemError } from "@/shared/api/error.utils";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";

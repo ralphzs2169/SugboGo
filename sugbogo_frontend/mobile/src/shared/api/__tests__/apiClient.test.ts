@@ -1,10 +1,10 @@
 import MockAdapter from "axios-mock-adapter";
 
-import apiClient from "../apiClient";
+import apiClient from "../apiClient.service";
 
-import { getAccessToken, clearTokens } from "../storage";
+import { getAccessToken, clearTokens } from "../storage.service";
 
-import { refreshSession } from "../refresh";
+import { refreshSession } from "../refresh.service";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 

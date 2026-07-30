@@ -1,6 +1,6 @@
-import apiClient from "@/shared/api/apiClient";
-import { request } from "@/shared/api/request";
-import { ApiResponse } from "@/shared/api/types";
+import apiClient from "@/shared/api/apiClient.service";
+import { request } from "@/shared/api/request.service";
+import { ApiResponse } from "@/shared/types/apiResponse.types";
 import {
   CategoryOption,
   ClusterOption,

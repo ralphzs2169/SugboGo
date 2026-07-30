@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { forgotPassword } from "../api/auth.service";
-import { ApiMessageResponse } from "@/shared/api/types";
+import { ApiMessageResponse } from "@/shared/types/apiResponse.types";
 
 /**
  * Hook for handling password reset email resend requests.

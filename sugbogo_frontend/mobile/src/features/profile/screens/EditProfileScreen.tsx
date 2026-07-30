@@ -8,7 +8,7 @@ import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBot
 import { GENDER_OPTIONS } from "../constants/genderOptions.";
 import { Gender } from "../types/profile.types";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { handleSystemError } from "@/shared/api/error.utils";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router } from "expo-router";

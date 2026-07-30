@@ -1,7 +1,7 @@
 import axios from "axios";
 import NetInfo from "@react-native-community/netinfo";
-import { API_ERROR_CODE } from "./errorCodes";
-import { createApiError } from "./error.utils";
+import { API_ERROR_CODE } from "../constants/errorCodes";
+import { createApiError } from "../utils/apiErrors";
 
 /**
  * Axios client for public authentication endpoints.
