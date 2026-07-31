@@ -4,12 +4,8 @@ import { useState, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { reverseGeocode } from "@/shared/api/googlePlaces.service";
-import {
-  BusinessLocation,
-  NearbyLandmark,
-} from "@/shared/types/BusinessLocation.types";
+import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 
-import useNearbyLandmarks from "../hooks/registration/useNearbyLandmarks";
 import BusinessLocationConfirmationSheet from "../components/registration/BusinessLocationConfirmationSheet";
 import BusinessLocationMap from "../components/registration/BusinessLocationMap";
 import BusinessLocationSearch from "../components/registration/BusinessLocationSearch";
@@ -41,34 +37,16 @@ export default function BusinessLocationPickerScreen({
   const [selectedLocation, setSelectedLocation] =
     useState<BusinessLocation | null>(initialLocation);
   const hasSelectedLocation = selectedLocation !== null;
-  const [selectedLandmark, setSelectedLandmark] =
-    useState<NearbyLandmark | null>(null);
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
   // Tracks each location selection attempt with a growing number, so if an
   // older request's data comes back after a newer one, we can tell it's stale and ignore it.
   const selectionRequestId = useRef(0);
 
-  // Nearby Landmarks
-  const {
-    landmarks,
-    isLoadingLandmarks,
-    searchNearbyLandmarks,
-    clearLandmarks,
-  } = useNearbyLandmarks();
-
   // Update the local selection when a place is chosen from search results.
-  async function handleLocationSelect(location: BusinessLocation) {
-    const requestId = ++selectionRequestId.current;
-
-    setSelectedLandmark(null);
-    clearLandmarks();
+  function handleLocationSelect(location: BusinessLocation) {
+    ++selectionRequestId.current; // invalidate any in-flight map selection
     setSelectedLocation(location);
-
-    await searchNearbyLandmarks(location.latitude, location.longitude);
-    if (requestId !== selectionRequestId.current) {
-      return; // a newer selection happened while landmarks were loading — discard
-    }
   }
 
   // Resolve the address when the user selects a location directly on the map.
@@ -76,8 +54,6 @@ export default function BusinessLocationPickerScreen({
     const requestId = ++selectionRequestId.current;
     setSearchText("");
     setIsResolvingAddress(true);
-    setSelectedLandmark(null);
-    clearLandmarks();
 
     try {
       const location = await reverseGeocode(latitude, longitude);
@@ -87,8 +63,6 @@ export default function BusinessLocationPickerScreen({
       }
 
       setSelectedLocation(location);
-
-      await searchNearbyLandmarks(latitude, longitude);
     } catch (error) {
       console.error("Failed to reverse geocode location:", error);
 
@@ -108,10 +82,6 @@ export default function BusinessLocationPickerScreen({
     }
   }
 
-  function handleLandmarkSelect(landmark: NearbyLandmark) {
-    setSelectedLandmark(landmark);
-  }
-
   // Commit the selected location only after the user confirms it.
   function handleConfirm() {
     if (!selectedLocation) {
@@ -123,7 +93,6 @@ export default function BusinessLocationPickerScreen({
 
   return (
     <View className="flex-1 bg-background">
-      {/* Keep navigation and search controls below the device status bar. */}
       <SafeAreaView
         edges={["top"]}
         className="absolute left-0 right-0 top-0 z-10"
@@ -149,7 +118,6 @@ export default function BusinessLocationPickerScreen({
         </View>
       </SafeAreaView>
 
-      {/* The map fills the entire screen behind the overlay controls. */}
       <BusinessLocationMap
         latitude={selectedLocation?.latitude ?? null}
         longitude={selectedLocation?.longitude ?? null}
@@ -157,19 +125,13 @@ export default function BusinessLocationPickerScreen({
         fullScreen
       />
 
-      {/* Guide the user when no location has been selected yet. */}
       {!hasSelectedLocation && <BusinessLocationEmptyState />}
 
-      {/* Show the selected address and confirmation action after a location is selected. */}
       {hasSelectedLocation && (
         <BusinessLocationConfirmationSheet
           address={selectedLocation?.formattedAddress || "Address unavailable"}
           isResolvingAddress={isResolvingAddress}
-          landmarks={landmarks}
-          isLoadingLandmarks={isLoadingLandmarks}
-          onLandmarkSelect={handleLandmarkSelect}
           onConfirm={handleConfirm}
-          selectedLandmark={selectedLandmark}
         />
       )}
     </View>

@@ -5,8 +5,10 @@ import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchan
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
 import BusinessLocationMap from "../BusinessLocationMap";
 import RegistrationSection from "../RegistrationSection";
-
+import LandmarksSection from "../landmark/LandmarksSection";
+import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 /**
+
  * Displays the business location section of the
  * merchant registration flow.
  *
@@ -19,10 +21,14 @@ import RegistrationSection from "../RegistrationSection";
  * business location.
  */
 export default function BusinessLocationStep() {
-  const { setValue } = useFormContext();
+  const { setValue } = useFormContext<MerchantRegistrationForm>();
 
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
+  );
+
+  const selectedLandmarks = useMerchantRegistrationStore(
+    (state) => state.selectedLandmarks,
   );
 
   const hasSelectedLocation = selectedLocation !== null;
@@ -39,6 +45,10 @@ export default function BusinessLocationStep() {
     setValue("barangay", selectedLocation.barangay);
     setValue("streetAddress", selectedLocation.streetAddress);
   }, [selectedLocation, setValue]);
+
+  useEffect(() => {
+    setValue("landmarks", selectedLandmarks);
+  }, [selectedLandmarks, setValue]);
 
   return (
     <>
@@ -113,13 +123,9 @@ export default function BusinessLocationStep() {
           label="Unit / Building (Optional)"
           placeholder="e.g. Unit 201, 2nd Floor"
         />
-
-        <RHFFormInput
-          name="landmark"
-          label="Nearest Landmark (Optional)"
-          placeholder="e.g. Across Cebu IT Park"
-        />
       </RegistrationSection>
+
+      <LandmarksSection />
     </>
   );
 }

@@ -153,6 +153,7 @@ export default function BusinessLocationMap({
             style={{ opacity: pressed ? 0.85 : 1 }}
           >
             {map}
+            <View pointerEvents="box-only" className="absolute inset-0" />
 
             {!isMapReady && (
               <View className="absolute inset-0 items-center justify-center bg-gray-100">

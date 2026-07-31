@@ -5,10 +5,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
 from apps.registration.serializers.location_serializers import (
+    NearbyLandmarksSerializer,
     PlaceDetailsSerializer,
     PlaceSearchSerializer,
     ReverseGeocodeSerializer,
-    NearbyLandmarksSerializer
 )
 from apps.shared.services.google_maps_service import GoogleMapsService
 

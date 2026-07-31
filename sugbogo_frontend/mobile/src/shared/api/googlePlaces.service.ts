@@ -1,7 +1,7 @@
 import { PlaceSuggestion } from "../types/BusinessLocation.types";
 import apiClient from "./apiClient.service";
 import {
-  NearbyLandmark,
+  BusinessLandmark,
   BusinessLocation,
 } from "../types/BusinessLocation.types";
 /**
@@ -53,7 +53,7 @@ export async function reverseGeocode(
 export async function searchNearbyLandmarksService(
   latitude: number,
   longitude: number,
-): Promise<NearbyLandmark[]> {
+): Promise<BusinessLandmark[]> {
   const response = await apiClient.post("/registration/nearby-landmarks/", {
     latitude,
     longitude,

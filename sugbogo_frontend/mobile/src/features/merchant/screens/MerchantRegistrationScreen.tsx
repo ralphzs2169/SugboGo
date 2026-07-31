@@ -101,7 +101,7 @@ export default function MerchantRegistrationScreen() {
       barangay: "",
       streetAddress: "",
       unit: "",
-      landmark: "",
+      landmarks: [],
       latitude: null,
       longitude: null,
 

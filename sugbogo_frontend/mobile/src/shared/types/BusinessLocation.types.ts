@@ -19,13 +19,25 @@ export type PlaceSuggestion = {
 };
 
 /**
- * Represents a nearby place that can be used
- * as an optional business landmark.
+ * Represents a landmark associated with a business location.
+ *
+ * Landmarks may either come from Google Places or be
+ * manually created by the merchant.
  */
-export type NearbyLandmark = {
-  placeId: string;
+export type BusinessLandmark = {
+  id: string;
+
   name: string;
+
   address: string;
+
   latitude: number;
+
   longitude: number;
+
+  source: "google" | "custom";
+
+  placeId?: string;
+
+  isSelected?: boolean;
 };

@@ -1,6 +1,6 @@
 import logging
-import cloudinary.uploader
 
+import cloudinary.uploader
 
 logger = logging.getLogger(__name__)
 
