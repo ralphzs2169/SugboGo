@@ -1,11 +1,15 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { reverseGeocode } from "@/shared/api/googlePlaces.service";
-import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+import {
+  BusinessLocation,
+  NearbyLandmark,
+} from "@/shared/types/BusinessLocation.types";
 
+import useNearbyLandmarks from "../hooks/registration/useNearbyLandmarks";
 import BusinessLocationConfirmationSheet from "../components/registration/BusinessLocationConfirmationSheet";
 import BusinessLocationMap from "../components/registration/BusinessLocationMap";
 import BusinessLocationSearch from "../components/registration/BusinessLocationSearch";
@@ -29,20 +33,84 @@ export default function BusinessLocationPickerScreen({
   onConfirm,
   onClose,
 }: BusinessLocationPickerScreenProps) {
+  // Search bar state
   const [searchText, setSearchText] = useState("");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
-  // Keep the selected location local until the user confirms it.
+  // Selected location state
   const [selectedLocation, setSelectedLocation] =
     useState<BusinessLocation | null>(initialLocation);
-
   const hasSelectedLocation = selectedLocation !== null;
+  const [selectedLandmark, setSelectedLandmark] =
+    useState<NearbyLandmark | null>(null);
+  const [isResolvingAddress, setIsResolvingAddress] = useState(false);
+
+  // Tracks each location selection attempt with a growing number, so if an
+  // older request's data comes back after a newer one, we can tell it's stale and ignore it.
+  const selectionRequestId = useRef(0);
+
+  // Nearby Landmarks
+  const {
+    landmarks,
+    isLoadingLandmarks,
+    searchNearbyLandmarks,
+    clearLandmarks,
+  } = useNearbyLandmarks();
 
   // Update the local selection when a place is chosen from search results.
-  function handleLocationSelect(location: BusinessLocation) {
+  async function handleLocationSelect(location: BusinessLocation) {
+    const requestId = ++selectionRequestId.current;
+
+    setSelectedLandmark(null);
+    clearLandmarks();
     setSelectedLocation(location);
+
+    await searchNearbyLandmarks(location.latitude, location.longitude);
+    if (requestId !== selectionRequestId.current) {
+      return; // a newer selection happened while landmarks were loading — discard
+    }
   }
 
-  const [isResolvingAddress, setIsResolvingAddress] = useState(false);
+  // Resolve the address when the user selects a location directly on the map.
+  async function handleMapLocationSelect(latitude: number, longitude: number) {
+    const requestId = ++selectionRequestId.current;
+    setSearchText("");
+    setIsResolvingAddress(true);
+    setSelectedLandmark(null);
+    clearLandmarks();
+
+    try {
+      const location = await reverseGeocode(latitude, longitude);
+
+      if (requestId !== selectionRequestId.current) {
+        return; // a newer selection (search or another tap) has since happened — discard
+      }
+
+      setSelectedLocation(location);
+
+      await searchNearbyLandmarks(latitude, longitude);
+    } catch (error) {
+      console.error("Failed to reverse geocode location:", error);
+
+      if (requestId === selectionRequestId.current) {
+        setSelectedLocation({
+          latitude,
+          longitude,
+          formattedAddress: "",
+          province: "",
+          city: "",
+          barangay: "",
+          streetAddress: "",
+        });
+      }
+    } finally {
+      setIsResolvingAddress(false);
+    }
+  }
+
+  function handleLandmarkSelect(landmark: NearbyLandmark) {
+    setSelectedLandmark(landmark);
+  }
 
   // Commit the selected location only after the user confirms it.
   function handleConfirm() {
@@ -51,32 +119,6 @@ export default function BusinessLocationPickerScreen({
     }
 
     onConfirm(selectedLocation);
-  }
-
-  // Resolve the address when the user selects a location directly on the map.
-  async function handleMapLocationSelect(latitude: number, longitude: number) {
-    setSearchText("");
-    setIsResolvingAddress(true);
-
-    try {
-      const location = await reverseGeocode(latitude, longitude);
-      setSelectedLocation(location);
-    } catch (error) {
-      console.error("Failed to reverse geocode location:", error);
-
-      // Keep the selected coordinates even if address resolution fails.
-      setSelectedLocation({
-        latitude,
-        longitude,
-        formattedAddress: "",
-        province: "",
-        city: "",
-        barangay: "",
-        streetAddress: "",
-      });
-    } finally {
-      setIsResolvingAddress(false);
-    }
   }
 
   return (
@@ -102,6 +144,7 @@ export default function BusinessLocationPickerScreen({
             value={searchText}
             onChangeText={setSearchText}
             onPlaceSelect={handleLocationSelect}
+            onSuggestionsVisibleChange={setSuggestionsOpen}
           />
         </View>
       </SafeAreaView>
@@ -110,7 +153,7 @@ export default function BusinessLocationPickerScreen({
       <BusinessLocationMap
         latitude={selectedLocation?.latitude ?? null}
         longitude={selectedLocation?.longitude ?? null}
-        onLocationSelect={handleMapLocationSelect}
+        onLocationSelect={suggestionsOpen ? undefined : handleMapLocationSelect}
         fullScreen
       />
 
@@ -122,7 +165,11 @@ export default function BusinessLocationPickerScreen({
         <BusinessLocationConfirmationSheet
           address={selectedLocation?.formattedAddress || "Address unavailable"}
           isResolvingAddress={isResolvingAddress}
+          landmarks={landmarks}
+          isLoadingLandmarks={isLoadingLandmarks}
+          onLandmarkSelect={handleLandmarkSelect}
           onConfirm={handleConfirm}
+          selectedLandmark={selectedLandmark}
         />
       )}
     </View>

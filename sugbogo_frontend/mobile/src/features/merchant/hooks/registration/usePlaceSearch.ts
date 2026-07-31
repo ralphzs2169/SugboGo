@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PlaceSuggestion } from "@/shared/types/googlePlaces.types";
+import { PlaceSuggestion } from "@/shared/types/BusinessLocation.types";
 import {
   getPlaceDetails,
   searchPlaces as searchPlacesApi,

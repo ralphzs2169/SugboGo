@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import usePlaceSearch from "../../hooks/registration/usePlaceSearch";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
@@ -17,6 +17,10 @@ type Props = {
   value: string;
   onChangeText: (text: string) => void;
   onPlaceSelect: (location: BusinessLocation) => void;
+
+  // Tells the parent whether the suggestions dropdown is currently showing,
+  // so it can disable map taps while a suggestion is on top of it.
+  onSuggestionsVisibleChange?: (visible: boolean) => void;
 };
 
 const MAX_SUGGESTIONS_HEIGHT = 260;
@@ -33,6 +37,7 @@ export default function BusinessLocationSearch({
   value,
   onChangeText,
   onPlaceSelect,
+  onSuggestionsVisibleChange,
 }: Props) {
   const {
     suggestions,
@@ -48,8 +53,12 @@ export default function BusinessLocationSearch({
   // to produce meaningful place suggestions.
   const hasQuery = value.trim().length >= 2;
 
-  // Show an explicit empty state only after the search has
-  // finished and no place is currently being resolved.
+  // Let the parent know when suggestions appear or disappear,
+  // so it can turn off map taps while a suggestion is showing on top of it.
+  useEffect(() => {
+    onSuggestionsVisibleChange?.(suggestions.length > 0);
+  }, [suggestions.length]);
+
   const showNoResults =
     hasQuery && !isLoading && suggestions.length === 0 && !resolvingPlaceId;
 

@@ -18,3 +18,10 @@ class PlaceDetailsSerializer(serializers.Serializer):
     """Validates a Google Place ID used to retrieve place details."""
 
     place_id = serializers.CharField(max_length=255)
+
+
+class NearbyLandmarksSerializer(serializers.Serializer):
+    """Validates coordinates used to find nearby landmarks."""
+
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()

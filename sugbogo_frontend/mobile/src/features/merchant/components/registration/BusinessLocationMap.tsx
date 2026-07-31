@@ -54,10 +54,17 @@ export default function BusinessLocationMap({
   // Determine whether a location has already been selected.
   const hasSelectedLocation = latitude !== null && longitude !== null;
 
-  const isProgrammaticMove = useRef(false);
+  // Prevent map animations triggered by a selected location from
+  // being treated as a user-initiated map press.
+  const isMapPressGuardActive = useRef(false);
+  const mapPressGuardTimeout = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   function handleMapPress(event: MapPressEvent) {
-    if (isProgrammaticMove.current) {
+    // Ignore map presses while the map is being moved programmatically
+    // to prevent the animation from triggering another location selection.
+    if (isMapPressGuardActive.current) {
       return;
     }
 
@@ -81,7 +88,10 @@ export default function BusinessLocationMap({
       return;
     }
 
-    isProgrammaticMove.current = true;
+    // Temporarily ignore map presses while the map animates to the
+    // selected location to prevent the animation from triggering
+    // an unintended location selection.
+    isMapPressGuardActive.current = true;
 
     mapRef.current.animateToRegion(
       {
@@ -93,11 +103,17 @@ export default function BusinessLocationMap({
       MAP_ANIMATION_DURATION,
     );
 
+    // Keep the guard active slightly longer than the animation to
+    // account for the map event being dispatched after the animation.
     setTimeout(() => {
-      isProgrammaticMove.current = false;
+      isMapPressGuardActive.current = false;
     }, MAP_ANIMATION_DURATION + 100);
   }
 
+  // Clear any previous guard timeout before starting a new one.
+  if (mapPressGuardTimeout.current) {
+    clearTimeout(mapPressGuardTimeout.current);
+  }
   // Recenter the map whenever the selected location or map readiness changes.
   useEffect(() => {
     moveToSelectedLocation();
@@ -127,7 +143,6 @@ export default function BusinessLocationMap({
     </MapView>
   );
 
-  // In preview mode, tapping the map opens the full-screen picker.
   // In preview mode, tapping the map opens the full-screen picker.
   if (onOpenPicker) {
     return (

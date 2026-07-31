@@ -14,15 +14,24 @@ import {
 export async function refreshSession() {
   const refreshToken = await getRefreshToken();
 
+  console.log("🔑 REFRESH TOKEN FOUND:", refreshToken ? "YES" : "NO");
+
   if (!refreshToken) {
     throw new Error("No refresh token available");
   }
 
+  console.log("🔄 CALLING REFRESH ENDPOINT");
   const response = await refreshAccessToken(refreshToken);
+
+  console.log("🟢 REFRESH RESPONSE:", {
+    hasAccessToken: !!response.access,
+    hasRefreshToken: !!response.refresh,
+  });
 
   await saveAccessToken(response.access);
 
   if (response.refresh) {
+    console.log("💾 SAVING NEW REFRESH TOKEN");
     await saveRefreshToken(response.refresh);
   }
 

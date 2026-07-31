@@ -1,7 +1,9 @@
-import { PlaceSuggestion } from "@/shared/types/googlePlaces.types";
-import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+import { PlaceSuggestion } from "../types/BusinessLocation.types";
 import apiClient from "./apiClient.service";
-
+import {
+  NearbyLandmark,
+  BusinessLocation,
+} from "../types/BusinessLocation.types";
 /**
  * Searches for business location suggestions through the
  * SugboGo backend location service.
@@ -46,4 +48,16 @@ export async function reverseGeocode(
     longitude,
     ...response.data.data.address,
   };
+}
+
+export async function searchNearbyLandmarksService(
+  latitude: number,
+  longitude: number,
+): Promise<NearbyLandmark[]> {
+  const response = await apiClient.post("/registration/nearby-landmarks/", {
+    latitude,
+    longitude,
+  });
+
+  return response.data.data.landmarks;
 }

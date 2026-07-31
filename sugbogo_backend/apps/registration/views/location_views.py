@@ -8,6 +8,7 @@ from apps.registration.serializers.location_serializers import (
     PlaceDetailsSerializer,
     PlaceSearchSerializer,
     ReverseGeocodeSerializer,
+    NearbyLandmarksSerializer
 )
 from apps.shared.services.google_maps_service import GoogleMapsService
 
@@ -106,4 +107,39 @@ def place_details_view(request):
     return success_response(
         data={"location": location},
         message="Place details retrieved successfully.",
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def nearby_landmarks_view(request):
+    """Returns nearby places that may be useful as business landmarks."""
+
+    serializer = NearbyLandmarksSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    latitude = serializer.validated_data["latitude"]
+    longitude = serializer.validated_data["longitude"]
+
+    try:
+        landmarks = GoogleMapsService.search_nearby_landmarks(
+            latitude,
+            longitude,
+        )
+    except RequestException:
+        return error_response(
+            message="Unable to connect to the location service.",
+            code="LOCATION_SERVICE_UNAVAILABLE",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
+    except ValueError as error:
+        return error_response(
+            message=str(error),
+            code="LANDMARK_SEARCH_FAILED",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    return success_response(
+        data={"landmarks": landmarks},
+        message="Nearby landmarks retrieved successfully.",
     )
