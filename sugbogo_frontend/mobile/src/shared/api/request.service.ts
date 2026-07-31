@@ -1,6 +1,6 @@
 import axios from "axios";
-import { API_ERROR_CODE } from "./errorCodes";
-import { API_ERROR_MESSAGE } from "./errorMessages";
+import { API_ERROR_CODE } from "../constants/errorCodes";
+import { API_ERROR_MESSAGE } from "../constants/errorMessages";
 
 /**
  * Executes an API request and returns a standardized API response.

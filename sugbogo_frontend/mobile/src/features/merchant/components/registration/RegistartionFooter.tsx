@@ -28,11 +28,11 @@ export default function RegistrationFooter({
 
   return (
     <View className="border-t border-border bg-surface px-6 py-5">
-      <Text className="mb-4 text-sm text-text-secondary">
+      {/* <Text className="mb-4 text-sm text-text-secondary">
         {isLastStep
           ? "Review your information before submitting your application."
           : "Complete each step to continue your merchant registration."}
-      </Text>
+      </Text> */}
 
       <View className="flex-row gap-3">
         {!isFirstStep && (

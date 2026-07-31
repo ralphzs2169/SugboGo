@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { removeProfilePicture } from "../api/profile.service";
-import { ApiResponse } from "@/shared/api/types";
+import { ApiResponse } from "@/shared/types/apiResponse.types";
 import { User } from "@/features/users/types/user.types";
 
 export function useRemoveProfilePicture() {

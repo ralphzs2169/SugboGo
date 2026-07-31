@@ -1,7 +1,7 @@
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 
-import * as onboardingStorage from "@/shared/services/onboardingStorage";
+import * as onboardingStorage from "@/shared/api/onboardingStorage.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
 

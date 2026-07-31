@@ -11,7 +11,7 @@ export default function AvatarInfoCard({ visible }: Props) {
   }
 
   return (
-    <View className="mt-4 flex-row items-start rounded-xl bg-blue-50 px-4 py-3">
+    <View className="my-4 flex-row items-start rounded-md bg-blue-50 px-4 py-3">
       <View className="mr-3 h-8 w-8 items-center justify-center rounded-full bg-blue-100">
         <MaterialCommunityIcons
           name="information-outline"

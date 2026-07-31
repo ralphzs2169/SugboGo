@@ -1,6 +1,7 @@
 from core.pagination import StandardPagination
 from core.responses import success_response
-from rest_framework.decorators import api_view
+from rest_framework import status
+from rest_framework.views import APIView
 
 from apps.msme.serializers.category_serializers import (
     CategoryCreateSerializer,
@@ -10,85 +11,118 @@ from apps.msme.serializers.category_serializers import (
 from apps.msme.services.category_service import CategoryService
 
 
-@api_view(["GET"])
-def list_categories(request):
-    """Retrieve a paginated list of categories."""
+class CategoryListView(APIView):
+    """Handle category listing and creation."""
 
-    search = request.query_params.get("search")
-    ordering = request.query_params.get("ordering")
-    cluster_id = request.query_params.get("cluster_id")
+    def get(self, request):
+        """Retrieve a paginated list of categories."""
 
-    queryset = CategoryService.list_categories(
-        search=search,
-        ordering=ordering,
-        cluster_id=cluster_id,
-    )
+        search = request.query_params.get("search")
+        ordering = request.query_params.get("ordering")
+        cluster_id = request.query_params.get("cluster_id")
 
-    paginator = StandardPagination()
+        queryset = CategoryService.list_categories(
+            search=search,
+            ordering=ordering,
+            cluster_id=cluster_id,
+        )
 
-    page = paginator.paginate_queryset(
-        queryset,
-        request,
-    )
+        paginator = StandardPagination()
 
-    serializer = CategorySerializer(
-        page,
-        many=True,
-    )
+        page = paginator.paginate_queryset(
+            queryset,
+            request,
+        )
 
-    return paginator.get_paginated_response(
-        serializer.data,
-    )
+        serializer = CategorySerializer(
+            page,
+            many=True,
+        )
 
+        return paginator.get_paginated_response(
+            serializer.data,
+        )
 
-@api_view(["GET"])
-def retrieve_category(request, category_id):
-    """Retrieve a specific category by ID."""
-    category = CategoryService.get_category(category_id)
-    serializer = CategorySerializer(category)
+    def post(self, request):
+        """Create a new category."""
 
-    return success_response(data=serializer.data)
+        serializer = CategoryCreateSerializer(
+            data=request.data,
+        )
 
+        serializer.is_valid(raise_exception=True)
 
-@api_view(["POST"])
-def create_category(request):
-    """Create a new category."""
-    serializer = CategoryCreateSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
+        category = CategoryService.create_category(
+            serializer.validated_data,
+        )
 
-    category = CategoryService.create_category(serializer.validated_data)
-
-    return success_response(
-        data=CategorySerializer(category).data,
-        message="Category created successfully.",
-        status_code=201,
-    )
+        return success_response(
+            data=CategorySerializer(category).data,
+            message="Category created successfully.",
+            status_code=status.HTTP_201_CREATED,
+        )
 
 
-@api_view(["PUT", "PATCH"])
-def update_category(request, category_id):
-    serializer = CategoryUpdateSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
+class CategoryDetailView(APIView):
+    """Handle retrieval, updating, and deletion of a category."""
 
-    category = CategoryService.get_category(category_id)
+    def get(self, request, category_id):
+        """Retrieve a specific category."""
 
-    category = CategoryService.update_category(
-        category,
-        serializer.validated_data,
-    )
+        category = CategoryService.get_category(category_id)
 
-    return success_response(
-        data=CategorySerializer(category).data,
-        message="Category updated successfully.",
-    )
+        return success_response(
+            data=CategorySerializer(category).data,
+        )
+
+    def put(self, request, category_id):
+        """Fully update a category."""
+
+        return self._update(
+            request,
+            category_id,
+            partial=False,
+        )
+
+    def patch(self, request, category_id):
+        """Partially update a category."""
+
+        return self._update(
+            request,
+            category_id,
+            partial=True,
+        )
+    
+
+    def _update(self, request, category_id, partial=False):
+        category = CategoryService.get_category(category_id)
+
+        serializer = CategoryUpdateSerializer(
+            category,
+            data=request.data,
+            partial=partial,
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        category = CategoryService.update_category(
+            category,
+            serializer.validated_data,
+        )
+
+        return success_response(
+            data=CategorySerializer(category).data,
+            message="Category updated successfully.",
+        )
 
 
-@api_view(["DELETE"])
-def delete_category(request, category_id):
-    category = CategoryService.get_category(category_id)
+    def delete(self, request, category_id):
+        """Delete a category."""
 
-    CategoryService.delete_category(category)
+        category = CategoryService.get_category(category_id)
 
-    return success_response(
-        message="Category deleted successfully.",
-    )
+        CategoryService.delete_category(category)
+
+        return success_response(
+            message="Category deleted successfully.",
+        )

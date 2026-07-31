@@ -7,7 +7,7 @@ import {
   getRefreshToken,
   clearTokens,
   clearRefreshToken,
-} from "../storage";
+} from "../storage.service";
 
 /**
  * @file storage.test.ts

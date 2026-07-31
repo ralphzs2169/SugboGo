@@ -23,6 +23,8 @@ urlpatterns = [
     path('api/users/', include('apps.users.urls')),
     # path('merchant/', include('apps.merchant_operations.urls')),
 
+    
+    path('api/registration/', include('apps.registration.urls')),
 
     # Admin Operations
     path('api/admin/dashboard/', include('apps.admin_operations.dashboard.urls')),

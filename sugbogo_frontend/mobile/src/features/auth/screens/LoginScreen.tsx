@@ -9,7 +9,7 @@ import {
   validateLoginForm,
 } from "@/features/auth/utils/loginValidator";
 
-import { getFieldError } from "@/shared/api/error.utils";
+import { getFieldError } from "@/shared/utils/apiErrors";
 
 import Button from "@/shared/components/Button";
 import AuthHeader from "@/features/auth/components/AuthHeader";
@@ -21,7 +21,7 @@ import PasswordInput from "@/shared/components/form/PasswordInput";
 import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
 
 import { useVerificationStore } from "@/features/auth/store/verification.store";
-import { handleSystemError } from "@/shared/api/error.utils";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 import { useFacebookLogin } from "@/features/auth/hooks/useFacebookLogin";
 import { useGoogleLogin } from "@/features/auth/hooks/useGoogleLogin";
 import { useAuthStore } from "@/features/auth/store/auth.store";

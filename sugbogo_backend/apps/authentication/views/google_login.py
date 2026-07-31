@@ -1,17 +1,18 @@
+from core.responses import error_response, success_response
 from google.auth.exceptions import GoogleAuthError
-from apps.users.models import User
+from rest_framework import status
 from rest_framework.decorators import api_view
 
-from apps.authentication.serializers import GoogleLoginSerializer, LoginResponseSerializer
-
-from apps.authentication.services.oauth.google import GoogleOAuthService
-from apps.authentication.services.oauth.account import OAuthAccountService
-
-from apps.authentication.utils.jwt import issue_tokens
-from rest_framework import status
-
-from core.responses import error_response, success_response
 from apps.authentication.permissions import user_has_role
+from apps.authentication.serializers import (
+    GoogleLoginSerializer,
+    LoginResponseSerializer,
+)
+from apps.authentication.services.oauth.account import OAuthAccountService
+from apps.authentication.services.oauth.google import GoogleOAuthService
+from apps.authentication.utils.jwt import issue_tokens
+from apps.users.models import User
+
 
 @api_view(["POST"])
 def google_login_view(request):

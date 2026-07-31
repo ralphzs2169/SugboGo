@@ -14,3 +14,8 @@ export type UpdateAvatarPreferenceRequest = {
   use_oauth_avatar: boolean;
 };
 export type UpdateAvatarPreferenceResponse = User;
+
+export type Gender = "male" | "female" | "non_binary" | "prefer_not_to_say";
+
+export type ProfilePictureAction =
+  "choose_photo" | "take_photo" | "remove_photo";

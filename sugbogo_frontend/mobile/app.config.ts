@@ -75,6 +75,12 @@ export default (): ExpoConfig => ({
         scheme: `fb${process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "000000000000000"}`,
       },
     ],
+    [
+      "react-native-maps",
+      {
+        androidGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+      },
+    ],
   ],
 
   experiments: {

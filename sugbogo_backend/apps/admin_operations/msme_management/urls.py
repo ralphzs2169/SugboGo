@@ -1,26 +1,32 @@
 from django.urls import path
 
-from apps.admin_operations.msme_management.views.category_views import *
-from apps.admin_operations.msme_management.views.cluster_views import *
+from apps.admin_operations.msme_management.views.category_views import (
+    CategoryDetailView,
+    CategoryListView,
+)
+from apps.admin_operations.msme_management.views.cluster_views import (
+    ClusterDetailView,
+    ClusterListView,
+)
+from apps.admin_operations.msme_management.views.msme_views import (
+    MsmeVerifyView,
+)
 from apps.admin_operations.msme_management.views.summary_views import (
     get_cluster_category_summary,
 )
 
 urlpatterns = [
     # Cluster
-    path("clusters/", list_clusters),
-    path("clusters/<int:cluster_id>/", retrieve_cluster),
-    path("clusters/create/", create_cluster),
-    path("clusters/<int:cluster_id>/update/", update_cluster),
-    path("clusters/<int:cluster_id>/delete/", delete_cluster),
+    path("clusters/", ClusterListView.as_view()),
+    path("clusters/<int:cluster_id>/", ClusterDetailView.as_view()),
 
     # Category
-    path("categories/", list_categories),
-    path("categories/<int:category_id>/", retrieve_category),
-    path("categories/create/", create_category),
-    path("categories/<int:category_id>/update/", update_category),
-    path("categories/<int:category_id>/delete/", delete_category),
+    path("categories/", CategoryListView.as_view()),
+    path("categories/<int:category_id>/", CategoryDetailView.as_view()),
 
     # Summary
     path("cluster-category/summary/", get_cluster_category_summary),
+
+
+    path('<int:MSME_ID>/verify/', MsmeVerifyView.as_view(), name='msme-verify'),
 ]

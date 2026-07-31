@@ -1,5 +1,9 @@
 import { refreshAccessToken } from "@/features/auth/api/token.service";
-import { getRefreshToken, saveAccessToken, saveRefreshToken } from "./storage";
+import {
+  getRefreshToken,
+  saveAccessToken,
+  saveRefreshToken,
+} from "./storage.service";
 
 /**
  * Refreshes the user's access token using the stored refresh token.

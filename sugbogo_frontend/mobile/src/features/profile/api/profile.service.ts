@@ -1,4 +1,4 @@
-import apiClient from "@/shared/api/apiClient";
+import apiClient from "@/shared/api/apiClient.service";
 import { User } from "@/features/users/types/user.types";
 import {
   UpdateProfilePictureResponse,
@@ -7,8 +7,8 @@ import {
   UpdateAvatarPreferenceRequest,
   UpdateAvatarPreferenceResponse,
 } from "../types/profile.types";
-import { ApiResponse } from "@/shared/api/types";
-import { request } from "@/shared/api/request";
+import { ApiResponse } from "@/shared/types/apiResponse.types";
+import { request } from "@/shared/api/request.service";
 
 export function getProfile(): Promise<ApiResponse<User>> {
   return request<ApiResponse<User>>(

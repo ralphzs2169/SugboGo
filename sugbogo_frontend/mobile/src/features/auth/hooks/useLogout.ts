@@ -1,4 +1,4 @@
-import { clearTokens } from "@/shared/api/storage";
+import { clearTokens } from "@/shared/api/storage.service";
 import { useAuthStore } from "../store/auth.store";
 
 /**

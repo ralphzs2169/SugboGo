@@ -6,65 +6,46 @@ import {
 import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-type Gender = "male" | "female" | "non_binary" | "prefer_not_to_say";
+export type SelectionOption = {
+  label: string;
+  value: string;
+  icon?: string;
+  color?: string;
+};
 
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
-  selectedGender: Gender | null;
-  onSelectGender: (gender: Gender) => void;
+  title: string;
+  options: SelectionOption[];
+  selectedValue?: string;
+  onSelect: (value: string) => void;
 };
 
 /**
- * GenderBottomSheet provides gender selection options.
- *
- * The component manages bottom sheet presentation and dismissal while
- * delegating the selected value back to the parent component.
+ * SelectionBottomSheet provides a generic selection interface for choosing from a list of options.
+ * The component manages bottom sheet presentation and dismissal while delegating the selected value
+ *  back to the parent component.
  */
-export function GenderBottomSheet({
+export default function SelectionBottomSheet({
   sheetRef,
-  selectedGender,
-  onSelectGender,
+  title,
+  options,
+  selectedValue,
+  onSelect,
 }: Props) {
-  function handleSelectGender(gender: Gender) {
+  function handleSelect(value: string) {
     sheetRef.current?.dismiss();
-    onSelectGender(gender);
+    onSelect(value);
   }
 
   function handleClose() {
     sheetRef.current?.dismiss();
   }
 
-  const genders: {
-    label: string;
-    value: Gender;
-    icon: string;
-  }[] = [
-    {
-      label: "Male",
-      value: "male",
-      icon: "gender-male",
-    },
-    {
-      label: "Female",
-      value: "female",
-      icon: "gender-female",
-    },
-    {
-      label: "Non-binary",
-      value: "non_binary",
-      icon: "gender-non-binary",
-    },
-    {
-      label: "Prefer not to say",
-      value: "prefer_not_to_say",
-      icon: "account-question-outline",
-    },
-  ];
-
   return (
     <BottomSheetModal
       ref={sheetRef}
-      snapPoints={["45%"]}
+      snapPoints={["55%"]}
       enablePanDownToClose
       backgroundStyle={{
         backgroundColor: "white",
@@ -86,7 +67,7 @@ export function GenderBottomSheet({
       <BottomSheetView className="px-6 pb-8">
         {/* Header */}
         <View className="flex-row items-center justify-between border-b border-gray-100 pb-4">
-          <Text className="text-lg font-bold text-gray-900">Select Gender</Text>
+          <Text className="text-lg font-bold text-gray-900">{title}</Text>
 
           <Pressable
             onPress={handleClose}
@@ -98,27 +79,34 @@ export function GenderBottomSheet({
 
         {/* Options */}
         <View className="pt-2">
-          {genders.map((gender) => (
+          {options.map((option) => (
             <Pressable
-              key={gender.value}
-              onPress={() => handleSelectGender(gender.value)}
+              key={option.value}
+              onPress={() => handleSelect(option.value)}
               className="flex-row items-center py-4"
             >
-              <MaterialCommunityIcons
-                name={gender.icon as any}
-                size={24}
-                color="#1B4D3E"
-              />
+              {option.icon && (
+                <MaterialCommunityIcons
+                  name={option.icon as any}
+                  size={24}
+                  color={option.color ?? "#1B4D3E"}
+                />
+              )}
 
-              <Text className="ml-4 flex-1 text-base text-gray-800">
-                {gender.label}
+              <Text
+                className={`flex-1 text-base ${option.icon ? "ml-4" : ""}`}
+                style={{
+                  color: option.color ?? "#1F2937",
+                }}
+              >
+                {option.label}
               </Text>
 
-              {selectedGender === gender.value && (
+              {selectedValue === option.value && (
                 <MaterialCommunityIcons
                   name="check"
                   size={22}
-                  color="#1B4D3E"
+                  color={option.color ?? "#1B4D3E"}
                 />
               )}
             </Pressable>

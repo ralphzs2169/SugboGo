@@ -4,7 +4,7 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { updateProfilePicture } from "../api/profile.service";
 
-import type { ApiResponse } from "@/shared/api/types";
+import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type { UpdateProfilePictureResponse } from "../types/profile.types";
 
 const PROFILE_IMAGE_WIDTH = 1024;

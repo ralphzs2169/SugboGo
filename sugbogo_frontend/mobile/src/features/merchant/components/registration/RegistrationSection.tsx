@@ -7,6 +7,7 @@ type RegistrationSectionProps = {
   title: string;
   description?: string;
   children: ReactNode;
+  showBorder?: boolean;
 };
 
 export default function RegistrationSection({
@@ -14,6 +15,7 @@ export default function RegistrationSection({
   title,
   description,
   children,
+  showBorder = true,
 }: RegistrationSectionProps) {
   return (
     <View className="mb-2 bg-surface px-6 pt-6 pb-4">
@@ -31,7 +33,9 @@ export default function RegistrationSection({
         )}
       </View>
 
-      <View className="border-t border-border/60 pt-5">{children}</View>
+      <View className={showBorder ? "border-t border-border/60 pt-5" : ""}>
+        {children}
+      </View>
     </View>
   );
 }

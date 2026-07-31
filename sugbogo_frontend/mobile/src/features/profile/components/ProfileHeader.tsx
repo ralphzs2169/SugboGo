@@ -3,7 +3,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import Avatar from "@/shared/components/Avatar";
 import RoleBadge from "@/shared/components/RoleBadge";
-
+import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 type ProfileHeaderProps = {
   firstname: string;
   lastname: string;
@@ -27,11 +28,14 @@ export default function ProfileHeader({
       {onEditProfile && (
         <TouchableOpacity
           onPress={onEditProfile}
-          className="absolute right-4 top-4 flex-row items-center rounded-full bg-gray-100 px-3 py-1.5"
+          className="absolute right-4 top-4 flex-row items-center rounded-md"
         >
-          <Text className="ml-1 text-xs font-semibold tracking-wide  text-text-primary">
-            Edit
-          </Text>
+          <Feather
+            name="edit"
+            size={20}
+            color={theme.extends.colors.text.secondary}
+            strokeWidth={2}
+          />
         </TouchableOpacity>
       )}
 
@@ -40,7 +44,7 @@ export default function ProfileHeader({
 
         <View className="ml-6 flex-1 pr-12">
           <Text
-            className="text-md font-bold text-text-primary"
+            className="text-md font-bold text-text-primary truncate"
             numberOfLines={1}
           >
             {firstname} {lastname}

@@ -4,9 +4,11 @@ import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import FormSelect from "@/shared/components/form/FormSelect";
 import AvatarInfoCard from "../components/edit-profile/AvatarInfoCard";
 import EditProfileHeader from "../components/edit-profile/EditProfileHeader";
-
+import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
+import { GENDER_OPTIONS } from "../constants/genderOptions";
+import { Gender } from "../types/profile.types";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { handleSystemError } from "@/shared/api/error.utils";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router } from "expo-router";
@@ -14,7 +16,6 @@ import { useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
-import { GenderBottomSheet } from "../components/edit-profile/GenderBottomSheet";
 import { useRemoveProfilePicture } from "../hooks/useRemoveProfilePicture";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChanges";
 import { useUpdateProfile } from "../hooks/useUpdateProfile";
@@ -219,17 +220,16 @@ export default function EditProfileScreen() {
           hasSelectedImage={selectedImage !== null}
         />
 
-        {/* Displays OAuth avatar information after a local custom picture removal. */}
-        <AvatarInfoCard
-          visible={
-            !isShowingCustomProfilePicture &&
-            !!user?.use_oauth_avatar &&
-            !!user?.oauth_avatar_url
-          }
-        />
-
         {/* Form content */}
         <View className="flex-1 p-5">
+          {/* Displays OAuth avatar information after a local custom picture removal. */}
+          <AvatarInfoCard
+            visible={
+              !isShowingCustomProfilePicture &&
+              !!user?.use_oauth_avatar &&
+              !!user?.oauth_avatar_url
+            }
+          />
           <FormInput
             label="First Name"
             placeholder="Enter your first name"
@@ -251,16 +251,10 @@ export default function EditProfileScreen() {
           <FormSelect
             label="Gender"
             value={
-              gender
-                ? {
-                    male: "Male",
-                    female: "Female",
-                    non_binary: "Non-binary",
-                    prefer_not_to_say: "Prefer not to say",
-                  }[gender]
-                : undefined
+              GENDER_OPTIONS.find((option) => option.value === gender)?.label ??
+              ""
             }
-            placeholder="Select your gender"
+            placeholder="Select gender"
             onPress={handleSelectGender}
           />
 
@@ -304,10 +298,12 @@ export default function EditProfileScreen() {
             onConfirm={confirmLeave}
           />
 
-          <GenderBottomSheet
+          <SelectionBottomSheet
             sheetRef={genderSheetRef}
-            selectedGender={gender}
-            onSelectGender={setGender}
+            title="Select Gender"
+            options={GENDER_OPTIONS}
+            selectedValue={gender ?? undefined}
+            onSelect={(value) => setGender(value as Gender)}
           />
         </View>
       </ScrollView>

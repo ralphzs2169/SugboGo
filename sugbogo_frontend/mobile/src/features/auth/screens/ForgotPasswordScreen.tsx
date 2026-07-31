@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useForgotPassword } from "@/features/auth/hooks/useForgotPassword";
 import { validateForgotPasswordForm } from "@/features/auth/utils/forgotPasswordValidator";
-import { handleSystemError } from "@/shared/api/error.utils";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
 import { useRouter } from "expo-router";
 import { useState } from "react";

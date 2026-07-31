@@ -1,10 +1,8 @@
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
-import { Pressable, Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
+
+import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
+import { ProfilePictureAction } from "@/features/profile/types/profile.types";
+import { PROFILE_PICTURE_OPTIONS } from "@/features/profile/constants/profilePictureOptions";
 
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
@@ -16,11 +14,8 @@ type Props = {
 };
 
 /**
- * ProfilePictureBottomSheet provides actions for managing a user's profile picture.
- *
- * Displays available image actions and delegates behavior through callbacks.
- * The component controls the bottom sheet presentation lifecycle while the
- * parent handles image selection and profile updates.
+ * ProfilePictureBottomSheet provides a bottom sheet interface for selecting profile picture actions.
+ * It displays options to choose a photo, take a photo, or remove the current photo based on the user's state.
  */
 export function ProfilePictureBottomSheet({
   sheetRef,
@@ -31,112 +26,35 @@ export function ProfilePictureBottomSheet({
   onRemovePicture,
 }: Props) {
   const canRemovePicture = isShowingCustomProfilePicture || hasSelectedImage;
-  //Dismisses the sheet before opening the gallery picker.
-  function handleChoosePhoto() {
-    sheetRef.current?.dismiss();
-    onChoosePhoto();
-  }
 
-  // Dismisses the sheet before opening the camera.
-  function handleTakePhoto() {
-    sheetRef.current?.dismiss();
-    onTakePhoto();
-  }
+  const options = canRemovePicture
+    ? PROFILE_PICTURE_OPTIONS
+    : PROFILE_PICTURE_OPTIONS.filter(
+        (option) => option.value !== "remove_photo",
+      );
 
-  //Dismisses the sheet before triggering picture removal confirmation.
-  function handleRemovePicture() {
-    sheetRef.current?.dismiss();
-    onRemovePicture();
-  }
+  function handleSelect(value: string) {
+    switch (value as ProfilePictureAction) {
+      case "choose_photo":
+        onChoosePhoto();
+        break;
 
-  // Closes the bottom sheet manually.
-  function handleClose() {
-    sheetRef.current?.dismiss();
+      case "take_photo":
+        onTakePhoto();
+        break;
+
+      case "remove_photo":
+        onRemovePicture();
+        break;
+    }
   }
 
   return (
-    <BottomSheetModal
-      ref={sheetRef}
-      snapPoints={["35%"]}
-      enablePanDownToClose
-      backgroundStyle={{
-        backgroundColor: "white",
-        borderRadius: 24,
-      }}
-      handleIndicatorStyle={{
-        backgroundColor: "#D1D5DB",
-        width: 40,
-      }}
-      backdropComponent={(props) => (
-        <BottomSheetBackdrop
-          {...props}
-          appearsOnIndex={0}
-          disappearsOnIndex={-1}
-          opacity={0.5}
-        />
-      )}
-    >
-      <BottomSheetView className="px-6 pb-8">
-        {/* Header */}
-        <View className="flex-row items-center justify-between  pb-4">
-          <Text className="text-lg font-bold text-gray-900">
-            Profile Picture
-          </Text>
-
-          <Pressable
-            onPress={handleClose}
-            className="rounded-full p-1 active:bg-gray-100"
-          >
-            <MaterialCommunityIcons name="close" size={24} color="#6B7280" />
-          </Pressable>
-        </View>
-
-        {/* Actions */}
-        <View className="pt-2">
-          <Pressable
-            onPress={handleChoosePhoto}
-            className="flex-row items-center py-4"
-          >
-            <MaterialCommunityIcons
-              name="image-outline"
-              size={24}
-              color="#1B4D3E"
-            />
-
-            <Text className="ml-4 text-base text-gray-800">Choose Photo</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleTakePhoto}
-            className="flex-row items-center py-4"
-          >
-            <MaterialCommunityIcons
-              name="camera-outline"
-              size={24}
-              color="#1B4D3E"
-            />
-
-            <Text className="ml-4 text-base text-gray-800">Take Photo</Text>
-          </Pressable>
-
-          {canRemovePicture && (
-            <Pressable
-              onPress={handleRemovePicture}
-              className="flex-row items-center py-4"
-            >
-              <MaterialCommunityIcons
-                name="delete-outline"
-                size={24}
-                color="#EF4444"
-              />
-
-              <Text className="ml-4 text-base font-medium text-red-500">
-                Remove Current Photo
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      </BottomSheetView>
-    </BottomSheetModal>
+    <SelectionBottomSheet
+      sheetRef={sheetRef}
+      title="Profile Picture"
+      options={options}
+      onSelect={handleSelect}
+    />
   );
 }

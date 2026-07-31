@@ -9,17 +9,14 @@ export async function fetchClusters(params = {}) {
 }
 
 export async function createCluster(payload) {
-  const response = await apiClient.post(
-    "/admin/msmes/clusters/create/",
-    payload,
-  );
+  const response = await apiClient.post("/admin/msmes/clusters/", payload);
 
   return response.data.data;
 }
 
 export async function updateCluster(clusterId, payload) {
   const response = await apiClient.patch(
-    `/admin/msmes/clusters/${clusterId}/update/`,
+    `/admin/msmes/clusters/${clusterId}/`,
     payload,
   );
 
@@ -28,7 +25,7 @@ export async function updateCluster(clusterId, payload) {
 
 export async function deleteCluster(clusterId) {
   const response = await apiClient.delete(
-    `/admin/msmes/clusters/${clusterId}/delete/`,
+    `/admin/msmes/clusters/${clusterId}/`,
   );
 
   return response.data;
@@ -43,17 +40,14 @@ export async function fetchCategories(params = {}) {
 }
 
 export async function createCategory(payload) {
-  const response = await apiClient.post(
-    "/admin/msmes/categories/create/",
-    payload,
-  );
+  const response = await apiClient.post("/admin/msmes/categories/", payload);
 
   return response.data.data;
 }
 
 export async function updateCategory(categoryId, payload) {
   const response = await apiClient.patch(
-    `/admin/msmes/categories/${categoryId}/update/`,
+    `/admin/msmes/categories/${categoryId}/`,
     payload,
   );
 
@@ -62,7 +56,7 @@ export async function updateCategory(categoryId, payload) {
 
 export async function deleteCategory(categoryId) {
   const response = await apiClient.delete(
-    `/admin/msmes/categories/${categoryId}/delete/`,
+    `/admin/msmes/categories/${categoryId}/`,
   );
 
   return response.data;
@@ -74,6 +68,5 @@ export async function fetchClusterCategorySummary() {
   const response = await apiClient.get(
     "/admin/msmes/cluster-category/summary/",
   );
-
   return response.data.data;
 }

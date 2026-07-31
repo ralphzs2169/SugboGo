@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import SettingRow from "../components/SettingRow";
 import { useUpdateAvatarPreference } from "../hooks/useUpdateAvatarPreference";
-import { handleSystemError } from "@/shared/api/error.utils";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 export default function AccountSettingsScreen() {
   const user = useAuthStore((state) => state.user);
