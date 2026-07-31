@@ -5,7 +5,7 @@ import FormSelect from "@/shared/components/form/FormSelect";
 import AvatarInfoCard from "../components/edit-profile/AvatarInfoCard";
 import EditProfileHeader from "../components/edit-profile/EditProfileHeader";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
-import { GENDER_OPTIONS } from "../constants/genderOptions.";
+import { GENDER_OPTIONS } from "../constants/genderOptions";
 import { Gender } from "../types/profile.types";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { handleSystemError } from "@/shared/utils/apiErrors";

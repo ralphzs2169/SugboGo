@@ -114,6 +114,8 @@ INSTALLED_APPS = [
     'apps.admin_operations.system_configuration.apps.SystemConfigurationConfig',
 
     'apps.msme.apps.MsmeConfig',
+
+    "apps.registration.apps.RegistrationConfig",
 ]
 
 MIDDLEWARE = [

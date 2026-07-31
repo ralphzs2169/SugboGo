@@ -1,23 +1,25 @@
-import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
-import { useFormContext, useWatch } from "react-hook-form";
-import { View } from "react-native";
+import { useWatch } from "react-hook-form";
+import { router } from "expo-router";
 
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
-import BusinessLocationSearch from "../BusinessLocationSearch";
 import BusinessLocationMap from "../BusinessLocationMap";
 import RegistrationSection from "../RegistrationSection";
 
 /**
- * Displays the business location fields for the
+ * Displays the business location section of the
  * merchant registration flow.
  *
- * Merchants can search for their business or tap the map
- * to select its exact location, then provide any additional
- * address details.
+ * The selected location is shown as a map preview.
+ * Tapping the preview opens the full-screen location
+ * picker, where merchants can search for a place or
+ * select a location directly on the map.
+ *
+ * Address fields are displayed below the map for
+ * reviewing and completing the detected location details.
  */
 export default function BusinessLocationStep() {
-  const { setValue } = useFormContext<MerchantRegistrationForm>();
-
+  // Watch the selected business coordinates so the map preview
+  // stays synchronized with the registration form state.
   const latitude = useWatch({
     name: "latitude",
   });
@@ -26,51 +28,27 @@ export default function BusinessLocationStep() {
     name: "longitude",
   });
 
-  function handleLocationSelect(
-    selectedLatitude: number,
-    selectedLongitude: number,
-    address?: string,
-  ) {
-    console.log("SELECTED LOCATION:", {
-      latitude: selectedLatitude,
-      longitude: selectedLongitude,
-      address,
-    });
-    setValue("latitude", selectedLatitude, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
-
-    setValue("longitude", selectedLongitude, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
-
-    if (address) {
-      setValue("streetAddress", address, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-    }
-  }
-
   return (
     <>
       <RegistrationSection
         icon="map-marker-radius-outline"
         title="Pin Your Business Location"
-        description="Search for your business or tap the map to mark its exact location."
+        description="Search for your business or open the map to select its exact location."
         showBorder={false}
       >
-        <View>
-          <BusinessLocationSearch onPlaceSelect={handleLocationSelect} />
-
-          <BusinessLocationMap
-            latitude={latitude}
-            longitude={longitude}
-            onLocationSelect={handleLocationSelect}
-          />
-        </View>
+        <BusinessLocationMap
+          latitude={latitude}
+          longitude={longitude}
+          onOpenPicker={() =>
+            router.push({
+              pathname: "/(explorer)/merchant-registration/location-picker",
+              params: {
+                latitude: latitude?.toString() ?? "",
+                longitude: longitude?.toString() ?? "",
+              },
+            })
+          }
+        />
       </RegistrationSection>
 
       <RegistrationSection

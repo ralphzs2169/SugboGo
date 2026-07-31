@@ -20,6 +20,14 @@ export default function MerchantRegistrationLayout() {
             title: "Merchant Registration",
           }}
         />
+
+        <Stack.Screen
+          name="location-picker"
+          options={{
+            headerShown: false,
+            presentation: "fullScreenModal",
+          }}
+        />
       </Stack>
     </>
   );

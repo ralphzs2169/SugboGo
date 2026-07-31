@@ -77,3 +77,30 @@ export async function getPlaceDetails(placeId: string) {
     address: response.data.formattedAddress ?? "",
   };
 }
+
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number,
+): Promise<string> {
+  if (!apiKey) {
+    throw new Error("Google Maps API key is missing.");
+  }
+
+  const response = await axios.get(
+    "https://maps.googleapis.com/maps/api/geocode/json",
+    {
+      params: {
+        latlng: `${latitude},${longitude}`,
+        key: apiKey,
+      },
+    },
+  );
+
+  if (response.data.status !== "OK") {
+    throw new Error(
+      response.data.error_message ?? "Unable to determine the location.",
+    );
+  }
+
+  return response.data.results?.[0]?.formatted_address ?? "";
+}

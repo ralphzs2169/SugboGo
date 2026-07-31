@@ -12,7 +12,8 @@ type Props = {
 
 /**
  * EditProfileHeader component displays the user's profile picture and provides an interface for changing it.
- * It includes a ProfileImagePicker for selecting or capturing a new image, and an overlay indicating that the user can tap to change the photo.
+ * It includes a ProfileImagePicker for selecting or capturing a new image, and an overlay
+ * indicating that the user can tap to change the photo.
  */
 export default function EditProfileHeader({
   imageUrl,
