@@ -17,6 +17,7 @@ export default function FormInput({
   error,
   rightElement,
   required = false,
+  editable = true,
   ...props
 }: FormInputProps) {
   return (
@@ -25,10 +26,14 @@ export default function FormInput({
       error={error}
       rightElement={rightElement}
       required={required}
+      editable={editable}
     >
       <TextInput
-        className="flex-1 py-[14px] text-body text-text-primary"
-        placeholderTextColor="#999999"
+        className={`flex-1 py-[14px] text-body ${
+          editable ? "text-text-primary" : "text-text-secondary"
+        }`}
+        placeholderTextColor={editable ? "#999999" : "#B5B5B5"}
+        editable={editable}
         {...props}
       />
     </InputContainer>

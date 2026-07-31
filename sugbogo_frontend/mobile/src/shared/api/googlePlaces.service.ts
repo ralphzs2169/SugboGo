@@ -1,106 +1,49 @@
-import axios from "axios";
 import { PlaceSuggestion } from "@/shared/types/googlePlaces.types";
+import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+import apiClient from "./apiClient.service";
+
 /**
- * Provides access to the Google Places API for place search
- * and place detail retrieval.
- *
- * This service is shared across features that need Google
- * Places location data.
+ * Searches for business location suggestions through the
+ * SugboGo backend location service.
  */
-
-const GOOGLE_PLACES_URL = "https://places.googleapis.com/v1/places";
-
-const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-
 export async function searchPlaces(input: string): Promise<PlaceSuggestion[]> {
-  if (!apiKey) {
-    throw new Error("Google Maps API key is missing.");
-  }
-
-  const response = await axios.post(
-    `${GOOGLE_PLACES_URL}:autocomplete`,
-    {
-      input,
-      includedRegionCodes: ["ph"],
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask":
-          "suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat",
-      },
-    },
-  );
-
-  // Transform Google's response into the simplified structure used by the app.
-  return (
-    response.data.suggestions
-      ?.filter((suggestion: any) => suggestion.placePrediction)
-      .map((suggestion: any) => {
-        const prediction = suggestion.placePrediction;
-
-        return {
-          placeId: prediction.placeId,
-          mainText:
-            prediction.structuredFormat?.mainText?.text ??
-            prediction.text?.text ??
-            "",
-          secondaryText: prediction.structuredFormat?.secondaryText?.text ?? "",
-        };
-      }) ?? []
-  );
-}
-
-export async function getPlaceDetails(placeId: string) {
-  if (!apiKey) {
-    throw new Error("Google Maps API key is missing.");
-  }
-
-  const response = await axios.get(`${GOOGLE_PLACES_URL}/${placeId}`, {
-    headers: {
-      "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": "location,formattedAddress",
-    },
+  const response = await apiClient.post("/registration/places/search/", {
+    input,
   });
 
-  const { latitude, longitude } = response.data.location ?? {};
+  return response.data.data.suggestions;
+}
 
-  // Ensure the selected place contains valid coordinates before returning it.
-  if (typeof latitude !== "number" || typeof longitude !== "number") {
-    throw new Error("Place location is unavailable.");
-  }
+/**
+ * Retrieves the coordinates and structured address details
+ * for a selected place through the SugboGo backend.
+ */
+export async function getPlaceDetails(
+  placeId: string,
+): Promise<BusinessLocation> {
+  const response = await apiClient.post("/registration/places/details/", {
+    place_id: placeId,
+  });
+
+  return response.data.data.location;
+}
+
+/**
+ * Resolves geographic coordinates into structured address
+ * details through the SugboGo backend.
+ */
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number,
+): Promise<BusinessLocation> {
+  const response = await apiClient.post("/registration/reverse-geocode/", {
+    latitude,
+    longitude,
+  });
 
   return {
     latitude,
     longitude,
-    address: response.data.formattedAddress ?? "",
+    ...response.data.data.address,
   };
-}
-
-export async function reverseGeocode(
-  latitude: number,
-  longitude: number,
-): Promise<string> {
-  if (!apiKey) {
-    throw new Error("Google Maps API key is missing.");
-  }
-
-  const response = await axios.get(
-    "https://maps.googleapis.com/maps/api/geocode/json",
-    {
-      params: {
-        latlng: `${latitude},${longitude}`,
-        key: apiKey,
-      },
-    },
-  );
-
-  if (response.data.status !== "OK") {
-    throw new Error(
-      response.data.error_message ?? "Unable to determine the location.",
-    );
-  }
-
-  return response.data.results?.[0]?.formatted_address ?? "";
 }

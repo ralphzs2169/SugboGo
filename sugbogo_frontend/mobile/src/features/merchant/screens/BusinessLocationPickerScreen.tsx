@@ -1,15 +1,19 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useState } from "react";
-import { reverseGeocode } from "@/shared/api/googlePlaces.service";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import { reverseGeocode } from "@/shared/api/googlePlaces.service";
+import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+
+import BusinessLocationConfirmationSheet from "../components/registration/BusinessLocationConfirmationSheet";
 import BusinessLocationMap from "../components/registration/BusinessLocationMap";
 import BusinessLocationSearch from "../components/registration/BusinessLocationSearch";
+import BusinessLocationEmptyState from "../components/registration/BusinessLocationEmptyState";
 
 type BusinessLocationPickerScreenProps = {
-  initialLatitude: number | null;
-  initialLongitude: number | null;
-  onConfirm: (latitude: number, longitude: number, address: string) => void;
+  initialLocation: BusinessLocation | null;
+  onConfirm: (location: BusinessLocation) => void;
   onClose: () => void;
 };
 
@@ -21,63 +25,71 @@ type BusinessLocationPickerScreenProps = {
  * the location to the registration form after confirmation.
  */
 export default function BusinessLocationPickerScreen({
-  initialLatitude,
-  initialLongitude,
+  initialLocation,
   onConfirm,
   onClose,
 }: BusinessLocationPickerScreenProps) {
-  const [selectedLatitude, setSelectedLatitude] = useState<number | null>(
-    initialLatitude,
-  );
-  const [selectedLongitude, setSelectedLongitude] = useState<number | null>(
-    initialLongitude,
-  );
-  const [selectedAddress, setSelectedAddress] = useState("");
+  const [searchText, setSearchText] = useState("");
 
-  const hasSelectedLocation =
-    selectedLatitude !== null && selectedLongitude !== null;
+  // Keep the selected location local until the user confirms it.
+  const [selectedLocation, setSelectedLocation] =
+    useState<BusinessLocation | null>(initialLocation);
+
+  const hasSelectedLocation = selectedLocation !== null;
+
+  // Update the local selection when a place is chosen from search results.
+  function handleLocationSelect(location: BusinessLocation) {
+    setSelectedLocation(location);
+  }
 
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
-  function handleLocationSelect(
-    latitude: number,
-    longitude: number,
-    address = "",
-  ) {
-    setSelectedLatitude(latitude);
-    setSelectedLongitude(longitude);
-    setSelectedAddress(address);
-  }
-
+  // Commit the selected location only after the user confirms it.
   function handleConfirm() {
-    if (!hasSelectedLocation) {
+    if (!selectedLocation) {
       return;
     }
 
-    onConfirm(selectedLatitude, selectedLongitude, selectedAddress);
+    onConfirm(selectedLocation);
   }
 
+  // Resolve the address when the user selects a location directly on the map.
   async function handleMapLocationSelect(latitude: number, longitude: number) {
-    handleLocationSelect(latitude, longitude);
+    setSearchText("");
     setIsResolvingAddress(true);
 
     try {
-      const address = await reverseGeocode(latitude, longitude);
-      setSelectedAddress(address);
+      const location = await reverseGeocode(latitude, longitude);
+      setSelectedLocation(location);
     } catch (error) {
       console.error("Failed to reverse geocode location:", error);
-      setSelectedAddress("");
+
+      // Keep the selected coordinates even if address resolution fails.
+      setSelectedLocation({
+        latitude,
+        longitude,
+        formattedAddress: "",
+        province: "",
+        city: "",
+        barangay: "",
+        streetAddress: "",
+      });
     } finally {
       setIsResolvingAddress(false);
     }
   }
+
   return (
     <View className="flex-1 bg-background">
-      <View className="absolute left-4 right-4 top-4 z-10">
-        <View className="mb-3 flex-row items-center">
+      {/* Keep navigation and search controls below the device status bar. */}
+      <SafeAreaView
+        edges={["top"]}
+        className="absolute left-0 right-0 top-0 z-10"
+      >
+        <View className="px-4 pt-2">
           <Pressable
             onPress={onClose}
-            className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
+            className="h-10 w-10 items-center justify-center"
           >
             <MaterialCommunityIcons
               name="arrow-left"
@@ -86,52 +98,32 @@ export default function BusinessLocationPickerScreen({
             />
           </Pressable>
 
-          <Text className="text-xl font-bold text-text-primary">
-            Select Business Location
-          </Text>
+          <BusinessLocationSearch
+            value={searchText}
+            onChangeText={setSearchText}
+            onPlaceSelect={handleLocationSelect}
+          />
         </View>
+      </SafeAreaView>
 
-        <BusinessLocationSearch onPlaceSelect={handleLocationSelect} />
-      </View>
-
+      {/* The map fills the entire screen behind the overlay controls. */}
       <BusinessLocationMap
-        latitude={selectedLatitude}
-        longitude={selectedLongitude}
+        latitude={selectedLocation?.latitude ?? null}
+        longitude={selectedLocation?.longitude ?? null}
         onLocationSelect={handleMapLocationSelect}
         fullScreen
       />
 
+      {/* Guide the user when no location has been selected yet. */}
+      {!hasSelectedLocation && <BusinessLocationEmptyState />}
+
+      {/* Show the selected address and confirmation action after a location is selected. */}
       {hasSelectedLocation && (
-        <View className="absolute bottom-5 left-4 right-4 rounded-2xl bg-white p-4 shadow-lg">
-          <View className="flex-row items-start">
-            <MaterialCommunityIcons
-              name="map-marker"
-              size={24}
-              color="#F27F0D"
-            />
-
-            <View className="ml-3 flex-1">
-              <Text className="text-sm font-semibold text-text-primary">
-                Selected Location
-              </Text>
-
-              <Text className="mt-1 text-sm text-text-secondary">
-                {isResolvingAddress
-                  ? "Getting address..."
-                  : selectedAddress || "Address unavailable"}
-              </Text>
-            </View>
-          </View>
-
-          <Pressable
-            onPress={handleConfirm}
-            className="mt-4 h-12 items-center justify-center rounded-xl bg-primary"
-          >
-            <Text className="text-base font-semibold text-white">
-              Confirm Location
-            </Text>
-          </Pressable>
-        </View>
+        <BusinessLocationConfirmationSheet
+          address={selectedLocation?.formattedAddress || "Address unavailable"}
+          isResolvingAddress={isResolvingAddress}
+          onConfirm={handleConfirm}
+        />
       )}
     </View>
   );

@@ -45,6 +45,9 @@ AUTH_USER_MODEL = "users.User"
 WEB_APP_URL = os.getenv("WEB_APP_URL", "http://localhost:5173")
 MOBILE_SCHEME = os.getenv("MOBILE_SCHEME", "com.sugbogo.app://")
 
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+
+
 # Application URLs
 BACKEND_URL = os.getenv(
     "BACKEND_URL",

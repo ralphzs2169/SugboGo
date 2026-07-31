@@ -1,6 +1,7 @@
-import { useWatch } from "react-hook-form";
+import { useEffect } from "react";
+import { useFormContext } from "react-hook-form";
 import { router } from "expo-router";
-
+import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
 import BusinessLocationMap from "../BusinessLocationMap";
 import RegistrationSection from "../RegistrationSection";
@@ -14,39 +15,44 @@ import RegistrationSection from "../RegistrationSection";
  * picker, where merchants can search for a place or
  * select a location directly on the map.
  *
- * Address fields are displayed below the map for
- * reviewing and completing the detected location details.
+ * Address fields are populated from the confirmed
+ * business location.
  */
 export default function BusinessLocationStep() {
-  // Watch the selected business coordinates so the map preview
-  // stays synchronized with the registration form state.
-  const latitude = useWatch({
-    name: "latitude",
-  });
+  const { setValue } = useFormContext();
 
-  const longitude = useWatch({
-    name: "longitude",
-  });
+  const selectedLocation = useMerchantRegistrationStore(
+    (state) => state.selectedLocation,
+  );
+
+  const hasSelectedLocation = selectedLocation !== null;
+
+  useEffect(() => {
+    if (!selectedLocation) {
+      return;
+    }
+
+    setValue("latitude", selectedLocation.latitude);
+    setValue("longitude", selectedLocation.longitude);
+    setValue("province", selectedLocation.province);
+    setValue("city", selectedLocation.city);
+    setValue("barangay", selectedLocation.barangay);
+    setValue("streetAddress", selectedLocation.streetAddress);
+  }, [selectedLocation, setValue]);
 
   return (
     <>
       <RegistrationSection
         icon="map-marker-radius-outline"
         title="Pin Your Business Location"
-        description="Search for your business or open the map to select its exact location."
+        description="Tip: Place the pin as close as possible to your actual business location. You can edit the address details below if needed."
         showBorder={false}
       >
         <BusinessLocationMap
-          latitude={latitude}
-          longitude={longitude}
+          latitude={selectedLocation?.latitude ?? null}
+          longitude={selectedLocation?.longitude ?? null}
           onOpenPicker={() =>
-            router.push({
-              pathname: "/(explorer)/merchant-registration/location-picker",
-              params: {
-                latitude: latitude?.toString() ?? "",
-                longitude: longitude?.toString() ?? "",
-              },
-            })
+            router.push("/(explorer)/merchant-registration/location-picker")
           }
         />
       </RegistrationSection>
@@ -59,29 +65,47 @@ export default function BusinessLocationStep() {
         <RHFFormInput
           name="province"
           label="Province"
+          required
           editable={false}
-          placeholder="Detected automatically"
+          placeholder={
+            hasSelectedLocation
+              ? "Detected automatically"
+              : "Select a location first"
+          }
         />
 
         <RHFFormInput
           name="city"
           label="City / Municipality"
+          required
           editable={false}
-          placeholder="Detected automatically"
+          placeholder={
+            hasSelectedLocation
+              ? "Detected automatically"
+              : "Select a location first"
+          }
         />
 
         <RHFFormInput
           name="barangay"
           label="Barangay"
-          editable={false}
-          placeholder="Detected automatically"
+          required
+          editable={hasSelectedLocation}
+          placeholder={
+            hasSelectedLocation ? "Enter barangay" : "Select a location first"
+          }
         />
 
         <RHFFormInput
           name="streetAddress"
           label="Street Address"
           required
-          placeholder="e.g. Gov. Cuenco Avenue"
+          editable={hasSelectedLocation}
+          placeholder={
+            hasSelectedLocation
+              ? "e.g. Gov. Cuenco Avenue"
+              : "Select a location first"
+          }
         />
 
         <RHFFormInput

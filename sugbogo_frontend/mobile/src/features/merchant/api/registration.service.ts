@@ -7,9 +7,9 @@ import {
 } from "../types/merchantRegistration.types";
 
 export async function getClusters(): Promise<ApiResponse<ClusterOption[]>> {
-  return request(apiClient.get("/msme/clusters/"));
+  return request(apiClient.get("/registration/clusters/"));
 }
 
 export async function getCategories(): Promise<ApiResponse<CategoryOption[]>> {
-  return request(apiClient.get("/msme/categories/"));
+  return request(apiClient.get("/registration/categories/"));
 }

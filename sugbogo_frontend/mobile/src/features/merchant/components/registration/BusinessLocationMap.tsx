@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { ActivityIndicator } from "react-native";
 import MapView, {
   MapPressEvent,
   Marker,
   PROVIDER_GOOGLE,
 } from "react-native-maps";
+import { theme } from "@/constants/theme";
 
 type BusinessLocationMapProps = {
   latitude: number | null;
@@ -51,7 +54,13 @@ export default function BusinessLocationMap({
   // Determine whether a location has already been selected.
   const hasSelectedLocation = latitude !== null && longitude !== null;
 
+  const isProgrammaticMove = useRef(false);
+
   function handleMapPress(event: MapPressEvent) {
+    if (isProgrammaticMove.current) {
+      return;
+    }
+
     if (!onLocationSelect) {
       return;
     }
@@ -72,6 +81,8 @@ export default function BusinessLocationMap({
       return;
     }
 
+    isProgrammaticMove.current = true;
+
     mapRef.current.animateToRegion(
       {
         latitude,
@@ -81,6 +92,10 @@ export default function BusinessLocationMap({
       },
       MAP_ANIMATION_DURATION,
     );
+
+    setTimeout(() => {
+      isProgrammaticMove.current = false;
+    }, MAP_ANIMATION_DURATION + 100);
   }
 
   // Recenter the map whenever the selected location or map readiness changes.
@@ -113,33 +128,76 @@ export default function BusinessLocationMap({
   );
 
   // In preview mode, tapping the map opens the full-screen picker.
+  // In preview mode, tapping the map opens the full-screen picker.
   if (onOpenPicker) {
     return (
       <Pressable onPress={onOpenPicker}>
-        <View className="relative">
-          {map}
-
-          <View pointerEvents="none" className="absolute inset-0 bg-black/20" />
-
+        {({ pressed }) => (
           <View
-            pointerEvents="none"
-            className="absolute inset-0 items-center justify-center"
+            className="relative overflow-hidden rounded-2xl"
+            style={{ opacity: pressed ? 0.85 : 1 }}
           >
-            <View className="rounded-md bg-white/90 px-5 py-4 shadow-md">
-              <Text className="text-center text-base font-semibold text-text-primary">
-                {hasSelectedLocation
-                  ? "Business location selected"
-                  : "Select your business location"}
-              </Text>
+            {map}
 
-              <Text className="mt-1 text-center text-sm text-text-secondary">
-                {hasSelectedLocation
-                  ? "Tap to change your location"
-                  : "Tap to search or choose a location"}
-              </Text>
-            </View>
+            {!isMapReady && (
+              <View className="absolute inset-0 items-center justify-center bg-gray-100">
+                <ActivityIndicator
+                  size="small"
+                  color={theme.extends.colors.brand}
+                />
+              </View>
+            )}
+
+            {hasSelectedLocation ? (
+              // Selected: keep the map visible, just a bottom gradient chip
+              // confirming the pin and inviting a change.
+              <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/55 px-4 py-3">
+                <View className="flex-row items-center gap-2">
+                  <MaterialCommunityIcons
+                    name="map-marker-check"
+                    size={18}
+                    color="#4ADE80"
+                  />
+                  <Text className="text-[13px] font-semibold text-white">
+                    Location pinned
+                  </Text>
+                </View>
+
+                <Text className="text-[13px] font-medium text-white/80">
+                  Change
+                </Text>
+              </View>
+            ) : (
+              // Empty: dim the whole map and prompt clearly, since there's
+              // nothing meaningful to look at yet.
+              <>
+                <View
+                  pointerEvents="none"
+                  className="absolute inset-0 bg-black/35"
+                />
+
+                <View
+                  pointerEvents="none"
+                  className="absolute inset-0 items-center justify-center px-6"
+                >
+                  <View className="items-center rounded-xl bg-white/95 px-5 py-4 shadow-md">
+                    <MaterialCommunityIcons
+                      name="map-marker-plus-outline"
+                      size={26}
+                      color="#1B4D3E"
+                    />
+                    <Text className="mt-1 text-center text-base font-semibold text-text-primary">
+                      Select your business location
+                    </Text>
+                    <Text className="mt-0.5 text-center text-sm text-text-secondary">
+                      Tap to search or choose on the map
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
-        </View>
+        )}
       </Pressable>
     );
   }

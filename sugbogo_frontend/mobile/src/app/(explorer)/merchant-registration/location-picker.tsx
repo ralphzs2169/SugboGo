@@ -1,34 +1,33 @@
-import { useLocalSearchParams, router } from "expo-router";
+import { router } from "expo-router";
 
+import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import BusinessLocationPickerScreen from "@/features/merchant/screens/BusinessLocationPickerScreen";
-
+import Toast from "react-native-toast-message";
 /**
  * Route wrapper for the full-screen business location picker.
  *
- * Receives the current coordinates through route params and
- * returns the confirmed location to the merchant registration form.
+ * Uses the existing registration location from Zustand and stores
+ * the confirmed location before returning to registration.
  */
 export default function BusinessLocationPickerPage() {
-  const { latitude, longitude } = useLocalSearchParams<{
-    latitude?: string;
-    longitude?: string;
-  }>();
+  const selectedLocation = useMerchantRegistrationStore(
+    (state) => state.selectedLocation,
+  );
 
-  const initialLatitude = latitude ? Number(latitude) : null;
-  const initialLongitude = longitude ? Number(longitude) : null;
+  const setSelectedLocation = useMerchantRegistrationStore(
+    (state) => state.setSelectedLocation,
+  );
 
-  function handleConfirm(
-    selectedLatitude: number,
-    selectedLongitude: number,
-    address: string,
-  ) {
-    // TODO: Return the selected location to the registration form.
-    console.log("CONFIRMED LOCATION:", {
-      latitude: selectedLatitude,
-      longitude: selectedLongitude,
-      address,
-    });
+  function handleConfirm(location: BusinessLocation) {
+    setTimeout(() => {
+      Toast.show({
+        type: "success",
+        text1: "Location confirmed successfully.",
+      });
+    }, 500);
 
+    setSelectedLocation(location);
     router.back();
   }
 
@@ -38,8 +37,7 @@ export default function BusinessLocationPickerPage() {
 
   return (
     <BusinessLocationPickerScreen
-      initialLatitude={initialLatitude}
-      initialLongitude={initialLongitude}
+      initialLocation={selectedLocation}
       onConfirm={handleConfirm}
       onClose={handleClose}
     />

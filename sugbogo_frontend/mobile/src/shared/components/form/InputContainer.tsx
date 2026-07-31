@@ -7,6 +7,7 @@ interface InputContainerProps {
   rightElement?: ReactNode;
   children: ReactNode;
   required?: boolean;
+  editable?: boolean;
 }
 
 /**
@@ -17,6 +18,7 @@ interface InputContainerProps {
  * - an optional right-side element
  * - the input container
  * - an optional validation error
+ * - an optional editable state
  */
 export default function InputContainer({
   label,
@@ -24,6 +26,7 @@ export default function InputContainer({
   rightElement,
   children,
   required = false,
+  editable = true,
 }: InputContainerProps) {
   return (
     <View className="mb-5">
@@ -37,8 +40,12 @@ export default function InputContainer({
       </View>
 
       <View
-        className={`flex-row items-center rounded-input border bg-surface px-[14px] ${
-          error ? "border-error " : "border-disabled"
+        className={`flex-row items-center rounded-input border px-[14px] ${
+          error
+            ? "border-error bg-surface"
+            : editable
+              ? "border-disabled bg-surface"
+              : "border-disabled bg-gray-100"
         }`}
       >
         {children}
