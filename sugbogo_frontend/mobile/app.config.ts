@@ -49,6 +49,7 @@ export default (): ExpoConfig => ({
     "expo-image-picker",
     "expo-status-bar",
     "expo-web-browser",
+    "@react-native-community/datetimepicker",
 
     [
       "expo-location",

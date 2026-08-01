@@ -27,7 +27,7 @@ export default function RegistrationFooter({
   const isLastStep = currentStep === totalSteps;
 
   return (
-    <View className="border-t border-border bg-surface px-6 py-5">
+    <View className="border-t border-border-primary bg-surface px-6 py-5">
       {/* <Text className="mb-4 text-sm text-text-secondary">
         {isLastStep
           ? "Review your information before submitting your application."

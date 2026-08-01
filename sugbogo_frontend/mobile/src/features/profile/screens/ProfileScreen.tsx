@@ -41,13 +41,6 @@ export default function ProfileScreen({}) {
             onEditProfile={() => router.push("/profile/edit-profile")}
           />
 
-          <MerchantPortalCard
-            title="Become a Merchant"
-            description="Digitize your shop and reach more explorers in Cebu."
-            buttonTitle="Open Merchant Portal"
-            onPress={() => router.push("/profile/merchant-portal")}
-          />
-
           {/* Menu Sections */}
           <ProfileMenuSection title="Your Activity">
             <ProfileMenuItem
@@ -87,6 +80,13 @@ export default function ProfileScreen({}) {
               onPress={() => {}}
             />
           </ProfileMenuSection>
+
+          <MerchantPortalCard
+            title="Become a Merchant"
+            description="Digitize your shop and reach more explorers in Cebu."
+            buttonTitle="Open Merchant Portal"
+            onPress={() => router.push("/profile/merchant-portal")}
+          />
 
           <ProfileMenuSection title="Settings & Support">
             <ProfileMenuItem

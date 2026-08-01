@@ -25,7 +25,7 @@ export default function MerchantCard({
   onPress,
 }: MerchantPortalCardProps) {
   return (
-    <View className="mt-6  rounded-l-[40px]  bg-[#ff860e]/90 p-4">
+    <View className="mt-6  rounded-l-[40px] rounded-r-md  bg-[#ff860e]/90 p-4">
       <View className="flex-row items-center">
         <View>
           <MerchantIllustration width={120} height={112} />

@@ -8,6 +8,10 @@ class GoogleMapsService:
     GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
     GOOGLE_PLACES_URL = "https://places.googleapis.com/v1/places"
 
+    NEARBY_LANDMARK_MAX_RESULTS = 5
+    NEARBY_LANDMARK_RADIUS_METERS = 1000.0
+    REQUEST_TIMEOUT_SECONDS = 10 # Maximum time to wait for a Google Maps API response.
+
     @staticmethod
     def _parse_address_components(components, *, geocoding_api=False):
         """Extracts registration address fields from Google address components."""
@@ -83,7 +87,7 @@ class GoogleMapsService:
                     "suggestions.placePrediction.structuredFormat"
                 ),
             },
-            timeout=10,
+            timeout=GoogleMapsService.REQUEST_TIMEOUT_SECONDS,
         )
 
         response.raise_for_status()
@@ -130,14 +134,20 @@ class GoogleMapsService:
                     "location,formattedAddress,addressComponents"
                 ),
             },
-            timeout=10,
+            timeout=GoogleMapsService.REQUEST_TIMEOUT_SECONDS,
         )
 
         response.raise_for_status()
 
         data = response.json()
 
+
         location = data.get("location", {})
+        
+        print("SELECTED PLACE ID:", place_id)
+        print("GOOGLE PLACE:", data.get("displayName"))
+        print("GOOGLE ADDRESS:", data.get("formattedAddress"))
+        print("GOOGLE LOCATION:", location)
         latitude = location.get("latitude")
         longitude = location.get("longitude")
 
@@ -170,7 +180,7 @@ class GoogleMapsService:
                 "latlng": f"{latitude},{longitude}",
                 "key": settings.GOOGLE_MAPS_API_KEY,
             },
-            timeout=10,
+            timeout=GoogleMapsService.REQUEST_TIMEOUT_SECONDS,
         )
 
         response.raise_for_status()
@@ -194,3 +204,71 @@ class GoogleMapsService:
         }
 
         return address
+
+
+    @staticmethod
+    def search_nearby_landmarks(latitude, longitude):
+        """Returns nearby places that can serve as useful business landmarks."""
+
+        response = requests.post(
+            f"{GoogleMapsService.GOOGLE_PLACES_URL}:searchNearby",
+            json={
+                # Limit the number of suggestions shown to the user.
+                "maxResultCount": GoogleMapsService.NEARBY_LANDMARK_MAX_RESULTS,
+
+                # Search for places within the configured radius
+                # around the selected business location.
+                "locationRestriction": {
+                    "circle": {
+                        "center": {
+                            "latitude": latitude,
+                            "longitude": longitude,
+                        },
+                        "radius": (
+                            GoogleMapsService.NEARBY_LANDMARK_RADIUS_METERS
+                        ),
+                    }
+                },
+
+                # Return the closest places first.
+                "rankPreference": "DISTANCE",
+            },
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": settings.GOOGLE_MAPS_API_KEY,
+
+                # Request only the fields required to display and
+                # identify nearby landmark suggestions.
+                "X-Goog-FieldMask": (
+                    "places.id,"
+                    "places.displayName,"
+                    "places.formattedAddress,"
+                    "places.location"
+                ),
+            },
+            timeout=GoogleMapsService.REQUEST_TIMEOUT_SECONDS,
+        )
+
+        # Raise an exception for unsuccessful Google API responses.
+        response.raise_for_status()
+
+        data = response.json()
+        landmarks = []
+
+        for place in data.get("places", []):
+            location = place.get("location", {})
+            display_name = place.get("displayName", {})
+
+            # Transform Google's response into the smaller structure
+            # expected by the SugboGo frontend.
+            landmarks.append(
+                {
+                    "placeId": place.get("id", ""),
+                    "name": display_name.get("text", ""),
+                    "address": place.get("formattedAddress", ""),
+                    "latitude": location.get("latitude"),
+                    "longitude": location.get("longitude"),
+                }
+            )
+
+        return landmarks

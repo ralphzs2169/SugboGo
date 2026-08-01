@@ -35,7 +35,7 @@ export default function ApplicationStatusCard({
 
       <View>
         {/* Status */}
-        <View className="flex-row items-start gap-3 py-3 border-b border-border/60">
+        <View className="flex-row items-start gap-3 py-3 border-b border-border-primary/60">
           <MaterialCommunityIcons
             name={isApproved ? "check-decagram" : "clock-outline"}
             size={22}
@@ -61,7 +61,7 @@ export default function ApplicationStatusCard({
         </View>
 
         {/* Submitted */}
-        <View className="flex-row items-start gap-3 py-3 border-b border-border/60">
+        <View className="flex-row items-start gap-3 py-3 border-b border-border-primary/60">
           <Text className="w-6 pt-0.5 text-xl font-bold leading-6 text-text-primary">
             1
           </Text>

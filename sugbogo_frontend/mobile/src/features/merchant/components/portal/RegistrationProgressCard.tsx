@@ -33,7 +33,7 @@ export default function RegistrationProgressCard({
 
       <View>
         {/* Current Step */}
-        <View className="flex-row items-start gap-3 py-3 border-b border-border/60">
+        <View className="flex-row items-start gap-3 py-3 border-b border-border-primary/60">
           <MaterialCommunityIcons
             name="progress-pencil"
             size={22}
@@ -53,7 +53,7 @@ export default function RegistrationProgressCard({
         </View>
 
         {/* Progress */}
-        <View className="py-4 border-b border-border/60">
+        <View className="py-4 border-b border-border-primary/60">
           <View className="mb-3 flex-row items-center justify-between">
             <Text className="text-base font-bold text-text-primary">
               Progress

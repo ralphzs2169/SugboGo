@@ -5,27 +5,26 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Button from "@/shared/components/Button";
 import { theme } from "@/constants/theme";
 
-type BusinessLocationConfirmationSheetProps = {
+type ConfirmLocationSheetProps = {
   address: string;
   isResolvingAddress: boolean;
+  isConfirming: boolean;
   onConfirm: () => void;
 };
 
 /**
- * Displays the currently selected business location and provides
- * an action to confirm it.
+ * Displays the selected business location and allows the user
+ * to confirm it.
  *
- * Shows a loading state while the address is being resolved and
- * falls back to an explanatory message when no address is available.
- * The confirmation action remains disabled until address resolution
- * is complete.
+ * The address is resolved from the selected coordinates, while
+ * the final location is only committed after confirmation.
  */
-export default function BusinessLocationConfirmationSheet({
+export default function ConfirmLocationSheet({
   address,
   isResolvingAddress,
   onConfirm,
-}: BusinessLocationConfirmationSheetProps) {
-  // Determine whether a usable address was returned for the selected pin.
+  isConfirming,
+}: ConfirmLocationSheetProps) {
   const hasAddress = address.trim().length > 0;
 
   return (
@@ -49,7 +48,6 @@ export default function BusinessLocationConfirmationSheet({
             </Text>
 
             {isResolvingAddress ? (
-              // Show feedback while the backend resolves the selected coordinates.
               <View className="mt-1.5 flex-row items-center">
                 <ActivityIndicator
                   size="small"
@@ -60,7 +58,6 @@ export default function BusinessLocationConfirmationSheet({
                 </Text>
               </View>
             ) : (
-              // Display the resolved address or explain that it can be entered manually.
               <Text
                 numberOfLines={2}
                 className="mt-1 text-sm text-text-secondary"
@@ -76,7 +73,7 @@ export default function BusinessLocationConfirmationSheet({
         <Button
           title="Confirm Location"
           onPress={onConfirm}
-          disabled={isResolvingAddress}
+          disabled={isResolvingAddress || isConfirming}
           className="mt-4"
           fontClassName="font-bold"
         />

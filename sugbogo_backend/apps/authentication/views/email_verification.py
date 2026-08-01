@@ -1,14 +1,14 @@
-from rest_framework.decorators import api_view
-from rest_framework import status
+from core.responses import error_response, success_response
 from django.utils import timezone
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.exceptions import Throttled
 
 from apps.authentication.serializers import ResendVerificationSerializer
-from apps.users.models import User
-from core.responses import error_response, success_response
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.services.verification_service import EmailVerificationService
 from apps.authentication.throttles import ResendVerificationThrottle
-from rest_framework.exceptions import Throttled
+from apps.users.models import User
 
 
 @api_view(["GET"])

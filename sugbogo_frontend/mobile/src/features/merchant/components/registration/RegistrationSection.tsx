@@ -33,7 +33,9 @@ export default function RegistrationSection({
         )}
       </View>
 
-      <View className={showBorder ? "border-t border-border/60 pt-5" : ""}>
+      <View
+        className={showBorder ? "border-t border-border-primary/60 pt-5" : ""}
+      >
         {children}
       </View>
     </View>

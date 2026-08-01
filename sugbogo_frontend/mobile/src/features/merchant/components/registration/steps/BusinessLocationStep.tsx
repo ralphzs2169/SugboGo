@@ -3,10 +3,13 @@ import { useFormContext } from "react-hook-form";
 import { router } from "expo-router";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
-import BusinessLocationMap from "../BusinessLocationMap";
+import LocationPickerMap from "../location/LocationPickerMap";
 import RegistrationSection from "../RegistrationSection";
-
+import LandmarksSection from "../landmark/LandmarksSection";
+import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import AddressLoadFailedState from "../location/AddressFailedLoadState";
 /**
+
  * Displays the business location section of the
  * merchant registration flow.
  *
@@ -19,10 +22,18 @@ import RegistrationSection from "../RegistrationSection";
  * business location.
  */
 export default function BusinessLocationStep() {
-  const { setValue } = useFormContext();
+  const { setValue } = useFormContext<MerchantRegistrationForm>();
 
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
+  );
+
+  const selectedLandmarks = useMerchantRegistrationStore(
+    (state) => state.selectedLandmarks,
+  );
+
+  const addressLoadFailed = useMerchantRegistrationStore(
+    (state) => state.addressLoadFailed,
   );
 
   const hasSelectedLocation = selectedLocation !== null;
@@ -40,15 +51,19 @@ export default function BusinessLocationStep() {
     setValue("streetAddress", selectedLocation.streetAddress);
   }, [selectedLocation, setValue]);
 
+  useEffect(() => {
+    setValue("landmarks", selectedLandmarks);
+  }, [selectedLandmarks, setValue]);
+
   return (
     <>
       <RegistrationSection
         icon="map-marker-radius-outline"
         title="Pin Your Business Location"
-        description="Tip: Place the pin as close as possible to your actual business location. You can edit the address details below if needed."
+        description="Place the pin as close as possible to your actual business location. You can edit the address details below if needed."
         showBorder={false}
       >
-        <BusinessLocationMap
+        <LocationPickerMap
           latitude={selectedLocation?.latitude ?? null}
           longitude={selectedLocation?.longitude ?? null}
           onOpenPicker={() =>
@@ -60,8 +75,9 @@ export default function BusinessLocationStep() {
       <RegistrationSection
         icon="home-map-marker"
         title="Address Details"
-        description="Review the detected address and complete any missing information."
+        description="Address details are automatically retrieved after you pin your business location. Review and update any missing information."
       >
+        {addressLoadFailed && <AddressLoadFailedState />}
         <RHFFormInput
           name="province"
           label="Province"
@@ -111,15 +127,16 @@ export default function BusinessLocationStep() {
         <RHFFormInput
           name="unit"
           label="Unit / Building (Optional)"
-          placeholder="e.g. Unit 201, 2nd Floor"
-        />
-
-        <RHFFormInput
-          name="landmark"
-          label="Nearest Landmark (Optional)"
-          placeholder="e.g. Across Cebu IT Park"
+          editable={hasSelectedLocation}
+          placeholder={
+            hasSelectedLocation
+              ? "e.g. Unit 201, 2nd Floor"
+              : "Select a location first"
+          }
         />
       </RegistrationSection>
+
+      <LandmarksSection />
     </>
   );
 }

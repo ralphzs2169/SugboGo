@@ -41,7 +41,18 @@ export const merchantRegistrationSchema = z.object({
 
   unit: z.string(),
 
-  landmark: z.string(),
+  // Nearby Landmarks
+  landmarks: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      address: z.string(),
+      latitude: z.number(),
+      longitude: z.number(),
+      source: z.enum(["google", "custom"]),
+      placeId: z.string().optional(),
+    }),
+  ),
 
   latitude: z.number().nullable(),
 

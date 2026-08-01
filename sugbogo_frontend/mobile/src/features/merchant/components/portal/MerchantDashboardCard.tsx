@@ -34,7 +34,7 @@ export default function MerchantDashboardCard({
 
       <View>
         {/* Status */}
-        <View className="flex-row items-start gap-3 border-b border-border/60 py-3">
+        <View className="flex-row items-start gap-3 border-b border-border-primary/60 py-3">
           <MaterialCommunityIcons
             name="check-decagram"
             size={22}
@@ -54,7 +54,7 @@ export default function MerchantDashboardCard({
         </View>
 
         {/* Business */}
-        <View className="flex-row items-start gap-3 border-b border-border/60 py-3">
+        <View className="flex-row items-start gap-3 border-b border-border-primary/60 py-3">
           <MaterialCommunityIcons
             name="storefront-outline"
             size={22}

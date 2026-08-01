@@ -1,3 +1,5 @@
+import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
+
 export interface MerchantRegistrationForm {
   // Step 1: Business Identity
   businessName: string;
@@ -18,10 +20,11 @@ export interface MerchantRegistrationForm {
   barangay: string;
   streetAddress: string;
   unit: string;
-  landmark: string;
 
   latitude: number | null;
   longitude: number | null;
+
+  landmarks: BusinessLandmark[];
 
   // Step 3: Operating Hours
   operatingHours: {

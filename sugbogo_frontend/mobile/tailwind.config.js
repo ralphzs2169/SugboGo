@@ -12,15 +12,21 @@ module.exports = {
 
         placeholder: "#999999", // skip button, disabled text
 
-        disabled: "#E5E7EB", // disabled button bg
-        border: "#E5E7EB", // input borders
+        disabled: "#f3f4f6",
+
         error: "#DC2626", // error/validation text
         success: "#16A34A", // success states
         white: "#FFFFFF", // pure white
 
+        border: {
+          primary: "#E5E7EB",
+          disabled: "#E5E7EB",
+        },
+
         text: {
           primary: "#1A1A1A",
           secondary: "#666666",
+          placeholder: "#999999",
           tertiary: "#999999",
         },
       },

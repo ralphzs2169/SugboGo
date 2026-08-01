@@ -1,6 +1,7 @@
 import { TextInput, TextInputProps } from "react-native";
 
 import InputContainer from "./InputContainer";
+import { theme } from "@/constants/theme";
 
 interface FormInputProps extends TextInputProps {
   label: string;
@@ -32,7 +33,11 @@ export default function FormInput({
         className={`flex-1 py-[14px] text-body ${
           editable ? "text-text-primary" : "text-text-secondary"
         }`}
-        placeholderTextColor={editable ? "#999999" : "#B5B5B5"}
+        placeholderTextColor={
+          editable
+            ? theme.extends.colors.text.tertiary
+            : theme.extends.colors.text.disabled
+        }
         editable={editable}
         {...props}
       />

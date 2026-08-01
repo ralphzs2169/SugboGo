@@ -44,8 +44,8 @@ export default function InputContainer({
           error
             ? "border-error bg-surface"
             : editable
-              ? "border-disabled bg-surface"
-              : "border-disabled bg-gray-100"
+              ? "border-border-primary bg-surface"
+              : "border-border-disabled bg-disabled"
         }`}
       >
         {children}

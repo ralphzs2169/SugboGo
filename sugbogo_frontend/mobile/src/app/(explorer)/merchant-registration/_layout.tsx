@@ -28,6 +28,14 @@ export default function MerchantRegistrationLayout() {
             presentation: "fullScreenModal",
           }}
         />
+
+        <Stack.Screen
+          name="landmarks-picker"
+          options={{
+            headerShown: false,
+            presentation: "fullScreenModal",
+          }}
+        />
       </Stack>
     </>
   );

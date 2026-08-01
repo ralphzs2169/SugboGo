@@ -40,9 +40,9 @@ export default function ProfileHeader({
       )}
 
       <View className="flex-row items-center">
-        <Avatar imageUrl={avatarUrl} size={80} />
+        <Avatar imageUrl={avatarUrl} size={100} />
 
-        <View className="ml-6 flex-1 pr-12">
+        <View className="ml-3 flex-1 pr-12">
           <Text
             className="text-md font-bold text-text-primary truncate"
             numberOfLines={1}
@@ -50,7 +50,7 @@ export default function ProfileHeader({
             {firstname} {lastname}
           </Text>
 
-          <Text className="mt-1 text-sm text-text-secondary" numberOfLines={1}>
+          <Text className="mt-1 text-xs text-text-secondary" numberOfLines={1}>
             {email}
           </Text>
 

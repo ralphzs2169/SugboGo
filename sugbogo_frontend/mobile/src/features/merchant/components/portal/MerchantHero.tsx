@@ -44,15 +44,15 @@ export default function MerchantHero() {
         {HIGHLIGHTS.map((item) => (
           <View
             key={item.label}
-            className="flex-row items-center rounded-full border border-border bg-card px-4 py-2"
+            className="flex-row items-center rounded-full  bg-brand px-4 py-2"
           >
             <MaterialCommunityIcons
               name={item.icon}
               size={16}
-              color={theme.extends.colors.brand}
+              color="#FFFFFF"
             />
 
-            <Text className="ml-2 text-xs font-semibold text-text-primary">
+            <Text className="ml-2 text-xs font-semibold text-white">
               {item.label}
             </Text>
           </View>

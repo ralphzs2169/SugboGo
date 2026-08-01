@@ -31,7 +31,7 @@ export default function RejectionFeedbackCard({
 
       <View>
         {/* Status */}
-        <View className="flex-row items-start gap-3 border-b border-border/60 py-3">
+        <View className="flex-row items-start gap-3 border-b border-border-primary/60 py-3">
           <MaterialCommunityIcons
             name="alert-circle-outline"
             size={22}
@@ -51,7 +51,7 @@ export default function RejectionFeedbackCard({
         </View>
 
         {/* Reviewed */}
-        <View className="flex-row items-start gap-3 border-b border-border/60 py-3">
+        <View className="flex-row items-start gap-3 border-b border-border-primary/60 py-3">
           <MaterialCommunityIcons
             name="calendar-check-outline"
             size={22}

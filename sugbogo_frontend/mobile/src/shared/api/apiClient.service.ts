@@ -98,9 +98,17 @@ apiClient.interceptors.response.use(
     ) {
       originalRequest._retry = true;
 
-      try {
-        const newAccessToken = await refreshSession();
+      console.log(
+        "🔴 401 RECEIVED:",
+        originalRequest.url,
+        "retry:",
+        originalRequest._retry,
+      );
 
+      try {
+        console.log("🔄 STARTING TOKEN REFRESH:", originalRequest.url);
+        const newAccessToken = await refreshSession();
+        console.log("🟢 TOKEN REFRESH SUCCEEDED:", originalRequest.url);
         // Re-attach the new token and retry the original request.
         originalRequest.headers = {
           ...originalRequest.headers,
@@ -109,6 +117,8 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch {
+        console.log("❌ TOKEN REFRESH FAILED:", originalRequest.url, error);
+
         // Refreshing failed, meaning the session is no longer valid.
         // Clear the local session, redirect the user to the login screen,
         // and set a flag so the login screen can display a one-time
