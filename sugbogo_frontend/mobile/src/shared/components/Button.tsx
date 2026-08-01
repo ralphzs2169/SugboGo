@@ -14,7 +14,7 @@ type ButtonProps = {
   icon?: ReactNode;
   className?: string;
   fontClassName?: string;
-  variant?: "primary" | "secondary" | "danger";
+  variant?: "primary" | "secondary" | "outline" | "soft" | "danger";
 };
 
 /**
@@ -35,12 +35,16 @@ export default function Button({
   const variantClass = {
     primary: "bg-brand",
     secondary: "bg-surface",
+    outline: "border border-border-primary bg-white",
+    soft: "border border-brand bg-white",
     danger: "bg-red-500",
   }[variant];
 
   const textColorClass = {
     primary: "text-white",
     secondary: "text-text-primary",
+    outline: "text-text-primary",
+    soft: "text-brand",
     danger: "text-white",
   }[variant];
 

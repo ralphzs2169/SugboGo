@@ -50,7 +50,7 @@ export default function MerchantRequirements() {
             className={
               "flex-row items-start gap-2 py-3" +
               (index !== REQUIREMENTS.length - 1
-                ? " border-b border-border/60"
+                ? " border-b border-border-primary/60"
                 : "")
             }
           >
@@ -74,7 +74,7 @@ export default function MerchantRequirements() {
         ))}
       </View>
 
-      <View className="mt-8 flex-row items-center justify-between border-t border-border pt-5">
+      <View className="mt-8 flex-row items-center justify-between border-t border-border-primary pt-5">
         <View>
           <Text className="text-xs font-medium uppercase tracking-wider text-text-secondary">
             Estimated Time

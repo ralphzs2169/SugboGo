@@ -44,7 +44,7 @@ export default function MerchantBenefits() {
         online.
       </Text>
 
-      {/* <View className="border border-border px-4 py-2 rounded-xl"> */}
+      {/* <View className="border border-border-primary px-4 py-2 rounded-xl"> */}
       <View>
         {BENEFITS.map((benefit, index) => {
           const Illustration = benefit.illustration;
@@ -55,7 +55,7 @@ export default function MerchantBenefits() {
               className={
                 "flex-row items-start gap-2 py-3" +
                 (index !== BENEFITS.length - 1
-                  ? " border-b border-border/60"
+                  ? " border-b border-border-primary/60"
                   : "")
               }
             >

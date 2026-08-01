@@ -37,7 +37,7 @@ export default function ReviewStep() {
           value={`${form.streetAddress}, ${form.barangay}, ${form.city}`}
         />
 
-        <ReviewRow label="Landmark" value={form.landmark || "None"} />
+        <ReviewRow label="Landmark" value={"None"} />
       </ReviewSection>
 
       <ReviewSection icon="clock-outline" title="Operating Hours">
@@ -72,7 +72,7 @@ type ReviewSectionProps = {
 
 function ReviewSection({ icon, title, children }: ReviewSectionProps) {
   return (
-    <View className="mb-4 rounded-xl border border-border px-4 py-4">
+    <View className="mb-4 rounded-xl border border-border-primary px-4 py-4">
       <View className="mb-3 flex-row items-center">
         <MaterialCommunityIcons name={icon} size={22} color="#F27F0D" />
 

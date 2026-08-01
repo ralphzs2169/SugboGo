@@ -4,7 +4,7 @@ import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import useNearbyLandmarks from "@/features/merchant/hooks/registration/useNearbyLandmarks";
-import BusinessLocationPickerScreen from "@/features/merchant/screens/BusinessLocationPickerScreen";
+import LocationPickerScreen from "@/features/merchant/screens/LocationPickerScreen";
 import Toast from "react-native-toast-message";
 /**
  * Route wrapper for the full-screen business location picker.
@@ -96,7 +96,7 @@ export default function BusinessLocationPickerPage() {
 
   return (
     <>
-      <BusinessLocationPickerScreen
+      <LocationPickerScreen
         initialLocation={selectedLocation}
         onConfirm={handleConfirm}
         onClose={handleClose}

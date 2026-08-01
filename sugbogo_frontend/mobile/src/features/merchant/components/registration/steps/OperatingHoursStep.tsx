@@ -37,7 +37,7 @@ export default function OperatingHoursStep() {
           return (
             <Pressable
               key={day}
-              className="flex-row items-center justify-between rounded-xl border border-border px-4 py-4"
+              className="flex-row items-center justify-between rounded-xl border border-border-primary px-4 py-4"
               onPress={() => {
                 // open time picker later
               }}

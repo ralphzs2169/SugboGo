@@ -1,20 +1,19 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useState, useRef } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import { reverseGeocode } from "@/shared/api/googlePlaces.service";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 
-import BusinessLocationConfirmationSheet from "../components/registration/BusinessLocationConfirmationSheet";
-import BusinessLocationMap from "../components/registration/BusinessLocationMap";
-import BusinessLocationSearch from "../components/registration/BusinessLocationSearch";
-import BusinessLocationEmptyState from "../components/registration/BusinessLocationEmptyState";
+import LocationPickerHeader from "../components/registration/location/LocationPickerHeader";
+import LocationConfirmationSheet from "../components/registration/location/LocationConfirmationSheet";
+import LocationMap from "../components/registration/location/LocationMap";
+import LocationSelectionInfoSheet from "../components/registration/location/LocationSelectionInfoSheet";
 
 type BusinessLocationPickerScreenProps = {
   initialLocation: BusinessLocation | null;
   onConfirm: (location: BusinessLocation) => void;
   onClose: () => void;
+  isConfirming: boolean;
 };
 
 /**
@@ -28,6 +27,7 @@ export default function BusinessLocationPickerScreen({
   initialLocation,
   onConfirm,
   onClose,
+  isConfirming,
 }: BusinessLocationPickerScreenProps) {
   // Search bar state
   const [searchText, setSearchText] = useState("");
@@ -93,45 +93,32 @@ export default function BusinessLocationPickerScreen({
 
   return (
     <View className="flex-1 bg-background">
-      <SafeAreaView
-        edges={["top"]}
-        className="absolute left-0 right-0 top-0 z-10"
-      >
-        <View className="px-4 pt-2">
-          <Pressable
-            onPress={onClose}
-            className="h-10 w-10 items-center justify-center"
-          >
-            <MaterialCommunityIcons
-              name="arrow-left"
-              size={24}
-              color="#1B4D3E"
-            />
-          </Pressable>
+      <LocationPickerHeader
+        value={searchText}
+        onChangeText={setSearchText}
+        onPlaceSelect={handleLocationSelect}
+        onSuggestionsVisibleChange={setSuggestionsOpen}
+        onClose={onClose}
+      />
 
-          <BusinessLocationSearch
-            value={searchText}
-            onChangeText={setSearchText}
-            onPlaceSelect={handleLocationSelect}
-            onSuggestionsVisibleChange={setSuggestionsOpen}
-          />
-        </View>
-      </SafeAreaView>
-
-      <BusinessLocationMap
+      <LocationMap
         latitude={selectedLocation?.latitude ?? null}
         longitude={selectedLocation?.longitude ?? null}
-        onLocationSelect={suggestionsOpen ? undefined : handleMapLocationSelect}
+        onLocationSelect={
+          suggestionsOpen || isConfirming ? undefined : handleMapLocationSelect
+        }
+        interactionEnabled={!isConfirming}
         fullScreen
       />
 
-      {!hasSelectedLocation && <BusinessLocationEmptyState />}
+      {!hasSelectedLocation && <LocationSelectionInfoSheet />}
 
       {hasSelectedLocation && (
-        <BusinessLocationConfirmationSheet
+        <LocationConfirmationSheet
           address={selectedLocation?.formattedAddress || "Address unavailable"}
           isResolvingAddress={isResolvingAddress}
           onConfirm={handleConfirm}
+          isConfirming={isConfirming}
         />
       )}
     </View>

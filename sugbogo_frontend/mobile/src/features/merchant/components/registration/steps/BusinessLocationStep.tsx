@@ -3,7 +3,7 @@ import { useFormContext } from "react-hook-form";
 import { router } from "expo-router";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
-import BusinessLocationMap from "../BusinessLocationMap";
+import BusinessLocationMap from "../location/LocationMap";
 import RegistrationSection from "../RegistrationSection";
 import LandmarksSection from "../landmark/LandmarksSection";
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
@@ -55,7 +55,7 @@ export default function BusinessLocationStep() {
       <RegistrationSection
         icon="map-marker-radius-outline"
         title="Pin Your Business Location"
-        description="Tip: Place the pin as close as possible to your actual business location. You can edit the address details below if needed."
+        description="Place the pin as close as possible to your actual business location. You can edit the address details below if needed."
         showBorder={false}
       >
         <BusinessLocationMap
@@ -70,7 +70,7 @@ export default function BusinessLocationStep() {
       <RegistrationSection
         icon="home-map-marker"
         title="Address Details"
-        description="Review the detected address and complete any missing information."
+        description="Address details are automatically retrieved after you pin your business location. Review and update any missing information."
       >
         <RHFFormInput
           name="province"
@@ -121,7 +121,12 @@ export default function BusinessLocationStep() {
         <RHFFormInput
           name="unit"
           label="Unit / Building (Optional)"
-          placeholder="e.g. Unit 201, 2nd Floor"
+          editable={hasSelectedLocation}
+          placeholder={
+            hasSelectedLocation
+              ? "e.g. Unit 201, 2nd Floor"
+              : "Select a location first"
+          }
         />
       </RegistrationSection>
 

@@ -24,7 +24,7 @@ export default function InterestTag({
     <TouchableOpacity
       onPress={onPress}
       className={`m-1 rounded-tag border px-4 py-2 ${
-        isSelected ? "border-brand bg-brand" : "border-disabled bg-white"
+        isSelected ? "border-brand bg-brand" : "border-border-disabled bg-white"
       }`}
     >
       <Text

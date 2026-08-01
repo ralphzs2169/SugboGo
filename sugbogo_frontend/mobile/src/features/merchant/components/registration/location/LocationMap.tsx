@@ -8,13 +8,15 @@ import MapView, {
   PROVIDER_GOOGLE,
 } from "react-native-maps";
 import { theme } from "@/constants/theme";
+import MapMarker from "@/shared/components/MapMarker";
 
-type BusinessLocationMapProps = {
+type LocationMapProps = {
   latitude: number | null;
   longitude: number | null;
   onOpenPicker?: () => void;
   onLocationSelect?: (latitude: number, longitude: number) => void;
   fullScreen?: boolean;
+  interactionEnabled?: boolean;
 };
 
 const PREVIEW_MAP_HEIGHT = 256;
@@ -29,6 +31,12 @@ const DEFAULT_MAP_REGION = {
   longitudeDelta: INITIAL_LOCATION_DELTA,
 };
 
+const MAP_STYLE = [
+  {
+    featureType: "poi.business",
+    stylers: [{ visibility: "off" }],
+  },
+];
 /**
  * Displays a Google Map for the business location flow.
  *
@@ -47,7 +55,8 @@ export default function BusinessLocationMap({
   onOpenPicker,
   onLocationSelect,
   fullScreen = false,
-}: BusinessLocationMapProps) {
+  interactionEnabled = true,
+}: LocationMapProps) {
   const mapRef = useRef<MapView>(null);
   const [isMapReady, setIsMapReady] = useState(false);
 
@@ -103,34 +112,48 @@ export default function BusinessLocationMap({
       MAP_ANIMATION_DURATION,
     );
 
+    if (mapPressGuardTimeout.current) {
+      clearTimeout(mapPressGuardTimeout.current);
+    }
+
     // Keep the guard active slightly longer than the animation to
     // account for the map event being dispatched after the animation.
-    setTimeout(() => {
+    mapPressGuardTimeout.current = setTimeout(() => {
       isMapPressGuardActive.current = false;
     }, MAP_ANIMATION_DURATION + 100);
   }
 
-  // Clear any previous guard timeout before starting a new one.
-  if (mapPressGuardTimeout.current) {
-    clearTimeout(mapPressGuardTimeout.current);
-  }
   // Recenter the map whenever the selected location or map readiness changes.
   useEffect(() => {
     moveToSelectedLocation();
   }, [latitude, longitude, isMapReady]);
 
+  useEffect(() => {
+    return () => {
+      if (mapPressGuardTimeout.current) {
+        clearTimeout(mapPressGuardTimeout.current);
+      }
+    };
+  }, []);
+
   const map = (
     <MapView
       ref={mapRef}
       provider={PROVIDER_GOOGLE}
+      customMapStyle={MAP_STYLE}
       pointerEvents={onLocationSelect ? "auto" : "none"}
       style={{
         width: "100%",
         height: fullScreen ? "100%" : PREVIEW_MAP_HEIGHT,
       }}
       onMapReady={() => setIsMapReady(true)}
-      onPress={handleMapPress}
+      onPress={interactionEnabled ? handleMapPress : undefined}
       initialRegion={DEFAULT_MAP_REGION}
+
+      scrollEnabled={interactionEnabled}
+      zoomEnabled={interactionEnabled}
+      rotateEnabled={interactionEnabled}
+      pitchEnabled={interactionEnabled}
     >
       {hasSelectedLocation && (
         <Marker
@@ -138,7 +161,11 @@ export default function BusinessLocationMap({
             latitude,
             longitude,
           }}
-        />
+        >
+          <View collapsable={false}>
+            <MapMarker variant="business" />
+          </View>
+        </Marker>
       )}
     </MapView>
   );
@@ -184,8 +211,6 @@ export default function BusinessLocationMap({
                 </Text>
               </View>
             ) : (
-              // Empty: dim the whole map and prompt clearly, since there's
-              // nothing meaningful to look at yet.
               <>
                 <View
                   pointerEvents="none"
@@ -200,7 +225,7 @@ export default function BusinessLocationMap({
                     <MaterialCommunityIcons
                       name="map-marker-plus-outline"
                       size={26}
-                      color="#1B4D3E"
+                      color={theme.extends.colors.brand}
                     />
                     <Text className="mt-1 text-center text-base font-semibold text-text-primary">
                       Select your business location

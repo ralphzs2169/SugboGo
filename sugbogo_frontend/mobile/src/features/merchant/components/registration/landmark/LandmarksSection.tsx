@@ -1,12 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useFormContext } from "react-hook-form";
 import { router } from "expo-router";
 import { useEffect } from "react";
+import { theme } from "@/constants/theme";
 import LandmarkCard from "./LandmarkCard";
-import LandmarksEmptyState from "./LandmarksEmptyState";
-import LandmarkCapacityHint from "./LandmarkCapacityHint";
-
+import LandmarksEmptyState from "./LandmarkEmptyState";
+import Button from "@/shared/components/Button";
+import LandmarksDisabledState from "./LandmarkDisabledState";
 import RegistrationSection from "../RegistrationSection";
 import { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
@@ -39,6 +40,8 @@ export default function LandmarksSection() {
     (state) => state.selectedLocation,
   );
 
+  const hasSelectedLocation = selectedLocation !== null;
+
   const remainingLandmarks = MAX_SELECTED_LANDMARKS - selectedLandmarks.length;
 
   useEffect(() => {
@@ -61,9 +64,11 @@ export default function LandmarksSection() {
     <RegistrationSection
       icon="map-marker-radius-outline"
       title="Nearby Landmarks"
-      description="Help explorers find your business."
+      description="Nearby landmarks are automatically suggested after you pin your business location. Review them and add custom landmarks if needed."
     >
-      {selectedLandmarks.length === 0 ? (
+      {!hasSelectedLocation ? (
+        <LandmarksDisabledState />
+      ) : selectedLandmarks.length === 0 ? (
         <LandmarksEmptyState />
       ) : (
         <View className="gap-2">
@@ -77,37 +82,23 @@ export default function LandmarksSection() {
         </View>
       )}
 
-      {remainingLandmarks > 0 && (
-        <LandmarkCapacityHint
-          remaining={remainingLandmarks}
-          max={MAX_SELECTED_LANDMARKS}
+      {hasSelectedLocation && (
+        <Button
+          title="Add Custom Landmark"
+          variant="soft"
+          icon={
+            <MaterialCommunityIcons
+              name="map-marker-plus-outline"
+              size={20}
+              color={theme.extends.colors.brand}
+            />
+          }
+          className="mt-6"
+          fontClassName="text-sm"
+          onPress={handlePickCustomLandmark}
+          disabled={selectedLandmarks.length >= MAX_SELECTED_LANDMARKS}
         />
       )}
-      <Pressable
-        onPress={handlePickCustomLandmark}
-        disabled={
-          !selectedLocation ||
-          selectedLandmarks.length >= MAX_SELECTED_LANDMARKS
-        }
-        className="mt-3 flex-row items-center justify-center rounded-xl border border-gray-200 px-4 py-3"
-        style={{
-          opacity:
-            !selectedLocation ||
-            selectedLandmarks.length >= MAX_SELECTED_LANDMARKS
-              ? 0.45
-              : 1,
-        }}
-      >
-        <MaterialCommunityIcons
-          name="map-marker-plus-outline"
-          size={20}
-          color="#1B4D3E"
-        />
-
-        <Text className="ml-2 text-sm font-semibold text-text-primary">
-          Add custom landmark
-        </Text>
-      </Pressable>
 
       <Text className="mt-3 text-center text-xs font-medium text-text-secondary">
         Selected: {selectedLandmarks.length} / {MAX_SELECTED_LANDMARKS}

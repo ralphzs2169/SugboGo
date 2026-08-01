@@ -31,7 +31,7 @@ export default function RegistrationStepper({
   title,
 }: RegistrationStepperProps) {
   return (
-    <View className="bg-surface pb-4 pt-2 border-b border-border">
+    <View className="bg-surface pb-4 pt-2 border-b border-border-primary">
       <Text
         className="mb-4 text-sm font-medium text-text-secondary"
         style={{ marginLeft: STEP_CIRCLE_SIZE / 2 }}
@@ -55,7 +55,7 @@ export default function RegistrationStepper({
                 <View
                   className={[
                     "absolute rounded-full",
-                    step < currentStep ? "bg-brand" : "bg-border",
+                    step < currentStep ? "bg-brand" : "bg-border-primary",
                   ].join(" ")}
                   style={{
                     left: STEP_CIRCLE_SIZE / 2,
@@ -78,7 +78,7 @@ export default function RegistrationStepper({
                     ? "border-brand bg-brand"
                     : isCurrent
                       ? "border-brand bg-white"
-                      : "border-border bg-surface",
+                      : "border-border-primary bg-surface",
                 ].join(" ")}
               >
                 {isCompleted ? (

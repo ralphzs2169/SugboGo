@@ -8,7 +8,7 @@ type MapPlaceholderProps = {
 
 export default function MapPlaceholder({ onPress }: MapPlaceholderProps) {
   return (
-    <View className="overflow-hidden rounded-2xl border border-border bg-background">
+    <View className="overflow-hidden rounded-2xl border border-border-primary bg-background">
       <View className="h-56 items-center justify-center">
         <MaterialCommunityIcons
           name="map-marker-radius-outline"
@@ -25,7 +25,7 @@ export default function MapPlaceholder({ onPress }: MapPlaceholderProps) {
         </Text>
       </View>
 
-      <View className="border-t border-border p-4">
+      <View className="border-t border-border-primary p-4">
         <Button title="Select Location" onPress={onPress ?? (() => {})} />
       </View>
     </View>

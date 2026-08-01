@@ -8,6 +8,7 @@ import { theme } from "@/constants/theme";
 type BusinessLocationConfirmationSheetProps = {
   address: string;
   isResolvingAddress: boolean;
+  isConfirming: boolean;
   onConfirm: () => void;
 };
 
@@ -22,6 +23,7 @@ export default function BusinessLocationConfirmationSheet({
   address,
   isResolvingAddress,
   onConfirm,
+  isConfirming,
 }: BusinessLocationConfirmationSheetProps) {
   const hasAddress = address.trim().length > 0;
 
@@ -71,7 +73,7 @@ export default function BusinessLocationConfirmationSheet({
         <Button
           title="Confirm Location"
           onPress={onConfirm}
-          disabled={isResolvingAddress}
+          disabled={isResolvingAddress || isConfirming}
           className="mt-4"
           fontClassName="font-bold"
         />

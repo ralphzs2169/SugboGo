@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useState, useEffect } from "react";
 
-import usePlaceSearch from "../../hooks/registration/usePlaceSearch";
+import usePlaceSearch from "../../../hooks/registration/usePlaceSearch";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 import { theme } from "@/constants/theme";
 
@@ -97,7 +97,7 @@ export default function BusinessLocationSearch({
 
   return (
     <View className="relative z-10 mb-3">
-      <View className="h-[52px] flex-row items-center rounded-md border border-gray-300 bg-white px-4">
+      <View className="h-[46px] flex-row items-center rounded-md border border-gray-300 bg-white px-4">
         <MaterialCommunityIcons name="magnify" size={22} color="#6B7280" />
 
         <TextInput
@@ -109,7 +109,7 @@ export default function BusinessLocationSearch({
           placeholder="Search your business location"
           placeholderTextColor="#9CA3AF"
           returnKeyType="search"
-          className="ml-2 flex-1 text-[15px] text-gray-800"
+          className="ml-2 flex-1 text-[12px] text-gray-800"
         />
 
         {isLoading && (

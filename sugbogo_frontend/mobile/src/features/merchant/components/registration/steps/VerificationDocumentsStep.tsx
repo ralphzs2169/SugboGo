@@ -65,7 +65,7 @@ function DocumentUploadCard({
   uploaded,
 }: DocumentUploadCardProps) {
   return (
-    <Pressable className="mb-4 rounded-xl border border-border px-4 py-4">
+    <Pressable className="mb-4 rounded-xl border border-border-primary px-4 py-4">
       <View className="flex-row items-center">
         <MaterialCommunityIcons name={icon} size={24} color="#F27F0D" />
 
@@ -81,7 +81,7 @@ function DocumentUploadCard({
         </View>
       </View>
 
-      <View className="mt-4 flex-row items-center justify-center rounded-lg border border-dashed border-border py-5">
+      <View className="mt-4 flex-row items-center justify-center rounded-lg border border-dashed border-border-primary py-5">
         <MaterialCommunityIcons
           name={uploaded ? "check-circle-outline" : "cloud-upload-outline"}
           size={22}
