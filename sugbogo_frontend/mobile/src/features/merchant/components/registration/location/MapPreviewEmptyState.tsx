@@ -7,7 +7,7 @@ import { theme } from "@/constants/theme";
  * Overlay displayed when no business location has
  * been selected yet in the preview map.
  */
-export default function LocationMapEmptyState() {
+export default function MapPreviewEmptyState() {
   return (
     <>
       <View pointerEvents="none" className="absolute inset-0 bg-black/35" />

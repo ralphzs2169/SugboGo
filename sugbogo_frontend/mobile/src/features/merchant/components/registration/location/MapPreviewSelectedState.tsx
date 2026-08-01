@@ -1,7 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
-export default function LocationMapSelectedState() {
+/**
+ * Overlay displayed when a business location has
+ * already been selected in the preview map.
+ */
+export default function MapPreviewSelectedState() {
   return (
     <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/55 px-4 py-3">
       <View className="flex-row items-center gap-2">

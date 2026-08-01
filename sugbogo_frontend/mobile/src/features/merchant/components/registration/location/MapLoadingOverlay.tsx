@@ -6,6 +6,10 @@ type Props = {
   visible: boolean;
 };
 
+/**
+ * Displays a loading overlay while the Google Map
+ * finishes initializing.
+ */
 export default function MapLoadingOverlay({ visible }: Props) {
   if (!visible) {
     return null;
