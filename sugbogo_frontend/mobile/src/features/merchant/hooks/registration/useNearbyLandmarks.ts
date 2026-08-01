@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 
 import { searchNearbyLandmarksService } from "@/shared/api/googlePlaces.service";
 import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 /**
  * Manages nearby landmark suggestions for a selected business location.
@@ -21,15 +22,39 @@ export default function useNearbyLandmarks() {
     async (
       latitude: number,
       longitude: number,
-    ): Promise<BusinessLandmark[]> => {
+    ): Promise<{
+      success: boolean;
+      landmarks: BusinessLandmark[];
+    }> => {
       setIsLoadingLandmarks(true);
 
       try {
-        const results = await searchNearbyLandmarksService(latitude, longitude);
+        const response = await searchNearbyLandmarksService(
+          latitude,
+          longitude,
+        );
+
+        if (!response.success) {
+          if (response.code === "RATE_LIMIT_EXCEEDED") {
+            setLandmarks([]);
+            return {
+              success: false,
+              landmarks: [],
+            };
+          }
+
+          handleSystemError(response);
+
+          setLandmarks([]);
+          return {
+            success: false,
+            landmarks: [],
+          };
+        }
 
         const mappedLandmarks: BusinessLandmark[] = [];
 
-        for (const landmark of results) {
+        for (const landmark of response.data.landmarks) {
           if (!landmark.placeId) {
             continue;
           }
@@ -46,12 +71,19 @@ export default function useNearbyLandmarks() {
         }
 
         setLandmarks(mappedLandmarks);
-        return mappedLandmarks;
+
+        return {
+          success: true,
+          landmarks: mappedLandmarks,
+        };
       } catch (error) {
         console.error("Failed to load nearby landmarks:", error);
 
         setLandmarks([]);
-        return [];
+        return {
+          success: false,
+          landmarks: [],
+        };
       } finally {
         setIsLoadingLandmarks(false);
       }

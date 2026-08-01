@@ -10,7 +10,7 @@ import { theme } from "@/constants/theme";
  * Instructs the merchant to search for a place or tap directly
  * on the map to choose their business location.
  */
-export default function BusinessLocationEmptyState() {
+export default function BottomSelectionInfoSheet() {
   return (
     <View className="absolute bottom-0 left-0 right-0">
       <SafeAreaView edges={["bottom"]}>

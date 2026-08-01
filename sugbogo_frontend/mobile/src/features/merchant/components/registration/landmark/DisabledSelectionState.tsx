@@ -6,7 +6,7 @@ import { Text, View } from "react-native";
  * Placeholder displayed until a business location
  * has been selected.
  */
-export default function LandmarksDisabledState() {
+export default function DisabledSelectionState() {
   return (
     <View className="items-center rounded-xl border border-border-disabled bg-disabled px-4 py-6">
       <MaterialCommunityIcons

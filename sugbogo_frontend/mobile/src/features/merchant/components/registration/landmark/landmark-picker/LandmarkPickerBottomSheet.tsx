@@ -14,6 +14,7 @@ type LandmarkPickerBottomSheetProps = {
   canSubmit: boolean;
   onNameChange: (text: string) => void;
   onConfirm: () => void;
+  landmarkNameError?: string;
 };
 
 /**
@@ -30,6 +31,7 @@ export default function LandmarkPickerBottomSheet({
   canSubmit,
   onNameChange,
   onConfirm,
+  landmarkNameError,
 }: LandmarkPickerBottomSheetProps) {
   return (
     <View
@@ -89,6 +91,7 @@ export default function LandmarkPickerBottomSheet({
                     value={landmarkName}
                     onChangeText={onNameChange}
                     maxLength={50}
+                    error={landmarkNameError}
                   />
                 </View>
 

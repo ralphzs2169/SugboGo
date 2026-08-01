@@ -162,6 +162,11 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "resend_verification": "10/hour",
         "forgot_password": "10/hour",
+
+        "place_search": "10/min",
+        "place_details": "5/min",
+        "reverse_geocode": "5/min",
+        "nearby_landmarks": "3/min",
     },
 
     # Custom exception handler for consistent error responses

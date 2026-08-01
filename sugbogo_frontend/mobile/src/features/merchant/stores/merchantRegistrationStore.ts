@@ -21,6 +21,9 @@ type MerchantRegistrationState = {
   /** Sets the currently selected business location. */
   setSelectedLocation: (location: BusinessLocation) => void;
 
+  nearbyLandmarksLoadFailed: boolean;
+  addressLoadFailed: boolean;
+
   /** Sets the currently selected nearby landmarks. */
   setSelectedLandmarks: (landmarks: BusinessLandmark[]) => void;
 
@@ -29,6 +32,9 @@ type MerchantRegistrationState = {
 
   /** Clears all currently selected nearby landmarks. */
   clearSelectedLandmarks: () => void;
+
+  setAddressLoadFailed: (failed: boolean) => void;
+  setNearbyLandmarksLoadFailed: (failed: boolean) => void;
 };
 
 // Zustand store for managing merchant registration state.
@@ -36,6 +42,8 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
   (set) => ({
     selectedLocation: null,
     selectedLandmarks: [],
+    nearbyLandmarksLoadFailed: false,
+    addressLoadFailed: false,
 
     setSelectedLocation: (location) =>
       set({
@@ -55,6 +63,16 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
     clearSelectedLandmarks: () =>
       set({
         selectedLandmarks: [],
+      }),
+
+    setAddressLoadFailed: (failed) =>
+      set({
+        addressLoadFailed: failed,
+      }),
+
+    setNearbyLandmarksLoadFailed: (failed) =>
+      set({
+        nearbyLandmarksLoadFailed: failed,
       }),
   }),
 );

@@ -6,6 +6,7 @@ import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchan
 import useNearbyLandmarks from "@/features/merchant/hooks/registration/useNearbyLandmarks";
 import LocationPickerScreen from "@/features/merchant/screens/LocationPickerScreen";
 import Toast from "react-native-toast-message";
+
 /**
  * Route wrapper for the full-screen business location picker.
  *
@@ -25,11 +26,21 @@ export default function BusinessLocationPickerPage() {
     (state) => state.selectedLandmarks,
   );
 
-  const [pendingLocation, setPendingLocation] =
-    useState<BusinessLocation | null>(null);
+  const [pendingLocation, setPendingLocation] = useState<{
+    location: BusinessLocation;
+    addressLoadFailed: boolean;
+  } | null>(null);
 
   const setSelectedLandmarks = useMerchantRegistrationStore(
     (state) => state.setSelectedLandmarks,
+  );
+
+  const setNearbyLandmarksLoadFailed = useMerchantRegistrationStore(
+    (state) => state.setNearbyLandmarksLoadFailed,
+  );
+
+  const setAddressLoadFailed = useMerchantRegistrationStore(
+    (state) => state.setAddressLoadFailed,
   );
 
   const { searchNearbyLandmarks } = useNearbyLandmarks();
@@ -37,17 +48,22 @@ export default function BusinessLocationPickerPage() {
 
   const [isRefreshingLandmarks, setIsRefreshingLandmarks] = useState(false);
 
-  async function confirmLocation(location: BusinessLocation) {
+  async function confirmLocation(
+    location: BusinessLocation,
+    addressLoadFailed: boolean,
+  ) {
     setIsRefreshingLandmarks(true);
 
     try {
-      const nearbyLandmarks = await searchNearbyLandmarks(
+      const result = await searchNearbyLandmarks(
         location.latitude,
         location.longitude,
       );
 
       setSelectedLocation(location);
-      setSelectedLandmarks(nearbyLandmarks);
+      setSelectedLandmarks(result.landmarks);
+      setNearbyLandmarksLoadFailed(!result.success);
+      setAddressLoadFailed(addressLoadFailed);
 
       setShowRefreshModal(false);
       setPendingLocation(null);
@@ -74,7 +90,10 @@ export default function BusinessLocationPickerPage() {
     router.back();
   }
 
-  function handleConfirm(location: BusinessLocation) {
+  function handleConfirm(
+    location: BusinessLocation,
+    addressLoadFailed: boolean,
+  ) {
     const locationChanged =
       !selectedLocation ||
       selectedLocation.latitude !== location.latitude ||
@@ -86,12 +105,15 @@ export default function BusinessLocationPickerPage() {
     }
 
     if (selectedLandmarks.length > 0) {
-      setPendingLocation(location);
+      setPendingLocation({
+        location,
+        addressLoadFailed,
+      });
       setShowRefreshModal(true);
       return;
     }
 
-    confirmLocation(location);
+    confirmLocation(location, addressLoadFailed);
   }
 
   return (
@@ -100,6 +122,7 @@ export default function BusinessLocationPickerPage() {
         initialLocation={selectedLocation}
         onConfirm={handleConfirm}
         onClose={handleClose}
+        isConfirming={isRefreshingLandmarks}
       />
 
       <ConfirmModal
@@ -122,7 +145,10 @@ export default function BusinessLocationPickerPage() {
             return;
           }
 
-          confirmLocation(pendingLocation);
+          confirmLocation(
+            pendingLocation.location,
+            pendingLocation.addressLoadFailed,
+          );
         }}
         isLoading={isRefreshingLandmarks}
         loadingText="Loading nearby landmarks..."

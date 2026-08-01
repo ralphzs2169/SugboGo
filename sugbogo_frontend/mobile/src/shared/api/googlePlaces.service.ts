@@ -1,63 +1,78 @@
 import { PlaceSuggestion } from "../types/BusinessLocation.types";
+import { ApiResponse } from "../types/apiResponse.types";
+import { request } from "./request.service";
 import apiClient from "./apiClient.service";
 import {
   BusinessLandmark,
   BusinessLocation,
 } from "../types/BusinessLocation.types";
+
 /**
  * Searches for business location suggestions through the
  * SugboGo backend location service.
  */
-export async function searchPlaces(input: string): Promise<PlaceSuggestion[]> {
-  const response = await apiClient.post("/registration/places/search/", {
-    input,
-  });
-
-  return response.data.data.suggestions;
+export function searchPlaces(
+  input: string,
+): Promise<ApiResponse<{ suggestions: PlaceSuggestion[] }>> {
+  return request(
+    apiClient.post<ApiResponse<{ suggestions: PlaceSuggestion[] }>>(
+      "/registration/places/search/",
+      { input },
+    ),
+  );
 }
 
 /**
  * Retrieves the coordinates and structured address details
  * for a selected place through the SugboGo backend.
  */
-export async function getPlaceDetails(
+export function getPlaceDetails(
   placeId: string,
-): Promise<BusinessLocation> {
-  const response = await apiClient.post("/registration/places/details/", {
-    place_id: placeId,
-  });
-
-  return response.data.data.location;
+): Promise<ApiResponse<{ location: BusinessLocation }>> {
+  return request(
+    apiClient.post<ApiResponse<{ location: BusinessLocation }>>(
+      "/registration/places/details/",
+      { place_id: placeId },
+    ),
+  );
 }
 
 /**
  * Resolves geographic coordinates into structured address
  * details through the SugboGo backend.
  */
-export async function reverseGeocode(
+export function reverseGeocode(
   latitude: number,
   longitude: number,
-): Promise<BusinessLocation> {
-  const response = await apiClient.post("/registration/reverse-geocode/", {
-    latitude,
-    longitude,
-  });
-
-  return {
-    latitude,
-    longitude,
-    ...response.data.data.address,
-  };
+): Promise<
+  ApiResponse<{ address: Omit<BusinessLocation, "latitude" | "longitude"> }>
+> {
+  return request(
+    apiClient.post<
+      ApiResponse<{
+        address: Omit<BusinessLocation, "latitude" | "longitude">;
+      }>
+    >("/registration/reverse-geocode/", {
+      latitude,
+      longitude,
+    }),
+  );
 }
 
-export async function searchNearbyLandmarksService(
+/**
+ * Retrieves nearby landmarks for the given geographic coordinates.
+ */
+export function searchNearbyLandmarksService(
   latitude: number,
   longitude: number,
-): Promise<BusinessLandmark[]> {
-  const response = await apiClient.post("/registration/nearby-landmarks/", {
-    latitude,
-    longitude,
-  });
-
-  return response.data.data.landmarks;
+): Promise<ApiResponse<{ landmarks: BusinessLandmark[] }>> {
+  return request(
+    apiClient.post<ApiResponse<{ landmarks: BusinessLandmark[] }>>(
+      "/registration/nearby-landmarks/",
+      {
+        latitude,
+        longitude,
+      },
+    ),
+  );
 }

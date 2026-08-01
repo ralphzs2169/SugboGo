@@ -5,13 +5,16 @@ import { reverseGeocode } from "@/shared/api/googlePlaces.service";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 
 import LocationPickerHeader from "../components/registration/location/LocationPickerHeader";
-import LocationConfirmationSheet from "../components/registration/location/LocationConfirmationSheet";
-import LocationMap from "../components/registration/location/LocationMap";
-import LocationSelectionInfoSheet from "../components/registration/location/LocationSelectionInfoSheet";
+import ConfirmLocationSheet from "../components/registration/location/ConfirmLocationSheet";
+import LocationPickerMap from "../components/registration/location/LocationPickerMap";
+import BottomSelectionInfoSheet from "../components/registration/location/BottomSelectionInfoSheet";
+
+import Toast from "react-native-toast-message";
+import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
 
 type BusinessLocationPickerScreenProps = {
   initialLocation: BusinessLocation | null;
-  onConfirm: (location: BusinessLocation) => void;
+  onConfirm: (location: BusinessLocation, addressLoadFailed: boolean) => void;
   onClose: () => void;
   isConfirming: boolean;
 };
@@ -39,6 +42,8 @@ export default function BusinessLocationPickerScreen({
   const hasSelectedLocation = selectedLocation !== null;
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
+  const [addressLoadFailed, setAddressLoadFailed] = useState(false);
+
   // Tracks each location selection attempt with a growing number, so if an
   // older request's data comes back after a newer one, we can tell it's stale and ignore it.
   const selectionRequestId = useRef(0);
@@ -46,6 +51,7 @@ export default function BusinessLocationPickerScreen({
   // Update the local selection when a place is chosen from search results.
   function handleLocationSelect(location: BusinessLocation) {
     ++selectionRequestId.current; // invalidate any in-flight map selection
+    setAddressLoadFailed(false);
     setSelectedLocation(location);
   }
 
@@ -56,17 +62,49 @@ export default function BusinessLocationPickerScreen({
     setIsResolvingAddress(true);
 
     try {
-      const location = await reverseGeocode(latitude, longitude);
+      const response = await reverseGeocode(latitude, longitude);
 
+      // A newer selection has happened while this request was running.
       if (requestId !== selectionRequestId.current) {
-        return; // a newer selection (search or another tap) has since happened — discard
+        return;
       }
 
-      setSelectedLocation(location);
+      if (!response.success) {
+        setAddressLoadFailed(true);
+        if (response.code === "RATE_LIMIT_EXCEEDED") {
+          const retryAfter = response.errors?.retry_after as number | undefined;
+
+          Toast.show({
+            type: "error",
+            text1: "Too many taps",
+            text2: getRetryAfterMessage(retryAfter),
+          });
+        }
+
+        console.error("Failed to reverse geocode location:", response.message);
+        setSelectedLocation({
+          latitude,
+          longitude,
+          formattedAddress: "",
+          province: "",
+          city: "",
+          barangay: "",
+          streetAddress: "",
+        });
+        return;
+      }
+
+      setAddressLoadFailed(false);
+      setSelectedLocation({
+        latitude,
+        longitude,
+        ...response.data.address,
+      });
     } catch (error) {
       console.error("Failed to reverse geocode location:", error);
 
       if (requestId === selectionRequestId.current) {
+        setAddressLoadFailed(true);
         setSelectedLocation({
           latitude,
           longitude,
@@ -88,7 +126,7 @@ export default function BusinessLocationPickerScreen({
       return;
     }
 
-    onConfirm(selectedLocation);
+    onConfirm(selectedLocation, addressLoadFailed);
   }
 
   return (
@@ -101,7 +139,7 @@ export default function BusinessLocationPickerScreen({
         onClose={onClose}
       />
 
-      <LocationMap
+      <LocationPickerMap
         latitude={selectedLocation?.latitude ?? null}
         longitude={selectedLocation?.longitude ?? null}
         onLocationSelect={
@@ -111,10 +149,10 @@ export default function BusinessLocationPickerScreen({
         fullScreen
       />
 
-      {!hasSelectedLocation && <LocationSelectionInfoSheet />}
+      {!hasSelectedLocation && <BottomSelectionInfoSheet />}
 
       {hasSelectedLocation && (
-        <LocationConfirmationSheet
+        <ConfirmLocationSheet
           address={selectedLocation?.formattedAddress || "Address unavailable"}
           isResolvingAddress={isResolvingAddress}
           onConfirm={handleConfirm}

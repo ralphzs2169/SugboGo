@@ -1,7 +1,7 @@
 from core.responses import error_response, success_response
 from requests import RequestException
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 
 from apps.registration.serializers.location_serializers import (
@@ -10,11 +10,18 @@ from apps.registration.serializers.location_serializers import (
     PlaceSearchSerializer,
     ReverseGeocodeSerializer,
 )
+from apps.registration.throttles import (
+    NearbyLandmarksThrottle,
+    PlaceDetailsThrottle,
+    PlaceSearchThrottle,
+    ReverseGeocodeThrottle,
+)
 from apps.shared.services.google_maps_service import GoogleMapsService
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@throttle_classes([ReverseGeocodeThrottle])
 def reverse_geocode_view(request):
     """Return the formatted address for the provided coordinates."""
 
@@ -50,6 +57,7 @@ def reverse_geocode_view(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@throttle_classes([PlaceSearchThrottle])
 def place_search_view(request):
     """Return place suggestions matching the provided search input."""
 
@@ -81,6 +89,7 @@ def place_search_view(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@throttle_classes([PlaceDetailsThrottle])
 def place_details_view(request):
     """Return location and address details for the provided place ID."""
 
@@ -112,6 +121,7 @@ def place_details_view(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@throttle_classes([NearbyLandmarksThrottle])
 def nearby_landmarks_view(request):
     """Returns nearby places that may be useful as business landmarks."""
 

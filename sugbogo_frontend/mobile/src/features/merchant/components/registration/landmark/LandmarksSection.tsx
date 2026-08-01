@@ -6,8 +6,10 @@ import { useEffect } from "react";
 import { theme } from "@/constants/theme";
 import LandmarkCard from "./LandmarkCard";
 import LandmarksEmptyState from "./LandmarkEmptyState";
+import LandmarksLoadFailedState from "./landmark-picker/LandmarksFailedLoadtState";
 import Button from "@/shared/components/Button";
-import LandmarksDisabledState from "./LandmarkDisabledState";
+import CapacityHint from "./CapacityHint";
+import DisabledSelectionState from "./DisabledSelectionState";
 import RegistrationSection from "../RegistrationSection";
 import { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
@@ -40,6 +42,10 @@ export default function LandmarksSection() {
     (state) => state.selectedLocation,
   );
 
+  const nearbyLandmarksLoadFailed = useMerchantRegistrationStore(
+    (state) => state.nearbyLandmarksLoadFailed,
+  );
+
   const hasSelectedLocation = selectedLocation !== null;
 
   const remainingLandmarks = MAX_SELECTED_LANDMARKS - selectedLandmarks.length;
@@ -67,7 +73,9 @@ export default function LandmarksSection() {
       description="Nearby landmarks are automatically suggested after you pin your business location. Review them and add custom landmarks if needed."
     >
       {!hasSelectedLocation ? (
-        <LandmarksDisabledState />
+        <DisabledSelectionState />
+      ) : nearbyLandmarksLoadFailed ? (
+        <LandmarksLoadFailedState />
       ) : selectedLandmarks.length === 0 ? (
         <LandmarksEmptyState />
       ) : (
@@ -83,21 +91,27 @@ export default function LandmarksSection() {
       )}
 
       {hasSelectedLocation && (
-        <Button
-          title="Add Custom Landmark"
-          variant="soft"
-          icon={
-            <MaterialCommunityIcons
-              name="map-marker-plus-outline"
-              size={20}
-              color={theme.extends.colors.brand}
-            />
-          }
-          className="mt-6"
-          fontClassName="text-sm"
-          onPress={handlePickCustomLandmark}
-          disabled={selectedLandmarks.length >= MAX_SELECTED_LANDMARKS}
-        />
+        <>
+          <CapacityHint
+            remaining={remainingLandmarks}
+            max={MAX_SELECTED_LANDMARKS}
+          />
+          <Button
+            title="Add Custom Landmark"
+            variant="soft"
+            icon={
+              <MaterialCommunityIcons
+                name="map-marker-plus-outline"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            }
+            className="mt-6"
+            fontClassName="text-sm"
+            onPress={handlePickCustomLandmark}
+            disabled={selectedLandmarks.length >= MAX_SELECTED_LANDMARKS}
+          />
+        </>
       )}
 
       <Text className="mt-3 text-center text-xs font-medium text-text-secondary">

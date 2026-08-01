@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Button from "@/shared/components/Button";
 import { theme } from "@/constants/theme";
 
-type BusinessLocationConfirmationSheetProps = {
+type ConfirmLocationSheetProps = {
   address: string;
   isResolvingAddress: boolean;
   isConfirming: boolean;
@@ -19,12 +19,12 @@ type BusinessLocationConfirmationSheetProps = {
  * The address is resolved from the selected coordinates, while
  * the final location is only committed after confirmation.
  */
-export default function BusinessLocationConfirmationSheet({
+export default function ConfirmLocationSheet({
   address,
   isResolvingAddress,
   onConfirm,
   isConfirming,
-}: BusinessLocationConfirmationSheetProps) {
+}: ConfirmLocationSheetProps) {
   const hasAddress = address.trim().length > 0;
 
   return (

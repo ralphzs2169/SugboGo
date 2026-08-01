@@ -1,17 +1,10 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { View } from "react-native";
 import { useState, useEffect } from "react";
 
+import SearchBar from "./SearchBar";
+import SearchResults from "./SearchResults";
 import usePlaceSearch from "../../../hooks/registration/usePlaceSearch";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
-import { theme } from "@/constants/theme";
 
 type Props = {
   value: string;
@@ -22,8 +15,6 @@ type Props = {
   // so it can disable map taps while a suggestion is on top of it.
   onSuggestionsVisibleChange?: (visible: boolean) => void;
 };
-
-const MAX_SUGGESTIONS_HEIGHT = 260;
 
 /**
  * Provides a searchable Google Places input for selecting
@@ -42,6 +33,7 @@ export default function BusinessLocationSearch({
   const {
     suggestions,
     isLoading,
+    isSearchRateLimited,
     searchPlaces,
     getPlaceDetails,
     clearSuggestions,
@@ -53,22 +45,16 @@ export default function BusinessLocationSearch({
   // to produce meaningful place suggestions.
   const hasQuery = value.trim().length >= 2;
 
-  // Let the parent know when suggestions appear or disappear,
-  // so it can turn off map taps while a suggestion is showing on top of it.
-  useEffect(() => {
-    onSuggestionsVisibleChange?.(suggestions.length > 0);
-  }, [suggestions.length]);
-
   const showNoResults =
-    hasQuery && !isLoading && suggestions.length === 0 && !resolvingPlaceId;
+    hasQuery &&
+    !isLoading &&
+    !isSearchRateLimited &&
+    suggestions.length === 0 &&
+    !resolvingPlaceId;
 
   /**
-   * Resolves the selected Google Place ID into complete
-   * location details and passes the result to the parent.
-   *
-   * The selected place is temporarily tracked so its
-   * corresponding suggestion can display a loading state
-   * while its details are being retrieved.
+   * Resolves the selected place into a complete business
+   * location and updates the search input.
    */
   async function handlePlaceSelect(placeId: string) {
     setResolvingPlaceId(placeId);
@@ -87,111 +73,39 @@ export default function BusinessLocationSearch({
   }
 
   /**
-   * Clears the current search query and removes any
-   * currently displayed place suggestions.
+   * Clears the current search query and hides any
+   * displayed place suggestions.
    */
   function handleClear() {
     onChangeText("");
     clearSuggestions();
   }
 
+  // Notify the parent whenever the suggestion dropdown
+  // becomes visible or hidden.
+  useEffect(() => {
+    onSuggestionsVisibleChange?.(suggestions.length > 0);
+  }, [suggestions.length]);
+
   return (
     <View className="relative z-10 mb-3">
-      <View className="h-[46px] flex-row items-center rounded-md border border-gray-300 bg-white px-4">
-        <MaterialCommunityIcons name="magnify" size={22} color="#6B7280" />
+      <SearchBar
+        value={value}
+        isLoading={isLoading}
+        onClear={handleClear}
+        onChangeText={(text) => {
+          onChangeText(text);
+          searchPlaces(text);
+        }}
+      />
 
-        <TextInput
-          value={value}
-          onChangeText={(text) => {
-            onChangeText(text);
-            searchPlaces(text);
-          }}
-          placeholder="Search your business location"
-          placeholderTextColor="#9CA3AF"
-          returnKeyType="search"
-          className="ml-2 flex-1 text-[12px] text-gray-800"
-        />
-
-        {isLoading && (
-          <ActivityIndicator size="small" color={theme.extends.colors.brand} />
-        )}
-
-        {!isLoading && value.length > 0 && (
-          <Pressable
-            onPress={handleClear}
-            hitSlop={8}
-            className="ml-1 h-6 w-6 items-center justify-center rounded-full bg-gray-100"
-          >
-            <MaterialCommunityIcons name="close" size={14} color="#6B7280" />
-          </Pressable>
-        )}
-      </View>
-
-      {(suggestions.length > 0 || showNoResults) && (
-        <View
-          className="absolute left-0 right-0 top-[58px] overflow-hidden rounded-xl bg-white shadow-md"
-          style={{ maxHeight: MAX_SUGGESTIONS_HEIGHT }}
-        >
-          {showNoResults ? (
-            <View className="items-center px-4 py-5">
-              <MaterialCommunityIcons
-                name="map-marker-off-outline"
-                size={20}
-                color="#9CA3AF"
-              />
-              <Text className="mt-1.5 text-sm text-gray-500">
-                No matching places found
-              </Text>
-            </View>
-          ) : (
-            <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
-              {suggestions.map((suggestion, index) => {
-                // Only the suggestion whose Place Details request is
-                // currently running should display a loading indicator.
-                const isResolving = resolvingPlaceId === suggestion.placeId;
-
-                return (
-                  <Pressable
-                    key={suggestion.placeId}
-                    onPress={() => handlePlaceSelect(suggestion.placeId)}
-                    disabled={resolvingPlaceId !== null}
-                    className={`flex-row items-center px-4 py-3 active:bg-gray-50 ${
-                      index < suggestions.length - 1
-                        ? "border-b border-gray-100"
-                        : ""
-                    }`}
-                  >
-                    {isResolving ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={theme.extends.colors.brand}
-                      />
-                    ) : (
-                      <MaterialCommunityIcons
-                        name="map-marker-outline"
-                        size={20}
-                        color="#1B4D3E"
-                      />
-                    )}
-
-                    <View className="ml-3 flex-1">
-                      <Text className="text-[15px] font-semibold text-gray-800">
-                        {suggestion.mainText}
-                      </Text>
-
-                      {suggestion.secondaryText && (
-                        <Text className="mt-0.5 text-[13px] text-gray-500">
-                          {suggestion.secondaryText}
-                        </Text>
-                      )}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
-      )}
+      <SearchResults
+        suggestions={suggestions}
+        showNoResults={showNoResults}
+        isRateLimited={isSearchRateLimited}
+        resolvingPlaceId={resolvingPlaceId}
+        onPlaceSelect={handlePlaceSelect}
+      />
     </View>
   );
 }

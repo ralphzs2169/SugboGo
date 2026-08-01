@@ -7,6 +7,13 @@ import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchan
 import useNearbyLandmarks from "@/features/merchant/hooks/registration/useNearbyLandmarks";
 import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 
+/**
+ * Route responsible for adding a custom landmark.
+ *
+ * It ensures a business location has already been selected,
+ * preloads nearby Google landmarks, and saves the newly
+ * created custom landmark to the registration store.
+ */
 export default function BusinessLandmarkPickerPage() {
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
@@ -20,9 +27,12 @@ export default function BusinessLandmarkPickerPage() {
     (state) => state.setSelectedLandmarks,
   );
 
-  const { landmarks, isLoadingLandmarks, searchNearbyLandmarks } =
-    useNearbyLandmarks();
+  const { searchNearbyLandmarks } = useNearbyLandmarks();
 
+  /**
+   * Preloads nearby Google landmarks once a business
+   * location has been selected.
+   */
   useEffect(() => {
     if (!selectedLocation) {
       return;
@@ -32,13 +42,19 @@ export default function BusinessLandmarkPickerPage() {
       selectedLocation.latitude,
       selectedLocation.longitude,
     );
-  }, [selectedLocation]);
+  }, [selectedLocation, searchNearbyLandmarks]);
 
+  // Prevent access to the landmark picker until a business
+  // location has been selected.
   if (!selectedLocation) {
     router.back();
     return null;
   }
 
+  /**
+   * Adds the newly created custom landmark to the
+   * registration store.
+   */
   function handleConfirm(customLandmark: BusinessLandmark) {
     if (selectedLandmarks.length >= 5) {
       Toast.show({

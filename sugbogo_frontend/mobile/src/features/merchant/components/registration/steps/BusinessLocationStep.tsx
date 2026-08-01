@@ -3,10 +3,11 @@ import { useFormContext } from "react-hook-form";
 import { router } from "expo-router";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
-import BusinessLocationMap from "../location/LocationMap";
+import LocationPickerMap from "../location/LocationPickerMap";
 import RegistrationSection from "../RegistrationSection";
 import LandmarksSection from "../landmark/LandmarksSection";
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import AddressLoadFailedState from "../location/AddressFailedLoadState";
 /**
 
  * Displays the business location section of the
@@ -29,6 +30,10 @@ export default function BusinessLocationStep() {
 
   const selectedLandmarks = useMerchantRegistrationStore(
     (state) => state.selectedLandmarks,
+  );
+
+  const addressLoadFailed = useMerchantRegistrationStore(
+    (state) => state.addressLoadFailed,
   );
 
   const hasSelectedLocation = selectedLocation !== null;
@@ -58,7 +63,7 @@ export default function BusinessLocationStep() {
         description="Place the pin as close as possible to your actual business location. You can edit the address details below if needed."
         showBorder={false}
       >
-        <BusinessLocationMap
+        <LocationPickerMap
           latitude={selectedLocation?.latitude ?? null}
           longitude={selectedLocation?.longitude ?? null}
           onOpenPicker={() =>
@@ -72,6 +77,7 @@ export default function BusinessLocationStep() {
         title="Address Details"
         description="Address details are automatically retrieved after you pin your business location. Review and update any missing information."
       >
+        {addressLoadFailed && <AddressLoadFailedState />}
         <RHFFormInput
           name="province"
           label="Province"

@@ -9,7 +9,7 @@ type LandmarkCapacityHintProps = {
 /**
  * Displays how many more landmarks the merchant can add.
  */
-export default function LandmarkCapacityHint({
+export default function CapacityHint({
   remaining,
   max,
 }: LandmarkCapacityHintProps) {
