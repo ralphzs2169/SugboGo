@@ -1,18 +1,22 @@
 from core.pagination import StandardPagination
 from core.responses import error_response, success_response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from apps.authentication.permissions import HasRole
 from apps.msme.serializers.cluster_serializers import (
     ClusterCreateSerializer,
     ClusterSerializer,
     ClusterUpdateSerializer,
 )
 from apps.msme.services.cluster_service import ClusterService
-
+from apps.users.models import User
 
 class ClusterListView(APIView):
     """Handle cluster listing and creation."""
+
+    permission_classes = [IsAuthenticated, HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN)]
 
     def get(self, request):
         """Retrieve a paginated list of clusters."""

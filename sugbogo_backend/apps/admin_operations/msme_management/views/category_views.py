@@ -1,18 +1,22 @@
 from core.pagination import StandardPagination
 from core.responses import success_response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated  
 from rest_framework.views import APIView
 
+from apps.authentication.permissions import HasRole
 from apps.msme.serializers.category_serializers import (
     CategoryCreateSerializer,
     CategorySerializer,
     CategoryUpdateSerializer,
 )
 from apps.msme.services.category_service import CategoryService
-
+from apps.users.models import User
 
 class CategoryListView(APIView):
     """Handle category listing and creation."""
+
+    permission_classes = [IsAuthenticated, HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN)]
 
     def get(self, request):
         """Retrieve a paginated list of categories."""
