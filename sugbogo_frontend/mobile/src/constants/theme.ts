@@ -29,8 +29,10 @@ export const theme = {
         secondary: "#6b7280",
         tertiary: "#999999",
         disabled: "#B5B5B5",
+        info: "#2563EB",
       },
 
+      info: "#EFF6FF",
       success: "#22C55E",
       error: "#DC2626",
     },

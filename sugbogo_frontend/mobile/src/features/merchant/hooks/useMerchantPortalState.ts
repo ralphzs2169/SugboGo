@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { MerchantRegistrationStatus } from "../types/merchant.types";
-import { portalConfig } from "../utils/portalConfig";
+import { portalConfig } from "../utils/portalConfig.utils";
 import { MerchantPortalState } from "../types/merchantPortal.types";
 
 /**

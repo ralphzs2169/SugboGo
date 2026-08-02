@@ -26,7 +26,7 @@ export default function CapacityHint({
 
   return (
     <View className="mt-3 flex-row items-center rounded-xl bg-blue-50 px-4 py-3">
-      <View className="mr-3 h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+      <View className=" h-8 w-8 items-center justify-center rounded-full ">
         <MaterialCommunityIcons
           name="information-outline"
           size={18}

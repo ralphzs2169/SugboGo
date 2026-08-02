@@ -6,7 +6,7 @@ import MerchantHero from "../components/portal/MerchantHero";
 import MerchantBenefits from "../components/portal/MerchantBenefits";
 import MerchantRequirements from "../components/portal/MerchantRequirements";
 import { MerchantRegistrationStatus } from "../types/merchant.types";
-import { portalConfig } from "../utils/portalConfig";
+import { portalConfig } from "../utils/portalConfig.utils";
 import RegistrationProgressCard from "../components/portal/RegistrationProgressCard";
 import ApplicationStatusCard from "../components/portal/ApplicationStatusCard";
 import RejectionFeedbackCard from "../components/portal/RejectionFeedback";
