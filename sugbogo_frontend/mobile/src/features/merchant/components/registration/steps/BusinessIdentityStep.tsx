@@ -16,6 +16,13 @@ import {
 } from "@/features/merchant/types/merchantRegistration.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 
+export const REPRESENTATIVE_ROLE_OPTIONS = [
+  { label: "Owner", value: "owner" },
+  { label: "Manager", value: "manager" },
+  { label: "Authorized Representative", value: "authorized_representative" },
+  { label: "Other", value: "other" },
+];
+
 type Props = {
   clusters: ClusterOption[];
   categories: CategoryOption[];
@@ -43,8 +50,13 @@ export default function BusinessIdentityStep({
 }: Props) {
   const clusterSheetRef = useRef<BottomSheetModal>(null);
   const categorySheetRef = useRef<BottomSheetModal>(null);
-
+  const representativeRoleSheetRef = useRef<BottomSheetModal>(null);
   const { control, setValue } = useFormContext<MerchantRegistrationForm>();
+
+  const selectedRepresentativeRole = useWatch({
+    control,
+    name: "representativeRole",
+  });
 
   const selectedCluster = useWatch({
     control,
@@ -122,6 +134,22 @@ export default function BusinessIdentityStep({
     categorySheetRef.current?.present();
   }
 
+  /**
+   * Opens the representative-role selection sheet.
+   */
+  function handleOpenRepresentativeRoleSheet() {
+    representativeRoleSheetRef.current?.present();
+  }
+
+  /**
+   * Updates the representative role selected in the form.
+   */
+  function handleSelectRepresentativeRole(value: string) {
+    setValue("representativeRole", value, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  }
   return (
     <>
       <RegistrationSection
@@ -185,17 +213,19 @@ export default function BusinessIdentityStep({
         <RHFFormTextArea
           name="businessDescription"
           label="Description"
-          placeholder="Tell us about your business..."
+          placeholder="Tell explorers about your business..."
           maxLength={500}
+          required
         />
 
         <RHFFormInput
           name="website"
-          label="Facebook Page / Website (Optional)"
+          label="Website / Social Media (Optional)"
           placeholder="https://..."
           autoCapitalize="none"
         />
       </RegistrationSection>
+
       <RegistrationSection
         icon="tag-outline"
         title="Specialty Tags"
@@ -203,6 +233,7 @@ export default function BusinessIdentityStep({
       >
         <SpecialtyTagsSection />
       </RegistrationSection>
+
       <RegistrationSection
         icon="account-outline"
         title="Contact Information"
@@ -218,22 +249,21 @@ export default function BusinessIdentityStep({
 
         <RHFFormInput
           name="businessEmail"
-          label="Email Address"
+          label="Business Email (Optional)"
           placeholder="business@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
-          required
         />
       </RegistrationSection>
 
       <RegistrationSection
-        icon="account-outline"
+        icon="account-check-outline"
         title="Representative Information"
-        description="Provide the details of the person authorized to submit this application."
+        description="Tell us who is submitting this application."
       >
         <RHFFormInput
           name="representativeName"
-          label="Representative Name"
+          label="Full Name"
           required
           placeholder="e.g. Juan Dela Cruz"
         />
@@ -243,7 +273,8 @@ export default function BusinessIdentityStep({
           label="Position / Role"
           required
           placeholder="Select your role"
-          onSelectPress={() => {}}
+          options={REPRESENTATIVE_ROLE_OPTIONS}
+          onSelectPress={handleOpenRepresentativeRoleSheet}
         />
       </RegistrationSection>
 
@@ -261,6 +292,14 @@ export default function BusinessIdentityStep({
         options={categoryOptions}
         selectedValue={selectedCategory}
         onSelect={handleSelectCategory}
+      />
+
+      <SelectionBottomSheet
+        sheetRef={representativeRoleSheetRef}
+        title="Select Position / Role"
+        options={REPRESENTATIVE_ROLE_OPTIONS}
+        selectedValue={selectedRepresentativeRole}
+        onSelect={handleSelectRepresentativeRole}
       />
     </>
   );

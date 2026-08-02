@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import RegistrationLayout from "../components/registration/RegistrationLayout";
 import RegistrationFooter from "../components/registration/RegistartionFooter";
@@ -14,7 +15,7 @@ import {
 import useClusters from "../hooks/registration/useClusters";
 import useCategories from "../hooks/registration/useCategories";
 
-import { REGISTRATION_STEPS } from "../constants/registrationSteps";
+import { REGISTRATION_STEPS } from "../constants/registration/registrationSteps";
 import BusinessIdentityStep from "../components/registration/steps/BusinessIdentityStep";
 import BusinessLocationStep from "../components/registration/steps/BusinessLocationStep";
 import OperatingHoursStep from "../components/registration/steps/OperatingHoursStep";
@@ -78,7 +79,11 @@ export default function MerchantRegistrationScreen() {
         return null;
     }
   };
-  const form = useForm<MerchantRegistrationForm>({
+  const form = useForm<
+    z.input<typeof merchantRegistrationSchema>,
+    undefined,
+    z.output<typeof merchantRegistrationSchema>
+  >({
     resolver: zodResolver(merchantRegistrationSchema),
 
     defaultValues: {
@@ -167,12 +172,61 @@ export default function MerchantRegistrationScreen() {
     },
   });
 
+  const STEP_ONE_FIELDS = [
+    "businessName",
+    "businessCluster",
+    "businessCategory",
+    "businessDescription",
+    "contactNumber",
+    "specialtyTags",
+    "businessEmail",
+    "website",
+    "representativeName",
+    "representativeRole",
+  ] as const;
+
   const handleNext = async () => {
     const isLastStep = currentStep === REGISTRATION_STEPS.length;
 
     if (isLastStep) {
       // submit later
       return;
+    }
+
+    if (currentStep === 1) {
+      const isValid = await form.trigger(STEP_ONE_FIELDS);
+
+      if (!isValid) {
+        Toast.show({
+          type: "error",
+          text1: "Incomplete business information",
+          text2: "Please review the highlighted fields before continuing.",
+        });
+
+        return;
+      }
+    }
+
+    if (currentStep === 2) {
+      const isValid = await form.trigger([
+        "province",
+        "city",
+        "barangay",
+        "streetAddress",
+        "latitude",
+        "longitude",
+      ]);
+
+      if (!isValid) {
+        Toast.show({
+          type: "error",
+          text1: "Incomplete business location",
+          text2:
+            "Please select your business location and complete the address.",
+        });
+
+        return;
+      }
     }
 
     if (currentStep === 3) {

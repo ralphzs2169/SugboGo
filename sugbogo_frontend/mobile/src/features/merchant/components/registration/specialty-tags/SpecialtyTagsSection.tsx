@@ -10,15 +10,19 @@ import SpecialtyTagsBottomSheet from "./SpecialtyTagsBottomSheet";
 /**
  * Renders the specialty-tag selection field for merchant registration.
  *
- * Displays a small set of specialty tags directly in the form while
- * providing a bottom sheet for browsing the full tag list.
+ * Displays a subset of specialty tags directly in the form while
+ * providing a bottom sheet for browsing the complete tag list.
  *
- * Visible tags remain stable while the bottom sheet is open. Selections
- * made inside the bottom sheet are kept as temporary draft state and are
- * committed to the form when the sheet is dismissed.
+ * Selections made inside the bottom sheet are kept as temporary draft
+ * state and committed to the form when the sheet is dismissed.
  */
 export default function SpecialtyTagsSection() {
-  const { control, setValue } = useFormContext<MerchantRegistrationForm>();
+  const {
+    control,
+    setValue,
+    clearErrors,
+    formState: { errors },
+  } = useFormContext<MerchantRegistrationForm>();
 
   const specialtyTagsSheetRef = useRef<BottomSheetModal>(null);
 
@@ -34,10 +38,10 @@ export default function SpecialtyTagsSection() {
   );
 
   /**
-   * Ensures every selected tag is visible in the main form.
+   * Ensures newly selected tags remain visible in the main form.
    *
-   * Hidden selected tags replace unselected visible tags while
-   * preserving the position of existing visible tags.
+   * Hidden selected tags replace currently visible unselected tags
+   * without unnecessarily reshuffling the existing visible tags.
    */
   const updateVisibleTags = (selectedTagIds: number[]) => {
     setVisibleTagIds((currentIds) => {
@@ -62,8 +66,24 @@ export default function SpecialtyTagsSection() {
   };
 
   /**
-   * Opens the specialty-tag bottom sheet and initializes its
-   * temporary selection from the current form value.
+   * Updates the saved specialty-tag selection from the main form.
+   *
+   * Clears the current validation error without immediately re-validating,
+   * allowing the user to continue making their selection.
+   */
+  const handleTagSelection = (nextTags: number[]) => {
+    setValue("specialtyTags", nextTags, {
+      shouldDirty: true,
+      shouldValidate: false,
+    });
+
+    clearErrors("specialtyTags");
+    updateVisibleTags(nextTags);
+  };
+
+  /**
+   * Opens the specialty-tag bottom sheet using the currently saved
+   * selection as the temporary draft.
    */
   const handleOpenSheet = () => {
     setDraftSelectedTags(selectedTags);
@@ -71,11 +91,14 @@ export default function SpecialtyTagsSection() {
   };
 
   /**
-   * Toggles a tag in the bottom sheet's temporary selection.
+   * Toggles a specialty tag in the temporary bottom-sheet selection.
    *
-   * Selection is limited to exactly three tags.
+   * Any interaction clears the existing validation error immediately.
+   * Validation is deferred until the user attempts to continue.
    */
   const handleDraftToggle = (tagId: number) => {
+    clearErrors("specialtyTags");
+
     setDraftSelectedTags((current) => {
       if (current.includes(tagId)) {
         return current.filter((id) => id !== tagId);
@@ -90,21 +113,22 @@ export default function SpecialtyTagsSection() {
   };
 
   /**
-   * Commits the bottom sheet's temporary selection to the form
+   * Commits the temporary bottom-sheet selection to the form
    * when the sheet is dismissed.
    */
   const handleSheetClose = () => {
     setValue("specialtyTags", draftSelectedTags, {
       shouldDirty: true,
-      shouldValidate: true,
+      shouldValidate: false,
     });
 
+    clearErrors("specialtyTags");
     updateVisibleTags(draftSelectedTags);
   };
 
   return (
     <View>
-      <View className="flex-row flex-wrap  mb-2 pb-4 ">
+      <View className="mb-2 flex-row flex-wrap border-b border-border-primary pb-4">
         {visibleTagIds.map((tagId) => {
           const tag = SPECIALTY_TAGS.find(
             (specialtyTag) => specialtyTag.id === tagId,
@@ -122,19 +146,11 @@ export default function SpecialtyTagsSection() {
               key={tag.id}
               onPress={() => {
                 if (isSelected) {
-                  setValue(
-                    "specialtyTags",
+                  handleTagSelection(
                     selectedTags.filter((id) => id !== tag.id),
-                    {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    },
                   );
                 } else if (selectedTags.length < 3) {
-                  setValue("specialtyTags", [...selectedTags, tag.id], {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
+                  handleTagSelection([...selectedTags, tag.id]);
                 }
               }}
               disabled={isDisabled}
@@ -157,13 +173,24 @@ export default function SpecialtyTagsSection() {
       </View>
 
       <View className="mt-1 flex-row items-center justify-between">
-        <Text className="text-xs text-text-secondary">
+        <Text
+          className={`text-xs ${
+            errors.specialtyTags ? "text-text-error" : "text-text-secondary"
+          }`}
+        >
           {selectedTags.length} of 3 selected
         </Text>
+
         <Pressable onPress={handleOpenSheet}>
           <Text className="text-sm font-semibold text-brand">See all tags</Text>
         </Pressable>
       </View>
+
+      {errors.specialtyTags?.message && (
+        <Text className="mt-1 text-xs font-medium text-text-error">
+          {errors.specialtyTags.message}
+        </Text>
+      )}
 
       <SpecialtyTagsBottomSheet
         sheetRef={specialtyTagsSheetRef}

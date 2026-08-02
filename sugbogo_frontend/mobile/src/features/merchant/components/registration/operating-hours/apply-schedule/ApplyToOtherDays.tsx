@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   DAYS,
   type Day,
-} from "@/features/merchant/constants/operatingHours.constants";
+} from "@/features/merchant/constants/registration/operatingHours.constants";
 import ApplyDayOption from "./ApplyDayOption";
 import { theme } from "@/constants/theme";
 import Button from "@/shared/components/Button";

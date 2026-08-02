@@ -11,8 +11,8 @@ import {
   BusinessLandmark,
   BusinessLocation,
 } from "@/shared/types/BusinessLocation.types";
-import { MAP_STYLE } from "@/features/merchant/constants/map.constants";
-import { LANDMARK_RADIUS_METERS } from "@/features/merchant/constants/map.constants";
+import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
+import { LANDMARK_RADIUS_METERS } from "@/features/merchant/constants/registration/map.constants";
 
 type LandmarkPickerMapProps = {
   businessLocation: BusinessLocation;

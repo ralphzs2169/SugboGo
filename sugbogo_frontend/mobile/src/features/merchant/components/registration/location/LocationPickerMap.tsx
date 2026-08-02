@@ -7,7 +7,7 @@ import MapView, {
 import { useIsFocused } from "expo-router";
 import { View } from "react-native";
 import MapMarker from "@/shared/components/MapMarker";
-import { MAP_STYLE } from "@/features/merchant/constants/map.constants";
+import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 
 import useMapPressGuard from "@/features/merchant/hooks/registration/useMapPressGuard";
 import useMarkerTracksChanges from "@/features/merchant/hooks/registration/useMarkerTracksChanges";

@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import type { Day } from "@/features/merchant/constants/operatingHours.constants";
+import type { Day } from "@/features/merchant/constants/registration/operatingHours.constants";
 
 type ApplyDayOptionProps = {
   day: Day;
