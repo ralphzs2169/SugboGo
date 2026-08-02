@@ -4,14 +4,14 @@ import { theme } from "@/constants/theme";
 
 type PhotoPreviewProps = {
   uri: string;
-  onRemove: () => void;
+  onRemove?: () => void;
 };
 
 /**
- * Displays a business photo thumbnail with a control for removing it.
+ * Displays a business photo thumbnail.
  *
- * Provides a larger touch target around the remove action to make it
- * easier to use on mobile devices.
+ * The remove action is optional so the component can be
+ * reused in read-only contexts such as the review screen.
  */
 export default function PhotoPreview({ uri, onRemove }: PhotoPreviewProps) {
   return (
@@ -22,17 +22,19 @@ export default function PhotoPreview({ uri, onRemove }: PhotoPreviewProps) {
         resizeMode="cover"
       />
 
-      <Pressable
-        onPress={onRemove}
-        className="absolute -right-2 -top-2 h-7 w-7 items-center justify-center rounded-full bg-surface shadow-sm"
-        hitSlop={8}
-      >
-        <MaterialCommunityIcons
-          name="close-circle"
-          size={22}
-          color={theme.extends.colors.text.secondary}
-        />
-      </Pressable>
+      {onRemove && (
+        <Pressable
+          onPress={onRemove}
+          className="absolute -right-2 -top-2 h-7 w-7 items-center justify-center rounded-full bg-surface shadow-sm"
+          hitSlop={8}
+        >
+          <MaterialCommunityIcons
+            name="close-circle"
+            size={22}
+            color={theme.extends.colors.text.secondary}
+          />
+        </Pressable>
+      )}
     </View>
   );
 }

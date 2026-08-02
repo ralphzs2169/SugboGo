@@ -110,7 +110,7 @@ export default function BusinessIdentityStep({
     // The existing category may no longer belong
     // to the newly selected cluster.
     setValue("businessCategory", "", {
-      shouldValidate: true,
+      shouldValidate: false,
       shouldDirty: true,
     });
   }
