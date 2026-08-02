@@ -78,6 +78,32 @@ const businessPhotoSchema = z.object({
   mimeType: z.string().nullable().optional(),
 });
 
+const businessDocumentSchema = z.object({
+  uri: z.string(),
+  fileName: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+});
+
+const verificationDocumentsSchema = z
+  .object({
+    businessRegistration: businessDocumentSchema.nullable(),
+
+    authorizationDocument: businessDocumentSchema.nullable(),
+
+    additionalDocuments: z
+      .array(businessDocumentSchema)
+      .max(5, "You can add up to 5 additional documents."),
+  })
+  .superRefine((documents, ctx) => {
+    if (!documents.businessRegistration) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["businessRegistration"],
+        message: "Business registration document is required.",
+      });
+    }
+  });
+
 export const merchantRegistrationSchema = z.object({
   businessName: z.string().min(1, "Business name is required."),
 
@@ -151,11 +177,8 @@ export const merchantRegistrationSchema = z.object({
     additional: z.array(businessPhotoSchema),
   }),
 
-  verificationDocuments: z.object({
-    businessRegistration: z.string().nullable(),
-    authorizationDocument: z.string().nullable(),
-    additionalDocuments: z.array(z.string()),
-  }),
+  // Verification Document
+  verificationDocuments: verificationDocumentsSchema,
 });
 
 export type MerchantRegistrationForm = z.infer<

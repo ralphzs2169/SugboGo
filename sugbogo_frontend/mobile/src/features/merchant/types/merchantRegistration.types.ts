@@ -14,3 +14,9 @@ export type BusinessPhoto = {
   fileName?: string | null;
   mimeType?: string | null;
 };
+
+export type BusinessDocument = {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+};

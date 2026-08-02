@@ -212,6 +212,20 @@ export default function MerchantRegistrationScreen() {
       }
     }
 
+    if (currentStep === 5) {
+      const isValid = await form.trigger("verificationDocuments");
+
+      if (!isValid) {
+        Toast.show({
+          type: "error",
+          text1: "Verification document required",
+          text2:
+            "Please upload your business registration document before continuing.",
+        });
+        return;
+      }
+    }
+
     setCurrentStep((step) => step + 1);
 
     requestAnimationFrame(() => {
