@@ -1,97 +1,79 @@
-import { View, Text, Pressable } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text, View } from "react-native";
 import { useFormContext } from "react-hook-form";
+
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
+import DocumentUploadCard from "../verification-documents/DocumentUploadCard";
+import RegistrationSection from "../RegistrationSection";
 
 export default function VerificationDocumentsStep() {
-  const { watch } = useFormContext<MerchantRegistrationForm>();
+  const {
+    watch,
+    setValue,
+    formState: { errors },
+  } = useFormContext<MerchantRegistrationForm>();
 
-  const documents = watch("verificationDocuments") ?? {
-    businessRegistration: null,
-    authorizationDocument: null,
-    additionalDocuments: [],
-  };
+  const documents = watch("verificationDocuments");
+
+  const businessRegistrationError =
+    errors.verificationDocuments?.businessRegistration?.message;
 
   return (
-    <View className="bg-surface px-6 py-5">
-      <View className="mb-5">
-        <Text className="text-2xl font-bold text-text-primary">
-          Verification Documents
-        </Text>
-
-        <Text className="mt-1 text-sm text-text-secondary">
-          Upload documents that help us verify your business.
-        </Text>
-      </View>
-
-      <DocumentUploadCard
+    <View className="bg-background">
+      <RegistrationSection
         icon="file-document-outline"
-        title="Business Registration Document"
-        description="Upload your Mayor's Permit, DTI Registration, SEC Registration, or equivalent."
-        required
-        uploaded={!!documents.businessRegistration}
-      />
+        title="Business Registration"
+        description="Upload proof of business registration, such as a DTI Certificate, SEC Certificate, or Mayor’s Permit."
+        showBorder={false}
+      >
+        <DocumentUploadCard
+          document={documents.businessRegistration}
+          maxDocuments={1}
+          required
+          error={businessRegistrationError}
+          onDocumentChange={(value) =>
+            setValue("verificationDocuments.businessRegistration", value, {
+              shouldDirty: true,
+              shouldValidate:
+                !!errors.verificationDocuments?.businessRegistration,
+            })
+          }
+        />
+      </RegistrationSection>
 
-      <DocumentUploadCard
+      <RegistrationSection
         icon="account-check-outline"
         title="Authorization Document"
-        description="Required if you are registering on behalf of the business owner."
-        uploaded={!!documents.authorizationDocument}
-      />
+        description="If registering for the owner, provide an authorization letter or signed authorization form."
+        showBorder={false}
+      >
+        <DocumentUploadCard
+          document={documents.authorizationDocument}
+          maxDocuments={1}
+          onDocumentChange={(value) =>
+            setValue("verificationDocuments.authorizationDocument", value, {
+              shouldDirty: true,
+            })
+          }
+        />
+      </RegistrationSection>
 
-      <DocumentUploadCard
+      <RegistrationSection
         icon="file-multiple-outline"
         title="Additional Documents"
-        description="Upload supporting permits, certificates, or licenses."
-        uploaded={documents.additionalDocuments.length > 0}
-      />
-    </View>
-  );
-}
-
-type DocumentUploadCardProps = {
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  title: string;
-  description: string;
-  required?: boolean;
-  uploaded: boolean;
-};
-
-function DocumentUploadCard({
-  icon,
-  title,
-  description,
-  required,
-  uploaded,
-}: DocumentUploadCardProps) {
-  return (
-    <Pressable className="mb-4 rounded-xl border border-border-primary px-4 py-4">
-      <View className="flex-row items-center">
-        <MaterialCommunityIcons name={icon} size={24} color="#F27F0D" />
-
-        <View className="ml-3 flex-1">
-          <Text className="text-base font-semibold text-text-primary">
-            {title}
-            {required && <Text className="text-brand"> *</Text>}
-          </Text>
-
-          <Text className="mt-1 text-sm leading-5 text-text-secondary">
-            {description}
-          </Text>
-        </View>
-      </View>
-
-      <View className="mt-4 flex-row items-center justify-center rounded-lg border border-dashed border-border-primary py-5">
-        <MaterialCommunityIcons
-          name={uploaded ? "check-circle-outline" : "cloud-upload-outline"}
-          size={22}
-          color={uploaded ? "#1B4D3E" : "#999999"}
+        description="Add any other permits, certificates, or licenses that support your application."
+        showBorder={false}
+      >
+        <DocumentUploadCard
+          documents={documents.additionalDocuments}
+          multiple
+          maxDocuments={5}
+          onDocumentsChange={(value) =>
+            setValue("verificationDocuments.additionalDocuments", value, {
+              shouldDirty: true,
+            })
+          }
         />
-
-        <Text className="ml-2 text-sm font-medium text-text-secondary">
-          {uploaded ? "Document Added" : "Upload Document"}
-        </Text>
-      </View>
-    </Pressable>
+      </RegistrationSection>
+    </View>
   );
 }

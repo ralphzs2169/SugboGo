@@ -1,111 +1,101 @@
-import { View, Text, Pressable } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { View } from "react-native";
 import { useFormContext } from "react-hook-form";
+
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
+import PhotoSection from "../business-photos/PhotoSection";
+import RegistrationSection from "../RegistrationSection";
 
+/**
+ * Renders the business photos step of merchant registration.
+ *
+ * Manages photo values through React Hook Form and provides separate
+ * sections for storefront, interior, products and services, and additional photos.
+ *
+ * Storefront photos are required, while the remaining photo categories are optional.
+ */
 export default function BusinessPhotosStep() {
-  const { watch } = useFormContext<MerchantRegistrationForm>();
+  const {
+    watch,
+    setValue,
+    formState: { errors },
+  } = useFormContext<MerchantRegistrationForm>();
 
-  const photos = watch("businessPhotos") ?? {
-    storefront: null,
-    interior: [],
-    products: [],
-    additional: [],
-  };
+  const photos = watch("businessPhotos");
+
+  const storefrontError = errors.businessPhotos?.storefront?.message;
 
   return (
-    <View className="bg-surface px-6 py-5">
-      <View className="mb-5">
-        <Text className="text-2xl font-bold text-text-primary">
-          Business Photos
-        </Text>
+    <View className="bg-background">
+      <RegistrationSection
+        icon="store-outline"
+        title="Storefront Photos"
+        description="Add clear photos of your business exterior."
+        showBorder={false}
+      >
+        <PhotoSection
+          photos={photos.storefront}
+          maxPhotos={3}
+          required
+          error={storefrontError}
+          onPhotosChange={(value) =>
+            setValue("businessPhotos.storefront", value, {
+              shouldDirty: true,
+              shouldValidate: !!errors.businessPhotos?.storefront,
+            })
+          }
+        />
+      </RegistrationSection>
 
-        <Text className="mt-1 text-sm text-text-secondary">
-          Add photos that help explorers recognize and discover your business.
-        </Text>
-      </View>
-
-      <PhotoSection
-        icon="storefront-outline"
-        title="Storefront Photo"
-        description="Upload a clear photo of your business exterior."
-        required
-        count={photos.storefront ? 1 : 0}
-      />
-
-      <PhotoSection
+      <RegistrationSection
         icon="image-outline"
         title="Interior Photos"
-        description="Show your space, seating, products, or setup."
-        count={photos.interior.length}
-      />
+        description="Show your space, seating, atmosphere, or setup."
+        showBorder={false}
+      >
+        <PhotoSection
+          photos={photos.interior}
+          maxPhotos={5}
+          onPhotosChange={(value) =>
+            setValue("businessPhotos.interior", value, {
+              shouldDirty: true,
+            })
+          }
+        />
+      </RegistrationSection>
 
-      <PhotoSection
+      <RegistrationSection
         icon="food-outline"
         title="Products & Services"
-        description="Show what your business offers."
-        count={photos.products.length}
-      />
+        description="Add photos that showcase your products or services."
+        showBorder={false}
+      >
+        <PhotoSection
+          photos={photos.products}
+          maxPhotos={5}
+          onPhotosChange={(value) =>
+            setValue("businessPhotos.products", value, {
+              shouldDirty: true,
+            })
+          }
+        />
+      </RegistrationSection>
 
-      <PhotoSection
+      <RegistrationSection
         icon="image-multiple-outline"
         title="Additional Photos"
-        description="Add any other photos you want explorers to see."
-        count={photos.additional.length}
-      />
-    </View>
-  );
-}
-
-type PhotoSectionProps = {
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  title: string;
-  description: string;
-  required?: boolean;
-  count: number;
-};
-
-function PhotoSection({
-  icon,
-  title,
-  description,
-  required,
-  count,
-}: PhotoSectionProps) {
-  return (
-    <Pressable className="mb-4 rounded-xl border border-border-primary px-4 py-4">
-      <View className="flex-row items-center">
-        <MaterialCommunityIcons name={icon} size={24} color="#F27F0D" />
-
-        <View className="ml-3 flex-1">
-          <Text className="text-base font-semibold text-text-primary">
-            {title}
-            {required && <Text className="text-brand"> *</Text>}
-          </Text>
-
-          <Text className="mt-1 text-sm text-text-secondary">
-            {description}
-          </Text>
-        </View>
-
-        <View className="rounded-full bg-border/40 px-3 py-1">
-          <Text className="text-xs font-semibold text-text-secondary">
-            {count} added
-          </Text>
-        </View>
-      </View>
-
-      <View className="mt-4 flex-row items-center justify-center rounded-lg border border-dashed border-border-primary py-5">
-        <MaterialCommunityIcons
-          name="plus-circle-outline"
-          size={22}
-          color="#999999"
+        description="Add any other photos that represent your business."
+        showBorder={false}
+      >
+        <PhotoSection
+          photos={photos.additional}
+          maxPhotos={5}
+          onPhotosChange={(value) =>
+            setValue("businessPhotos.additional", value, {
+              shouldDirty: true,
+            })
+          }
         />
-
-        <Text className="ml-2 text-sm font-medium text-text-secondary">
-          Add Photo
-        </Text>
-      </View>
-    </Pressable>
+      </RegistrationSection>
+    </View>
   );
 }

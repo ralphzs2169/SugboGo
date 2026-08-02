@@ -259,7 +259,7 @@ export default function EditProfileScreen() {
           />
 
           {formError ? (
-            <Text className="mt-4 text-center text-sm text-error">
+            <Text className="mt-4 text-center text-sm text-text-error">
               {formError}
             </Text>
           ) : null}

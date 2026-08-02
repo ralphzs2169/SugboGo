@@ -180,7 +180,9 @@ export default function LoginScreen() {
       />
 
       {formError ? (
-        <Text className="text-sm font-semibold text-error">{formError}</Text>
+        <Text className="text-sm font-semibold text-text-error">
+          {formError}
+        </Text>
       ) : null}
 
       <Button

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useFormContext, useFormState, useWatch } from "react-hook-form";
 
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
@@ -9,6 +9,7 @@ import {
   DAYS,
   type Day,
 } from "@/features/merchant/constants/operatingHours.constants";
+import RegistrationSection from "../RegistrationSection";
 
 /**
  * Renders the operating-hours step of merchant registration.
@@ -42,43 +43,39 @@ export default function OperatingHoursStep() {
   };
 
   return (
-    <View className="bg-surface px-6 py-5">
-      <View className="mb-5">
-        <Text className="text-2xl font-bold text-text-primary">
-          Set Your Operating Hours
-        </Text>
+    <View className="bg-surface">
+      <RegistrationSection
+        icon="clock-outline"
+        title="Operating Hours"
+        description="Set your business hours for each day of the week."
+        showBorder={false}
+      >
+        <View className="gap-3">
+          {DAYS.map((day) => {
+            const schedule = operatingHours[day];
+            const isExpanded = expandedDay === day;
 
-        <Text className="mt-1 text-sm text-text-secondary">
-          Choose when your business is open to explorers.
-        </Text>
-      </View>
+            const dayErrors = errors.operatingHours?.[day];
+            const hasError = Boolean(dayErrors) && !isExpanded;
 
-      <View className="gap-3">
-        {DAYS.map((day) => {
-          const schedule = operatingHours[day];
-          const isExpanded = expandedDay === day;
-
-          const dayErrors = errors.operatingHours?.[day];
-
-          const hasError = Boolean(dayErrors) && !isExpanded;
-
-          return (
-            <DaySectionCard
-              key={day}
-              day={day}
-              schedule={schedule}
-              isExpanded={isExpanded}
-              hasError={hasError}
-              onPress={() => handleDayPress(day)}
-            >
-              <OperatingHoursEditor
+            return (
+              <DaySectionCard
+                key={day}
                 day={day}
-                onDone={() => setExpandedDay(null)}
-              />
-            </DaySectionCard>
-          );
-        })}
-      </View>
+                schedule={schedule}
+                isExpanded={isExpanded}
+                hasError={hasError}
+                onPress={() => handleDayPress(day)}
+              >
+                <OperatingHoursEditor
+                  day={day}
+                  onDone={() => setExpandedDay(null)}
+                />
+              </DaySectionCard>
+            );
+          })}
+        </View>
+      </RegistrationSection>
     </View>
   );
 }

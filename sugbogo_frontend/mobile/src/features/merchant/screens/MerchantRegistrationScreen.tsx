@@ -152,7 +152,7 @@ export default function MerchantRegistrationScreen() {
       },
       // Business Photos
       businessPhotos: {
-        storefront: null,
+        storefront: [],
         interior: [],
         products: [],
         additional: [],
@@ -179,21 +179,61 @@ export default function MerchantRegistrationScreen() {
       const isValid = await form.trigger("operatingHours");
 
       if (!isValid) {
+        const operatingHoursError = form.formState.errors.operatingHours;
+
+        const hasNoOpenDaysError =
+          operatingHoursError?.message === "At least one day must be open.";
+
         Toast.show({
           type: "error",
-          text1: "Check your operating hours",
-          text2: "Please review the highlighted days before continuing.",
+          text1: hasNoOpenDaysError
+            ? "No operating days selected"
+            : "Check your operating hours",
+          text2: hasNoOpenDaysError
+            ? "Please select at least one day that your business is open."
+            : "Please review the highlighted days before continuing.",
+        });
+
+        return;
+      }
+    }
+
+    if (currentStep === 4) {
+      const isValid = await form.trigger("businessPhotos");
+
+      if (!isValid) {
+        Toast.show({
+          type: "error",
+          text1: "Add a storefront photo",
+          text2: "At least one storefront photo is required.",
+        });
+
+        return;
+      }
+    }
+
+    if (currentStep === 5) {
+      const isValid = await form.trigger("verificationDocuments");
+
+      if (!isValid) {
+        Toast.show({
+          type: "error",
+          text1: "Verification document required",
+          text2:
+            "Please upload your business registration document before continuing.",
         });
         return;
       }
     }
 
-    scrollRef.current?.scrollTo({
-      y: 0,
-      animated: false,
-    });
-
     setCurrentStep((step) => step + 1);
+
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: 0,
+        animated: false,
+      });
+    });
   };
 
   return (

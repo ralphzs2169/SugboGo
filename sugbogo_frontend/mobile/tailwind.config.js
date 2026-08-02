@@ -10,19 +10,20 @@ module.exports = {
         background: "#F3F4F6", // screen bg
         surface: "#FFFFFF", // card/top bar bg
 
+        error: "#fef2f2", // error container bg
         placeholder: "#999999", // skip button, disabled text
 
         disabled: "#f3f4f6",
 
-        error: "#DC2626", // error/validation text
         success: "#16A34A", // success states
         white: "#FFFFFF", // pure white
         info: "#EFF6FF",
 
         border: {
           primary: "#E5E7EB",
-          darker: "#AEB4BC",
+          secondary: "#AEB4BC",
           disabled: "#E5E7EB",
+          error: "#ef4444",
         },
 
         text: {
@@ -31,6 +32,7 @@ module.exports = {
           placeholder: "#999999",
           tertiary: "#999999",
           info: "#2563EB",
+          error: "#DC2626", // error/validation text
         },
       },
 

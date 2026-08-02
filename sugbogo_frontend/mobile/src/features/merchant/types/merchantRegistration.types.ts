@@ -1,86 +1,3 @@
-import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
-
-export interface MerchantRegistrationForm {
-  // Step 1: Business Identity
-  businessName: string;
-  businessCluster: string;
-  businessCategory: string;
-  businessDescription: string;
-
-  contactNumber: string;
-  businessEmail: string;
-  website: string;
-
-  representativeName: string;
-  representativeRole: string;
-
-  // Step 2: Business Location
-  province: string;
-  city: string;
-  barangay: string;
-  streetAddress: string;
-  unit: string;
-
-  latitude: number | null;
-  longitude: number | null;
-
-  landmarks: BusinessLandmark[];
-
-  // Step 3: Operating Hours
-  operatingHours: {
-    monday: {
-      isOpen: boolean;
-      is24Hours: boolean;
-      openTime: string;
-      closeTime: string;
-    };
-    tuesday: {
-      isOpen: boolean;
-      is24Hours: boolean;
-      openTime: string;
-      closeTime: string;
-    };
-    wednesday: {
-      isOpen: boolean;
-      is24Hours: boolean;
-      openTime: string;
-      closeTime: string;
-    };
-    thursday: {
-      isOpen: boolean;
-      is24Hours: boolean;
-      openTime: string;
-      closeTime: string;
-    };
-    friday: {
-      isOpen: boolean;
-      is24Hours: boolean;
-      openTime: string;
-      closeTime: string;
-    };
-    saturday: {
-      isOpen: boolean;
-      is24Hours: boolean;
-      openTime: string;
-      closeTime: string;
-    };
-    sunday: {
-      isOpen: boolean;
-      is24Hours: boolean;
-      openTime: string;
-      closeTime: string;
-    };
-  };
-
-  // Step 4: Business Photos
-  businessPhotos: string[];
-
-  // Step 5: Verification Documents
-  verificationDocuments: string[];
-
-  // Step 6: Review
-}
-
 export interface ClusterOption {
   id: number;
   name: string;
@@ -91,3 +8,15 @@ export interface CategoryOption {
   name: string;
   cluster_id: number;
 }
+
+export type BusinessPhoto = {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+};
+
+export type BusinessDocument = {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+};

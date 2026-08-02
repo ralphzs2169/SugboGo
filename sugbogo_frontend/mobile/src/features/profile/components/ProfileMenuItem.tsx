@@ -63,7 +63,7 @@ export default function ProfileMenuItem({
 
       <Text
         className={`ml-4 flex-1 text-base font-medium ${
-          isDanger ? "text-error" : "text-text-primary"
+          isDanger ? "text-text-error" : "text-text-primary"
         }`}
       >
         {title}

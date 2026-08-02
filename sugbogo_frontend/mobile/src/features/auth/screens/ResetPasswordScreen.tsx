@@ -141,7 +141,7 @@ export default function ResetPasswordScreen() {
       </Text>
 
       {formError ? (
-        <Text className="mb-4 text-center text-sm font-semibold text-error">
+        <Text className="mb-4 text-center text-sm font-semibold text-text-error">
           {formError}
         </Text>
       ) : null}

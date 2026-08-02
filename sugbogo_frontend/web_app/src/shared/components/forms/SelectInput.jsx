@@ -36,7 +36,7 @@ export default function SelectInput({
           className="mb-2 block text-sm font-medium text-text-primary"
         >
           {label}
-          {required && <span className="ml-1 text-error">*</span>}
+          {required && <span className="ml-1 text-text-error">*</span>}
         </label>
       )}
 

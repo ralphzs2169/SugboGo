@@ -50,6 +50,60 @@ const operatingHoursDaySchema = z
     }
   });
 
+const operatingHoursSchema = z
+  .object({
+    monday: operatingHoursDaySchema,
+    tuesday: operatingHoursDaySchema,
+    wednesday: operatingHoursDaySchema,
+    thursday: operatingHoursDaySchema,
+    friday: operatingHoursDaySchema,
+    saturday: operatingHoursDaySchema,
+    sunday: operatingHoursDaySchema,
+  })
+  .superRefine((hours, ctx) => {
+    const hasOpenDay = Object.values(hours).some((day) => day.isOpen);
+
+    if (!hasOpenDay) {
+      ctx.addIssue({
+        code: "custom",
+        path: [],
+        message: "At least one day must be open.",
+      });
+    }
+  });
+
+const businessPhotoSchema = z.object({
+  uri: z.string(),
+  fileName: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+});
+
+const businessDocumentSchema = z.object({
+  uri: z.string(),
+  fileName: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+});
+
+const verificationDocumentsSchema = z
+  .object({
+    businessRegistration: businessDocumentSchema.nullable(),
+
+    authorizationDocument: businessDocumentSchema.nullable(),
+
+    additionalDocuments: z
+      .array(businessDocumentSchema)
+      .max(5, "You can add up to 5 additional documents."),
+  })
+  .superRefine((documents, ctx) => {
+    if (!documents.businessRegistration) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["businessRegistration"],
+        message: "Business registration document is required.",
+      });
+    }
+  });
+
 export const merchantRegistrationSchema = z.object({
   businessName: z.string().min(1, "Business name is required."),
 
@@ -108,28 +162,23 @@ export const merchantRegistrationSchema = z.object({
   longitude: z.number().nullable(),
 
   // Operating Hours
-  operatingHours: z.object({
-    monday: operatingHoursDaySchema,
-    tuesday: operatingHoursDaySchema,
-    wednesday: operatingHoursDaySchema,
-    thursday: operatingHoursDaySchema,
-    friday: operatingHoursDaySchema,
-    saturday: operatingHoursDaySchema,
-    sunday: operatingHoursDaySchema,
-  }),
+  operatingHours: operatingHoursSchema,
 
   businessPhotos: z.object({
-    storefront: z.string().nullable(),
-    interior: z.array(z.string()),
-    products: z.array(z.string()),
-    additional: z.array(z.string()),
+    storefront: z
+      .array(businessPhotoSchema)
+      .min(1, "At least one storefront photo is required.")
+      .max(3, "You can add up to 3 storefront photos."),
+
+    interior: z.array(businessPhotoSchema),
+
+    products: z.array(businessPhotoSchema),
+
+    additional: z.array(businessPhotoSchema),
   }),
 
-  verificationDocuments: z.object({
-    businessRegistration: z.string().nullable(),
-    authorizationDocument: z.string().nullable(),
-    additionalDocuments: z.array(z.string()),
-  }),
+  // Verification Document
+  verificationDocuments: verificationDocumentsSchema,
 });
 
 export type MerchantRegistrationForm = z.infer<

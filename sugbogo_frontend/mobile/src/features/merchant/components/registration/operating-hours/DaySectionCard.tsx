@@ -34,7 +34,7 @@ export default function DaySectionCard({
   return (
     <View
       className={`overflow-hidden rounded-xl border ${
-        hasError ? "border-red-500 bg-red-50" : "border-border-primary"
+        hasError ? "border-border-error bg-error" : "border-border-primary"
       }`}
     >
       <Pressable

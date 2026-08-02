@@ -33,7 +33,7 @@ export default function InputContainer({
       <View className="mb-1.5 flex-row items-center justify-between">
         <Text className="text-xs font-bold tracking-[0.5px] text-text-secondary">
           {label}
-          {required && <Text className="text-error"> *</Text>}
+          {required && <Text className="text-text-error"> *</Text>}
         </Text>
 
         {rightElement}
@@ -52,7 +52,9 @@ export default function InputContainer({
       </View>
 
       {error ? (
-        <Text className="mt-1 text-xs font-medium text-error">{error}</Text>
+        <Text className="mt-1 text-xs font-medium text-text-error">
+          {error}
+        </Text>
       ) : null}
     </View>
   );

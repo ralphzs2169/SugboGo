@@ -24,7 +24,9 @@ export default function ProfileTextField({
         }`}
       />
 
-      {error ? <Text className="mt-1 text-sm text-error">{error}</Text> : null}
+      {error ? (
+        <Text className="mt-1 text-sm text-text-error">{error}</Text>
+      ) : null}
     </View>
   );
 }
