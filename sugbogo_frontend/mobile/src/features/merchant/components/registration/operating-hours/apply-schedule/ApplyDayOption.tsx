@@ -39,7 +39,7 @@ export default function ApplyDayOption({
         className={
           isSelected
             ? "h-5 w-5 items-center justify-center rounded-full  bg-brand"
-            : "h-5 w-5 rounded-full border border-border-darker bg-white"
+            : "h-5 w-5 rounded-full border border-border-secondary bg-white"
         }
       >
         {isSelected && (
