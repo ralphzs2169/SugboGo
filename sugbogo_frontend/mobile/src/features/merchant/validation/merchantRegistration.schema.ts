@@ -115,6 +115,10 @@ export const merchantRegistrationSchema = z.object({
 
   contactNumber: z.string().min(1, "Contact number is required."),
 
+  specialtyTags: z
+    .array(z.number())
+    .length(3, "Please select exactly 3 specialty tags."),
+
   businessEmail: z
     .email({
       message: "Please enter a valid email.",

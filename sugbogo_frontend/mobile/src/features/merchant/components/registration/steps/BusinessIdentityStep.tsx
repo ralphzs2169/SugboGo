@@ -8,7 +8,7 @@ import RHFFormTextArea from "@/shared/components/form/RHFFormTextArea";
 import FormFieldApiError from "@/shared/components/form/FormFieldApiError";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import RegistrationSection from "../RegistrationSection";
-
+import SpecialtyTagsSection from "../specialty-tags/SpecialtyTagsSection";
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import {
   ClusterOption,
@@ -167,6 +167,14 @@ export default function BusinessIdentityStep({
           options={categoryOptions}
           onSelectPress={handleOpenCategorySheet}
         />
+
+        {categoriesError && selectedCluster && (
+          <FormFieldApiError
+            message="Unable to load categories."
+            onRetry={refetchCategories}
+          />
+        )}
+
         {categoriesError && selectedCluster && (
           <FormFieldApiError
             message="Unable to load categories."
@@ -177,7 +185,7 @@ export default function BusinessIdentityStep({
         <RHFFormTextArea
           name="businessDescription"
           label="Description"
-          placeholder="Tell explorers about your business..."
+          placeholder="Tell us about your business..."
           maxLength={500}
         />
 
@@ -188,7 +196,13 @@ export default function BusinessIdentityStep({
           autoCapitalize="none"
         />
       </RegistrationSection>
-
+      <RegistrationSection
+        icon="tag-outline"
+        title="Specialty Tags"
+        description="Choose 3 tags that best describe your business."
+      >
+        <SpecialtyTagsSection />
+      </RegistrationSection>
       <RegistrationSection
         icon="account-outline"
         title="Contact Information"

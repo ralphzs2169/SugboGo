@@ -87,7 +87,7 @@ export default function MerchantRegistrationScreen() {
       businessCluster: "",
       businessCategory: "",
       businessDescription: "",
-
+      specialtyTags: [],
       // Contact
       representativeName: "",
       representativeRole: "",
