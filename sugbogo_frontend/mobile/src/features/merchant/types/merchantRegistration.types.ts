@@ -30,36 +30,43 @@ export interface MerchantRegistrationForm {
   operatingHours: {
     monday: {
       isOpen: boolean;
+      is24Hours: boolean;
       openTime: string;
       closeTime: string;
     };
     tuesday: {
       isOpen: boolean;
+      is24Hours: boolean;
       openTime: string;
       closeTime: string;
     };
     wednesday: {
       isOpen: boolean;
+      is24Hours: boolean;
       openTime: string;
       closeTime: string;
     };
     thursday: {
       isOpen: boolean;
+      is24Hours: boolean;
       openTime: string;
       closeTime: string;
     };
     friday: {
       isOpen: boolean;
+      is24Hours: boolean;
       openTime: string;
       closeTime: string;
     };
     saturday: {
       isOpen: boolean;
+      is24Hours: boolean;
       openTime: string;
       closeTime: string;
     };
     sunday: {
       isOpen: boolean;
+      is24Hours: boolean;
       openTime: string;
       closeTime: string;
     };

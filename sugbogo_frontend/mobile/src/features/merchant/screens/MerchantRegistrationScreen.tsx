@@ -21,6 +21,7 @@ import OperatingHoursStep from "../components/registration/steps/OperatingHoursS
 import BusinessPhotosStep from "../components/registration/steps/BusinessPhotosStep";
 import VerificationDocumentsStep from "../components/registration/steps/VerificationDocumentsStep";
 import ReviewStep from "../components/registration/steps/ReviewSubmitStep";
+import Toast from "react-native-toast-message";
 
 export default function MerchantRegistrationScreen() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -108,36 +109,43 @@ export default function MerchantRegistrationScreen() {
       operatingHours: {
         monday: {
           isOpen: true,
+          is24Hours: false,
           openTime: "08:00",
           closeTime: "17:00",
         },
         tuesday: {
           isOpen: true,
+          is24Hours: false,
           openTime: "08:00",
           closeTime: "17:00",
         },
         wednesday: {
           isOpen: true,
+          is24Hours: false,
           openTime: "08:00",
           closeTime: "17:00",
         },
         thursday: {
           isOpen: true,
+          is24Hours: false,
           openTime: "08:00",
           closeTime: "17:00",
         },
         friday: {
           isOpen: true,
+          is24Hours: false,
           openTime: "08:00",
           closeTime: "17:00",
         },
         saturday: {
           isOpen: false,
+          is24Hours: false,
           openTime: "",
           closeTime: "",
         },
         sunday: {
           isOpen: false,
+          is24Hours: false,
           openTime: "",
           closeTime: "",
         },
@@ -167,6 +175,19 @@ export default function MerchantRegistrationScreen() {
       return;
     }
 
+    if (currentStep === 3) {
+      const isValid = await form.trigger("operatingHours");
+
+      if (!isValid) {
+        Toast.show({
+          type: "error",
+          text1: "Check your operating hours",
+          text2: "Please review the highlighted days before continuing.",
+        });
+        return;
+      }
+    }
+
     scrollRef.current?.scrollTo({
       y: 0,
       animated: false,
@@ -174,6 +195,7 @@ export default function MerchantRegistrationScreen() {
 
     setCurrentStep((step) => step + 1);
   };
+
   return (
     <>
       <FormProvider {...form}>

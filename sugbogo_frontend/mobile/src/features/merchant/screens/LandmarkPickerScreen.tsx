@@ -3,7 +3,7 @@ import { View, Platform, KeyboardAvoidingView, Keyboard } from "react-native";
 import { MapPressEvent } from "react-native-maps";
 import { getDistance } from "geolib";
 import Toast from "react-native-toast-message";
-import { LANDMARK_RADIUS_METERS } from "../constants/map";
+import { LANDMARK_RADIUS_METERS } from "../constants/map.constants";
 import { validateLandmarkName } from "../validation/customLandmark";
 import LandmarkPickerMap from "../components/registration/landmark/landmark-picker/LandmarkPickerMap";
 import LandmarkPickerBottomSheet from "../components/registration/landmark/landmark-picker/LandmarkPickerBottomSheet";

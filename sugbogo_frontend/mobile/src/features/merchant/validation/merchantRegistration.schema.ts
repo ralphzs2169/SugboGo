@@ -1,5 +1,55 @@
 import { z } from "zod";
 
+const operatingHoursDaySchema = z
+  .object({
+    isOpen: z.boolean(),
+    is24Hours: z.boolean(),
+    openTime: z.string(),
+    closeTime: z.string(),
+  })
+  .superRefine((day, ctx) => {
+    // Closed days don't require times.
+    if (!day.isOpen) {
+      return;
+    }
+
+    // 24-hour days don't require times.
+    if (day.is24Hours) {
+      return;
+    }
+
+    // Open normal schedule requires both times.
+    if (!day.openTime) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["openTime"],
+        message: "Opening time is required.",
+      });
+    }
+
+    if (!day.closeTime) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["closeTime"],
+        message: "Closing time is required.",
+      });
+    }
+
+    // Don't compare empty values.
+    if (!day.openTime || !day.closeTime) {
+      return;
+    }
+
+    // Same opening and closing time isn't a valid schedule.
+    if (day.openTime === day.closeTime) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["closeTime"],
+        message: "Closing time must be different from opening time.",
+      });
+    }
+  });
+
 export const merchantRegistrationSchema = z.object({
   businessName: z.string().min(1, "Business name is required."),
 
@@ -41,7 +91,6 @@ export const merchantRegistrationSchema = z.object({
 
   unit: z.string(),
 
-  // Nearby Landmarks
   landmarks: z.array(
     z.object({
       id: z.string(),
@@ -60,47 +109,13 @@ export const merchantRegistrationSchema = z.object({
 
   // Operating Hours
   operatingHours: z.object({
-    monday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string(),
-    }),
-
-    tuesday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string(),
-    }),
-
-    wednesday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string(),
-    }),
-
-    thursday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string(),
-    }),
-
-    friday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string(),
-    }),
-
-    saturday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string(),
-    }),
-
-    sunday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string(),
-    }),
+    monday: operatingHoursDaySchema,
+    tuesday: operatingHoursDaySchema,
+    wednesday: operatingHoursDaySchema,
+    thursday: operatingHoursDaySchema,
+    friday: operatingHoursDaySchema,
+    saturday: operatingHoursDaySchema,
+    sunday: operatingHoursDaySchema,
   }),
 
   businessPhotos: z.object({

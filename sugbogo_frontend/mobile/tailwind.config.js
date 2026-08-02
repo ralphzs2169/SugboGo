@@ -17,9 +17,11 @@ module.exports = {
         error: "#DC2626", // error/validation text
         success: "#16A34A", // success states
         white: "#FFFFFF", // pure white
+        info: "#EFF6FF",
 
         border: {
           primary: "#E5E7EB",
+          darker: "#AEB4BC",
           disabled: "#E5E7EB",
         },
 
@@ -28,6 +30,7 @@ module.exports = {
           secondary: "#666666",
           placeholder: "#999999",
           tertiary: "#999999",
+          info: "#2563EB",
         },
       },
 
