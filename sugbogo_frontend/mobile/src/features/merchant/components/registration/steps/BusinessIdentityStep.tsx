@@ -1,7 +1,8 @@
 import { useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-
+import { Keyboard } from "react-native";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
 import RHFFormSelect from "@/shared/components/form/RHFFormSelect";
 import RHFFormTextArea from "@/shared/components/form/RHFFormTextArea";
@@ -50,6 +51,7 @@ export default function BusinessIdentityStep({
 }: Props) {
   const clusterSheetRef = useRef<BottomSheetModal>(null);
   const categorySheetRef = useRef<BottomSheetModal>(null);
+
   const representativeRoleSheetRef = useRef<BottomSheetModal>(null);
   const { control, setValue } = useFormContext<MerchantRegistrationForm>();
 
@@ -123,7 +125,7 @@ export default function BusinessIdentityStep({
   }
 
   function handleOpenClusterSheet() {
-    clusterSheetRef.current?.present();
+    presentBottomSheet(clusterSheetRef);
   }
 
   function handleOpenCategorySheet() {
@@ -131,14 +133,11 @@ export default function BusinessIdentityStep({
       return;
     }
 
-    categorySheetRef.current?.present();
+    presentBottomSheet(categorySheetRef);
   }
 
-  /**
-   * Opens the representative-role selection sheet.
-   */
   function handleOpenRepresentativeRoleSheet() {
-    representativeRoleSheetRef.current?.present();
+    presentBottomSheet(representativeRoleSheetRef);
   }
 
   /**
@@ -226,6 +225,7 @@ export default function BusinessIdentityStep({
         />
       </RegistrationSection>
 
+      {/* Specialty Tags Section */}
       <RegistrationSection
         icon="tag-outline"
         title="Specialty Tags"
@@ -234,6 +234,7 @@ export default function BusinessIdentityStep({
         <SpecialtyTagsSection />
       </RegistrationSection>
 
+      {/* Contact Information Section */}
       <RegistrationSection
         icon="account-outline"
         title="Contact Information"
@@ -256,6 +257,7 @@ export default function BusinessIdentityStep({
         />
       </RegistrationSection>
 
+      {/* Representative Information Section */}
       <RegistrationSection
         icon="account-check-outline"
         title="Representative Information"

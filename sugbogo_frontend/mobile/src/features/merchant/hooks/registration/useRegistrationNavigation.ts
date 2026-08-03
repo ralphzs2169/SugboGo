@@ -10,6 +10,7 @@ export default function useRegistrationNavigation({
 }: UseRegistrationNavigationProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [editingStep, setEditingStep] = useState<number | null>(null);
+  const [highestCompletedStep, setHighestCompletedStep] = useState(0);
 
   const scrollRef = useRef<ScrollView>(null);
 
@@ -42,6 +43,11 @@ export default function useRegistrationNavigation({
     goToStep(step);
   };
 
+  const completeCurrentStep = () => {
+    setHighestCompletedStep((step) => Math.max(step, currentStep));
+
+    goToStep(currentStep + 1);
+  };
   return {
     currentStep,
     editingStep,
@@ -50,5 +56,7 @@ export default function useRegistrationNavigation({
     goToReview,
     handleBack,
     handleEditSection,
+    completeCurrentStep,
+    highestCompletedStep,
   };
 }

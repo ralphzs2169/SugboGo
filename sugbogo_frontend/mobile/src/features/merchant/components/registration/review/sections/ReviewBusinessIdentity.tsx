@@ -9,6 +9,8 @@ import {
 
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
+import SpecialtyTag from "../../specialty-tags/SpecialtyTag";
+import { Text } from "react-native";
 
 type ReviewBusinessIdentityProps = {
   clusters: ClusterOption[];
@@ -92,16 +94,36 @@ export default function ReviewBusinessIdentity({
           <ReviewRow label="Website" value={form.website} />
         </View>
 
+        {/* Specialty Tags Section */}
         <View className="w-full">
-          <ReviewRow
-            label="Specialty Tags"
-            value={form.specialtyTags
-              .map(
-                (tagId) => SPECIALTY_TAGS.find((tag) => tag.id === tagId)?.name,
-              )
-              .filter(Boolean)
-              .join(", ")}
-          />
+          <Text className="mb-2 text-sm font-medium text-text-secondary">
+            Specialty Tags
+          </Text>
+
+          {form.specialtyTags.length > 0 ? (
+            <View className="flex-row flex-wrap">
+              {form.specialtyTags.map((tagId) => {
+                const tag = SPECIALTY_TAGS.find((tag) => tag.id === tagId);
+
+                if (!tag) {
+                  return null;
+                }
+
+                return (
+                  <SpecialtyTag
+                    key={tag.id}
+                    label={tag.name}
+                    isSelected
+                    isDisabled
+                    onPress={() => {}}
+                    showDisabledStyle={false}
+                  />
+                );
+              })}
+            </View>
+          ) : (
+            <Text className="text-sm text-text-primary">Not provided</Text>
+          )}
         </View>
       </View>
     </ReviewSection>

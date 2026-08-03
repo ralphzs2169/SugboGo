@@ -1,14 +1,16 @@
 import { useFormContext } from "react-hook-form";
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import { DAYS } from "@/features/merchant/constants/registration/operatingHours.constants";
 
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
+import StatusBadge from "../../operating-hours/StatusBadge";
 
 type ReviewOperatingHoursProps = {
   onEdit?: () => void;
 };
+
 const formatDay = (day: string) => day.charAt(0).toUpperCase() + day.slice(1);
 
 const formatTime = (time: string) => {
@@ -33,7 +35,7 @@ export default function ReviewOperatingHours({
         {DAYS.map((day) => {
           const schedule = operatingHours[day];
 
-          let value = "Closed";
+          let value = "—";
 
           if (schedule.isOpen) {
             value = schedule.is24Hours
@@ -43,7 +45,20 @@ export default function ReviewOperatingHours({
                 )}`;
           }
 
-          return <ReviewRow key={day} label={formatDay(day)} value={value} />;
+          return (
+            <ReviewRow
+              key={day}
+              label={
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-sm text-text-secondary">
+                    {formatDay(day)}
+                  </Text>
+                  <StatusBadge isOpen={schedule.isOpen} />
+                </View>
+              }
+              value={value}
+            />
+          );
         })}
       </View>
     </ReviewSection>

@@ -116,7 +116,11 @@ export const merchantRegistrationSchema = z.object({
     .trim()
     .min(1, "Business description is required."),
 
-  contactNumber: z.string().min(1, "Contact number is required."),
+  contactNumber: z
+    .string()
+    .trim()
+    .min(1, "Contact number is required.")
+    .regex(/^(09\d{9}|\+639\d{9})$/, "Enter a valid Philippine mobile number."),
 
   specialtyTags: z
     .array(z.number())

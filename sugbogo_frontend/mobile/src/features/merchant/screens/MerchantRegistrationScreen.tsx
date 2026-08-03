@@ -16,6 +16,8 @@ import { REGISTRATION_STEPS } from "../constants/registration/registrationSteps"
 import ReviewCelebration from "../components/registration/ReviewCelebration";
 import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "../constants/registration/defaultValues.constants";
 import useRegistrationNavigation from "../hooks/registration/useRegistrationNavigation";
+import { BackHandler } from "react-native";
+import { useEffect } from "react";
 
 export default function MerchantRegistrationScreen() {
   const REVIEW_STEP = REGISTRATION_STEPS.length;
@@ -23,11 +25,12 @@ export default function MerchantRegistrationScreen() {
   const {
     currentStep,
     editingStep,
+    highestCompletedStep,
     scrollRef,
-    goToStep,
     goToReview,
     handleBack,
     handleEditSection,
+    completeCurrentStep,
   } = useRegistrationNavigation({
     reviewStep: REVIEW_STEP,
   });
@@ -174,9 +177,44 @@ export default function MerchantRegistrationScreen() {
     //     return;
     //   }
     // }
-
-    goToStep(currentStep + 1);
+    completeCurrentStep();
   };
+
+  useEffect(() => {
+    /**
+     * Handles Android hardware back navigation during merchant registration.
+     *
+     * Navigation behavior:
+     * - Editing a section: return directly to the Review step.
+     * - Review step: prevent navigating back into the registration flow.
+     * - Normal registration steps: navigate to the previous step.
+     * - First step: allow the default Android back behavior.
+     */
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        // While editing a section, Android Back returns to Review.
+        if (editingStep !== null) {
+          goToReview();
+          return true;
+        }
+
+        // Review is the final checkpoint.
+        if (currentStep === REVIEW_STEP) {
+          return true;
+        }
+
+        if (currentStep > 1) {
+          handleBack();
+          return true;
+        }
+
+        return false;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [currentStep, editingStep, REVIEW_STEP, goToReview, handleBack]);
 
   return (
     <>
@@ -187,6 +225,8 @@ export default function MerchantRegistrationScreen() {
             <RegistrationStepper
               currentStep={currentStep}
               totalSteps={REVIEW_STEP}
+              editingStep={editingStep}
+              highestCompletedStep={highestCompletedStep}
               title={REGISTRATION_STEPS[currentStep - 1].title}
             />
           }

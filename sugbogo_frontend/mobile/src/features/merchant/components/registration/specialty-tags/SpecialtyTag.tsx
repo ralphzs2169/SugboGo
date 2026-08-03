@@ -4,7 +4,8 @@ type SpecialtyTagProps = {
   label: string;
   isSelected: boolean;
   isDisabled?: boolean;
-  onPress: () => void;
+  onPress?: () => void;
+  showDisabledStyle?: boolean;
 };
 
 export default function SpecialtyTag({
@@ -12,16 +13,17 @@ export default function SpecialtyTag({
   isSelected,
   isDisabled = false,
   onPress,
+  showDisabledStyle = true,
 }: SpecialtyTagProps) {
   return (
     <Pressable
       onPress={onPress}
-      disabled={isDisabled}
+      disabled={isDisabled || !onPress}
       className={`mb-2 mr-2 rounded-full border px-3 py-2 ${
         isSelected
           ? "border-brand bg-brand/10"
           : "border-border-primary bg-surface"
-      } ${isDisabled ? "opacity-40" : ""}`}
+      } ${isDisabled && showDisabledStyle ? "opacity-40" : ""}`}
     >
       <Text
         className={`text-sm font-medium ${
