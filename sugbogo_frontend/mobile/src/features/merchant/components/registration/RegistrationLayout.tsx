@@ -7,6 +7,7 @@ type RegistrationLayoutProps = {
   stepper: ReactNode;
   footer: ReactNode;
   scrollRef: RefObject<ScrollView | null>;
+  overlay?: ReactNode;
 };
 
 /**
@@ -20,6 +21,7 @@ export default function RegistrationLayout({
   stepper,
   footer,
   scrollRef,
+  overlay,
 }: RegistrationLayoutProps) {
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
@@ -39,6 +41,8 @@ export default function RegistrationLayout({
         </ScrollView>
 
         {footer}
+
+        {overlay}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

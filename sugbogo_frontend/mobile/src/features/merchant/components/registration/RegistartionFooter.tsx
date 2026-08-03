@@ -1,39 +1,44 @@
 import Button from "@/shared/components/Button";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
 type RegistrationFooterProps = {
   currentStep: number;
   totalSteps: number;
   onBack: () => void;
   onNext: () => void;
+  onSaveAndReview: () => void;
   isSubmitting?: boolean;
+  isEditing?: boolean;
 };
 
-/**
- * Displays the navigation controls for the merchant
- * registration flow.
- *
- * Shows Back and Continue actions, replacing Continue with
- * Submit Application on the final step.
- */
 export default function RegistrationFooter({
   currentStep,
   totalSteps,
   onBack,
   onNext,
+  onSaveAndReview,
   isSubmitting = false,
+  isEditing = false,
 }: RegistrationFooterProps) {
   const isFirstStep = currentStep === 1;
   const isLastStep = currentStep === totalSteps;
+  console.log(isEditing, "isEditing");
+  if (isEditing) {
+    return (
+      <View className="border-t border-border-primary bg-surface px-6 py-5">
+        <Button
+          title="Save & Review"
+          className="w-full"
+          loading={isSubmitting}
+          disabled={isSubmitting}
+          onPress={onSaveAndReview}
+        />
+      </View>
+    );
+  }
 
   return (
     <View className="border-t border-border-primary bg-surface px-6 py-5">
-      {/* <Text className="mb-4 text-sm text-text-secondary">
-        {isLastStep
-          ? "Review your information before submitting your application."
-          : "Complete each step to continue your merchant registration."}
-      </Text> */}
-
       <View className="flex-row gap-3">
         {!isFirstStep && (
           <Button

@@ -5,13 +5,22 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import ReviewSection from "../ReviewSection";
 
-export default function ReviewVerificationDocuments() {
+type ReviewVerificationDocumentsProps = {
+  onEdit?: () => void;
+};
+export default function ReviewVerificationDocuments({
+  onEdit,
+}: ReviewVerificationDocumentsProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
 
   const documents = watch("verificationDocuments");
 
   return (
-    <ReviewSection icon="file-document-outline" title="Verification Documents">
+    <ReviewSection
+      icon="file-document-outline"
+      title="Verification Documents"
+      onEdit={onEdit}
+    >
       <DocumentGroup
         title="Business Registration"
         document={documents.businessRegistration}

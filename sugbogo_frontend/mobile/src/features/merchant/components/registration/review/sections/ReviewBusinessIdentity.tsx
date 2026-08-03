@@ -13,11 +13,13 @@ import ReviewRow from "../ReviewRow";
 type ReviewBusinessIdentityProps = {
   clusters: ClusterOption[];
   categories: CategoryOption[];
+  onEdit?: () => void;
 };
 
 export default function ReviewBusinessIdentity({
   clusters,
   categories,
+  onEdit,
 }: ReviewBusinessIdentityProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
 
@@ -33,24 +35,40 @@ export default function ReviewBusinessIdentity({
     )?.name ?? "Not provided";
 
   return (
-    <ReviewSection icon="store-outline" title="Business Identity">
+    <ReviewSection
+      icon="store-outline"
+      title="Business Identity"
+      onEdit={onEdit}
+    >
+      {/* Business Name */}
+      <View className="w-full">
+        <ReviewRow
+          label="Business Name"
+          value={form.businessName}
+          valueClassName="text-md font-bold text-brand"
+        />
+      </View>
+
       <View className="flex-row flex-wrap">
         <View className="w-1/2 pr-2">
-          <ReviewRow label="Business Name" value={form.businessName} />
-        </View>
-
-        <View className="w-1/2 pl-2">
           <ReviewRow label="Business Cluster" value={clusterName} />
         </View>
 
-        <View className="w-1/2 pr-2">
+        <View className="w-1/2 pl-2">
           <ReviewRow label="Business Category" value={categoryName} />
+        </View>
+
+        <View className="w-1/2 pr-2">
+          <ReviewRow
+            label="Representative Name"
+            value={form.representativeName}
+          />
         </View>
 
         <View className="w-1/2 pl-2">
           <ReviewRow
-            label="Representative Name"
-            value={form.representativeName}
+            label="Representative Role"
+            value={form.representativeRole}
           />
         </View>
 
@@ -67,30 +85,24 @@ export default function ReviewBusinessIdentity({
         </View>
 
         <View className="w-1/2 pl-2">
-          <ReviewRow
-            label="Representative Role"
-            value={form.representativeRole}
-          />
-        </View>
-
-        <View className="w-1/2 pr-2">
           <ReviewRow label="Business Email" value={form.businessEmail} />
         </View>
 
-        <View className="w-1/2 pl-2">
+        <View className="w-1/2 pr-2">
           <ReviewRow label="Website" value={form.website} />
         </View>
-      </View>
-      <View className="w-full">
-        <ReviewRow
-          label="Specialty Tags"
-          value={form.specialtyTags
-            .map(
-              (tagId) => SPECIALTY_TAGS.find((tag) => tag.id === tagId)?.name,
-            )
-            .filter(Boolean)
-            .join(", ")}
-        />
+
+        <View className="w-full">
+          <ReviewRow
+            label="Specialty Tags"
+            value={form.specialtyTags
+              .map(
+                (tagId) => SPECIALTY_TAGS.find((tag) => tag.id === tagId)?.name,
+              )
+              .filter(Boolean)
+              .join(", ")}
+          />
+        </View>
       </View>
     </ReviewSection>
   );

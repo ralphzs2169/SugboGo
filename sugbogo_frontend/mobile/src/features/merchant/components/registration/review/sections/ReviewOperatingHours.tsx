@@ -6,6 +6,9 @@ import { DAYS } from "@/features/merchant/constants/registration/operatingHours.
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
 
+type ReviewOperatingHoursProps = {
+  onEdit?: () => void;
+};
 const formatDay = (day: string) => day.charAt(0).toUpperCase() + day.slice(1);
 
 const formatTime = (time: string) => {
@@ -18,12 +21,14 @@ const formatTime = (time: string) => {
   return `${displayHour}:${minutes} ${period}`;
 };
 
-export default function ReviewOperatingHours() {
+export default function ReviewOperatingHours({
+  onEdit,
+}: ReviewOperatingHoursProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
   const operatingHours = watch("operatingHours");
 
   return (
-    <ReviewSection icon="clock-outline" title="Operating Hours">
+    <ReviewSection icon="clock-outline" title="Operating Hours" onEdit={onEdit}>
       <View className="gap-2">
         {DAYS.map((day) => {
           const schedule = operatingHours[day];

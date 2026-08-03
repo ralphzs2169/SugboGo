@@ -5,13 +5,18 @@ import type { MerchantRegistrationForm } from "@/features/merchant/validation/me
 import ReviewSection from "../ReviewSection";
 import PhotoPreview from "../../business-photos/PhotoPreview";
 
-export default function ReviewBusinessPhotos() {
+type ReviewBusinessPhotosProps = {
+  onEdit?: () => void;
+};
+export default function ReviewBusinessPhotos({
+  onEdit,
+}: ReviewBusinessPhotosProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
 
   const photos = watch("businessPhotos");
 
   return (
-    <ReviewSection icon="image-outline" title="Business Photos">
+    <ReviewSection icon="image-outline" title="Business Photos" onEdit={onEdit}>
       <PhotoGroup title="Storefront" photos={photos.storefront} required />
 
       {photos.interior.length > 0 && (

@@ -1,34 +1,36 @@
-import { useState, useRef } from "react";
-import { FormProvider, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
-
-import RegistrationLayout from "../components/registration/RegistrationLayout";
 import RegistrationFooter from "../components/registration/RegistartionFooter";
+import RegistrationLayout from "../components/registration/RegistrationLayout";
 import RegistrationStepper from "../components/registration/RegistrationStepper";
-import { ScrollView } from "react-native";
-import {
-  merchantRegistrationSchema,
-  MerchantRegistrationForm,
-} from "../validation/merchantRegistration.schema";
+import { merchantRegistrationSchema } from "../validation/merchantRegistration.schema";
 
-import useClusters from "../hooks/registration/useClusters";
 import useCategories from "../hooks/registration/useCategories";
+import useClusters from "../hooks/registration/useClusters";
 
+import RegistrationStepContent from "../components/registration/RegistrationStepContent";
 import { REGISTRATION_STEPS } from "../constants/registration/registrationSteps";
-import BusinessIdentityStep from "../components/registration/steps/BusinessIdentityStep";
-import BusinessLocationStep from "../components/registration/steps/BusinessLocationStep";
-import OperatingHoursStep from "../components/registration/steps/OperatingHoursStep";
-import BusinessPhotosStep from "../components/registration/steps/BusinessPhotosStep";
-import VerificationDocumentsStep from "../components/registration/steps/VerificationDocumentsStep";
-import ReviewStep from "../components/registration/steps/ReviewSubmitStep";
-import Toast from "react-native-toast-message";
+
+import ReviewCelebration from "../components/registration/ReviewCelebration";
+import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "../constants/registration/defaultValues.constants";
+import useRegistrationNavigation from "../hooks/registration/useRegistrationNavigation";
 
 export default function MerchantRegistrationScreen() {
-  const [currentStep, setCurrentStep] = useState(1);
+  const REVIEW_STEP = REGISTRATION_STEPS.length;
 
-  // Scroll to the top of the form when moving to the next step.
-  const scrollRef = useRef<ScrollView>(null);
+  const {
+    currentStep,
+    editingStep,
+    scrollRef,
+    goToStep,
+    goToReview,
+    handleBack,
+    handleEditSection,
+  } = useRegistrationNavigation({
+    reviewStep: REVIEW_STEP,
+  });
 
   const {
     clusters,
@@ -44,132 +46,15 @@ export default function MerchantRegistrationScreen() {
     refetch: refetchCategories,
   } = useCategories();
 
-  const renderStep = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <BusinessIdentityStep
-            clusters={clusters}
-            categories={categories}
-            isLoadingClusters={isLoadingClusters}
-            isLoadingCategories={isLoadingCategories}
-            clustersError={clustersError}
-            categoriesError={categoriesError}
-            refetchClusters={refetchClusters}
-            refetchCategories={refetchCategories}
-          />
-        );
+  const [showReviewCelebration, setShowReviewCelebration] = useState(false);
 
-      case 2:
-        return <BusinessLocationStep />;
-
-      case 3:
-        return <OperatingHoursStep />;
-
-      case 4:
-        return <BusinessPhotosStep />;
-
-      case 5:
-        return <VerificationDocumentsStep />;
-
-      case 6:
-        return <ReviewStep clusters={clusters} categories={categories} />;
-
-      default:
-        return null;
-    }
-  };
   const form = useForm<
     z.input<typeof merchantRegistrationSchema>,
     undefined,
     z.output<typeof merchantRegistrationSchema>
   >({
     resolver: zodResolver(merchantRegistrationSchema),
-
-    defaultValues: {
-      // Business Identity
-      businessName: "",
-      businessCluster: "",
-      businessCategory: "",
-      businessDescription: "",
-      specialtyTags: [],
-      // Contact
-      representativeName: "",
-      representativeRole: "",
-      contactNumber: "",
-      businessEmail: "",
-      website: "",
-
-      // Location
-      // Business Location
-      province: "",
-      city: "",
-      barangay: "",
-      streetAddress: "",
-      unit: "",
-      landmarks: [],
-      latitude: null,
-      longitude: null,
-
-      operatingHours: {
-        monday: {
-          isOpen: true,
-          is24Hours: false,
-          openTime: "08:00",
-          closeTime: "17:00",
-        },
-        tuesday: {
-          isOpen: true,
-          is24Hours: false,
-          openTime: "08:00",
-          closeTime: "17:00",
-        },
-        wednesday: {
-          isOpen: true,
-          is24Hours: false,
-          openTime: "08:00",
-          closeTime: "17:00",
-        },
-        thursday: {
-          isOpen: true,
-          is24Hours: false,
-          openTime: "08:00",
-          closeTime: "17:00",
-        },
-        friday: {
-          isOpen: true,
-          is24Hours: false,
-          openTime: "08:00",
-          closeTime: "17:00",
-        },
-        saturday: {
-          isOpen: false,
-          is24Hours: false,
-          openTime: "",
-          closeTime: "",
-        },
-        sunday: {
-          isOpen: false,
-          is24Hours: false,
-          openTime: "",
-          closeTime: "",
-        },
-      },
-      // Business Photos
-      businessPhotos: {
-        storefront: [],
-        interior: [],
-        products: [],
-        additional: [],
-      },
-
-      // Verification Documents
-      verificationDocuments: {
-        businessRegistration: null,
-        authorizationDocument: null,
-        additionalDocuments: [],
-      },
-    },
+    defaultValues: MERCHANT_REGISTRATION_DEFAULT_VALUES,
   });
 
   const STEP_ONE_FIELDS = [
@@ -186,11 +71,21 @@ export default function MerchantRegistrationScreen() {
   ] as const;
 
   const handleNext = async () => {
-    const isLastStep = currentStep === REGISTRATION_STEPS.length;
+    const isLastStep = currentStep === REVIEW_STEP;
 
     if (isLastStep) {
       // submit later
       return;
+    }
+
+    // Returning to review after editing a section
+    if (editingStep !== null) {
+      goToReview();
+      return;
+    }
+
+    if (currentStep === 5 && editingStep === null) {
+      setShowReviewCelebration(true);
     }
 
     // if (currentStep === 1) {
@@ -207,27 +102,27 @@ export default function MerchantRegistrationScreen() {
     //   }
     // }
 
-    if (currentStep === 2) {
-      const isValid = await form.trigger([
-        "province",
-        "city",
-        "barangay",
-        "streetAddress",
-        "latitude",
-        "longitude",
-      ]);
+    // if (currentStep === 2) {
+    //   const isValid = await form.trigger([
+    //     "province",
+    //     "city",
+    //     "barangay",
+    //     "streetAddress",
+    //     "latitude",
+    //     "longitude",
+    //   ]);
 
-      if (!isValid) {
-        Toast.show({
-          type: "error",
-          text1: "Incomplete business location",
-          text2:
-            "Please select your business location and complete the address.",
-        });
+    //   if (!isValid) {
+    //     Toast.show({
+    //       type: "error",
+    //       text1: "Incomplete business location",
+    //       text2:
+    //         "Please select your business location and complete the address.",
+    //     });
 
-        return;
-      }
-    }
+    //     return;
+    //   }
+    // }
 
     // if (currentStep === 3) {
     //   const isValid = await form.trigger("operatingHours");
@@ -280,14 +175,7 @@ export default function MerchantRegistrationScreen() {
     //   }
     // }
 
-    setCurrentStep((step) => step + 1);
-
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({
-        y: 0,
-        animated: false,
-      });
-    });
+    goToStep(currentStep + 1);
   };
 
   return (
@@ -298,20 +186,35 @@ export default function MerchantRegistrationScreen() {
           stepper={
             <RegistrationStepper
               currentStep={currentStep}
-              totalSteps={REGISTRATION_STEPS.length}
+              totalSteps={REVIEW_STEP}
               title={REGISTRATION_STEPS[currentStep - 1].title}
             />
           }
           footer={
             <RegistrationFooter
               currentStep={currentStep}
-              totalSteps={REGISTRATION_STEPS.length}
+              totalSteps={REVIEW_STEP}
               onNext={handleNext}
-              onBack={() => setCurrentStep((step) => Math.max(1, step - 1))}
+              onBack={handleBack}
+              isEditing={editingStep !== null}
+              onSaveAndReview={goToReview}
             />
           }
+
+          overlay={showReviewCelebration ? <ReviewCelebration /> : null}
         >
-          {renderStep()}
+          <RegistrationStepContent
+            currentStep={currentStep}
+            clusters={clusters}
+            categories={categories}
+            isLoadingClusters={isLoadingClusters}
+            isLoadingCategories={isLoadingCategories}
+            clustersError={clustersError}
+            categoriesError={categoriesError}
+            refetchClusters={refetchClusters}
+            refetchCategories={refetchCategories}
+            onEditSection={handleEditSection}
+          />
         </RegistrationLayout>
       </FormProvider>
     </>

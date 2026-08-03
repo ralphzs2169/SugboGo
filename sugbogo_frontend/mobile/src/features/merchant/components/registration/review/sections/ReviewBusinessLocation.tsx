@@ -8,7 +8,13 @@ import ReviewRow from "../ReviewRow";
 import LocationPickerMap from "../../location/LocationPickerMap";
 import { theme } from "@/constants/theme";
 
-export default function ReviewBusinessLocation() {
+type ReviewBusinessLocationProps = {
+  onEdit?: () => void;
+};
+
+export default function ReviewBusinessLocation({
+  onEdit,
+}: ReviewBusinessLocationProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
 
   const form = watch();
@@ -23,7 +29,11 @@ export default function ReviewBusinessLocation() {
   };
 
   return (
-    <ReviewSection icon="map-marker-outline" title="Business Location">
+    <ReviewSection
+      icon="map-marker-outline"
+      title="Business Location"
+      onEdit={onEdit}
+    >
       <LocationPickerMap
         latitude={form.latitude}
         longitude={form.longitude}
