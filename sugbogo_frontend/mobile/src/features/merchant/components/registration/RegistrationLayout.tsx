@@ -7,19 +7,26 @@ type RegistrationLayoutProps = {
   stepper: ReactNode;
   footer: ReactNode;
   scrollRef: RefObject<ScrollView | null>;
+  overlay?: ReactNode;
 };
 
 /**
- * Shared layout for merchant registration.
+ * Shared layout for the merchant registration flow.
  *
- * Keeps the stepper and footer fixed while
- * allowing the current step content to scroll.
+ * Keeps the registration stepper and footer outside the scrollable
+ * content area so they remain fixed while the current step content
+ * can scroll independently.
+ *
+ * An optional overlay can be rendered above the registration content
+ * and footer for temporary visual feedback or celebrations without
+ * affecting the layout or scroll position.
  */
 export default function RegistrationLayout({
   children,
   stepper,
   footer,
   scrollRef,
+  overlay,
 }: RegistrationLayoutProps) {
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
@@ -39,6 +46,8 @@ export default function RegistrationLayout({
         </ScrollView>
 
         {footer}
+
+        {overlay}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

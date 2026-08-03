@@ -28,7 +28,7 @@ export default function LocationMapPreviewOverlay({
     <Pressable onPress={onPress}>
       {({ pressed }) => (
         <View
-          className="relative overflow-hidden rounded-2xl"
+          className="relative overflow-hidden rounded-xl"
           style={{ opacity: pressed ? 0.85 : 1 }}
         >
           {children}

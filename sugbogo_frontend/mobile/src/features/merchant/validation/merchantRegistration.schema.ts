@@ -111,9 +111,20 @@ export const merchantRegistrationSchema = z.object({
 
   businessCategory: z.string().min(1, "Business category is required."),
 
-  businessDescription: z.string().min(1, "Business description is required."),
+  businessDescription: z
+    .string()
+    .trim()
+    .min(1, "Business description is required."),
 
-  contactNumber: z.string().min(1, "Contact number is required."),
+  contactNumber: z
+    .string()
+    .trim()
+    .min(1, "Contact number is required.")
+    .regex(/^(09\d{9}|\+639\d{9})$/, "Enter a valid Philippine mobile number."),
+
+  specialtyTags: z
+    .array(z.number())
+    .length(3, "Please select exactly 3 specialty tags."),
 
   businessEmail: z
     .email({
@@ -135,11 +146,11 @@ export const merchantRegistrationSchema = z.object({
   representativeRole: z.string().min(1, "Please select your role."),
 
   // Business Location
-  province: z.string(),
+  province: z.string().trim().min(1, "Province is required."),
 
-  city: z.string(),
+  city: z.string().trim().min(1, "City / Municipality is required."),
 
-  barangay: z.string(),
+  barangay: z.string().trim().min(1, "Barangay is required."),
 
   streetAddress: z.string().trim().min(1, "Street address is required."),
 
@@ -157,9 +168,19 @@ export const merchantRegistrationSchema = z.object({
     }),
   ),
 
-  latitude: z.number().nullable(),
+  latitude: z
+    .number()
+    .nullable()
+    .refine((value) => value !== null, {
+      message: "Business location is required.",
+    }),
 
-  longitude: z.number().nullable(),
+  longitude: z
+    .number()
+    .nullable()
+    .refine((value) => value !== null, {
+      message: "Business location is required.",
+    }),
 
   // Operating Hours
   operatingHours: operatingHoursSchema,

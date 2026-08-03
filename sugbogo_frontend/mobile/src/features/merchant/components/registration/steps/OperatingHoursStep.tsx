@@ -8,7 +8,7 @@ import OperatingHoursEditor from "../operating-hours/OperatingHoursEditor";
 import {
   DAYS,
   type Day,
-} from "@/features/merchant/constants/operatingHours.constants";
+} from "@/features/merchant/constants/registration/operatingHours.constants";
 import RegistrationSection from "../RegistrationSection";
 
 /**
