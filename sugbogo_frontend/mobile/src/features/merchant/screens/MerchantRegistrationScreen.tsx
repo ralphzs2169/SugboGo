@@ -193,19 +193,19 @@ export default function MerchantRegistrationScreen() {
       return;
     }
 
-    if (currentStep === 1) {
-      const isValid = await form.trigger(STEP_ONE_FIELDS);
+    // if (currentStep === 1) {
+    //   const isValid = await form.trigger(STEP_ONE_FIELDS);
 
-      if (!isValid) {
-        Toast.show({
-          type: "error",
-          text1: "Incomplete business information",
-          text2: "Please review the highlighted fields before continuing.",
-        });
+    //   if (!isValid) {
+    //     Toast.show({
+    //       type: "error",
+    //       text1: "Incomplete business information",
+    //       text2: "Please review the highlighted fields before continuing.",
+    //     });
 
-        return;
-      }
-    }
+    //     return;
+    //   }
+    // }
 
     if (currentStep === 2) {
       const isValid = await form.trigger([

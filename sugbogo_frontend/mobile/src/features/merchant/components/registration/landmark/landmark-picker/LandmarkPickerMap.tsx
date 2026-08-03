@@ -1,17 +1,12 @@
 import { View } from "react-native";
-import MapView, {
-  Circle,
-  MapPressEvent,
-  Marker,
-  PROVIDER_GOOGLE,
-} from "react-native-maps";
+import { Circle, MapPressEvent, Marker } from "react-native-maps";
 
+import LandmarkMap from "../LanmarkMap";
 import MapMarker from "@/shared/components/MapMarker";
 import {
   BusinessLandmark,
   BusinessLocation,
 } from "@/shared/types/BusinessLocation.types";
-import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 import { LANDMARK_RADIUS_METERS } from "@/features/merchant/constants/registration/map.constants";
 
 type LandmarkPickerMapProps = {
@@ -25,15 +20,12 @@ type LandmarkPickerMapProps = {
   onExistingMarkerPress: () => void;
 };
 
-const MAP_LATITUDE_DELTA = 0.025;
-const MAP_LONGITUDE_DELTA = 0.025;
-
 /**
  * Displays the interactive map used when creating a custom landmark.
  *
- * Shows the merchant's business location, the allowed landmark radius,
- * previously selected landmarks for reference, and the pending custom
- * landmark while allowing new locations to be placed by tapping the map.
+ * Uses the shared landmark map for the business and existing landmark
+ * markers, while adding picker-specific behavior such as the allowed
+ * selection radius and pending custom landmark.
  */
 export default function LandmarkPickerMap({
   businessLocation,
@@ -43,33 +35,13 @@ export default function LandmarkPickerMap({
   onExistingMarkerPress,
 }: LandmarkPickerMapProps) {
   return (
-    <MapView
-      provider={PROVIDER_GOOGLE}
-      style={{ flex: 1 }}
-      customMapStyle={MAP_STYLE}
-      initialRegion={{
-        latitude: businessLocation.latitude,
-        longitude: businessLocation.longitude,
-        latitudeDelta: MAP_LATITUDE_DELTA,
-        longitudeDelta: MAP_LONGITUDE_DELTA,
-      }}
-      onPress={onMapPress}
+    <LandmarkMap
+      businessLocation={businessLocation}
+      selectedLandmarks={selectedLandmarks}
+      onMapPress={onMapPress}
+      onLandmarkPress={onExistingMarkerPress}
     >
-      {/* Business location */}
-      <Marker
-        coordinate={{
-          latitude: businessLocation.latitude,
-          longitude: businessLocation.longitude,
-        }}
-        title="Your business"
-        onPress={onExistingMarkerPress}
-      >
-        <View collapsable={false}>
-          <MapMarker variant="business" />
-        </View>
-      </Marker>
-
-      {/* 1 km landmark selection area */}
+      {/* Landmark selection area */}
       <Circle
         center={{
           latitude: businessLocation.latitude,
@@ -80,26 +52,6 @@ export default function LandmarkPickerMap({
         strokeColor="#1B4D3E"
         fillColor="rgba(27, 77, 62, 0.10)"
       />
-
-      {/* Previously selected landmarks */}
-      {selectedLandmarks.map((landmark) => (
-        <Marker
-          key={landmark.id}
-          coordinate={{
-            latitude: landmark.latitude,
-            longitude: landmark.longitude,
-          }}
-          title={landmark.name}
-          description={landmark.address}
-          onPress={onExistingMarkerPress}
-        >
-          <View collapsable={false}>
-            <MapMarker
-              variant={landmark.source === "google" ? "google" : "custom"}
-            />
-          </View>
-        </Marker>
-      ))}
 
       {/* Pending custom landmark */}
       {customLocation && (
@@ -113,6 +65,6 @@ export default function LandmarkPickerMap({
           </View>
         </Marker>
       )}
-    </MapView>
+    </LandmarkMap>
   );
 }

@@ -43,6 +43,8 @@ def reverse_geocode_view(request):
             status_code=status.HTTP_502_BAD_GATEWAY,
         )
     except ValueError as error:
+        print(f"Reverse geocoding request failed: {error}")
+
         return error_response(
             message=str(error),
             code="GEOCODING_FAILED",
