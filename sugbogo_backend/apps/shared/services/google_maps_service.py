@@ -144,10 +144,6 @@ class GoogleMapsService:
 
         location = data.get("location", {})
         
-        print("SELECTED PLACE ID:", place_id)
-        print("GOOGLE PLACE:", data.get("displayName"))
-        print("GOOGLE ADDRESS:", data.get("formattedAddress"))
-        print("GOOGLE LOCATION:", location)
         latitude = location.get("latitude")
         longitude = location.get("longitude")
 

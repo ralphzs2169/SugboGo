@@ -19,6 +19,23 @@ from apps.registration.throttles import (
 from apps.shared.services.google_maps_service import GoogleMapsService
 
 
+def _handle_google_maps_error(error, code):
+    """Handles errors from Google Maps API requests and returns appropriate error responses."""
+
+    if isinstance(error, RequestException):
+        return error_response(
+            message="Unable to connect to the location service.",
+            code="LOCATION_SERVICE_UNAVAILABLE",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    return error_response(
+        message=str(error),
+        code=code,
+        status_code=status.HTTP_502_BAD_GATEWAY,
+    )
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 @throttle_classes([ReverseGeocodeThrottle])
@@ -36,19 +53,10 @@ def reverse_geocode_view(request):
             latitude,
             longitude,
         )
-    except RequestException:
-        return error_response(
-            message="Unable to connect to the location service.",
-            code="LOCATION_SERVICE_UNAVAILABLE",
-            status_code=status.HTTP_502_BAD_GATEWAY,
-        )
-    except ValueError as error:
-        print(f"Reverse geocoding request failed: {error}")
-
-        return error_response(
-            message=str(error),
-            code="GEOCODING_FAILED",
-            status_code=status.HTTP_502_BAD_GATEWAY,
+    except (RequestException, ValueError) as error:
+        return _handle_google_maps_error(
+            error,
+            "GEOCODING_FAILED",
         )
 
     return success_response(
@@ -70,17 +78,10 @@ def place_search_view(request):
 
     try:
         suggestions = GoogleMapsService.search_places(search_input)
-    except RequestException:
-        return error_response(
-            message="Unable to connect to the location service.",
-            code="LOCATION_SERVICE_UNAVAILABLE",
-            status_code=status.HTTP_502_BAD_GATEWAY,
-        )
-    except ValueError as error:
-        return error_response(
-            message=str(error),
-            code="PLACE_SEARCH_FAILED",
-            status_code=status.HTTP_502_BAD_GATEWAY,
+    except (RequestException, ValueError) as error:
+        return _handle_google_maps_error(
+            error,
+            "PLACE_SEARCH_FAILED",
         )
 
     return success_response(
@@ -102,17 +103,10 @@ def place_details_view(request):
 
     try:
         location = GoogleMapsService.get_place_details(place_id)
-    except RequestException:
-        return error_response(
-            message="Unable to connect to the location service.",
-            code="LOCATION_SERVICE_UNAVAILABLE",
-            status_code=status.HTTP_502_BAD_GATEWAY,
-        )
-    except ValueError as error:
-        return error_response(
-            message=str(error),
-            code="PLACE_DETAILS_FAILED",
-            status_code=status.HTTP_502_BAD_GATEWAY,
+    except (RequestException, ValueError) as error:
+        return _handle_google_maps_error(
+            error,
+            "PLACE_DETAILS_FAILED",
         )
 
     return success_response(
@@ -138,17 +132,10 @@ def nearby_landmarks_view(request):
             latitude,
             longitude,
         )
-    except RequestException:
-        return error_response(
-            message="Unable to connect to the location service.",
-            code="LOCATION_SERVICE_UNAVAILABLE",
-            status_code=status.HTTP_502_BAD_GATEWAY,
-        )
-    except ValueError as error:
-        return error_response(
-            message=str(error),
-            code="LANDMARK_SEARCH_FAILED",
-            status_code=status.HTTP_502_BAD_GATEWAY,
+    except (RequestException, ValueError) as error:
+        return _handle_google_maps_error(
+            error,
+            "LANDMARK_SEARCH_FAILED",
         )
 
     return success_response(
