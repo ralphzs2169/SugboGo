@@ -47,7 +47,7 @@ export default function ReviewBusinessIdentity({
         <ReviewRow
           label="Business Name"
           value={form.businessName}
-          valueClassName="text-md font-bold text-brand"
+          valueClassName="text-2xl font-bold text-brand"
         />
       </View>
 

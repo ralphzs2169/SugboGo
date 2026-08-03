@@ -1,9 +1,8 @@
 from unittest.mock import Mock, patch
 
+from core.tests.assertions import APIResponseAssertionsMixin
 from django.urls import reverse
 from rest_framework.test import APITestCase
-
-from core.tests.assertions import APIResponseAssertionsMixin
 
 
 class ClusterOptionsViewTests(

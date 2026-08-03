@@ -9,7 +9,7 @@ import { merchantRegistrationSchema } from "../validation/merchantRegistration.s
 
 import useCategories from "../hooks/registration/useCategories";
 import useClusters from "../hooks/registration/useClusters";
-
+import useRegistrationValidation from "../hooks/registration/useRegistrationValidation";
 import RegistrationStepContent from "../components/registration/RegistrationStepContent";
 import { REGISTRATION_STEPS } from "../constants/registration/registrationSteps";
 
@@ -19,6 +19,28 @@ import useRegistrationNavigation from "../hooks/registration/useRegistrationNavi
 import { BackHandler } from "react-native";
 import { useEffect } from "react";
 
+/**
+ * Merchant registration wizard screen.
+ *
+ * Coordinates the overall merchant registration flow, including:
+ * - Multi-step registration and persistent progress state.
+ * - Form state and schema validation through React Hook Form and Zod.
+ * - Cluster and category option loading.
+ * - Step-specific validation before progressing.
+ * - Review and edit-mode navigation.
+ * - Android hardware back-button behavior.
+ * - Review completion feedback.
+ *
+ * Navigation behavior:
+ * - Normal steps progress sequentially after successful validation.
+ * - Editing a completed section returns to Review after saving.
+ * - Android Back while editing returns directly to Review.
+ * - Android Back on the Review step is blocked because Review is
+ *   the final checkpoint before submission.
+ * - Android Back on earlier steps navigates to the previous step.
+ *
+ * Validation behavior: Each step is validated before leaving that step.
+ */
 export default function MerchantRegistrationScreen() {
   const REVIEW_STEP = REGISTRATION_STEPS.length;
 
@@ -60,124 +82,43 @@ export default function MerchantRegistrationScreen() {
     defaultValues: MERCHANT_REGISTRATION_DEFAULT_VALUES,
   });
 
-  const STEP_ONE_FIELDS = [
-    "businessName",
-    "businessCluster",
-    "businessCategory",
-    "businessDescription",
-    "contactNumber",
-    "specialtyTags",
-    "businessEmail",
-    "website",
-    "representativeName",
-    "representativeRole",
-  ] as const;
+  const { validateCurrentStep } = useRegistrationValidation({
+    currentStep,
+    form,
+  });
 
   const handleNext = async () => {
-    const isLastStep = currentStep === REVIEW_STEP;
-
-    if (isLastStep) {
+    if (currentStep === REVIEW_STEP) {
       // submit later
       return;
     }
 
-    // Returning to review after editing a section
+    const isValid = await validateCurrentStep();
+
+    if (!isValid) {
+      return;
+    }
+
     if (editingStep !== null) {
       goToReview();
       return;
     }
 
-    if (currentStep === 5 && editingStep === null) {
+    if (currentStep === 5) {
       setShowReviewCelebration(true);
     }
 
-    // if (currentStep === 1) {
-    //   const isValid = await form.trigger(STEP_ONE_FIELDS);
-
-    //   if (!isValid) {
-    //     Toast.show({
-    //       type: "error",
-    //       text1: "Incomplete business information",
-    //       text2: "Please review the highlighted fields before continuing.",
-    //     });
-
-    //     return;
-    //   }
-    // }
-
-    // if (currentStep === 2) {
-    //   const isValid = await form.trigger([
-    //     "province",
-    //     "city",
-    //     "barangay",
-    //     "streetAddress",
-    //     "latitude",
-    //     "longitude",
-    //   ]);
-
-    //   if (!isValid) {
-    //     Toast.show({
-    //       type: "error",
-    //       text1: "Incomplete business location",
-    //       text2:
-    //         "Please select your business location and complete the address.",
-    //     });
-
-    //     return;
-    //   }
-    // }
-
-    // if (currentStep === 3) {
-    //   const isValid = await form.trigger("operatingHours");
-
-    //   if (!isValid) {
-    //     const operatingHoursError = form.formState.errors.operatingHours;
-
-    //     const hasNoOpenDaysError =
-    //       operatingHoursError?.message === "At least one day must be open.";
-
-    //     Toast.show({
-    //       type: "error",
-    //       text1: hasNoOpenDaysError
-    //         ? "No operating days selected"
-    //         : "Check your operating hours",
-    //       text2: hasNoOpenDaysError
-    //         ? "Please select at least one day that your business is open."
-    //         : "Please review the highlighted days before continuing.",
-    //     });
-
-    //     return;
-    //   }
-    // }
-
-    // if (currentStep === 4) {
-    //   const isValid = await form.trigger("businessPhotos");
-
-    //   if (!isValid) {
-    //     Toast.show({
-    //       type: "error",
-    //       text1: "Add a storefront photo",
-    //       text2: "At least one storefront photo is required.",
-    //     });
-
-    //     return;
-    //   }
-    // }
-
-    // if (currentStep === 5) {
-    //   const isValid = await form.trigger("verificationDocuments");
-
-    //   if (!isValid) {
-    //     Toast.show({
-    //       type: "error",
-    //       text1: "Verification document required",
-    //       text2:
-    //         "Please upload your business registration document before continuing.",
-    //     });
-    //     return;
-    //   }
-    // }
     completeCurrentStep();
+  };
+
+  const handleSaveAndReview = async () => {
+    const isValid = await validateCurrentStep();
+
+    if (!isValid) {
+      return;
+    }
+
+    goToReview();
   };
 
   useEffect(() => {
@@ -237,7 +178,7 @@ export default function MerchantRegistrationScreen() {
               onNext={handleNext}
               onBack={handleBack}
               isEditing={editingStep !== null}
-              onSaveAndReview={goToReview}
+              onSaveAndReview={handleSaveAndReview}
             />
           }
 

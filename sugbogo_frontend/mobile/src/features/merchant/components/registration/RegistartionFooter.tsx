@@ -45,6 +45,7 @@ export default function RegistrationFooter({
         <Button
           title="Save & Review"
           className="w-full"
+          fontClassName="font-bold"
           loading={isSubmitting}
           disabled={isSubmitting}
           onPress={onSaveAndReview}

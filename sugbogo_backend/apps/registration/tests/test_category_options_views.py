@@ -1,10 +1,9 @@
 from unittest.mock import patch
 
+from core.tests.assertions import APIResponseAssertionsMixin
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-
-from core.tests.assertions import APIResponseAssertionsMixin
 
 
 class CategoryOptionsViewTests(APIResponseAssertionsMixin, APITestCase):

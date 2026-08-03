@@ -21,9 +21,6 @@ export default function SpecialtyTagItem({
   isDisabled,
   onPress,
 }: Props) {
-  /**
-   * Handles selection of the specialty tag.
-   */
   function handlePress() {
     onPress();
   }

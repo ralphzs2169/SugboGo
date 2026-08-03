@@ -1,8 +1,7 @@
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, Keyboard } from "react-native";
 import { useFormContext, useWatch } from "react-hook-form";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef, useState } from "react";
-
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import { SPECIALTY_TAGS } from "@/features/merchant/types/merchantRegistration.types";
 import SpecialtyTagsBottomSheet from "./SpecialtyTagsBottomSheet";
@@ -36,6 +35,24 @@ export default function SpecialtyTagsSection() {
   const [visibleTagIds, setVisibleTagIds] = useState<number[]>(
     SPECIALTY_TAGS.slice(0, 10).map((tag) => tag.id),
   );
+
+  /**
+   * Handles selection of a specialty tag from the main form.
+   * Prevents selection of more than three tags and ensures that
+   * newly selected tags remain visible in the main form.
+   */
+  const handleVisibleTagPress = (tagId: number) => {
+    if (selectedTags.includes(tagId)) {
+      handleTagSelection(selectedTags.filter((id) => id !== tagId));
+      return;
+    }
+
+    if (selectedTags.length < 3) {
+      handleTagSelection([...selectedTags, tagId]);
+    }
+
+    Keyboard.dismiss();
+  };
 
   /**
    * Ensures newly selected tags remain visible in the main form.
@@ -144,15 +161,7 @@ export default function SpecialtyTagsSection() {
           return (
             <Pressable
               key={tag.id}
-              onPress={() => {
-                if (isSelected) {
-                  handleTagSelection(
-                    selectedTags.filter((id) => id !== tag.id),
-                  );
-                } else if (selectedTags.length < 3) {
-                  handleTagSelection([...selectedTags, tag.id]);
-                }
-              }}
+              onPress={() => handleVisibleTagPress(tag.id)}
               disabled={isDisabled}
               className={`mb-2 mr-2 rounded-full border px-3 py-2 ${
                 isSelected
