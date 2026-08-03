@@ -11,6 +11,10 @@ from apps.admin_operations.msme_management.views.cluster_views import (
 from apps.admin_operations.msme_management.views.msme_views import (
     MsmeVerifyView,
 )
+from apps.admin_operations.msme_management.views.specialty_tag_views import (
+    SpecialtyTagDetailView,
+    SpecialtyTagListView,
+)
 from apps.admin_operations.msme_management.views.summary_views import (
     get_cluster_category_summary,
 )
@@ -23,6 +27,10 @@ urlpatterns = [
     # Category
     path("categories/", CategoryListView.as_view()),
     path("categories/<int:category_id>/", CategoryDetailView.as_view()),
+
+    # Specialty Tag
+    path("specialty-tags/", SpecialtyTagListView.as_view()),
+    path("specialty-tags/<int:tag_id>/", SpecialtyTagDetailView.as_view()),
 
     # Summary
     path("cluster-category/summary/", get_cluster_category_summary),
