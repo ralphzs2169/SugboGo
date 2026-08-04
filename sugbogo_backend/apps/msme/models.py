@@ -64,6 +64,32 @@ class Location(models.Model):
         return self.LOCT_ADDRESS
 
 
+class SpecialtyTag(models.Model):
+
+    class TagColor(models.TextChoices):
+        BLUE = "blue", "Blue"
+        GREEN = "green", "Green"
+        PURPLE = "purple", "Purple"
+        YELLOW = "yellow", "Yellow"
+        RED = "red", "Red"
+        Teal = "teal", "Teal"
+
+    TAG_ID = models.AutoField(primary_key=True)
+    TAG_NAME = models.CharField(max_length=100, unique=True)
+    TAG_COLOR = models.CharField(
+        max_length=20,
+        choices=TagColor.choices,
+        default=TagColor.BLUE,
+    )
+    TAG_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    TAG_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'SPECIALTY_TAG'
+
+    def __str__(self):
+        return self.TAG_NAME
+
 class Msme(models.Model):
     # NOTE: MSME_STATUS choices are an assumption based on UC-07/UC-12
     # (pending review -> admin approves/rejects -> active in feed).
@@ -100,12 +126,19 @@ class Msme(models.Model):
         Location, on_delete=models.PROTECT, db_column='LOC_ID',
         related_name='msmes'
     )
+    SPECIALTY_TAGS = models.ManyToManyField(
+        SpecialtyTag,
+        related_name='msmes',
+        through='MsmeSpecialtyTag',
+        blank=True,
+    )
 
     class Meta:
         db_table = 'MSME'
 
     def __str__(self):
         return self.MSME_NAME
+
 
 
 class DiscoveryScore(models.Model):
@@ -128,38 +161,30 @@ class DiscoveryScore(models.Model):
         ordering = ['-DSC_COMPUTED_AT']
 
 
-class SpecialtyTag(models.Model):
-    TAG_ID = models.AutoField(primary_key=True)
-    TAG_NAME = models.CharField(max_length=100, unique=True)
-    TAG_TIER = models.PositiveSmallIntegerField()  # 1 = Rare/Heritage, 2 = Distinctive, 3 = Common
-    TAG_WEIGHT = models.PositiveSmallIntegerField()  # Tier1=3, Tier2=2, Tier3=1, per manuscript
-    TAG_IS_PREDEFINED = models.BooleanField(default=True)  # False = user-suggested, pending admin approval
-    TAG_CREATED_AT = models.DateTimeField(auto_now_add=True)
-    TAG_UPDATED_AT = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'SPECIALTY_TAG'
-
-    def __str__(self):
-        return self.TAG_NAME
-
-
 class MsmeSpecialtyTag(models.Model):
     MTAG_ID = models.AutoField(primary_key=True)
     MTAG_CREATED_AT = models.DateTimeField(auto_now_add=True)
     MTAG_UPDATED_AT = models.DateTimeField(auto_now=True)
 
     MSME_ID = models.ForeignKey(
-        Msme, on_delete=models.CASCADE, db_column='MSME_ID',
-        related_name='specialty_tags'
+        Msme,
+        on_delete=models.CASCADE,
+        db_column='MSME_ID',
+        related_name='specialty_tag_links'
     )
+
     TAG_ID = models.ForeignKey(
-        SpecialtyTag, on_delete=models.PROTECT, db_column='TAG_ID',
+        SpecialtyTag,
+        on_delete=models.PROTECT,
+        db_column='TAG_ID',
         related_name='msme_links'
     )
 
     class Meta:
         db_table = 'MSME_SPECIALTY_TAG'
-        unique_together = ('MSME_ID', 'TAG_ID')  # prevents duplicate vouches on the same tag
-
-
+        constraints = [  
+            models.UniqueConstraint(
+                fields=['MSME_ID', 'TAG_ID'],
+                name='unique_msme_specialty_tag',
+            ),
+        ]

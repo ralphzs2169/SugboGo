@@ -4,9 +4,10 @@ import {
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
 import { View } from "react-native";
+
 import type { SpecialtyTagOption } from "@/features/merchant/types/merchantRegistration.types";
 import SpecialtyTagsSheetHeader from "./SpecialtyTagsSheetHeader";
-import SpecialtyTagItem from "./SpecialtyTagItem";
+import SpecialtyTagChip from "./SpecialtyTagChip";
 
 type SpecialtyTagsBottomSheetProps = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
@@ -21,9 +22,7 @@ const MAX_SPECIALTY_TAGS = 3;
 /**
  * Displays the full specialty-tag selection interface in a bottom sheet.
  *
- * The component receives the current temporary selection from its parent
- * and delegates tag changes back through onToggleTag. The parent is also
- * responsible for committing the final selection when the sheet closes.
+ * Selection state and update logic are owned by the parent component.
  */
 export default function SpecialtyTagsBottomSheet({
   sheetRef,
@@ -32,9 +31,6 @@ export default function SpecialtyTagsBottomSheet({
   onToggleTag,
   onClose,
 }: SpecialtyTagsBottomSheetProps) {
-  /**
-   * Renders the dimmed backdrop behind the bottom sheet.
-   */
   function renderBackdrop(props: any) {
     return (
       <BottomSheetBackdrop
@@ -49,7 +45,8 @@ export default function SpecialtyTagsBottomSheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
-      snapPoints={["70%"]}
+      snapPoints={["70%", "85%"]}
+      index={1}
       enablePanDownToClose
       onDismiss={onClose}
       backdropComponent={renderBackdrop}
@@ -70,12 +67,13 @@ export default function SpecialtyTagsBottomSheet({
               !isSelected && selectedTags.length >= MAX_SPECIALTY_TAGS;
 
             return (
-              <SpecialtyTagItem
+              <SpecialtyTagChip
                 key={tag.id}
                 tag={tag}
                 isSelected={isSelected}
                 isDisabled={isDisabled}
                 onPress={() => onToggleTag(tag.id)}
+                showCheckIcon
               />
             );
           })}

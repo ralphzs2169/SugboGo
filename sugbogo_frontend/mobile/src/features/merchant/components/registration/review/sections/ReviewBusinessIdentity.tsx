@@ -1,16 +1,16 @@
+import { Text, View } from "react-native";
 import { useFormContext } from "react-hook-form";
-import { View } from "react-native";
+
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
-import {
-  type ClusterOption,
-  type CategoryOption,
-  SPECIALTY_TAGS,
+import type {
+  ClusterOption,
+  CategoryOption,
 } from "@/features/merchant/types/merchantRegistration.types";
 
+import useSpecialtyTags from "@/features/merchant/hooks/registration/useSpecialtyTags";
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
-import SpecialtyTag from "../../specialty-tags/SpecialtyTag";
-import { Text } from "react-native";
+import SpecialtyTagChip from "../../specialty-tags/SpecialtyTagChip";
 
 type ReviewBusinessIdentityProps = {
   clusters: ClusterOption[];
@@ -24,6 +24,7 @@ export default function ReviewBusinessIdentity({
   onEdit,
 }: ReviewBusinessIdentityProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
+  const { specialtyTags } = useSpecialtyTags();
 
   const form = watch();
 
@@ -36,13 +37,16 @@ export default function ReviewBusinessIdentity({
       (category) => category.id.toString() === form.businessCategory,
     )?.name ?? "Not provided";
 
+  const selectedSpecialtyTags = specialtyTags.filter((tag) =>
+    form.specialtyTags.includes(tag.id),
+  );
+
   return (
     <ReviewSection
       icon="store-outline"
       title="Business Identity"
       onEdit={onEdit}
     >
-      {/* Business Name */}
       <View className="w-full">
         <ReviewRow
           label="Business Name"
@@ -74,7 +78,6 @@ export default function ReviewBusinessIdentity({
           />
         </View>
 
-        {/* Full-width fields */}
         <View className="w-full">
           <ReviewRow
             label="Business Description"
@@ -94,32 +97,16 @@ export default function ReviewBusinessIdentity({
           <ReviewRow label="Website" value={form.website} />
         </View>
 
-        {/* Specialty Tags Section */}
         <View className="w-full">
           <Text className="mb-2 text-sm font-medium text-text-secondary">
             Specialty Tags
           </Text>
 
-          {form.specialtyTags.length > 0 ? (
+          {selectedSpecialtyTags.length > 0 ? (
             <View className="flex-row flex-wrap">
-              {form.specialtyTags.map((tagId) => {
-                const tag = SPECIALTY_TAGS.find((tag) => tag.id === tagId);
-
-                if (!tag) {
-                  return null;
-                }
-
-                return (
-                  <SpecialtyTag
-                    key={tag.id}
-                    label={tag.name}
-                    isSelected
-                    isDisabled
-                    onPress={() => {}}
-                    showDisabledStyle={false}
-                  />
-                );
-              })}
+              {selectedSpecialtyTags.map((tag) => (
+                <SpecialtyTagChip key={tag.id} tag={tag} />
+              ))}
             </View>
           ) : (
             <Text className="text-sm text-text-primary">Not provided</Text>

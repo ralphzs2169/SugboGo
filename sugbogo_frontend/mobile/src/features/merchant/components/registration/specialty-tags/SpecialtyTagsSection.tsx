@@ -1,11 +1,11 @@
 import { Pressable, Text, View, Keyboard } from "react-native";
 import { useFormContext, useWatch } from "react-hook-form";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
-import { SPECIALTY_TAGS } from "@/features/merchant/types/merchantRegistration.types";
 import SpecialtyTagsBottomSheet from "./SpecialtyTagsBottomSheet";
-
+import useSpecialtyTags from "@/features/merchant/hooks/registration/useSpecialtyTags";
+import SpecialtyTagChip from "./SpecialtyTagChip";
 /**
  * Renders the specialty-tag selection field for merchant registration.
  *
@@ -30,12 +30,21 @@ export default function SpecialtyTagsSection() {
     name: "specialtyTags",
   });
 
-  const [draftSelectedTags, setDraftSelectedTags] = useState(selectedTags);
+  const { specialtyTags, isLoading, error, refetch } = useSpecialtyTags();
 
-  const [visibleTagIds, setVisibleTagIds] = useState<number[]>(
-    SPECIALTY_TAGS.slice(0, 10).map((tag) => tag.id),
-  );
+  const [draftSelectedTags, setDraftSelectedTags] =
+    useState<number[]>(selectedTags);
 
+  const [visibleTagIds, setVisibleTagIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (specialtyTags.length === 0) {
+      setVisibleTagIds([]);
+      return;
+    }
+
+    setVisibleTagIds(specialtyTags.slice(0, 10).map((tag) => tag.id));
+  }, [specialtyTags]);
   /**
    * Handles selection of a specialty tag from the main form.
    * Prevents selection of more than three tags and ensures that
@@ -145,9 +154,10 @@ export default function SpecialtyTagsSection() {
 
   return (
     <View>
+      {/* Visible specialty tags */}
       <View className="mb-2 flex-row flex-wrap border-b border-border-primary pb-4">
         {visibleTagIds.map((tagId) => {
-          const tag = SPECIALTY_TAGS.find(
+          const tag = specialtyTags.find(
             (specialtyTag) => specialtyTag.id === tagId,
           );
 
@@ -159,28 +169,19 @@ export default function SpecialtyTagsSection() {
           const isDisabled = !isSelected && selectedTags.length >= 3;
 
           return (
-            <Pressable
+            <SpecialtyTagChip
               key={tag.id}
+              tag={tag}
+              isSelected={isSelected}
+              isDisabled={isDisabled}
               onPress={() => handleVisibleTagPress(tag.id)}
-              disabled={isDisabled}
-              className={`mb-2 mr-2 rounded-full border px-3 py-2 ${
-                isSelected
-                  ? "border-brand bg-brand/10"
-                  : "border-border-primary bg-surface"
-              } ${isDisabled ? "opacity-40" : ""}`}
-            >
-              <Text
-                className={`text-sm font-medium ${
-                  isSelected ? "text-brand" : "text-text-secondary"
-                }`}
-              >
-                {tag.name}
-              </Text>
-            </Pressable>
+              showCheckIcon
+            />
           );
         })}
       </View>
 
+      {/* Selection count and browse action */}
       <View className="mt-1 flex-row items-center justify-between">
         <Text
           className={`text-xs ${
@@ -195,15 +196,17 @@ export default function SpecialtyTagsSection() {
         </Pressable>
       </View>
 
+      {/* Validation error */}
       {errors.specialtyTags?.message && (
         <Text className="mt-1 text-xs font-medium text-text-error">
           {errors.specialtyTags.message}
         </Text>
       )}
 
+      {/* Full specialty-tag selection sheet */}
       <SpecialtyTagsBottomSheet
         sheetRef={specialtyTagsSheetRef}
-        tags={SPECIALTY_TAGS}
+        tags={specialtyTags}
         selectedTags={draftSelectedTags}
         onToggleTag={handleDraftToggle}
         onClose={handleSheetClose}
