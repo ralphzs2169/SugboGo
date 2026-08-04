@@ -1,8 +1,7 @@
+from core.responses import error_response, success_response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-
-from core.responses import error_response, success_response
 
 from apps.registration.serializers.operating_hours_serializers import (
     MerchantApplicationOperatingHoursReadSerializer,
@@ -15,7 +14,7 @@ from apps.registration.services.operating_hours_service import OperatingHoursSer
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def operating_hours_replace_view(request):
-    """Step 4. Replaces the current application's full week of hours."""
+    """Step 3. Replaces the current application's full week of hours."""
 
     application = ApplicationService.get_current_application(request.user)
 
@@ -32,9 +31,8 @@ def operating_hours_replace_view(request):
     hours = OperatingHoursService.replace_hours(
         application,
         serializer.validated_data["hours"],
-        serializer.validated_data["current_step"],
-        serializer.validated_data["highest_completed_step"],
     )
+
     output_serializer = MerchantApplicationOperatingHoursReadSerializer(
         hours, many=True
     )

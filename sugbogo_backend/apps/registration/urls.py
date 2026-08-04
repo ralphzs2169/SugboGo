@@ -1,8 +1,6 @@
 from django.urls import path
 
 from .views.application_location_views import (
-    landmark_add_view,
-    landmark_delete_view,
     location_save_view,
 )
 from .views.application_views import application_detail_view, application_submit_view
@@ -19,8 +17,6 @@ from .views.operating_hours_views import operating_hours_replace_view
 from .views.photo_document_views import (
     document_delete_view,
     document_upload_view,
-    photo_delete_view,
-    photo_upload_view,
 )
 from .views.tag_options_views import SpecialtyTagOptionsView
 
@@ -40,12 +36,7 @@ urlpatterns = [
     path("application/identity/", identity_save_view, name="application-identity"),
 
     path("application/location/", location_save_view, name="application-location"),
-    path("application/landmarks/", landmark_add_view, name="application-landmark-add"),
-    path(
-        "application/landmarks/<int:landmark_id>/",
-        landmark_delete_view,
-        name="application-landmark-delete",
-    ),
+  
 
     path(
         "application/operating-hours/",
@@ -53,12 +44,7 @@ urlpatterns = [
         name="application-operating-hours",
     ),
 
-    path("application/photos/", photo_upload_view, name="application-photo-upload"),
-    path(
-        "application/photos/<int:photo_id>/",
-        photo_delete_view,
-        name="application-photo-delete",
-    ),
+  
     path(
         "application/documents/",
         document_upload_view,

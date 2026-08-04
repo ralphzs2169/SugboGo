@@ -5,6 +5,35 @@ from apps.registration.models import (
     MerchantApplicationPhotos,
 )
 
+class MerchantApplicationPhotoSaveSerializer(serializers.Serializer):
+    """Write serializer for the complete Step 4 save operation."""
+
+    storefront = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        allow_empty=True,
+    )
+    interior = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        allow_empty=True,
+    )
+    products = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        allow_empty=True,
+    )
+    additional = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        allow_empty=True,
+    )
+    deleted_photo_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        allow_empty=True,
+    )
+
 
 class MerchantApplicationPhotoSerializer(serializers.ModelSerializer):
     """Read serializer for one uploaded photo."""
@@ -18,16 +47,6 @@ class MerchantApplicationPhotoSerializer(serializers.ModelSerializer):
         model = MerchantApplicationPhotos
         fields = ("id", "category", "photo_url", "file_name")
 
-
-class MerchantApplicationPhotoUploadSerializer(serializers.Serializer):
-    """Write serializer — multiple photos, same category, in one request."""
-
-    category = serializers.ChoiceField(
-        choices=MerchantApplicationPhotos.PhotoCategory.choices
-    )
-    files = serializers.ListField(
-        child=serializers.FileField(), allow_empty=False
-    )
 
 
 class MerchantApplicationDocumentSerializer(serializers.ModelSerializer):

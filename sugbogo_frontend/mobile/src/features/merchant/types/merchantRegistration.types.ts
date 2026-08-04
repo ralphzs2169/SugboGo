@@ -10,6 +10,7 @@ export interface CategoryOption {
 }
 
 export type BusinessPhoto = {
+  id?: number;
   uri: string;
   fileName?: string | null;
   mimeType?: string | null;

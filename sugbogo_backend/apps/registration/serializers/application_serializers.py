@@ -1,11 +1,11 @@
 from rest_framework import serializers
 
 from apps.registration.models import MerchantApplication
-from apps.registration.serializers.identity_serializers import (
-    MerchantApplicationIdentityReadSerializer,
-)
 from apps.registration.serializers.application_location_serializers import (
-    MerchantApplicationLocationReadSerializer,
+    ApplicationLocationReadSerializer,
+)
+from apps.registration.serializers.identity_serializers import (
+    ApplicationIdentityReadSerializer,
 )
 from apps.registration.serializers.operating_hours_serializers import (
     MerchantApplicationOperatingHoursReadSerializer,
@@ -104,10 +104,10 @@ class MerchantApplicationDetailSerializer(serializers.ModelSerializer):
         identity = getattr(obj, "identity", None)
         if identity is None:
             return None
-        return MerchantApplicationIdentityReadSerializer(identity).data
+        return ApplicationIdentityReadSerializer(identity).data
 
     def get_location(self, obj):
         location = getattr(obj, "location", None)
         if location is None:
             return None
-        return MerchantApplicationLocationReadSerializer(location).data
+        return ApplicationLocationReadSerializer(location).data

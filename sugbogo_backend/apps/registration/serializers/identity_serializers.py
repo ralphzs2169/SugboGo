@@ -4,10 +4,8 @@ from apps.msme.models import Category, Cluster, SpecialtyTag
 from apps.registration.models import MerchantApplicationIdentity
 
 
-class MerchantApplicationIdentitySerializer(serializers.ModelSerializer):
-    """Handles Step 1 — creates/updates Identity, and the parent
-    Application on first save. Also owns current_step /
-    highest_completed_step, sent by the frontend on every step save."""
+class ApplicationIdentitySerializer(serializers.ModelSerializer):
+    """Handles Step 1 business identity validation and serialization."""
 
     business_name = serializers.CharField(
         source="MIDN_BUSINESS_NAME",
@@ -75,13 +73,21 @@ class MerchantApplicationIdentitySerializer(serializers.ModelSerializer):
     specialty_tags = serializers.PrimaryKeyRelatedField(
         queryset=SpecialtyTag.objects.all(),
         many=True,
-        required=False,
+        required=True,
+        allow_empty=False,
+        error_messages={
+            "required": "Please select exactly 3 specialty tags.",
+            "empty": "Please select exactly 3 specialty tags.",
+        },
     )
 
-    # These live on the parent MerchantApplication, not Identity —
-    # the service layer pulls them off validated_data before saving.
-    current_step = serializers.IntegerField(write_only=True)
-    highest_completed_step = serializers.IntegerField(write_only=True)
+    def validate_specialty_tags(self, value):
+        if len(value) != 3:
+            raise serializers.ValidationError(
+                "Please select exactly 3 specialty tags."
+            )
+
+        return value
 
     class Meta:
         model = MerchantApplicationIdentity
@@ -96,12 +102,10 @@ class MerchantApplicationIdentitySerializer(serializers.ModelSerializer):
             "business_cluster_id",
             "business_category_id",
             "specialty_tags",
-            "current_step",
-            "highest_completed_step",
         )
 
 
-class MerchantApplicationIdentityReadSerializer(serializers.ModelSerializer):
+class ApplicationIdentityReadSerializer(serializers.ModelSerializer):
     """Nested, read-only view of Identity for the application detail response."""
 
     business_name = serializers.CharField(source="MIDN_BUSINESS_NAME", read_only=True)

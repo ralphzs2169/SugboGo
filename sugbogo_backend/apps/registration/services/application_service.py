@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 
 from apps.registration.models import MerchantApplication
 
@@ -28,6 +29,34 @@ class ApplicationService:
             USER_ID=user,
         )
 
+    @staticmethod
+    def mark_step_completed(application, step):
+        """
+        Records the step that was successfully saved and advances the
+        highest completed step without allowing it to move backward.
+        """
+        application.MAPP_CURRENT_STEP = step
+        application.MAPP_HIGHEST_COMPLETED_STEP = max(
+            application.MAPP_HIGHEST_COMPLETED_STEP,
+            step,
+        )
+        application.save(
+            update_fields=[
+                "MAPP_CURRENT_STEP",
+                "MAPP_HIGHEST_COMPLETED_STEP",
+                "MAPP_UPDATED_AT",
+            ]
+        )
+
+    @staticmethod
+    def validate_step_access(application, step):
+        """Ensure the requested step does not skip an incomplete step."""
+        if step > application.MAPP_HIGHEST_COMPLETED_STEP + 1:
+            raise ValidationError(
+                f"Complete Step {application.MAPP_HIGHEST_COMPLETED_STEP + 1} first."
+            )
+
+        
     @staticmethod
     @transaction.atomic
     def submit_application(application):

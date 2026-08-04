@@ -1,9 +1,12 @@
 from django.db import transaction
 
 from apps.registration.models import MerchantApplication, MerchantApplicationIdentity
+from apps.registration.services.application_service import ApplicationService
 
 
 class IdentityService:
+    STEP = 1
+
     @staticmethod
     @transaction.atomic
     def save_identity(user, validated_data):
@@ -12,12 +15,11 @@ class IdentityService:
         MerchantApplication and the Identity record together, atomically.
         Subsequent saves: updates the existing Identity in place.
 
-        current_step / highest_completed_step are popped off here since
-        they belong to the parent Application, not Identity.
+        Progress is determined and updated by the backend after
+        the identity data has been successfully saved.
         """
-        current_step = validated_data.pop("MAPP_CURRENT_STEP")
-        highest_completed_step = validated_data.pop("MAPP_HIGHEST_COMPLETED_STEP")
-        specialty_tags = validated_data.pop("specialty_tags", [])
+    
+        specialty_tags = validated_data.pop("specialty_tags")
 
         application = (
             MerchantApplication.objects
@@ -29,28 +31,28 @@ class IdentityService:
         if application is None:
             application = MerchantApplication.objects.create(USER_ID=user)
 
-        application.MAPP_CURRENT_STEP = current_step
-        application.MAPP_HIGHEST_COMPLETED_STEP = highest_completed_step
-        application.save(
-            update_fields=[
-                "MAPP_CURRENT_STEP",
-                "MAPP_HIGHEST_COMPLETED_STEP",
-                "MAPP_UPDATED_AT",
-            ]
-        )
 
         identity = getattr(application, "identity", None)
 
         if identity is None:
+            # First save for this application: create the Identity record.
             identity = MerchantApplicationIdentity.objects.create(
                 MAPP_ID=application, **validated_data
             )
         else:
+            # Subsequent save: update the existing Identity record in place.
             for field, value in validated_data.items():
                 setattr(identity, field, value)
-            identity.save()
+
+            identity.save(update_fields=list(validated_data.keys()))
 
         if specialty_tags:
             identity.specialty_tags.set(specialty_tags)
 
+        # Mark Step 1 as completed on the parent application.
+        ApplicationService.mark_step_completed(
+                    application,
+                    IdentityService.STEP,
+                )
+        
         return application, identity
