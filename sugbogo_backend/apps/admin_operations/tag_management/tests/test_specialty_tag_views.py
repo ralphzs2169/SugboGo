@@ -22,15 +22,17 @@ class SpecialtyTagViewTests(APITestCase):
 
         self.tag = SpecialtyTag.objects.create(
             TAG_NAME="Eco Friendly",
+            TAG_COLOR=SpecialtyTag.TagColor.GREEN,
         )
 
         self.other_tag = SpecialtyTag.objects.create(
             TAG_NAME="White Sand",
+            TAG_COLOR=SpecialtyTag.TagColor.BLUE,
         )
 
     def test_list_specialty_tags_returns_tags(self):
         response = self.client.get(
-            "/api/admin/msmes/specialty-tags/",
+            "/api/admin/specialty-tags/",
         )
 
         self.assertEqual(
@@ -48,9 +50,17 @@ class SpecialtyTagViewTests(APITestCase):
             2,
         )
 
+        tag = response.data["data"]["items"][0]
+
+        self.assertIn("id", tag)
+        self.assertIn("name", tag)
+        self.assertIn("color", tag)
+        self.assertIn("created_at", tag)
+        self.assertIn("updated_at", tag)
+
     def test_list_specialty_tags_filters_by_search(self):
         response = self.client.get(
-            "/api/admin/msmes/specialty-tags/?search=eco",
+            "/api/admin/specialty-tags/?search=eco",
         )
 
         self.assertEqual(
@@ -64,13 +74,18 @@ class SpecialtyTagViewTests(APITestCase):
         )
 
         self.assertEqual(
-            response.data["data"]["items"][0]["TAG_NAME"],
+            response.data["data"]["items"][0]["name"],
             "Eco Friendly",
+        )
+
+        self.assertEqual(
+            response.data["data"]["items"][0]["color"],
+            SpecialtyTag.TagColor.GREEN,
         )
 
     def test_list_specialty_tags_orders_by_name_descending(self):
         response = self.client.get(
-            "/api/admin/msmes/specialty-tags/?ordering=-name",
+            "/api/admin/specialty-tags/?ordering=-name",
         )
 
         self.assertEqual(
@@ -79,7 +94,7 @@ class SpecialtyTagViewTests(APITestCase):
         )
 
         names = [
-            item["TAG_NAME"]
+            item["name"]
             for item in response.data["data"]["items"]
         ]
 
@@ -93,9 +108,10 @@ class SpecialtyTagViewTests(APITestCase):
 
     def test_create_specialty_tag(self):
         response = self.client.post(
-            "/api/admin/msmes/specialty-tags/",
+            "/api/admin/specialty-tags/",
             {
-                "TAG_NAME": "Heritage Site",
+                "name": "Heritage Site",
+                "color": SpecialtyTag.TagColor.BLUE,
             },
             format="json",
         )
@@ -106,21 +122,27 @@ class SpecialtyTagViewTests(APITestCase):
         )
 
         self.assertEqual(
-            response.data["data"]["TAG_NAME"],
+            response.data["data"]["name"],
             "Heritage Site",
+        )
+
+        self.assertEqual(
+            response.data["data"]["color"],
+            SpecialtyTag.TagColor.BLUE,
         )
 
         self.assertTrue(
             SpecialtyTag.objects.filter(
                 TAG_NAME="Heritage Site",
+                TAG_COLOR=SpecialtyTag.TagColor.BLUE,
             ).exists()
         )
 
-    def test_create_specialty_tag_strips_name(self):
+    def test_create_specialty_tag_defaults_to_blue(self):
         response = self.client.post(
-            "/api/admin/msmes/specialty-tags/",
+            "/api/admin/specialty-tags/",
             {
-                "TAG_NAME": "  Nature Retreat  ",
+                "name": "Heritage Site",
             },
             format="json",
         )
@@ -131,13 +153,50 @@ class SpecialtyTagViewTests(APITestCase):
         )
 
         self.assertEqual(
-            response.data["data"]["TAG_NAME"],
+            response.data["data"]["name"],
+            "Heritage Site",
+        )
+
+        self.assertEqual(
+            response.data["data"]["color"],
+            SpecialtyTag.TagColor.BLUE,
+        )
+
+        self.assertTrue(
+            SpecialtyTag.objects.filter(
+                TAG_NAME="Heritage Site",
+                TAG_COLOR=SpecialtyTag.TagColor.BLUE,
+            ).exists()
+        )
+
+    def test_create_specialty_tag_strips_name(self):
+        response = self.client.post(
+            "/api/admin/specialty-tags/",
+            {
+                "name": "  Nature Retreat  ",
+                "color": SpecialtyTag.TagColor.GREEN,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        self.assertEqual(
+            response.data["data"]["name"],
             "Nature Retreat",
+        )
+
+        self.assertEqual(
+            response.data["data"]["color"],
+            SpecialtyTag.TagColor.GREEN,
         )
 
     def test_get_specialty_tag(self):
         response = self.client.get(
-            f"/api/admin/msmes/specialty-tags/{self.tag.TAG_ID}/",
+            f"/api/admin/specialty-tags/{self.tag.TAG_ID}/",
         )
 
         self.assertEqual(
@@ -146,20 +205,26 @@ class SpecialtyTagViewTests(APITestCase):
         )
 
         self.assertEqual(
-            response.data["data"]["TAG_ID"],
+            response.data["data"]["id"],
             self.tag.TAG_ID,
         )
 
         self.assertEqual(
-            response.data["data"]["TAG_NAME"],
+            response.data["data"]["name"],
             "Eco Friendly",
+        )
+
+        self.assertEqual(
+            response.data["data"]["color"],
+            SpecialtyTag.TagColor.GREEN,
         )
 
     def test_put_specialty_tag(self):
         response = self.client.put(
-            f"/api/admin/msmes/specialty-tags/{self.tag.TAG_ID}/",
+            f"/api/admin/specialty-tags/{self.tag.TAG_ID}/",
             {
-                "TAG_NAME": "Sustainable Tourism",
+                "name": "Sustainable Tourism",
+                "color": SpecialtyTag.TagColor.BLUE,
             },
             format="json",
         )
@@ -177,15 +242,26 @@ class SpecialtyTagViewTests(APITestCase):
         )
 
         self.assertEqual(
-            response.data["data"]["TAG_NAME"],
+            self.tag.TAG_COLOR,
+            SpecialtyTag.TagColor.BLUE,
+        )
+
+        self.assertEqual(
+            response.data["data"]["name"],
             "Sustainable Tourism",
+        )
+
+        self.assertEqual(
+            response.data["data"]["color"],
+            SpecialtyTag.TagColor.BLUE,
         )
 
     def test_patch_specialty_tag(self):
         response = self.client.patch(
-            f"/api/admin/msmes/specialty-tags/{self.tag.TAG_ID}/",
+            f"/api/admin/specialty-tags/{self.tag.TAG_ID}/",
             {
-                "TAG_NAME": "Eco Tourism",
+                "name": "Eco Tourism",
+                "color": SpecialtyTag.TagColor.PURPLE,
             },
             format="json",
         )
@@ -203,15 +279,25 @@ class SpecialtyTagViewTests(APITestCase):
         )
 
         self.assertEqual(
-            response.data["data"]["TAG_NAME"],
+            self.tag.TAG_COLOR,
+            SpecialtyTag.TagColor.PURPLE,
+        )
+
+        self.assertEqual(
+            response.data["data"]["name"],
             "Eco Tourism",
+        )
+
+        self.assertEqual(
+            response.data["data"]["color"],
+            SpecialtyTag.TagColor.PURPLE,
         )
 
     def test_delete_specialty_tag(self):
         tag_id = self.tag.TAG_ID
 
         response = self.client.delete(
-            f"/api/admin/msmes/specialty-tags/{tag_id}/",
+            f"/api/admin/specialty-tags/{tag_id}/",
         )
 
         self.assertEqual(
@@ -227,7 +313,7 @@ class SpecialtyTagViewTests(APITestCase):
 
     def test_get_specialty_tag_returns_404_for_missing_tag(self):
         response = self.client.get(
-            "/api/admin/msmes/specialty-tags/9999/",
+            "/api/admin/specialty-tags/9999/",
         )
 
         self.assertEqual(
@@ -237,9 +323,10 @@ class SpecialtyTagViewTests(APITestCase):
 
     def test_update_specialty_tag_returns_404_for_missing_tag(self):
         response = self.client.patch(
-            "/api/admin/msmes/specialty-tags/9999/",
+            "/api/admin/specialty-tags/9999/",
             {
-                "TAG_NAME": "Beachfront",
+                "name": "Beachfront",
+                "color": SpecialtyTag.TagColor.BLUE,
             },
             format="json",
         )
@@ -251,7 +338,7 @@ class SpecialtyTagViewTests(APITestCase):
 
     def test_delete_specialty_tag_returns_404_for_missing_tag(self):
         response = self.client.delete(
-            "/api/admin/msmes/specialty-tags/9999/",
+            "/api/admin/specialty-tags/9999/",
         )
 
         self.assertEqual(

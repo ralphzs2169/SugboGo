@@ -7,10 +7,6 @@ import { updateSpecialtyTag } from "../services/specialtyTagService";
  * Manages the submission state and normalizes API
  * success and validation error responses.
  *
- * @returns {{
- *   submit: Function,
- *   isSubmitting: boolean
- * }}
  */
 export default function useUpdateSpecialtyTag() {
   const [isSubmitting, setIsSubmitting] = useState(false);

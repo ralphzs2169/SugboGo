@@ -1,9 +1,13 @@
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
-import SpecialtyTagManagementPanel from "../specialty-tags/components/SpecialtyTagManagementPanel";
 import PageHeader from "../components/PageHeader";
+import SpecialtyTagManagementPanel from "../specialty-tags/components/SpecialtyTagManagementPanel";
+import SpecialtyTagMetrics from "../specialty-tags/components/SpecialtyTagMetrics";
+import useSpecialtyTagStatistics from "../specialty-tags/hooks/useSpecialtyTagStatistics";
 
 export default function SpecialtyTags() {
   useDocumentTitle("Specialty Tags | SugboGo Admin");
+
+  const { statistics, isLoading } = useSpecialtyTagStatistics();
 
   return (
     <>
@@ -21,6 +25,8 @@ export default function SpecialtyTags() {
         ]}
         title="Specialty Tag Management"
       />
+
+      <SpecialtyTagMetrics totalTags={isLoading ? "—" : statistics.totalTags} />
 
       <SpecialtyTagManagementPanel />
     </>

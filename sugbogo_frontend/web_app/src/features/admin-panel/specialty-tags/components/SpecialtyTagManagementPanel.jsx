@@ -120,7 +120,6 @@ export default function SpecialtyTagManagementPanel() {
         onResetFilters={handleResetFilters}
         config={{
           searchPlaceholder: "Search specialty tags...",
-
           emptyState: {
             title: "No specialty tags found",
             description:
@@ -136,9 +135,7 @@ export default function SpecialtyTagManagementPanel() {
           ),
         }}
       />
-
       {/* Modals */}
-
       <CreateSpecialtyTagModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -147,7 +144,6 @@ export default function SpecialtyTagManagementPanel() {
           toast.success("Specialty tag created successfully.");
         }}
       />
-
       {editingSpecialtyTag && (
         <EditSpecialtyTagModal
           key={editingSpecialtyTag.id}
@@ -163,7 +159,6 @@ export default function SpecialtyTagManagementPanel() {
           }}
         />
       )}
-
       <ConfirmModal
         isOpen={deleteModalOpen}
         title="Delete Specialty Tag?"

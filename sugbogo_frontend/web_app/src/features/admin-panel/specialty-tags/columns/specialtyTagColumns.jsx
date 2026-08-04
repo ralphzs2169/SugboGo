@@ -14,6 +14,7 @@ const columnHelper = createColumnHelper();
  * Includes:
  * - Row numbering based on the current pagination state
  * - Specialty tag name with its configured badge color
+ * - Number of businesses using each specialty tag
  * - Created and updated timestamps
  * - Edit and delete actions
  */
@@ -64,6 +65,20 @@ export default function getSpecialtyTagColumns(
           </span>
         );
       },
+    }),
+
+    columnHelper.accessor((tag) => tag.business_count, {
+      id: "business_count",
+      header: "Businesses",
+      size: 120,
+      meta: {
+        skeleton: "number",
+      },
+      cell: (info) => (
+        <span className="text-sm font-medium text-text-primary">
+          {info.getValue() ?? 0}
+        </span>
+      ),
     }),
 
     columnHelper.accessor((tag) => tag.created_at, {

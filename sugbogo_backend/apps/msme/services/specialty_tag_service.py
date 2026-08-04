@@ -34,6 +34,14 @@ class SpecialtyTagService:
         )
 
     @staticmethod
+    def get_specialty_tag_statistics():
+        """Retrieve specialty tag statistics."""
+        return {
+            "total_tags": SpecialtyTag.objects.count(),
+        }
+
+    
+    @staticmethod
     def get_specialty_tag(tag_id: int):
         """Retrieve a specific specialty tag by ID."""
         return get_object_or_404(
