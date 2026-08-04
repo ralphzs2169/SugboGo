@@ -7,10 +7,11 @@ logger = logging.getLogger(__name__)
 class CloudinaryService:
 
     @staticmethod
-    def upload_image(file, folder):
+    def upload_image(file, folder, resource_type="image"):
         return cloudinary.uploader.upload(
             file,
             folder=folder,
+            resource_type=resource_type,
         )
 
     @staticmethod
