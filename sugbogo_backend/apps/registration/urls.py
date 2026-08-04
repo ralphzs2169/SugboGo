@@ -8,11 +8,14 @@ from .views.location_views import (
     place_search_view,
     reverse_geocode_view,
 )
+from .views.tag_options_views import (
+    SpecialtyTagOptionsView,
+)
 
 urlpatterns = [
     path("clusters/", ClusterOptionsView.as_view(), name="cluster-options"),
     path("categories/", CategoryOptionsView.as_view(), name="category-options"),
-
+    path("specialty-tags/", SpecialtyTagOptionsView.as_view(), name="specialty-tag-options"),
     
     path("places/search/", place_search_view, name="place-search"),
     path("places/details/", place_details_view, name="place-details"),

@@ -12,7 +12,6 @@ import ReviewBusinessLocation from "../review/sections/ReviewBusinessLocation";
 import ReviewOperatingHours from "../review/sections/ReviewOperatingHours";
 import ReviewBusinessPhotos from "../review/sections/ReviewBusinessPhotos";
 import ReviewVerificationDocuments from "../review/sections/ReviewVerificationDocuments";
-import RegistrationSection from "../RegistrationSection";
 import ReviewSection from "../review/ReviewSection";
 
 type ReviewSubmitStepProps = {
