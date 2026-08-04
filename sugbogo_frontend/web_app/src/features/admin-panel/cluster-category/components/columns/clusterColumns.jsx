@@ -7,11 +7,7 @@ import { formatDateTime } from "@/shared/utils/dateUtils";
 
 /**
  * Creates TanStack Table column definitions for cluster management.
- *
- * @param {Function} onEditCluster - Callback triggered when a cluster is edited.
- * @param {Function} onDeleteCluster - Callback triggered when a cluster is deleted.
- *
- * @returns {Array<Object>} TanStack Table column configuration.
+
  */
 export default function getClusterColumns(onEditCluster, onDeleteCluster) {
   return [

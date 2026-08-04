@@ -6,10 +6,10 @@ export default function useCreateCategory() {
 
   async function submit(values) {
     setIsSubmitting(true);
-    console.log("Submitting category with values:", values); // Debugging line
+
     try {
       const data = await createCategory(values);
-      console.log("Category created successfully:", data); // Debugging line
+
       return {
         success: true,
         data,

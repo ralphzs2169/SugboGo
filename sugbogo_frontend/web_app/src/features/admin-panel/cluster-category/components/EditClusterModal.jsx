@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
+
 import Modal from "@/shared/components/modals/Modal";
+import { hasFormChanges } from "@/shared/utils/formUtils";
+
 import ClusterForm from "./ClusterForm";
 import useUpdateCluster from "../hooks/useUpdateCluster";
+import { validateCluster } from "../validation/clusterValidation";
 
 /**
  * Modal for editing an existing cluster.
+ *
+ * Tracks the original cluster values so the save button
+ * can be disabled when no changes have been made.
  *
  * @param {Object} props
  * @param {boolean} props.isOpen
@@ -20,6 +27,11 @@ export default function EditClusterModal({
   onSuccess,
   cluster,
 }) {
+  const [initialValues, setInitialValues] = useState({
+    name: "",
+    description: "",
+  });
+
   const [values, setValues] = useState({
     name: "",
     description: "",
@@ -30,13 +42,23 @@ export default function EditClusterModal({
   const { submit, isSubmitting } = useUpdateCluster();
 
   useEffect(() => {
-    if (cluster) {
-      setValues({
-        name: cluster.name,
-        description: cluster.description ?? "",
-      });
-    }
+    if (!cluster) return;
+
+    const nextValues = {
+      name: cluster.name ?? "",
+      description: cluster.description ?? "",
+    };
+
+    setValues(nextValues);
+    setInitialValues(nextValues);
+    setErrors({});
   }, [cluster]);
+
+  // Determines whether the user changed any editable cluster fields.
+  const hasChanges = hasFormChanges(values, initialValues, [
+    "name",
+    "description",
+  ]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -56,6 +78,13 @@ export default function EditClusterModal({
 
   async function handleSubmit(event) {
     event.preventDefault();
+
+    const validationErrors = validateCluster(values);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
     const result = await submit(cluster.id, values);
 
@@ -90,6 +119,7 @@ export default function EditClusterModal({
         onClearError={onClearError}
         isSubmitting={isSubmitting}
         submitLabel="Update Cluster"
+        submitDisabled={!hasChanges}
       />
     </Modal>
   );

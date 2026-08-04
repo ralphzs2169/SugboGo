@@ -6,16 +6,6 @@ import SelectInput from "@/shared/components/forms/SelectInput";
 /**
  * Reusable form for creating and editing categories.
  *
- * @param {Object} props
- * @param {Object} props.values - Current form values.
- * @param {Object} props.errors - Validation errors keyed by field.
- * @param {Array} props.clusters - Available clusters.
- * @param {boolean} props.isLoadingClusters - Whether clusters are loading.
- * @param {Function} props.onChange - Input change handler.
- * @param {Function} props.onSubmit - Form submit handler.
- * @param {boolean} props.isSubmitting - Whether form is submitting.
- *
- * @returns {JSX.Element}
  */
 export default function CategoryForm({
   values,
@@ -26,7 +16,14 @@ export default function CategoryForm({
   onSubmit,
   isSubmitting,
   submitLabel = "Save Category",
+  submitDisabled = false,
+  onClearError,
 }) {
+  function handleChange(event) {
+    onChange(event);
+    onClearError?.(event.target.name);
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <TextInput
@@ -35,7 +32,7 @@ export default function CategoryForm({
         label="Category Name"
         placeholder="Enter category name"
         value={values.name}
-        onChange={onChange}
+        onChange={handleChange}
         error={errors.name}
         required
       />
@@ -46,7 +43,7 @@ export default function CategoryForm({
         label="Description"
         placeholder="Enter category description"
         value={values.description}
-        onChange={onChange}
+        onChange={handleChange}
         error={errors.description}
         rows={4}
       />
@@ -56,7 +53,7 @@ export default function CategoryForm({
         name="cluster_id"
         label="Cluster"
         value={values.cluster_id}
-        onChange={onChange}
+        onChange={handleChange}
         error={errors.cluster_id}
         required
         disabled={isLoadingClusters}
@@ -72,7 +69,12 @@ export default function CategoryForm({
       </SelectInput>
 
       <div className="flex justify-end">
-        <Button type="submit" loading={isSubmitting}>
+        <Button
+          type="submit"
+          loading={isSubmitting}
+          disabled={submitDisabled}
+          disabledTooltip="Make a change before saving."
+        >
           {submitLabel}
         </Button>
       </div>

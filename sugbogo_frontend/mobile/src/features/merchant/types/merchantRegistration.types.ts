@@ -20,3 +20,12 @@ export type BusinessDocument = {
   fileName?: string | null;
   mimeType?: string | null;
 };
+
+export type SpecialtyTagColor =
+  "blue" | "green" | "purple" | "yellow" | "red" | "teal";
+
+export type SpecialtyTagOption = {
+  id: number;
+  name: string;
+  color: SpecialtyTagColor;
+};

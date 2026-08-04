@@ -18,4 +18,5 @@ class CategoryOptionsView(APIView):
 
         return success_response(
             data=serializer.data,
+            message="Categories retrieved successfully.",
         )

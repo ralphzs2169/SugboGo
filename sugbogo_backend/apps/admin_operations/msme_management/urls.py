@@ -24,6 +24,8 @@ urlpatterns = [
     path("categories/", CategoryListView.as_view()),
     path("categories/<int:category_id>/", CategoryDetailView.as_view()),
 
+  
+
     # Summary
     path("cluster-category/summary/", get_cluster_category_summary),
 

@@ -1,38 +1,39 @@
 import React from "react";
+
 import MetricBadge from "./MetricBadge";
 
-function MetricCard({
+export default function MetricCard({
   title,
   value,
   badgeVariant,
   badgeText,
   footerText,
-  footerColor,
+  footerColor = "text-text-secondary",
   Icon,
 }) {
   return (
-    <div className="relative overflow-hidden rounded-lg border border-stroke bg-background p-6 shadow-sm  hover:shadow-md flex flex-col justify-between min-h-[165px]">
-      {/* Top Section: Title & Top Right MetricBadge */}
+    <div className="relative flex min-h-[165px] flex-col justify-between overflow-hidden rounded-lg border border-stroke bg-background p-6 shadow-sm hover:shadow-md">
       <div className="relative z-10 flex items-start justify-between gap-4">
-        <h3 className="text-[11px] font-bold tracking-widest text-text-secondary uppercase leading-relaxed max-w-[130px]">
+        <h3 className="max-w-[160px] text-[11px] font-bold uppercase leading-relaxed tracking-widest text-text-secondary">
           {title}
         </h3>
-        <MetricBadge variant={badgeVariant} text={badgeText} />
+
+        {badgeText && <MetricBadge variant={badgeVariant} text={badgeText} />}
       </div>
 
-      {/* Bottom Section: Primary Value & Trend Footer */}
       <div className="relative z-10 mt-5">
-        <div className="text-4xl font-bold tracking-tight text-text-primary">
+        <div className="text-3xl font-bold tracking-tight text-text-primary">
           {value}
         </div>
-        <p
-          className={`mt-2 text-[10px] font-bold tracking-wider uppercase ${footerColor}`}
-        >
-          {footerText}
-        </p>
+
+        {footerText && (
+          <p
+            className={`mt-2 text-[10px] font-bold uppercase tracking-wider ${footerColor}`}
+          >
+            {footerText}
+          </p>
+        )}
       </div>
     </div>
   );
 }
-
-export default MetricCard;

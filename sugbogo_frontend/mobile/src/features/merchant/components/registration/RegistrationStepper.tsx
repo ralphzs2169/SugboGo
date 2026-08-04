@@ -7,6 +7,8 @@ const CONNECTOR_HEIGHT = 2;
 type RegistrationStepperProps = {
   currentStep: number;
   totalSteps: number;
+  highestCompletedStep: number;
+  editingStep: number | null;
   title: string;
 };
 
@@ -28,6 +30,8 @@ const STEP_ICONS = [
 export default function RegistrationStepper({
   currentStep,
   totalSteps,
+  highestCompletedStep,
+  editingStep,
   title,
 }: RegistrationStepperProps) {
   return (
@@ -45,8 +49,9 @@ export default function RegistrationStepper({
         {Array.from({ length: totalSteps }).map((_, index) => {
           const step = index + 1;
 
-          const isCompleted = step < currentStep;
           const isCurrent = step === currentStep;
+          const isCompleted = !isCurrent && step <= highestCompletedStep;
+          const isEditing = step === editingStep;
 
           return (
             <View key={step} className="relative flex-1 items-center">
@@ -55,7 +60,9 @@ export default function RegistrationStepper({
                 <View
                   className={[
                     "absolute rounded-full",
-                    step < currentStep ? "bg-brand" : "bg-border-primary",
+                    step < highestCompletedStep
+                      ? "bg-brand"
+                      : "bg-border-primary",
                   ].join(" ")}
                   style={{
                     left: STEP_CIRCLE_SIZE / 2,
@@ -67,32 +74,58 @@ export default function RegistrationStepper({
               )}
 
               {/* Circle */}
-              <View
-                style={{
-                  width: STEP_CIRCLE_SIZE,
-                  height: STEP_CIRCLE_SIZE,
-                }}
-                className={[
-                  "z-10 items-center justify-center rounded-full border-2",
-                  isCompleted
-                    ? "border-brand bg-brand"
-                    : isCurrent
-                      ? "border-brand bg-white"
-                      : "border-border-primary bg-surface",
-                ].join(" ")}
-              >
-                {isCompleted ? (
-                  <MaterialCommunityIcons
-                    name="check"
-                    size={18}
-                    color="white"
+              <View className="relative">
+                {/* Current step glow */}
+                {isCurrent && (
+                  <View
+                    className="absolute rounded-full bg-brand/10"
+                    style={{
+                      width: STEP_CIRCLE_SIZE + 14,
+                      height: STEP_CIRCLE_SIZE + 14,
+                      left: -7,
+                      top: -7,
+                    }}
                   />
-                ) : (
-                  <MaterialCommunityIcons
-                    name={STEP_ICONS[index]}
-                    size={18}
-                    color={isCurrent ? "#F27F0D" : "#6B7280"}
-                  />
+                )}
+
+                {/* Circle */}
+                <View
+                  style={{
+                    width: STEP_CIRCLE_SIZE,
+                    height: STEP_CIRCLE_SIZE,
+                  }}
+                  className={[
+                    "z-10 items-center justify-center rounded-full border-2",
+                    isCompleted
+                      ? "border-brand bg-brand"
+                      : isCurrent
+                        ? "border-brand bg-white"
+                        : "border-border-primary bg-surface",
+                  ].join(" ")}
+                >
+                  {isCompleted ? (
+                    <MaterialCommunityIcons
+                      name="check"
+                      size={18}
+                      color="white"
+                    />
+                  ) : (
+                    <MaterialCommunityIcons
+                      name={STEP_ICONS[index]}
+                      size={18}
+                      color={isCurrent ? "#F27F0D" : "#6B7280"}
+                    />
+                  )}
+                </View>
+
+                {isEditing && (
+                  <View className="absolute -bottom-1 -right-1 z-20 h-5 w-5 items-center justify-center rounded-full bg-brand/90">
+                    <MaterialCommunityIcons
+                      name="pencil"
+                      size={12}
+                      color="#FFFFFF"
+                    />
+                  </View>
                 )}
               </View>
             </View>

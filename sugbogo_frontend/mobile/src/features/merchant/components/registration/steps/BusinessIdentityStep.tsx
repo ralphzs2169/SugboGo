@@ -1,20 +1,28 @@
 import { useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-
+import { Keyboard } from "react-native";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
 import RHFFormSelect from "@/shared/components/form/RHFFormSelect";
 import RHFFormTextArea from "@/shared/components/form/RHFFormTextArea";
 import FormFieldApiError from "@/shared/components/form/FormFieldApiError";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import RegistrationSection from "../RegistrationSection";
-
+import SpecialtyTagsSection from "../specialty-tags/SpecialtyTagsSection";
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import {
   ClusterOption,
   CategoryOption,
 } from "@/features/merchant/types/merchantRegistration.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
+
+export const REPRESENTATIVE_ROLE_OPTIONS = [
+  { label: "Owner", value: "owner" },
+  { label: "Manager", value: "manager" },
+  { label: "Authorized Representative", value: "authorized_representative" },
+  { label: "Other", value: "other" },
+];
 
 type Props = {
   clusters: ClusterOption[];
@@ -44,7 +52,13 @@ export default function BusinessIdentityStep({
   const clusterSheetRef = useRef<BottomSheetModal>(null);
   const categorySheetRef = useRef<BottomSheetModal>(null);
 
+  const representativeRoleSheetRef = useRef<BottomSheetModal>(null);
   const { control, setValue } = useFormContext<MerchantRegistrationForm>();
+
+  const selectedRepresentativeRole = useWatch({
+    control,
+    name: "representativeRole",
+  });
 
   const selectedCluster = useWatch({
     control,
@@ -98,7 +112,7 @@ export default function BusinessIdentityStep({
     // The existing category may no longer belong
     // to the newly selected cluster.
     setValue("businessCategory", "", {
-      shouldValidate: true,
+      shouldValidate: false,
       shouldDirty: true,
     });
   }
@@ -111,7 +125,7 @@ export default function BusinessIdentityStep({
   }
 
   function handleOpenClusterSheet() {
-    clusterSheetRef.current?.present();
+    presentBottomSheet(clusterSheetRef);
   }
 
   function handleOpenCategorySheet() {
@@ -119,9 +133,22 @@ export default function BusinessIdentityStep({
       return;
     }
 
-    categorySheetRef.current?.present();
+    presentBottomSheet(categorySheetRef);
   }
 
+  function handleOpenRepresentativeRoleSheet() {
+    presentBottomSheet(representativeRoleSheetRef);
+  }
+
+  /**
+   * Updates the representative role selected in the form.
+   */
+  function handleSelectRepresentativeRole(value: string) {
+    setValue("representativeRole", value, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  }
   return (
     <>
       <RegistrationSection
@@ -167,6 +194,14 @@ export default function BusinessIdentityStep({
           options={categoryOptions}
           onSelectPress={handleOpenCategorySheet}
         />
+
+        {categoriesError && selectedCluster && (
+          <FormFieldApiError
+            message="Unable to load categories."
+            onRetry={refetchCategories}
+          />
+        )}
+
         {categoriesError && selectedCluster && (
           <FormFieldApiError
             message="Unable to load categories."
@@ -179,16 +214,27 @@ export default function BusinessIdentityStep({
           label="Description"
           placeholder="Tell explorers about your business..."
           maxLength={500}
+          required
         />
 
         <RHFFormInput
           name="website"
-          label="Facebook Page / Website (Optional)"
+          label="Website / Social Media (Optional)"
           placeholder="https://..."
           autoCapitalize="none"
         />
       </RegistrationSection>
 
+      {/* Specialty Tags Section */}
+      <RegistrationSection
+        icon="tag-outline"
+        title="Specialty Tags"
+        description="Choose 3 tags that best describe your business."
+      >
+        <SpecialtyTagsSection />
+      </RegistrationSection>
+
+      {/* Contact Information Section */}
       <RegistrationSection
         icon="account-outline"
         title="Contact Information"
@@ -204,22 +250,22 @@ export default function BusinessIdentityStep({
 
         <RHFFormInput
           name="businessEmail"
-          label="Email Address"
+          label="Business Email (Optional)"
           placeholder="business@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
-          required
         />
       </RegistrationSection>
 
+      {/* Representative Information Section */}
       <RegistrationSection
-        icon="account-outline"
+        icon="account-check-outline"
         title="Representative Information"
-        description="Provide the details of the person authorized to submit this application."
+        description="Tell us who is submitting this application."
       >
         <RHFFormInput
           name="representativeName"
-          label="Representative Name"
+          label="Full Name"
           required
           placeholder="e.g. Juan Dela Cruz"
         />
@@ -229,7 +275,8 @@ export default function BusinessIdentityStep({
           label="Position / Role"
           required
           placeholder="Select your role"
-          onSelectPress={() => {}}
+          options={REPRESENTATIVE_ROLE_OPTIONS}
+          onSelectPress={handleOpenRepresentativeRoleSheet}
         />
       </RegistrationSection>
 
@@ -247,6 +294,14 @@ export default function BusinessIdentityStep({
         options={categoryOptions}
         selectedValue={selectedCategory}
         onSelect={handleSelectCategory}
+      />
+
+      <SelectionBottomSheet
+        sheetRef={representativeRoleSheetRef}
+        title="Select Position / Role"
+        options={REPRESENTATIVE_ROLE_OPTIONS}
+        selectedValue={selectedRepresentativeRole}
+        onSelect={handleSelectRepresentativeRole}
       />
     </>
   );

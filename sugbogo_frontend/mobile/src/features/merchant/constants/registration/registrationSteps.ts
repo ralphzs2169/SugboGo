@@ -1,9 +1,9 @@
-import BusinessIdentityStep from "../components/registration/steps/BusinessIdentityStep";
-import BusinessLocationStep from "../components/registration/steps/BusinessLocationStep";
-import OperatingHoursStep from "../components/registration/steps/OperatingHoursStep";
-import BusinessPhotosStep from "../components/registration/steps/BusinessPhotosStep";
-import VerificationDocumentsStep from "../components/registration/steps/VerificationDocumentsStep";
-import ReviewSubmitStep from "../components/registration/steps/ReviewSubmitStep";
+import BusinessIdentityStep from "../../components/registration/steps/BusinessIdentityStep";
+import BusinessLocationStep from "../../components/registration/steps/BusinessLocationStep";
+import OperatingHoursStep from "../../components/registration/steps/OperatingHoursStep";
+import BusinessPhotosStep from "../../components/registration/steps/BusinessPhotosStep";
+import VerificationDocumentsStep from "../../components/registration/steps/VerificationDocumentsStep";
+import ReviewSubmitStep from "../../components/registration/steps/ReviewSubmitStep";
 
 export const REGISTRATION_STEPS = [
   {

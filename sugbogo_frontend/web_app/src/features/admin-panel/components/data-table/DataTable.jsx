@@ -82,7 +82,13 @@ function DataTable({
 
   return (
     <div className="w-full rounded-sm border border-stroke bg-background pb-6 px-6 pt-2 relative">
-      <TableTabs tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} />
+      <div className="mb-6">
+        <TableTabs
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+        />
+      </div>
 
       <TableControls
         globalFilter={state.globalFilter ?? ""}
@@ -99,11 +105,13 @@ function DataTable({
           <table className="w-full border-collapse table-fixed text-left">
             <TableHeader table={table} />
 
-            {showSkeleton ? (
-              <TableSkeletonBody
-                columns={table.getVisibleLeafColumns()}
-                rowCount={pagination.pageSize}
-              />
+            {isLoading ? (
+              showSkeleton ? (
+                <TableSkeletonBody
+                  columns={table.getVisibleLeafColumns()}
+                  rowCount={pagination.pageSize}
+                />
+              ) : null
             ) : (
               <TableBody
                 table={table}

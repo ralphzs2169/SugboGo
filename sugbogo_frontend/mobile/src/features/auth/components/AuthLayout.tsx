@@ -1,9 +1,9 @@
 import { ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface AuthLayoutProps {
   children: ReactNode;
-  paddingBottom?: number;
   paddingTop?: number;
 }
 
@@ -14,30 +14,28 @@ interface AuthLayoutProps {
  * @param {number} paddingBottom - Optional bottom padding for the scrollable content.
  *  * @param {number} paddingTop - Optional top padding for the scrollable content.
  */
-function AuthLayout({
-  children,
-  paddingBottom = 32,
-  paddingTop = 62,
-}: AuthLayoutProps) {
+function AuthLayout({ children, paddingTop = 62 }: AuthLayoutProps) {
   return (
-    <KeyboardAvoidingView
-      className="flex-1"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        className="flex-1 bg-surface"
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "center",
-          paddingHorizontal: 24,
-          paddingTop,
-          paddingBottom,
-        }}
+    <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {children}
-      </ScrollView>
-    </KeyboardAvoidingView>
+        <ScrollView
+          className="flex-1 bg-surface"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "center",
+            paddingHorizontal: 24,
+            paddingTop,
+            paddingBottom: 32,
+          }}
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
