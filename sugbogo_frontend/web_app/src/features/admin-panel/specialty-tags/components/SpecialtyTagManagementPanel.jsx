@@ -24,10 +24,6 @@ import EditSpecialtyTagModal from "./EditSpecialtyTagModal";
  * - Create, edit, and delete actions
  * - Mutation success and refresh flows
  * - Delete confirmation
- *
- * @component
- *
- * @returns {JSX.Element}
  */
 export default function SpecialtyTagManagementPanel() {
   // Modal state
@@ -152,18 +148,21 @@ export default function SpecialtyTagManagementPanel() {
         }}
       />
 
-      <EditSpecialtyTagModal
-        isOpen={isEditOpen}
-        specialtyTag={editingSpecialtyTag}
-        onClose={() => {
-          setIsEditOpen(false);
-          setEditingSpecialtyTag(null);
-        }}
-        onSuccess={async () => {
-          await refreshSpecialtyTags();
-          toast.success("Specialty tag updated successfully.");
-        }}
-      />
+      {editingSpecialtyTag && (
+        <EditSpecialtyTagModal
+          key={editingSpecialtyTag.id}
+          isOpen={isEditOpen}
+          specialtyTag={editingSpecialtyTag}
+          onClose={() => {
+            setIsEditOpen(false);
+            setEditingSpecialtyTag(null);
+          }}
+          onSuccess={async () => {
+            await refreshSpecialtyTags();
+            toast.success("Specialty tag updated successfully.");
+          }}
+        />
+      )}
 
       <ConfirmModal
         isOpen={deleteModalOpen}

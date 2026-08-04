@@ -1,14 +1,31 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import Button from "@/shared/components/Button";
 import { Pencil, Trash2 } from "lucide-react";
+
+import Button from "@/shared/components/Button";
 import { formatDateTime } from "@/shared/utils/dateUtils";
+
+import { colorClasses } from "../constants/specialtyTagColors";
 
 const columnHelper = createColumnHelper();
 
+/**
+ * Creates the TanStack Table column definitions for specialty tags.
+ *
+ * Includes:
+ * - Row numbering based on the current pagination state
+ * - Specialty tag name with its configured badge color
+ * - Created and updated timestamps
+ * - Edit and delete actions
+ */
 export default function getSpecialtyTagColumns(
   onEditSpecialtyTag,
   onDeleteSpecialtyTag,
 ) {
+  // Falls back to blue if the API returns an unknown or missing color.
+  function getSpecialtyTagColorClasses(color) {
+    return colorClasses[color] ?? colorClasses.blue;
+  }
+
   return [
     columnHelper.display({
       id: "rowNumber",
@@ -21,6 +38,7 @@ export default function getSpecialtyTagColumns(
       cell: ({ row, table }) => {
         const { pageIndex, pageSize } = table.getState().pagination;
 
+        // Calculate the row number across server-side paginated pages.
         return pageIndex * pageSize + row.index + 1;
       },
     }),
@@ -33,11 +51,19 @@ export default function getSpecialtyTagColumns(
       meta: {
         skeleton: "longText",
       },
-      cell: (info) => (
-        <span className="text-sm font-medium text-text-primary">
-          {info.getValue()}
-        </span>
-      ),
+      cell: (info) => {
+        const tag = info.row.original;
+
+        return (
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getSpecialtyTagColorClasses(
+              tag.color,
+            )}`}
+          >
+            {tag.name}
+          </span>
+        );
+      },
     }),
 
     columnHelper.accessor((tag) => tag.created_at, {

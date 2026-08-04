@@ -2,22 +2,11 @@ import { useState } from "react";
 
 import Modal from "@/shared/components/modals/Modal";
 
-import SpecialtyTagForm from "./SpecialtyTagForm";
+import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
 import useCreateSpecialtyTag from "../hooks/useCreateSpecialtyTag";
 
-/**
- * Modal for creating a new specialty tag.
- *
- * Manages the form state, submission, validation errors,
- * and successful creation flow.
- *
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether the modal is visible.
- * @param {Function} props.onClose - Closes the modal.
- * @param {Function} props.onSuccess - Called after successful creation.
- *
- * @returns {JSX.Element}
- */
+import SpecialtyTagForm from "./SpecialtyTagForm";
+
 export default function CreateSpecialtyTagModal({
   isOpen,
   onClose,
@@ -25,6 +14,7 @@ export default function CreateSpecialtyTagModal({
 }) {
   const [values, setValues] = useState({
     name: "",
+    color: "blue",
   });
 
   const [errors, setErrors] = useState({});
@@ -40,24 +30,48 @@ export default function CreateSpecialtyTagModal({
     }));
   }
 
-  function handleSubmit(event) {
+  function handleColorChange(color) {
+    setValues((previous) => ({
+      ...previous,
+      color,
+    }));
+  }
+
+  function onClearError(field) {
+    setErrors((previous) => ({
+      ...previous,
+      [field]: undefined,
+    }));
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault();
 
-    submit(values).then((result) => {
-      if (!result.success) {
-        setErrors(result.errors);
-        return;
-      }
+    const validationErrors = validateSpecialtyTag(values);
 
-      onSuccess?.();
-      onClose();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
-      setValues({
-        name: "",
-      });
+    const result = await submit(values);
 
-      setErrors({});
+    if (!result.success) {
+      setErrors(result.errors);
+      return;
+    }
+
+    onSuccess?.();
+    onClose();
+
+    // Reset the form so the next creation starts with
+    // an empty name and the default blue color.
+    setValues({
+      name: "",
+      color: "blue",
     });
+
+    setErrors({});
   }
 
   return (
@@ -71,6 +85,8 @@ export default function CreateSpecialtyTagModal({
         values={values}
         errors={errors}
         onChange={handleChange}
+        onColorChange={handleColorChange}
+        onClearError={onClearError}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         submitLabel="Create Specialty Tag"

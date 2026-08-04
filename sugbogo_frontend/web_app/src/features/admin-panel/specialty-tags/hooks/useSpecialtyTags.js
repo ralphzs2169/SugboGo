@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { fetchSpecialtyTags } from "../services/specialtyTagService";
 
+/**
+ * Fetches and manages paginated specialty tag data.
+ *
+ * Handles loading states, fetching states, API errors, pagination metadata,
+ * and refetching specialty tags when query parameters change.
+ *
+ */
 export default function useSpecialtyTags(params = {}, { enabled = true } = {}) {
   const [specialtyTags, setSpecialtyTags] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -10,6 +17,12 @@ export default function useSpecialtyTags(params = {}, { enabled = true } = {}) {
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState(null);
 
+  /**
+   * Fetches specialty tags using the current query parameters.
+   *
+   * Uses the initial loading state when no data exists yet and the
+   * fetching state for subsequent requests.
+   */
   async function loadSpecialtyTags() {
     const initialLoad = specialtyTags.length === 0;
 

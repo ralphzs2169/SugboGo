@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { getOrdering } from "@/features/admin-panel/components/data-table/tableUtils";
 
+/**
+ * Manages table state and API query parameters for specialty tag management.
+ *
+ * Handles global search, sorting, pagination, active-filter detection,
+ * and resetting the table to its default state.
+ */
 export default function useSpecialtyTagTableState() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState([]);
@@ -18,6 +24,7 @@ export default function useSpecialtyTagTableState() {
 
   const hasActiveFilters = Boolean(globalFilter || sorting.length);
 
+  // Resets search and sorting filters and returns to the first page.
   function handleResetFilters() {
     setGlobalFilter("");
     setSorting([]);

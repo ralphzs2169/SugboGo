@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { deleteSpecialtyTag } from "../services/specialtyTagService";
 
+/**
+ * Handles specialty tag deletion.
+ *
+ * Manages the deletion loading state and normalizes
+ * successful and failed deletion responses.
+ */
 export default function useDeleteSpecialtyTag() {
   const [isDeleting, setIsDeleting] = useState(false);
 

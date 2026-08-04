@@ -1,32 +1,29 @@
 import { useEffect, useState } from "react";
 
 import Modal from "@/shared/components/modals/Modal";
+import { hasFormChanges } from "@/shared/utils/formUtils";
 
-import SpecialtyTagForm from "./SpecialtyTagForm";
+import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
 import useUpdateSpecialtyTag from "../hooks/useUpdateSpecialtyTag";
 
-/**
- * Modal for editing an existing specialty tag.
- *
- * Initializes the form from the selected specialty tag
- * and manages submission and validation errors.
- *
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether the modal is visible.
- * @param {Object|null} props.specialtyTag - Specialty tag being edited.
- * @param {Function} props.onClose - Closes the modal.
- * @param {Function} props.onSuccess - Called after successful update.
- *
- * @returns {JSX.Element|null}
- */
+import SpecialtyTagForm from "./SpecialtyTagForm";
+
 export default function EditSpecialtyTagModal({
   isOpen,
   specialtyTag,
   onClose,
   onSuccess,
 }) {
+  // Keep the original values so the form can detect whether
+  // the user actually changed anything before enabling Save.
+  const [initialValues, setInitialValues] = useState({
+    name: "",
+    color: "blue",
+  });
+
   const [values, setValues] = useState({
     name: "",
+    color: "blue",
   });
 
   const [errors, setErrors] = useState({});
@@ -36,12 +33,19 @@ export default function EditSpecialtyTagModal({
   useEffect(() => {
     if (!specialtyTag) return;
 
-    setValues({
+    const nextValues = {
       name: specialtyTag.name ?? "",
-    });
+      color: specialtyTag.color ?? "blue",
+    };
 
+    setValues(nextValues);
+    setInitialValues(nextValues);
     setErrors({});
   }, [specialtyTag]);
+
+  // Prevents submitting when the form still matches
+  // the values loaded from the selected specialty tag.
+  const hasChanges = hasFormChanges(values, initialValues, ["name", "color"]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -52,8 +56,29 @@ export default function EditSpecialtyTagModal({
     }));
   }
 
+  function handleColorChange(color) {
+    setValues((previous) => ({
+      ...previous,
+      color,
+    }));
+  }
+
+  function onClearError(field) {
+    setErrors((previous) => ({
+      ...previous,
+      [field]: undefined,
+    }));
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
+
+    const validationErrors = validateSpecialtyTag(values);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
     const result = await submit(specialtyTag.id, values);
 
@@ -63,7 +88,6 @@ export default function EditSpecialtyTagModal({
     }
 
     onSuccess?.();
-
     onClose();
 
     setErrors({});
@@ -82,9 +106,12 @@ export default function EditSpecialtyTagModal({
         values={values}
         errors={errors}
         onChange={handleChange}
+        onColorChange={handleColorChange}
+        onClearError={onClearError}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         submitLabel="Save Changes"
+        submitDisabled={!hasChanges}
       />
     </Modal>
   );

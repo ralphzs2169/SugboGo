@@ -1,19 +1,18 @@
 import { useEffect, useState } from "react";
+
 import Modal from "@/shared/components/modals/Modal";
+import { hasFormChanges } from "@/shared/utils/formUtils";
+
 import CategoryForm from "./CategoryForm";
 import useUpdateCategory from "../hooks/useUpdateCategory";
 import useClusters from "../hooks/useClusters";
+import { validateCategory } from "../validation/categoryValidation";
 
 /**
  * Modal for editing an existing category.
  *
- * @param {Object} props
- * @param {boolean} props.isOpen
- * @param {Object|null} props.category
- * @param {Function} props.onClose
- * @param {Function} props.onSuccess
- *
- * @returns {JSX.Element}
+ * Tracks the original category values so the save button
+ * can be disabled when no changes have been made.
  */
 export default function EditCategoryModal({
   isOpen,
@@ -21,6 +20,12 @@ export default function EditCategoryModal({
   onClose,
   onSuccess,
 }) {
+  const [initialValues, setInitialValues] = useState({
+    name: "",
+    description: "",
+    cluster_id: "",
+  });
+
   const [values, setValues] = useState({
     name: "",
     description: "",
@@ -36,14 +41,23 @@ export default function EditCategoryModal({
   useEffect(() => {
     if (!category) return;
 
-    setValues({
+    const nextValues = {
       name: category.name ?? "",
       description: category.description ?? "",
       cluster_id: category.cluster_id ?? "",
-    });
+    };
 
+    setValues(nextValues);
+    setInitialValues(nextValues);
     setErrors({});
   }, [category]);
+
+  // Determines whether the user has changed any editable category fields.
+  const hasChanges = hasFormChanges(values, initialValues, [
+    "name",
+    "description",
+    "cluster_id",
+  ]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -63,6 +77,13 @@ export default function EditCategoryModal({
 
   async function handleSubmit(event) {
     event.preventDefault();
+
+    const validationErrors = validateCategory(values);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
     const result = await submit(category.id, values);
 
@@ -97,6 +118,7 @@ export default function EditCategoryModal({
         isSubmitting={isSubmitting}
         submitLabel="Save Changes"
         onClearError={onClearError}
+        submitDisabled={!hasChanges}
       />
     </Modal>
   );

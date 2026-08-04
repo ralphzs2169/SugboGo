@@ -12,7 +12,7 @@ function TableTabs({ tabs = [], activeTab, onTabChange }) {
   if (tabs.length === 0) return null;
 
   return (
-    <div className="flex items-center border-b border-stroke mb-6">
+    <div className="flex items-center border-b border-stroke">
       {tabs.map((tab) => (
         <TableTabItem
           key={tab.id}

@@ -1,27 +1,34 @@
 import TextInput from "@/shared/components/forms/TextInput";
 import Button from "@/shared/components/Button";
 
+import ColorPicker from "./ColorPicker";
+
 /**
  * Reusable form for creating and editing specialty tags.
  *
- * @param {Object} props
- * @param {Object} props.values - Current form values.
- * @param {Object} props.errors - Validation errors keyed by field.
- * @param {Function} props.onChange - Input change handler.
- * @param {Function} props.onSubmit - Form submit handler.
- * @param {boolean} props.isSubmitting - Whether the form is submitting.
- * @param {string} props.submitLabel - Label displayed on the submit button.
- *
- * @returns {JSX.Element}
+ * Provides specialty tag name input and color selection.
  */
 export default function SpecialtyTagForm({
   values,
   errors,
   onChange,
+  onColorChange,
   onSubmit,
+  onClearError,
   isSubmitting,
   submitLabel = "Save Specialty Tag",
+  submitDisabled = false,
 }) {
+  function handleChange(event) {
+    onChange(event);
+    onClearError?.(event.target.name);
+  }
+
+  function handleColorChange(color) {
+    onColorChange(color);
+    onClearError?.("color");
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <TextInput
@@ -30,13 +37,25 @@ export default function SpecialtyTagForm({
         label="Specialty Tag"
         placeholder="Enter specialty tag"
         value={values.name}
-        onChange={onChange}
+        onChange={handleChange}
         error={errors.name}
         required
       />
 
+      <ColorPicker
+        value={values.color}
+        name={values.name}
+        error={errors.color}
+        onChange={handleColorChange}
+      />
+
       <div className="flex justify-end">
-        <Button type="submit" loading={isSubmitting}>
+        <Button
+          type="submit"
+          loading={isSubmitting}
+          disabled={submitDisabled}
+          disabledTooltip="Make a change before saving."
+        >
           {submitLabel}
         </Button>
       </div>

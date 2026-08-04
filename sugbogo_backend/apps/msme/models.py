@@ -65,8 +65,22 @@ class Location(models.Model):
 
 
 class SpecialtyTag(models.Model):
+
+    class TagColor(models.TextChoices):
+        BLUE = "blue", "Blue"
+        GREEN = "green", "Green"
+        PURPLE = "purple", "Purple"
+        YELLOW = "yellow", "Yellow"
+        RED = "red", "Red"
+        Teal = "teal", "Teal"
+
     TAG_ID = models.AutoField(primary_key=True)
     TAG_NAME = models.CharField(max_length=100, unique=True)
+    TAG_COLOR = models.CharField(
+        max_length=20,
+        choices=TagColor.choices,
+        default=TagColor.BLUE,
+    )
     TAG_CREATED_AT = models.DateTimeField(auto_now_add=True)
     TAG_UPDATED_AT = models.DateTimeField(auto_now=True)
 

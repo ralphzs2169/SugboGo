@@ -4,13 +4,8 @@ import { createSpecialtyTag } from "../services/specialtyTagService";
 /**
  * Handles specialty tag creation.
  *
- * Manages the submission state and normalizes API
- * success and validation error responses.
- *
- * @returns {{
- *   submit: Function,
- *   isSubmitting: boolean
- * }}
+ * Manages the submission loading state and normalizes
+ * successful and failed creation responses.
  */
 export default function useCreateSpecialtyTag() {
   const [isSubmitting, setIsSubmitting] = useState(false);
