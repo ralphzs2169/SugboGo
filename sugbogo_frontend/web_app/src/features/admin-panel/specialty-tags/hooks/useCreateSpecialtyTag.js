@@ -1,14 +1,25 @@
 import { useState } from "react";
-import { createCategory } from "../services/clusterCategoryService";
+import { createSpecialtyTag } from "../services/specialtyTagService";
 
-export default function useCreateCategory() {
+/**
+ * Handles specialty tag creation.
+ *
+ * Manages the submission state and normalizes API
+ * success and validation error responses.
+ *
+ * @returns {{
+ *   submit: Function,
+ *   isSubmitting: boolean
+ * }}
+ */
+export default function useCreateSpecialtyTag() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submit(values) {
     setIsSubmitting(true);
 
     try {
-      const data = await createCategory(values);
+      const data = await createSpecialtyTag(values);
 
       return {
         success: true,
