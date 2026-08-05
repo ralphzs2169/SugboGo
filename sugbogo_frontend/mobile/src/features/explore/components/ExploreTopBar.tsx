@@ -12,7 +12,7 @@ type Category = {
 const CATEGORIES: Category[] = [
   { label: "All", icon: null },
   { label: "Culinary", icon: "silverware-fork-knife" },
-  { label: "Leisure", icon: "hiking" },
+  { label: "Leisure", icon: "surfing" },
   { label: "Creative", icon: "palette-outline" },
 ];
 

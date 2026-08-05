@@ -7,11 +7,18 @@ type Props = {
   name: string;
   photoUrl: string;
   tags: string[];
+  category: "Culinary" | "Leisure" | "Creative";
   location: string;
   onPress: () => void;
 };
 
-export default function InterestCard({ name, photoUrl, tags, location, onPress }: Props) {
+const CATEGORY_ICONS = {
+  Culinary: "silverware-fork-knife",
+  Leisure: "surfing",
+  Creative: "palette-outline",
+} as const;
+
+export default function InterestCard({ name, photoUrl, tags, category, location, onPress }: Props) {
   return (
     <Pressable onPress={onPress} className="mr-3 w-44 overflow-hidden rounded-md bg-surface">
       <ImageBackground
@@ -33,6 +40,19 @@ export default function InterestCard({ name, photoUrl, tags, location, onPress }
           })}
         </View>
       </ImageBackground>
+
+      {/* Category icon displayed in the upper-right corner of the MSME card */}
+        <View className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full bg-white">
+          <MaterialCommunityIcons
+            name={CATEGORY_ICONS[category]}
+            size={20}
+            color={theme.extends.colors.brand}
+          />
+        </View>
+
+        <Text className="text-sm font-bold text-white" numberOfLines={1}>
+          {name}
+        </Text>
 
       <View className="flex-row items-center px-2 py-2">
         <MaterialCommunityIcons

@@ -11,7 +11,7 @@ export default function InterestsSection() {
     <View className="mt-6">
       <View className="px-4 mb-3">
         <Text className="text-lg font-bold text-text-primary">Based on your Interests</Text>
-        <Text className="text-sm text-text-secondary">Handpicked Gems You'll Love</Text>
+        <Text className="text-sm text-text-secondary">Handpicked Gems You&apos;ll Love</Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-4">
@@ -21,6 +21,7 @@ export default function InterestsSection() {
             name={gem.name}
             photoUrl={gem.photoUrl}
             tags={gem.tags}
+            category={gem.category}
             location={gem.location}
             onPress={() => {}}
           />
