@@ -16,11 +16,18 @@ import {
   CategoryOption,
 } from "@/features/merchant/types/merchantRegistration.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
+import type { RepresentativeRole } from "../../../types/merchant-application/applicationApi.types";
 
-export const REPRESENTATIVE_ROLE_OPTIONS = [
+export const REPRESENTATIVE_ROLE_OPTIONS: {
+  label: string;
+  value: RepresentativeRole;
+}[] = [
   { label: "Owner", value: "owner" },
   { label: "Manager", value: "manager" },
-  { label: "Authorized Representative", value: "authorized_representative" },
+  {
+    label: "Authorized Representative",
+    value: "authorized_representative",
+  },
   { label: "Other", value: "other" },
 ];
 
@@ -144,11 +151,12 @@ export default function BusinessIdentityStep({
    * Updates the representative role selected in the form.
    */
   function handleSelectRepresentativeRole(value: string) {
-    setValue("representativeRole", value, {
+    setValue("representativeRole", value as RepresentativeRole, {
       shouldValidate: true,
       shouldDirty: true,
     });
   }
+
   return (
     <>
       <RegistrationSection

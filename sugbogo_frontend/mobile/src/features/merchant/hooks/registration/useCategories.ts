@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { getCategories } from "../../api/registration.service";
+import { getCategories } from "../../api/merchantApplication.service";
 import { CategoryOption } from "../../types/merchantRegistration.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 

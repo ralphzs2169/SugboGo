@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { getClusters } from "../../api/registration.service";
+import { getClusters } from "../../api/merchantApplication.service";
 import { ClusterOption } from "../../types/merchantRegistration.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 

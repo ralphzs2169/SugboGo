@@ -4,13 +4,18 @@ from apps.merchant_application.models import MerchantApplication
 from apps.merchant_application.serializers.application_location_serializers import (
     ApplicationLocationReadSerializer,
 )
+from apps.merchant_application.serializers.document_serializers import (
+    ApplicationDocumentSerializer,
+)
 from apps.merchant_application.serializers.identity_serializers import (
     ApplicationIdentityReadSerializer,
 )
 from apps.merchant_application.serializers.operating_hours_serializers import (
     ApplicationOperatingHoursReadSerializer,
 )
-
+from apps.merchant_application.serializers.photo_serializers import (
+    ApplicationPhotoSerializer,
+)
 
 
 class MerchantApplicationSerializer(serializers.ModelSerializer):
@@ -75,6 +80,15 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     operating_hours = ApplicationOperatingHoursReadSerializer(
         many=True, read_only=True
     )
+    photos = ApplicationPhotoSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    documents = ApplicationDocumentSerializer(
+        many=True,
+        read_only=True,
+    ) 
   
     class Meta:
         model = MerchantApplication

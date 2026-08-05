@@ -1,3 +1,4 @@
+// UI types
 export interface ClusterOption {
   id: number;
   name: string;
@@ -17,6 +18,7 @@ export type BusinessPhoto = {
 };
 
 export type BusinessDocument = {
+  id?: number;
   uri: string;
   fileName?: string | null;
   mimeType?: string | null;

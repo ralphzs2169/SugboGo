@@ -16,7 +16,7 @@ export function searchPlaces(
 ): Promise<ApiResponse<{ suggestions: PlaceSuggestion[] }>> {
   return request(
     apiClient.post<ApiResponse<{ suggestions: PlaceSuggestion[] }>>(
-      "/registration/places/search/",
+      "/merchant/application/places/search/",
       { input },
     ),
   );
@@ -31,7 +31,7 @@ export function getPlaceDetails(
 ): Promise<ApiResponse<{ location: BusinessLocation }>> {
   return request(
     apiClient.post<ApiResponse<{ location: BusinessLocation }>>(
-      "/registration/places/details/",
+      "/merchant/application/places/details/",
       { place_id: placeId },
     ),
   );
@@ -52,7 +52,7 @@ export function reverseGeocode(
       ApiResponse<{
         address: Omit<BusinessLocation, "latitude" | "longitude">;
       }>
-    >("/registration/reverse-geocode/", {
+    >("/merchant/application/reverse-geocode/", {
       latitude,
       longitude,
     }),
@@ -68,7 +68,7 @@ export function searchNearbyLandmarksService(
 ): Promise<ApiResponse<{ landmarks: BusinessLandmark[] }>> {
   return request(
     apiClient.post<ApiResponse<{ landmarks: BusinessLandmark[] }>>(
-      "/registration/nearby-landmarks/",
+      "/merchant/application/nearby-landmarks/",
       {
         latitude,
         longitude,
