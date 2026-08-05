@@ -8,10 +8,6 @@ import { fetchCategories } from "../services/clusterCategoryService";
  * - Search
  * - Sorting
  * - Pagination
- *
- * @param {Object} params - Query parameters passed to the API.
- * @param {Object} options - Options for the hook.
- * @param {boolean} options.enabled - Whether to enable fetching categories. Defaults to true.
  */
 export default function useCategories(params = {}, { enabled = true } = {}) {
   const [categories, setCategories] = useState([]);

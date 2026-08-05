@@ -3,16 +3,11 @@ import Modal from "@/shared/components/modals/Modal";
 import CategoryForm from "./CategoryForm";
 import useCreateCategory from "../hooks/useCreateCategory";
 import useClusters from "../hooks/useClusters";
+import { validateCategory } from "../validation/categoryValidation";
 
 /**
  * Modal for creating a new category.
  *
- * @param {Object} props
- * @param {boolean} props.isOpen
- * @param {Function} props.onClose
- * @param {Function} props.onSuccess
- *
- * @returns {JSX.Element}
  */
 export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
   const [values, setValues] = useState({
@@ -45,6 +40,13 @@ export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+
+    const validationErrors = validateCategory(values);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
     const result = await submit(values);
 

@@ -1,22 +1,14 @@
 import clsx from "clsx";
 import { LoaderCircle } from "lucide-react";
 
+import Tooltip from "@/shared/components/actions/Tooltip";
+
 /**
  * Reusable button component.
  *
- * @param {Object} props
- * @param {"button"|"submit"|"reset"} [props.type]
- * @param {"primary"|"secondary"|"danger"|"ghost"} [props.variant]
- * @param {"sm"|"md"} [props.size]
- * @param {React.ElementType} [props.icon]
- * @param {boolean} [props.loading]
- * @param {boolean} [props.disabled]
- * @param {React.ReactNode} props.children
- * @param {Function} [props.onClick]
- * @param {string} [props.className]
- * @param {boolean} [props.iconOnly]
+ * Supports variants, sizes, icons, loading states,
+ * disabled states, and optional tooltips for disabled buttons.
  *
- * @returns {JSX.Element}
  */
 export default function Button({
   children,
@@ -26,6 +18,7 @@ export default function Button({
   icon: Icon,
   loading = false,
   disabled = false,
+  disabledTooltip,
   className = "",
   iconOnly = false,
   ...props
@@ -54,7 +47,7 @@ export default function Button({
       "bg-transparent text-text-secondary hover:bg-surface hover:text-text-primary",
   };
 
-  return (
+  const button = (
     <button
       type={type}
       disabled={disabled || loading}
@@ -75,4 +68,10 @@ export default function Button({
       {!iconOnly && <span>{children}</span>}
     </button>
   );
+
+  if (disabled && disabledTooltip) {
+    return <Tooltip content={disabledTooltip}>{button}</Tooltip>;
+  }
+
+  return button;
 }

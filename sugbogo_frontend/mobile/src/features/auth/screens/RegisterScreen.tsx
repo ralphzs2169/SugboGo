@@ -109,7 +109,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthLayout paddingBottom={92} paddingTop={64}>
+    <AuthLayout paddingTop={64}>
       <AuthHeader />
 
       <Text className="mb-6 text-[17px] font-bold text-text-primary">

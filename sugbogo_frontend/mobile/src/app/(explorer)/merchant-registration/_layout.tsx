@@ -36,6 +36,13 @@ export default function MerchantRegistrationLayout() {
             presentation: "fullScreenModal",
           }}
         />
+
+        <Stack.Screen
+          name="review-landmarks"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </>
   );

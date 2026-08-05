@@ -1,26 +1,26 @@
 import { useState } from "react";
 import Modal from "@/shared/components/modals/Modal";
-import ClusterForm from "./ClusterForm";
-import useCreateCluster from "../hooks/useCreateCluster";
+import CategoryForm from "./CategoryForm";
+import useCreateCategory from "../hooks/useCreateCategory";
+import useClusters from "../hooks/useClusters";
+import { validateCategory } from "../validation/categoryValidation";
 
 /**
- * Modal for creating a new cluster.
+ * Modal for creating a new category.
  *
- * @param {Object} props
- * @param {boolean} props.isOpen
- * @param {Function} props.onClose
- * @param {Function} props.onSuccess
- *
- * @returns {JSX.Element}
  */
-export default function CreateClusterModal({ isOpen, onClose, onSuccess }) {
+export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
   const [values, setValues] = useState({
     name: "",
     description: "",
+    cluster_id: "",
   });
 
   const [errors, setErrors] = useState({});
-  const { submit, isSubmitting } = useCreateCluster();
+
+  const { submit, isSubmitting } = useCreateCategory();
+
+  const { clusters, isLoading: isLoadingClusters } = useClusters();
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -41,6 +41,13 @@ export default function CreateClusterModal({ isOpen, onClose, onSuccess }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    const validationErrors = validateCategory(values);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     const result = await submit(values);
 
     if (!result.success) {
@@ -55,24 +62,28 @@ export default function CreateClusterModal({ isOpen, onClose, onSuccess }) {
     setValues({
       name: "",
       description: "",
+      cluster_id: "",
     });
 
     setErrors({});
   }
+
   return (
     <Modal
       isOpen={isOpen}
-      title="Create Cluster"
-      description="Add a new business cluster."
+      title="Create Category"
+      description="Add a new category and assign it to a cluster."
       onClose={onClose}
     >
-      <ClusterForm
+      <CategoryForm
         values={values}
         errors={errors}
+        clusters={clusters}
+        isLoadingClusters={isLoadingClusters}
         onChange={handleChange}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
-        submitLabel="Create Cluster"
+        submitLabel="Create Category"
         onClearError={onClearError}
       />
     </Modal>

@@ -35,8 +35,6 @@ export default function useClusterCategoryTableState(currentTab) {
       columnFilters.find((filter) => filter.id === "cluster_id")?.value ?? "",
   };
 
-  console.log("TABLE PARAMS:", params);
-
   const hasActiveFilters =
     globalFilter.trim() !== "" ||
     columnFilters.length > 0 ||

@@ -35,6 +35,7 @@ export default function FormSelect({
       error={error}
       rightElement={rightElement}
       required={required}
+      editable={!disabled}
     >
       <Pressable
         onPress={onPress}
@@ -43,13 +44,21 @@ export default function FormSelect({
       >
         <Text
           className={`text-body ${
-            value ? "text-text-primary" : "text-text-secondary"
+            disabled
+              ? "text-text-secondary"
+              : value
+                ? "text-text-primary"
+                : "text-text-secondary"
           }`}
         >
           {value || placeholder}
         </Text>
 
-        <MaterialCommunityIcons name="chevron-down" size={20} color="#999999" />
+        <MaterialCommunityIcons
+          name="chevron-down"
+          size={20}
+          color={disabled ? "#D1D5DB" : "#999999"}
+        />
       </Pressable>
     </InputContainer>
   );
