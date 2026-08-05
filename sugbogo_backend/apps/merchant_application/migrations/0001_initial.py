@@ -44,7 +44,7 @@ class Migration(migrations.Migration):
                 ('MDOC_FILE_NAME', models.CharField(blank=True, max_length=255, null=True)),
                 ('MDOC_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('MDOC_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('MAPP_ID', models.ForeignKey(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='documents', to='registration.merchantapplication')),
+                ('MAPP_ID', models.ForeignKey(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='documents', to='merchant_application.merchantapplication')),
             ],
             options={
                 'db_table': 'MERCHANT_APPLICATION_DOCUMENT',
@@ -65,7 +65,7 @@ class Migration(migrations.Migration):
                 ('MIDN_UPDATED_AT', models.DateTimeField(auto_now=True)),
                 ('CLUS_ID', models.ForeignKey(db_column='CLUS_ID', on_delete=django.db.models.deletion.PROTECT, related_name='merchant_application_identities', to='msme.cluster')),
                 ('CTGRY_ID', models.ForeignKey(db_column='CTGRY_ID', on_delete=django.db.models.deletion.PROTECT, related_name='merchant_application_identities', to='msme.category')),
-                ('MAPP_ID', models.OneToOneField(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='identity', to='registration.merchantapplication')),
+                ('MAPP_ID', models.OneToOneField(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='identity', to='merchant_application.merchantapplication')),
                 ('specialty_tags', models.ManyToManyField(blank=True, related_name='merchant_application_identities', to='msme.specialtytag')),
             ],
             options={
@@ -84,7 +84,7 @@ class Migration(migrations.Migration):
                 ('MLOC_POINT', django.contrib.gis.db.models.fields.PointField(srid=4326)),
                 ('MLOC_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('MLOC_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('MAPP_ID', models.OneToOneField(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='location', to='registration.merchantapplication')),
+                ('MAPP_ID', models.OneToOneField(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='location', to='merchant_application.merchantapplication')),
             ],
             options={
                 'db_table': 'MERCHANT_APPLICATION_LOCATION',
@@ -101,7 +101,7 @@ class Migration(migrations.Migration):
                 ('MLMK_PLACE_ID', models.CharField(blank=True, max_length=255, null=True)),
                 ('MLMK_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('MLMK_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('MLOC_ID', models.ForeignKey(db_column='MLOC_ID', on_delete=django.db.models.deletion.CASCADE, related_name='landmarks', to='registration.merchantapplicationlocation')),
+                ('MLOC_ID', models.ForeignKey(db_column='MLOC_ID', on_delete=django.db.models.deletion.CASCADE, related_name='landmarks', to='merchant_application.merchantapplicationlocation')),
             ],
             options={
                 'db_table': 'MERCHANT_APPLICATION_LANDMARK',
@@ -117,7 +117,7 @@ class Migration(migrations.Migration):
                 ('MPHT_FILE_NAME', models.CharField(blank=True, max_length=255, null=True)),
                 ('MPHT_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('MPHT_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('MAPP_ID', models.ForeignKey(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='photos', to='registration.merchantapplication')),
+                ('MAPP_ID', models.ForeignKey(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='photos', to='merchant_application.merchantapplication')),
             ],
             options={
                 'db_table': 'MERCHANT_APPLICATION_PHOTO',
@@ -134,7 +134,7 @@ class Migration(migrations.Migration):
                 ('MHRS_CLOSE_TIME', models.TimeField(blank=True, null=True)),
                 ('MHRS_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('MHRS_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('MAPP_ID', models.ForeignKey(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='operating_hours', to='registration.merchantapplication')),
+                ('MAPP_ID', models.ForeignKey(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='operating_hours', to='merchant_application.merchantapplication')),
             ],
             options={
                 'db_table': 'MERCHANT_APPLICATION_OPERATING_HOURS',

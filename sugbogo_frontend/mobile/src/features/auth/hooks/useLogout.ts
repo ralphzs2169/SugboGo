@@ -1,5 +1,6 @@
 import { clearTokens } from "@/shared/api/storage.service";
 import { useAuthStore } from "../store/auth.store";
+import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 
 /**
  * Handles user logout.
@@ -13,6 +14,7 @@ export function useLogout() {
   async function logout() {
     try {
       await clearTokens();
+      useMerchantRegistrationStore.getState().reset();
       return true;
     } catch (error) {
       console.error("Logout failed:", error);

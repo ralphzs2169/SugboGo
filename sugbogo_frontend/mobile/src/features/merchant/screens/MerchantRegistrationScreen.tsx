@@ -5,7 +5,10 @@ import { z } from "zod";
 import RegistrationFooter from "../components/registration/RegistartionFooter";
 import RegistrationLayout from "../components/registration/RegistrationLayout";
 import RegistrationStepper from "../components/registration/RegistrationStepper";
-import { merchantRegistrationSchema } from "../validation/merchantRegistration.schema";
+import {
+  MerchantRegistrationForm,
+  merchantRegistrationSchema,
+} from "../validation/merchantRegistration.schema";
 
 import useCategories from "../hooks/registration/useCategories";
 import useClusters from "../hooks/registration/useClusters";
@@ -23,12 +26,24 @@ import useSaveIdentity from "../hooks/registration/useSaveIdentity";
 import useSaveLocation from "../hooks/registration/useSaveLocation";
 import useSaveOperatingHours from "../hooks/registration/useSaveOperatingHours";
 import useSaveApplicationPhotos from "../hooks/registration/useSaveApplicationPhotos";
-import { ApplicationOperatingHoursPayload } from "../types/merchant-application/applicationApi.types";
+import {
+  ApplicationIdentityPayload,
+  ApplicationLocationPayload,
+  ApplicationOperatingHoursPayload,
+} from "../types/merchant-application/applicationApi.types";
 import Toast from "react-native-toast-message";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import useSaveApplicationDocuments from "../hooks/registration/useSaveApplicationDocuments";
-import { mapApplicationPhotos } from "../utils/mapApplicationPhotos.utils";
-import { mapApplicationDocuments } from "../utils/mapApplicationDocuments.utils";
+import { mapApplicationPhotos } from "../utils/merchant-application/mappers/mapApplicationPhotos.utils";
+import { mapApplicationDocuments } from "../utils/merchant-application/mappers/mapApplicationDocuments.utils";
+import { hasIdentityChanged } from "../utils/merchant-application/comparisons/hasIdentityChanged.utils";
+import { buildIdentityPayload } from "../utils/merchant-application/builders/buildIdentityPayload.utils";
+import { hasLocationChanged } from "../utils/merchant-application/comparisons/hasLocationChanged.utils";
+import { buildLocationPayload } from "../utils/merchant-application/builders/buildLocationPayload.utils";
+import { useMerchantRegistrationStore } from "../stores/merchantRegistrationStore";
+import { hasOperatingHoursChanged } from "../utils/merchant-application/comparisons/hasOperatingHoursChanged.utils";
+import { detectPhotoChanges } from "../utils/merchant-application/comparisons/detectPhotoChanges.utils";
+import { detectDocumentChanges } from "../utils/merchant-application/comparisons/detectDocumentChanges.utils";
 
 /**
  * Merchant registration wizard screen.
@@ -66,6 +81,11 @@ export default function MerchantRegistrationScreen() {
     completeCurrentStep,
   } = useRegistrationNavigation({
     reviewStep: REVIEW_STEP,
+    onBeforeBack: (step) => {
+      if (step === 2) {
+        persistCurrentAddress();
+      }
+    },
   });
 
   const {
@@ -96,6 +116,36 @@ export default function MerchantRegistrationScreen() {
 
   const [showReviewCelebration, setShowReviewCelebration] = useState(false);
 
+  const setSelectedAddress = useMerchantRegistrationStore(
+    (state) => state.setSelectedAddress,
+  );
+
+  const isSavingCurrentStep =
+    isSavingIdentity ||
+    isSavingLocation ||
+    isSavingOperatingHours ||
+    isSavingApplicationPhotos ||
+    isSavingApplicationDocuments;
+
+  // Last Saved States
+  const [lastSavedIdentity, setLastSavedIdentity] =
+    useState<ApplicationIdentityPayload | null>(null);
+
+  const [lastSavedLocation, setLastSavedLocation] =
+    useState<ApplicationLocationPayload | null>(null);
+
+  const [lastSavedOperatingHours, setLastSavedOperatingHours] =
+    useState<ApplicationOperatingHoursPayload | null>(null);
+
+  const [lastSavedPhotos, setLastSavedPhotos] = useState<
+    MerchantRegistrationForm["businessPhotos"] | null
+  >(null);
+
+  const [lastSavedDocuments, setLastSavedDocuments] = useState<
+    MerchantRegistrationForm["verificationDocuments"] | null
+  >(null);
+
+  // Form state and validation
   const form = useForm<
     z.input<typeof merchantRegistrationSchema>,
     undefined,
@@ -104,6 +154,19 @@ export default function MerchantRegistrationScreen() {
     resolver: zodResolver(merchantRegistrationSchema),
     defaultValues: MERCHANT_REGISTRATION_DEFAULT_VALUES,
   });
+
+  // Persist the current address in the registration store when leaving Step 2.
+  const persistCurrentAddress = () => {
+    const values = form.getValues();
+
+    setSelectedAddress({
+      province: values.province,
+      city: values.city,
+      barangay: values.barangay,
+      streetAddress: values.streetAddress,
+      unit: values.unit,
+    });
+  };
 
   const { validateCurrentStep } = useRegistrationValidation({
     currentStep,
@@ -131,49 +194,45 @@ export default function MerchantRegistrationScreen() {
       });
   }
 
-  const handleNext = async () => {
-    if (currentStep === REVIEW_STEP) {
-      // submit later
-      return;
-    }
-
+  /**
+   * Validates and persists the current registration step.
+   *
+   * Saves only when changes are detected and updates the corresponding
+   * local "last saved" state after a successful response.
+   *
+   * Returns `true` when the step is valid and successfully saved (or
+   * when there are no changes), otherwise returns `false`.
+   */
+  const saveCurrentStep = async (): Promise<boolean> => {
     const isValid = await validateCurrentStep();
 
     if (!isValid) {
-      return;
+      return false;
     }
 
     if (currentStep === 1) {
       const values = form.getValues();
 
-      if (values.representativeRole === "") {
-        return;
-      }
+      const payload = buildIdentityPayload(values);
 
-      const response = await saveIdentity({
-        business_name: values.businessName,
-        business_description: values.businessDescription,
-        contact_number: values.contactNumber,
-        business_email: values.businessEmail,
-        website: values.website,
-        representative_name: values.representativeName,
-        representative_role: values.representativeRole,
-        business_cluster_id: Number(values.businessCluster),
-        business_category_id: Number(values.businessCategory),
-        specialty_tags: values.specialtyTags,
-      });
+      if (hasIdentityChanged(lastSavedIdentity, payload)) {
+        const response = await saveIdentity(payload);
 
-      if (!response.success) {
-        if (handleSystemError(response)) {
-          return;
+        if (!response.success) {
+          if (handleSystemError(response)) {
+            return false;
+          }
+
+          Toast.show({
+            type: "error",
+            text1: "Unable to save",
+            text2: "We couldn't save your business identity. Please try again.",
+          });
+
+          return false;
         }
 
-        Toast.show({
-          type: "error",
-          text1: "Unable to save",
-          text2: "We couldn't save your business identity. Please try again.",
-        });
-        return;
+        setLastSavedIdentity(payload);
       }
     }
 
@@ -182,31 +241,29 @@ export default function MerchantRegistrationScreen() {
       const values = form.getValues();
 
       if (values.latitude === null || values.longitude === null) {
-        return;
+        return false;
       }
 
-      const response = await saveLocation({
-        province: values.province,
-        city: values.city,
-        barangay: values.barangay,
-        street_address: values.streetAddress,
-        unit: values.unit,
-        latitude: values.latitude,
-        longitude: values.longitude,
-        landmarks: values.landmarks,
-      });
+      const payload = buildLocationPayload(values);
 
-      if (!response.success) {
-        if (handleSystemError(response)) {
-          return;
+      if (hasLocationChanged(lastSavedLocation, payload)) {
+        const response = await saveLocation(payload);
+
+        if (!response.success) {
+          if (handleSystemError(response)) {
+            return false;
+          }
+
+          Toast.show({
+            type: "error",
+            text1: "Unable to save",
+            text2: "We couldn't save your location. Please try again.",
+          });
+
+          return false;
         }
 
-        Toast.show({
-          type: "error",
-          text1: "Unable to save",
-          text2: "We couldn't save your location. Please try again.",
-        });
-        return;
+        setLastSavedLocation(payload);
       }
     }
 
@@ -214,7 +271,7 @@ export default function MerchantRegistrationScreen() {
     if (currentStep === 3) {
       const values = form.getValues();
 
-      const response = await saveOperatingHours({
+      const payload: ApplicationOperatingHoursPayload = {
         hours: Object.entries(values.operatingHours).map(([day, schedule]) => ({
           day: day as ApplicationOperatingHoursPayload["hours"][number]["day"],
           is_open: schedule.isOpen,
@@ -222,40 +279,38 @@ export default function MerchantRegistrationScreen() {
           open_time: schedule.openTime || null,
           close_time: schedule.closeTime || null,
         })),
-      });
+      };
 
-      if (!response.success) {
-        if (handleSystemError(response)) {
-          return;
+      if (hasOperatingHoursChanged(lastSavedOperatingHours, payload)) {
+        const response = await saveOperatingHours(payload);
+
+        if (!response.success) {
+          if (handleSystemError(response)) {
+            return false;
+          }
+
+          Toast.show({
+            type: "error",
+            text1: "Unable to save",
+            text2: "We couldn't save your operating hours. Please try again.",
+          });
+
+          return false;
         }
 
-        Toast.show({
-          type: "error",
-          text1: "Unable to save",
-          text2: "We couldn't save your operating hours. Please try again.",
-        });
-        return;
+        setLastSavedOperatingHours(payload);
       }
     }
 
     if (currentStep === 4) {
       const values = form.getValues();
 
-      const hasNewPhotos =
-        values.businessPhotos.storefront.some(
-          (photo) => photo.id === undefined,
-        ) ||
-        values.businessPhotos.interior.some(
-          (photo) => photo.id === undefined,
-        ) ||
-        values.businessPhotos.products.some(
-          (photo) => photo.id === undefined,
-        ) ||
-        values.businessPhotos.additional.some(
-          (photo) => photo.id === undefined,
-        );
+      const { hasChanges, deletedPhotoIds } = detectPhotoChanges(
+        lastSavedPhotos,
+        values.businessPhotos,
+      );
 
-      if (hasNewPhotos) {
+      if (hasChanges) {
         const formData = new FormData();
 
         appendPhotos(formData, "storefront", values.businessPhotos.storefront);
@@ -263,27 +318,48 @@ export default function MerchantRegistrationScreen() {
         appendPhotos(formData, "products", values.businessPhotos.products);
         appendPhotos(formData, "additional", values.businessPhotos.additional);
 
+        deletedPhotoIds.forEach((id) => {
+          formData.append("deleted_photo_ids", String(id));
+        });
+
         const response = await savePhotos(formData);
-        console.log("PHOTO SAVE RESPONSE:", JSON.stringify(response, null, 2));
 
         if (!response.success) {
+          if (handleSystemError(response)) {
+            return false;
+          }
+
           Toast.show({
             type: "error",
             text1: "Unable to save",
             text2: "We couldn't save your business photos. Please try again.",
           });
 
-          return;
+          return false;
         }
 
-        form.setValue("businessPhotos", mapApplicationPhotos(response.data), {
+        const savedPhotos = mapApplicationPhotos(response.data);
+
+        form.setValue("businessPhotos", savedPhotos, {
           shouldDirty: false,
         });
+
+        setLastSavedPhotos(savedPhotos);
       }
     }
 
     if (currentStep === 5) {
       const values = form.getValues();
+
+      const { hasChanges, deletedDocumentIds } = detectDocumentChanges(
+        lastSavedDocuments,
+        values.verificationDocuments,
+      );
+
+      if (!hasChanges) {
+        return true;
+      }
+
       const formData = new FormData();
 
       const businessRegistration =
@@ -318,9 +394,16 @@ export default function MerchantRegistrationScreen() {
           } as any);
         });
 
+      deletedDocumentIds.forEach((id) => {
+        formData.append("deleted_document_ids", String(id));
+      });
+
       const response = await saveDocuments(formData);
 
       if (!response.success) {
+        if (handleSystemError(response)) {
+          return false;
+        }
         Toast.show({
           type: "error",
           text1: "Unable to save",
@@ -328,21 +411,40 @@ export default function MerchantRegistrationScreen() {
             "We couldn't save your verification documents. Please try again.",
         });
 
-        return;
+        return false;
       }
 
-      form.setValue(
-        "verificationDocuments",
-        mapApplicationDocuments(response.data),
-        {
-          shouldDirty: false,
-        },
-      );
+      const savedDocuments = mapApplicationDocuments(response.data);
+      console.log("Mapped:", savedDocuments);
+      form.setValue("verificationDocuments", savedDocuments, {
+        shouldDirty: false,
+      });
+
+      setLastSavedDocuments(savedDocuments);
     }
 
-    if (editingStep !== null) {
-      goToReview();
+    return true;
+  };
+
+  /**
+   * Saves the current step and advances to the next step.
+   *
+   * Displays the completion celebration after Step 5 before moving
+   * to the review screen.
+   */
+  const handleNext = async () => {
+    if (currentStep === REVIEW_STEP) {
       return;
+    }
+
+    const success = await saveCurrentStep();
+
+    if (!success) {
+      return;
+    }
+
+    if (currentStep === 2) {
+      persistCurrentAddress();
     }
 
     if (currentStep === 5) {
@@ -352,10 +454,19 @@ export default function MerchantRegistrationScreen() {
     completeCurrentStep();
   };
 
+  /**
+   * Saves the current step and navigates directly to the review page.
+   *
+   * Used when editing an existing section from the review screen.
+   */
   const handleSaveAndReview = async () => {
-    const isValid = await validateCurrentStep();
+    if (currentStep === 2) {
+      persistCurrentAddress();
+    }
 
-    if (!isValid) {
+    const success = await saveCurrentStep();
+
+    if (!success) {
       return;
     }
 
@@ -420,6 +531,7 @@ export default function MerchantRegistrationScreen() {
               onBack={handleBack}
               isEditing={editingStep !== null}
               onSaveAndReview={handleSaveAndReview}
+              isSubmitting={isSavingCurrentStep}
             />
           }
 

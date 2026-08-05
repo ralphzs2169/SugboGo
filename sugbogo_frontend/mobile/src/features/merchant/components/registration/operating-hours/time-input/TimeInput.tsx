@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
-import { formatTime } from "@/features/merchant/utils/operatingHours.utils";
+import { formatTime } from "@/features/merchant/utils/merchant-application/operatingHours.utils";
 
 type TimeInputProps = {
   label: string;

@@ -12,23 +12,27 @@ import { MerchantRegistrationForm } from "@/features/merchant/validation/merchan
 import AddressLoadFailedState from "../location/AddressFailedLoadState";
 
 /**
- * Displays the business location section of the
- * merchant registration flow.
+ * Displays the business location step of the merchant
+ * registration flow.
  *
- * The selected location is shown as a map preview.
- * Tapping the preview opens the full-screen location
- * picker, where merchants can search for a place or
- * select a location directly on the map.
+ * The confirmed business location is displayed as a
+ * map preview. Merchants can reopen the full-screen
+ * location picker at any time to select a different
+ * location.
  *
- * Address fields are populated from the confirmed
- * business location and can be reviewed or edited
- * when applicable.
+ * Address fields are initially populated from the
+ * confirmed location, but subsequent user edits are
+ * restored from the persisted address stored in the
+ * registration state. This preserves manual address
+ * changes when navigating between registration steps
+ * or revisiting the location step.
  *
  * Location and address validation errors are shown
  * only after the user attempts to continue.
  */
 export default function BusinessLocationStep() {
   const {
+    control,
     setValue,
     formState: { errors },
     clearErrors,
@@ -36,6 +40,10 @@ export default function BusinessLocationStep() {
 
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
+  );
+
+  const selectedAddress = useMerchantRegistrationStore(
+    (state) => state.selectedAddress,
   );
 
   const selectedLandmarks = useMerchantRegistrationStore(
@@ -50,8 +58,14 @@ export default function BusinessLocationStep() {
   const locationError = errors.latitude?.message ?? errors.longitude?.message;
 
   /**
-   * Updates all form fields associated with the selected
-   * business location.
+   * Synchronizes the registration form with the currently
+   * selected business location.
+   *
+   * Geographic coordinates always come from the confirmed
+   * map location, while editable address fields are
+   * restored from the persisted registration state so
+   * manual edits are preserved when returning to this
+   * step.
    */
   const updateFormLocation = useCallback(() => {
     if (!selectedLocation) {
@@ -62,12 +76,30 @@ export default function BusinessLocationStep() {
     setValue("longitude", selectedLocation.longitude, {
       shouldValidate: false,
     });
-    setValue("province", selectedLocation.province, { shouldValidate: false });
-    setValue("city", selectedLocation.city, { shouldValidate: false });
-    setValue("barangay", selectedLocation.barangay, { shouldValidate: false });
-    setValue("streetAddress", selectedLocation.streetAddress, {
-      shouldValidate: false,
-    });
+
+    // Restore the latest editable address instead of the
+    // original reverse-geocoded address from the location.
+    if (selectedAddress) {
+      setValue("province", selectedAddress.province, {
+        shouldValidate: false,
+      });
+
+      setValue("city", selectedAddress.city, {
+        shouldValidate: false,
+      });
+
+      setValue("barangay", selectedAddress.barangay, {
+        shouldValidate: false,
+      });
+
+      setValue("streetAddress", selectedAddress.streetAddress, {
+        shouldValidate: false,
+      });
+
+      setValue("unit", selectedAddress.unit, {
+        shouldValidate: false,
+      });
+    }
 
     // A new location starts a fresh validation state.
     clearErrors([
@@ -77,9 +109,12 @@ export default function BusinessLocationStep() {
       "city",
       "barangay",
       "streetAddress",
+      "unit",
     ]);
-  }, [selectedLocation, setValue, clearErrors]);
+  }, [selectedLocation, selectedAddress, setValue, clearErrors]);
 
+  // Restore the saved location and address whenever this
+  // step is mounted or the selected location changes.
   useEffect(() => {
     updateFormLocation();
   }, [updateFormLocation]);

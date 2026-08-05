@@ -6,6 +6,7 @@ import type { MerchantRegistrationForm } from "@/features/merchant/validation/me
 import SpecialtyTagsBottomSheet from "./SpecialtyTagsBottomSheet";
 import useSpecialtyTags from "@/features/merchant/hooks/registration/useSpecialtyTags";
 import SpecialtyTagChip from "./SpecialtyTagChip";
+import TagSectionEmptyState from "./TagSectionEmptyState";
 /**
  * Renders the specialty-tag selection field for merchant registration.
  *
@@ -154,63 +155,74 @@ export default function SpecialtyTagsSection() {
 
   return (
     <View>
-      {/* Visible specialty tags */}
-      <View className="mb-2 flex-row flex-wrap border-b border-border-primary pb-4">
-        {visibleTagIds.map((tagId) => {
-          const tag = specialtyTags.find(
-            (specialtyTag) => specialtyTag.id === tagId,
-          );
+      {error ? (
+        <TagSectionEmptyState
+          message="Unable to load specialty tags. Please try again."
+          onRetry={refetch}
+        />
+      ) : (
+        <>
+          {/* Visible specialty tags */}
+          <View className="mb-2 flex-row flex-wrap border-b border-border-primary pb-4">
+            {visibleTagIds.map((tagId) => {
+              const tag = specialtyTags.find(
+                (specialtyTag) => specialtyTag.id === tagId,
+              );
 
-          if (!tag) {
-            return null;
-          }
+              if (!tag) {
+                return null;
+              }
 
-          const isSelected = selectedTags.includes(tag.id);
-          const isDisabled = !isSelected && selectedTags.length >= 3;
+              const isSelected = selectedTags.includes(tag.id);
+              const isDisabled = !isSelected && selectedTags.length >= 3;
 
-          return (
-            <SpecialtyTagChip
-              key={tag.id}
-              tag={tag}
-              isSelected={isSelected}
-              isDisabled={isDisabled}
-              onPress={() => handleVisibleTagPress(tag.id)}
-              showCheckIcon
-            />
-          );
-        })}
-      </View>
+              return (
+                <SpecialtyTagChip
+                  key={tag.id}
+                  tag={tag}
+                  isSelected={isSelected}
+                  isDisabled={isDisabled}
+                  onPress={() => handleVisibleTagPress(tag.id)}
+                  showCheckIcon
+                />
+              );
+            })}
+          </View>
 
-      {/* Selection count and browse action */}
-      <View className="mt-1 flex-row items-center justify-between">
-        <Text
-          className={`text-xs ${
-            errors.specialtyTags ? "text-text-error" : "text-text-secondary"
-          }`}
-        >
-          {selectedTags.length} of 3 selected
-        </Text>
+          {/* Selection count and browse action */}
+          <View className="mt-1 flex-row items-center justify-between">
+            <Text
+              className={`text-xs ${
+                errors.specialtyTags ? "text-text-error" : "text-text-secondary"
+              }`}
+            >
+              {selectedTags.length} of 3 selected
+            </Text>
 
-        <Pressable onPress={handleOpenSheet}>
-          <Text className="text-sm font-semibold text-brand">See all tags</Text>
-        </Pressable>
-      </View>
+            <Pressable onPress={handleOpenSheet}>
+              <Text className="text-sm font-semibold text-brand">
+                See all tags
+              </Text>
+            </Pressable>
+          </View>
 
-      {/* Validation error */}
-      {errors.specialtyTags?.message && (
-        <Text className="mt-1 text-xs font-medium text-text-error">
-          {errors.specialtyTags.message}
-        </Text>
+          {/* Validation error */}
+          {errors.specialtyTags?.message && (
+            <Text className="mt-1 text-xs font-medium text-text-error">
+              {errors.specialtyTags.message}
+            </Text>
+          )}
+
+          {/* Full specialty-tag selection sheet */}
+          <SpecialtyTagsBottomSheet
+            sheetRef={specialtyTagsSheetRef}
+            tags={specialtyTags}
+            selectedTags={draftSelectedTags}
+            onToggleTag={handleDraftToggle}
+            onClose={handleSheetClose}
+          />
+        </>
       )}
-
-      {/* Full specialty-tag selection sheet */}
-      <SpecialtyTagsBottomSheet
-        sheetRef={specialtyTagsSheetRef}
-        tags={specialtyTags}
-        selectedTags={draftSelectedTags}
-        onToggleTag={handleDraftToggle}
-        onClose={handleSheetClose}
-      />
     </View>
   );
 }

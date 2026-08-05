@@ -209,9 +209,9 @@ class MerchantApplicationDocument(models.Model):
     """MDOC — uploaded business documents for an application."""
 
     class DocumentType(models.TextChoices):
-        BUSINESS_REGISTRATION = 'businessRegistration', 'Business Registration'
-        AUTHORIZATION_DOCUMENT = 'authorizationDocument', 'Authorization Document'
-        ADDITIONAL_DOCUMENTS = 'additionalDocuments', 'Additional Documents'
+        BUSINESS_REGISTRATION = 'business_registration', 'Business Registration'
+        AUTHORIZATION_DOCUMENT = 'authorization_document', 'Authorization Document'
+        ADDITIONAL_DOCUMENTS = 'additional_documents', 'Additional Documents'
 
     MDOC_ID = models.AutoField(primary_key=True)
     MDOC_DOCUMENT_TYPE = models.CharField(

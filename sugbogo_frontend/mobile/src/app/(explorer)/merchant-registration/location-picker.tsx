@@ -6,14 +6,24 @@ import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchan
 import useNearbyLandmarks from "@/features/merchant/hooks/registration/useNearbyLandmarks";
 import LocationPickerScreen from "@/features/merchant/screens/LocationPickerScreen";
 import Toast from "react-native-toast-message";
+import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import { useFormContext } from "react-hook-form";
 
 /**
  * Route wrapper for the full-screen business location picker.
  *
- * Uses the existing registration location from Zustand and stores
- * the confirmed location before returning to registration.
+ * After a location is confirmed, the selected coordinates and the
+ * initial reverse-geocoded address are stored in Zustand before
+ * returning to the registration screen.
+ *
+ * The editable address is stored separately from the selected
+ * location so manual address corrections (for example, an
+ * undetected barangay or edited street name) are preserved when
+ * navigating away from Step 2.
  */
 export default function BusinessLocationPickerPage() {
+  const form = useFormContext<MerchantRegistrationForm>();
+  console.log("FORM CONTEXT:", form);
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
   );
@@ -43,11 +53,26 @@ export default function BusinessLocationPickerPage() {
     (state) => state.setAddressLoadFailed,
   );
 
+  const setSelectedAddress = useMerchantRegistrationStore(
+    (state) => state.setSelectedAddress,
+  );
+
   const { searchNearbyLandmarks } = useNearbyLandmarks();
   const [showRefreshModal, setShowRefreshModal] = useState(false);
 
   const [isRefreshingLandmarks, setIsRefreshingLandmarks] = useState(false);
 
+  /**
+   * Confirms the selected business location.
+   *
+   * Nearby landmarks are fetched for the new coordinates and the
+   * registration state is updated before returning to Step 2.
+   *
+   * The detected address is also copied into the editable address
+   * store. This becomes the initial value shown in the registration
+   * form and may later diverge from the selected location if the
+   * merchant manually edits the address.
+   */
   async function confirmLocation(
     location: BusinessLocation,
     addressLoadFailed: boolean,
@@ -61,6 +86,21 @@ export default function BusinessLocationPickerPage() {
       );
 
       setSelectedLocation(location);
+
+      // Initialize the editable address from the reverse-geocoded result.
+      //
+      // The registration form edits `selectedAddress`, not
+      // `selectedLocation`, so later manual corrections (such as
+      // entering a missing barangay or changing the street name)
+      // are preserved when revisiting Step 2.
+      setSelectedAddress({
+        province: location.province,
+        city: location.city,
+        barangay: location.barangay,
+        streetAddress: location.streetAddress,
+        unit: "",
+      });
+
       setSelectedLandmarks(result.landmarks);
       setNearbyLandmarksLoadFailed(!result.success);
       setAddressLoadFailed(addressLoadFailed);

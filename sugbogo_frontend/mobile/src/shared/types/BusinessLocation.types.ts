@@ -4,6 +4,7 @@ export type BusinessLocationAddress = {
   barangay: string;
   streetAddress: string;
   formattedAddress: string;
+  unit?: string;
 };
 
 export type BusinessLocation = BusinessLocationAddress & {

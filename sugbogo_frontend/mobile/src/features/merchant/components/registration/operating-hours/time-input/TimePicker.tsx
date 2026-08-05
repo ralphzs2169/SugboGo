@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { timeStringToDate } from "@/features/merchant/utils/operatingHours.utils";
+import { timeStringToDate } from "@/features/merchant/utils/merchant-application/operatingHours.utils";
 
 type TimeField = "openTime" | "closeTime";
 

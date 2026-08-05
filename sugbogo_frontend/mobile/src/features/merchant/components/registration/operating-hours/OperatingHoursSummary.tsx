@@ -1,7 +1,7 @@
 import { Text, View } from "react-native";
 
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
-import { formatTime } from "../../../utils/operatingHours.utils";
+import { formatTime } from "../../../utils/merchant-application/operatingHours.utils";
 
 type Day = keyof MerchantRegistrationForm["operatingHours"];
 

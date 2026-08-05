@@ -215,3 +215,6 @@ export const merchantRegistrationSchema = z.object({
 export type MerchantRegistrationForm = z.infer<
   typeof merchantRegistrationSchema
 >;
+
+export type MerchantRegistrationLandmark =
+  MerchantRegistrationForm["landmarks"][number];
