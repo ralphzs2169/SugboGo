@@ -11,6 +11,8 @@ import RegistrationProgressCard from "../components/portal/RegistrationProgressC
 import ApplicationStatusCard from "../components/portal/ApplicationStatusCard";
 import RejectionFeedbackCard from "../components/portal/RejectionFeedback";
 import MerchantDashboardCard from "../components/portal/MerchantDashboardCard";
+import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
+import LoadingScreen from "@/shared/components/LoadingScreen";
 
 function SectionDivider() {
   return <View className="mx-6 mt-3" />;
@@ -25,19 +27,20 @@ function SectionDivider() {
  * registration status.
  */
 export default function MerchantPortalScreen() {
-  const registrationStatus = MerchantRegistrationStatus.NONE; // This will be fetched from the backend in the future.
-  const config = portalConfig[registrationStatus];
+  const { registrationStatus, config, application, isLoading, error, refetch } =
+    useMerchantPortalState();
 
-  // Will be used when backend integration is complete to fetch real data for the portal.
-  //   const {
-  //     registrationStatus,
-  //     config,
-  //     progress,
-  //     application,
-  //     feedback,
-  //     merchant,
-  //   } = useMerchantPortalState();
-
+  if (isLoading) {
+    return (
+      <LoadingScreen
+        title="Loading Merchant Portal"
+        description="Fetching your application status..."
+      />
+    );
+  }
+  console.log(application);
+  console.log(registrationStatus);
+  console.log(config);
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -45,9 +48,17 @@ export default function MerchantPortalScreen() {
 
         {config.sections.progress && (
           <RegistrationProgressCard
-            currentStep={2}
+            currentStep={application?.highest_completed_step ?? 1}
             totalSteps={5}
-            lastUpdated="July 27, 2026"
+            lastUpdated={
+              application?.updated_at
+                ? new Date(application.updated_at).toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : ""
+            }
           />
         )}
         {config.sections.status && (

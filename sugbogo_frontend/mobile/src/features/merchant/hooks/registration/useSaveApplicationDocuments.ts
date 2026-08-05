@@ -1,6 +1,9 @@
 import { useState } from "react";
+import Toast from "react-native-toast-message";
 
 import { saveApplicationDocuments } from "../../api/merchantApplication.service";
+
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type { ApplicationDocumentResponse } from "../../types/merchant-application/applicationApi.types";
@@ -8,8 +11,8 @@ import type { ApplicationDocumentResponse } from "../../types/merchant-applicati
 /**
  * Saves the verification documents section of the merchant application.
  *
- * Tracks the upload state while sending new verification documents
- * to the registration API and returns the API response to the wizard.
+ * Handles document uploads, loading state, system-error handling,
+ * and user-facing error feedback for Step 5.
  */
 export default function useSaveApplicationDocuments() {
   const [isSaving, setIsSaving] = useState(false);
@@ -20,7 +23,22 @@ export default function useSaveApplicationDocuments() {
     setIsSaving(true);
 
     try {
-      return await saveApplicationDocuments(formData);
+      const response = await saveApplicationDocuments(formData);
+
+      if (!response.success) {
+        if (handleSystemError(response)) {
+          return response;
+        }
+
+        Toast.show({
+          type: "error",
+          text1: "Unable to save",
+          text2:
+            "We couldn't save your verification documents. Please try again.",
+        });
+      }
+
+      return response;
     } finally {
       setIsSaving(false);
     }

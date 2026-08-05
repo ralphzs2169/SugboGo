@@ -1,5 +1,11 @@
 import { MerchantRegistrationStatus } from "./merchant.types";
 
+export type MerchantPortalPrimaryAction =
+  | "START_REGISTRATION"
+  | "CONTINUE_REGISTRATION"
+  | "VIEW_APPLICATION"
+  | "OPEN_DASHBOARD";
+
 /**
  * Registration progress displayed while the application
  * is in the draft state.
@@ -42,6 +48,8 @@ export interface MerchantDashboard {
  */
 export interface MerchantPortalState {
   registrationStatus: MerchantRegistrationStatus;
+
+  primaryAction: MerchantPortalPrimaryAction;
 
   progress?: RegistrationProgress;
 

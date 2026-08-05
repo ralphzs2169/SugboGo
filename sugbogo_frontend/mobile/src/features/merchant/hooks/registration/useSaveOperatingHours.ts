@@ -1,6 +1,9 @@
 import { useState } from "react";
+import Toast from "react-native-toast-message";
 
 import { saveApplicationOperatingHours } from "../../api/merchantApplication.service";
+
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
@@ -11,8 +14,8 @@ import type {
 /**
  * Saves the operating-hours section of the merchant application.
  *
- * Tracks the save state while sending the current Step 3 data to the
- * registration API and returns the API response to the registration wizard.
+ * Handles API communication, system-error handling, and user feedback
+ * while exposing the save state to the registration flow.
  */
 export default function useSaveOperatingHours() {
   const [isSaving, setIsSaving] = useState(false);
@@ -23,7 +26,19 @@ export default function useSaveOperatingHours() {
     setIsSaving(true);
 
     try {
-      return await saveApplicationOperatingHours(payload);
+      const response = await saveApplicationOperatingHours(payload);
+
+      if (!response.success) {
+        handleSystemError(response);
+
+        Toast.show({
+          type: "error",
+          text1: "Unable to save",
+          text2: "We couldn't save your operating hours. Please try again.",
+        });
+      }
+
+      return response;
     } finally {
       setIsSaving(false);
     }

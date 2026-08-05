@@ -44,6 +44,8 @@ import { useMerchantRegistrationStore } from "../stores/merchantRegistrationStor
 import { hasOperatingHoursChanged } from "../utils/merchant-application/comparisons/hasOperatingHoursChanged.utils";
 import { detectPhotoChanges } from "../utils/merchant-application/comparisons/detectPhotoChanges.utils";
 import { detectDocumentChanges } from "../utils/merchant-application/comparisons/detectDocumentChanges.utils";
+import useSubmitApplication from "../hooks/registration/useSubmitApplication";
+import { router } from "expo-router";
 
 /**
  * Merchant registration wizard screen.
@@ -113,6 +115,9 @@ export default function MerchantRegistrationScreen() {
     useSaveApplicationPhotos();
   const { saveDocuments, isSaving: isSavingApplicationDocuments } =
     useSaveApplicationDocuments();
+
+  const { submit, isSubmitting: isSubmittingApplication } =
+    useSubmitApplication();
 
   const [showReviewCelebration, setShowReviewCelebration] = useState(false);
 
@@ -219,16 +224,6 @@ export default function MerchantRegistrationScreen() {
         const response = await saveIdentity(payload);
 
         if (!response.success) {
-          if (handleSystemError(response)) {
-            return false;
-          }
-
-          Toast.show({
-            type: "error",
-            text1: "Unable to save",
-            text2: "We couldn't save your business identity. Please try again.",
-          });
-
           return false;
         }
 
@@ -250,16 +245,6 @@ export default function MerchantRegistrationScreen() {
         const response = await saveLocation(payload);
 
         if (!response.success) {
-          if (handleSystemError(response)) {
-            return false;
-          }
-
-          Toast.show({
-            type: "error",
-            text1: "Unable to save",
-            text2: "We couldn't save your location. Please try again.",
-          });
-
           return false;
         }
 
@@ -285,16 +270,6 @@ export default function MerchantRegistrationScreen() {
         const response = await saveOperatingHours(payload);
 
         if (!response.success) {
-          if (handleSystemError(response)) {
-            return false;
-          }
-
-          Toast.show({
-            type: "error",
-            text1: "Unable to save",
-            text2: "We couldn't save your operating hours. Please try again.",
-          });
-
           return false;
         }
 
@@ -325,16 +300,6 @@ export default function MerchantRegistrationScreen() {
         const response = await savePhotos(formData);
 
         if (!response.success) {
-          if (handleSystemError(response)) {
-            return false;
-          }
-
-          Toast.show({
-            type: "error",
-            text1: "Unable to save",
-            text2: "We couldn't save your business photos. Please try again.",
-          });
-
           return false;
         }
 
@@ -401,21 +366,11 @@ export default function MerchantRegistrationScreen() {
       const response = await saveDocuments(formData);
 
       if (!response.success) {
-        if (handleSystemError(response)) {
-          return false;
-        }
-        Toast.show({
-          type: "error",
-          text1: "Unable to save",
-          text2:
-            "We couldn't save your verification documents. Please try again.",
-        });
-
         return false;
       }
 
       const savedDocuments = mapApplicationDocuments(response.data);
-      console.log("Mapped:", savedDocuments);
+
       form.setValue("verificationDocuments", savedDocuments, {
         shouldDirty: false,
       });
@@ -434,9 +389,15 @@ export default function MerchantRegistrationScreen() {
    */
   const handleNext = async () => {
     if (currentStep === REVIEW_STEP) {
+      const result = await submit();
+
+      if (!result.success) {
+        return;
+      }
+
+      router.replace("/(explorer)/merchant-registration/submission-success");
       return;
     }
-
     const success = await saveCurrentStep();
 
     if (!success) {

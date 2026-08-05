@@ -1,6 +1,9 @@
 import { useState } from "react";
+import Toast from "react-native-toast-message";
 
 import { saveApplicationLocation } from "../../api/merchantApplication.service";
+
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
@@ -11,8 +14,8 @@ import type {
 /**
  * Saves the business location section of the merchant application.
  *
- * Tracks the save state while sending the current Step 2 data to the
- * registration API and returns the API response to the registration wizard.
+ * Handles API communication, loading state, system-error handling,
+ * and user-facing error feedback for Step 2.
  */
 export default function useSaveApplicationLocation() {
   const [isSaving, setIsSaving] = useState(false);
@@ -23,7 +26,21 @@ export default function useSaveApplicationLocation() {
     setIsSaving(true);
 
     try {
-      return await saveApplicationLocation(payload);
+      const response = await saveApplicationLocation(payload);
+
+      if (!response.success) {
+        if (handleSystemError(response)) {
+          return response;
+        }
+
+        Toast.show({
+          type: "error",
+          text1: "Unable to save",
+          text2: "We couldn't save your location. Please try again.",
+        });
+      }
+
+      return response;
     } finally {
       setIsSaving(false);
     }

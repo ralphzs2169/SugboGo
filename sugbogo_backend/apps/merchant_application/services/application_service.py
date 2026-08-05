@@ -69,6 +69,10 @@ class ApplicationService:
 
         if identity is None:
             errors["identity"] = "Business identity is required."
+        else:
+            if identity.specialty_tags.count() != 3:
+                errors["specialty_tags"] = "Exactly 3 specialty tags are required."
+
 
         # Step 2 — Business Location
         location = getattr(application, "location", None)
@@ -86,6 +90,9 @@ class ApplicationService:
 
         if hours_count == 0:
             errors["operating_hours"] = "Operating hours are required."
+        else:
+            if hours_count < 7:
+                errors["operating_hours"] = "Operating hours for all 7 days are required."
 
         # Step 4 — Business Photos
         storefront_count = MerchantApplicationPhotos.objects.filter(
@@ -93,7 +100,7 @@ class ApplicationService:
             MPHT_CATEGORY=MerchantApplicationPhotos.PhotoCategory.STOREFRONT,
         ).count()
 
-        if storefront_count == 0:
+        if storefront_count < 1:
             errors["photos"] = "At least one storefront photo is required."
 
         # Step 5 — Verification Documents

@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
-
+import Button from "@/shared/components/Button";
 import { theme } from "@/constants/theme";
 
 type TagSectionEmptyStateProps = {
@@ -37,13 +37,20 @@ export default function TagSectionEmptyState({
       <Text className="mt-2 text-center text-sm leading-5 text-text-secondary">
         {message}
       </Text>
-
+      {/* 
       <Pressable
         onPress={onRetry}
         className="mt-5 rounded-lg bg-brand px-5 py-2.5"
       >
         <Text className="font-semibold text-white">Retry</Text>
-      </Pressable>
+      </Pressable> */}
+
+      <Button
+        title="Retry"
+        variant="soft"
+        fontClassName="text-sm"
+        onPress={onRetry}
+      />
     </View>
   );
 }

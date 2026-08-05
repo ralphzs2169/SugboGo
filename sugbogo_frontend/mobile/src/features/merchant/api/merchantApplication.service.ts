@@ -38,7 +38,9 @@ export async function getSpecialtyTags(): Promise<
 
 // Application
 
-export async function getCurrentApplication(): Promise<ApiResponse<unknown>> {
+export async function getCurrentApplication(): Promise<
+  ApiResponse<ApplicationDetailResponse>
+> {
   return request(apiClient.get("/merchant/application/"));
 }
 

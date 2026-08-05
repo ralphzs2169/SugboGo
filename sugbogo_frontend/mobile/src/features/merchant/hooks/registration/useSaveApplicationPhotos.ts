@@ -1,6 +1,9 @@
 import { useState } from "react";
+import Toast from "react-native-toast-message";
 
 import { saveApplicationPhotos } from "../../api/merchantApplication.service";
+
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type { ApplicationPhotoResponse } from "../../types/merchant-application/applicationApi.types";
@@ -8,8 +11,8 @@ import type { ApplicationPhotoResponse } from "../../types/merchant-application/
 /**
  * Saves the business photos section of the merchant application.
  *
- * Tracks the upload state while sending the selected business photos
- * to the registration API and returns the API response to the wizard.
+ * Handles photo uploads, loading state, system-error handling,
+ * and user-facing error feedback for Step 4.
  */
 export default function useSaveApplicationPhotos() {
   const [isSaving, setIsSaving] = useState(false);
@@ -20,7 +23,21 @@ export default function useSaveApplicationPhotos() {
     setIsSaving(true);
 
     try {
-      return await saveApplicationPhotos(formData);
+      const response = await saveApplicationPhotos(formData);
+
+      if (!response.success) {
+        if (handleSystemError(response)) {
+          return response;
+        }
+
+        Toast.show({
+          type: "error",
+          text1: "Unable to save",
+          text2: "We couldn't save your business photos. Please try again.",
+        });
+      }
+
+      return response;
     } finally {
       setIsSaving(false);
     }
