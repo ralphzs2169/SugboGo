@@ -156,17 +156,19 @@ export const merchantRegistrationSchema = z.object({
 
   unit: z.string(),
 
-  landmarks: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      address: z.string(),
-      latitude: z.number(),
-      longitude: z.number(),
-      source: z.enum(["google", "custom"]),
-      placeId: z.string().optional(),
-    }),
-  ),
+  landmarks: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        address: z.string(),
+        latitude: z.number(),
+        longitude: z.number(),
+        source: z.enum(["google", "custom"]),
+        placeId: z.string().optional(),
+      }),
+    )
+    .max(5, "You can only add up to 5 landmarks."),
 
   latitude: z
     .number()

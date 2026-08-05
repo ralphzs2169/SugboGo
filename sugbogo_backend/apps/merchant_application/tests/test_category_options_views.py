@@ -13,7 +13,7 @@ class CategoryOptionsViewTests(APIResponseAssertionsMixin, APITestCase):
         self.url = reverse("category-options")
 
     @patch(
-        "apps.registration.views.category_options_views.CategoryService.list_categories"
+        "apps.merchant_application.views.category_options_views.CategoryService.list_categories"
     )
     def test_returns_category_options_successfully(
         self,

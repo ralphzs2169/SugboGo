@@ -36,7 +36,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
     # Reverse Geocode
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.reverse_geocode"
+        "apps.merchant_application.views.location_views.GoogleMapsService.reverse_geocode"
     )
     def test_reverse_geocode_successfully_returns_address(
         self,
@@ -81,7 +81,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.reverse_geocode",
+        "apps.merchant_application.views.location_views.GoogleMapsService.reverse_geocode",
         side_effect=RequestException("Google API unavailable"),
     )
     def test_reverse_geocode_returns_service_unavailable(
@@ -117,7 +117,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.reverse_geocode",
+        "apps.merchant_application.views.location_views.GoogleMapsService.reverse_geocode",
         side_effect=ValueError("Unable to determine the location."),
     )
     def test_reverse_geocode_returns_geocoding_error(
@@ -155,7 +155,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
     # Place Search
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.search_places"
+        "apps.merchant_application.views.location_views.GoogleMapsService.search_places"
     )
     def test_place_search_successfully_returns_suggestions(
         self,
@@ -204,7 +204,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.search_places",
+        "apps.merchant_application.views.location_views.GoogleMapsService.search_places",
         side_effect=RequestException("Google API unavailable"),
     )
     def test_place_search_returns_service_unavailable(
@@ -239,7 +239,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.search_places",
+        "apps.merchant_application.views.location_views.GoogleMapsService.search_places",
         side_effect=ValueError("Invalid place search."),
     )
     def test_place_search_returns_search_error(
@@ -276,7 +276,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
     # Place Details
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.get_place_details"
+        "apps.merchant_application.views.location_views.GoogleMapsService.get_place_details"
     )
     def test_place_details_successfully_returns_location(
         self,
@@ -322,7 +322,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.get_place_details",
+        "apps.merchant_application.views.location_views.GoogleMapsService.get_place_details",
         side_effect=RequestException("Google API unavailable"),
     )
     def test_place_details_returns_service_unavailable(
@@ -357,7 +357,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.get_place_details",
+        "apps.merchant_application.views.location_views.GoogleMapsService.get_place_details",
         side_effect=ValueError("Place details unavailable."),
     )
     def test_place_details_returns_details_error(
@@ -394,7 +394,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
     # Nearby Landmarks
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.search_nearby_landmarks"
+        "apps.merchant_application.views.location_views.GoogleMapsService.search_nearby_landmarks"
     )
     def test_nearby_landmarks_successfully_returns_landmarks(
         self,
@@ -448,7 +448,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.search_nearby_landmarks",
+        "apps.merchant_application.views.location_views.GoogleMapsService.search_nearby_landmarks",
         side_effect=RequestException("Google API unavailable"),
     )
     def test_nearby_landmarks_returns_service_unavailable(
@@ -484,7 +484,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         )
 
     @patch(
-        "apps.registration.views.location_views.GoogleMapsService.search_nearby_landmarks",
+        "apps.merchant_application.views.location_views.GoogleMapsService.search_nearby_landmarks",
         side_effect=ValueError("Unable to find nearby landmarks."),
     )
     def test_nearby_landmarks_returns_landmark_error(

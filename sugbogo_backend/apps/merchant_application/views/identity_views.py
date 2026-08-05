@@ -2,14 +2,14 @@ from core.responses import success_response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
-from apps.registration.serializers.identity_serializers import (
+from apps.merchant_application.serializers.identity_serializers import (
     ApplicationIdentityReadSerializer,
     ApplicationIdentitySerializer,
 )
-from apps.registration.services.identity_service import IdentityService
+from apps.merchant_application.services.identity_service import IdentityService
 
 
-@api_view(["POST"])
+@api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def identity_save_view(request):
     """
@@ -17,11 +17,15 @@ def identity_save_view(request):
     updates identity in place on subsequent saves.
     """
 
-    serializer = ApplicationIdentitySerializer(data=request.data)
+    serializer = ApplicationIdentitySerializer(
+        data=request.data,
+        partial=True,
+    )
     serializer.is_valid(raise_exception=True)
 
     _, identity = IdentityService.save_identity(
-        request.user, serializer.validated_data
+        request.user,
+        serializer.validated_data,
     )
 
     output_serializer = ApplicationIdentityReadSerializer(identity)

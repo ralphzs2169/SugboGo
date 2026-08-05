@@ -4,13 +4,13 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 
-from apps.registration.serializers.location_serializers import (
+from apps.merchant_application.serializers.location_serializers import (
     NearbyLandmarksSerializer,
     PlaceDetailsSerializer,
     PlaceSearchSerializer,
     ReverseGeocodeSerializer,
 )
-from apps.registration.throttles import (
+from apps.merchant_application.throttles import (
     NearbyLandmarksThrottle,
     PlaceDetailsThrottle,
     PlaceSearchThrottle,

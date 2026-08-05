@@ -135,7 +135,7 @@ export default function LandmarkPickerScreen({
       Toast.show({
         type: "error",
         text1: "Maximum landmarks reached",
-        text2: "You can only add up to five landmarks.",
+        text2: "You can only add up to 5 landmarks.",
       });
 
       return;

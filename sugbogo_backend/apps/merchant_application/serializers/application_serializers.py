@@ -1,19 +1,16 @@
 from rest_framework import serializers
 
-from apps.registration.models import MerchantApplication
-from apps.registration.serializers.application_location_serializers import (
+from apps.merchant_application.models import MerchantApplication
+from apps.merchant_application.serializers.application_location_serializers import (
     ApplicationLocationReadSerializer,
 )
-from apps.registration.serializers.identity_serializers import (
+from apps.merchant_application.serializers.identity_serializers import (
     ApplicationIdentityReadSerializer,
 )
-from apps.registration.serializers.operating_hours_serializers import (
-    MerchantApplicationOperatingHoursReadSerializer,
+from apps.merchant_application.serializers.operating_hours_serializers import (
+    ApplicationOperatingHoursReadSerializer,
 )
-from apps.registration.serializers.photo_document_serializers import (
-    MerchantApplicationDocumentSerializer,
-    MerchantApplicationPhotoSerializer,
-)
+
 
 
 class MerchantApplicationSerializer(serializers.ModelSerializer):
@@ -52,7 +49,7 @@ class MerchantApplicationSerializer(serializers.ModelSerializer):
         )
 
 
-class MerchantApplicationDetailSerializer(serializers.ModelSerializer):
+class ApplicationDetailSerializer(serializers.ModelSerializer):
     """
     Full nested read serializer for GET /application/ — everything the
     frontend needs to resume the wizard at the correct step in one call.
@@ -75,12 +72,10 @@ class MerchantApplicationDetailSerializer(serializers.ModelSerializer):
 
     identity = serializers.SerializerMethodField()
     location = serializers.SerializerMethodField()
-    operating_hours = MerchantApplicationOperatingHoursReadSerializer(
+    operating_hours = ApplicationOperatingHoursReadSerializer(
         many=True, read_only=True
     )
-    photos = MerchantApplicationPhotoSerializer(many=True, read_only=True)
-    documents = MerchantApplicationDocumentSerializer(many=True, read_only=True)
-
+  
     class Meta:
         model = MerchantApplication
         fields = (

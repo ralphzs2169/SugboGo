@@ -1,16 +1,24 @@
+from typing import ClassVar
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
-from apps.registration.models import (
-    MerchantApplicationDocument,
-    MerchantApplicationPhotos,
-)
-from apps.registration.services.application_service import ApplicationService
+from apps.merchant_application.models import MerchantApplicationPhotos
+from apps.merchant_application.services.application_service import ApplicationService
 from apps.shared.services.cloudinary_service import CloudinaryService
 
 
-class PhotoDocumentService:
+class PhotoService:
     STEP = 4
+
+    PHOTO_LIMITS: ClassVar[
+        dict[MerchantApplicationPhotos.PhotoCategory, int]
+    ] = {
+        MerchantApplicationPhotos.PhotoCategory.STOREFRONT: 3,
+        MerchantApplicationPhotos.PhotoCategory.INTERIOR: 5,
+        MerchantApplicationPhotos.PhotoCategory.PRODUCTS: 5,
+        MerchantApplicationPhotos.PhotoCategory.ADDITIONAL: 5,
+    }
 
     @staticmethod
     @transaction.atomic
@@ -21,10 +29,19 @@ class PhotoDocumentService:
         Only newly added files are uploaded and created.
         Only explicitly deleted photo IDs are removed.
         Existing unchanged photos remain untouched.
+
+        Final photo limits are validated against the complete resulting
+        state before any database or Cloudinary changes are made.
         """
+
+        ApplicationService.validate_step_access(
+            application,
+            PhotoService.STEP,
+        )
 
         deleted_photo_ids = validated_data.pop("deleted_photo_ids", [])
 
+        # Organize the newly added photos by category.
         new_photos = {
             MerchantApplicationPhotos.PhotoCategory.STOREFRONT: validated_data.pop(
                 "storefront", []
@@ -40,7 +57,7 @@ class PhotoDocumentService:
             ),
         }
 
-        # Validate that every requested deletion belongs to this application.
+        # Find the photos requested for deletion.
         photos_to_delete = MerchantApplicationPhotos.objects.filter(
             MAPP_ID=application,
             MPHT_ID__in=deleted_photo_ids,
@@ -51,8 +68,14 @@ class PhotoDocumentService:
                 "One or more selected photos do not belong to this application."
             )
 
-        # Delete the requested database records and their Cloudinary assets
-        # after the database transaction successfully commits.
+        # Validate the final number of photos in each category.
+        PhotoService._validate_final_photo_counts(
+            application=application,
+            photos_to_delete=photos_to_delete,
+            new_photos=new_photos,
+        )
+
+        # Delete the requested database records and schedule Cloudinary cleanup.
         deleted_public_ids = [
             photo.MPHT_PHOTO_PUBLIC_ID
             for photo in photos_to_delete
@@ -90,8 +113,7 @@ class PhotoDocumentService:
                     created_photos.append(photo)
 
         except Exception:
-            # Cloudinary uploads cannot participate in the database
-            # transaction, so clean up any uploads created before failure.
+            # Clean up Cloudinary uploads if the database operation fails.
             for photo in created_photos:
                 if photo.MPHT_PHOTO_PUBLIC_ID:
                     CloudinaryService.delete_image(
@@ -100,15 +122,52 @@ class PhotoDocumentService:
 
             raise
 
-        # Step 4 is complete only after the entire save succeeds.
+        # Mark Step 4 complete after the entire save succeeds.
         ApplicationService.mark_step_completed(
             application,
-            PhotoDocumentService.STEP,
+            PhotoService.STEP,
         )
 
         return MerchantApplicationPhotos.objects.filter(
             MAPP_ID=application
         ).order_by("MPHT_ID")
+
+    @staticmethod
+    def _validate_final_photo_counts(
+        application,
+        photos_to_delete,
+        new_photos,
+    ):
+        """Ensure the resulting photo state respects category limits."""
+
+        existing_counts = {
+            category: MerchantApplicationPhotos.objects.filter(
+                MAPP_ID=application,
+                MPHT_CATEGORY=category,
+            ).count()
+            for category in PhotoService.PHOTO_LIMITS
+        }
+
+        deleted_counts = {
+            category: 0
+            for category in PhotoService.PHOTO_LIMITS
+        }
+
+        for photo in photos_to_delete:
+            deleted_counts[photo.MPHT_CATEGORY] += 1
+
+        for category, limit in PhotoService.PHOTO_LIMITS.items():
+            final_count = (
+                existing_counts[category]
+                - deleted_counts[category]
+                + len(new_photos[category])
+            )
+
+            if final_count > limit:
+                raise ValueError(
+                    f"You can have up to {limit} "
+                    f"{category} photos."
+                )
 
     @staticmethod
     def get_photo_for_application(application, photo_id):
@@ -124,42 +183,3 @@ class PhotoDocumentService:
             CloudinaryService.delete_image(photo.MPHT_PHOTO_PUBLIC_ID)
 
         photo.delete()
-
-    @staticmethod
-    def upload_documents(application, document_type, files):
-        """Step 5. Uploads one or more documents under the same type."""
-        documents = []
-
-        for file in files:
-            result = CloudinaryService.upload_image(
-                file=file,
-                folder="merchant_application_documents",
-                resource_type="auto",
-            )
-
-            document = MerchantApplicationDocument.objects.create(
-                MAPP_ID=application,
-                MDOC_DOCUMENT_TYPE=document_type,
-                MDOC_DOCUMENT_URL=result["secure_url"],
-                MDOC_DOCUMENT_PUBLIC_ID=result["public_id"],
-                MDOC_FILE_NAME=getattr(file, "name", None),
-            )
-
-            documents.append(document)
-
-        return documents
-
-    @staticmethod
-    def get_document_for_application(application, document_id):
-        return get_object_or_404(
-            MerchantApplicationDocument,
-            MDOC_ID=document_id,
-            MAPP_ID=application,
-        )
-
-    @staticmethod
-    def delete_document(document):
-        if document.MDOC_DOCUMENT_PUBLIC_ID:
-            CloudinaryService.delete_image(document.MDOC_DOCUMENT_PUBLIC_ID)
-
-        document.delete()

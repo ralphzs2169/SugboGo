@@ -1,7 +1,7 @@
 from django.db import transaction
 
-from apps.registration.models import MerchantApplicationOperatingHours
-from apps.registration.services.application_service import ApplicationService
+from apps.merchant_application.models import MerchantApplicationOperatingHours
+from apps.merchant_application.services.application_service import ApplicationService
 
 
 class OperatingHoursService:
@@ -9,12 +9,16 @@ class OperatingHoursService:
 
     @staticmethod
     @transaction.atomic
-    def replace_hours(application, hours_list):
+    def save_hours(application, hours_list):
         """
-        Step 3. Replaces the application's full week of operating hours
-        in one call — deletes existing rows, then bulk-creates the new
-        set, rather than trying to diff/update individual days.
+        Saves the application's complete weekly operating hours
+        and marks Step 3 as completed.
         """
+
+        ApplicationService.validate_step_access(
+            application,
+            OperatingHoursService.STEP,
+        )
 
         MerchantApplicationOperatingHours.objects.filter(
             MAPP_ID=application
@@ -34,6 +38,7 @@ class OperatingHoursService:
 
         hours = MerchantApplicationOperatingHours.objects.bulk_create(records)
 
+        # Mark Step 3 as completed on the parent application.
         ApplicationService.mark_step_completed(
             application,
             OperatingHoursService.STEP,

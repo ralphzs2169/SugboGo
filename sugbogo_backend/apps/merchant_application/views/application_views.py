@@ -1,13 +1,12 @@
+from core.responses import error_response, success_response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
-from core.responses import error_response, success_response
-
-from apps.registration.serializers.application_serializers import (
-    MerchantApplicationDetailSerializer,
+from apps.merchant_application.serializers.application_serializers import (
+    ApplicationDetailSerializer,
 )
-from apps.registration.services.application_service import ApplicationService
+from apps.merchant_application.services.application_service import ApplicationService
 
 
 @api_view(["GET"])
@@ -24,7 +23,7 @@ def application_detail_view(request):
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    serializer = MerchantApplicationDetailSerializer(application)
+    serializer = ApplicationDetailSerializer(application)
 
     return success_response(
         data=serializer.data,
@@ -47,7 +46,7 @@ def application_submit_view(request):
         )
 
     application = ApplicationService.submit_application(application)
-    serializer = MerchantApplicationDetailSerializer(application)
+    serializer = ApplicationDetailSerializer(application)
 
     return success_response(
         data=serializer.data,

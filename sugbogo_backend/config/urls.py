@@ -24,7 +24,7 @@ urlpatterns = [
     # path('merchant/', include('apps.merchant_operations.urls')),
 
     
-    path('api/registration/', include('apps.registration.urls')),
+    path('api/merchant/application/', include('apps.merchant_application.urls')),
 
     # Admin Operations
     path('api/admin/dashboard/', include('apps.admin_operations.dashboard.urls')),

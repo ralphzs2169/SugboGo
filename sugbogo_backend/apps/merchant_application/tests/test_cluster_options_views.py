@@ -15,7 +15,7 @@ class ClusterOptionsViewTests(
         self.url = reverse("cluster-options")
 
     @patch(
-        "apps.registration.views.cluster_options_views.ClusterService.list_registration_options"
+        "apps.merchant_application.views.cluster_options_views.ClusterService.list_registration_options"
     )
     def test_returns_cluster_options_successfully(
         self,
@@ -72,7 +72,7 @@ class ClusterOptionsViewTests(
         mock_list_registration_options.assert_called_once_with()
 
     @patch(
-        "apps.registration.views.cluster_options_views.ClusterService.list_registration_options"
+        "apps.merchant_application.views.cluster_options_views.ClusterService.list_registration_options"
     )
     def test_returns_empty_list_when_no_cluster_options_exist(
         self,

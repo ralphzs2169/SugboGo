@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.registration.models import MerchantApplication
+from apps.merchant_application.models import MerchantApplication
 
 
 class ApplicationService:

@@ -3,18 +3,20 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
-from apps.registration.serializers.operating_hours_serializers import (
-    MerchantApplicationOperatingHoursReadSerializer,
-    MerchantApplicationOperatingHoursSerializer,
+from apps.merchant_application.serializers.operating_hours_serializers import (
+    ApplicationOperatingHoursReadSerializer,
+    ApplicationOperatingHoursSerializer,
 )
-from apps.registration.services.application_service import ApplicationService
-from apps.registration.services.operating_hours_service import OperatingHoursService
+from apps.merchant_application.services.application_service import ApplicationService
+from apps.merchant_application.services.operating_hours_service import (
+    OperatingHoursService,
+)
 
 
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
-def operating_hours_replace_view(request):
-    """Step 3. Replaces the current application's full week of hours."""
+def operating_hours_save_view(request):
+    """Step 3. Saves the current application's full week of hours."""
 
     application = ApplicationService.get_current_application(request.user)
 
@@ -25,15 +27,15 @@ def operating_hours_replace_view(request):
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    serializer = MerchantApplicationOperatingHoursSerializer(data=request.data)
+    serializer = ApplicationOperatingHoursSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    hours = OperatingHoursService.replace_hours(
+    hours = OperatingHoursService.save_hours(
         application,
         serializer.validated_data["hours"],
     )
 
-    output_serializer = MerchantApplicationOperatingHoursReadSerializer(
+    output_serializer = ApplicationOperatingHoursReadSerializer(
         hours, many=True
     )
 

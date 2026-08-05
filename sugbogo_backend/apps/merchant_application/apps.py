@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class RegistrationConfig(AppConfig):
+class MerchantApplicationConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
-    name = "apps.registration"
+    name = "apps.merchant_application"

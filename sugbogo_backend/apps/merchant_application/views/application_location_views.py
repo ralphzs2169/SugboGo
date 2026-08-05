@@ -3,12 +3,12 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
-from apps.registration.serializers.application_location_serializers import (
+from apps.merchant_application.serializers.application_location_serializers import (
     ApplicationLocationReadSerializer,
     ApplicationLocationSerializer,
 )
-from apps.registration.services.application_service import ApplicationService
-from apps.registration.services.location_service import LocationService
+from apps.merchant_application.services.application_service import ApplicationService
+from apps.merchant_application.services.location_service import LocationService
 
 
 @api_view(["PATCH"])
@@ -25,7 +25,10 @@ def location_save_view(request):
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    serializer = ApplicationLocationSerializer(data=request.data)
+    serializer = ApplicationLocationSerializer(
+        data=request.data,
+        partial=True,
+    )
     serializer.is_valid(raise_exception=True)
 
     location = LocationService.save_location(

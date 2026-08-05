@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.registration.models import (
+from apps.merchant_application.models import (
     MerchantApplicationLandmark,
     MerchantApplicationLocation,
 )
@@ -20,7 +20,6 @@ class ApplicationLandmarkSerializer(serializers.ModelSerializer):
         source="MLMK_ADDRESS",
         required=False,
         allow_blank=True,
-        allow_null=True,
         error_messages={
             "blank": "Landmark address is required.",
             "required": "Landmark address is required.",
@@ -125,6 +124,10 @@ class ApplicationLocationSerializer(serializers.ModelSerializer):
     landmarks = ApplicationLandmarkSerializer(
         many=True,
         required=False,
+        max_length=5,
+        error_messages={
+            "max_length": "You can only add up to 5 landmarks.",
+        },
     )
 
     class Meta:

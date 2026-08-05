@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.registration.models import (
+from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationDocument,
     MerchantApplicationIdentity,
