@@ -2,6 +2,7 @@ import { View, ScrollView } from "react-native";
 import { useState } from "react";
 import ExploreTopBar from "../components/ExploreTopBar";
 import HiddenGemsSection from "../components/hidden-gems/HiddenGemsSection";
+import InterestsSection from "../components/interests/InterestsSection";
 
 export default function ExploreScreen() {
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -12,9 +13,12 @@ export default function ExploreScreen() {
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
       />
+      
       <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pt-4 pb-8">
         <HiddenGemsSection selectedCategory={selectedCategory} />
+        <InterestsSection />
       </ScrollView>
+
     </View>
   );
 }

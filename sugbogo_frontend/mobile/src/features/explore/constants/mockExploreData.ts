@@ -4,6 +4,8 @@ export type HiddenGem = {
   photoUrl: string;
   tags: string[];
   category: "Culinary" | "Leisure" | "Creative";
+  location: string;
+  isInterestMatch?: boolean;
 };
 
 export const MOCK_HIDDEN_GEMS: HiddenGem[] = [
@@ -13,6 +15,8 @@ export const MOCK_HIDDEN_GEMS: HiddenGem[] = [
     photoUrl: "https://images.unsplash.com/photo-1606077089838-0ac4a27fc96f?q=80&w=1578&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     tags: ["AUTHENTIC", "HERITAGE", "HANDCRAFTED"],
     category: "Creative",
+    location: "Madaue City, Cebu",
+    isInterestMatch: true,
   },
   {
     id: "2",
@@ -20,6 +24,7 @@ export const MOCK_HIDDEN_GEMS: HiddenGem[] = [
     photoUrl: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?",
     tags: ["AUTHENTIC", "LOCAL"],
     category: "Culinary",
+    location: "Cebu City, Cebu",
   },
   {
     id: "3",
@@ -27,6 +32,8 @@ export const MOCK_HIDDEN_GEMS: HiddenGem[] = [
     photoUrl: "https://images.unsplash.com/photo-1742056024474-345507034245?q=80&w=387&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     tags: ["AUTHENTIC", "HERITGE"],
     category: "Culinary",
+    location: "Carcar City, Cebu",
+    isInterestMatch: true,
   },
   {
     id: "4",
@@ -34,6 +41,7 @@ export const MOCK_HIDDEN_GEMS: HiddenGem[] = [
     photoUrl:  "https://images.unsplash.com/photo-1544551763-46a013bb70d5?",
     tags: ["ADVENTURE", "SCENIC"],
     category: "Leisure",
+    location:  "Bantayan Island, Cebu",
   },
   {
     id: "5",
@@ -41,6 +49,8 @@ export const MOCK_HIDDEN_GEMS: HiddenGem[] = [
     photoUrl: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?",
     tags: ["NATURE", "ADVENTURE"],
     category: "Leisure",
+    location: "Badian, Cebu",
+    isInterestMatch: true,
   },
   {
     id: "6",
@@ -48,6 +58,8 @@ export const MOCK_HIDDEN_GEMS: HiddenGem[] = [
     photoUrl:  "https://images.unsplash.com/photo-1729383456185-dec6084f0271?q=80&w=846&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     tags: ["HERITAGE", "HANDCRAFTED"],
     category: "Creative",
+    location: "Danao City, Cebu",
+    isInterestMatch: true,
   }
 ];
 
