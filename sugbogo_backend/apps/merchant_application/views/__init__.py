@@ -7,3 +7,4 @@ from .location_views import *
 from .operating_hours_views import *
 from .photo_views import *
 from .tag_options_views import *
+
