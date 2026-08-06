@@ -1,12 +1,10 @@
-import { ApplicationLocationPayload } from "../../../types/registration/registrationApi.types";
-import { normalizeOptionalText } from "../normalizeOptionalText.utils";
-
+import { NormalizedLocation } from "../normalizers/normalizeLocation.utils";
 /**
  * Compares two landmark arrays in order.
  */
 function areLandmarksEqual(
-  a: ApplicationLocationPayload["landmarks"] = [],
-  b: ApplicationLocationPayload["landmarks"] = [],
+  a: NormalizedLocation["landmarks"] = [],
+  b: NormalizedLocation["landmarks"] = [],
 ): boolean {
   if (a.length !== b.length) {
     return false;
@@ -15,16 +13,18 @@ function areLandmarksEqual(
   return a.every((landmark, index) => {
     const other = b[index];
 
-    return (
-      landmark.name === other.name &&
-      normalizeOptionalText(landmark.address) ===
-        normalizeOptionalText(other.address) &&
-      landmark.latitude === other.latitude &&
-      landmark.longitude === other.longitude &&
-      landmark.source === other.source &&
-      normalizeOptionalText(landmark.place_id) ===
-        normalizeOptionalText(other.place_id)
-    );
+    return a.every((landmark, index) => {
+      const other = b[index];
+
+      return (
+        landmark.name === other.name &&
+        landmark.address === other.address &&
+        landmark.latitude === other.latitude &&
+        landmark.longitude === other.longitude &&
+        landmark.source === other.source &&
+        landmark.placeId === other.placeId
+      );
+    });
   });
 }
 
@@ -33,8 +33,8 @@ function areLandmarksEqual(
  * since the last successful save.
  */
 export function hasLocationChanged(
-  previous: ApplicationLocationPayload | null,
-  current: ApplicationLocationPayload,
+  previous: NormalizedLocation | null,
+  current: NormalizedLocation,
 ): boolean {
   // Nothing has ever been saved, so we must save.
   if (previous === null) {
@@ -45,9 +45,8 @@ export function hasLocationChanged(
     previous.province !== current.province ||
     previous.city !== current.city ||
     previous.barangay !== current.barangay ||
-    previous.street_address !== current.street_address ||
-    normalizeOptionalText(previous.unit) !==
-      normalizeOptionalText(current.unit) ||
+    previous.streetAddress !== current.streetAddress ||
+    previous.unit !== current.unit ||
     previous.latitude !== current.latitude ||
     previous.longitude !== current.longitude ||
     !areLandmarksEqual(previous.landmarks, current.landmarks)

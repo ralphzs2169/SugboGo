@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
 import RegistrationFooter from "../components/registration/RegistartionFooter";
@@ -27,6 +27,7 @@ import useSaveLocation from "../hooks/registration/useSaveLocation";
 import useSaveOperatingHours from "../hooks/registration/useSaveOperatingHours";
 import useSaveApplicationPhotos from "../hooks/registration/useSaveApplicationPhotos";
 import {
+  ApplicationDetailResponse,
   ApplicationIdentityPayload,
   ApplicationLocationPayload,
   ApplicationOperatingHoursPayload,
@@ -42,15 +43,35 @@ import { hasLocationChanged } from "../utils/merchant-application/comparisons/ha
 import { buildLocationPayload } from "../utils/merchant-application/builders/buildLocationPayload.utils";
 import { useMerchantRegistrationStore } from "../stores/merchantRegistrationStore";
 import { hasOperatingHoursChanged } from "../utils/merchant-application/comparisons/hasOperatingHoursChanged.utils";
-import { detectPhotoChanges } from "../utils/merchant-application/comparisons/detectPhotoChanges.utils";
-import { detectDocumentChanges } from "../utils/merchant-application/comparisons/detectDocumentChanges.utils";
+import { getPhotoChanges } from "../utils/merchant-application/comparisons/getPhotoChanges.utils";
+import { getDocumentChanges } from "../utils/merchant-application/comparisons/getDocumentChanges.utils";
 import useSubmitApplication from "../hooks/registration/useSubmitApplication";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import useCurrentApplication from "../hooks/registration/useCurrentApplication";
 import { mapApplicationToForm } from "@/features/merchant/utils/merchant-application/mappers/mapApplicationToForm.utils";
 import buildOperatingHoursPayload from "../utils/merchant-application/builders/buildOperatingHoursPayload.utils";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 import { mapApplicationToStore } from "../utils/merchant-application/mappers/mapApplicationToStore.utils";
+
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import {
+  NormalizedIdentity,
+  normalizeIdentity,
+} from "../utils/merchant-application/normalizers/normalizeIdentity.utils";
+import {
+  NormalizedLocation,
+  normalizeLocation,
+} from "../utils/merchant-application/normalizers/normalizeLocation.utils";
+import {
+  NormalizedOperatingHours,
+  normalizeOperatingHours,
+} from "../utils/merchant-application/normalizers/normalizeOperatingHours.utils";
+import { buildPhotoUploadFormData } from "../utils/merchant-application/builders/buildPhotoUploadFormData.utils";
+import { buildDocumentUploadFormData } from "../utils/merchant-application/builders/buildDocumentUploadFormData.utils";
+import { getUnsavedSections } from "../utils/merchant-application/comparisons/getUnsavedSections.utils";
+import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
+import DiscardChangesMessage from "../utils/merchant-application/discardChangesMessage.utils";
+
 /**
  * Merchant registration wizard screen.
  *
@@ -74,8 +95,9 @@ import { mapApplicationToStore } from "../utils/merchant-application/mappers/map
  * Validation behavior: Each step is validated before leaving that step.
  */
 export default function MerchantRegistrationScreen() {
+  // -- Navigation
   const REVIEW_STEP = REGISTRATION_STEPS.length;
-
+  const navigation = useNavigation();
   const {
     currentStep,
     editingStep,
@@ -90,6 +112,8 @@ export default function MerchantRegistrationScreen() {
     setHighestCompletedStep,
   } = useRegistrationNavigation({
     reviewStep: REVIEW_STEP,
+
+    // Persist the current address in the registration store when leaving Step 2.
     onBeforeBack: (step) => {
       if (step === 2) {
         persistCurrentAddress();
@@ -97,6 +121,7 @@ export default function MerchantRegistrationScreen() {
     },
   });
 
+  // Data Queries
   const {
     clusters,
     isLoading: isLoadingClusters,
@@ -114,6 +139,7 @@ export default function MerchantRegistrationScreen() {
   const { application, isLoading: isLoadingApplication } =
     useCurrentApplication();
 
+  // Mutations
   const { saveIdentity, isSaving: isSavingIdentity } = useSaveIdentity();
 
   const { saveLocation, isSaving: isSavingLocation } = useSaveLocation();
@@ -129,8 +155,11 @@ export default function MerchantRegistrationScreen() {
   const { submit, isSubmitting: isSubmittingApplication } =
     useSubmitApplication();
 
+  const [showDiscardChangesModal, setShowDiscardChangesModal] = useState(false);
+
   const [showReviewCelebration, setShowReviewCelebration] = useState(false);
 
+  // Merchant Registration Store to persist selected location, address, and landmarks across steps.
   const setSelectedAddress = useMerchantRegistrationStore(
     (state) => state.setSelectedAddress,
   );
@@ -142,7 +171,14 @@ export default function MerchantRegistrationScreen() {
     (state) => state.setSelectedLandmarks,
   );
 
-  const hasInitialized = useRef(false);
+  // Local State
+  const hasRestoredDraft = useRef(false);
+
+  /**
+   * Stores the navigation action that should run after
+   * the user confirms discarding their unsaved changes.
+   */
+  const pendingExitAction = useRef<(() => void) | null>(null);
 
   const isSavingCurrentStep =
     isSavingIdentity ||
@@ -151,15 +187,15 @@ export default function MerchantRegistrationScreen() {
     isSavingApplicationPhotos ||
     isSavingApplicationDocuments;
 
-  // Last Saved States
+  // Last Saved Snapshots
   const [lastSavedIdentity, setLastSavedIdentity] =
-    useState<ApplicationIdentityPayload | null>(null);
+    useState<NormalizedIdentity | null>(null);
 
   const [lastSavedLocation, setLastSavedLocation] =
-    useState<ApplicationLocationPayload | null>(null);
+    useState<NormalizedLocation | null>(null);
 
   const [lastSavedOperatingHours, setLastSavedOperatingHours] =
-    useState<ApplicationOperatingHoursPayload | null>(null);
+    useState<NormalizedOperatingHours | null>(null);
 
   const [lastSavedPhotos, setLastSavedPhotos] = useState<
     MerchantRegistrationForm["businessPhotos"] | null
@@ -169,7 +205,7 @@ export default function MerchantRegistrationScreen() {
     MerchantRegistrationForm["verificationDocuments"] | null
   >(null);
 
-  // Form state and validation
+  // Form
   const form = useForm<
     z.input<typeof merchantRegistrationSchema>,
     undefined,
@@ -179,6 +215,51 @@ export default function MerchantRegistrationScreen() {
     defaultValues: MERCHANT_REGISTRATION_DEFAULT_VALUES,
   });
 
+  // Helper Functions
+
+  const values = form.watch();
+
+  const unsavedSections = useMemo(
+    () =>
+      getUnsavedSections({
+        values,
+
+        lastSavedIdentity,
+        lastSavedLocation,
+        lastSavedOperatingHours,
+
+        lastSavedPhotos,
+        lastSavedDocuments,
+      }),
+    [
+      values,
+      lastSavedIdentity,
+      lastSavedLocation,
+      lastSavedOperatingHours,
+      lastSavedPhotos,
+      lastSavedDocuments,
+    ],
+  );
+
+  const requestExit = useCallback(
+    (action: () => void) => {
+      if (unsavedSections.length === 0) {
+        action();
+        return;
+      }
+
+      pendingExitAction.current = action;
+      setShowDiscardChangesModal(true);
+    },
+    [unsavedSections],
+  );
+
+  const handleDiscardChanges = () => {
+    setShowDiscardChangesModal(false);
+
+    pendingExitAction.current?.();
+    pendingExitAction.current = null;
+  };
   // Persist the current address in the registration store when leaving Step 2.
   const persistCurrentAddress = () => {
     const values = form.getValues();
@@ -192,13 +273,29 @@ export default function MerchantRegistrationScreen() {
     });
   };
 
-  useEffect(() => {
-    if (!application || hasInitialized.current) {
-      return;
-    }
+  // Set the header back button on the navigation options.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <HeaderBackButton
+          onPress={() =>
+            requestExit(() => {
+              router.back();
+            })
+          }
+        />
+      ),
+    });
+  }, [navigation, requestExit]);
 
-    hasInitialized.current = true;
-
+  /**
+   * Restores a previously saved merchant application.
+   *
+   * Initializes the registration form, merchant registration store,
+   * navigation state, and last-saved snapshots used for change
+   * detection when resuming an existing draft.
+   */
+  const restoreDraft = (application: ApplicationDetailResponse) => {
     const values = mapApplicationToForm(application);
     const store = mapApplicationToStore(application);
 
@@ -217,41 +314,31 @@ export default function MerchantRegistrationScreen() {
     setCurrentStep(application.highest_completed_step);
     setHighestCompletedStep(application.highest_completed_step);
 
-    setLastSavedIdentity(buildIdentityPayload(values));
-    setLastSavedLocation(buildLocationPayload(values));
-
-    setLastSavedOperatingHours(buildOperatingHoursPayload(values));
-
+    setLastSavedIdentity(normalizeIdentity(values));
+    setLastSavedLocation(normalizeLocation(values));
+    setLastSavedOperatingHours(normalizeOperatingHours(values));
     setLastSavedPhotos(values.businessPhotos);
-
     setLastSavedDocuments(values.verificationDocuments);
+  };
+
+  /**
+   * Restores the user's saved merchant application once after
+   * the application has been loaded.
+   */
+  useEffect(() => {
+    if (!application || hasRestoredDraft.current) {
+      return;
+    }
+
+    hasRestoredDraft.current = true;
+
+    restoreDraft(application);
   }, [application]);
 
   const { validateCurrentStep } = useRegistrationValidation({
     currentStep,
     form,
   });
-
-  function appendPhotos(
-    formData: FormData,
-    category: string,
-    photos: {
-      uri: string;
-      fileName?: string | null;
-      mimeType?: string | null;
-      id?: number;
-    }[],
-  ) {
-    photos
-      .filter((photo) => photo.id === undefined)
-      .forEach((photo) => {
-        formData.append(category, {
-          uri: photo.uri,
-          name: photo.fileName ?? `${category}.jpg`,
-          type: photo.mimeType ?? "image/jpeg",
-        } as any);
-      });
-  }
 
   /**
    * Validates and persists the current registration step.
@@ -269,19 +356,21 @@ export default function MerchantRegistrationScreen() {
       return false;
     }
 
+    // Save Step 1: Business Identity
     if (currentStep === 1) {
       const values = form.getValues();
 
+      const currentIdentity = normalizeIdentity(values);
       const payload = buildIdentityPayload(values);
 
-      if (hasIdentityChanged(lastSavedIdentity, payload)) {
+      if (hasIdentityChanged(lastSavedIdentity, currentIdentity)) {
         const response = await saveIdentity(payload);
 
         if (!response.success) {
           return false;
         }
 
-        setLastSavedIdentity(payload);
+        setLastSavedIdentity(currentIdentity);
       }
     }
 
@@ -293,16 +382,17 @@ export default function MerchantRegistrationScreen() {
         return false;
       }
 
+      const currentLocation = normalizeLocation(values);
       const payload = buildLocationPayload(values);
 
-      if (hasLocationChanged(lastSavedLocation, payload)) {
+      if (hasLocationChanged(lastSavedLocation, currentLocation)) {
         const response = await saveLocation(payload);
 
         if (!response.success) {
           return false;
         }
 
-        setLastSavedLocation(payload);
+        setLastSavedLocation(currentLocation);
       }
     }
 
@@ -310,104 +400,72 @@ export default function MerchantRegistrationScreen() {
     if (currentStep === 3) {
       const values = form.getValues();
 
+      const currentOperatingHours = normalizeOperatingHours(values);
       const payload = buildOperatingHoursPayload(values);
 
-      if (hasOperatingHoursChanged(lastSavedOperatingHours, payload)) {
+      if (
+        hasOperatingHoursChanged(lastSavedOperatingHours, currentOperatingHours)
+      ) {
         const response = await saveOperatingHours(payload);
 
         if (!response.success) {
           return false;
         }
 
-        setLastSavedOperatingHours(payload);
+        setLastSavedOperatingHours(currentOperatingHours);
       }
     }
 
+    // Save Step 4: Business Photos
     if (currentStep === 4) {
       const values = form.getValues();
 
-      const { hasChanges, deletedPhotoIds } = detectPhotoChanges(
+      const photoChanges = getPhotoChanges(
         lastSavedPhotos,
         values.businessPhotos,
       );
 
-      if (hasChanges) {
-        const formData = new FormData();
-
-        appendPhotos(formData, "storefront", values.businessPhotos.storefront);
-        appendPhotos(formData, "interior", values.businessPhotos.interior);
-        appendPhotos(formData, "products", values.businessPhotos.products);
-        appendPhotos(formData, "additional", values.businessPhotos.additional);
-
-        deletedPhotoIds.forEach((id) => {
-          formData.append("deleted_photo_ids", String(id));
-        });
-
-        const response = await savePhotos(formData);
-
-        if (!response.success) {
-          return false;
-        }
-
-        const savedPhotos = mapApplicationPhotos(response.data);
-
-        form.setValue("businessPhotos", savedPhotos, {
-          shouldDirty: false,
-        });
-
-        setLastSavedPhotos(savedPhotos);
+      if (!photoChanges.hasChanges) {
+        return true;
       }
+
+      const formData = buildPhotoUploadFormData(
+        values.businessPhotos,
+        photoChanges.deletedPhotoIds,
+      );
+
+      const response = await savePhotos(formData);
+
+      if (!response.success) {
+        return false;
+      }
+
+      const savedPhotos = mapApplicationPhotos(response.data);
+
+      form.setValue("businessPhotos", savedPhotos, {
+        shouldDirty: false,
+      });
+
+      setLastSavedPhotos(savedPhotos);
     }
 
+    // Save Step 5: Verification Documents
     if (currentStep === 5) {
       const values = form.getValues();
 
-      const { hasChanges, deletedDocumentIds } = detectDocumentChanges(
+      const documentChanges = getDocumentChanges(
         lastSavedDocuments,
         values.verificationDocuments,
       );
 
-      if (!hasChanges) {
+      if (!documentChanges.hasChanges) {
         return true;
       }
 
-      const formData = new FormData();
-
-      const businessRegistration =
-        values.verificationDocuments.businessRegistration;
-
-      if (businessRegistration && businessRegistration.id === undefined) {
-        formData.append("business_registration", {
-          uri: businessRegistration.uri,
-          name: businessRegistration.fileName ?? "business-registration",
-          type: businessRegistration.mimeType ?? "application/pdf",
-        } as any);
-      }
-
-      const authorizationDocument =
-        values.verificationDocuments.authorizationDocument;
-
-      if (authorizationDocument && authorizationDocument.id === undefined) {
-        formData.append("authorization_document", {
-          uri: authorizationDocument.uri,
-          name: authorizationDocument.fileName ?? "authorization-document",
-          type: authorizationDocument.mimeType ?? "application/pdf",
-        } as any);
-      }
-
-      values.verificationDocuments.additionalDocuments
-        .filter((document) => document.id === undefined)
-        .forEach((document) => {
-          formData.append("additional_documents", {
-            uri: document.uri,
-            name: document.fileName ?? "additional-document",
-            type: document.mimeType ?? "application/pdf",
-          } as any);
-        });
-
-      deletedDocumentIds.forEach((id) => {
-        formData.append("deleted_document_ids", String(id));
-      });
+      const formData = buildDocumentUploadFormData(
+        values.verificationDocuments,
+        documentChanges.deletedDocumentIds,
+      );
 
       const response = await saveDocuments(formData);
 
@@ -504,12 +562,16 @@ export default function MerchantRegistrationScreen() {
           return true;
         }
 
+        // Move between registration steps normally.
         if (currentStep > 1) {
           handleBack();
           return true;
         }
 
-        return false;
+        // We are on Step 1. Leaving the registration requires confirmation.
+        requestExit(() => router.back());
+
+        return true;
       },
     );
 
@@ -567,6 +629,20 @@ export default function MerchantRegistrationScreen() {
           />
         </RegistrationLayout>
       </FormProvider>
+
+      <ConfirmModal
+        visible={showDiscardChangesModal}
+        title="Discard changes?"
+        destructive
+        message={<DiscardChangesMessage sections={unsavedSections} />}
+        confirmText="Discard Changes"
+        cancelText="Stay"
+        onConfirm={handleDiscardChanges}
+        onCancel={() => {
+          setShowDiscardChangesModal(false);
+          pendingExitAction.current = null;
+        }}
+      />
     </>
   );
 }

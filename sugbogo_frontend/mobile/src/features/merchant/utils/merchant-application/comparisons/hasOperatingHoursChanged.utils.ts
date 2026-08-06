@@ -1,11 +1,11 @@
-import { ApplicationOperatingHoursPayload } from "../../../types/registration/registrationApi.types";
+import { NormalizedOperatingHours } from "../normalizers/normalizeOperatingHours.utils";
 
 /**
  * Compares two operating-hours arrays.
  */
 function areOperatingHoursEqual(
-  a: ApplicationOperatingHoursPayload["hours"],
-  b: ApplicationOperatingHoursPayload["hours"],
+  a: NormalizedOperatingHours["hours"],
+  b: NormalizedOperatingHours["hours"],
 ): boolean {
   if (a.length !== b.length) {
     return false;
@@ -16,10 +16,10 @@ function areOperatingHoursEqual(
 
     return (
       day.day === other.day &&
-      day.is_open === other.is_open &&
-      day.is_24_hours === other.is_24_hours &&
-      day.open_time === other.open_time &&
-      day.close_time === other.close_time
+      day.isOpen === other.isOpen &&
+      day.is24Hours === other.is24Hours &&
+      day.openTime === other.openTime &&
+      day.closeTime === other.closeTime
     );
   });
 }
@@ -29,8 +29,8 @@ function areOperatingHoursEqual(
  * since the last successful save.
  */
 export function hasOperatingHoursChanged(
-  previous: ApplicationOperatingHoursPayload | null,
-  current: ApplicationOperatingHoursPayload,
+  previous: NormalizedOperatingHours | null,
+  current: NormalizedOperatingHours,
 ): boolean {
   // Nothing has ever been saved, so we must save.
   if (previous === null) {

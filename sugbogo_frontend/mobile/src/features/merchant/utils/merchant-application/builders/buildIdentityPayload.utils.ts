@@ -1,9 +1,8 @@
 import { z } from "zod";
 
 import { merchantRegistrationSchema } from "../../../validation/merchantRegistration.schema";
-
 import { ApplicationIdentityPayload } from "../../../types/registration/registrationApi.types";
-import { normalizePhilippineMobileNumber } from "../phoneNumber.utils";
+import { normalizeIdentity } from "../normalizers/normalizeIdentity.utils";
 
 type MerchantRegistrationFormInput = z.input<typeof merchantRegistrationSchema>;
 
@@ -16,20 +15,22 @@ type MerchantRegistrationFormInput = z.input<typeof merchantRegistrationSchema>;
 export function buildIdentityPayload(
   values: MerchantRegistrationFormInput,
 ): ApplicationIdentityPayload {
-  if (values.representativeRole === "") {
+  const identity = normalizeIdentity(values);
+
+  if (identity.representativeRole === "") {
     throw new Error("Representative role is required.");
   }
 
   return {
-    business_name: values.businessName,
-    business_description: values.businessDescription,
-    contact_number: normalizePhilippineMobileNumber(values.contactNumber),
-    business_email: values.businessEmail,
-    website: values.website,
-    representative_name: values.representativeName,
-    representative_role: values.representativeRole,
-    business_cluster_id: Number(values.businessCluster),
-    business_category_id: Number(values.businessCategory),
-    specialty_tags: values.specialtyTags,
+    business_name: identity.businessName,
+    business_description: identity.businessDescription,
+    contact_number: identity.contactNumber,
+    business_email: identity.businessEmail,
+    website: identity.website,
+    representative_name: identity.representativeName,
+    representative_role: identity.representativeRole,
+    business_cluster_id: identity.businessClusterId,
+    business_category_id: identity.businessCategoryId,
+    specialty_tags: identity.specialtyTags,
   };
 }

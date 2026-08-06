@@ -1,5 +1,6 @@
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import type { ApplicationDocumentResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import { inferMimeType } from "@/shared/utils/inferMimeType.utils";
 
 /**
  * Converts saved application document responses into the verification
@@ -22,7 +23,7 @@ export function mapApplicationDocuments(
           id: businessRegistration.id,
           uri: businessRegistration.document_url,
           fileName: businessRegistration.file_name,
-          mimeType: "application/pdf",
+          mimeType: inferMimeType(businessRegistration.file_name),
         }
       : null,
 
@@ -31,7 +32,7 @@ export function mapApplicationDocuments(
           id: authorizationDocument.id,
           uri: authorizationDocument.document_url,
           fileName: authorizationDocument.file_name,
-          mimeType: "application/pdf",
+          mimeType: inferMimeType(authorizationDocument.file_name),
         }
       : null,
 
@@ -41,7 +42,7 @@ export function mapApplicationDocuments(
         id: document.id,
         uri: document.document_url,
         fileName: document.file_name,
-        mimeType: "application/pdf",
+        mimeType: inferMimeType(document.file_name),
       })),
   };
 }

@@ -215,7 +215,7 @@ class DocumentService:
             folder="merchant_application_documents",
             resource_type="auto",
         )
-
+        
         public_id = result["public_id"]
         uploaded_public_ids.append(public_id)
 

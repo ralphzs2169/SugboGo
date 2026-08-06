@@ -22,6 +22,7 @@ export default function DocumentPreview({
   const isImage = document.mimeType?.startsWith("image/");
 
   const handlePreview = async () => {
+    console.log("URI:", document.uri);
     if (isImage) {
       setIsPreviewVisible(true);
       return;

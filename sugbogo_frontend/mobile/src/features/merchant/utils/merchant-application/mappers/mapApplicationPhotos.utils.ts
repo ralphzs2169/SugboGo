@@ -1,5 +1,6 @@
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import type { ApplicationPhotoResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import { inferMimeType } from "@/shared/utils/inferMimeType.utils";
 
 /**
  * Converts saved application photo responses into the business photo
@@ -15,7 +16,7 @@ export function mapApplicationPhotos(
         id: photo.id,
         uri: photo.photo_url,
         fileName: photo.file_name,
-        mimeType: "image/jpeg",
+        mimeType: inferMimeType(photo.file_name),
       })),
 
     interior: photos
@@ -24,7 +25,7 @@ export function mapApplicationPhotos(
         id: photo.id,
         uri: photo.photo_url,
         fileName: photo.file_name,
-        mimeType: "image/jpeg",
+        mimeType: inferMimeType(photo.file_name),
       })),
 
     products: photos
@@ -33,7 +34,7 @@ export function mapApplicationPhotos(
         id: photo.id,
         uri: photo.photo_url,
         fileName: photo.file_name,
-        mimeType: "image/jpeg",
+        mimeType: inferMimeType(photo.file_name),
       })),
 
     additional: photos
@@ -42,7 +43,7 @@ export function mapApplicationPhotos(
         id: photo.id,
         uri: photo.photo_url,
         fileName: photo.file_name,
-        mimeType: "image/jpeg",
+        mimeType: inferMimeType(photo.file_name),
       })),
   };
 }

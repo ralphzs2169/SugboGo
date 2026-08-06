@@ -2,7 +2,7 @@ import type { MerchantRegistrationForm } from "@/features/merchant/validation/me
 
 type VerificationDocuments = MerchantRegistrationForm["verificationDocuments"];
 
-type DetectDocumentChangesResult = {
+type DocumentChanges = {
   hasChanges: boolean;
   deletedDocumentIds: number[];
 };
@@ -56,13 +56,41 @@ function hasNewAdditionalDocuments(documents: VerificationDocuments): boolean {
 }
 
 /**
+ * Returns whether the previously saved business registration
+ * has been removed.
+ */
+function hasDeletedBusinessRegistration(
+  previous: VerificationDocuments,
+  current: VerificationDocuments,
+): boolean {
+  return (
+    previous.businessRegistration !== null &&
+    current.businessRegistration === null
+  );
+}
+
+/**
+ * Returns whether the previously saved authorization document
+ * has been removed.
+ */
+function hasDeletedAuthorizationDocument(
+  previous: VerificationDocuments,
+  current: VerificationDocuments,
+): boolean {
+  return (
+    previous.authorizationDocument !== null &&
+    current.authorizationDocument === null
+  );
+}
+
+/**
  * Detects additions, replacements and deletions since the last
  * successful document save.
  */
-export function detectDocumentChanges(
+export function getDocumentChanges(
   previous: VerificationDocuments | null,
   current: VerificationDocuments,
-): DetectDocumentChangesResult {
+): DocumentChanges {
   // Nothing has ever been saved.
   if (previous === null) {
     return {
@@ -78,7 +106,9 @@ export function detectDocumentChanges(
 
   const hasChanges =
     hasNewBusinessRegistration(current) ||
+    hasDeletedBusinessRegistration(previous, current) ||
     hasNewAuthorizationDocument(current) ||
+    hasDeletedAuthorizationDocument(previous, current) ||
     hasNewAdditionalDocuments(current) ||
     deletedDocumentIds.length > 0;
 

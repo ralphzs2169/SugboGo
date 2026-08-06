@@ -2,7 +2,7 @@ import type { MerchantRegistrationForm } from "@/features/merchant/validation/me
 
 type BusinessPhotos = MerchantRegistrationForm["businessPhotos"];
 
-type DetectPhotoChangesResult = {
+type PhotoChanges = {
   hasChanges: boolean;
   deletedPhotoIds: number[];
 };
@@ -38,10 +38,10 @@ function hasNewPhotos(photos: BusinessPhotos): boolean {
 /**
  * Detects additions and deletions since the last successful photo save.
  */
-export function detectPhotoChanges(
+export function getPhotoChanges(
   previous: BusinessPhotos | null,
   current: BusinessPhotos,
-): DetectPhotoChangesResult {
+): PhotoChanges {
   // Nothing has ever been saved, so upload everything.
   if (previous === null) {
     return {

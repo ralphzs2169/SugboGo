@@ -1,11 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import { ActivityIndicator, Modal, Pressable, Text, View } from "react-native";
+import Button from "../Button";
+import { ReactNode } from "react";
 
 interface ConfirmModalProps {
   visible: boolean;
   title: string;
-  message: string;
+  message: ReactNode;
   confirmText?: string;
   cancelText?: string;
   onCancel: () => void;
@@ -47,7 +49,6 @@ export default function ConfirmModal({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
       onRequestClose={() => {
         if (!isLoading) {
           onCancel();
@@ -90,46 +91,23 @@ export default function ConfirmModal({
               </Text>
             </View>
           )}
-
-          <View className="mt-6 flex-row justify-end gap-2">
-            <Pressable
-              disabled={isLoading}
+          <View className="mt-6 flex-row gap-3">
+            <Button
+              title={cancelText}
               onPress={onCancel}
-              hitSlop={8}
-              android_ripple={{ color: "#E5E7EB", borderless: false }}
-              style={({ pressed }) => ({
-                opacity: isLoading ? 0.45 : pressed ? 0.7 : 1,
-              })}
-              className="rounded-lg px-3 py-2"
-            >
-              <Text className="font-medium text-text-secondary">
-                {cancelText}
-              </Text>
-            </Pressable>
-
-            <Pressable
               disabled={isLoading}
+              variant="outline"
+              className="flex-[3]"
+            />
+
+            <Button
+              title={confirmText}
               onPress={onConfirm}
-              hitSlop={8}
-              android_ripple={{
-                color: destructive ? "#FECACA" : "#D1FAE5",
-                borderless: false,
-              }}
-              style={({ pressed }) => ({
-                opacity: isLoading ? 0.45 : pressed ? 0.7 : 1,
-              })}
-              className="rounded-lg px-3 py-2"
-            >
-              <Text
-                className={
-                  destructive
-                    ? "font-bold text-red-500"
-                    : "font-bold text-brand"
-                }
-              >
-                {confirmText}
-              </Text>
-            </Pressable>
+              disabled={isLoading}
+              variant={destructive ? "danger" : "primary"}
+              className="flex-[7]"
+              fontClassName="fole-bold"
+            />
           </View>
         </View>
       </View>
