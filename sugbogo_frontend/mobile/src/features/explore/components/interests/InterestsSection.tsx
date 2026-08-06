@@ -2,8 +2,17 @@ import { View, Text, ScrollView } from "react-native";
 import InterestCard from "./InterestCard";
 import { MOCK_HIDDEN_GEMS } from "../../constants/mockExploreData";
 
-export default function InterestsSection() {
-  const interestGems = MOCK_HIDDEN_GEMS.filter((gem) => gem.isInterestMatch);
+type  Props = {
+  selectedCategory: string;
+}
+
+export default function InterestsSection({ selectedCategory }: Props) {
+  const interestGems = MOCK_HIDDEN_GEMS.filter((gem) => {
+    const matchesInterest = gem.isInterestMatch;
+    const matchesCategory =
+      selectedCategory === "All" || gem.category === selectedCategory;
+    return matchesInterest && matchesCategory;
+  });
 
   if (interestGems.length === 0) return null;
 

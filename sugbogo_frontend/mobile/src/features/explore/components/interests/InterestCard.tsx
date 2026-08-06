@@ -2,6 +2,8 @@ import { Pressable, ImageBackground, View, Text } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import { TAG_COLORS, DEFAULT_TAG_COLOR } from "../../constants/tagColors";
+import { CATEGORY_ICONS } from "../../constants/categoryIcons";
+
 
 type Props = {
   name: string;
@@ -12,18 +14,14 @@ type Props = {
   onPress: () => void;
 };
 
-const CATEGORY_ICONS = {
-  Culinary: "silverware-fork-knife",
-  Leisure: "surfing",
-  Creative: "palette-outline",
-} as const;
 
 export default function InterestCard({ name, photoUrl, tags, category, location, onPress }: Props) {
+  
   return (
-    <Pressable onPress={onPress} className="mr-3 w-44 overflow-hidden rounded-md bg-surface">
+    <Pressable onPress={onPress} className="mr-3 w-64 overflow-hidden rounded-md bg-surface">
       <ImageBackground
         source={{ uri: photoUrl }}
-        className="h-40 justify-end p-2"
+        className="h-52 justify-end p-2"
         imageStyle={{ borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
       >
         <Text className="text-sm font-bold text-white" numberOfLines={1}>
@@ -49,10 +47,6 @@ export default function InterestCard({ name, photoUrl, tags, category, location,
             color={theme.extends.colors.brand}
           />
         </View>
-
-        <Text className="text-sm font-bold text-white" numberOfLines={1}>
-          {name}
-        </Text>
 
       <View className="flex-row items-center px-2 py-2">
         <MaterialCommunityIcons

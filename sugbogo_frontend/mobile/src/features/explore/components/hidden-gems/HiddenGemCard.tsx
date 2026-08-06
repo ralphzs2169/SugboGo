@@ -10,7 +10,7 @@ type Props = {
 
 export default function HiddenGemCard({ name, photoUrl, tags, onPress }: Props) {
   return (
-    <Pressable onPress={onPress} className="mr-3 h-64 w-48 overflow-hidden rounded-md">
+    <Pressable onPress={onPress} className="mr-3 h-80 w-72 overflow-hidden rounded-md">
       <ImageBackground
         source={{ uri: photoUrl }}
         className="flex-1 justify-between p-3"
