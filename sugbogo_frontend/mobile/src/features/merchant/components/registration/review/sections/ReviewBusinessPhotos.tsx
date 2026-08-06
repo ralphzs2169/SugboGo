@@ -1,20 +1,23 @@
 import { ScrollView, Text, View } from "react-native";
-import { useFormContext } from "react-hook-form";
-import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import type { z } from "zod";
+
+import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
 import ReviewSection from "../ReviewSection";
 import PhotoPreview from "../../business-photos/PhotoPreview";
 
+type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessPhotosProps = {
+  form: ReviewForm;
   onEdit?: () => void;
 };
 
-type PhotoList = MerchantRegistrationForm["businessPhotos"]["storefront"];
+type PhotoList = ReviewForm["businessPhotos"]["storefront"];
 
 export default function ReviewBusinessPhotos({
+  form,
   onEdit,
 }: ReviewBusinessPhotosProps) {
-  const { watch } = useFormContext<MerchantRegistrationForm>();
-  const photos = watch("businessPhotos");
+  const photos = form.businessPhotos;
 
   const groups = [
     { title: "Storefront", photos: photos.storefront, required: true },

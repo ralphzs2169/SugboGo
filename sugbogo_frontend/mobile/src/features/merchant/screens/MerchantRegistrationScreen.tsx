@@ -311,7 +311,9 @@ export default function MerchantRegistrationScreen() {
 
     setSelectedLandmarks(store.selectedLandmarks);
 
-    setCurrentStep(application.highest_completed_step);
+    setCurrentStep(
+      Math.min(application.highest_completed_step + 1, REVIEW_STEP),
+    );
     setHighestCompletedStep(application.highest_completed_step);
 
     setLastSavedIdentity(normalizeIdentity(values));

@@ -52,7 +52,7 @@ export default function Button({
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
-      className={`flex-1 flex-row items-center justify-center rounded-lg px-4 py-4 ${
+      className={`flex-row items-center justify-center rounded-lg px-4 py-4 ${
         isDisabled ? "opacity-50" : ""
       } ${variantClass} ${className}`}
     >

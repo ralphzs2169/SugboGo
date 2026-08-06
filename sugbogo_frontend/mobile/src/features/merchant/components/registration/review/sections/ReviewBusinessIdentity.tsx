@@ -1,7 +1,8 @@
 import { Text, View } from "react-native";
-import { useFormContext } from "react-hook-form";
+import type { z } from "zod";
 
-import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
+
 import type {
   ClusterOption,
   CategoryOption,
@@ -12,21 +13,27 @@ import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
 import SpecialtyTagChip from "../../specialty-tags/SpecialtyTagChip";
 
+type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessIdentityProps = {
+  form: ReviewForm;
   clusters: ClusterOption[];
   categories: CategoryOption[];
   onEdit?: () => void;
 };
+const REPRESENTATIVE_ROLE_LABELS = {
+  owner: "Owner",
+  manager: "Manager",
+  authorized_representative: "Authorized Representative",
+  other: "Other",
+} as const;
 
 export default function ReviewBusinessIdentity({
+  form,
   clusters,
   categories,
   onEdit,
 }: ReviewBusinessIdentityProps) {
-  const { watch } = useFormContext<MerchantRegistrationForm>();
   const { specialtyTags } = useSpecialtyTags();
-
-  const form = watch();
 
   const clusterName =
     clusters.find((cluster) => cluster.id.toString() === form.businessCluster)
@@ -74,7 +81,11 @@ export default function ReviewBusinessIdentity({
         <View className="w-1/2 pl-2">
           <ReviewRow
             label="Representative Role"
-            value={form.representativeRole}
+            value={
+              form.representativeRole
+                ? REPRESENTATIVE_ROLE_LABELS[form.representativeRole]
+                : "Not provided"
+            }
           />
         </View>
 

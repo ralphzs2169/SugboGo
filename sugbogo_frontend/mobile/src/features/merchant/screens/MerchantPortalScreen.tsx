@@ -38,9 +38,20 @@ export default function MerchantPortalScreen() {
       />
     );
   }
-  console.log(application);
-  console.log(registrationStatus);
-  console.log(config);
+  const handlePrimaryAction = () => {
+    switch (registrationStatus) {
+      case "NONE":
+      case "DRAFT":
+      case "REJECTED":
+        router.push("/(explorer)/merchant-registration");
+        break;
+
+      case "SUBMITTED":
+      case "APPROVED":
+        router.push("/(explorer)/merchant-registration/submitted-application");
+        break;
+    }
+  };
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -95,7 +106,7 @@ export default function MerchantPortalScreen() {
           <Button
             title={config.primaryAction.buttonTitle}
             fontClassName="font-bold tracking wider"
-            onPress={() => router.push("/(explorer)/merchant-registration")}
+            onPress={handlePrimaryAction}
           />
         </View>
       </ScrollView>

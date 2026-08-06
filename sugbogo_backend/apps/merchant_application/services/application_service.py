@@ -30,14 +30,12 @@ class ApplicationService:
         Records the step that was successfully saved and advances the
         highest completed step without allowing it to move backward.
         """
-        application.MAPP_CURRENT_STEP = step
         application.MAPP_HIGHEST_COMPLETED_STEP = max(
             application.MAPP_HIGHEST_COMPLETED_STEP,
             step,
         )
         application.save(
             update_fields=[
-                "MAPP_CURRENT_STEP",
                 "MAPP_HIGHEST_COMPLETED_STEP",
                 "MAPP_UPDATED_AT",
             ]
@@ -152,7 +150,6 @@ class ApplicationService:
             MerchantApplication.ApplicationStatus.SUBMITTED
         )
 
-        application.MAPP_CURRENT_STEP = application.MAPP_HIGHEST_COMPLETED_STEP
         application.MAPP_SUBMITTED_AT = timezone.now()
 
         application.save(

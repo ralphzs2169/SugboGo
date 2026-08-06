@@ -13,7 +13,7 @@ from apps.merchant_application.models import (
 
 @admin.register(MerchantApplication)
 class MerchantApplicationAdmin(admin.ModelAdmin):
-    list_display = ("MAPP_ID", "USER_ID", "MAPP_STATUS", "MAPP_CURRENT_STEP", "MAPP_CREATED_AT")
+    list_display = ("MAPP_ID", "USER_ID", "MAPP_STATUS", "MAPP_CREATED_AT")
     list_filter = ("MAPP_STATUS",)
     search_fields = ("USER_ID__email",)
 

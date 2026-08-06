@@ -27,6 +27,12 @@ export default function useCurrentApplication() {
 
     if (!response.success) {
       if (response.code === "APPLICATION_NOT_FOUND") {
+        /**
+         * No application exists yet.
+         *
+         * This is an expected state for users who have not started
+         * merchant registration, so it should not be treated as an error.
+         */
         setApplication(null);
         setError(false);
         setIsLoading(false);
@@ -39,6 +45,12 @@ export default function useCurrentApplication() {
       return;
     }
 
+    /**
+     * Existing application found.
+     *
+     * Store the application details so screens can determine the
+     * current registration progress and resume where the user left off.
+     */
     setApplication(response.data);
     setError(false);
     setIsLoading(false);

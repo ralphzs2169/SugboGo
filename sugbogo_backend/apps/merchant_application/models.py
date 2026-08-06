@@ -19,7 +19,6 @@ class MerchantApplication(models.Model):
         max_length=20, choices=ApplicationStatus.choices,
         default=ApplicationStatus.DRAFT
     )
-    MAPP_CURRENT_STEP = models.PositiveIntegerField(default=1)
     MAPP_HIGHEST_COMPLETED_STEP = models.PositiveIntegerField(default=0)
     MAPP_SUBMITTED_AT = models.DateTimeField(blank=True, null=True)
     MAPP_REVIEWED_AT = models.DateTimeField(blank=True, null=True)

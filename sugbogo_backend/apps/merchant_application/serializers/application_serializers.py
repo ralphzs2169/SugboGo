@@ -23,7 +23,7 @@ class MerchantApplicationSerializer(serializers.ModelSerializer):
 
     id = serializers.IntegerField(source="MAPP_ID", read_only=True)
     status = serializers.CharField(source="MAPP_STATUS", read_only=True)
-    current_step = serializers.IntegerField(source="MAPP_CURRENT_STEP")
+
     highest_completed_step = serializers.IntegerField(
         source="MAPP_HIGHEST_COMPLETED_STEP"
     )
@@ -44,7 +44,6 @@ class MerchantApplicationSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "status",
-            "current_step",
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",
@@ -63,7 +62,6 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
 
     id = serializers.IntegerField(source="MAPP_ID", read_only=True)
     status = serializers.CharField(source="MAPP_STATUS", read_only=True)
-    current_step = serializers.IntegerField(source="MAPP_CURRENT_STEP", read_only=True)
     highest_completed_step = serializers.IntegerField(
         source="MAPP_HIGHEST_COMPLETED_STEP", read_only=True
     )
@@ -95,7 +93,6 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "status",
-            "current_step",
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",

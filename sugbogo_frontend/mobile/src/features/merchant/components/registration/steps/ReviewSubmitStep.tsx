@@ -25,6 +25,8 @@ export default function ReviewSubmitStep({
   categories,
   onEditSection,
 }: ReviewSubmitStepProps) {
+  const { watch } = useFormContext<MerchantRegistrationForm>();
+  const form = watch();
   return (
     <>
       <View className="">
@@ -45,16 +47,24 @@ export default function ReviewSubmitStep({
           </Text>
         </View> */}
         <ReviewBusinessIdentity
+          form={form}
           clusters={clusters}
           categories={categories}
           onEdit={() => onEditSection(1)}
         />
 
-        <ReviewBusinessLocation onEdit={() => onEditSection(2)} />
+        <ReviewBusinessLocation
+          form={form}
+          onEdit={() => onEditSection(2)}
+          returnTo="registration-review"
+        />
 
-        <ReviewOperatingHours onEdit={() => onEditSection(3)} />
-        <ReviewBusinessPhotos onEdit={() => onEditSection(4)} />
-        <ReviewVerificationDocuments onEdit={() => onEditSection(5)} />
+        <ReviewOperatingHours form={form} onEdit={() => onEditSection(3)} />
+        <ReviewBusinessPhotos form={form} onEdit={() => onEditSection(4)} />
+        <ReviewVerificationDocuments
+          form={form}
+          onEdit={() => onEditSection(5)}
+        />
       </View>
     </>
   );

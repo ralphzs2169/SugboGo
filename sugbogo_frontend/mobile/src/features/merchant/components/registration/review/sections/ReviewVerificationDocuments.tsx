@@ -1,10 +1,13 @@
 // ReviewVerificationDocuments.tsx
-import { useFormContext } from "react-hook-form";
+import type { z } from "zod";
+
+import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
 import DocumentGroup from "../DocumentGroup";
-import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import ReviewSection from "../ReviewSection";
 
+type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewVerificationDocumentsProps = {
+  form: ReviewForm;
   onEdit?: () => void;
 };
 
@@ -17,10 +20,10 @@ type ReviewVerificationDocumentsProps = {
  * - Additional Documents: optional list of supporting documents.
  */
 export default function ReviewVerificationDocuments({
+  form,
   onEdit,
 }: ReviewVerificationDocumentsProps) {
-  const { watch } = useFormContext<MerchantRegistrationForm>();
-  const documents = watch("verificationDocuments");
+  const documents = form.verificationDocuments;
 
   const groups = [
     {

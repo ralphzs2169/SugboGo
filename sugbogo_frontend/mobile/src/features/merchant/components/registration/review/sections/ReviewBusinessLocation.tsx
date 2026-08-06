@@ -1,30 +1,54 @@
-import { useFormContext } from "react-hook-form";
 import { View, Text, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import type { z } from "zod";
+
+import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
 import LocationPickerMap from "../../location/LocationPickerMap";
 import { theme } from "@/constants/theme";
+import { useReviewLandmarksStore } from "@/features/merchant/stores/reviewLandmarksStore";
 
+type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessLocationProps = {
+  form: ReviewForm;
   onEdit?: () => void;
+  returnTo: "registration-review" | "application-summary";
 };
 
 export default function ReviewBusinessLocation({
+  form,
   onEdit,
+  returnTo,
 }: ReviewBusinessLocationProps) {
-  const { watch } = useFormContext<MerchantRegistrationForm>();
-
-  const form = watch();
-
   const address = [form.streetAddress, form.barangay, form.city, form.province]
     .filter(Boolean)
     .join(", ");
 
+  const { setPreview } = useReviewLandmarksStore();
+
   const handleViewLandmarks = () => {
-    console.log("Navigating to review landmarks page");
+    if (form.latitude == null || form.longitude == null) {
+      return;
+    }
+
+    setPreview(
+      {
+        latitude: form.latitude,
+        longitude: form.longitude,
+
+        province: form.province,
+        city: form.city,
+        barangay: form.barangay,
+        streetAddress: form.streetAddress,
+        formattedAddress: address,
+        unit: form.unit,
+      },
+      form.landmarks,
+      returnTo,
+    );
+
     router.push("/(explorer)/merchant-registration/review-landmarks");
   };
 

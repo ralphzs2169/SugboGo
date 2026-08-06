@@ -43,6 +43,15 @@ export default function MerchantRegistrationLayout() {
             headerShown: false,
           }}
         />
+
+        <Stack.Screen
+          name="submitted-application"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Application Summary",
+          }}
+        />
       </Stack>
     </>
   );
