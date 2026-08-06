@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
 import RegistrationFooter from "../components/registration/RegistartionFooter";
@@ -30,7 +30,7 @@ import {
   ApplicationIdentityPayload,
   ApplicationLocationPayload,
   ApplicationOperatingHoursPayload,
-} from "../types/merchant-application/applicationApi.types";
+} from "../types/registration/registrationApi.types";
 import Toast from "react-native-toast-message";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import useSaveApplicationDocuments from "../hooks/registration/useSaveApplicationDocuments";
@@ -46,7 +46,11 @@ import { detectPhotoChanges } from "../utils/merchant-application/comparisons/de
 import { detectDocumentChanges } from "../utils/merchant-application/comparisons/detectDocumentChanges.utils";
 import useSubmitApplication from "../hooks/registration/useSubmitApplication";
 import { router } from "expo-router";
-
+import useCurrentApplication from "../hooks/registration/useCurrentApplication";
+import { mapApplicationToForm } from "@/features/merchant/utils/merchant-application/mappers/mapApplicationToForm.utils";
+import buildOperatingHoursPayload from "../utils/merchant-application/builders/buildOperatingHoursPayload.utils";
+import LoadingScreen from "@/shared/components/LoadingScreen";
+import { mapApplicationToStore } from "../utils/merchant-application/mappers/mapApplicationToStore.utils";
 /**
  * Merchant registration wizard screen.
  *
@@ -81,6 +85,9 @@ export default function MerchantRegistrationScreen() {
     handleBack,
     handleEditSection,
     completeCurrentStep,
+
+    setCurrentStep,
+    setHighestCompletedStep,
   } = useRegistrationNavigation({
     reviewStep: REVIEW_STEP,
     onBeforeBack: (step) => {
@@ -104,6 +111,9 @@ export default function MerchantRegistrationScreen() {
     refetch: refetchCategories,
   } = useCategories();
 
+  const { application, isLoading: isLoadingApplication } =
+    useCurrentApplication();
+
   const { saveIdentity, isSaving: isSavingIdentity } = useSaveIdentity();
 
   const { saveLocation, isSaving: isSavingLocation } = useSaveLocation();
@@ -124,6 +134,15 @@ export default function MerchantRegistrationScreen() {
   const setSelectedAddress = useMerchantRegistrationStore(
     (state) => state.setSelectedAddress,
   );
+  const setSelectedLocation = useMerchantRegistrationStore(
+    (state) => state.setSelectedLocation,
+  );
+
+  const setSelectedLandmarks = useMerchantRegistrationStore(
+    (state) => state.setSelectedLandmarks,
+  );
+
+  const hasInitialized = useRef(false);
 
   const isSavingCurrentStep =
     isSavingIdentity ||
@@ -172,6 +191,41 @@ export default function MerchantRegistrationScreen() {
       unit: values.unit,
     });
   };
+
+  useEffect(() => {
+    if (!application || hasInitialized.current) {
+      return;
+    }
+
+    hasInitialized.current = true;
+
+    const values = mapApplicationToForm(application);
+    const store = mapApplicationToStore(application);
+
+    form.reset(values);
+
+    if (store.selectedLocation) {
+      setSelectedLocation(store.selectedLocation);
+    }
+
+    if (store.selectedAddress) {
+      setSelectedAddress(store.selectedAddress);
+    }
+
+    setSelectedLandmarks(store.selectedLandmarks);
+
+    setCurrentStep(application.highest_completed_step);
+    setHighestCompletedStep(application.highest_completed_step);
+
+    setLastSavedIdentity(buildIdentityPayload(values));
+    setLastSavedLocation(buildLocationPayload(values));
+
+    setLastSavedOperatingHours(buildOperatingHoursPayload(values));
+
+    setLastSavedPhotos(values.businessPhotos);
+
+    setLastSavedDocuments(values.verificationDocuments);
+  }, [application]);
 
   const { validateCurrentStep } = useRegistrationValidation({
     currentStep,
@@ -256,15 +310,7 @@ export default function MerchantRegistrationScreen() {
     if (currentStep === 3) {
       const values = form.getValues();
 
-      const payload: ApplicationOperatingHoursPayload = {
-        hours: Object.entries(values.operatingHours).map(([day, schedule]) => ({
-          day: day as ApplicationOperatingHoursPayload["hours"][number]["day"],
-          is_open: schedule.isOpen,
-          is_24_hours: schedule.is24Hours,
-          open_time: schedule.openTime || null,
-          close_time: schedule.closeTime || null,
-        })),
-      };
+      const payload = buildOperatingHoursPayload(values);
 
       if (hasOperatingHoursChanged(lastSavedOperatingHours, payload)) {
         const response = await saveOperatingHours(payload);
@@ -469,6 +515,15 @@ export default function MerchantRegistrationScreen() {
 
     return () => subscription.remove();
   }, [currentStep, editingStep, REVIEW_STEP, goToReview, handleBack]);
+
+  if (isLoadingApplication) {
+    return (
+      <LoadingScreen
+        title="Restoring your progress"
+        description="Loading your saved registration details..."
+      />
+    );
+  }
 
   return (
     <>

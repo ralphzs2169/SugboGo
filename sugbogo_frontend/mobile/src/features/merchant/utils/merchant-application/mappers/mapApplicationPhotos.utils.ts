@@ -1,5 +1,5 @@
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
-import type { ApplicationPhotoResponse } from "@/features/merchant/types/merchant-application/applicationApi.types";
+import type { ApplicationPhotoResponse } from "@/features/merchant/types/registration/registrationApi.types";
 
 /**
  * Converts saved application photo responses into the business photo

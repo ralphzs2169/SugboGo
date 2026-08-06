@@ -1,4 +1,4 @@
-import { ApplicationOperatingHoursPayload } from "../../../types/merchant-application/applicationApi.types";
+import { ApplicationOperatingHoursPayload } from "../../../types/registration/registrationApi.types";
 
 /**
  * Compares two operating-hours arrays.

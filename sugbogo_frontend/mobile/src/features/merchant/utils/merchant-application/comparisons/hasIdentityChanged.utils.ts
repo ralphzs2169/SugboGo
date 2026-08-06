@@ -1,4 +1,4 @@
-import { ApplicationIdentityPayload } from "../../../types/merchant-application/applicationApi.types";
+import { ApplicationIdentityPayload } from "../../../types/registration/registrationApi.types";
 import { normalizeOptionalText } from "../normalizeOptionalText.utils";
 
 /**

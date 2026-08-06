@@ -62,5 +62,8 @@ export default function useRegistrationNavigation({
     handleEditSection,
     completeCurrentStep,
     highestCompletedStep,
+
+    setCurrentStep,
+    setHighestCompletedStep,
   };
 }

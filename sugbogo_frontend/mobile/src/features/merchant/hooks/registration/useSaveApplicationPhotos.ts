@@ -6,7 +6,7 @@ import { saveApplicationPhotos } from "../../api/merchantApplication.service";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import type { ApplicationPhotoResponse } from "../../types/merchant-application/applicationApi.types";
+import type { ApplicationPhotoResponse } from "../../types/registration/registrationApi.types";
 
 /**
  * Saves the business photos section of the merchant application.

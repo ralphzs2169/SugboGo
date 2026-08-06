@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { getCurrentApplication } from "../../api/merchantApplication.service";
 
-import type { ApplicationDetailResponse } from "../../types/merchant-application/applicationApi.types";
+import type { ApplicationDetailResponse } from "../../types/registration/registrationApi.types";
 
 /**
  * Fetches the authenticated user's current merchant application.
@@ -38,6 +38,7 @@ export default function useCurrentApplication() {
       setIsLoading(false);
       return;
     }
+
     setApplication(response.data);
     setError(false);
     setIsLoading(false);

@@ -5,14 +5,14 @@ import Button from "@/shared/components/Button";
 import MerchantHero from "../components/portal/MerchantHero";
 import MerchantBenefits from "../components/portal/MerchantBenefits";
 import MerchantRequirements from "../components/portal/MerchantRequirements";
-import { MerchantRegistrationStatus } from "../types/merchant.types";
-import { portalConfig } from "../utils/portalConfig.utils";
+
 import RegistrationProgressCard from "../components/portal/RegistrationProgressCard";
 import ApplicationStatusCard from "../components/portal/ApplicationStatusCard";
 import RejectionFeedbackCard from "../components/portal/RejectionFeedback";
 import MerchantDashboardCard from "../components/portal/MerchantDashboardCard";
 import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
+import { formatDate } from "@/shared/utils/date.utils";
 
 function SectionDivider() {
   return <View className="mx-6 mt-3" />;
@@ -50,27 +50,19 @@ export default function MerchantPortalScreen() {
           <RegistrationProgressCard
             currentStep={application?.highest_completed_step ?? 1}
             totalSteps={5}
-            lastUpdated={
-              application?.updated_at
-                ? new Date(application.updated_at).toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })
-                : ""
-            }
+            lastUpdated={formatDate(application?.updated_at)}
           />
         )}
         {config.sections.status && (
           <ApplicationStatusCard
             status="UNDER_REVIEW"
-            submittedAt="July 27, 2026"
+            submittedAt={formatDate(application?.submitted_at)}
             estimatedReview="2–5 business days"
           />
         )}
         {config.sections.feedback && (
           <RejectionFeedbackCard
-            reviewedAt="July 28, 2026"
+            reviewedAt={formatDate(application?.reviewed_at)}
             feedback={[
               "Business permit is blurry.",
               "Please upload a clearer storefront photo.",

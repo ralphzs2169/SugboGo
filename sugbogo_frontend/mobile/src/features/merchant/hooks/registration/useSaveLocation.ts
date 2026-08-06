@@ -9,7 +9,7 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
   ApplicationLocationPayload,
   ApplicationLocationResponse,
-} from "../../types/merchant-application/applicationApi.types";
+} from "../../types/registration/registrationApi.types";
 
 /**
  * Saves the business location section of the merchant application.

@@ -1,5 +1,5 @@
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
-import type { ApplicationDocumentResponse } from "@/features/merchant/types/merchant-application/applicationApi.types";
+import type { ApplicationDocumentResponse } from "@/features/merchant/types/registration/registrationApi.types";
 
 /**
  * Converts saved application document responses into the verification

@@ -16,7 +16,7 @@ import {
   CategoryOption,
 } from "@/features/merchant/types/merchantRegistration.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
-import type { RepresentativeRole } from "../../../types/merchant-application/applicationApi.types";
+import type { RepresentativeRole } from "../../../types/registration/registrationApi.types";
 
 export const REPRESENTATIVE_ROLE_OPTIONS: {
   label: string;

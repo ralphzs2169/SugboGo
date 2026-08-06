@@ -1,12 +1,17 @@
-import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
-import { ApplicationOperatingHoursPayload } from "@/features/merchant/types/merchant-application/applicationApi.types";
+import { z } from "zod";
+
+import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
+
+import { ApplicationOperatingHoursPayload } from "@/features/merchant/types/registration/registrationApi.types";
+
+type MerchantRegistrationFormInput = z.input<typeof merchantRegistrationSchema>;
 
 /**
  * Builds the operating-hours payload expected by the merchant
  * application API from the registration form values.
  */
 export default function buildOperatingHoursPayload(
-  values: MerchantRegistrationForm,
+  values: MerchantRegistrationFormInput,
 ): ApplicationOperatingHoursPayload {
   return {
     hours: Object.entries(values.operatingHours).map(([day, schedule]) => ({

@@ -67,6 +67,7 @@ export interface ApplicationLocationResponse {
   city: string;
   barangay: string;
   street_address: string;
+  formatted_address: string;
   unit: string | null;
   latitude: number | null;
   longitude: number | null;

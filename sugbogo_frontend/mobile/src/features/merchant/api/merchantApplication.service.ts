@@ -18,7 +18,7 @@ import {
   ApplicationPhotoPayload,
   ApplicationDetailResponse,
   ApplicationPhotoResponse,
-} from "../types/merchant-application/applicationApi.types";
+} from "../types/registration/registrationApi.types";
 
 // Registration options
 

@@ -9,7 +9,7 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
   ApplicationIdentityPayload,
   ApplicationIdentityResponse,
-} from "../../types/merchant-application/applicationApi.types";
+} from "../../types/registration/registrationApi.types";
 
 /**
  * Saves the business identity section of the merchant application.

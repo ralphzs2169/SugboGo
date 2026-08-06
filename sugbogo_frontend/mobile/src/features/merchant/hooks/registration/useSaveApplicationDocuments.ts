@@ -6,7 +6,7 @@ import { saveApplicationDocuments } from "../../api/merchantApplication.service"
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import type { ApplicationDocumentResponse } from "../../types/merchant-application/applicationApi.types";
+import type { ApplicationDocumentResponse } from "../../types/registration/registrationApi.types";
 
 /**
  * Saves the verification documents section of the merchant application.

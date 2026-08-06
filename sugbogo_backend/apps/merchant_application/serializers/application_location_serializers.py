@@ -154,7 +154,7 @@ class ApplicationLandmarkReadSerializer(serializers.ModelSerializer):
     longitude = serializers.SerializerMethodField()
     source = serializers.CharField(source="MLMK_SOURCE", read_only=True)
     place_id = serializers.CharField(source="MLMK_PLACE_ID", read_only=True)
-
+    
     class Meta:
         model = MerchantApplicationLandmark
         fields = (
@@ -191,7 +191,21 @@ class ApplicationLocationReadSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
-
+    formatted_address = serializers.SerializerMethodField()
+    
+    def get_formatted_address(self, obj):
+        return ", ".join(
+            filter(
+                None,
+                [
+                    obj.MLOC_STREET_ADDRESS,
+                    obj.MLOC_BARANGAY,
+                    obj.MLOC_CITY,
+                    obj.MLOC_PROVINCE,
+                ],
+            )
+        )
+    
     class Meta:
         model = MerchantApplicationLocation
         fields = (
@@ -199,6 +213,7 @@ class ApplicationLocationReadSerializer(serializers.ModelSerializer):
             "city",
             "barangay",
             "street_address",
+            "formatted_address",
             "unit",
             "latitude",
             "longitude",

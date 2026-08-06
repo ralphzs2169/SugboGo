@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { merchantRegistrationSchema } from "../../../validation/merchantRegistration.schema";
 
-import { ApplicationIdentityPayload } from "../../../types/merchant-application/applicationApi.types";
+import { ApplicationIdentityPayload } from "../../../types/registration/registrationApi.types";
 import { normalizePhilippineMobileNumber } from "../phoneNumber.utils";
 
 type MerchantRegistrationFormInput = z.input<typeof merchantRegistrationSchema>;

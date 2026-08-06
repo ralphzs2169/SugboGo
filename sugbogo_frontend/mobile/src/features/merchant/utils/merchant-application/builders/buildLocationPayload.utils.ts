@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { merchantRegistrationSchema } from "../../../validation/merchantRegistration.schema";
 
-import { ApplicationLocationPayload } from "../../../types/merchant-application/applicationApi.types";
+import { ApplicationLocationPayload } from "../../../types/registration/registrationApi.types";
 
 type MerchantRegistrationFormInput = z.input<typeof merchantRegistrationSchema>;
 

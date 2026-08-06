@@ -9,7 +9,7 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
   ApplicationOperatingHoursPayload,
   ApplicationOperatingHoursResponse,
-} from "../../types/merchant-application/applicationApi.types";
+} from "../../types/registration/registrationApi.types";
 
 /**
  * Saves the operating-hours section of the merchant application.
