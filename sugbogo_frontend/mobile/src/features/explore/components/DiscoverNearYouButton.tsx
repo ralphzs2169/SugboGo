@@ -10,7 +10,7 @@ export default function DiscoverNearYouButton ({ onPress }: Props) {
   return (
     <Pressable
       onPress={onPress}
-      className="mx-4 mt-6 flex-row items-center justify-center rounded-md bg-brand px-4 py-4"
+      className="mx-4 mt-6 flex-row items-center justify-center rounded-btn bg-brand px-4 py-4"
     >
       {/* Map icon for the nearby hidden gems action */}
       <MaterialCommunityIcons

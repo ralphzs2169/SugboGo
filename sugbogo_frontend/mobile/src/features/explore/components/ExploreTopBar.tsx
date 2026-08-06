@@ -40,7 +40,7 @@ export default function ExploreTopBar({ selectedCategory, onSelectCategory }: Pr
         </Pressable>
       </View>
 
-      <View className="flex-row items-center rounded-md bg-background px-3 py-2 mb-3">
+      <View className="flex-row items-center rounded-input bg-background px-3 py-2 mb-3">
         <MaterialCommunityIcons
           name="magnify"
           size={18}

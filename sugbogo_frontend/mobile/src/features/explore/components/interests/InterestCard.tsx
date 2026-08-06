@@ -18,11 +18,11 @@ type Props = {
 export default function InterestCard({ name, photoUrl, tags, category, location, onPress }: Props) {
   
   return (
-    <Pressable onPress={onPress} className="mr-3 w-64 overflow-hidden rounded-md bg-surface">
+    <Pressable onPress={onPress} className="mr-3 w-64 overflow-hidden rounded-card bg-surface">
       <ImageBackground
         source={{ uri: photoUrl }}
         className="h-52 justify-end p-2"
-        imageStyle={{ borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
+        imageStyle={{ borderTopLeftRadius: 16, borderTopRightRadius: 16 }}
       >
         <Text className="text-sm font-bold text-white" numberOfLines={1}>
           {name}

@@ -28,11 +28,11 @@ export default function TrendingCard({
   const isUp = trendDirection === "up";
 
   return (
-    <Pressable onPress={onPress} className="mr-3 w-64 overflow-hidden rounded-md bg-surface">
+    <Pressable onPress={onPress} className="mr-3 w-64 overflow-hidden rounded-card bg-surface">
       <ImageBackground
         source={{ uri: photoUrl }}
         className="h-52 justify-between p-2"
-        imageStyle={{ borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
+        imageStyle={{ borderTopLeftRadius: 16, borderTopRightRadius: 16 }}
       >
         <View className="flex-row justify-end gap-1">
           <View className="flex-row items-center rounded-full bg-white px-2 py-1">

@@ -10,11 +10,11 @@ type Props = {
 
 export default function HiddenGemCard({ name, photoUrl, tags, onPress }: Props) {
   return (
-    <Pressable onPress={onPress} className="mr-3 h-80 w-72 overflow-hidden rounded-md">
+    <Pressable onPress={onPress} className="mr-3 h-80 w-80 overflow-hidden rounded-card">
       <ImageBackground
         source={{ uri: photoUrl }}
         className="flex-1 justify-between p-3"
-        imageStyle={{ borderRadius: 8 }}
+        imageStyle={{ borderRadius: 16 }}
       >
         <View className="flex-row items-center self-start rounded-full bg-brand px-2 py-1">
           <MaterialCommunityIcons name="star-four-points" size={12} color="#FFFFFF" />
