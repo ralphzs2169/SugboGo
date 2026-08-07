@@ -1,8 +1,8 @@
-import { useEffect } from "react";
 import { router } from "expo-router";
+import { useEffect } from "react";
 
-import { useReviewLandmarksStore } from "@/features/merchant/stores/reviewLandmarksStore";
 import ReviewLandmarksScreen from "@/features/merchant/screens/ReviewLandmarksScreen";
+import { useReviewLandmarksStore } from "@/features/merchant/stores/reviewLandmarksStore";
 
 export default function ReviewLandmarksPage() {
   const businessLocation = useReviewLandmarksStore(
@@ -36,13 +36,7 @@ export default function ReviewLandmarksPage() {
       businessLocation={businessLocation}
       selectedLandmarks={selectedLandmarks}
       onClose={() => {
-        if (returnTo === "application-summary") {
-          router.replace(
-            "/(explorer)/merchant-registration/submission-success",
-          );
-        } else {
-          router.back();
-        }
+        router.back();
       }}
     />
   );

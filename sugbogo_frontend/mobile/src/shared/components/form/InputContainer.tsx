@@ -8,6 +8,7 @@ interface InputContainerProps {
   children: ReactNode;
   required?: boolean;
   editable?: boolean;
+  helperText?: string;
 }
 
 /**
@@ -27,6 +28,7 @@ export default function InputContainer({
   children,
   required = false,
   editable = true,
+  helperText,
 }: InputContainerProps) {
   return (
     <View className="mb-5">
@@ -55,6 +57,8 @@ export default function InputContainer({
         <Text className="mt-1 text-xs font-medium text-text-error">
           {error}
         </Text>
+      ) : helperText ? (
+        <Text className="mt-1 text-xs text-text-secondary">{helperText}</Text>
       ) : null}
     </View>
   );

@@ -11,7 +11,11 @@ export default function MerchantRegistrationLayout() {
     <>
       <StatusBar style="dark" />
 
-      <Stack>
+      <Stack
+        screenOptions={{
+          animation: "none",
+        }}
+      >
         <Stack.Screen
           name="index"
           options={{
@@ -49,7 +53,15 @@ export default function MerchantRegistrationLayout() {
           options={{
             ...defaultStackScreenOptions,
             ...slideFromRight,
+            animationTypeForReplace: "push",
             title: "Application Summary",
+          }}
+        />
+
+        <Stack.Screen
+          name="submission-success"
+          options={{
+            headerShown: false,
           }}
         />
       </Stack>

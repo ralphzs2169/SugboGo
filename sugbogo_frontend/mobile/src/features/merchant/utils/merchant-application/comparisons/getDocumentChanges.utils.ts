@@ -8,6 +8,21 @@ type DocumentChanges = {
 };
 
 /**
+ * Returns true when no verification documents have been selected.
+ *
+ * This prevents a brand-new registration form from being
+ * treated as having unsaved document changes before the
+ * merchant uploads anything.
+ */
+function isDocumentsEmpty(documents: VerificationDocuments): boolean {
+  return (
+    documents.businessRegistration === null &&
+    documents.authorizationDocument === null &&
+    documents.additionalDocuments.length === 0
+  );
+}
+
+/**
  * Finds the IDs of additional documents that existed previously but
  * have since been removed.
  */
@@ -83,6 +98,17 @@ function hasDeletedAuthorizationDocument(
   );
 }
 
+function findDeletedSingletonDocumentId(
+  previous: { id?: number } | null,
+  current: { id?: number } | null,
+): number[] {
+  if (!previous?.id || current?.id === previous.id) {
+    return [];
+  }
+
+  return [previous.id];
+}
+
 /**
  * Detects additions, replacements and deletions since the last
  * successful document save.
@@ -91,18 +117,31 @@ export function getDocumentChanges(
   previous: VerificationDocuments | null,
   current: VerificationDocuments,
 ): DocumentChanges {
-  // Nothing has ever been saved.
+  /**
+   * During a brand-new application, nothing has been saved yet.
+   * If no documents have been selected, there are no pending changes.
+   */
   if (previous === null) {
     return {
-      hasChanges: true,
+      hasChanges: !isDocumentsEmpty(current),
       deletedDocumentIds: [],
     };
   }
 
-  const deletedDocumentIds = findDeletedAdditionalDocumentIds(
-    previous.additionalDocuments,
-    current.additionalDocuments,
-  );
+  const deletedDocumentIds = [
+    ...findDeletedSingletonDocumentId(
+      previous.businessRegistration,
+      current.businessRegistration,
+    ),
+    ...findDeletedSingletonDocumentId(
+      previous.authorizationDocument,
+      current.authorizationDocument,
+    ),
+    ...findDeletedAdditionalDocumentIds(
+      previous.additionalDocuments,
+      current.additionalDocuments,
+    ),
+  ];
 
   const hasChanges =
     hasNewBusinessRegistration(current) ||

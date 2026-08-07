@@ -1,8 +1,10 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { View, Text } from "react-native";
+import LottieView from "lottie-react-native";
+import { Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import successAnimation from "@/shared/assets/animations/success-confetti.json";
 import Button from "@/shared/components/Button";
-import { theme } from "@/constants/theme";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type SubmissionSuccessScreenProps = {
   /**
@@ -13,50 +15,54 @@ type SubmissionSuccessScreenProps = {
   onContinue: () => void;
 };
 
-/**
- * Displays a confirmation screen after a merchant application has been
- * successfully submitted.
- *
- * This screen serves as the final step of the registration flow,
- * informing merchants that their application is now under review
- * and providing a single action to return to the Merchant Portal.
- */
 export default function SubmissionSuccessScreen({
   onContinue,
 }: SubmissionSuccessScreenProps) {
   return (
-    <View className="flex-1 justify-center bg-background px-8">
-      <View className="items-center">
-        <View className="mb-8 rounded-full bg-brand/10 p-6">
-          <MaterialCommunityIcons
-            name="check-decagram"
-            size={72}
-            color={theme.extends.colors.brand}
+    <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-surface">
+      <View className="flex-1 justify-center px-8">
+        <View className="items-center">
+          <LottieView
+            source={successAnimation}
+            autoPlay
+            loop={false}
+
+            style={{ width: 260, height: 260 }}
           />
+
+          <Text className="mt-2 text-center text-3xl font-bold text-text-primary">
+            Application Submitted
+          </Text>
+
+          <Text className="mt-3 text-center text-base leading-7 text-text-secondary">
+            Your application is now under review. We'll notify you as soon as
+            our team has finished taking a look.
+          </Text>
+
+          <View className="mt-6 flex-row items-center rounded-2xl bg-background px-4 py-3">
+            <View className="h-2 w-2 rounded-full bg-brand" />
+            <Text className="ml-2 text-sm font-medium text-text-secondary">
+              Estimated review time: 2–5 business days
+            </Text>
+          </View>
         </View>
 
-        <Text className="text-center text-3xl font-bold text-text-primary">
-          Application Submitted
-        </Text>
-
-        <Text className="mt-4 text-center text-base leading-7 text-text-secondary">
-          Your merchant application has been successfully submitted for review.
-        </Text>
-
-        <Text className="mt-2 text-center text-base leading-7 text-text-secondary">
-          We'll notify you once our team has finished reviewing your
-          application.
-        </Text>
+        <View className="mt-12">
+          <Button
+            title="Back to Merchant Portal"
+            icon={
+              <MaterialCommunityIcons
+                name="arrow-left"
+                size={20}
+                color="white"
+              />
+            }
+            className="w-full"
+            fontClassName="font-bold"
+            onPress={onContinue}
+          />
+        </View>
       </View>
-
-      <View className="mt-12">
-        <Button
-          title="Go to Merchant Portal"
-          className="w-full"
-          fontClassName="font-bold"
-          onPress={onContinue}
-        />
-      </View>
-    </View>
+    </SafeAreaView>
   );
 }

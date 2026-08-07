@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 import {
-  BusinessLocation,
   BusinessLandmark,
+  BusinessLocation,
 } from "@/shared/types/BusinessLocation.types";
 
 type BusinessAddress = {
@@ -11,6 +11,13 @@ type BusinessAddress = {
   barangay: string;
   streetAddress: string;
   unit: string;
+};
+
+type AddressLoadFailures = {
+  province: boolean;
+  city: boolean;
+  barangay: boolean;
+  streetAddress: boolean;
 };
 /**
  * Stores temporary selections for the merchant registration flow.
@@ -39,9 +46,10 @@ type MerchantRegistrationState = {
 
   nearbyLandmarksLoadFailed: boolean;
   addressLoadFailed: boolean;
+  addressLoadFailures: AddressLoadFailures;
 
   reset: () => void;
-  /** Sets the currently selected business location. */
+
   setSelectedLocation: (location: BusinessLocation) => void;
 
   /**
@@ -58,6 +66,7 @@ type MerchantRegistrationState = {
   setAddressLoadFailed: (failed: boolean) => void;
 
   setNearbyLandmarksLoadFailed: (failed: boolean) => void;
+  setAddressLoadFailures: (failures: AddressLoadFailures) => void;
 
   /** Clears the currently selected business location. */
   clearSelectedLocation: () => void;
@@ -76,6 +85,13 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
     nearbyLandmarksLoadFailed: false,
     addressLoadFailed: false,
 
+    addressLoadFailures: {
+      province: false,
+      city: false,
+      barangay: false,
+      streetAddress: false,
+    },
+
     setSelectedLocation: (location) =>
       set({
         selectedLocation: location,
@@ -89,6 +105,11 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
     setSelectedAddress: (address: BusinessAddress) =>
       set({
         selectedAddress: address,
+      }),
+
+    setAddressLoadFailures: (failures: AddressLoadFailures) =>
+      set({
+        addressLoadFailures: failures,
       }),
 
     clearSelectedLocation: () =>
@@ -122,6 +143,12 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
         selectedLandmarks: [],
         nearbyLandmarksLoadFailed: false,
         addressLoadFailed: false,
+        addressLoadFailures: {
+          province: false,
+          city: false,
+          barangay: false,
+          streetAddress: false,
+        },
       }),
   }),
 );

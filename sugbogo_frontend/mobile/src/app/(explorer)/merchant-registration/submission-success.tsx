@@ -10,7 +10,7 @@ export default function SubmissionSuccessPage() {
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
         () => {
-          router.replace("/(explorer)/profile/merchant-portal");
+          router.dismissTo("/(explorer)/profile/merchant-portal");
           return true;
         },
       );
@@ -18,9 +18,12 @@ export default function SubmissionSuccessPage() {
       return () => subscription.remove();
     }, []),
   );
+
   return (
     <SubmissionSuccessScreen
-      onContinue={() => router.replace("/(explorer)/profile/merchant-portal")}
+      onContinue={() => {
+        router.dismissTo("/(explorer)/profile/merchant-portal");
+      }}
     />
   );
 }

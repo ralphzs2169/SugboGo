@@ -7,6 +7,9 @@ from apps.merchant_application.serializers.application_location_serializers impo
 from apps.merchant_application.serializers.document_serializers import (
     ApplicationDocumentSerializer,
 )
+from apps.merchant_application.serializers.feedback_serializers import (
+    MerchantApplicationFeedbackSerializer,
+)
 from apps.merchant_application.serializers.identity_serializers import (
     ApplicationIdentityReadSerializer,
 )
@@ -70,6 +73,10 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     rejection_reason = serializers.CharField(
         source="MAPP_REJECTION_REASON", read_only=True
     )
+    feedback = MerchantApplicationFeedbackSerializer(
+        many=True,
+        read_only=True,
+    )
     created_at = serializers.DateTimeField(source="MAPP_CREATED_AT", read_only=True)
     updated_at = serializers.DateTimeField(source="MAPP_UPDATED_AT", read_only=True)
 
@@ -97,6 +104,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "submitted_at",
             "reviewed_at",
             "rejection_reason",
+            "feedback",
             "created_at",
             "updated_at",
             "identity",

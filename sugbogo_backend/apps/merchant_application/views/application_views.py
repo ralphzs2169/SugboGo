@@ -1,4 +1,3 @@
-from core.responses import error_response, success_response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -7,6 +6,7 @@ from apps.merchant_application.serializers.application_serializers import (
     ApplicationDetailSerializer,
 )
 from apps.merchant_application.services.application_service import ApplicationService
+from core.responses import error_response, success_response
 
 
 @api_view(["GET"])
@@ -29,7 +29,6 @@ def application_detail_view(request):
         data=serializer.data,
         message="Application retrieved successfully.",
     )
-
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])

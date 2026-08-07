@@ -4,18 +4,18 @@ import { normalizeIdentity } from "../normalizers/normalizeIdentity.utils";
 import { normalizeLocation } from "../normalizers/normalizeLocation.utils";
 import { normalizeOperatingHours } from "../normalizers/normalizeOperatingHours.utils";
 
+import { getDocumentChanges } from "./getDocumentChanges.utils";
+import { getPhotoChanges } from "./getPhotoChanges.utils";
 import { hasIdentityChanged } from "./hasIdentityChanged.utils";
 import { hasLocationChanged } from "./hasLocationChanged.utils";
-import { hasOperatingHoursChanged } from "./hasOperatingHoursChanged.utils";
-import { getPhotoChanges } from "./getPhotoChanges.utils";
-import { getDocumentChanges } from "./getDocumentChanges.utils";
+import { hasUnsavedOperatingHoursChanges } from "./hasOperatingHoursChanged.utils";
 
 import type { NormalizedIdentity } from "../normalizers/normalizeIdentity.utils";
 import type { NormalizedLocation } from "../normalizers/normalizeLocation.utils";
 import type { NormalizedOperatingHours } from "../normalizers/normalizeOperatingHours.utils";
 
-import { z } from "zod";
 import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
+import { z } from "zod";
 
 type MerchantRegistrationFormInput = z.input<typeof merchantRegistrationSchema>;
 
@@ -57,7 +57,7 @@ export function getUnsavedSections({
   }
 
   if (
-    hasOperatingHoursChanged(
+    hasUnsavedOperatingHoursChanges(
       lastSavedOperatingHours,
       normalizeOperatingHours(values),
     )

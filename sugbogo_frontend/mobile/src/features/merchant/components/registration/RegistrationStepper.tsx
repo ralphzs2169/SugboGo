@@ -1,5 +1,5 @@
-import { View, Text } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text, View } from "react-native";
 
 const STEP_CIRCLE_SIZE = 36;
 const CONNECTOR_HEIGHT = 2;
@@ -10,6 +10,7 @@ type RegistrationStepperProps = {
   highestCompletedStep: number;
   editingStep: number | null;
   title: string;
+  isResubmission?: boolean;
 };
 
 const STEP_ICONS = [
@@ -33,6 +34,7 @@ export default function RegistrationStepper({
   highestCompletedStep,
   editingStep,
   title,
+  isResubmission = false,
 }: RegistrationStepperProps) {
   return (
     <View className="bg-surface pb-4 pt-2 border-b border-border-primary">
@@ -42,7 +44,11 @@ export default function RegistrationStepper({
       >
         Step {currentStep} of {totalSteps}
         <Text className="text-text-tertiary"> • </Text>
-        <Text className="font-semibold text-text-primary">{title}</Text>
+        <Text className="font-semibold text-text-primary">
+          {isResubmission && currentStep === totalSteps
+            ? "Review & Resubmit"
+            : title}
+        </Text>
       </Text>
 
       <View className="flex-row items-center">

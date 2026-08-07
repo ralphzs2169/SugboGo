@@ -4,13 +4,13 @@ import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import "../../global.css";
-import { useFonts } from "expo-font";
 
 export default function RootLayout() {
   useRestoreSession();

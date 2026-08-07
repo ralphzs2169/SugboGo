@@ -1,30 +1,21 @@
-import { NormalizedIdentity } from "../normalizers/normalizeIdentity.utils";
+import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "@/features/merchant/constants/registration/defaultValues.constants";
+import { isEqual } from "lodash";
+import {
+  NormalizedIdentity,
+  normalizeIdentity,
+} from "../normalizers/normalizeIdentity.utils";
 
-/**
- * Determines whether the business identity has changed
- * since the last successful save.
- */
+const DEFAULT_IDENTITY = normalizeIdentity(
+  MERCHANT_REGISTRATION_DEFAULT_VALUES,
+);
+
 export function hasIdentityChanged(
   previous: NormalizedIdentity | null,
   current: NormalizedIdentity,
 ): boolean {
   if (previous === null) {
-    return true;
+    return !isEqual(current, DEFAULT_IDENTITY);
   }
 
-  return (
-    previous.businessName !== current.businessName ||
-    previous.businessDescription !== current.businessDescription ||
-    previous.contactNumber !== current.contactNumber ||
-    previous.businessEmail !== current.businessEmail ||
-    previous.website !== current.website ||
-    previous.representativeName !== current.representativeName ||
-    previous.representativeRole !== current.representativeRole ||
-    previous.businessClusterId !== current.businessClusterId ||
-    previous.businessCategoryId !== current.businessCategoryId ||
-    previous.specialtyTags.length !== current.specialtyTags.length ||
-    previous.specialtyTags.some(
-      (id, index) => id !== current.specialtyTags[index],
-    )
-  );
+  return !isEqual(previous, current);
 }

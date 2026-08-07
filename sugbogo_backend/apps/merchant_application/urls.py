@@ -3,7 +3,10 @@ from django.urls import path
 from .views.application_location_views import (
     location_save_view,
 )
-from .views.application_views import application_detail_view, application_submit_view
+from .views.application_views import (
+    application_detail_view,
+    application_submit_view,
+)
 from .views.category_options_views import CategoryOptionsView
 from .views.cluster_options_views import ClusterOptionsView
 from .views.document_views import document_save_view
@@ -17,6 +20,7 @@ from .views.location_views import (
 from .views.operating_hours_views import operating_hours_save_view
 from .views.photo_views import photo_save_view
 from .views.tag_options_views import SpecialtyTagOptionsView
+from .views.review_views import application_review_view
 
 urlpatterns = [
     # Merchant Application Options endpoints
@@ -38,5 +42,6 @@ urlpatterns = [
     path("operating-hours/", operating_hours_save_view,name="application-operating-hours",),
     path("photos/",name="application-photos",view=photo_save_view,),
     path("documents/",document_save_view,name="application-document-upload",),
+    path("<int:application_id>/review/", application_review_view, name="application-review"),
   
 ]

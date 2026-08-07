@@ -5,6 +5,7 @@ from apps.merchant_application.models import (
     MerchantApplicationIdentity,
 )
 from apps.merchant_application.services.application_service import ApplicationService
+from apps.users.models import User
 
 
 class IdentityService:
@@ -24,17 +25,14 @@ class IdentityService:
 
         specialty_tags = validated_data.pop("specialty_tags", None)
 
-        application = (
-            MerchantApplication.objects
-            .filter(USER_ID=user)
-            .order_by("-MAPP_CREATED_AT")
-            .first()
+        # Locking the user row serializes first saves from multiple devices.
+        # The database uniqueness constraint is the final backstop.
+        locked_user = User.objects.select_for_update().get(pk=user.pk)
+        application, _ = MerchantApplication.objects.get_or_create(
+            USER_ID=locked_user
         )
 
-        if application is None:
-            application = MerchantApplication.objects.create(
-                USER_ID=user
-            )
+        ApplicationService.validate_application_editable(application)
 
         identity = getattr(application, "identity", None)
 

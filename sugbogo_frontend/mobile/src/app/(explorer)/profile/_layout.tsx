@@ -1,9 +1,9 @@
-import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import {
   defaultStackScreenOptions,
   slideFromRight,
 } from "@/shared/navigation/stackOptions";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 
 /**
  * Layout for the profile feature stack.
@@ -37,7 +37,7 @@ export default function ProfileLayout() {
           options={{
             ...defaultStackScreenOptions,
             ...slideFromRight,
-            title: "Merchant Registration Portal",
+            title: "Merchant Portal",
           }}
         />
 

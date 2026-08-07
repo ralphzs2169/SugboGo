@@ -1,13 +1,13 @@
-import { router } from "expo-router";
-import { useState } from "react";
-import ConfirmModal from "@/shared/components/modals/ConfirmModal";
-import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
-import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import useNearbyLandmarks from "@/features/merchant/hooks/registration/useNearbyLandmarks";
 import LocationPickerScreen from "@/features/merchant/screens/LocationPickerScreen";
-import Toast from "react-native-toast-message";
+import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+import { router } from "expo-router";
+import { useState } from "react";
 import { useFormContext } from "react-hook-form";
+import Toast from "react-native-toast-message";
 
 /**
  * Route wrapper for the full-screen business location picker.
@@ -23,7 +23,7 @@ import { useFormContext } from "react-hook-form";
  */
 export default function BusinessLocationPickerPage() {
   const form = useFormContext<MerchantRegistrationForm>();
-  console.log("FORM CONTEXT:", form);
+
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
   );
@@ -51,6 +51,10 @@ export default function BusinessLocationPickerPage() {
 
   const setAddressLoadFailed = useMerchantRegistrationStore(
     (state) => state.setAddressLoadFailed,
+  );
+
+  const setAddressLoadFailures = useMerchantRegistrationStore(
+    (state) => state.setAddressLoadFailures,
   );
 
   const setSelectedAddress = useMerchantRegistrationStore(
@@ -99,6 +103,13 @@ export default function BusinessLocationPickerPage() {
         barangay: location.barangay,
         streetAddress: location.streetAddress,
         unit: "",
+      });
+
+      setAddressLoadFailures({
+        province: !location.province,
+        city: !location.city,
+        barangay: !location.barangay,
+        streetAddress: !location.streetAddress,
       });
 
       setSelectedLandmarks(result.landmarks);
@@ -166,10 +177,10 @@ export default function BusinessLocationPickerPage() {
       />
 
       <ConfirmModal
-        icon="map-marker-radius"
+        // icon="map-marker-radius"
         visible={showRefreshModal}
-        title="Refresh nearby landmarks?"
-        message="Changing your business location will replace your current landmarks with the nearest landmarks for the new location."
+        title="Update location details?"
+        message="Changing your location will update your address and nearby landmarks. Do you want to continue?"
         confirmText="Continue"
         cancelText="Keep Current"
         onCancel={() => {
@@ -191,7 +202,7 @@ export default function BusinessLocationPickerPage() {
           );
         }}
         isLoading={isRefreshingLandmarks}
-        loadingText="Loading nearby landmarks..."
+        loadingText="Updating location details..."
       />
     </>
   );

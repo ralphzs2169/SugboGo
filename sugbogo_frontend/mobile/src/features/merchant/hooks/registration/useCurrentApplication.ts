@@ -24,7 +24,7 @@ export default function useCurrentApplication() {
     setError(false);
 
     const response = await getCurrentApplication();
-
+    console.log("Operating hours from API:", JSON.stringify(response, null, 2));
     if (!response.success) {
       if (response.code === "APPLICATION_NOT_FOUND") {
         /**

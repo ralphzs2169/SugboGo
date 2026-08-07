@@ -153,15 +153,25 @@ export interface ApplicationDocumentResponse {
   file_name: string | null;
 }
 
+export type ApplicationFeedbackSection =
+  "identity" | "location" | "operating_hours" | "photos" | "documents";
+
+export interface ApplicationFeedbackResponse {
+  section: ApplicationFeedbackSection;
+  message: string;
+}
+
 // Merchant Application Detail Types
 export interface ApplicationDetailResponse {
   id: number;
   status: "draft" | "submitted" | "rejected" | "approved";
-  current_step: number;
   highest_completed_step: number;
   submitted_at: string | null;
   reviewed_at: string | null;
+
+  feedback: ApplicationFeedbackResponse[];
   rejection_reason: string | null;
+
   created_at: string;
   updated_at: string;
 

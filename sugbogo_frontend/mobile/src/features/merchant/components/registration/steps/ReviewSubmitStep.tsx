@@ -1,51 +1,60 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 
-import { useFormContext } from "react-hook-form";
-import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import type {
-  ClusterOption,
   CategoryOption,
+  ClusterOption,
 } from "@/features/merchant/types/merchantRegistration.types";
+import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import { useFormContext } from "react-hook-form";
 
+import AdministratorFeedback from "../AdministratorFeedback";
+import ReviewSection from "../review/ReviewSection";
 import ReviewBusinessIdentity from "../review/sections/ReviewBusinessIdentity";
 import ReviewBusinessLocation from "../review/sections/ReviewBusinessLocation";
-import ReviewOperatingHours from "../review/sections/ReviewOperatingHours";
 import ReviewBusinessPhotos from "../review/sections/ReviewBusinessPhotos";
+import ReviewOperatingHours from "../review/sections/ReviewOperatingHours";
 import ReviewVerificationDocuments from "../review/sections/ReviewVerificationDocuments";
-import ReviewSection from "../review/ReviewSection";
 
 type ReviewSubmitStepProps = {
   clusters: ClusterOption[];
   categories: CategoryOption[];
   onEditSection: (step: number) => void;
+  isResubmission?: boolean;
+  feedback: ApplicationFeedbackResponse[];
 };
 
 export default function ReviewSubmitStep({
   clusters,
   categories,
   onEditSection,
+  isResubmission = false,
+  feedback,
 }: ReviewSubmitStepProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
   const form = watch();
+
   return (
     <>
       <View className="">
         <ReviewSection
           icon="check-circle-outline"
-          title="Review Your Application"
-          description="Check your information before submitting your application."
+          title={
+            isResubmission ? "Review Your Changes" : "Review Your Application"
+          }
+          description={
+            isResubmission
+              ? "Review your updates before resubmitting your application."
+              : "Check your information before submitting your application."
+          }
           isPageHeader
           showBorder={false}
         />
-        {/* <View className="px-6 pb-5 pt-2">
-          <Text className="text-2xl font-bold text-text-primary">
-            Review Your Application
-          </Text>
 
-          <Text className="mt-1 text-sm leading-5 text-text-secondary">
-            Check your information before submitting your application.
-          </Text>
-        </View> */}
+        {isResubmission && (
+          <AdministratorFeedback feedback={feedback ?? []} padding />
+        )}
+
         <ReviewBusinessIdentity
           form={form}
           clusters={clusters}

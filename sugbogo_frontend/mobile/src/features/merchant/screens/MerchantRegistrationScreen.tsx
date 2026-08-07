@@ -10,50 +10,50 @@ import {
   merchantRegistrationSchema,
 } from "../validation/merchantRegistration.schema";
 
+import RegistrationStepContent from "../components/registration/RegistrationStepContent";
+import { REGISTRATION_STEPS } from "../constants/registration/registrationSteps";
 import useCategories from "../hooks/registration/useCategories";
 import useClusters from "../hooks/registration/useClusters";
 import useRegistrationValidation from "../hooks/registration/useRegistrationValidation";
-import RegistrationStepContent from "../components/registration/RegistrationStepContent";
-import { REGISTRATION_STEPS } from "../constants/registration/registrationSteps";
 
+import { useEffect } from "react";
+import { BackHandler } from "react-native";
 import ReviewCelebration from "../components/registration/ReviewCelebration";
 import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "../constants/registration/defaultValues.constants";
 import useRegistrationNavigation from "../hooks/registration/useRegistrationNavigation";
-import { BackHandler } from "react-native";
-import { useEffect } from "react";
 
+import { mapApplicationToForm } from "@/features/merchant/utils/merchant-application/mappers/mapApplicationToForm.utils";
+import LoadingScreen from "@/shared/components/LoadingScreen";
+import { router, useNavigation } from "expo-router";
+import useCurrentApplication from "../hooks/registration/useCurrentApplication";
+import useSaveApplicationDocuments from "../hooks/registration/useSaveApplicationDocuments";
+import useSaveApplicationPhotos from "../hooks/registration/useSaveApplicationPhotos";
 import useSaveIdentity from "../hooks/registration/useSaveIdentity";
 import useSaveLocation from "../hooks/registration/useSaveLocation";
 import useSaveOperatingHours from "../hooks/registration/useSaveOperatingHours";
-import useSaveApplicationPhotos from "../hooks/registration/useSaveApplicationPhotos";
-import {
-  ApplicationDetailResponse,
-  ApplicationIdentityPayload,
-  ApplicationLocationPayload,
-  ApplicationOperatingHoursPayload,
-} from "../types/registration/registrationApi.types";
-import Toast from "react-native-toast-message";
-import { handleSystemError } from "@/shared/utils/apiErrors";
-import useSaveApplicationDocuments from "../hooks/registration/useSaveApplicationDocuments";
-import { mapApplicationPhotos } from "../utils/merchant-application/mappers/mapApplicationPhotos.utils";
-import { mapApplicationDocuments } from "../utils/merchant-application/mappers/mapApplicationDocuments.utils";
-import { hasIdentityChanged } from "../utils/merchant-application/comparisons/hasIdentityChanged.utils";
-import { buildIdentityPayload } from "../utils/merchant-application/builders/buildIdentityPayload.utils";
-import { hasLocationChanged } from "../utils/merchant-application/comparisons/hasLocationChanged.utils";
-import { buildLocationPayload } from "../utils/merchant-application/builders/buildLocationPayload.utils";
-import { useMerchantRegistrationStore } from "../stores/merchantRegistrationStore";
-import { hasOperatingHoursChanged } from "../utils/merchant-application/comparisons/hasOperatingHoursChanged.utils";
-import { getPhotoChanges } from "../utils/merchant-application/comparisons/getPhotoChanges.utils";
-import { getDocumentChanges } from "../utils/merchant-application/comparisons/getDocumentChanges.utils";
 import useSubmitApplication from "../hooks/registration/useSubmitApplication";
-import { router, useNavigation } from "expo-router";
-import useCurrentApplication from "../hooks/registration/useCurrentApplication";
-import { mapApplicationToForm } from "@/features/merchant/utils/merchant-application/mappers/mapApplicationToForm.utils";
+import { useMerchantRegistrationStore } from "../stores/merchantRegistrationStore";
+import { ApplicationDetailResponse } from "../types/registration/registrationApi.types";
+import { buildIdentityPayload } from "../utils/merchant-application/builders/buildIdentityPayload.utils";
+import { buildLocationPayload } from "../utils/merchant-application/builders/buildLocationPayload.utils";
 import buildOperatingHoursPayload from "../utils/merchant-application/builders/buildOperatingHoursPayload.utils";
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import { getDocumentChanges } from "../utils/merchant-application/comparisons/getDocumentChanges.utils";
+import { getPhotoChanges } from "../utils/merchant-application/comparisons/getPhotoChanges.utils";
+import { hasIdentityChanged } from "../utils/merchant-application/comparisons/hasIdentityChanged.utils";
+import { hasLocationChanged } from "../utils/merchant-application/comparisons/hasLocationChanged.utils";
+import { shouldSaveOperatingHours } from "../utils/merchant-application/comparisons/hasOperatingHoursChanged.utils";
+import { mapApplicationDocuments } from "../utils/merchant-application/mappers/mapApplicationDocuments.utils";
+import { mapApplicationPhotos } from "../utils/merchant-application/mappers/mapApplicationPhotos.utils";
 import { mapApplicationToStore } from "../utils/merchant-application/mappers/mapApplicationToStore.utils";
 
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
+import { buildDocumentUploadFormData } from "../utils/merchant-application/builders/buildDocumentUploadFormData.utils";
+import { buildPhotoUploadFormData } from "../utils/merchant-application/builders/buildPhotoUploadFormData.utils";
+import { getUnsavedSections } from "../utils/merchant-application/comparisons/getUnsavedSections.utils";
+import DiscardChangesMessage from "../utils/merchant-application/discardChangesMessage.utils";
+
+import UnresolvedFeedbackMessage from "../components/registration/UnresolvedFeedbackMessage";
 import {
   NormalizedIdentity,
   normalizeIdentity,
@@ -66,11 +66,6 @@ import {
   NormalizedOperatingHours,
   normalizeOperatingHours,
 } from "../utils/merchant-application/normalizers/normalizeOperatingHours.utils";
-import { buildPhotoUploadFormData } from "../utils/merchant-application/builders/buildPhotoUploadFormData.utils";
-import { buildDocumentUploadFormData } from "../utils/merchant-application/builders/buildDocumentUploadFormData.utils";
-import { getUnsavedSections } from "../utils/merchant-application/comparisons/getUnsavedSections.utils";
-import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
-import DiscardChangesMessage from "../utils/merchant-application/discardChangesMessage.utils";
 
 /**
  * Merchant registration wizard screen.
@@ -139,6 +134,9 @@ export default function MerchantRegistrationScreen() {
   const { application, isLoading: isLoadingApplication } =
     useCurrentApplication();
 
+  // Administrator feedback
+  const feedback = application?.feedback ?? [];
+
   // Mutations
   const { saveIdentity, isSaving: isSavingIdentity } = useSaveIdentity();
 
@@ -158,6 +156,9 @@ export default function MerchantRegistrationScreen() {
   const [showDiscardChangesModal, setShowDiscardChangesModal] = useState(false);
 
   const [showReviewCelebration, setShowReviewCelebration] = useState(false);
+
+  const [showResubmissionReminderModal, setShowResubmissionReminderModal] =
+    useState(false);
 
   // Merchant Registration Store to persist selected location, address, and landmarks across steps.
   const setSelectedAddress = useMerchantRegistrationStore(
@@ -318,7 +319,11 @@ export default function MerchantRegistrationScreen() {
 
     setLastSavedIdentity(normalizeIdentity(values));
     setLastSavedLocation(normalizeLocation(values));
-    setLastSavedOperatingHours(normalizeOperatingHours(values));
+    if (application.operating_hours.length > 0) {
+      setLastSavedOperatingHours(normalizeOperatingHours(values));
+    } else {
+      setLastSavedOperatingHours(null);
+    }
     setLastSavedPhotos(values.businessPhotos);
     setLastSavedDocuments(values.verificationDocuments);
   };
@@ -405,8 +410,11 @@ export default function MerchantRegistrationScreen() {
       const currentOperatingHours = normalizeOperatingHours(values);
       const payload = buildOperatingHoursPayload(values);
 
+      // Save only when this section has never been saved before,
+      // or when the current operating hours differ from the last
+      // successfully saved version.
       if (
-        hasOperatingHoursChanged(lastSavedOperatingHours, currentOperatingHours)
+        shouldSaveOperatingHours(lastSavedOperatingHours, currentOperatingHours)
       ) {
         const response = await saveOperatingHours(payload);
 
@@ -488,6 +496,20 @@ export default function MerchantRegistrationScreen() {
   };
 
   /**
+   * Submits the merchant application and navigates to the
+   * submission success screen when successful.
+   */
+  const handleSubmitApplication = async () => {
+    const result = await submit();
+
+    if (!result.success) {
+      return;
+    }
+
+    router.replace("/(explorer)/merchant-registration/submission-success");
+  };
+
+  /**
    * Saves the current step and advances to the next step.
    *
    * Displays the completion celebration after Step 5 before moving
@@ -495,15 +517,15 @@ export default function MerchantRegistrationScreen() {
    */
   const handleNext = async () => {
     if (currentStep === REVIEW_STEP) {
-      const result = await submit();
-
-      if (!result.success) {
+      if (isResubmission && feedback.length > 0) {
+        setShowResubmissionReminderModal(true);
         return;
       }
 
-      router.replace("/(explorer)/merchant-registration/submission-success");
+      await handleSubmitApplication();
       return;
     }
+
     const success = await saveCurrentStep();
 
     if (!success) {
@@ -583,11 +605,13 @@ export default function MerchantRegistrationScreen() {
   if (isLoadingApplication) {
     return (
       <LoadingScreen
-        title="Restoring your progress"
-        description="Loading your saved registration details..."
+        title="Preparing your registration"
+        description="Please wait while we load your registration details."
       />
     );
   }
+
+  const isResubmission = application?.status === "rejected";
 
   return (
     <>
@@ -601,6 +625,7 @@ export default function MerchantRegistrationScreen() {
               editingStep={editingStep}
               highestCompletedStep={highestCompletedStep}
               title={REGISTRATION_STEPS[currentStep - 1].title}
+              isResubmission
             />
           }
           footer={
@@ -612,6 +637,7 @@ export default function MerchantRegistrationScreen() {
               isEditing={editingStep !== null}
               onSaveAndReview={handleSaveAndReview}
               isSubmitting={isSavingCurrentStep}
+              isResubmission
             />
           }
 
@@ -628,6 +654,8 @@ export default function MerchantRegistrationScreen() {
             refetchClusters={refetchClusters}
             refetchCategories={refetchCategories}
             onEditSection={handleEditSection}
+            isResubmission={isResubmission}
+            feedback={feedback}
           />
         </RegistrationLayout>
       </FormProvider>
@@ -643,6 +671,21 @@ export default function MerchantRegistrationScreen() {
         onCancel={() => {
           setShowDiscardChangesModal(false);
           pendingExitAction.current = null;
+        }}
+      />
+
+      <ConfirmModal
+        visible={showResubmissionReminderModal}
+        title="Ready to resubmit?"
+        message={<UnresolvedFeedbackMessage feedback={feedback} />}
+        confirmText="Submit Application"
+        cancelText="Review"
+        onConfirm={async () => {
+          setShowResubmissionReminderModal(false);
+          await handleSubmitApplication();
+        }}
+        onCancel={() => {
+          setShowResubmissionReminderModal(false);
         }}
       />
     </>

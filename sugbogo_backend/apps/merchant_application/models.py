@@ -33,9 +33,48 @@ class MerchantApplication(models.Model):
 
     class Meta:
         db_table = 'MERCHANT_APPLICATION'
+        constraints = [
+            models.UniqueConstraint(
+                fields=("USER_ID",),
+                name="unique_merchant_application_per_user",
+            ),
+        ]
 
     def __str__(self):
         return f"Application #{self.MAPP_ID} ({self.MAPP_STATUS})"
+
+
+class MerchantApplicationFeedback(models.Model):
+    class Section(models.TextChoices):
+        IDENTITY = "identity", "Business Identity"
+        LOCATION = "location", "Business Location"
+        OPERATING_HOURS = "operating_hours", "Operating Hours"
+        PHOTOS = "photos", "Business Photos"
+        DOCUMENTS = "documents", "Verification Documents"
+
+    MAPF_ID = models.AutoField(primary_key=True)
+
+    MAPP_ID = models.ForeignKey(
+        MerchantApplication,
+        on_delete=models.CASCADE,
+        db_column="MAPP_ID",
+        related_name="feedback",
+    )
+
+    MAPF_SECTION = models.CharField(
+        max_length=30,
+        choices=Section.choices,
+    )
+
+    MAPF_MESSAGE = models.TextField()
+
+    MAPF_CREATED_AT = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "MERCHANT_APPLICATION_FEEDBACK"
+
+    def __str__(self):
+        return f"Application #{self.MAPP_ID.pk} - {self.MAPF_SECTION}"
 
 
 class MerchantApplicationIdentity(models.Model):

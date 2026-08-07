@@ -1,9 +1,8 @@
 import { useState } from "react";
 
-import { submitApplication } from "../../api/merchantApplication.service";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import Toast from "react-native-toast-message";
-import { router } from "expo-router";
+import { submitApplication } from "../../api/merchantApplication.service";
 
 /**
  * Handles final merchant application submission.
@@ -20,7 +19,7 @@ export default function useSubmitApplication() {
 
     try {
       const response = await submitApplication();
-      console.log(JSON.stringify(response, null, 2));
+
       if (!response.success) {
         if (handleSystemError(response)) {
           return {

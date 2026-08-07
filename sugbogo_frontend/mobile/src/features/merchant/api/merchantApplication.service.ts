@@ -7,7 +7,7 @@ import {
   SpecialtyTagOption,
 } from "../types/merchantRegistration.types";
 import {
-  ApplicationDocumentPayload,
+  ApplicationDetailResponse,
   ApplicationDocumentResponse,
   ApplicationIdentityPayload,
   ApplicationIdentityResponse,
@@ -15,8 +15,6 @@ import {
   ApplicationLocationResponse,
   ApplicationOperatingHoursPayload,
   ApplicationOperatingHoursResponse,
-  ApplicationPhotoPayload,
-  ApplicationDetailResponse,
   ApplicationPhotoResponse,
 } from "../types/registration/registrationApi.types";
 
@@ -95,6 +93,13 @@ export async function saveApplicationDocuments(
       },
     }),
   );
+}
+
+// Application editing
+export async function startEditingApplication(): Promise<
+  ApiResponse<ApplicationDetailResponse>
+> {
+  return request(apiClient.post("/merchant/application/start-edit/"));
 }
 
 // Final submission

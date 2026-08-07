@@ -1,13 +1,14 @@
 import { TextInput, TextInputProps } from "react-native";
 
-import InputContainer from "./InputContainer";
 import { theme } from "@/constants/theme";
+import InputContainer from "./InputContainer";
 
 interface FormInputProps extends TextInputProps {
   label: string;
   error?: string;
   rightElement?: React.ReactNode;
   required?: boolean;
+  helperText?: string;
 }
 
 /**
@@ -19,6 +20,7 @@ export default function FormInput({
   rightElement,
   required = false,
   editable = true,
+  helperText,
   ...props
 }: FormInputProps) {
   return (
@@ -28,6 +30,7 @@ export default function FormInput({
       rightElement={rightElement}
       required={required}
       editable={editable}
+      helperText={helperText}
     >
       <TextInput
         className={`flex-1 py-[14px] text-body ${

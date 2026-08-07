@@ -1,18 +1,18 @@
+import { theme } from "@/constants/theme";
+import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
+import Button from "@/shared/components/Button";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
-import { useFormContext } from "react-hook-form";
 import { router } from "expo-router";
 import { useEffect } from "react";
-import { theme } from "@/constants/theme";
+import { useFormContext } from "react-hook-form";
+import { Text, View } from "react-native";
+import { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
+import RegistrationSection from "../RegistrationSection";
+import CapacityHint from "./CapacityHint";
+import DisabledSelectionState from "./DisabledSelectionState";
 import LandmarkCard from "./LandmarkCard";
 import LandmarksEmptyState from "./LandmarkEmptyState";
 import LandmarksLoadFailedState from "./landmark-picker/LandmarksFailedLoadtState";
-import Button from "@/shared/components/Button";
-import CapacityHint from "./CapacityHint";
-import DisabledSelectionState from "./DisabledSelectionState";
-import RegistrationSection from "../RegistrationSection";
-import { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
-import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 
 const MAX_SELECTED_LANDMARKS = 5;
 
@@ -70,7 +70,7 @@ export default function LandmarksSection() {
     <RegistrationSection
       icon="map-marker-radius-outline"
       title="Nearby Landmarks"
-      description="Nearby landmarks are automatically suggested after you pin your business location. Review them and add custom landmarks if needed."
+      description="3 nearby landmarks are suggested automatically after you pin your location. You can replace them or add your own landmarks as needed."
     >
       {!hasSelectedLocation ? (
         <DisabledSelectionState />

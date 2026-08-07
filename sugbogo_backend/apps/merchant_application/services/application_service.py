@@ -5,6 +5,7 @@ from rest_framework.exceptions import ValidationError
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationDocument,
+    MerchantApplicationFeedback,
     MerchantApplicationOperatingHours,
     MerchantApplicationPhotos,
 )
@@ -21,6 +22,17 @@ class ApplicationService:
         return MerchantApplication.objects.filter(
             USER_ID=user
         ).order_by("-MAPP_CREATED_AT").first()
+
+    @staticmethod
+    def validate_application_editable(application):
+        """Allow merchant changes only while drafting or correcting a rejection."""
+        if application.MAPP_STATUS not in (
+            MerchantApplication.ApplicationStatus.DRAFT,
+            MerchantApplication.ApplicationStatus.REJECTED,
+        ):
+            raise ValidationError(
+                "This application is under review or has already been approved."
+            )
 
 
     
@@ -49,6 +61,8 @@ class ApplicationService:
 
         Raises a ValidationError if the user does not have access.
         """
+        ApplicationService.validate_application_editable(application)
+
         if application.MAPP_HIGHEST_COMPLETED_STEP < step_number - 1:
             raise ValidationError(
                 f"Complete Step {application.MAPP_HIGHEST_COMPLETED_STEP + 1} first."
@@ -120,16 +134,17 @@ class ApplicationService:
     @transaction.atomic
     def submit_application(application):
         """
-        Submit a completed merchant application.
+        Submit or resubmit a merchant application.
 
-        Submission is only allowed for draft applications that have
-        successfully completed all registration steps.
+        Draft applications may be submitted for the first time.
+        Rejected applications may be resubmitted after the merchant
+        addresses the administrator's feedback.
         """
 
         # Validate that the application is in draft 
-        if (
-            application.MAPP_STATUS
-            != MerchantApplication.ApplicationStatus.DRAFT
+        if application.MAPP_STATUS not in (
+            MerchantApplication.ApplicationStatus.DRAFT,
+            MerchantApplication.ApplicationStatus.REJECTED,
         ):
             raise ValidationError(
                 "This application can no longer be submitted."
@@ -145,21 +160,78 @@ class ApplicationService:
             application
         )
 
+         # Remove previous admin feedback when starting a new review cycle.
+        if application.MAPP_STATUS == MerchantApplication.ApplicationStatus.REJECTED:
+            application.feedback.all().delete()
+
         # Update the application status to submitted and record the submission timestamp
         application.MAPP_STATUS = (
             MerchantApplication.ApplicationStatus.SUBMITTED
         )
 
         application.MAPP_SUBMITTED_AT = timezone.now()
+        application.MAPP_REVIEWED_AT = None
+        application.MAPP_REJECTION_REASON = None
 
         application.save(
             update_fields=[
                 "MAPP_STATUS",
                 "MAPP_SUBMITTED_AT",
+                "MAPP_REVIEWED_AT",
+                "MAPP_REJECTION_REASON",
                 "MAPP_UPDATED_AT",
             ]
         )
 
         return application
 
+    @staticmethod
+    @transaction.atomic
+    def review_application(application, action, rejection_reason="", feedback=None):
+        """Complete one admin review of a submitted merchant application."""
+        locked_application = MerchantApplication.objects.select_for_update().get(
+            pk=application.pk
+        )
+
+        if (
+            locked_application.MAPP_STATUS
+            != MerchantApplication.ApplicationStatus.SUBMITTED
+        ):
+            raise ValidationError("Only submitted applications can be reviewed.")
+
+        locked_application.MAPP_REVIEWED_AT = timezone.now()
+
+        if action == "approve":
+            locked_application.MAPP_STATUS = (
+                MerchantApplication.ApplicationStatus.APPROVED
+            )
+            locked_application.MAPP_REJECTION_REASON = None
+            locked_application.feedback.all().delete()
+        else:
+            locked_application.MAPP_STATUS = (
+                MerchantApplication.ApplicationStatus.REJECTED
+            )
+            locked_application.MAPP_REJECTION_REASON = rejection_reason
+            locked_application.feedback.all().delete()
+            MerchantApplicationFeedback.objects.bulk_create(
+                [
+                    MerchantApplicationFeedback(
+                        MAPP_ID=locked_application,
+                        MAPF_SECTION=item["section"],
+                        MAPF_MESSAGE=item["message"],
+                    )
+                    for item in feedback or []
+                ]
+            )
+
+        locked_application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_REVIEWED_AT",
+                "MAPP_REJECTION_REASON",
+                "MAPP_UPDATED_AT",
+            ]
+        )
+
+        return locked_application
 

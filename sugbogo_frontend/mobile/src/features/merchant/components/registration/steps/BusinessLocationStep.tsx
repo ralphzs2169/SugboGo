@@ -1,15 +1,15 @@
+import { router } from "expo-router";
 import { useCallback, useEffect } from "react";
 import { useFormContext } from "react-hook-form";
-import { router } from "expo-router";
-import { View, Text } from "react-native";
+import { Text, View } from "react-native";
 
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
+import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
+import LandmarksSection from "../landmark/LandmarksSection";
+import AddressLoadFailedState from "../location/AddressFailedLoadState";
 import LocationPickerMap from "../location/LocationPickerMap";
 import RegistrationSection from "../RegistrationSection";
-import LandmarksSection from "../landmark/LandmarksSection";
-import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
-import AddressLoadFailedState from "../location/AddressFailedLoadState";
 
 /**
  * Displays the business location step of the merchant
@@ -32,7 +32,6 @@ import AddressLoadFailedState from "../location/AddressFailedLoadState";
  */
 export default function BusinessLocationStep() {
   const {
-    control,
     setValue,
     formState: { errors },
     clearErrors,
@@ -52,6 +51,10 @@ export default function BusinessLocationStep() {
 
   const addressLoadFailed = useMerchantRegistrationStore(
     (state) => state.addressLoadFailed,
+  );
+
+  const addressLoadFailures = useMerchantRegistrationStore(
+    (state) => state.addressLoadFailures,
   );
 
   const hasSelectedLocation = selectedLocation !== null;
@@ -175,12 +178,17 @@ export default function BusinessLocationStep() {
           name="province"
           label="Province"
           required
-          editable={false}
+          editable={hasSelectedLocation}
           showError={hasSelectedLocation}
           placeholder={
             hasSelectedLocation
               ? "Detected automatically"
               : "Select a location first"
+          }
+          helperText={
+            addressLoadFailures.province
+              ? "Unable to detect automatically. Please enter it manually."
+              : undefined
           }
         />
 
@@ -188,12 +196,17 @@ export default function BusinessLocationStep() {
           name="city"
           label="City / Municipality"
           required
-          editable={false}
+          editable={hasSelectedLocation}
           showError={hasSelectedLocation}
           placeholder={
             hasSelectedLocation
               ? "Detected automatically"
               : "Select a location first"
+          }
+          helperText={
+            addressLoadFailures.city
+              ? "Unable to detect automatically. Please enter it manually."
+              : undefined
           }
         />
 
@@ -205,6 +218,11 @@ export default function BusinessLocationStep() {
           showError={hasSelectedLocation}
           placeholder={
             hasSelectedLocation ? "Enter barangay" : "Select a location first"
+          }
+          helperText={
+            addressLoadFailures.barangay
+              ? "Unable to detect automatically. Please enter it manually."
+              : undefined
           }
         />
 
@@ -218,6 +236,11 @@ export default function BusinessLocationStep() {
             hasSelectedLocation
               ? "e.g. Gov. Cuenco Avenue"
               : "Select a location first"
+          }
+          helperText={
+            addressLoadFailures.streetAddress
+              ? "Unable to detect automatically. Please enter it manually."
+              : undefined
           }
         />
 

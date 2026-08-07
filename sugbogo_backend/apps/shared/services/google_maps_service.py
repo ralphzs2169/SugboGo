@@ -8,7 +8,7 @@ class GoogleMapsService:
     GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
     GOOGLE_PLACES_URL = "https://places.googleapis.com/v1/places"
 
-    NEARBY_LANDMARK_MAX_RESULTS = 5
+    NEARBY_LANDMARK_MAX_RESULTS = 3
     NEARBY_LANDMARK_RADIUS_METERS = 1000.0
     REQUEST_TIMEOUT_SECONDS = 10 # Maximum time to wait for a Google Maps API response.
 

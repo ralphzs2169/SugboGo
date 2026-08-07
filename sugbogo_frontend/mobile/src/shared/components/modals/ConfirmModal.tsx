@@ -1,8 +1,8 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
-import { ActivityIndicator, Modal, Pressable, Text, View } from "react-native";
-import Button from "../Button";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ReactNode } from "react";
+import { ActivityIndicator, Modal, Text, View } from "react-native";
+import Button from "../Button";
 
 interface ConfirmModalProps {
   visible: boolean;
@@ -49,6 +49,8 @@ export default function ConfirmModal({
     <Modal
       visible={visible}
       transparent
+      animationType="none"
+
       onRequestClose={() => {
         if (!isLoading) {
           onCancel();
@@ -97,7 +99,6 @@ export default function ConfirmModal({
               onPress={onCancel}
               disabled={isLoading}
               variant="outline"
-              className="flex-[3]"
             />
 
             <Button
@@ -105,8 +106,8 @@ export default function ConfirmModal({
               onPress={onConfirm}
               disabled={isLoading}
               variant={destructive ? "danger" : "primary"}
-              className="flex-[7]"
-              fontClassName="fole-bold"
+              className="flex-1"
+              fontClassName="font-bold"
             />
           </View>
         </View>

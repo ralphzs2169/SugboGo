@@ -8,6 +8,22 @@ type PhotoChanges = {
 };
 
 /**
+ * Returns true when every photo collection is empty.
+ *
+ * This prevents a brand-new registration form from being
+ * treated as having unsaved photo changes before the user
+ * uploads anything.
+ */
+function isPhotosEmpty(photos: BusinessPhotos): boolean {
+  return (
+    photos.storefront.length === 0 &&
+    photos.interior.length === 0 &&
+    photos.products.length === 0 &&
+    photos.additional.length === 0
+  );
+}
+
+/**
  * Finds the IDs of photos that existed previously but have since been removed.
  */
 function findDeletedPhotoIds(
@@ -25,6 +41,9 @@ function findDeletedPhotoIds(
 
 /**
  * Returns whether any newly added photos exist.
+ *
+ * Newly selected photos have no backend ID yet because they
+ * have not been uploaded.
  */
 function hasNewPhotos(photos: BusinessPhotos): boolean {
   return (
@@ -42,10 +61,13 @@ export function getPhotoChanges(
   previous: BusinessPhotos | null,
   current: BusinessPhotos,
 ): PhotoChanges {
-  // Nothing has ever been saved, so upload everything.
+  /**
+   * During a brand-new application, nothing has been saved yet.
+   * If the photo collections are still empty, there are no pending changes.
+   */
   if (previous === null) {
     return {
-      hasChanges: true,
+      hasChanges: !isPhotosEmpty(current),
       deletedPhotoIds: [],
     };
   }

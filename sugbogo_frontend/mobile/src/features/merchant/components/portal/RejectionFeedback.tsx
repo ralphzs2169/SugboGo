@@ -1,18 +1,22 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
+
 import { theme } from "@/constants/theme";
+import ReviewChangesIllustration from "../../assets/illustrations/review-changes.svg";
+import { ApplicationFeedbackResponse } from "../../types/registration/registrationApi.types";
+import AdministratorFeedback from "../registration/AdministratorFeedback";
 
 type RejectionFeedbackCardProps = {
-  feedback: string[];
+  feedback: ApplicationFeedbackResponse[];
   reviewedAt: string;
 };
 
 /**
- * Displays administrator feedback for a rejected
- * merchant registration.
+ * Displays the rejection summary for a merchant application.
  *
- * Shown when the merchant application requires
- * revisions before it can be resubmitted.
+ * This card introduces the resubmission process, shows when the
+ * application was reviewed, and surfaces the administrator's
+ * section-specific feedback.
  */
 export default function RejectionFeedbackCard({
   feedback,
@@ -21,76 +25,50 @@ export default function RejectionFeedbackCard({
   return (
     <View className="bg-surface px-6 py-6">
       <Text className="mb-2 text-3xl font-bold text-text-primary">
-        Application feedback
+        Application Feedback
       </Text>
 
-      <Text className="mb-6 text-md text-text-secondary">
-        Please review the administrator's comments below before updating and
-        resubmitting your application.
+      <Text className="mb-6 text-base text-text-secondary">
+        Your application requires a few revisions before it can be approved.
       </Text>
 
-      <View>
-        {/* Status */}
-        <View className="flex-row items-start gap-3 border-b border-border-primary/60 py-3">
-          <MaterialCommunityIcons
-            name="alert-circle-outline"
-            size={22}
-            color={theme.extends.colors.error}
-            style={{ marginTop: 2 }}
-          />
+      {/* Hero */}
+      <View className="items-center border-b border-border-primary/60 pb-6">
+        <ReviewChangesIllustration width={180} height={180} />
 
-          <View className="flex-1">
-            <Text className="text-base font-bold text-text-primary">
-              Changes Required
-            </Text>
-
-            <Text className="mt-1 text-sm leading-5 text-text-secondary">
-              Your application needs a few updates before it can be approved.
-            </Text>
+        <View className="mt-2 flex-row items-center rounded-full bg-error/10 px-4 py-2">
+          <View className="mt-4 rounded-full bg-border-error px-4 py-2">
+            <Text className=" text-white">Changes Required</Text>
           </View>
         </View>
+      </View>
 
-        {/* Reviewed */}
-        <View className="flex-row items-start gap-3 border-b border-border-primary/60 py-3">
-          <MaterialCommunityIcons
-            name="calendar-check-outline"
-            size={22}
-            color={theme.extends.colors.brand}
-            style={{ marginTop: 2 }}
-          />
+      {/* Review date */}
+      <View className="flex-row items-center border-b border-border-primary/60 py-5">
+        <MaterialCommunityIcons
+          name="calendar-check-outline"
+          size={20}
+          color={theme.extends.colors.brand}
+        />
 
-          <View className="flex-1">
-            <Text className="text-base font-bold text-text-primary">
-              Reviewed
-            </Text>
-
-            <Text className="mt-1 text-sm leading-5 text-text-secondary">
-              {reviewedAt}
-            </Text>
-          </View>
-        </View>
-
-        {/* Feedback */}
-        <View className="py-3">
-          <Text className="mb-4 text-base font-bold text-text-primary">
-            Administrator comments
+        <View className="ml-3">
+          <Text className="text-xs uppercase tracking-wide text-text-tertiary">
+            Reviewed
           </Text>
 
-          {feedback.map((item) => (
-            <View key={item} className="mb-3 flex-row items-start">
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={18}
-                color={theme.extends.colors.brand}
-                style={{ marginTop: 2 }}
-              />
-
-              <Text className="ml-2 flex-1 text-sm leading-6 text-text-secondary">
-                {item}
-              </Text>
-            </View>
-          ))}
+          <Text className="mt-1 text-sm font-semibold text-text-primary">
+            {reviewedAt}
+          </Text>
         </View>
+      </View>
+
+      {/* Administrator feedback */}
+      <View className="mt-6">
+        <Text className="mb-4 text-lg font-bold text-text-primary">
+          Administrator Feedback
+        </Text>
+
+        <AdministratorFeedback feedback={feedback} />
       </View>
     </View>
   );
