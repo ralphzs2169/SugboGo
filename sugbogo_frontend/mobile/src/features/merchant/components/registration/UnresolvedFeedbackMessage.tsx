@@ -20,9 +20,8 @@ const SECTION_LABELS: Record<ApplicationFeedbackResponse["section"], string> = {
  * Displays a reminder before a rejected application is
  * resubmitted.
  *
- * The modal reminds merchants which sections received
- * administrator feedback so they can double-check their
- * revisions before submitting again.
+ * The message identifies the sections that still require
+ * the merchant's attention before resubmission.
  */
 export default function UnresolvedFeedbackMessage({
   feedback,
@@ -33,7 +32,8 @@ export default function UnresolvedFeedbackMessage({
 
   return (
     <View>
-      <View className="mb-4 flex-row items-start">
+      {/* Reminder message */}
+      <View className="mb-4 flex-row">
         <MaterialCommunityIcons
           name="information-outline"
           size={22}
@@ -48,9 +48,15 @@ export default function UnresolvedFeedbackMessage({
         </Text>
       </View>
 
-      <View className="mb-4 rounded-xl border border-border-primary bg-background p-4">
-        {sections.map((section) => (
-          <View key={section} className="mb-2 flex-row items-center last:mb-0">
+      {/* Feedback sections */}
+      <View className="rounded-xl border border-border-primary bg-background p-4">
+        {sections.map((section, index) => (
+          <View
+            key={section}
+            className={`flex-row items-center ${
+              index < sections.length - 1 ? "mb-3" : ""
+            }`}
+          >
             <MaterialCommunityIcons
               name="chevron-right"
               size={18}

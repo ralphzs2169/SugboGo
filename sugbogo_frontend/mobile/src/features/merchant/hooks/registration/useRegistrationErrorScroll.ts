@@ -14,6 +14,46 @@ type UseRegistrationErrorScrollProps = {
   currentStep: number;
 };
 
+function measureFieldPosition(
+  node: View,
+  names: FieldName[],
+  fieldPositions: React.RefObject<Record<FieldName, number>>,
+  scrollRef: React.RefObject<ScrollView | null>,
+  attemptsLeft = 5,
+) {
+  const scrollView = scrollRef.current as unknown as View | null;
+
+  if (!scrollView) {
+    // On first mount, the ScrollView's own ref may not be attached
+    // yet when a child field's onLayout first fires — retry briefly
+    // instead of silently dropping this field's position forever.
+    if (attemptsLeft > 0) {
+      setTimeout(() => {
+        measureFieldPosition(
+          node,
+          names,
+          fieldPositions,
+          scrollRef,
+          attemptsLeft - 1,
+        );
+      }, 50);
+    }
+    return;
+  }
+
+  node.measureLayout(
+    scrollView,
+    (_x, y) => {
+      for (const name of names) {
+        fieldPositions.current[name] = y;
+      }
+    },
+    () => {
+      // Measurement failed — leave any previously known position in place.
+    },
+  );
+}
+
 /**
  * Tracks the positions of validation fields within the active
  * registration step and scrolls the registration container to
@@ -21,44 +61,32 @@ type UseRegistrationErrorScrollProps = {
  */
 export default function useRegistrationErrorScroll({
   scrollRef,
-  currentStep,
 }: UseRegistrationErrorScrollProps) {
   const fieldNodes = useRef<Record<FieldName, View | null>>({});
   const fieldPositions = useRef<Record<FieldName, number>>({});
 
-  /**
-   * Registers a field wrapper and measures its position
-   * relative to the registration ScrollView.
-   */
   const registerErrorScrollTarget = useCallback(
     (...names: FieldName[]): FieldRegistration => ({
       ref: (node) => {
         for (const name of names) {
           fieldNodes.current[name] = node;
+
+          // A field that unmounts (e.g. leaving this step) can no
+          // longer be a valid scroll target — drop its stale position.
+          if (node === null) {
+            delete fieldPositions.current[name];
+          }
         }
       },
 
       onLayout: () => {
         const node = fieldNodes.current[names[0]];
-        const scrollView = scrollRef.current;
 
-        if (!node || !scrollView) {
+        if (!node) {
           return;
         }
 
-        const scrollViewView = scrollView as unknown as View;
-
-        requestAnimationFrame(() => {
-          node.measureInWindow((_x, nodeY) => {
-            scrollViewView.measureInWindow((_x, scrollViewY) => {
-              const y = nodeY - scrollViewY;
-
-              for (const name of names) {
-                fieldPositions.current[name] = y;
-              }
-            });
-          });
-        });
+        measureFieldPosition(node, names, fieldPositions, scrollRef);
       },
     }),
     [scrollRef],
@@ -66,14 +94,27 @@ export default function useRegistrationErrorScroll({
 
   /**
    * Scrolls to the first registered field that has a validation error.
+   *
+   * Accepts a getter rather than a snapshot of `errors` — react-hook-form's
+   * formState.errors can still be mid-flush (especially with an async
+   * resolver like zodResolver) at the moment validation resolves, so a
+   * captured snapshot can be stale/empty on the very first attempt. Reading
+   * fresh on each retry lets it pick up the real errors once they land.
    */
   const scrollToFirstError = useCallback(
-    (errors: FieldErrors) => {
+    (getErrors: () => FieldErrors, attemptsLeft = 8) => {
+      const errors = getErrors();
+
       const firstInvalidField = Object.entries(fieldPositions.current)
         .filter(([name]) => hasFieldError(errors, name))
         .sort(([, firstY], [, secondY]) => firstY - secondY)[0];
 
       if (!firstInvalidField) {
+        if (attemptsLeft > 0) {
+          setTimeout(() => {
+            scrollToFirstError(getErrors, attemptsLeft - 1);
+          }, 50);
+        }
         return;
       }
 
@@ -95,10 +136,6 @@ export default function useRegistrationErrorScroll({
   };
 }
 
-/**
- * Checks whether a  registration field contains
- * a React Hook Form validation error.
- */
 function hasFieldError(errors: FieldErrors, fieldName: string): boolean {
   const parts = fieldName.split(".");
 
@@ -112,9 +149,5 @@ function hasFieldError(errors: FieldErrors, fieldName: string): boolean {
     current = (current as Record<string, unknown>)[part];
   }
 
-  if (current !== undefined) {
-    return true;
-  }
-
-  return false;
+  return current !== undefined;
 }

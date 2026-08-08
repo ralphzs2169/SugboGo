@@ -25,7 +25,7 @@ import useRegistrationNavigation from "../hooks/registration/useRegistrationNavi
 import { mapApplicationToForm } from "@/features/merchant/utils/merchant-application/mappers/mapApplicationToForm.utils";
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
-import { router, useNavigation } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import useCurrentApplication from "../hooks/registration/useCurrentApplication";
 import useSaveApplicationDocuments from "../hooks/registration/useSaveApplicationDocuments";
 import useSaveApplicationPhotos from "../hooks/registration/useSaveApplicationPhotos";
@@ -356,11 +356,13 @@ export default function MerchantRegistrationScreen() {
 
       setRestoreError(false);
 
-      Toast.show({
-        type: "success",
-        text1: "Draft restored",
-        text2: "Your saved registration draft has been restored.",
-      });
+      if (application.status === "draft") {
+        Toast.show({
+          type: "success",
+          text1: "Draft restored",
+          text2: "Your saved registration draft has been restored.",
+        });
+      }
 
       return true;
     } catch (error) {
@@ -405,7 +407,7 @@ export default function MerchantRegistrationScreen() {
     const isValid = await validateCurrentStep();
 
     if (!isValid) {
-      scrollToFirstError(form.formState.errors);
+      scrollToFirstError(() => form.formState.errors);
       return false;
     }
 
@@ -608,45 +610,37 @@ export default function MerchantRegistrationScreen() {
     goToReview();
   };
 
-  useEffect(() => {
-    /**
-     * Handles Android hardware back navigation during merchant registration.
-     *
-     * Navigation behavior:
-     * - Editing a section: return directly to the Review step.
-     * - Review step: prevent navigating back into the registration flow.
-     * - Normal registration steps: navigate to the previous step.
-     * - First step: allow the default Android back behavior.
-     */
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        // While editing a section, Android Back returns to Review.
-        if (editingStep !== null) {
-          goToReview();
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          // While editing a section, Android Back is disabled.
+          if (editingStep !== null) {
+            return true;
+          }
+
+          // Review is the final checkpoint.
+          if (currentStep === REVIEW_STEP) {
+            return true;
+          }
+
+          // Move between registration steps normally.
+          if (currentStep > 1) {
+            handleBack();
+            return true;
+          }
+
+          // Step 1 requires confirmation before leaving registration.
+          requestExit(() => router.back());
+
           return true;
-        }
+        },
+      );
 
-        // Review is the final checkpoint.
-        if (currentStep === REVIEW_STEP) {
-          return true;
-        }
-
-        // Move between registration steps normally.
-        if (currentStep > 1) {
-          handleBack();
-          return true;
-        }
-
-        // We are on Step 1. Leaving the registration requires confirmation.
-        requestExit(() => router.back());
-
-        return true;
-      },
-    );
-
-    return () => subscription.remove();
-  }, [currentStep, editingStep, REVIEW_STEP, goToReview, handleBack]);
+      return () => subscription.remove();
+    }, [editingStep, currentStep, handleBack, requestExit]),
+  );
 
   if (isLoadingApplication) {
     return (

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "expo-router";
 
 import { getApplicationStatus } from "@/features/merchant/api/merchantApplication.service";
 import { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
@@ -29,9 +30,11 @@ export default function useApplicationStatus() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchStatus();
+    }, [fetchStatus]),
+  );
 
   return {
     status,

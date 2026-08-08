@@ -77,9 +77,15 @@ export default function ConfirmModal({
           )}
           <Text className="text-lg font-bold text-text-primary">{title}</Text>
 
-          <Text className="mt-3 text-sm leading-5 text-text-secondary">
-            {message}
-          </Text>
+          <View className="mt-3">
+            {typeof message === "string" ? (
+              <Text className="text-sm leading-5 text-text-secondary">
+                {message}
+              </Text>
+            ) : (
+              message
+            )}
+          </View>
 
           {isLoading && (
             <View className="mt-5 flex-row items-center">
