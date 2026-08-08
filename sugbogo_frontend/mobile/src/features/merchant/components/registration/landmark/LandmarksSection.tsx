@@ -70,7 +70,7 @@ export default function LandmarksSection() {
     <RegistrationSection
       icon="map-marker-radius-outline"
       title="Nearby Landmarks"
-      description="3 nearby landmarks are suggested automatically after you pin your location. You can replace them or add your own landmarks as needed."
+      description="Suggested automatically after you pin your location. You can remove them and add your own."
     >
       {!hasSelectedLocation ? (
         <DisabledSelectionState />

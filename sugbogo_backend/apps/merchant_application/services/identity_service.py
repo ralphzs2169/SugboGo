@@ -57,12 +57,7 @@ class IdentityService:
         if specialty_tags is not None:
             identity.specialty_tags.set(specialty_tags)
 
-        # Advance registration progress only when Step 1 is complete.
-        if IdentityService._is_step_complete(identity):
-            ApplicationService.mark_step_completed(
-                application,
-                IdentityService.STEP,
-            )
+        ApplicationService.mark_step_completed(application, IdentityService.STEP)
 
         return application, identity
 

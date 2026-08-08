@@ -9,41 +9,23 @@ import { inferMimeType } from "@/shared/utils/inferMimeType.utils";
 export function mapApplicationPhotos(
   photos: ApplicationPhotoResponse[],
 ): MerchantRegistrationForm["businessPhotos"] {
-  return {
-    storefront: photos
-      .filter((photo) => photo.category === "storefront")
-      .map((photo) => ({
-        id: photo.id,
-        uri: photo.photo_url,
-        fileName: photo.file_name,
-        mimeType: inferMimeType(photo.file_name),
-      })),
-
-    interior: photos
-      .filter((photo) => photo.category === "interior")
-      .map((photo) => ({
-        id: photo.id,
-        uri: photo.photo_url,
-        fileName: photo.file_name,
-        mimeType: inferMimeType(photo.file_name),
-      })),
-
-    products: photos
-      .filter((photo) => photo.category === "products")
-      .map((photo) => ({
-        id: photo.id,
-        uri: photo.photo_url,
-        fileName: photo.file_name,
-        mimeType: inferMimeType(photo.file_name),
-      })),
-
-    additional: photos
-      .filter((photo) => photo.category === "additional")
-      .map((photo) => ({
-        id: photo.id,
-        uri: photo.photo_url,
-        fileName: photo.file_name,
-        mimeType: inferMimeType(photo.file_name),
-      })),
+  const result: MerchantRegistrationForm["businessPhotos"] = {
+    storefront: [],
+    interior: [],
+    products: [],
+    additional: [],
   };
+
+  for (const photo of photos) {
+    const mappedPhoto = {
+      id: photo.id,
+      uri: photo.photo_url,
+      fileName: photo.file_name,
+      mimeType: inferMimeType(photo.file_name),
+    };
+
+    result[photo.category].push(mappedPhoto);
+  }
+
+  return result;
 }

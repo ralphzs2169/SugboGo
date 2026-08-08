@@ -4,6 +4,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from apps.merchant_application.models import MerchantApplication
+from apps.merchant_application.serializers.identity_serializers import (
+    ApplicationIdentitySerializer,
+)
 from apps.merchant_application.services.application_service import ApplicationService
 from apps.users.models import User
 
@@ -92,3 +95,59 @@ class MerchantApplicationLifecycleTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.data["success"])
+
+    def test_first_identity_save_requires_a_complete_payload(self):
+        self.client.force_authenticate(self.merchant)
+
+        response = self.client.patch(
+            reverse("application-identity"),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.data["success"])
+        self.assertFalse(
+            MerchantApplication.objects.filter(USER_ID=self.merchant).exists()
+        )
+
+    def test_first_location_save_requires_a_complete_payload(self):
+        MerchantApplication.objects.create(USER_ID=self.merchant)
+        self.client.force_authenticate(self.merchant)
+
+        response = self.client.patch(
+            reverse("application-location"),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.data["success"])
+
+    def test_identity_validation_matches_mobile_description_and_phone_rules(self):
+        serializer = ApplicationIdentitySerializer(
+            data={
+                "business_name": "Sample Business",
+                "business_description": "",
+                "contact_number": "09123456789",
+                "representative_name": "Jane Doe",
+                "representative_role": "owner",
+                "business_cluster_id": 1,
+                "business_category_id": 1,
+                "specialty_tags": [1, 2, 3],
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("business_description", serializer.errors)
+
+    def test_progress_is_lowered_when_saved_requirements_are_missing(self):
+        application = MerchantApplication.objects.create(
+            USER_ID=self.merchant,
+            MAPP_HIGHEST_COMPLETED_STEP=4,
+        )
+
+        ApplicationService.mark_step_completed(application, step=4)
+        application.refresh_from_db()
+
+        self.assertEqual(application.MAPP_HIGHEST_COMPLETED_STEP, 0)

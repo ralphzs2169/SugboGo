@@ -1,6 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
 
 import type { BusinessPhoto } from "@/features/merchant/types/merchantRegistration.types";
+import { processImage } from "@/shared/utils/image/processImage.utils";
 
 type PickBusinessPhotosParams = {
   currentCount: number;
@@ -8,11 +9,8 @@ type PickBusinessPhotosParams = {
 };
 
 /**
- * Opens the device media library for selecting business photos.
- *
- * Requests media library permission, limits selection to the remaining
- * available slots, and converts selected assets into the application's
- * BusinessPhoto format.
+ * Opens the device media library, limits the number of selected photos,
+ * and prepares large images for efficient upload.
  */
 export async function pickBusinessPhotos({
   currentCount,
@@ -41,9 +39,19 @@ export async function pickBusinessPhotos({
     return [];
   }
 
-  return result.assets.map((asset) => ({
-    uri: asset.uri,
-    fileName: asset.fileName,
-    mimeType: asset.mimeType,
-  }));
+  return Promise.all(
+    result.assets.map(async (asset) => {
+      const processedImage = await processImage(
+        asset.uri,
+        asset.width,
+        asset.height,
+      );
+
+      return {
+        uri: processedImage.uri,
+        fileName: asset.fileName,
+        mimeType: processedImage.mimeType,
+      };
+    }),
+  );
 }

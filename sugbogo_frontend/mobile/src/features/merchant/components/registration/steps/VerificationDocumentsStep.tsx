@@ -4,8 +4,17 @@ import { useFormContext } from "react-hook-form";
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
 import DocumentUploadCard from "../verification-documents/DocumentUploadCard";
 import RegistrationSection from "../RegistrationSection";
+import useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";
 
-export default function VerificationDocumentsStep() {
+type OperatingHoursStepProps = {
+  registerErrorScrollTarget: ReturnType<
+    typeof useRegistrationErrorScroll
+  >["registerErrorScrollTarget"];
+};
+
+export default function VerificationDocumentsStep({
+  registerErrorScrollTarget,
+}: OperatingHoursStepProps) {
   const {
     watch,
     setValue,
@@ -25,19 +34,25 @@ export default function VerificationDocumentsStep() {
         description="Upload proof of business registration, such as a DTI Certificate, SEC Certificate, or Mayor’s Permit."
         showBorder={false}
       >
-        <DocumentUploadCard
-          document={documents.businessRegistration}
-          maxDocuments={1}
-          required
-          error={businessRegistrationError}
-          onDocumentChange={(value) =>
-            setValue("verificationDocuments.businessRegistration", value, {
-              shouldDirty: true,
-              shouldValidate:
-                !!errors.verificationDocuments?.businessRegistration,
-            })
-          }
-        />
+        <View
+          {...registerErrorScrollTarget(
+            "verificationDocuments.businessRegistration",
+          )}
+        >
+          <DocumentUploadCard
+            document={documents.businessRegistration}
+            maxDocuments={1}
+            required
+            error={businessRegistrationError}
+            onDocumentChange={(value) =>
+              setValue("verificationDocuments.businessRegistration", value, {
+                shouldDirty: true,
+                shouldValidate:
+                  !!errors.verificationDocuments?.businessRegistration,
+              })
+            }
+          />
+        </View>
       </RegistrationSection>
 
       <RegistrationSection

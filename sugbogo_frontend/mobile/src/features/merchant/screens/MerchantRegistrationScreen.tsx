@@ -23,6 +23,7 @@ import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "../constants/registration/
 import useRegistrationNavigation from "../hooks/registration/useRegistrationNavigation";
 
 import { mapApplicationToForm } from "@/features/merchant/utils/merchant-application/mappers/mapApplicationToForm.utils";
+import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 import { router, useNavigation } from "expo-router";
 import useCurrentApplication from "../hooks/registration/useCurrentApplication";
@@ -66,6 +67,8 @@ import {
   NormalizedOperatingHours,
   normalizeOperatingHours,
 } from "../utils/merchant-application/normalizers/normalizeOperatingHours.utils";
+import useRegistrationErrorScroll from "../hooks/registration/useRegistrationErrorScroll";
+import Toast from "react-native-toast-message";
 
 /**
  * Merchant registration wizard screen.
@@ -131,11 +134,17 @@ export default function MerchantRegistrationScreen() {
     refetch: refetchCategories,
   } = useCategories();
 
-  const { application, isLoading: isLoadingApplication } =
-    useCurrentApplication();
+  const {
+    application,
+    isLoading: isLoadingApplication,
+    error: applicationError,
+    refetch: refetchApplication,
+  } = useCurrentApplication();
 
   // Administrator feedback
   const feedback = application?.feedback ?? [];
+
+  const isResubmission = application?.status === "rejected";
 
   // Mutations
   const { saveIdentity, isSaving: isSavingIdentity } = useSaveIdentity();
@@ -160,6 +169,14 @@ export default function MerchantRegistrationScreen() {
   const [showResubmissionReminderModal, setShowResubmissionReminderModal] =
     useState(false);
 
+  const [restoreError, setRestoreError] = useState(false);
+
+  const { registerErrorScrollTarget, scrollToFirstError } =
+    useRegistrationErrorScroll({
+      scrollRef,
+      currentStep,
+    });
+
   // Merchant Registration Store to persist selected location, address, and landmarks across steps.
   const setSelectedAddress = useMerchantRegistrationStore(
     (state) => state.setSelectedAddress,
@@ -170,6 +187,10 @@ export default function MerchantRegistrationScreen() {
 
   const setSelectedLandmarks = useMerchantRegistrationStore(
     (state) => state.setSelectedLandmarks,
+  );
+
+  const resetMerchantRegistrationStore = useMerchantRegistrationStore(
+    (state) => state.reset,
   );
 
   // Local State
@@ -257,7 +278,7 @@ export default function MerchantRegistrationScreen() {
 
   const handleDiscardChanges = () => {
     setShowDiscardChangesModal(false);
-
+    resetMerchantRegistrationStore();
     pendingExitAction.current?.();
     pendingExitAction.current = null;
   };
@@ -296,36 +317,58 @@ export default function MerchantRegistrationScreen() {
    * navigation state, and last-saved snapshots used for change
    * detection when resuming an existing draft.
    */
-  const restoreDraft = (application: ApplicationDetailResponse) => {
-    const values = mapApplicationToForm(application);
-    const store = mapApplicationToStore(application);
+  const restoreDraft = (application: ApplicationDetailResponse): boolean => {
+    try {
+      const values = mapApplicationToForm(application);
+      const store = mapApplicationToStore(application);
 
-    form.reset(values);
+      form.reset(values);
 
-    if (store.selectedLocation) {
-      setSelectedLocation(store.selectedLocation);
+      // Restore saved location, address, and landmarks to store
+      if (store.selectedLocation) {
+        setSelectedLocation(store.selectedLocation);
+      }
+
+      if (store.selectedAddress) {
+        setSelectedAddress(store.selectedAddress);
+      }
+
+      setSelectedLandmarks(store.selectedLandmarks);
+
+      // Set the current step to the next incomplete step, but do not exceed the Review step.
+      setCurrentStep(
+        Math.min(application.highest_completed_step + 1, REVIEW_STEP),
+      );
+      setHighestCompletedStep(application.highest_completed_step);
+
+      // Initialize the last-saved snapshots for change detection
+      setLastSavedIdentity(normalizeIdentity(values));
+      setLastSavedLocation(normalizeLocation(values));
+
+      if (application.operating_hours.length > 0) {
+        setLastSavedOperatingHours(normalizeOperatingHours(values));
+      } else {
+        setLastSavedOperatingHours(null);
+      }
+
+      setLastSavedPhotos(values.businessPhotos);
+      setLastSavedDocuments(values.verificationDocuments);
+
+      setRestoreError(false);
+
+      Toast.show({
+        type: "success",
+        text1: "Draft restored",
+        text2: "Your saved registration draft has been restored.",
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Failed to restore merchant application:", error);
+      setRestoreError(true);
+
+      return false;
     }
-
-    if (store.selectedAddress) {
-      setSelectedAddress(store.selectedAddress);
-    }
-
-    setSelectedLandmarks(store.selectedLandmarks);
-
-    setCurrentStep(
-      Math.min(application.highest_completed_step + 1, REVIEW_STEP),
-    );
-    setHighestCompletedStep(application.highest_completed_step);
-
-    setLastSavedIdentity(normalizeIdentity(values));
-    setLastSavedLocation(normalizeLocation(values));
-    if (application.operating_hours.length > 0) {
-      setLastSavedOperatingHours(normalizeOperatingHours(values));
-    } else {
-      setLastSavedOperatingHours(null);
-    }
-    setLastSavedPhotos(values.businessPhotos);
-    setLastSavedDocuments(values.verificationDocuments);
   };
 
   /**
@@ -337,9 +380,11 @@ export default function MerchantRegistrationScreen() {
       return;
     }
 
-    hasRestoredDraft.current = true;
+    const restored = restoreDraft(application);
 
-    restoreDraft(application);
+    if (restored) {
+      hasRestoredDraft.current = true;
+    }
   }, [application]);
 
   const { validateCurrentStep } = useRegistrationValidation({
@@ -360,6 +405,7 @@ export default function MerchantRegistrationScreen() {
     const isValid = await validateCurrentStep();
 
     if (!isValid) {
+      scrollToFirstError(form.formState.errors);
       return false;
     }
 
@@ -611,7 +657,35 @@ export default function MerchantRegistrationScreen() {
     );
   }
 
-  const isResubmission = application?.status === "rejected";
+  if (applicationError) {
+    return (
+      <ErrorState
+        title="Unable to load registration"
+        description="Please check your connection and try again before editing your application."
+        primaryActionTitle="Try Again"
+        onPrimaryAction={refetchApplication}
+        secondaryActionTitle="Go Back"
+        onSecondaryAction={() => router.back()}
+      />
+    );
+  }
+
+  if (restoreError) {
+    return (
+      <ErrorState
+        title="Unable to restore registration"
+        description="We couldn't restore your saved registration. Please try again."
+        primaryActionTitle="Try Again"
+        onPrimaryAction={() => {
+          setRestoreError(false);
+          hasRestoredDraft.current = false;
+          refetchApplication();
+        }}
+        secondaryActionTitle="Go Back"
+        onSecondaryAction={() => router.back()}
+      />
+    );
+  }
 
   return (
     <>
@@ -637,7 +711,7 @@ export default function MerchantRegistrationScreen() {
               isEditing={editingStep !== null}
               onSaveAndReview={handleSaveAndReview}
               isSubmitting={isSavingCurrentStep}
-              isResubmission
+              isResubmission={isResubmission}
             />
           }
 
@@ -647,15 +721,20 @@ export default function MerchantRegistrationScreen() {
             currentStep={currentStep}
             clusters={clusters}
             categories={categories}
+
             isLoadingClusters={isLoadingClusters}
             isLoadingCategories={isLoadingCategories}
+
             clustersError={clustersError}
             categoriesError={categoriesError}
+
             refetchClusters={refetchClusters}
             refetchCategories={refetchCategories}
+
             onEditSection={handleEditSection}
             isResubmission={isResubmission}
             feedback={feedback}
+            registerErrorScrollTarget={registerErrorScrollTarget}
           />
         </RegistrationLayout>
       </FormProvider>

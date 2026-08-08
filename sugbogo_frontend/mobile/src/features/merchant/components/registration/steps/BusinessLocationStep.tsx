@@ -10,6 +10,13 @@ import LandmarksSection from "../landmark/LandmarksSection";
 import AddressLoadFailedState from "../location/AddressFailedLoadState";
 import LocationPickerMap from "../location/LocationPickerMap";
 import RegistrationSection from "../RegistrationSection";
+import useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";
+
+type BusinessLocationStepProps = {
+  registerErrorScrollTarget: ReturnType<
+    typeof useRegistrationErrorScroll
+  >["registerErrorScrollTarget"];
+};
 
 /**
  * Displays the business location step of the merchant
@@ -30,7 +37,9 @@ import RegistrationSection from "../RegistrationSection";
  * Location and address validation errors are shown
  * only after the user attempts to continue.
  */
-export default function BusinessLocationStep() {
+export default function BusinessLocationStep({
+  registerErrorScrollTarget,
+}: BusinessLocationStepProps) {
   const {
     setValue,
     formState: { errors },
@@ -144,10 +153,11 @@ export default function BusinessLocationStep() {
       <RegistrationSection
         icon="map-marker-radius-outline"
         title="Pin Your Business Location"
-        description="Place the pin as close as possible to your actual business location. You can edit the address details below if needed."
+        description="Place the pin as close as possible to your actual business location."
         showBorder={false}
       >
         <View
+          {...registerErrorScrollTarget("latitude", "longitude")}
           className={`overflow-hidden rounded-2xl border ${
             locationError ? "border-text-error" : "border-transparent"
           }`}
@@ -170,61 +180,67 @@ export default function BusinessLocationStep() {
       <RegistrationSection
         icon="home-map-marker"
         title="Address Details"
-        description="Address details are automatically retrieved after you pin your business location. Review and update any missing information."
+        description="Your address will be detected from your pinned location. Review and update the details below."
       >
         {addressLoadFailed && <AddressLoadFailedState />}
 
-        <RHFFormInput
-          name="province"
-          label="Province"
-          required
-          editable={hasSelectedLocation}
-          showError={hasSelectedLocation}
-          placeholder={
-            hasSelectedLocation
-              ? "Detected automatically"
-              : "Select a location first"
-          }
-          helperText={
-            addressLoadFailures.province
-              ? "Unable to detect automatically. Please enter it manually."
-              : undefined
-          }
-        />
+        <View {...registerErrorScrollTarget("province")}>
+          <RHFFormInput
+            name="province"
+            label="Province"
+            required
+            editable={hasSelectedLocation}
+            showError={hasSelectedLocation}
+            placeholder={
+              hasSelectedLocation
+                ? "Detected automatically"
+                : "Select a location first"
+            }
+            helperText={
+              addressLoadFailures.province
+                ? "Unable to detect automatically. Please enter it manually."
+                : undefined
+            }
+          />
+        </View>
 
-        <RHFFormInput
-          name="city"
-          label="City / Municipality"
-          required
-          editable={hasSelectedLocation}
-          showError={hasSelectedLocation}
-          placeholder={
-            hasSelectedLocation
-              ? "Detected automatically"
-              : "Select a location first"
-          }
-          helperText={
-            addressLoadFailures.city
-              ? "Unable to detect automatically. Please enter it manually."
-              : undefined
-          }
-        />
+        <View {...registerErrorScrollTarget("city")}>
+          <RHFFormInput
+            name="city"
+            label="City / Municipality"
+            required
+            editable={hasSelectedLocation}
+            showError={hasSelectedLocation}
+            placeholder={
+              hasSelectedLocation
+                ? "Detected automatically"
+                : "Select a location first"
+            }
+            helperText={
+              addressLoadFailures.city
+                ? "Unable to detect automatically. Please enter it manually."
+                : undefined
+            }
+          />
+        </View>
 
-        <RHFFormInput
-          name="barangay"
-          label="Barangay"
-          required
-          editable={hasSelectedLocation}
-          showError={hasSelectedLocation}
-          placeholder={
-            hasSelectedLocation ? "Enter barangay" : "Select a location first"
-          }
-          helperText={
-            addressLoadFailures.barangay
-              ? "Unable to detect automatically. Please enter it manually."
-              : undefined
-          }
-        />
+        <View {...registerErrorScrollTarget("barangay")}>
+          <RHFFormInput
+            name="barangay"
+            label="Barangay"
+            required
+            editable={hasSelectedLocation}
+            showError={hasSelectedLocation}
+            placeholder={
+              hasSelectedLocation ? "Enter barangay" : "Select a location first"
+            }
+            helperText={
+              addressLoadFailures.barangay
+                ? "Unable to detect automatically. Please enter it manually."
+                : undefined
+            }
+          />
+        </View>
 
         <RHFFormInput
           name="streetAddress"

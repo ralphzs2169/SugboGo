@@ -20,16 +20,8 @@ export default function ApplicationStatusCard({
 
   return (
     <View className="bg-surface px-6 py-6">
-      <Text className="text-3xl font-bold text-text-primary">
-        Application Status
-      </Text>
-
-      <Text className="mt-2 text-base leading-6 text-text-secondary">
-        Track the progress of your merchant application.
-      </Text>
-
-      <View className="items-center py-8">
-        <ApplicationSubmittedIllustration width={180} height={180} />
+      <View className="items-center pb-8">
+        <ApplicationSubmittedIllustration width={250} height={200} />
 
         <View
           className={`mt-4 rounded-full px-4 py-2 ${
@@ -58,7 +50,7 @@ export default function ApplicationStatusCard({
         </Text>
       </View>
 
-      <View className="rounded-2xl border border-border-primary bg-background px-5 py-2">
+      <View className="rounded-2xl border border-border-primary bg-background px-5 py-4">
         {/* Submitted */}
         <View className="flex-row">
           <View className="items-center">
@@ -81,7 +73,7 @@ export default function ApplicationStatusCard({
         </View>
 
         {/* Current status */}
-        <View className="flex-row">
+        <View className="flex-row p">
           <View className="items-center">
             <View
               className={`h-7 w-7 items-center justify-center rounded-full ${

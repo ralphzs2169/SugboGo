@@ -1,5 +1,5 @@
-import { View } from "react-native";
-import { useState, useEffect } from "react";
+import { Keyboard, View } from "react-native";
+import { useState, useRef, useEffect } from "react";
 
 import SearchBar from "./SearchBar";
 import SearchResults from "./SearchResults";
@@ -40,17 +40,22 @@ export default function BusinessLocationSearch({
   } = usePlaceSearch();
 
   const [resolvingPlaceId, setResolvingPlaceId] = useState<string | null>(null);
+  const [isPlaceSelectionInProgress, setIsPlaceSelectionInProgress] =
+    useState(false);
 
   // Only search once the user has entered enough characters
   // to produce meaningful place suggestions.
   const hasQuery = value.trim().length >= 2;
+
+  const skipNextSearchRef = useRef(false);
 
   const showNoResults =
     hasQuery &&
     !isLoading &&
     !isSearchRateLimited &&
     suggestions.length === 0 &&
-    !resolvingPlaceId;
+    !resolvingPlaceId &&
+    !isPlaceSelectionInProgress;
 
   /**
    * Resolves the selected place into a complete business
@@ -58,18 +63,25 @@ export default function BusinessLocationSearch({
    */
   async function handlePlaceSelect(placeId: string) {
     setResolvingPlaceId(placeId);
+    setIsPlaceSelectionInProgress(true);
 
     const place = await getPlaceDetails(placeId);
 
     setResolvingPlaceId(null);
+    setIsPlaceSelectionInProgress(false);
 
     if (!place) {
+      setIsPlaceSelectionInProgress(false);
       return;
     }
 
     onPlaceSelect(place);
+
+    skipNextSearchRef.current = true;
     onChangeText(place.formattedAddress);
+
     clearSuggestions();
+    Keyboard.dismiss();
   }
 
   /**
@@ -79,22 +91,47 @@ export default function BusinessLocationSearch({
   function handleClear() {
     onChangeText("");
     clearSuggestions();
+    setIsPlaceSelectionInProgress(false);
   }
 
   // Notify the parent whenever the suggestion dropdown
   // becomes visible or hidden.
   useEffect(() => {
-    onSuggestionsVisibleChange?.(suggestions.length > 0);
-  }, [suggestions.length]);
+    onSuggestionsVisibleChange?.(
+      suggestions.length > 0 &&
+        resolvingPlaceId === null &&
+        !showNoResults &&
+        !isSearchRateLimited,
+    );
+  }, [
+    suggestions.length,
+    resolvingPlaceId,
+    showNoResults,
+    isSearchRateLimited,
+    onSuggestionsVisibleChange,
+  ]);
 
   return (
-    <View className="relative z-10 mb-3">
+    <View
+      style={{
+        position: "relative",
+        zIndex: 1000,
+        elevation: 20,
+      }}
+    >
       <SearchBar
         value={value}
         isLoading={isLoading}
         onClear={handleClear}
         onChangeText={(text) => {
           onChangeText(text);
+
+          if (skipNextSearchRef.current) {
+            skipNextSearchRef.current = false;
+            return;
+          }
+
+          setIsPlaceSelectionInProgress(false);
           searchPlaces(text);
         }}
       />

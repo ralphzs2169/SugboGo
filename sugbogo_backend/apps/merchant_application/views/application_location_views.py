@@ -27,7 +27,7 @@ def location_save_view(request):
 
     serializer = ApplicationLocationSerializer(
         data=request.data,
-        partial=True,
+        partial=hasattr(application, "location"),
     )
     serializer.is_valid(raise_exception=True)
 

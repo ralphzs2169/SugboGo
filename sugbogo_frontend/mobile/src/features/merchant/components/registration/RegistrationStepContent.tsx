@@ -1,3 +1,4 @@
+import useRegistrationErrorScroll from "../../hooks/registration/useRegistrationErrorScroll";
 import BusinessIdentityStep from "./steps/BusinessIdentityStep";
 import BusinessLocationStep from "./steps/BusinessLocationStep";
 import BusinessPhotosStep from "./steps/BusinessPhotosStep";
@@ -25,6 +26,9 @@ type RegistrationStepContentProps = {
   onEditSection: (step: number) => void;
   isResubmission: boolean;
   feedback: ApplicationFeedbackResponse[];
+  registerErrorScrollTarget: ReturnType<
+    typeof useRegistrationErrorScroll
+  >["registerErrorScrollTarget"];
 };
 
 export default function RegistrationStepContent({
@@ -40,6 +44,7 @@ export default function RegistrationStepContent({
   onEditSection,
   isResubmission,
   feedback,
+  registerErrorScrollTarget,
 }: RegistrationStepContentProps) {
   switch (currentStep) {
     case 1:
@@ -53,20 +58,37 @@ export default function RegistrationStepContent({
           categoriesError={categoriesError}
           refetchClusters={refetchClusters}
           refetchCategories={refetchCategories}
+          registerErrorScrollTarget={registerErrorScrollTarget}
         />
       );
 
     case 2:
-      return <BusinessLocationStep />;
+      return (
+        <BusinessLocationStep
+          registerErrorScrollTarget={registerErrorScrollTarget}
+        />
+      );
 
     case 3:
-      return <OperatingHoursStep />;
+      return (
+        <OperatingHoursStep
+          registerErrorScrollTarget={registerErrorScrollTarget}
+        />
+      );
 
     case 4:
-      return <BusinessPhotosStep />;
+      return (
+        <BusinessPhotosStep
+          registerErrorScrollTarget={registerErrorScrollTarget}
+        />
+      );
 
     case 5:
-      return <VerificationDocumentsStep />;
+      return (
+        <VerificationDocumentsStep
+          registerErrorScrollTarget={registerErrorScrollTarget}
+        />
+      );
 
     case 6:
       return (

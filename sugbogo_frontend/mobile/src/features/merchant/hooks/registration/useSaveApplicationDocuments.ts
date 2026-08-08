@@ -34,6 +34,7 @@ export default function useSaveApplicationDocuments() {
           type: "error",
           text1: "Unable to save",
           text2:
+            response.message ||
             "We couldn't save your verification documents. Please try again.",
         });
       }

@@ -1,3 +1,5 @@
+from math import asin, cos, radians, sin, sqrt
+
 import requests
 from django.conf import settings
 
@@ -8,8 +10,11 @@ class GoogleMapsService:
     GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
     GOOGLE_PLACES_URL = "https://places.googleapis.com/v1/places"
 
-    NEARBY_LANDMARK_MAX_RESULTS = 3
+    NEARBY_LANDMARK_CANDIDATE_POOL_SIZE = 10
     NEARBY_LANDMARK_RADIUS_METERS = 1000.0
+    NEARBY_LANDMARK_MAX_RESULTS = 3
+
+    SELECTED_LOCATION_EXCLUSION_RADIUS_METERS = 20.0
     REQUEST_TIMEOUT_SECONDS = 10 # Maximum time to wait for a Google Maps API response.
 
     @staticmethod
@@ -201,6 +206,31 @@ class GoogleMapsService:
 
         return address
 
+    @staticmethod
+    def _is_within_distance(
+        latitude,
+        longitude,
+        target_latitude,
+        target_longitude,
+        max_distance_meters,
+    ):
+        """Checks whether two geographic coordinates are within a given distance."""
+
+        earth_radius_meters = 6_371_000
+
+        latitude_difference = radians(target_latitude - latitude)
+        longitude_difference = radians(target_longitude - longitude)
+
+        a = (
+            sin(latitude_difference / 2) ** 2
+            + cos(radians(latitude))
+            * cos(radians(target_latitude))
+            * sin(longitude_difference / 2) ** 2
+        )
+
+        distance = 2 * earth_radius_meters * asin(sqrt(a))
+
+        return distance <= max_distance_meters
 
     @staticmethod
     def search_nearby_landmarks(latitude, longitude):
@@ -209,24 +239,18 @@ class GoogleMapsService:
         response = requests.post(
             f"{GoogleMapsService.GOOGLE_PLACES_URL}:searchNearby",
             json={
-                # Limit the number of suggestions shown to the user.
-                "maxResultCount": GoogleMapsService.NEARBY_LANDMARK_MAX_RESULTS,
-
-                # Search for places within the configured radius
-                # around the selected business location.
+                # Over-fetch candidates so excluding the selected location
+                # doesn't leave us with fewer than the desired number of landmarks.
+                "maxResultCount": GoogleMapsService.NEARBY_LANDMARK_CANDIDATE_POOL_SIZE,
                 "locationRestriction": {
                     "circle": {
                         "center": {
                             "latitude": latitude,
                             "longitude": longitude,
                         },
-                        "radius": (
-                            GoogleMapsService.NEARBY_LANDMARK_RADIUS_METERS
-                        ),
+                        "radius": GoogleMapsService.NEARBY_LANDMARK_RADIUS_METERS,
                     }
                 },
-
-                # Return the closest places first.
                 "rankPreference": "DISTANCE",
             },
             headers={
@@ -252,18 +276,35 @@ class GoogleMapsService:
         landmarks = []
 
         for place in data.get("places", []):
+            if len(landmarks) >= GoogleMapsService.NEARBY_LANDMARK_MAX_RESULTS:
+                break
+
             location = place.get("location", {})
+            place_latitude = location.get("latitude")
+            place_longitude = location.get("longitude")
+
+            if place_latitude is None or place_longitude is None:
+                continue
+
+            # Exclude the selected business location itself.
+            if GoogleMapsService._is_within_distance(
+                latitude,
+                longitude,
+                place_latitude,
+                place_longitude,
+                GoogleMapsService.SELECTED_LOCATION_EXCLUSION_RADIUS_METERS,
+            ):
+                continue
+
             display_name = place.get("displayName", {})
 
-            # Transform Google's response into the smaller structure
-            # expected by the SugboGo frontend.
             landmarks.append(
                 {
                     "placeId": place.get("id", ""),
                     "name": display_name.get("text", ""),
                     "address": place.get("formattedAddress", ""),
-                    "latitude": location.get("latitude"),
-                    "longitude": location.get("longitude"),
+                    "latitude": place_latitude,
+                    "longitude": place_longitude,
                 }
             )
 

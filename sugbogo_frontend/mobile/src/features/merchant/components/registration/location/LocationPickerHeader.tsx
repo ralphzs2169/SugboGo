@@ -30,7 +30,7 @@ export default function LocationPickerHeader({
       edges={["top"]}
       className="absolute left-4 right-4 top-0 z-10"
     >
-      <View className="rounded-xl bg-white px-4 pt-4  shadow-lg">
+      <View className="rounded-xl bg-white px-4 py-4  shadow-lg">
         <View className="flex-row items-center">
           <Pressable
             onPress={onClose}

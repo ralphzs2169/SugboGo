@@ -73,33 +73,13 @@ export async function saveApplicationOperatingHours(
 export async function saveApplicationPhotos(
   formData: FormData,
 ): Promise<ApiResponse<ApplicationPhotoResponse[]>> {
-  return request(
-    apiClient.patch("/merchant/application/photos/", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }),
-  );
+  return request(apiClient.patch("/merchant/application/photos/", formData));
 }
 
-// Step 5 — Verification Documents
 export async function saveApplicationDocuments(
   formData: FormData,
 ): Promise<ApiResponse<ApplicationDocumentResponse[]>> {
-  return request(
-    apiClient.patch("/merchant/application/documents/", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }),
-  );
-}
-
-// Application editing
-export async function startEditingApplication(): Promise<
-  ApiResponse<ApplicationDetailResponse>
-> {
-  return request(apiClient.post("/merchant/application/start-edit/"));
+  return request(apiClient.patch("/merchant/application/documents/", formData));
 }
 
 // Final submission

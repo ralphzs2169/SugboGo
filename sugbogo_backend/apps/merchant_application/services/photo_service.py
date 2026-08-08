@@ -165,7 +165,7 @@ class PhotoService:
 
             if final_count > limit:
                 raise ValueError(
-                    f"You can have up to {limit} "
+                    f"You can only have up to {limit} "
                     f"{category} photos."
                 )
 

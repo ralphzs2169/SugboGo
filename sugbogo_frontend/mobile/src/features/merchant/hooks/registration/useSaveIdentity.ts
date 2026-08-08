@@ -36,7 +36,9 @@ export default function useSaveApplicationIdentity() {
         Toast.show({
           type: "error",
           text1: "Unable to save",
-          text2: "We couldn't save your business identity. Please try again.",
+          text2:
+            response.message ||
+            "We couldn't save your business identity. Please try again.",
         });
       }
 

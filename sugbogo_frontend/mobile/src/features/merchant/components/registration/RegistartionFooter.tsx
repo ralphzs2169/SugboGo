@@ -61,7 +61,13 @@ export default function RegistrationFooter({
       ? "Resubmit Application"
       : "Submit Application"
     : "Save & Continue";
-
+  console.log("RegistrationFooter:", {
+    currentStep,
+    totalSteps,
+    isLastStep,
+    isResubmission,
+    primaryButtonTitle,
+  });
   return (
     <View className="border-t border-border-primary bg-surface px-6 py-5">
       <View className="flex-row gap-3">

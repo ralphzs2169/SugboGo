@@ -16,15 +16,19 @@ class ApplicationIdentitySerializer(serializers.ModelSerializer):
     )
     business_description = serializers.CharField(
         source="MIDN_BUSINESS_DESCRIPTION",
-        required=False,
-        allow_blank=True,
-        allow_null=True,
+        trim_whitespace=True,
+        error_messages={
+            "blank": "Business description is required.",
+            "required": "Business description is required.",
+        },
     )
-    contact_number = serializers.CharField(
+    contact_number = serializers.RegexField(
+        regex=r"^(09\d{9}|\+639\d{9})$",
         source="MIDN_CONTACT_NUMBER",
         error_messages={
             "blank": "Contact number is required.",
             "required": "Contact number is required.",
+            "invalid": "Enter a valid Philippine mobile number.",
         },
     )
     business_email = serializers.EmailField(

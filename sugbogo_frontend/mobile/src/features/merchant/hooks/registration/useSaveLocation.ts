@@ -36,7 +36,9 @@ export default function useSaveApplicationLocation() {
         Toast.show({
           type: "error",
           text1: "Unable to save",
-          text2: "We couldn't save your location. Please try again.",
+          text2:
+            response.message ||
+            "We couldn't save your location. Please try again.",
         });
       }
 

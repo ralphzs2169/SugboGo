@@ -25,3 +25,4 @@ class NearbyLandmarksSerializer(serializers.Serializer):
 
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
+    place_id = serializers.CharField(max_length=255, required=False, allow_blank=True)

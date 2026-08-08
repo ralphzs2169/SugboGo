@@ -6,6 +6,7 @@ from apps.merchant_application.serializers.identity_serializers import (
     ApplicationIdentityReadSerializer,
     ApplicationIdentitySerializer,
 )
+from apps.merchant_application.services.application_service import ApplicationService
 from apps.merchant_application.services.identity_service import IdentityService
 
 
@@ -17,10 +18,9 @@ def identity_save_view(request):
     updates identity in place on subsequent saves.
     """
 
-    serializer = ApplicationIdentitySerializer(
-        data=request.data,
-        partial=True,
-    )
+    application = ApplicationService.get_current_application(request.user)
+    is_update = application is not None and hasattr(application, "identity")
+    serializer = ApplicationIdentitySerializer(data=request.data, partial=is_update)
     serializer.is_valid(raise_exception=True)
 
     _, identity = IdentityService.save_identity(

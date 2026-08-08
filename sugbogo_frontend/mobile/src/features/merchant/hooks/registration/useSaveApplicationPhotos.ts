@@ -24,7 +24,7 @@ export default function useSaveApplicationPhotos() {
 
     try {
       const response = await saveApplicationPhotos(formData);
-
+      console.log("PHOTO SAVE RESPONSE:", response);
       if (!response.success) {
         if (handleSystemError(response)) {
           return response;
@@ -33,7 +33,9 @@ export default function useSaveApplicationPhotos() {
         Toast.show({
           type: "error",
           text1: "Unable to save",
-          text2: "We couldn't save your business photos. Please try again.",
+          text2:
+            response.message ||
+            "We couldn't save your business photos. Please try again.",
         });
       }
 

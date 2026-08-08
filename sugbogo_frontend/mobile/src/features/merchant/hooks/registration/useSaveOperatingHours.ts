@@ -34,7 +34,9 @@ export default function useSaveOperatingHours() {
         Toast.show({
           type: "error",
           text1: "Unable to save",
-          text2: "We couldn't save your operating hours. Please try again.",
+          text2:
+            response.message ||
+            "We couldn't save your operating hours. Please try again.",
         });
       }
 

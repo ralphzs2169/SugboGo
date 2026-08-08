@@ -17,6 +17,8 @@ import {
 } from "@/features/merchant/types/merchantRegistration.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 import type { RepresentativeRole } from "../../../types/registration/registrationApi.types";
+import useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";
+import { View } from "react-native";
 
 export const REPRESENTATIVE_ROLE_OPTIONS: {
   label: string;
@@ -40,6 +42,9 @@ type Props = {
   categoriesError: ApiError | null;
   refetchClusters?: () => void;
   refetchCategories?: () => void;
+  registerErrorScrollTarget: ReturnType<
+    typeof useRegistrationErrorScroll
+  >["registerErrorScrollTarget"];
 };
 
 /**
@@ -55,6 +60,7 @@ export default function BusinessIdentityStep({
   categoriesError,
   refetchClusters,
   refetchCategories,
+  registerErrorScrollTarget,
 }: Props) {
   const clusterSheetRef = useRef<BottomSheetModal>(null);
   const categorySheetRef = useRef<BottomSheetModal>(null);
@@ -164,23 +170,27 @@ export default function BusinessIdentityStep({
         title="Business Details"
         description="Tell us about the business you'd like to register."
       >
-        <RHFFormInput
-          name="businessName"
-          label="Business Name"
-          placeholder="e.g. Cafe Sugbo"
-          required
-        />
+        <View {...registerErrorScrollTarget?.("businessName")}>
+          <RHFFormInput
+            name="businessName"
+            label="Business Name"
+            placeholder="e.g. Cafe Sugbo"
+            required
+          />
+        </View>
 
         {/* Cluster Select Input */}
-        <RHFFormSelect
-          name="businessCluster"
-          label="Cluster"
-          placeholder="Select a cluster"
-          required
-          disabled={isLoadingClusters || clusters.length === 0}
-          options={clusterOptions}
-          onSelectPress={handleOpenClusterSheet}
-        />
+        <View {...registerErrorScrollTarget?.("businessCluster")}>
+          <RHFFormSelect
+            name="businessCluster"
+            label="Cluster"
+            placeholder="Select a cluster"
+            required
+            disabled={isLoadingClusters || clusters.length === 0}
+            options={clusterOptions}
+            onSelectPress={handleOpenClusterSheet}
+          />
+        </View>
         {clustersError && (
           <FormFieldApiError
             message="Unable to load clusters."
@@ -189,19 +199,21 @@ export default function BusinessIdentityStep({
         )}
 
         {/* Category Select Input */}
-        <RHFFormSelect
-          name="businessCategory"
-          label="Category"
-          placeholder={categoryPlaceholder}
-          required
-          disabled={
-            isLoadingCategories ||
-            !selectedCluster ||
-            categoryOptions.length === 0
-          }
-          options={categoryOptions}
-          onSelectPress={handleOpenCategorySheet}
-        />
+        <View {...registerErrorScrollTarget?.("businessCategory")}>
+          <RHFFormSelect
+            name="businessCategory"
+            label="Category"
+            placeholder={categoryPlaceholder}
+            required
+            disabled={
+              isLoadingCategories ||
+              !selectedCluster ||
+              categoryOptions.length === 0
+            }
+            options={categoryOptions}
+            onSelectPress={handleOpenCategorySheet}
+          />
+        </View>
 
         {categoriesError && selectedCluster && (
           <FormFieldApiError
@@ -210,20 +222,15 @@ export default function BusinessIdentityStep({
           />
         )}
 
-        {categoriesError && selectedCluster && (
-          <FormFieldApiError
-            message="Unable to load categories."
-            onRetry={refetchCategories}
+        <View {...registerErrorScrollTarget?.("businessDescription")}>
+          <RHFFormTextArea
+            name="businessDescription"
+            label="Description"
+            placeholder="Tell explorers about your business..."
+            maxLength={500}
+            required
           />
-        )}
-
-        <RHFFormTextArea
-          name="businessDescription"
-          label="Description"
-          placeholder="Tell explorers about your business..."
-          maxLength={500}
-          required
-        />
+        </View>
 
         <RHFFormInput
           name="website"
@@ -239,7 +246,9 @@ export default function BusinessIdentityStep({
         title="Specialty Tags"
         description="Choose 3 tags that best describe your business."
       >
-        <SpecialtyTagsSection />
+        <View {...registerErrorScrollTarget("specialtyTags")}>
+          <SpecialtyTagsSection />
+        </View>
       </RegistrationSection>
 
       {/* Contact Information Section */}
@@ -248,13 +257,15 @@ export default function BusinessIdentityStep({
         title="Contact Information"
         description="We'll use these details to contact you regarding your application."
       >
-        <RHFFormInput
-          name="contactNumber"
-          label="Mobile Number"
-          placeholder="0912 345 6789"
-          keyboardType="phone-pad"
-          required
-        />
+        <View {...registerErrorScrollTarget("contactNumber")}>
+          <RHFFormInput
+            name="contactNumber"
+            label="Mobile Number"
+            placeholder="0912 345 6789"
+            keyboardType="phone-pad"
+            required
+          />
+        </View>
 
         <RHFFormInput
           name="businessEmail"
@@ -271,21 +282,25 @@ export default function BusinessIdentityStep({
         title="Representative Information"
         description="Tell us who is submitting this application."
       >
-        <RHFFormInput
-          name="representativeName"
-          label="Full Name"
-          required
-          placeholder="e.g. Juan Dela Cruz"
-        />
+        <View {...registerErrorScrollTarget("representativeName")}>
+          <RHFFormInput
+            name="representativeName"
+            label="Full Name"
+            required
+            placeholder="e.g. Juan Dela Cruz"
+          />
+        </View>
 
-        <RHFFormSelect
-          name="representativeRole"
-          label="Position / Role"
-          required
-          placeholder="Select your role"
-          options={REPRESENTATIVE_ROLE_OPTIONS}
-          onSelectPress={handleOpenRepresentativeRoleSheet}
-        />
+        <View {...registerErrorScrollTarget("representativeRole")}>
+          <RHFFormSelect
+            name="representativeRole"
+            label="Position / Role"
+            required
+            placeholder="Select your role"
+            options={REPRESENTATIVE_ROLE_OPTIONS}
+            onSelectPress={handleOpenRepresentativeRoleSheet}
+          />
+        </View>
       </RegistrationSection>
 
       <SelectionBottomSheet

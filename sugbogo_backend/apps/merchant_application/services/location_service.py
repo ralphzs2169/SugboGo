@@ -1,5 +1,6 @@
 from django.contrib.gis.geos import Point
 from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
 from apps.merchant_application.models import (
     MerchantApplicationLandmark,
@@ -36,9 +37,9 @@ class LocationService:
         if location is None:
             # First save requires a complete location point.
             if latitude is None or longitude is None:
-                raise ValueError(
-                    "Latitude and longitude are required when creating a location."
-                )
+                raise ValidationError({
+                    "coordinates": "Latitude and longitude are required when creating a location."
+                })
 
             location = MerchantApplicationLocation.objects.create(
                 MAPP_ID=application,
@@ -102,11 +103,7 @@ class LocationService:
             if records:
                 MerchantApplicationLandmark.objects.bulk_create(records)
 
-        if LocationService._is_step_complete(location):
-            ApplicationService.mark_step_completed(
-                application,
-                LocationService.STEP,
-            )
+        ApplicationService.mark_step_completed(application, LocationService.STEP)
 
         return location
 

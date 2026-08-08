@@ -12,16 +12,34 @@ from apps.merchant_application.models import (
 
 
 class ApplicationService:
+    """Service class for handling merchant application operations."""
+    
     @staticmethod
     def get_current_application(user):
         """
-        Retrieve the current merchant application for the given user.
-
-        Returns None if no application exists.
+        Retrieve the current merchant application with all relationships
+        required by the application detail serializer eagerly loaded.
         """
-        return MerchantApplication.objects.filter(
-            USER_ID=user
-        ).order_by("-MAPP_CREATED_AT").first()
+        return (
+            MerchantApplication.objects
+            .select_related(
+                "identity",
+                "identity__CLUS_ID",
+                "identity__CTGRY_ID",
+                "location",
+            )
+            .prefetch_related(
+                "identity__specialty_tags",
+                "location__landmarks",
+                "operating_hours",
+                "photos",
+                "documents",
+                "feedback",
+            )
+            .filter(USER_ID=user)
+            .order_by("-MAPP_CREATED_AT")
+            .first()
+        )
 
     @staticmethod
     def validate_application_editable(application):
@@ -39,12 +57,11 @@ class ApplicationService:
     @staticmethod
     def mark_step_completed(application, step):
         """
-        Records the step that was successfully saved and advances the
-        highest completed step without allowing it to move backward.
+        Recalculate persisted progress after a section changes.
         """
-        application.MAPP_HIGHEST_COMPLETED_STEP = max(
-            application.MAPP_HIGHEST_COMPLETED_STEP,
-            step,
+        del step
+        application.MAPP_HIGHEST_COMPLETED_STEP = (
+            ApplicationService.get_highest_completed_step(application)
         )
         application.save(
             update_fields=[
@@ -53,6 +70,57 @@ class ApplicationService:
             ]
         )
 
+    @staticmethod
+    def get_highest_completed_step(application):
+        """Derive the resume step from the application's saved records."""
+        identity = getattr(application, "identity", None)
+        if identity is None or not all(
+            (
+                identity.MIDN_BUSINESS_NAME,
+                identity.MIDN_BUSINESS_DESCRIPTION,
+                identity.MIDN_CONTACT_NUMBER,
+                identity.MIDN_REPRESENTATIVE_NAME,
+                identity.MIDN_REPRESENTATIVE_ROLE,
+                identity.CLUS_ID_id,
+                identity.CTGRY_ID_id,
+            )
+        ) or identity.specialty_tags.count() != 3:
+            return 0
+
+        location = getattr(application, "location", None)
+        if location is None or location.MLOC_POINT is None or not all(
+            (
+                location.MLOC_PROVINCE,
+                location.MLOC_CITY,
+                location.MLOC_BARANGAY,
+                location.MLOC_STREET_ADDRESS,
+            )
+        ):
+            return 1
+
+        operating_hours = MerchantApplicationOperatingHours.objects.filter(
+            MAPP_ID=application
+        )
+        if operating_hours.count() != 7 or not operating_hours.filter(
+            MHRS_IS_OPEN=True
+        ).exists():
+            return 2
+
+        if not MerchantApplicationPhotos.objects.filter(
+            MAPP_ID=application,
+            MPHT_CATEGORY=MerchantApplicationPhotos.PhotoCategory.STOREFRONT,
+        ).exists():
+            return 3
+
+        if not MerchantApplicationDocument.objects.filter(
+            MAPP_ID=application,
+            MDOC_DOCUMENT_TYPE=(
+                MerchantApplicationDocument.DocumentType.BUSINESS_REGISTRATION
+            ),
+        ).exists():
+            return 4
+
+        return 5
 
     @staticmethod
     def validate_step_access(application, step_number):
@@ -149,6 +217,8 @@ class ApplicationService:
             raise ValidationError(
                 "This application can no longer be submitted."
             )
+
+        ApplicationService.mark_step_completed(application, step=None)
 
         # Validate that the application has completed all steps
         if application.MAPP_HIGHEST_COMPLETED_STEP < 5:
