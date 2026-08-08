@@ -18,8 +18,7 @@ const MOCK_POCKETS = [
   {
     id: "2",
     name: "Danao Weaves & Crafts",
-    photoUrl:
-      "https://images.unsplash.com/photo-1528812969535-4bcefb361402?w=200&h=200&fit=crop",
+    photoUrl:  "https://images.unsplash.com/photo-1729383456185-dec6084f0271?q=80&w=846&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     category: "Creative",
     location: "Danao City, Cebu",
   },
