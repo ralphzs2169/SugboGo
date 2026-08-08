@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import PhotoPreview from "./PhotoPreview";
 import { pickBusinessPhotos } from "./PhotoPicker";
-import type { BusinessPhoto } from "@/features/merchant/types/merchantRegistration.types";
+import type { BusinessPhoto } from "@/features/merchant/types/registration/registrationOption.types";
 import { theme } from "@/constants/theme";
 
 type PhotoGridProps = {

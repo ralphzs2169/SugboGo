@@ -6,14 +6,14 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import ApplicationStatusCard from "../components/portal/ApplicationStatusCard";
+import SubmittedApplicationSection from "../components/portal/SubmittedApplicationSection";
 import MerchantBenefits from "../components/portal/MerchantBenefits";
-import MerchantDashboardCard from "../components/portal/MerchantDashboardCard";
 import MerchantHero from "../components/portal/MerchantHero";
 import MerchantRequirements from "../components/portal/MerchantRequirements";
-import RegistrationProgressCard from "../components/portal/RegistrationProgressCard";
-import RejectionFeedbackCard from "../components/portal/RejectionFeedback";
+import ResumeApplicationSection from "../components/portal/ResumeApplicationSection";
+import RejectionApplicationSection from "../components/portal/RejectedApplicationSection";
 import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
+import AcceptedApplicationSection from "../components/portal/AcceptedApplicationSection";
 
 function SectionDivider() {
   return <View className="mx-6 mt-3" />;
@@ -94,12 +94,12 @@ export default function MerchantPortalScreen() {
   };
 
   return (
-    <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
+    <SafeAreaView edges={["bottom"]} className="flex-1 bg-surface">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {config.hero && <MerchantHero />}
 
         {config.sections.progress && (
-          <RegistrationProgressCard
+          <ResumeApplicationSection
             currentStep={application?.highest_completed_step ?? 1}
             totalSteps={5}
             lastUpdated={formatDate(application?.updated_at)}
@@ -107,7 +107,7 @@ export default function MerchantPortalScreen() {
         )}
 
         {config.sections.status && (
-          <ApplicationStatusCard
+          <SubmittedApplicationSection
             status="UNDER_REVIEW"
             submittedAt={formatDate(application?.submitted_at)}
             estimatedReview="2–5 business days"
@@ -115,14 +115,14 @@ export default function MerchantPortalScreen() {
         )}
 
         {config.sections.feedback && (
-          <RejectionFeedbackCard
+          <RejectionApplicationSection
             reviewedAt={formatDate(application?.reviewed_at)}
             feedback={application?.feedback ?? []}
           />
         )}
 
         {config.sections.dashboard && (
-          <MerchantDashboardCard
+          <AcceptedApplicationSection
             businessName="Cafe Sugbo"
             approvedAt="July 30, 2026"
             onOpenDashboard={() => {}}

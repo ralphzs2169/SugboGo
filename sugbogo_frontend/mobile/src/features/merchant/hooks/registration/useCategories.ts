@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getCategories } from "../../api/merchantApplication.service";
-import { CategoryOption } from "../../types/merchantRegistration.types";
+import { CategoryOption } from "../../types/registration/registrationOption.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 
 export default function useCategories() {

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Image, Linking, Pressable, Text, View } from "react-native";
 
 import { theme } from "@/constants/theme";
-import type { BusinessDocument } from "@/features/merchant/types/merchantRegistration.types";
+import type { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
 import ImagePreviewModal from "@/shared/components/modals/ImagePreviewModal";
 
 type DocumentPreviewProps = {

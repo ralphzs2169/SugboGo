@@ -125,3 +125,21 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         if location is None:
             return None
         return ApplicationLocationReadSerializer(location).data
+
+
+class MerchantApplicationStatusSerializer(serializers.ModelSerializer):
+    status = serializers.CharField(
+        source="MAPP_STATUS",
+        read_only=True,
+    )
+    highest_completed_step = serializers.IntegerField(
+        source="MAPP_HIGHEST_COMPLETED_STEP",
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantApplication
+        fields = (
+            "status",
+            "highest_completed_step",
+        )

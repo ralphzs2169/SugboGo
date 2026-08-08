@@ -1,9 +1,9 @@
-import Button from "@/shared/components/Button";
+import AcceptedStatusIllustration from "../../assets/illustrations/application-accepted.svg";
 import { theme } from "@/constants/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
-type MerchantDashboardCardProps = {
+type AcceptedApplicationSectionProps = {
   businessName: string;
   approvedAt: string;
   onOpenDashboard: () => void;
@@ -16,18 +16,19 @@ type MerchantDashboardCardProps = {
  * Displayed once the merchant application has been
  * approved by an administrator.
  */
-export default function MerchantDashboardCard({
+export default function AcceptedApplicationSection({
   businessName,
   approvedAt,
   onOpenDashboard,
-}: MerchantDashboardCardProps) {
+}: AcceptedApplicationSectionProps) {
   return (
     <View className="bg-surface px-6 py-6">
-      <Text className="mb-2 text-3xl font-bold text-text-primary">
+      <AcceptedStatusIllustration width="100%" height={180} />
+      <Text className="mb-2 mt-6 text-2xl font-bold text-text-primary text-center">
         Welcome to SugboGo
       </Text>
 
-      <Text className="mb-6 text-md text-text-secondary">
+      <Text className="mb-6 text-md text-text-secondary text-center">
         Your merchant account is now active and ready to help you grow your
         business.
       </Text>
@@ -78,7 +79,7 @@ export default function MerchantDashboardCard({
           <MaterialCommunityIcons
             name="calendar-check-outline"
             size={22}
-            color={theme.extends.colors.brand}
+            color={theme.extends.colors.text.secondary}
             style={{ marginTop: 2 }}
           />
 

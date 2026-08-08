@@ -5,7 +5,7 @@ import {
   CategoryOption,
   ClusterOption,
   SpecialtyTagOption,
-} from "../types/merchantRegistration.types";
+} from "../types/registration/registrationOption.types";
 import {
   ApplicationDetailResponse,
   ApplicationDocumentResponse,
@@ -17,6 +17,7 @@ import {
   ApplicationOperatingHoursResponse,
   ApplicationPhotoResponse,
 } from "../types/registration/registrationApi.types";
+import { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
 
 // Registration options
 
@@ -88,4 +89,10 @@ export async function submitApplication(): Promise<
   ApiResponse<ApplicationDetailResponse>
 > {
   return request(apiClient.post("/merchant/application/submit/"));
+}
+
+export async function getApplicationStatus(): Promise<
+  ApiResponse<{ status: MerchantApplicationStatus } | null>
+> {
+  return request(apiClient.get("/merchant/application/status/"));
 }

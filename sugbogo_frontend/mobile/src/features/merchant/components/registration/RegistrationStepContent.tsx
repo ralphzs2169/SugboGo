@@ -9,7 +9,7 @@ import VerificationDocumentsStep from "./steps/VerificationDocumentsStep";
 import type {
   CategoryOption,
   ClusterOption,
-} from "@/features/merchant/types/merchantRegistration.types";
+} from "@/features/merchant/types/registration/registrationOption.types";
 import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 

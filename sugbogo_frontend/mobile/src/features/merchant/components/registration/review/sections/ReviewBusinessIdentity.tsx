@@ -6,7 +6,7 @@ import { merchantRegistrationSchema } from "@/features/merchant/validation/merch
 import type {
   ClusterOption,
   CategoryOption,
-} from "@/features/merchant/types/merchantRegistration.types";
+} from "@/features/merchant/types/registration/registrationOption.types";
 
 import useSpecialtyTags from "@/features/merchant/hooks/registration/useSpecialtyTags";
 import ReviewSection from "../ReviewSection";

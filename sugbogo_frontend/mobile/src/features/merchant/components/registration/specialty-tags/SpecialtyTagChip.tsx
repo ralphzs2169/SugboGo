@@ -1,7 +1,7 @@
 import { Pressable, Text } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import type { SpecialtyTagOption } from "@/features/merchant/types/merchantRegistration.types";
+import type { SpecialtyTagOption } from "@/features/merchant/types/registration/registrationOption.types";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 
 type SpecialtyTagChipProps = {

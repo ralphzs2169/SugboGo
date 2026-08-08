@@ -20,7 +20,7 @@ export interface RegistrationProgress {
  * Application review information displayed while
  * the application is under review.
  */
-export interface ApplicationStatus {
+export interface ApplicationReviewStatus {
   status: "UNDER_REVIEW";
   submittedAt: string;
   estimatedReview: string;
@@ -53,7 +53,7 @@ export interface MerchantPortalState {
 
   progress?: RegistrationProgress;
 
-  application?: ApplicationStatus;
+  application?: ApplicationReviewStatus;
 
   feedback?: RejectionFeedback;
 

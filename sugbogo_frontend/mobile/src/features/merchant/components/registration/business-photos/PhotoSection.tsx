@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import PhotoGrid from "./PhotoGrid";
-import type { BusinessPhoto } from "@/features/merchant/types/merchantRegistration.types";
+import type { BusinessPhoto } from "@/features/merchant/types/registration/registrationOption.types";
 
 type PhotoSectionProps = {
   photos: BusinessPhoto[];

@@ -14,7 +14,7 @@ import { MerchantRegistrationForm } from "@/features/merchant/validation/merchan
 import {
   ClusterOption,
   CategoryOption,
-} from "@/features/merchant/types/merchantRegistration.types";
+} from "@/features/merchant/types/registration/registrationOption.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 import type { RepresentativeRole } from "../../../types/registration/registrationApi.types";
 import useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";

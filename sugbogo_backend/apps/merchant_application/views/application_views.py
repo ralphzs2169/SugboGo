@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.merchant_application.serializers.application_serializers import (
     ApplicationDetailSerializer,
+    MerchantApplicationStatusSerializer,
 )
 from apps.merchant_application.services.application_service import ApplicationService
 from core.responses import error_response, success_response
@@ -50,4 +51,23 @@ def application_submit_view(request):
     return success_response(
         data=serializer.data,
         message="Application submitted successfully.",
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def application_status_view(request):
+    application = ApplicationService.get_current_application(request.user)
+
+    if application is None:
+        return success_response(
+            data=None,
+            message="No merchant application found.",
+        )
+
+    serializer = MerchantApplicationStatusSerializer(application)
+
+    return success_response(
+        data=serializer.data,
+        message="Application status retrieved successfully.",
     )

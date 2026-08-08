@@ -1,3 +1,4 @@
+from core.responses import success_response
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -12,7 +13,6 @@ from apps.merchant_application.serializers.review_serializers import (
 )
 from apps.merchant_application.services.application_service import ApplicationService
 from apps.users.models import User
-from core.responses import success_response
 
 
 @api_view(["PATCH"])

@@ -1,6 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 
-import type { BusinessPhoto } from "@/features/merchant/types/merchantRegistration.types";
+import type { BusinessPhoto } from "@/features/merchant/types/registration/registrationOption.types";
 import { processImage } from "@/shared/utils/image/processImage.utils";
 
 type PickBusinessPhotosParams = {

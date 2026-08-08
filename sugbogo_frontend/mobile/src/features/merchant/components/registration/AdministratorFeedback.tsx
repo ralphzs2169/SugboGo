@@ -45,7 +45,7 @@ export default function AdministratorFeedback({
   if (feedback.length === 0) {
     return (
       <View
-        className={`mb-4 relative border-b border-border-primary bg-surface py-6 ${padding ? "px-6" : ""}`}
+        className={` relative border-b border-border-primary bg-surface py-6 ${padding ? "px-6" : ""}`}
       >
         <MaterialCommunityIcons
           name="information-outline"

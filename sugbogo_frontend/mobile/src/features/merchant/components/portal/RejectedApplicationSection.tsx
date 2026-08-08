@@ -2,11 +2,11 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import { theme } from "@/constants/theme";
-import ReviewChangesIllustration from "../../assets/illustrations/review-changes.svg";
+import RejectedStatusIllustartion from "../../assets/illustrations/application-rejected.svg";
 import { ApplicationFeedbackResponse } from "../../types/registration/registrationApi.types";
 import AdministratorFeedback from "../registration/AdministratorFeedback";
 
-type RejectionFeedbackCardProps = {
+type RejectionApplicationSectionProps = {
   feedback: ApplicationFeedbackResponse[];
   reviewedAt: string;
 };
@@ -18,29 +18,29 @@ type RejectionFeedbackCardProps = {
  * application was reviewed, and surfaces the administrator's
  * section-specific feedback.
  */
-export default function RejectionFeedbackCard({
+export default function RejectionApplicationSection({
   feedback,
   reviewedAt,
-}: RejectionFeedbackCardProps) {
+}: RejectionApplicationSectionProps) {
   return (
-    <View className="bg-surface px-6 py-6">
-      <Text className="mb-2 text-3xl font-bold text-text-primary">
-        Application Feedback
-      </Text>
-
-      <Text className="mb-6 text-base text-text-secondary">
-        Your application requires a few revisions before it can be approved.
-      </Text>
-
+    <View className="bg-surface px-6 pb-6">
       {/* Hero */}
       <View className="items-center border-b border-border-primary/60 pb-6">
-        <ReviewChangesIllustration width={180} height={180} />
+        <RejectedStatusIllustartion width="100%" height={180} />
 
-        <View className="mt-2 flex-row items-center rounded-full bg-error/10 px-4 py-2">
-          <View className="mt-4 rounded-full bg-border-error px-4 py-2">
+        <View className=" flex-row items-center rounded-full bg-error/10 px-4 pb-2">
+          <View className="mt-4 rounded-full bg-red-500 px-4 py-2">
             <Text className=" text-white">Changes Required</Text>
           </View>
         </View>
+
+        <Text className="mt-4 text-center text-xl font-bold text-text-primary">
+          Your application needs some changes
+        </Text>
+
+        <Text className="mt-2 text-center text-base leading-6 text-text-secondary">
+          Review the feedback, make the required changes, and resubmit.
+        </Text>
       </View>
 
       {/* Review date */}
@@ -64,7 +64,7 @@ export default function RejectionFeedbackCard({
 
       {/* Administrator feedback */}
       <View className="mt-6">
-        <Text className="mb-4 text-lg font-bold text-text-primary">
+        <Text className="mb-2 text-md font-bold text-text-primary">
           Administrator Feedback
         </Text>
 

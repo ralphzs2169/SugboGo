@@ -3,7 +3,7 @@ import { View } from "react-native";
 import type {
   CategoryOption,
   ClusterOption,
-} from "@/features/merchant/types/merchantRegistration.types";
+} from "@/features/merchant/types/registration/registrationOption.types";
 import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import { useFormContext } from "react-hook-form";

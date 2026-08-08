@@ -181,3 +181,7 @@ export interface ApplicationDetailResponse {
   photos: ApplicationPhotoResponse[];
   documents: ApplicationDocumentResponse[];
 }
+
+export interface ApplicationStatusResponse {
+  status: "draft" | "submitted" | "rejected" | "approved";
+}

@@ -36,7 +36,10 @@ export default function ApplicationSummaryScreen() {
 
   if (error) {
     return (
-      <SafeAreaView className="flex-1 bg-background">
+      <SafeAreaView
+        className="flex-1 bg-background"
+        edges={["left", "right", "bottom"]}
+      >
         <ErrorState
           title="Unable to load application"
           description="Please check your internet connection and try again."
@@ -56,8 +59,12 @@ export default function ApplicationSummaryScreen() {
   const form = mapApplicationToForm(application);
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView>
+    <SafeAreaView className="flex-1" edges={["left", "right", "bottom"]}>
+      <ScrollView
+        contentContainerStyle={{
+          paddingTop: 0,
+        }}
+      >
         <ReviewBusinessIdentity
           form={form}
           clusters={clusters}

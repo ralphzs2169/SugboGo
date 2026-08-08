@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 
-import type { BusinessDocument } from "@/features/merchant/types/merchantRegistration.types";
+import type { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
 
 type PickBusinessDocumentsParams = {
   currentCount: number;

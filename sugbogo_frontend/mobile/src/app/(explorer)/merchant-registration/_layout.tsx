@@ -45,6 +45,7 @@ export default function MerchantRegistrationLayout() {
           name="review-landmarks"
           options={{
             headerShown: false,
+            animation: "slide_from_right",
           }}
         />
 

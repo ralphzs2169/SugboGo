@@ -1,6 +1,6 @@
 import { View, Text } from "react-native";
 import DocumentPreview from "../verification-documents/DocumentPreview";
-import { BusinessDocument } from "@/features/merchant/types/merchantRegistration.types";
+import { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
 
 type DocumentGroupProps = {
   title: string;

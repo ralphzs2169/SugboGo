@@ -5,6 +5,7 @@ from .views.application_location_views import (
 )
 from .views.application_views import (
     application_detail_view,
+    application_status_view,
     application_submit_view,
 )
 from .views.category_options_views import CategoryOptionsView
@@ -19,8 +20,8 @@ from .views.location_views import (
 )
 from .views.operating_hours_views import operating_hours_save_view
 from .views.photo_views import photo_save_view
-from .views.tag_options_views import SpecialtyTagOptionsView
 from .views.review_views import application_review_view
+from .views.tag_options_views import SpecialtyTagOptionsView
 
 urlpatterns = [
     # Merchant Application Options endpoints
@@ -43,5 +44,6 @@ urlpatterns = [
     path("photos/",name="application-photos",view=photo_save_view,),
     path("documents/",document_save_view,name="application-document-upload",),
     path("<int:application_id>/review/", application_review_view, name="application-review"),
-  
+
+    path("status/", application_status_view, name="application-status"),
 ]
