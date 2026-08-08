@@ -1,11 +1,13 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
-import { ActivityIndicator, Modal, Pressable, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { ReactNode } from "react";
+import { ActivityIndicator, Modal, Text, View } from "react-native";
+import Button from "../Button";
 
 interface ConfirmModalProps {
   visible: boolean;
   title: string;
-  message: string;
+  message: ReactNode;
   confirmText?: string;
   cancelText?: string;
   onCancel: () => void;
@@ -47,7 +49,8 @@ export default function ConfirmModal({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
+
       onRequestClose={() => {
         if (!isLoading) {
           onCancel();
@@ -74,9 +77,15 @@ export default function ConfirmModal({
           )}
           <Text className="text-lg font-bold text-text-primary">{title}</Text>
 
-          <Text className="mt-3 text-sm leading-5 text-text-secondary">
-            {message}
-          </Text>
+          <View className="mt-3">
+            {typeof message === "string" ? (
+              <Text className="text-sm leading-5 text-text-secondary">
+                {message}
+              </Text>
+            ) : (
+              message
+            )}
+          </View>
 
           {isLoading && (
             <View className="mt-5 flex-row items-center">
@@ -90,46 +99,22 @@ export default function ConfirmModal({
               </Text>
             </View>
           )}
-
-          <View className="mt-6 flex-row justify-end gap-2">
-            <Pressable
-              disabled={isLoading}
+          <View className="mt-6 flex-row gap-3">
+            <Button
+              title={cancelText}
               onPress={onCancel}
-              hitSlop={8}
-              android_ripple={{ color: "#E5E7EB", borderless: false }}
-              style={({ pressed }) => ({
-                opacity: isLoading ? 0.45 : pressed ? 0.7 : 1,
-              })}
-              className="rounded-lg px-3 py-2"
-            >
-              <Text className="font-medium text-text-secondary">
-                {cancelText}
-              </Text>
-            </Pressable>
-
-            <Pressable
               disabled={isLoading}
+              variant="outline"
+            />
+
+            <Button
+              title={confirmText}
               onPress={onConfirm}
-              hitSlop={8}
-              android_ripple={{
-                color: destructive ? "#FECACA" : "#D1FAE5",
-                borderless: false,
-              }}
-              style={({ pressed }) => ({
-                opacity: isLoading ? 0.45 : pressed ? 0.7 : 1,
-              })}
-              className="rounded-lg px-3 py-2"
-            >
-              <Text
-                className={
-                  destructive
-                    ? "font-bold text-red-500"
-                    : "font-bold text-brand"
-                }
-              >
-                {confirmText}
-              </Text>
-            </Pressable>
+              disabled={isLoading}
+              variant={destructive ? "danger" : "primary"}
+              className="flex-1"
+              fontClassName="font-bold"
+            />
           </View>
         </View>
       </View>

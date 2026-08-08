@@ -3,10 +3,12 @@ import type { ScrollView } from "react-native";
 
 type UseRegistrationNavigationProps = {
   reviewStep: number;
+  onBeforeBack?: (currentStep: number) => void;
 };
 
 export default function useRegistrationNavigation({
   reviewStep,
+  onBeforeBack,
 }: UseRegistrationNavigationProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [editingStep, setEditingStep] = useState<number | null>(null);
@@ -34,6 +36,8 @@ export default function useRegistrationNavigation({
   };
 
   const handleBack = () => {
+    onBeforeBack?.(currentStep);
+
     setCurrentStep((step) => Math.max(1, step - 1));
     scrollToTop();
   };
@@ -58,5 +62,8 @@ export default function useRegistrationNavigation({
     handleEditSection,
     completeCurrentStep,
     highestCompletedStep,
+
+    setCurrentStep,
+    setHighestCompletedStep,
   };
 }

@@ -146,7 +146,7 @@ export default function LocationPickerMap({
       ref={mapRef}
       provider={PROVIDER_GOOGLE}
       customMapStyle={MAP_STYLE}
-      pointerEvents={onLocationSelect ? "auto" : "none"}
+      pointerEvents={interactionEnabled ? "auto" : "none"}
       style={{
         width: "100%",
         height: fullScreen ? "100%" : PREVIEW_MAP_HEIGHT,

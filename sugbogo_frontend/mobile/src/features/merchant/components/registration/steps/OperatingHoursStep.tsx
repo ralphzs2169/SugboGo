@@ -10,6 +10,13 @@ import {
   type Day,
 } from "@/features/merchant/constants/registration/operatingHours.constants";
 import RegistrationSection from "../RegistrationSection";
+import useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";
+
+type OperatingHoursStepProps = {
+  registerErrorScrollTarget: ReturnType<
+    typeof useRegistrationErrorScroll
+  >["registerErrorScrollTarget"];
+};
 
 /**
  * Renders the operating-hours step of merchant registration.
@@ -20,7 +27,9 @@ import RegistrationSection from "../RegistrationSection";
  * Validation errors are shown on collapsed days and remain visible
  * inside the editor when a day is expanded.
  */
-export default function OperatingHoursStep() {
+export default function OperatingHoursStep({
+  registerErrorScrollTarget,
+}: OperatingHoursStepProps) {
   const { control } = useFormContext<MerchantRegistrationForm>();
 
   const { errors } = useFormState({
@@ -59,19 +68,23 @@ export default function OperatingHoursStep() {
             const hasError = Boolean(dayErrors) && !isExpanded;
 
             return (
-              <DaySectionCard
+              <View
                 key={day}
-                day={day}
-                schedule={schedule}
-                isExpanded={isExpanded}
-                hasError={hasError}
-                onPress={() => handleDayPress(day)}
+                {...registerErrorScrollTarget(`operatingHours.${day}`)}
               >
-                <OperatingHoursEditor
+                <DaySectionCard
                   day={day}
-                  onDone={() => setExpandedDay(null)}
-                />
-              </DaySectionCard>
+                  schedule={schedule}
+                  isExpanded={isExpanded}
+                  hasError={hasError}
+                  onPress={() => handleDayPress(day)}
+                >
+                  <OperatingHoursEditor
+                    day={day}
+                    onDone={() => setExpandedDay(null)}
+                  />
+                </DaySectionCard>
+              </View>
             );
           })}
         </View>

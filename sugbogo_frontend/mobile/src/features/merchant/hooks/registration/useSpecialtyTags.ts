@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { getSpecialtyTags } from "../../api/registration.service";
-import { SpecialtyTagOption } from "../../types/merchantRegistration.types";
+import { getSpecialtyTags } from "../../api/merchantApplication.service";
+import { SpecialtyTagOption } from "../../types/registration/registrationOption.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 
 export default function useSpecialtyTags() {

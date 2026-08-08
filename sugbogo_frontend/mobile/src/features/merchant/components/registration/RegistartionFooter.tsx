@@ -1,6 +1,6 @@
 import Button from "@/shared/components/Button";
-import { View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { View } from "react-native";
 type RegistrationFooterProps = {
   currentStep: number;
   totalSteps: number;
@@ -9,6 +9,7 @@ type RegistrationFooterProps = {
   onSaveAndReview: () => void;
   isSubmitting?: boolean;
   isEditing?: boolean;
+  isResubmission: boolean;
 };
 
 /**
@@ -30,6 +31,7 @@ export default function RegistrationFooter({
   onSaveAndReview,
   isSubmitting = false,
   isEditing = false,
+  isResubmission,
 }: RegistrationFooterProps) {
   const isFirstStep = currentStep === 1;
   const isLastStep = currentStep === totalSteps;
@@ -54,6 +56,12 @@ export default function RegistrationFooter({
     );
   }
 
+  const primaryButtonTitle = isLastStep
+    ? isResubmission
+      ? "Resubmit Application"
+      : "Submit Application"
+    : "Save & Continue";
+
   return (
     <View className="border-t border-border-primary bg-surface px-6 py-5">
       <View className="flex-row gap-3">
@@ -68,7 +76,7 @@ export default function RegistrationFooter({
         )}
 
         <Button
-          title={isLastStep ? "Submit Application" : "Continue"}
+          title={primaryButtonTitle}
           className={!isFirstStep && !isLastStep ? "flex-[1.2]" : "flex-1"}
           loading={isSubmitting}
           disabled={isSubmitting}

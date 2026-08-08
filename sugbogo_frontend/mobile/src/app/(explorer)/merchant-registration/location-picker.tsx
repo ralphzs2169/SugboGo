@@ -1,19 +1,29 @@
-import { router } from "expo-router";
-import { useState } from "react";
-import ConfirmModal from "@/shared/components/modals/ConfirmModal";
-import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
-import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import useNearbyLandmarks from "@/features/merchant/hooks/registration/useNearbyLandmarks";
 import LocationPickerScreen from "@/features/merchant/screens/LocationPickerScreen";
+import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
+import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+import { router } from "expo-router";
+import { useState } from "react";
+import { useFormContext } from "react-hook-form";
 import Toast from "react-native-toast-message";
 
 /**
  * Route wrapper for the full-screen business location picker.
  *
- * Uses the existing registration location from Zustand and stores
- * the confirmed location before returning to registration.
+ * After a location is confirmed, the selected coordinates and the
+ * initial reverse-geocoded address are stored in Zustand before
+ * returning to the registration screen.
+ *
+ * The editable address is stored separately from the selected
+ * location so manual address corrections (for example, an
+ * undetected barangay or edited street name) are preserved when
+ * navigating away from Step 2.
  */
 export default function BusinessLocationPickerPage() {
+  const form = useFormContext<MerchantRegistrationForm>();
+
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
   );
@@ -43,11 +53,30 @@ export default function BusinessLocationPickerPage() {
     (state) => state.setAddressLoadFailed,
   );
 
+  const setAddressLoadFailures = useMerchantRegistrationStore(
+    (state) => state.setAddressLoadFailures,
+  );
+
+  const setSelectedAddress = useMerchantRegistrationStore(
+    (state) => state.setSelectedAddress,
+  );
+
   const { searchNearbyLandmarks } = useNearbyLandmarks();
   const [showRefreshModal, setShowRefreshModal] = useState(false);
 
   const [isRefreshingLandmarks, setIsRefreshingLandmarks] = useState(false);
 
+  /**
+   * Confirms the selected business location.
+   *
+   * Nearby landmarks are fetched for the new coordinates and the
+   * registration state is updated before returning to Step 2.
+   *
+   * The detected address is also copied into the editable address
+   * store. This becomes the initial value shown in the registration
+   * form and may later diverge from the selected location if the
+   * merchant manually edits the address.
+   */
   async function confirmLocation(
     location: BusinessLocation,
     addressLoadFailed: boolean,
@@ -61,6 +90,28 @@ export default function BusinessLocationPickerPage() {
       );
 
       setSelectedLocation(location);
+
+      // Initialize the editable address from the reverse-geocoded result.
+      //
+      // The registration form edits `selectedAddress`, not
+      // `selectedLocation`, so later manual corrections (such as
+      // entering a missing barangay or changing the street name)
+      // are preserved when revisiting Step 2.
+      setSelectedAddress({
+        province: location.province,
+        city: location.city,
+        barangay: location.barangay,
+        streetAddress: location.streetAddress,
+        unit: "",
+      });
+
+      setAddressLoadFailures({
+        province: !location.province,
+        city: !location.city,
+        barangay: !location.barangay,
+        streetAddress: !location.streetAddress,
+      });
+
       setSelectedLandmarks(result.landmarks);
       setNearbyLandmarksLoadFailed(!result.success);
       setAddressLoadFailed(addressLoadFailed);
@@ -126,10 +177,10 @@ export default function BusinessLocationPickerPage() {
       />
 
       <ConfirmModal
-        icon="map-marker-radius"
+        // icon="map-marker-radius"
         visible={showRefreshModal}
-        title="Refresh nearby landmarks?"
-        message="Changing your business location will replace your current landmarks with the nearest landmarks for the new location."
+        title="Update location details?"
+        message="Changing your location will update your address and nearby landmarks. Do you want to continue?"
         confirmText="Continue"
         cancelText="Keep Current"
         onCancel={() => {
@@ -151,7 +202,7 @@ export default function BusinessLocationPickerPage() {
           );
         }}
         isLoading={isRefreshingLandmarks}
-        loadingText="Loading nearby landmarks..."
+        loadingText="Updating location details..."
       />
     </>
   );

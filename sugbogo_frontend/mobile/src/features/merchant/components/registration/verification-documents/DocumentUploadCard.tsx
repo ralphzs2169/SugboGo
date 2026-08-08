@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import DocumentPreview from "./DocumentPreview";
 import { pickBusinessDocuments } from "./DocumentPicker";
-import type { BusinessDocument } from "@/features/merchant/types/merchantRegistration.types";
+import type { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
 import { theme } from "@/constants/theme";
 
 type DocumentUploadCardProps = {

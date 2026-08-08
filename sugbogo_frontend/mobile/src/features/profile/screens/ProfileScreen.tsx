@@ -11,6 +11,7 @@ import { router } from "expo-router";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import ProfileScrollView from "../components/ProfileScrollView";
 import { useState } from "react";
+import useApplicationStatus from "../hooks/useApplicationStatus";
 
 /**
  * ProfileScreen component.
@@ -22,6 +23,17 @@ export default function ProfileScreen({}) {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { logout } = useLogout();
+
+  const {
+    status: applicationStatus,
+    isLoading: isLoadingApplicationStatus,
+    error: applicationStatusError,
+    refetch: refetchApplicationStatus,
+  } = useApplicationStatus();
+
+  const handleMerchantPortalPress = () => {
+    router.push("/profile/merchant-portal");
+  };
 
   return (
     <SafeAreaView
@@ -82,10 +94,8 @@ export default function ProfileScreen({}) {
           </ProfileMenuSection>
 
           <MerchantPortalCard
-            title="Become a Merchant"
-            description="Digitize your shop and reach more explorers in Cebu."
-            buttonTitle="Open Merchant Portal"
-            onPress={() => router.push("/profile/merchant-portal")}
+            status={applicationStatus}
+            onPress={handleMerchantPortalPress}
           />
 
           <ProfileMenuSection title="Settings & Support">

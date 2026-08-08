@@ -52,6 +52,11 @@ export default function LandmarkMap({
           longitude: businessLocation.longitude,
         }}
         title="Your business"
+        onPress={(event) => {
+          // Prevent taps on the business marker from falling through
+          // to the map's onPress and being treated as a new landmark.
+          event.stopPropagation();
+        }}
       >
         <View collapsable={false}>
           <MapMarker variant="business" />

@@ -4,7 +4,13 @@ import { useFormContext } from "react-hook-form";
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
 import PhotoSection from "../business-photos/PhotoSection";
 import RegistrationSection from "../RegistrationSection";
+import useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";
 
+type OperatingHoursStepProps = {
+  registerErrorScrollTarget: ReturnType<
+    typeof useRegistrationErrorScroll
+  >["registerErrorScrollTarget"];
+};
 /**
  * Renders the business photos step of merchant registration.
  *
@@ -13,7 +19,9 @@ import RegistrationSection from "../RegistrationSection";
  *
  * Storefront photos are required, while the remaining photo categories are optional.
  */
-export default function BusinessPhotosStep() {
+export default function BusinessPhotosStep({
+  registerErrorScrollTarget,
+}: OperatingHoursStepProps) {
   const {
     watch,
     setValue,
@@ -32,18 +40,20 @@ export default function BusinessPhotosStep() {
         description="Add clear photos of your business exterior."
         showBorder={false}
       >
-        <PhotoSection
-          photos={photos.storefront}
-          maxPhotos={3}
-          required
-          error={storefrontError}
-          onPhotosChange={(value) =>
-            setValue("businessPhotos.storefront", value, {
-              shouldDirty: true,
-              shouldValidate: !!errors.businessPhotos?.storefront,
-            })
-          }
-        />
+        <View {...registerErrorScrollTarget("businessPhotos.storefront")}>
+          <PhotoSection
+            photos={photos.storefront}
+            maxPhotos={3}
+            required
+            error={storefrontError}
+            onPhotosChange={(value) =>
+              setValue("businessPhotos.storefront", value, {
+                shouldDirty: true,
+                shouldValidate: !!errors.businessPhotos?.storefront,
+              })
+            }
+          />
+        </View>
       </RegistrationSection>
 
       <RegistrationSection

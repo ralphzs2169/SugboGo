@@ -1,28 +1,50 @@
 import { useMemo } from "react";
 
+import useCurrentApplication from "./registration/useCurrentApplication";
+
 import { MerchantRegistrationStatus } from "../types/merchant.types";
 import { portalConfig } from "../utils/portalConfig.utils";
-import { MerchantPortalState } from "../types/merchantPortal.types";
 
 /**
  * Returns all state required by the Merchant Portal.
- *
- * This hook will eventually fetch merchant registration
- * data from the backend. For now, it provides mock data
- * for UI development.
  */
 export function useMerchantPortalState() {
-  const state: MerchantPortalState = {
-    registrationStatus: MerchantRegistrationStatus.NONE,
-  };
+  const { application, isLoading, error, refetch } = useCurrentApplication();
+
+  const registrationStatus = useMemo(() => {
+    if (!application) {
+      return MerchantRegistrationStatus.NONE;
+    }
+
+    switch (application.status) {
+      case "draft":
+        return MerchantRegistrationStatus.DRAFT;
+
+      case "submitted":
+        return MerchantRegistrationStatus.SUBMITTED;
+
+      case "approved":
+        return MerchantRegistrationStatus.APPROVED;
+
+      case "rejected":
+        return MerchantRegistrationStatus.REJECTED;
+
+      default:
+        return MerchantRegistrationStatus.NONE;
+    }
+  }, [application]);
 
   const config = useMemo(
-    () => portalConfig[state.registrationStatus],
-    [state.registrationStatus],
+    () => portalConfig[registrationStatus],
+    [registrationStatus],
   );
 
   return {
+    registrationStatus,
     config,
-    ...state,
+    application,
+    isLoading,
+    error,
+    refetch,
   };
 }

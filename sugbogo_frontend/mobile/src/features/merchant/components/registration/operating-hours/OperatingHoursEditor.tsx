@@ -5,7 +5,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import ApplyToOtherDays from "./apply-schedule/ApplyToOtherDays";
 import TimeFields from "./TimeFields";
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
-import { dateToTimeString } from "../../../utils/operatingHours.utils";
+import { dateToTimeString } from "../../../utils/merchant-application/operatingHours.utils";
 import Toast from "react-native-toast-message";
 import OperatingHoursControls from "./OperatingHoursControls";
 

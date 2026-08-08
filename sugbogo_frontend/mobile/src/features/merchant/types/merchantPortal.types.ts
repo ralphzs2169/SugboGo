@@ -1,5 +1,11 @@
 import { MerchantRegistrationStatus } from "./merchant.types";
 
+export type MerchantPortalPrimaryAction =
+  | "START_REGISTRATION"
+  | "CONTINUE_REGISTRATION"
+  | "VIEW_APPLICATION"
+  | "OPEN_DASHBOARD";
+
 /**
  * Registration progress displayed while the application
  * is in the draft state.
@@ -14,7 +20,7 @@ export interface RegistrationProgress {
  * Application review information displayed while
  * the application is under review.
  */
-export interface ApplicationStatus {
+export interface ApplicationReviewStatus {
   status: "UNDER_REVIEW";
   submittedAt: string;
   estimatedReview: string;
@@ -43,9 +49,11 @@ export interface MerchantDashboard {
 export interface MerchantPortalState {
   registrationStatus: MerchantRegistrationStatus;
 
+  primaryAction: MerchantPortalPrimaryAction;
+
   progress?: RegistrationProgress;
 
-  application?: ApplicationStatus;
+  application?: ApplicationReviewStatus;
 
   feedback?: RejectionFeedback;
 

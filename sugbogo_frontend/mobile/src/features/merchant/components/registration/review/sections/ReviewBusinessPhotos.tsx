@@ -1,24 +1,23 @@
-import { useState } from "react";
-import { Modal, Pressable, ScrollView, Text, View, Image } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFormContext } from "react-hook-form";
-import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import { ScrollView, Text, View } from "react-native";
+import type { z } from "zod";
+
+import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
 import ReviewSection from "../ReviewSection";
 import PhotoPreview from "../../business-photos/PhotoPreview";
 
+type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessPhotosProps = {
+  form: ReviewForm;
   onEdit?: () => void;
 };
 
-type PhotoList = MerchantRegistrationForm["businessPhotos"]["storefront"];
+type PhotoList = ReviewForm["businessPhotos"]["storefront"];
 
 export default function ReviewBusinessPhotos({
+  form,
   onEdit,
 }: ReviewBusinessPhotosProps) {
-  const { watch } = useFormContext<MerchantRegistrationForm>();
-  const photos = watch("businessPhotos");
-
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const photos = form.businessPhotos;
 
   const groups = [
     { title: "Storefront", photos: photos.storefront, required: true },
@@ -39,40 +38,9 @@ export default function ReviewBusinessPhotos({
             key={group.title}
             title={group.title}
             photos={group.photos}
-            onPhotoPress={setPreviewUri}
           />
         ))}
       </ReviewSection>
-
-      <Modal
-        visible={previewUri !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPreviewUri(null)}
-      >
-        <Pressable
-          className="flex-1 items-center justify-center bg-black/80"
-          onPress={() => setPreviewUri(null)}
-        >
-          <Pressable onPress={(event) => event.stopPropagation()}>
-            {previewUri && (
-              <Image
-                source={{ uri: previewUri }}
-                className="h-[80vh] w-[90vw]"
-                resizeMode="contain"
-              />
-            )}
-          </Pressable>
-
-          <Pressable
-            onPress={() => setPreviewUri(null)}
-            hitSlop={10}
-            className="absolute right-5 top-12 h-10 w-10 items-center justify-center"
-          >
-            <MaterialCommunityIcons name="close" size={28} color="white" />
-          </Pressable>
-        </Pressable>
-      </Modal>
     </>
   );
 }
@@ -80,10 +48,9 @@ export default function ReviewBusinessPhotos({
 type PhotoGroupProps = {
   title: string;
   photos: PhotoList;
-  onPhotoPress: (uri: string) => void;
 };
 
-function PhotoGroup({ title, photos, onPhotoPress }: PhotoGroupProps) {
+function PhotoGroup({ title, photos }: PhotoGroupProps) {
   return (
     <View className="mb-5">
       <View className="flex-row items-center justify-between">
@@ -106,13 +73,7 @@ function PhotoGroup({ title, photos, onPhotoPress }: PhotoGroupProps) {
             contentContainerStyle={{ paddingRight: 4, gap: 8 }}
           >
             {photos.map((photo, index) => (
-              <Pressable
-                key={`${photo.uri}-${index}`}
-                onPress={() => onPhotoPress(photo.uri)}
-                className="rounded-lg opacity-100 pressed:opacity-70"
-              >
-                <PhotoPreview uri={photo.uri} />
-              </Pressable>
+              <PhotoPreview key={`${photo.uri}-${index}`} uri={photo.uri} />
             ))}
           </ScrollView>
         ) : (

@@ -73,12 +73,14 @@ const operatingHoursSchema = z
   });
 
 const businessPhotoSchema = z.object({
+  id: z.number().optional(),
   uri: z.string(),
   fileName: z.string().nullable().optional(),
   mimeType: z.string().nullable().optional(),
 });
 
 const businessDocumentSchema = z.object({
+  id: z.number().optional(),
   uri: z.string(),
   fileName: z.string().nullable().optional(),
   mimeType: z.string().nullable().optional(),
@@ -143,7 +145,13 @@ export const merchantRegistrationSchema = z.object({
     .trim()
     .min(1, "Representative name is required."),
 
-  representativeRole: z.string().min(1, "Please select your role."),
+  representativeRole: z
+    .enum(["", "owner", "manager", "authorized_representative", "other"], {
+      message: "Please select your role.",
+    })
+    .refine((value) => value !== "", {
+      message: "Please select your role.",
+    }),
 
   // Business Location
   province: z.string().trim().min(1, "Province is required."),
@@ -156,17 +164,19 @@ export const merchantRegistrationSchema = z.object({
 
   unit: z.string(),
 
-  landmarks: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      address: z.string(),
-      latitude: z.number(),
-      longitude: z.number(),
-      source: z.enum(["google", "custom"]),
-      placeId: z.string().optional(),
-    }),
-  ),
+  landmarks: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        address: z.string(),
+        latitude: z.number(),
+        longitude: z.number(),
+        source: z.enum(["google", "custom"]),
+        placeId: z.string().optional(),
+      }),
+    )
+    .max(5, "You can only add up to 5 landmarks."),
 
   latitude: z
     .number()
@@ -205,3 +215,6 @@ export const merchantRegistrationSchema = z.object({
 export type MerchantRegistrationForm = z.infer<
   typeof merchantRegistrationSchema
 >;
+
+export type MerchantRegistrationLandmark =
+  MerchantRegistrationForm["landmarks"][number];

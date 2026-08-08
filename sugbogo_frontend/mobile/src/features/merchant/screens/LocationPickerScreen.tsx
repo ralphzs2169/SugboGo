@@ -95,6 +95,7 @@ export default function BusinessLocationPickerScreen({
       }
 
       setAddressLoadFailed(false);
+
       setSelectedLocation({
         latitude,
         longitude,
@@ -145,7 +146,7 @@ export default function BusinessLocationPickerScreen({
         onLocationSelect={
           suggestionsOpen || isConfirming ? undefined : handleMapLocationSelect
         }
-        interactionEnabled={!isConfirming}
+        interactionEnabled={!isConfirming && !suggestionsOpen}
         fullScreen
       />
 

@@ -1,9 +1,9 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { Image, Linking, Pressable, Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import type { BusinessDocument } from "@/features/merchant/types/merchantRegistration.types";
 import { theme } from "@/constants/theme";
+import type { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
 import ImagePreviewModal from "@/shared/components/modals/ImagePreviewModal";
 
 type DocumentPreviewProps = {

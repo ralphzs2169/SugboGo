@@ -1,13 +1,16 @@
-import { useFormContext } from "react-hook-form";
 import { View, Text } from "react-native";
-import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import type { z } from "zod";
+
 import { DAYS } from "@/features/merchant/constants/registration/operatingHours.constants";
+import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
 
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
 import StatusBadge from "../../operating-hours/StatusBadge";
 
+type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewOperatingHoursProps = {
+  form: ReviewForm;
   onEdit?: () => void;
 };
 
@@ -24,10 +27,10 @@ const formatTime = (time: string) => {
 };
 
 export default function ReviewOperatingHours({
+  form,
   onEdit,
 }: ReviewOperatingHoursProps) {
-  const { watch } = useFormContext<MerchantRegistrationForm>();
-  const operatingHours = watch("operatingHours");
+  const operatingHours = form.operatingHours;
 
   return (
     <ReviewSection icon="clock-outline" title="Operating Hours" onEdit={onEdit}>

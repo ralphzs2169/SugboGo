@@ -38,7 +38,7 @@ def success_response(
 def error_response(
     *,
     message: str = "An error occurred.",
-    code: str = "UKNOWN_ERROR",
+    code: str = "UNKNOWN_ERROR",
     errors=None,
     status_code: int = status.HTTP_400_BAD_REQUEST,
 ) -> Response:

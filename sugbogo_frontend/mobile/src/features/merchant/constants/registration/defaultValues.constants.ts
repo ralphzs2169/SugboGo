@@ -1,7 +1,17 @@
 import type { z } from "zod";
 import type { merchantRegistrationSchema } from "../../validation/merchantRegistration.schema";
 
-export const MERCHANT_REGISTRATION_DEFAULT_VALUES = {
+/**
+ * Default values used to initialize the merchant registration form.
+ *
+ * The object is explicitly typed as the Zod input type so fields such as
+ * arrays and enum-like values are widened correctly instead of being
+ * inferred as literal types (e.g. `never[]` or `""`), allowing the form
+ * to be populated with existing application data when resuming a draft.
+ */
+export const MERCHANT_REGISTRATION_DEFAULT_VALUES: z.input<
+  typeof merchantRegistrationSchema
+> = {
   businessName: "",
   businessCluster: "",
   businessCategory: "",
@@ -80,4 +90,4 @@ export const MERCHANT_REGISTRATION_DEFAULT_VALUES = {
     authorizationDocument: null,
     additionalDocuments: [],
   },
-} satisfies z.input<typeof merchantRegistrationSchema>;
+};

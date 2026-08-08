@@ -118,7 +118,7 @@ INSTALLED_APPS = [
 
     'apps.msme.apps.MsmeConfig',
 
-    "apps.registration.apps.RegistrationConfig",
+    "apps.merchant_application.apps.MerchantApplicationConfig",
 ]
 
 MIDDLEWARE = [

@@ -9,7 +9,7 @@ import {
 
 import { theme } from "@/constants/theme";
 
-const MAX_SUGGESTIONS_HEIGHT = 260;
+const MAX_SUGGESTIONS_HEIGHT = 250;
 
 type PlaceSuggestion = {
   placeId: string;
@@ -43,11 +43,12 @@ export default function SearchResults({
   if (!isRateLimited && !showNoResults && suggestions.length === 0) {
     return null;
   }
-
   return (
     <View
-      className="absolute left-0 right-0 top-[58px] overflow-hidden rounded-xl bg-white shadow-md"
-      style={{ maxHeight: MAX_SUGGESTIONS_HEIGHT }}
+      className="overflow-hidden rounded-xl bg-white "
+      style={{
+        zIndex: 1000,
+      }}
     >
       {isRateLimited ? (
         <View className="items-center px-4 py-5">
@@ -74,7 +75,15 @@ export default function SearchResults({
           </Text>
         </View>
       ) : (
-        <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
+        <ScrollView
+          style={{ maxHeight: MAX_SUGGESTIONS_HEIGHT }}
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator
+
+          onScrollBeginDrag={() => console.log("SEARCH RESULTS SCROLL")}
+        >
           {suggestions.map((suggestion, index) => {
             // Only the suggestion currently being resolved
             // displays a loading indicator.
@@ -83,7 +92,9 @@ export default function SearchResults({
             return (
               <Pressable
                 key={suggestion.placeId}
-                onPress={() => onPlaceSelect(suggestion.placeId)}
+                onPress={() => {
+                  onPlaceSelect(suggestion.placeId);
+                }}
                 disabled={resolvingPlaceId !== null}
                 className={`flex-row items-center px-4 py-3 active:bg-gray-50 ${
                   index < suggestions.length - 1

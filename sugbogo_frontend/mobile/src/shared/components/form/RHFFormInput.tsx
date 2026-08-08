@@ -1,10 +1,11 @@
 import { Controller, FieldPathByValue, useFormContext } from "react-hook-form";
 
-import FormInput from "./FormInput";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
+import FormInput from "./FormInput";
 
 type RHFFormInputProps = {
   name: FieldPathByValue<MerchantRegistrationForm, string>;
+  helperText?: string;
   showError?: boolean;
 } & Omit<
   React.ComponentProps<typeof FormInput>,
@@ -20,6 +21,7 @@ type RHFFormInputProps = {
 export default function RHFFormInput({
   name,
   showError = true,
+  helperText,
   ...props
 }: RHFFormInputProps) {
   const { control, clearErrors } = useFormContext<MerchantRegistrationForm>();
@@ -32,6 +34,7 @@ export default function RHFFormInput({
         <FormInput
           {...props}
           value={field.value}
+          helperText={helperText}
           onChangeText={(value) => {
             field.onChange(value);
             clearErrors(name);

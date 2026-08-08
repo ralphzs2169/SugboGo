@@ -49,7 +49,7 @@ export const toastConfig = {
 
         {props.text2 && (
           <Text
-            numberOfLines={1}
+            numberOfLines={2}
             style={{
               fontSize: 12,
               fontWeight: "400",

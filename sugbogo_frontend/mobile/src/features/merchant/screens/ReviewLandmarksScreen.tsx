@@ -34,7 +34,10 @@ export default function ReviewLandmarksScreen({
 
         {/* Back button */}
         <Pressable
-          onPress={onClose}
+          onPress={() => {
+            console.log("Back pressed");
+            onClose();
+          }}
           className="absolute left-4 top-8 h-11 w-11 items-center justify-center rounded-full bg-surface"
           hitSlop={8}
         >
