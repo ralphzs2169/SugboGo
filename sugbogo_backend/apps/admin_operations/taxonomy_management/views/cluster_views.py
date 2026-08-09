@@ -1,0 +1,133 @@
+from core.pagination import StandardPagination
+from core.responses import error_response, success_response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+
+from apps.admin_operations.taxonomy_management.serializers.cluster_serializers import (
+    ClusterCreateSerializer,
+    ClusterSerializer,
+    ClusterUpdateSerializer,
+)
+from apps.admin_operations.taxonomy_management.services.cluster_service import (
+    ClusterService,
+)
+from apps.authentication.permissions import HasRole
+from apps.users.models import User
+
+
+class ClusterListView(APIView):
+    """Handle cluster listing and creation."""
+
+    permission_classes = (IsAuthenticated, HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),)
+
+    def get(self, request):
+        """Retrieve a paginated list of clusters."""
+
+        search = request.query_params.get("search")
+        ordering = request.query_params.get("ordering")
+
+        queryset = ClusterService.list_clusters(
+            search=search,
+            ordering=ordering,
+        )
+
+        paginator = StandardPagination()
+
+        page = paginator.paginate_queryset(
+            queryset,
+            request,
+        )
+
+        serializer = ClusterSerializer(
+            page,
+            many=True,
+        )
+
+        return paginator.get_paginated_response(
+            serializer.data,
+        )
+
+
+    def post(self, request):
+        """Create a new cluster."""
+
+        serializer = ClusterCreateSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        cluster = ClusterService.create_cluster(
+            serializer.validated_data,
+        )
+
+        return success_response(
+            message="Cluster created successfully.",
+            data=ClusterSerializer(cluster).data,
+            status_code=status.HTTP_201_CREATED,
+        )
+
+
+class ClusterDetailView(APIView):
+    """Handle retrieval, updating, and deletion of a cluster."""
+
+    def get(self, request, cluster_id):
+        """Retrieve a specific cluster."""
+
+        cluster = ClusterService.get_cluster(cluster_id)
+
+        return success_response(
+            data=ClusterSerializer(cluster).data,
+        )
+
+
+    def put(self, request, cluster_id):
+        """Fully update a cluster."""
+
+        return self._update(request, cluster_id, partial=False)
+
+    def patch(self, request, cluster_id):
+        """Partially update a cluster."""
+
+        return self._update(request, cluster_id, partial=True)
+
+
+    def _update(self, request, cluster_id, partial=False):
+        cluster = ClusterService.get_cluster(cluster_id)
+
+        serializer = ClusterUpdateSerializer(
+            cluster,
+            data=request.data,
+            partial=partial,
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        cluster = ClusterService.update_cluster(
+            cluster,
+            serializer.validated_data,
+        )
+
+        return success_response(
+            message="Cluster updated successfully.",
+            data=ClusterSerializer(cluster).data,
+        )
+
+
+    def delete(self, request, cluster_id):
+        """Delete a cluster."""
+
+        cluster = ClusterService.get_cluster(cluster_id)
+
+        if cluster.categories.exists():
+            return error_response(
+                message="Cannot delete cluster with existing categories.",
+                code="CLUSTER_HAS_CATEGORIES",
+            )
+
+        ClusterService.delete_cluster(cluster)
+
+        return success_response(
+            message="Cluster deleted successfully.",
+        )

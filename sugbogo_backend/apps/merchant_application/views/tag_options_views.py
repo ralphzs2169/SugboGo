@@ -1,8 +1,12 @@
 from core.responses import success_response
 from rest_framework.views import APIView
 
-from apps.msme.serializers.specialty_tag_serializers import SpecialtyTagSerializer
-from apps.msme.services.specialty_tag_service import SpecialtyTagService
+from apps.admin_operations.taxonomy_management.serializers.specialty_tag_serializers import (
+    SpecialtyTagSerializer,
+)
+from apps.admin_operations.taxonomy_management.services.specialty_tag_service import (
+    SpecialtyTagService,
+)
 
 
 class SpecialtyTagOptionsView(APIView):

@@ -106,17 +106,17 @@ INSTALLED_APPS = [
 
     # Admin Operations
     'apps.admin_operations.dashboard.apps.DashboardConfig',
-    'apps.admin_operations.msme_management.apps.MsmeManagementConfig',
+    'apps.admin_operations.business_management.apps.BusinessManagementConfig',
     'apps.admin_operations.user_management.apps.UserManagementConfig',
     'apps.admin_operations.landmark_management.apps.LandmarkManagementConfig',
-    'apps.admin_operations.tag_management.apps.TagManagementConfig',
+    'apps.admin_operations.taxonomy_management.apps.TaxonomyManagementConfig',
     'apps.admin_operations.activity_management.apps.ActivityManagementConfig',
     'apps.admin_operations.role_management.apps.RoleManagementConfig',
     'apps.admin_operations.suspicious_activity.apps.SuspiciousActivityConfig',
     'apps.admin_operations.analytics.apps.AnalyticsConfig',
     'apps.admin_operations.system_configuration.apps.SystemConfigurationConfig',
 
-    'apps.msme.apps.MsmeConfig',
+    'apps.business.apps.BusinessConfig',
 
     "apps.merchant_application.apps.MerchantApplicationConfig",
 ]

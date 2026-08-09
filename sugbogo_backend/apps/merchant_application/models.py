@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.gis.db import models as gis_models
 from django.db import models
 
-from apps.msme.models import Category, Cluster, SpecialtyTag
+from apps.business.models import Category, Cluster, SpecialtyTag
 
 
 class MerchantApplication(models.Model):

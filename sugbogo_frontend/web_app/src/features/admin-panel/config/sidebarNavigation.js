@@ -5,6 +5,7 @@ import {
   FiUser,
   FiUsers,
   FiBriefcase,
+  FiTag,
 } from "react-icons/fi";
 
 /**
@@ -19,14 +20,26 @@ const navigation = [
     items: [
       {
         type: "group",
-        label: "MSMEs",
+        label: "Businesses",
         Icon: FiBriefcase,
         roles: ["admin", "super_admin"],
         children: [
           {
-            to: "/admin-panel/msmes",
-            label: "Businesses",
+            to: "/admin-panel/businesses/listings",
+            label: "Listings",
           },
+          {
+            to: "/admin-panel/businesses/applications",
+            label: "Applications",
+          },
+        ],
+      },
+      {
+        type: "group",
+        label: "Clusters & Tags",
+        Icon: FiTag,
+        roles: ["admin", "super_admin"],
+        children: [
           {
             to: "/admin-panel/cluster-category",
             label: "Clusters & Categories",

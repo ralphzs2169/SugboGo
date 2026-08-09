@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
+from apps.business.models import Category, Cluster, SpecialtyTag
 from apps.merchant_application.models import MerchantApplicationIdentity
-from apps.msme.models import Category, Cluster, SpecialtyTag
 
 
 class ApplicationIdentitySerializer(serializers.ModelSerializer):

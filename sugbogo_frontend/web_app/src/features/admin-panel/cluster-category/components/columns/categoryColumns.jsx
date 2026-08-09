@@ -28,6 +28,8 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
 
     columnHelper.accessor("name", {
       header: "Category Name",
+      size: 250,
+      minSize: 200,
       cell: (info) => {
         const category = info.row.original;
 

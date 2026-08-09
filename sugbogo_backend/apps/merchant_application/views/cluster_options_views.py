@@ -1,8 +1,12 @@
 from core.responses import success_response
 from rest_framework.views import APIView
 
-from apps.msme.serializers.cluster_serializers import ClusterSerializer
-from apps.msme.services.cluster_service import ClusterService
+from apps.admin_operations.taxonomy_management.serializers.cluster_serializers import (
+    ClusterSerializer,
+)
+from apps.admin_operations.taxonomy_management.services.cluster_service import (
+    ClusterService,
+)
 
 
 class ClusterOptionsView(APIView):
