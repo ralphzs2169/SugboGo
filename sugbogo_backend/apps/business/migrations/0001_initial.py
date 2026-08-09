@@ -68,7 +68,7 @@ class Migration(migrations.Migration):
                 ('CTGRY_DESCRIPTION', models.TextField(blank=True, null=True)),
                 ('CTGRY_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('CTGRY_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('CLUS_ID', models.ForeignKey(db_column='CLUS_ID', on_delete=django.db.models.deletion.PROTECT, related_name='categories', to='msme.cluster')),
+                ('CLUS_ID', models.ForeignKey(db_column='CLUS_ID', on_delete=django.db.models.deletion.PROTECT, related_name='categories', to='business.cluster')),
             ],
             options={
                 'db_table': 'CATEGORY',
@@ -87,8 +87,8 @@ class Migration(migrations.Migration):
                 ('MSME_POCKET_COUNT', models.PositiveIntegerField(default=0)),
                 ('MSME_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('MSME_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('CTGRY_ID', models.ForeignKey(db_column='CTGRY_ID', on_delete=django.db.models.deletion.PROTECT, related_name='msmes', to='msme.category')),
-                ('LOC_ID', models.ForeignKey(db_column='LOC_ID', on_delete=django.db.models.deletion.PROTECT, related_name='msmes', to='msme.location')),
+                ('CTGRY_ID', models.ForeignKey(db_column='CTGRY_ID', on_delete=django.db.models.deletion.PROTECT, related_name='msmes', to='business.category')),
+                ('LOC_ID', models.ForeignKey(db_column='LOC_ID', on_delete=django.db.models.deletion.PROTECT, related_name='msmes', to='business.location')),
                 ('USER_ID', models.ForeignKey(db_column='USER_ID', on_delete=django.db.models.deletion.PROTECT, related_name='owned_msmes', to=settings.AUTH_USER_MODEL)),
             ],
             options={
@@ -106,7 +106,7 @@ class Migration(migrations.Migration):
                 ('DSC_COMPUTED_AT', models.DateTimeField()),
                 ('DSC_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('DSC_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('MSME_ID', models.ForeignKey(db_column='MSME_ID', on_delete=django.db.models.deletion.CASCADE, related_name='discovery_scores', to='msme.msme')),
+                ('MSME_ID', models.ForeignKey(db_column='MSME_ID', on_delete=django.db.models.deletion.CASCADE, related_name='discovery_scores', to='business.msme')),
             ],
             options={
                 'db_table': 'DISCOVERY_SCORE',
@@ -119,8 +119,8 @@ class Migration(migrations.Migration):
                 ('MTAG_ID', models.AutoField(primary_key=True, serialize=False)),
                 ('MTAG_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('MTAG_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('MSME_ID', models.ForeignKey(db_column='MSME_ID', on_delete=django.db.models.deletion.CASCADE, related_name='specialty_tags', to='msme.msme')),
-                ('TAG_ID', models.ForeignKey(db_column='TAG_ID', on_delete=django.db.models.deletion.PROTECT, related_name='msme_links', to='msme.specialtytag')),
+                ('MSME_ID', models.ForeignKey(db_column='MSME_ID', on_delete=django.db.models.deletion.CASCADE, related_name='specialty_tags', to='business.msme')),
+                ('TAG_ID', models.ForeignKey(db_column='TAG_ID', on_delete=django.db.models.deletion.PROTECT, related_name='msme_links', to='business.specialtytag')),
             ],
             options={
                 'db_table': 'MSME_SPECIALTY_TAG',

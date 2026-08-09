@@ -90,54 +90,54 @@ class SpecialtyTag(models.Model):
     def __str__(self):
         return self.TAG_NAME
 
-class Msme(models.Model):
-    # NOTE: MSME_STATUS choices are an assumption based on UC-07/UC-12
+class Business(models.Model):
+    # NOTE: BUSINESS_STATUS choices are an assumption based on UC-07/UC-12
     # (pending review -> admin approves/rejects -> active in feed).
     # Confirm against manuscript/adviser/team before relying on these values elsewhere.
-    class MsmeStatus(models.TextChoices):
+    class BusinessStatus(models.TextChoices):
         PENDING = 'pending', 'Pending'
         ACTIVE = 'active', 'Active'
         SUSPENDED = 'suspended', 'Suspended'
         REJECTED = 'rejected', 'Rejected'
 
-    MSME_ID = models.AutoField(primary_key=True)
-    MSME_NAME = models.CharField(max_length=150)
-    MSME_DESCRIPTION = models.TextField(blank=True, null=True)
-    MSME_STATUS = models.CharField(
-        max_length=20, choices=MsmeStatus.choices,
-        default=MsmeStatus.PENDING
+    BUSN_ID = models.AutoField(primary_key=True)
+    BUSN_NAME = models.CharField(max_length=150)
+    BUSN_DESCRIPTION = models.TextField(blank=True, null=True)
+    BUSN_STATUS = models.CharField(
+        max_length=20, choices=BusinessStatus.choices,
+        default=BusinessStatus.PENDING
     )
-    MSME_IS_VERIFIED = models.BooleanField(default=False)
-    MSME_VOUCH_COUNT = models.PositiveIntegerField(default=0)
-    MSME_REVIEW_COUNT = models.PositiveIntegerField(default=0)
-    MSME_POCKET_COUNT = models.PositiveIntegerField(default=0)
-    MSME_CREATED_AT = models.DateTimeField(auto_now_add=True)
-    MSME_UPDATED_AT = models.DateTimeField(auto_now=True)
+    BUSN_IS_VERIFIED = models.BooleanField(default=False)
+    BUSN_VOUCH_COUNT = models.PositiveIntegerField(default=0)
+    BUSN_REVIEW_COUNT = models.PositiveIntegerField(default=0)
+    BUSN_POCKET_COUNT = models.PositiveIntegerField(default=0)
+    BUSN_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    BUSN_UPDATED_AT = models.DateTimeField(auto_now=True)
 
     USER_ID = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-        db_column='USER_ID', related_name='owned_msmes'
+        db_column='USER_ID', related_name='owned_businesses'
     )
     CTGRY_ID = models.ForeignKey(
         Category, on_delete=models.PROTECT, db_column='CTGRY_ID',
-        related_name='msmes'
+        related_name='businesses'
     )
     LOC_ID = models.ForeignKey(
         Location, on_delete=models.PROTECT, db_column='LOC_ID',
-        related_name='msmes'
+        related_name='businesses'
     )
     SPECIALTY_TAGS = models.ManyToManyField(
         SpecialtyTag,
-        related_name='msmes',
-        through='MsmeSpecialtyTag',
+        related_name='businesses',
+        through='BusinessSpecialtyTag',
         blank=True,
     )
 
     class Meta:
-        db_table = 'MSME'
+        db_table = 'BUSINESS'
 
     def __str__(self):
-        return self.MSME_NAME
+        return self.BUSN_NAME
 
 
 
@@ -151,8 +151,8 @@ class DiscoveryScore(models.Model):
     DSC_CREATED_AT = models.DateTimeField(auto_now_add=True)
     DSC_UPDATED_AT = models.DateTimeField(auto_now=True)
 
-    MSME_ID = models.ForeignKey(
-        Msme, on_delete=models.CASCADE, db_column='MSME_ID',
+    BUSN_ID = models.ForeignKey(
+        Business, on_delete=models.CASCADE, db_column='BUSN_ID',
         related_name='discovery_scores'
     )
 
@@ -161,15 +161,16 @@ class DiscoveryScore(models.Model):
         ordering = ['-DSC_COMPUTED_AT']
 
 
-class MsmeSpecialtyTag(models.Model):
-    MTAG_ID = models.AutoField(primary_key=True)
-    MTAG_CREATED_AT = models.DateTimeField(auto_now_add=True)
-    MTAG_UPDATED_AT = models.DateTimeField(auto_now=True)
 
-    MSME_ID = models.ForeignKey(
-        Msme,
+class BusinessSpecialtyTag(models.Model):
+    BST_ID = models.AutoField(primary_key=True)
+    BST_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    BST_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    BUSN_ID = models.ForeignKey(
+        Business,
         on_delete=models.CASCADE,
-        db_column='MSME_ID',
+        db_column='BUSN_ID',
         related_name='specialty_tag_links'
     )
 
@@ -177,14 +178,14 @@ class MsmeSpecialtyTag(models.Model):
         SpecialtyTag,
         on_delete=models.PROTECT,
         db_column='TAG_ID',
-        related_name='msme_links'
+        related_name='business_links'
     )
 
     class Meta:
-        db_table = 'MSME_SPECIALTY_TAG'
+        db_table = 'BUSINESS_SPECIALTY_TAG'
         constraints = [  
             models.UniqueConstraint(
-                fields=['MSME_ID', 'TAG_ID'],
-                name='unique_msme_specialty_tag',
+                fields=['BUSN_ID', 'TAG_ID'],
+                name='unique_business_specialty_tag',
             ),
         ]

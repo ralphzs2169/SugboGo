@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('msme', '0001_initial'),
+        ('business', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -63,10 +63,10 @@ class Migration(migrations.Migration):
                 ('MIDN_REPRESENTATIVE_ROLE', models.CharField(choices=[('owner', 'Owner'), ('manager', 'Manager'), ('authorized_representative', 'Authorized Representative'), ('other', 'Other')], max_length=30)),
                 ('MIDN_CREATED_AT', models.DateTimeField(auto_now_add=True)),
                 ('MIDN_UPDATED_AT', models.DateTimeField(auto_now=True)),
-                ('CLUS_ID', models.ForeignKey(db_column='CLUS_ID', on_delete=django.db.models.deletion.PROTECT, related_name='merchant_application_identities', to='msme.cluster')),
-                ('CTGRY_ID', models.ForeignKey(db_column='CTGRY_ID', on_delete=django.db.models.deletion.PROTECT, related_name='merchant_application_identities', to='msme.category')),
+                ('CLUS_ID', models.ForeignKey(db_column='CLUS_ID', on_delete=django.db.models.deletion.PROTECT, related_name='merchant_application_identities', to='business.cluster')),
+                ('CTGRY_ID', models.ForeignKey(db_column='CTGRY_ID', on_delete=django.db.models.deletion.PROTECT, related_name='merchant_application_identities', to='business.category')),
                 ('MAPP_ID', models.OneToOneField(db_column='MAPP_ID', on_delete=django.db.models.deletion.CASCADE, related_name='identity', to='merchant_application.merchantapplication')),
-                ('specialty_tags', models.ManyToManyField(blank=True, related_name='merchant_application_identities', to='msme.specialtytag')),
+                ('specialty_tags', models.ManyToManyField(blank=True, related_name='merchant_application_identities', to='business.specialtytag')),
             ],
             options={
                 'db_table': 'MERCHANT_APPLICATION_IDENTITY',

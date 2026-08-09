@@ -16,8 +16,8 @@ class BusinessVerifyView(APIView):
     """UC-12 Review Merchant Registrations (stub). Admin-only."""
     permission_classes = (IsAuthenticated, HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),)
 
-    def patch(self, request, MSME_ID):
-        business = BusinessService.get_business(MSME_ID)
+    def patch(self, request, BUSN_ID):
+        business = BusinessService.get_business(BUSN_ID)
 
         input_serializer = BusinessVerifyActionSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)

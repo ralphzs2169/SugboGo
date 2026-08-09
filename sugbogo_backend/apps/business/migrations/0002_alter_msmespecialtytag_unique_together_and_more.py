@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('msme', '0001_initial'),
+        ('business', '0001_initial'),
     ]
 
     operations = [
@@ -30,12 +30,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='msme',
             name='SPECIALTY_TAGS',
-            field=models.ManyToManyField(blank=True, related_name='msmes', through='msme.MsmeSpecialtyTag', to='msme.specialtytag'),
+            field=models.ManyToManyField(blank=True, related_name='msmes', through='business.MsmeSpecialtyTag', to='business.specialtytag'),
         ),
         migrations.AlterField(
             model_name='msmespecialtytag',
             name='MSME_ID',
-            field=models.ForeignKey(db_column='MSME_ID', on_delete=django.db.models.deletion.CASCADE, related_name='specialty_tag_links', to='msme.msme'),
+            field=models.ForeignKey(db_column='MSME_ID', on_delete=django.db.models.deletion.CASCADE, related_name='specialty_tag_links', to='business.msme'),
         ),
         migrations.AddConstraint(
             model_name='msmespecialtytag',
