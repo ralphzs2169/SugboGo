@@ -1,3 +1,5 @@
+from django.shortcuts import get_object_or_404
+
 from apps.merchant_application.models import MerchantApplication
 
 
@@ -17,6 +19,7 @@ class ApplicationService:
         queryset = (
             MerchantApplication.objects
             .select_related(
+                "USER_ID",
                 "identity",
                 "identity__CLUS_ID",
                 "identity__CTGRY_ID",
@@ -47,4 +50,30 @@ class ApplicationService:
                 ordering,
                 "-MAPP_SUBMITTED_AT",
             )
+        )
+
+    @staticmethod
+    def get_application_for_review(application_id):
+        """
+        Retrieve one merchant application with all data required
+        by the admin review page.
+        """
+
+        return get_object_or_404(
+            MerchantApplication.objects
+            .select_related(
+                "identity",
+                "identity__CLUS_ID",
+                "identity__CTGRY_ID",
+                "location",
+            )
+            .prefetch_related(
+                "identity__specialty_tags",
+                "location__landmarks",
+                "operating_hours",
+                "photos",
+                "documents",
+                "feedback",
+            ),
+            MAPP_ID=application_id,
         )

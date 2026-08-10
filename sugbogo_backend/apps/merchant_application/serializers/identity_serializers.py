@@ -151,3 +151,4 @@ class ApplicationIdentityReadSerializer(serializers.ModelSerializer):
             "business_category_name",
             "specialty_tags",
         )
+

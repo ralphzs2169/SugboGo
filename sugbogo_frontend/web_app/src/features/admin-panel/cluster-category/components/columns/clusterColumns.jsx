@@ -1,7 +1,7 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import Button from "@/shared/components/Button";
 import { Pencil, Trash2 } from "lucide-react";
-import DisabledActionTooltip from "@/shared/components/actions/DisabledActionTooltip";
+import Tooltip from "@/shared/components/actions/Tooltip";
 const columnHelper = createColumnHelper();
 import { formatDateTime } from "@/shared/utils/dateUtils";
 
@@ -105,6 +105,11 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
             iconOnly
             disabled={hasCategories}
             onClick={() => onDeleteCluster(cluster)}
+            disabledTooltip={
+              hasCategories
+                ? "Cannot be deleted because it has associated categories."
+                : undefined
+            }
           />
         );
 
@@ -119,12 +124,12 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
             />
 
             {hasCategories ? (
-              <DisabledActionTooltip
-                id={`delete-cluster-${cluster.id}`}
-                message="Cannot be deleted because it has associated categories."
+              <Tooltip
+                content="Cannot be deleted because it has associated categories."
+                place="top"
               >
                 {deleteButton}
-              </DisabledActionTooltip>
+              </Tooltip>
             ) : (
               deleteButton
             )}

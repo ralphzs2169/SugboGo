@@ -1,2 +1,2 @@
-from .application_service import *
+from .manage_application_service import *
 

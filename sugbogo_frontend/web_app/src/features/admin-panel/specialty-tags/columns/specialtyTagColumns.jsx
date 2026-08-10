@@ -1,6 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
-
+import Tooltip from "@/shared/components/actions/Tooltip";
 import Button from "@/shared/components/Button";
 import { formatDateTime } from "@/shared/utils/dateUtils";
 
@@ -47,8 +47,8 @@ export default function getSpecialtyTagColumns(
     columnHelper.accessor((tag) => tag.name, {
       id: "name",
       header: "Specialty Tag",
-      size: 300,
-      minSize: 200,
+      size: 200,
+      minSize: 150,
       meta: {
         skeleton: "longText",
       },
@@ -71,6 +71,20 @@ export default function getSpecialtyTagColumns(
       id: "business_count",
       header: "Businesses",
       size: 120,
+      meta: {
+        skeleton: "number",
+      },
+      cell: (info) => (
+        <span className="text-sm font-medium text-text-primary">
+          {info.getValue() ?? 0}
+        </span>
+      ),
+    }),
+
+    columnHelper.accessor((tag) => tag.application_count, {
+      id: "application_count",
+      header: "Merchant Applications",
+      size: 170,
       meta: {
         skeleton: "number",
       },
@@ -127,13 +141,28 @@ export default function getSpecialtyTagColumns(
               onClick={() => onEditSpecialtyTag(specialtyTag)}
             />
 
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Trash2}
-              iconOnly
-              onClick={() => onDeleteSpecialtyTag(specialtyTag)}
-            />
+            {specialtyTag.is_used_by_applications ? (
+              <Tooltip
+                content="Cannot be deleted because this specialty tag is currently in use."
+                place="top"
+              >
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Trash2}
+                  iconOnly
+                  disabled
+                />
+              </Tooltip>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Trash2}
+                iconOnly
+                onClick={() => onDeleteSpecialtyTag(specialtyTag)}
+              />
+            )}
           </div>
         );
       },

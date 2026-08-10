@@ -26,6 +26,14 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
         source="TAG_UPDATED_AT",
         read_only=True,
     )
+    is_used_by_applications = serializers.BooleanField(
+        source="merchant_application_identities.exists",
+        read_only=True,
+    )
+    application_count = serializers.IntegerField(
+        source="merchant_application_identities.count",
+        read_only=True,
+    )
 
     class Meta:
         model = SpecialtyTag
@@ -35,6 +43,8 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
             "color",
             "created_at",
             "updated_at",
+            "is_used_by_applications",
+            "application_count",    
         )
 
 

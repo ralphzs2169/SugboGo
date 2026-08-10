@@ -18,7 +18,7 @@ function NavigationHeader({ onMenuClick }) {
   }, [darkMode]);
 
   return (
-    <header className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-stroke bg-background px-4 sm:px-6 lg:px-8">
       {/* Left */}
       <div className="flex items-center gap-3">
         <button

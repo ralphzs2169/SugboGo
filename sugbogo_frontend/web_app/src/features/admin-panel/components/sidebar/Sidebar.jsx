@@ -71,7 +71,7 @@ export default function Sidebar({
           overflow-visible
           border-r border-stroke
           bg-background
-          transition-all duration-300
+          transition-[width,transform] duration-300
           ${collapsed ? "lg:w-20" : "lg:w-62"}
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
@@ -92,7 +92,7 @@ export default function Sidebar({
         </div>
 
         {/* Scrollable navigation */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="themed-scrollbar min-h-0 flex-1 overflow-y-auto">
           <SidebarMenu isCollapsed={collapsed} onClose={onClose} />
         </div>
 

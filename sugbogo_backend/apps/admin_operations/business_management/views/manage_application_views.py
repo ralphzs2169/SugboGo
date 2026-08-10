@@ -1,14 +1,16 @@
 from core.pagination import StandardPagination
+from core.responses import success_response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
-from apps.admin_operations.business_management.services.application_service import (
+from apps.admin_operations.business_management.serializers.manage_application_serializers import (
+    AdminMerchantApplicationDetailSerializer,
+    AdminMerchantApplicationListSerializer,
+)
+from apps.admin_operations.business_management.services.manage_application_service import (
     ApplicationService,
 )
 from apps.authentication.permissions import HasRole
-from apps.merchant_application.serializers.application_serializers import (
-    MerchantApplicationListSerializer,
-)
 from apps.users.models import User
 
 
@@ -40,11 +42,36 @@ class MerchantApplicationListView(APIView):
             request,
         )
 
-        serializer = MerchantApplicationListSerializer(
+        serializer = AdminMerchantApplicationListSerializer(
             page,
             many=True,
         )
 
         return paginator.get_paginated_response(
             serializer.data,
+        )
+
+
+class MerchantApplicationDetailView(APIView):
+    """Handle administrator access to a merchant application for review."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def get(self, request, application_id):
+        """Retrieve the complete application for administrative review."""
+
+        application = ApplicationService.get_application_for_review(
+            application_id,
+        )
+
+        serializer = AdminMerchantApplicationDetailSerializer(
+            application,
+        )
+
+        return success_response(
+            data=serializer.data,
+            message="Application retrieved successfully.",
         )

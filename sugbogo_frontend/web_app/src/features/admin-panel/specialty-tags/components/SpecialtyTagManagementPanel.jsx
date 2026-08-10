@@ -55,6 +55,7 @@ export default function SpecialtyTagManagementPanel() {
     pageCount,
     isLoading,
     isFetching,
+    error,
     refetch,
   } = useSpecialtyTags(params);
 
@@ -107,6 +108,8 @@ export default function SpecialtyTagManagementPanel() {
         isLoading={isLoading}
         isFetching={isFetching}
         pagination={pagination}
+        error={error}
+        onRetry={refetch}
         state={{
           globalFilter,
           sorting,
@@ -125,6 +128,10 @@ export default function SpecialtyTagManagementPanel() {
             description:
               "Try adjusting your search or create a new specialty tag.",
             icon: <FiTag className="h-10 w-10 text-text-secondary" />,
+          },
+          errorState: {
+            title: "Unable to load specialty tags",
+            message: "The requested specialty tags could not be loaded.",
           },
         }}
         slots={{

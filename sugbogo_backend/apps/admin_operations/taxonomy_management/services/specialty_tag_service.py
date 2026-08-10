@@ -75,4 +75,8 @@ class SpecialtyTagService:
     @transaction.atomic
     def delete_specialty_tag(specialty_tag):
         """Delete a specialty tag."""
+        if specialty_tag.merchant_application_identities.exists():
+            raise ValueError(
+                "Cannot delete a specialty tag that is used by merchant applications."
+            )
         specialty_tag.delete()

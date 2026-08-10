@@ -37,7 +37,7 @@ export default function AdminPanelLayout() {
         className={`
     min-h-screen
     transition-[margin] duration-300
-    ${isSidebarCollapsed ? "lg:ml-20" : "lg:ml-64"}
+    ${isSidebarCollapsed ? "lg:ml-20" : "lg:ml-62"}
   `}
       >
         <section className="sticky top-0 z-20 border-b border-stroke bg-background">

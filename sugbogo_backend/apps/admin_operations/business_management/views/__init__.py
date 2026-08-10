@@ -1,2 +1,2 @@
-from .application_views import *
+from .manage_application_views import *
 

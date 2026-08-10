@@ -7,7 +7,7 @@ import TablePagination from "./TablePagination";
 import { useReactTable, getCoreRowModel } from "@tanstack/react-table";
 import TableSkeletonBody from "./TableSkeletonBody";
 import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
-
+import DataErrorState from "@/shared/components/errors/DataErrorState";
 /**
  * Reusable server-side capable data table powered by TanStack Table.
  *
@@ -24,6 +24,8 @@ function DataTable({
   // Loading state
   isLoading = false,
   isFetching = false,
+  error = null,
+  onRetry,
 
   // Controlled table state
   state,
@@ -52,11 +54,15 @@ function DataTable({
     onTabChange,
     searchPlaceholder = "Search...",
     emptyState = {},
+    errorState = {
+      title: "Unable to load data",
+      message: "The requested records could not be loaded.",
+    },
   } = config;
 
   const { renderFilters, renderHeaderActions, renderFloatingAction } = slots;
 
-  const showSkeleton = useDelayedLoading(isLoading);
+  // const showSkeleton = useDelayedLoading(isLoading);
 
   // TanStack delegates sorting, filtering, and pagination to external handlers.
   const table = useReactTable({
@@ -101,17 +107,22 @@ function DataTable({
       />
 
       <div className="w-full overflow-x-auto">
-        <div className="min-h-[520px] bg-surface rounded-md">
-          <table className="w-full border-collapse table-fixed text-left">
+        <div className="min-h-[520px] overflow-hidden rounded-lg border border-stroke-strong bg-surface">
+          <table className="min-h-[520px] w-full table-fixed border-collapse text-left">
             <TableHeader table={table} />
 
             {isLoading ? (
-              showSkeleton ? (
-                <TableSkeletonBody
-                  columns={table.getVisibleLeafColumns()}
-                  rowCount={pagination.pageSize}
-                />
-              ) : null
+              <TableSkeletonBody
+                columns={table.getVisibleLeafColumns()}
+                rowCount={pagination.pageSize}
+              />
+            ) : error ? (
+              <DataErrorState
+                title={errorState.title}
+                message={errorState.message}
+                onRetry={onRetry}
+                fullHeight
+              />
             ) : (
               <TableBody
                 table={table}

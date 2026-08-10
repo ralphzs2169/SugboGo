@@ -17,6 +17,7 @@ import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
 import ProtectedRoute from "@/features/auth/routes/ProtectedRoute";
 import ClusterCategoryManagement from "@/features/admin-panel/pages/ClusterCategoryManagement";
 import BusinessApplications from "@/features/admin-panel/pages/BusinessApplicationsPage";
+import BusinessApplicationReviewPage from "@/features/admin-panel/pages/BusinessApplicationReviewPage";
 
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -55,7 +56,12 @@ function App() {
               path="businesses/applications"
               element={<BusinessApplications />}
             />
+            <Route
+              path="business/application/:applicationId"
+              element={<BusinessApplicationReviewPage />}
+            />
             <Route path="businesses/listings" element={<Msmes />} />
+
             <Route
               path="cluster-category"
               element={<ClusterCategoryManagement />}

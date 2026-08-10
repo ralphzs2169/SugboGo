@@ -1,15 +1,28 @@
-import { useEffect, useState } from "react";
-import { getAnalyticsData } from "../services/analyticsService";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
+import PageHeader from "../components/PageHeader";
+import BusinessApplicationManagementPanel from "../business-applications/components/BusinessApplicationManagementPanel";
 
-function BusinessApplications() {
+export default function BusinessApplicationsPage() {
   useDocumentTitle("Business Applications | SugboGo Admin");
 
   return (
-    <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-      Business Applications
-    </h1>
+    <>
+      <PageHeader
+        breadcrumbs={[
+          {
+            label: "SugboGo Admin",
+          },
+          {
+            label: "Business Management",
+          },
+          {
+            label: "Applications",
+          },
+        ]}
+        title="Business Applications"
+      />
+
+      <BusinessApplicationManagementPanel />
+    </>
   );
 }
-
-export default BusinessApplications;

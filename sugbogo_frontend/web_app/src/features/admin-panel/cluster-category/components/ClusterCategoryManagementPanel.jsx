@@ -104,6 +104,7 @@ export default function ClusterCategoryTable({
     pageCount: clusterPageCount,
     isLoading: isLoadingClusters,
     isFetching: isFetchingClusters,
+    error: clusterError,
     refetch: refetchClusters,
   } = useClusters(params, {
     enabled: currentTab === "clusters",
@@ -115,6 +116,7 @@ export default function ClusterCategoryTable({
     pageCount: categoryPageCount,
     isLoading: isLoadingCategories,
     isFetching: isFetchingCategories,
+    error: categoryError,
     refetch: refetchCategories,
   } = useCategories(params, {
     enabled: currentTab === "categories",
@@ -242,6 +244,15 @@ export default function ClusterCategoryTable({
   const resourceLabel = isClusterTab ? "cluster" : "category";
   const resourcePlural = isClusterTab ? "clusters" : "categories";
 
+  function onRetry() {
+    if (isClusterTab) {
+      refetchClusters();
+    } else {
+      refetchCategories();
+    }
+
+    refetchSummary();
+  }
   return (
     <>
       <DataTable
@@ -249,6 +260,8 @@ export default function ClusterCategoryTable({
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
+        error={isClusterTab ? clusterError : categoryError}
+        onRetry={onRetry}
         pagination={pagination}
         state={{
           globalFilter,
@@ -291,6 +304,10 @@ export default function ClusterCategoryTable({
             title: `No ${resourcePlural} found`,
             description: "Try adjusting your search or create a new entry.",
             icon: <FaLayerGroup className="h-10 w-10 text-text-secondary" />,
+          },
+          errorState: {
+            title: `Unable to load ${resourcePlural}`,
+            message: `The requested ${resourcePlural} could not be loaded.`,
           },
         }}
         slots={{
