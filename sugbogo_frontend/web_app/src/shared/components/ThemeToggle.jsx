@@ -11,13 +11,25 @@ function ThemeToggle() {
   });
 
   useEffect(() => {
+    const root = document.documentElement;
+
+    // Suppress transitions for one frame so color-dependent transitions
+    // (hover states, etc.) don't animate when CSS variables swap value.
+    root.classList.add("disable-theme-transitions");
+
     if (darkMode) {
-      document.documentElement.classList.add("dark");
+      root.classList.add("dark");
       localStorage.setItem("theme", "dark");
     } else {
-      document.documentElement.classList.remove("dark");
+      root.classList.remove("dark");
       localStorage.setItem("theme", "light");
     }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        root.classList.remove("disable-theme-transitions");
+      });
+    });
   }, [darkMode]);
 
   return (

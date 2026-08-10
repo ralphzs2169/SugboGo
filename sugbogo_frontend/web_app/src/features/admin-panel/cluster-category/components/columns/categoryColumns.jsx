@@ -28,6 +28,11 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
 
     columnHelper.accessor("name", {
       header: "Category Name",
+      size: 250,
+      minSize: 200,
+      meta: {
+        skeleton: "longText",
+      },
       cell: (info) => {
         const category = info.row.original;
 
@@ -63,6 +68,9 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
 
     columnHelper.accessor("created_at", {
       header: "Created",
+      meta: {
+        skeleton: "text",
+      },
       cell: (info) => (
         <span className="text-sm text-text-secondary">
           {formatDateTime(info.getValue())}
@@ -73,6 +81,10 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
     columnHelper.display({
       id: "actions",
       header: "Actions",
+      meta: {
+        skeleton: "actions",
+      },
+
       enableSorting: false,
       cell: ({ row }) => {
         const category = row.original;

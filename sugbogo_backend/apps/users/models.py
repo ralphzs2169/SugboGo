@@ -103,6 +103,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = "USER_EMAIL"
     REQUIRED_FIELDS = ("USER_FNAME", "USER_LNAME")
 
+    @property
+    def full_name(self):
+        return f"{self.USER_FNAME} {self.USER_LNAME}".strip()
+    
     # CHANGE 2: computed property, not a real column. Satisfies Django/DRF
     # code that checks `user.is_active`, while USER_STATUS remains the
     # single real source of truth (avoids two fields disagreeing, e.g.

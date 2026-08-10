@@ -2,7 +2,7 @@
  * Renders a skeleton placeholder matching the column type.
  */
 export default function SkeletonCell({ type }) {
-  const base = "animate-pulse rounded bg-stroke";
+  const base = "animate-pulse rounded bg-skeleton";
 
   if (type === "number") {
     return <div className={`${base} h-4 w-8`} />;

@@ -12,7 +12,9 @@ html {
   --color-background: #F8FAFC;
   --color-surface: #F1F5F9;   
 
-  --color-surface-muted: #F8FAFC;
+  --color-success: #16A34A;
+
+  --color-surface-muted: #F1F5F9;
   --color-surface-hover: #F1F5F9;
 
   --color-skeleton: #E5E7EB;
@@ -62,13 +64,13 @@ html.dark {
   --color-surface-muted: #2A2A2A;
   --color-surface-hover: #333333;
 
-   --color-skeleton: #374151;
+   --color-skeleton: #2E343D;
 
    --color-tooltip-background: #F1F5F9;
    --color-tooltip-text: #0F172A;
 
   --color-stroke: #121418;
-  --color-stroke-strong: #475569;
+  --color-stroke-strong: #262d36;
 
   --color-text-primary: #F8FAFC;
   --color-text-secondary: #a6a4a3;
@@ -77,6 +79,37 @@ html.dark {
   --color-text-hover: #9CA3AF;
 
   --color-action-icon-background: #2A2A2A;
+}
+
+/* Suppress transitions for one frame during a theme toggle, so
+   color-dependent transitions (hover states, etc.) don't fire when
+   CSS variables change value under html.dark. */
+.disable-theme-transitions * {
+  transition: none !important;
+}
+
+/* Scrollbar theming — --color-stroke already flips value under html.dark,
+   so a single rule using it tracks the theme automatically. */
+.themed-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-stroke-strong) transparent;
+}
+
+.themed-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.themed-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--color-stroke-strong);
+  border-radius: 9999px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-primary);
 }
 
 

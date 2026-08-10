@@ -1,8 +1,12 @@
 from core.responses import success_response
 from rest_framework.views import APIView
 
-from apps.msme.serializers.category_serializers import CategorySerializer
-from apps.msme.services.category_service import CategoryService
+from apps.admin_operations.taxonomy_management.serializers.category_serializers import (
+    CategorySerializer,
+)
+from apps.admin_operations.taxonomy_management.services.category_service import (
+    CategoryService,
+)
 
 
 class CategoryOptionsView(APIView):

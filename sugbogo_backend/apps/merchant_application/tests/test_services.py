@@ -16,7 +16,7 @@ from apps.merchant_application.services.operating_hours_service import (
     OperatingHoursService,
 )
 from apps.merchant_application.services.photo_service import PhotoService
-from apps.msme.models import Category, Cluster, SpecialtyTag
+from apps.business.models import Category, Cluster, SpecialtyTag
 from apps.users.models import User
 
 

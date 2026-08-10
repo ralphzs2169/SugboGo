@@ -143,3 +143,53 @@ class MerchantApplicationStatusSerializer(serializers.ModelSerializer):
             "status",
             "highest_completed_step",
         )
+
+class MerchantApplicationListSerializer(serializers.ModelSerializer):
+    """
+    Lightweight read serializer for the admin business applications table.
+
+    Returns only the fields required to identify and display an application
+    in the admin list. Full application details are loaded separately when
+    an administrator opens an application for review.
+    """
+
+    id = serializers.IntegerField(
+        source="MAPP_ID",
+        read_only=True,
+    )
+
+    business_name = serializers.CharField(
+        source="identity.MIDN_BUSINESS_NAME",
+        read_only=True,
+    )
+
+    cluster_name = serializers.CharField(
+        source="identity.CLUS_ID.CLUS_NAME",
+        read_only=True,
+    )
+
+    category_name = serializers.CharField(
+        source="identity.CTGRY_ID.CTGRY_NAME",
+        read_only=True,
+    )
+
+    status = serializers.CharField(
+        source="MAPP_STATUS",
+        read_only=True,
+    )
+
+    submitted_at = serializers.DateTimeField(
+        source="MAPP_SUBMITTED_AT",
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantApplication
+        fields = (
+            "id",
+            "business_name",
+            "cluster_name",
+            "category_name",
+            "status",
+            "submitted_at",
+        )

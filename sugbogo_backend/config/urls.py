@@ -28,10 +28,10 @@ urlpatterns = [
 
     # Admin Operations
     path('api/admin/dashboard/', include('apps.admin_operations.dashboard.urls')),
-    path('api/admin/msmes/', include('apps.admin_operations.msme_management.urls')),
+    path('api/admin/businesses/', include('apps.admin_operations.business_management.urls')),
     path('api/admin/users/', include('apps.admin_operations.user_management.urls')),
     path('api/admin/landmarks/', include('apps.admin_operations.landmark_management.urls')),
-    path('api/admin/specialty-tags/', include('apps.admin_operations.tag_management.urls')),
+    path('api/admin/taxonomy/', include('apps.admin_operations.taxonomy_management.urls')),
     path('api/admin/explorer-activities/', include('apps.admin_operations.activity_management.urls')),
 
     path('api/admin/roles-permissions/', include('apps.admin_operations.role_management.urls')),
@@ -39,5 +39,5 @@ urlpatterns = [
     path('api/admin/analytics/', include('apps.admin_operations.analytics.urls')),
 
     path('api/admin/settings/', include('apps.admin_operations.system_configuration.urls')),
-    path('api/msme/', include('apps.msme.urls')),
+    path('api/business/', include('apps.business.urls')),
 ]
