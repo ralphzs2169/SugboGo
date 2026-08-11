@@ -1,6 +1,6 @@
 import ApplicationReviewField from "./ApplicationReviewField";
 import ApplicationReviewSection from "./ApplicationReviewSection";
-import { colorClasses } from "@/features/admin-panel/specialty-tags/constants/specialtyTagColors.js";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { Store } from "lucide-react";
 
 const representativeRoleLabels = {
@@ -110,14 +110,7 @@ export default function BusinessIdentityReview({ identity }) {
           <div className="mt-2 flex flex-wrap gap-2">
             {identity.specialty_tags?.length ? (
               identity.specialty_tags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
-                    colorClasses[tag.color] ?? colorClasses.blue
-                  }`}
-                >
-                  {tag.name}
-                </span>
+                <SpecialtyTagChip key={tag.id} tag={tag} />
               ))
             ) : (
               <span className="text-sm text-text-secondary">

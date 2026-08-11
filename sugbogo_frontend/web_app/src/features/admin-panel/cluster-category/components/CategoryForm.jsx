@@ -46,6 +46,8 @@ export default function CategoryForm({
         onChange={handleChange}
         error={errors.description}
         rows={4}
+        minLength={10}
+        showCharacterCount
       />
 
       <SelectInput

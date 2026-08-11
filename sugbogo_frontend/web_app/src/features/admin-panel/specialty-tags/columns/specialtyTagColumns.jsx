@@ -3,8 +3,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
 import Button from "@/shared/components/Button";
 import { formatDateTime } from "@/shared/utils/dateUtils";
-
-import { colorClasses } from "../constants/specialtyTagColors";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 
 const columnHelper = createColumnHelper();
 
@@ -55,15 +54,7 @@ export default function getSpecialtyTagColumns(
       cell: (info) => {
         const tag = info.row.original;
 
-        return (
-          <span
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getSpecialtyTagColorClasses(
-              tag.color,
-            )}`}
-          >
-            {tag.name}
-          </span>
-        );
+        return <SpecialtyTagChip tag={tag} />;
       },
     }),
 

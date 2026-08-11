@@ -23,3 +23,22 @@ export async function fetchBusinessApplicationStatistics() {
 
   return response.data.data;
 }
+
+export async function approveBusinessApplication(applicationId) {
+  const response = await apiClient.post(
+    `/admin/businesses/applications/${applicationId}/approve/`,
+  );
+
+  return response.data.data;
+}
+
+export async function rejectBusinessApplication(applicationId, feedback) {
+  const response = await apiClient.post(
+    `/admin/businesses/applications/${applicationId}/reject/`,
+    {
+      feedback,
+    },
+  );
+
+  return response.data.data;
+}

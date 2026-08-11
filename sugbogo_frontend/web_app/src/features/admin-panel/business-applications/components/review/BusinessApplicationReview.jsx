@@ -6,7 +6,13 @@ import BusinessLocationReview from "./BusinessLocationReview";
 import BusinessPhotosReview from "./BusinessPhotosReview";
 import GoogleMapsProvider from "../../../providers/GoogleMapsProvider";
 import ApplicationReviewContextBar from "./ReviewContextBar";
+import RejectApplicationDrawer from "./RejectApplicationDrawer";
+import ApproveApplicationConfirmationModal from "./ApproveApplicationConfirmationModal";
 import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
+
+import Button from "@/shared/components/Button";
+import useApproveBusinessApplication from "../../hooks/useApproveBusinessApplication";
 
 /**
  * Composes the submitted merchant application into the complete
@@ -15,12 +21,25 @@ import { useEffect, useRef, useState } from "react";
  * Keeps page-level data loading separate from the individual
  * application review sections.
  */
-export default function BusinessApplicationReview({ application }) {
+export default function BusinessApplicationReview({
+  application,
+  onApplicationRejected,
+  onApplicationApproved,
+}) {
   const reviewHeaderRef = useRef(null);
   const [showContextBar, setShowContextBar] = useState(false);
 
+  const [isRejectDrawerOpen, setIsRejectDrawerOpen] = useState(false);
+  const [isApproveConfirmationOpen, setIsApproveConfirmationOpen] =
+    useState(false);
+
+  const { approveApplication, isSubmitting: isApproving } =
+    useApproveBusinessApplication();
+
   const businessName =
     application.identity?.business_name || "Unnamed Business";
+
+  const isResolved = ["approved", "rejected"].includes(application.status);
 
   useEffect(() => {
     const header = reviewHeaderRef.current;
@@ -43,8 +62,27 @@ export default function BusinessApplicationReview({ application }) {
     return () => observer.disconnect();
   }, []);
 
+  async function handleConfirmApproval() {
+    try {
+      await approveApplication(application.id);
+
+      toast.success("Application approved successfully.");
+
+      setIsApproveConfirmationOpen(false);
+
+      onApplicationApproved?.();
+    } catch (error) {
+      console.error("Failed to approve application:", error);
+
+      toast.error(
+        error.response?.data?.message ||
+          "The application could not be approved. Please try again.",
+      );
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 ">
       {/* Compact context bar */}
       {showContextBar && (
         <ApplicationReviewContextBar application={application} />
@@ -72,33 +110,74 @@ export default function BusinessApplicationReview({ application }) {
       {/* Verification documents */}
       <BusinessDocumentsReview documents={application.documents} />
 
-      {/* Decision area */}
-      <section className="rounded-xl border border-stroke bg-surface p-6">
-        <h2 className="text-base font-semibold text-text-primary">
-          Review Decision
-        </h2>
-
-        <p className="mt-1 max-w-2xl text-sm text-text-secondary">
-          Verify that the submitted information and supporting evidence meet
-          SugboGo&apos;s requirements before approving this application.
-        </p>
-
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            className="rounded-lg border border-stroke-strong px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-surface-hover"
+      {!isResolved && (
+        <>
+          {/* Fixed decision area */}
+          <div className="h-2" />
+          <section
+            className="
+            fixed bottom-0 right-0 z-30
+            left-0
+            border-t border-stroke
+            bg-background/95
+            px-6 py-4
+            backdrop-blur
+            sm:px-4
+            lg:left-[var(--admin-sidebar-width)]
+          "
           >
-            Reject Application
-          </button>
+            <div className="flex items-center justify-between gap-4">
+              <div className="hidden min-w-0 sm:block">
+                <h2 className="text-sm font-semibold text-text-primary">
+                  Review Decision
+                </h2>
 
-          <button
-            type="button"
-            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-          >
-            Approve Application
-          </button>
-        </div>
-      </section>
+                <p className="mt-0.5 text-xs text-text-secondary">
+                  Approve the application or request changes from the applicant.
+                </p>
+              </div>
+
+              <div className="flex w-full flex-col-reverse gap-3 sm:w-auto sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => setIsRejectDrawerOpen(true)}
+                >
+                  Request Changes
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="success"
+                  onClick={() => setIsApproveConfirmationOpen(true)}
+                >
+                  Approve Application
+                </Button>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
+
+      {/* Rejection Drawer */}
+      <RejectApplicationDrawer
+        isOpen={isRejectDrawerOpen}
+        applicationId={application.id}
+        onClose={() => setIsRejectDrawerOpen(false)}
+        onSuccess={onApplicationRejected}
+        businessName={businessName}
+      />
+
+      {/* Approval Confirmation */}
+      <ApproveApplicationConfirmationModal
+        isOpen={isApproveConfirmationOpen}
+        applicationId={application.id}
+        identity={application.identity}
+        storefrontPhoto={application.photos?.[0]?.photo_url}
+        onClose={() => setIsApproveConfirmationOpen(false)}
+        onConfirm={handleConfirmApproval}
+        loading={isApproving}
+      />
     </div>
   );
 }

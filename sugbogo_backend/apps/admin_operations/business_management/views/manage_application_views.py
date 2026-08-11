@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from apps.admin_operations.business_management.serializers.manage_application_serializers import (
     AdminMerchantApplicationDetailSerializer,
     AdminMerchantApplicationListSerializer,
+    AdminMerchantApplicationRejectSerializer,
 )
 from apps.admin_operations.business_management.services.manage_application_service import (
     ApplicationService,
@@ -92,4 +93,57 @@ class MerchantApplicationStatisticsView(APIView):
         return success_response(
             data=statistics,
             message="Application statistics retrieved successfully.",
+        )
+
+
+class MerchantApplicationRejectView(APIView):
+    """Handle administrator rejection of a merchant application."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def post(self, request, application_id):
+        """Reject a submitted application with section-specific feedback."""
+
+        serializer = AdminMerchantApplicationRejectSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        application = ApplicationService.reject_application(
+            application_id=application_id,
+            feedback=serializer.validated_data["feedback"],
+        )
+
+        return success_response(
+            data={
+                "id": application.MAPP_ID,
+                "status": application.MAPP_STATUS,
+            },
+            message="Application rejected successfully.",
+        )
+
+class MerchantApplicationApproveView(APIView):
+    """Handle administrator approval of a merchant application."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def post(self, request, application_id):
+        """Approve a submitted merchant application."""
+
+        application = ApplicationService.approve_application(
+            application_id=application_id,
+        )
+
+        return success_response(
+            data={
+                "id": application.MAPP_ID,
+                "status": application.MAPP_STATUS,
+            },
+            message="Application approved successfully.",
         )

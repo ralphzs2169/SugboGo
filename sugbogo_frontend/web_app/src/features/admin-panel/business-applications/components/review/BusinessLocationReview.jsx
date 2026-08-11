@@ -70,14 +70,14 @@ export default function BusinessLocationReview({ location }) {
               </p>
 
               <div className="mt-5 min-h-[320px] flex-1">
-                <BusinessLocationMap
+                {/* <BusinessLocationMap
                   latitude={location.latitude}
                   longitude={location.longitude}
                   landmarks={location.landmarks}
                   focusPosition={focusPosition}
                   selectedLandmarkId={selectedLandmarkId}
                   className="h-full min-h-[320px]"
-                />
+                /> */}
               </div>
             </div>
 

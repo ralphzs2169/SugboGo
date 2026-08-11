@@ -1,7 +1,13 @@
+from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework.exceptions import NotFound, ValidationError
 
-from apps.merchant_application.models import MerchantApplication
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationFeedback,
+)
 
 
 class ApplicationService:
@@ -104,3 +110,97 @@ class ApplicationService:
             ),
             total_applications=Count("MAPP_ID"),
         )
+
+    @staticmethod
+    @transaction.atomic
+    def reject_application(application_id, feedback):
+        """
+        Reject a submitted merchant application and store
+        section-specific administrator feedback.
+        """
+
+        try:
+            application = MerchantApplication.objects.get(
+                MAPP_ID=application_id,
+            )
+        except MerchantApplication.DoesNotExist:
+            raise NotFound(
+                "The application could not be found.",
+            )
+
+        if (
+            application.MAPP_STATUS
+            != MerchantApplication.ApplicationStatus.SUBMITTED
+        ):
+            raise ValidationError(
+                "Only submitted applications can be rejected.",
+            )
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.REJECTED
+        )
+        application.MAPP_REVIEWED_AT = timezone.now()
+
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_REVIEWED_AT",
+                "MAPP_UPDATED_AT",
+            ],
+        )
+
+        MerchantApplicationFeedback.objects.filter(
+            MAPP_ID=application,
+        ).delete()
+
+        MerchantApplicationFeedback.objects.bulk_create(
+            [
+                MerchantApplicationFeedback(
+                    MAPP_ID=application,
+                    MAPF_SECTION=item["section"],
+                    MAPF_MESSAGE=item["message"],
+                )
+                for item in feedback
+            ]
+        )
+
+        return application
+
+    @staticmethod
+    @transaction.atomic
+    def approve_application(application_id):
+        """
+        Approve a submitted merchant application.
+        """
+
+        try:
+            application = MerchantApplication.objects.get(
+                MAPP_ID=application_id,
+            )
+        except MerchantApplication.DoesNotExist:
+            raise NotFound(
+                "The application could not be found.",
+            )
+
+        if (
+            application.MAPP_STATUS
+            != MerchantApplication.ApplicationStatus.SUBMITTED
+        ):
+            raise ValidationError(
+                "Only submitted applications can be approved.",
+            )
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.APPROVED
+        )
+        application.MAPP_REVIEWED_AT = timezone.now()
+
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_REVIEWED_AT",
+                "MAPP_UPDATED_AT",
+            ],
+        )
+
+        return application

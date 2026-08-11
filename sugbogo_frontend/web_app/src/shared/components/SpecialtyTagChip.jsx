@@ -10,3 +10,18 @@ export const colorClasses = {
   red: "bg-red-100 text-red-700 ring-red-500 border border-red-300",
   teal: "bg-teal-100 text-teal-700 ring-teal-500 border border-teal-300",
 };
+
+/**
+ * Displays a specialty tag using its configured color.
+ */
+export default function SpecialtyTagChip({ tag }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+        colorClasses[tag.color] ?? colorClasses.blue
+      }`}
+    >
+      {tag.name}
+    </span>
+  );
+}

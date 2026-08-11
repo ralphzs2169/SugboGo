@@ -21,6 +21,8 @@ export default function AdminPanelLayout() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  const sidebarWidth = isSidebarCollapsed ? "5rem" : "15.5rem";
+
   const handleLogout = () => {
     navigate("/admin-panel/dashboard");
   };
@@ -41,6 +43,9 @@ export default function AdminPanelLayout() {
     transition-[margin] duration-300
     ${isSidebarCollapsed ? "lg:ml-20" : "lg:ml-62"}
   `}
+        style={{
+          "--admin-sidebar-width": sidebarWidth,
+        }}
       >
         <section className="sticky top-0 z-20 border-b border-stroke bg-background">
           <NavigationHeader onMenuClick={() => setIsSidebarOpen(true)} />

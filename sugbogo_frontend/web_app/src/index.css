@@ -4,6 +4,15 @@ html {
   font-family: "Inter", sans-serif;
 }
 
+body {
+  margin: 0;
+  background: var(--color-surface);
+}
+
+#root {
+  min-height: 100vh;
+}
+
 @theme {
   /* --font-sans: "Inter", sans-serif; */
   
@@ -73,8 +82,8 @@ html.dark {
    --color-tooltip-background: #F1F5F9;
    --color-tooltip-text: #0F172A;
 
-  --color-stroke: #121418;
-  --color-stroke-strong: #262d36;
+  --color-stroke: #2E333A;          
+  --color-stroke-strong: #3F4551;  
 
   --color-text-primary: #F8FAFC;
   --color-text-secondary: #a6a4a3;

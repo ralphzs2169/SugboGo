@@ -36,6 +36,7 @@ export default function Button({
 
     secondary:
       "border border-stroke bg-background text-text-primary hover:bg-surface",
+    success: "bg-success text-white hover:opacity-90 active:opacity-80",
 
     danger: "bg-red-600 text-white hover:bg-red-700 active:bg-red-800",
 

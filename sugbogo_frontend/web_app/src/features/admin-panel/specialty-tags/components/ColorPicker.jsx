@@ -1,4 +1,4 @@
-import { TAG_COLORS, colorClasses } from "../constants/specialtyTagColors";
+import { TAG_COLORS, colorClasses } from "@/shared/components/SpecialtyTagChip";
 
 /**
  * Specialty tag color picker.

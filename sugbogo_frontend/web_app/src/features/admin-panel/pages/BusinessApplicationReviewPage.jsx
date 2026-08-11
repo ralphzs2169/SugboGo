@@ -102,7 +102,10 @@ export default function BusinessApplicationReviewPage() {
       </button>
 
       {/* Application review */}
-      <BusinessApplicationReview application={application} />
+      <BusinessApplicationReview
+        application={application}
+        onApplicationRejected={refetch}
+      />
     </>
   );
 }

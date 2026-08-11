@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.business.models import SpecialtyTag
 from apps.merchant_application.models import (
     MerchantApplication,
+    MerchantApplicationFeedback,
     MerchantApplicationIdentity,
 )
 from apps.merchant_application.serializers.application_location_serializers import (
@@ -279,3 +280,35 @@ class AdminMerchantApplicationDetailSerializer(serializers.ModelSerializer):
             "photos",
             "documents",
         )
+
+
+class AdminMerchantApplicationFeedbackInputSerializer(serializers.Serializer):
+    """Validates section-specific feedback submitted during application rejection."""
+
+    section = serializers.ChoiceField(
+        choices=MerchantApplicationFeedback.Section.choices,
+    )
+
+    message = serializers.CharField(
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+
+
+class AdminMerchantApplicationRejectSerializer(serializers.Serializer):
+    """Validates administrator feedback submitted when rejecting an application."""
+
+    feedback = AdminMerchantApplicationFeedbackInputSerializer(
+        many=True,
+        allow_empty=False,
+    )
+
+    def validate_feedback(self, feedback):
+        sections = [item["section"] for item in feedback]
+
+        if len(sections) != len(set(sections)):
+            raise serializers.ValidationError(
+                "Each application section can only have one feedback entry.",
+            )
+
+        return feedback
