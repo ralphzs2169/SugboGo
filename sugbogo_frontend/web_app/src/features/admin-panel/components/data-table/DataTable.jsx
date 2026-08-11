@@ -8,6 +8,7 @@ import { useReactTable, getCoreRowModel } from "@tanstack/react-table";
 import TableSkeletonBody from "./TableSkeletonBody";
 import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
+import { SearchX } from "lucide-react";
 /**
  * Reusable server-side capable data table powered by TanStack Table.
  *
@@ -48,12 +49,20 @@ function DataTable({
   config = {},
   slots = {},
 }) {
+  const defaultNoResultsState = {
+    title: "No results found",
+    description: "Try adjusting your search or filters.",
+    icon: <SearchX className="h-10 w-10 text-text-secondary" />,
+  };
+
   const {
     tabs = [],
     activeTab,
     onTabChange,
     searchPlaceholder = "Search...",
+
     emptyState = {},
+    noResultsState = {},
     errorState = {
       title: "Unable to load data",
       message: "The requested records could not be loaded.",
@@ -63,6 +72,13 @@ function DataTable({
   const { renderFilters, renderHeaderActions, renderFloatingAction } = slots;
 
   // const showSkeleton = useDelayedLoading(isLoading);
+
+  const hasActiveSearchOrFilters =
+    Boolean(state.globalFilter?.trim()) || hasActiveFilters;
+
+  const activeEmptyState = hasActiveSearchOrFilters
+    ? { ...defaultNoResultsState, ...noResultsState }
+    : emptyState;
 
   // TanStack delegates sorting, filtering, and pagination to external handlers.
   const table = useReactTable({
@@ -108,7 +124,7 @@ function DataTable({
 
       <div className="w-full overflow-x-auto">
         <div className="min-h-[520px] overflow-hidden rounded-lg border border-stroke-strong bg-surface">
-          <table className="min-h-[520px] w-full table-fixed border-collapse text-left">
+          <table className=" w-full table-fixed border-collapse text-left">
             <TableHeader table={table} />
 
             {isLoading ? (
@@ -117,16 +133,25 @@ function DataTable({
                 rowCount={pagination.pageSize}
               />
             ) : error ? (
-              <DataErrorState
-                title={errorState.title}
-                message={errorState.message}
-                onRetry={onRetry}
-                fullHeight
-              />
+              <tbody>
+                <tr>
+                  <td
+                    colSpan={table.getVisibleLeafColumns().length}
+                    className="p-0"
+                  >
+                    <DataErrorState
+                      title={errorState.title}
+                      message={errorState.message}
+                      onRetry={onRetry}
+                      fullHeight
+                    />
+                  </td>
+                </tr>
+              </tbody>
             ) : (
               <TableBody
                 table={table}
-                emptyState={emptyState}
+                emptyState={activeEmptyState}
                 onRowClick={onRowClick}
               />
             )}

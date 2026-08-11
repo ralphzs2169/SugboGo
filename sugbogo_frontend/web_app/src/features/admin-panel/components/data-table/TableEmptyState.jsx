@@ -1,16 +1,9 @@
 /**
- * Reusable empty state view displayed when the table contains no rows after
- * applying data loading, search, filtering, or other table operations.
- *
- * @component
- * @param {string} title - Primary heading displayed to describe the empty state.
- * @param {string} description - Supporting message providing additional context or guidance.
- * @param {React.ReactNode} [icon] - Optional icon or illustration rendered above the text.
+ * Displays a centered empty state when the table contains no records.
  */
-
 function TableEmptyState({ title, description, icon }) {
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-surface">
+    <div className="flex min-h-[520px] flex-col items-center justify-center text-center">
       {icon}
 
       <h3 className="mt-4 text-lg font-semibold text-text-primary">{title}</h3>

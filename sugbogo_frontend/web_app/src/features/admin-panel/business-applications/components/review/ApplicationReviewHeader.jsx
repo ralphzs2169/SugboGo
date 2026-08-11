@@ -1,26 +1,13 @@
-import { Calendar, Clock, User, Mail } from "lucide-react";
-
+import { Calendar, Contact, Clock, User, Mail } from "lucide-react";
+import UserAvatar from "@/shared/components/UserAvatar";
 import StatusBadge from "@/shared/components/StatusBadge";
+import statusConfig from "../../config/applicationStatus.config";
 
 import {
   formatApplicationDate,
   formatApplicationElapsedTime,
   isApplicationResolved,
 } from "../utils/applicationReviewUtils";
-
-const statusVariants = {
-  draft: "neutral",
-  submitted: "info",
-  rejected: "danger",
-  approved: "success",
-};
-
-const statusLabels = {
-  draft: "Draft",
-  submitted: "Pending Review",
-  rejected: "Rejected",
-  approved: "Approved",
-};
 
 const statusAccents = {
   draft: "bg-stroke",
@@ -59,10 +46,8 @@ export default function ApplicationReviewHeader({ application }) {
     application.identity?.business_name || "Unnamed Business";
 
   const status = application.status;
-  const statusVariant = statusVariants[status] ?? "neutral";
+  const statusInfo = statusConfig[status];
   const statusAccent = statusAccents[status] ?? statusAccents.draft;
-
-  const statusLabel = statusLabels[status] ?? "Unknown";
 
   const resolved = isApplicationResolved(status);
 
@@ -101,7 +86,9 @@ export default function ApplicationReviewHeader({ application }) {
             </p>
           </div>
 
-          <StatusBadge variant={statusVariant}>{statusLabel}</StatusBadge>
+          <StatusBadge variant={statusInfo?.variant ?? "neutral"}>
+            {statusInfo?.label ?? status ?? "—"}
+          </StatusBadge>
         </div>
 
         {/* Key application facts */}
@@ -112,11 +99,20 @@ export default function ApplicationReviewHeader({ application }) {
             value={formatApplicationDate(application.submitted_at)}
           />
 
-          <MetaItem
-            icon={User}
-            label="Submitted By"
-            value={application.submitter?.name || "—"}
-          />
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium text-text-secondary">
+              <Contact size={15} />
+              <span>Submitted By</span>
+            </div>
+
+            <div className="mt-1 flex items-center gap-2">
+              <UserAvatar avatarUrl={application.submitter?.avatar_url} />
+
+              <p className="text-sm font-medium text-text-primary">
+                {application.submitter?.name || "—"}
+              </p>
+            </div>
+          </div>
 
           <MetaItem
             icon={Mail}

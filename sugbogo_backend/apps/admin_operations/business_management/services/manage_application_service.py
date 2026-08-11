@@ -1,3 +1,4 @@
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 
 from apps.merchant_application.models import MerchantApplication
@@ -76,4 +77,30 @@ class ApplicationService:
                 "feedback",
             ),
             MAPP_ID=application_id,
+        )
+
+    @staticmethod
+    def get_application_statistics():
+        """Retrieve aggregate statistics for merchant applications."""
+
+        return MerchantApplication.objects.aggregate(
+            pending_review=Count(
+                "MAPP_ID",
+                filter=Q(
+                    MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+                ),
+            ),
+            approved=Count(
+                "MAPP_ID",
+                filter=Q(
+                    MAPP_STATUS=MerchantApplication.ApplicationStatus.APPROVED,
+                ),
+            ),
+            rejected=Count(
+                "MAPP_ID",
+                filter=Q(
+                    MAPP_STATUS=MerchantApplication.ApplicationStatus.REJECTED,
+                ),
+            ),
+            total_applications=Count("MAPP_ID"),
         )

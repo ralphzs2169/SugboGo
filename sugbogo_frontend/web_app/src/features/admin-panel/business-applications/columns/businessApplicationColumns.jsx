@@ -1,8 +1,10 @@
 import { Eye } from "lucide-react";
 import { createColumnHelper } from "@tanstack/react-table";
-
+import UserAvatar from "@/shared/components/UserAvatar";
 import Button from "@/shared/components/Button";
 import { formatDateTime } from "@/shared/utils/dateUtils";
+import StatusBadge from "../../../../shared/components/StatusBadge";
+import statusConfig from "../config/applicationStatus.config";
 
 const columnHelper = createColumnHelper();
 
@@ -39,11 +41,28 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
       meta: {
         skeleton: "longText",
       },
-      cell: (info) => (
-        <span className="text-sm font-medium text-text-primary">
-          {info.getValue() || "—"}
-        </span>
-      ),
+      cell: (info) => {
+        const application = info.row.original;
+
+        return (
+          <div>
+            <p className="text-sm font-bold text-text-primary">
+              {info.getValue() || "—"}
+            </p>
+
+            <div className="mt-1 flex items-center gap-2">
+              <UserAvatar
+                avatarUrl={application.submitter?.avatar_url}
+                size="sm"
+              />
+
+              <p className="text-xs text-text-secondary">
+                by {application.submitter?.name || "Unknown submitter"}
+              </p>
+            </div>
+          </div>
+        );
+      },
     }),
 
     columnHelper.accessor((application) => application.cluster_name, {
@@ -79,24 +98,18 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
     columnHelper.accessor((application) => application.status, {
       id: "status",
       header: "Status",
-      size: 130,
+      size: 150,
       meta: {
         skeleton: "text",
       },
       cell: (info) => {
         const status = info.getValue();
-
-        const statusLabel = {
-          submitted: "Submitted",
-          approved: "Approved",
-          rejected: "Rejected",
-          draft: "Draft",
-        };
+        const statusInfo = statusConfig[status];
 
         return (
-          <span className="text-sm font-medium text-text-primary">
-            {statusLabel[status] ?? status ?? "—"}
-          </span>
+          <StatusBadge variant={statusInfo?.variant ?? "neutral"}>
+            {statusInfo?.label ?? status ?? "—"}
+          </StatusBadge>
         );
       },
     }),
@@ -121,6 +134,7 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
       meta: {
         skeleton: "actions",
       },
+      size: 100,
       enableSorting: false,
       cell: ({ row }) => {
         const application = row.original;
@@ -132,6 +146,7 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
               size="sm"
               icon={Eye}
               iconOnly
+              tooltipMessage="Review application"
               onClick={() => onReviewApplication(application)}
             />
           </div>

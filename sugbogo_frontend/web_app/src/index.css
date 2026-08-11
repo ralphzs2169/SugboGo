@@ -12,7 +12,11 @@ html {
   --color-background: #F8FAFC;
   --color-surface: #F1F5F9;   
 
+  --color-neutral: #64748B;
   --color-success: #16A34A;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-info: #3B82F6;
 
   --color-surface-muted: #F1F5F9;
   --color-surface-hover: #F1F5F9;

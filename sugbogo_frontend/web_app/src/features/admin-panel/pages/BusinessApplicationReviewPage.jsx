@@ -7,11 +7,19 @@ import DataErrorState from "@/shared/components/errors/DataErrorState";
 import BusinessApplicationReview from "../business-applications/components/review/BusinessApplicationReview";
 import useMerchantApplicationReview from "../business-applications/hooks/useMerchantApplicationReview";
 import ApplicationReviewSkeleton from "../business-applications/components/review/ApplicationReviewSkeleton";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function BusinessApplicationReviewPage() {
   const { applicationId } = useParams();
 
   useDocumentTitle("Review Business Application | SugboGo Admin");
+
+  const navigate = useNavigate();
+
+  function handleBack() {
+    navigate(-1);
+  }
 
   const { application, isLoading, error, refetch } =
     useMerchantApplicationReview(applicationId);
@@ -50,6 +58,15 @@ export default function BusinessApplicationReviewPage() {
           title="Review Business Application"
         />
 
+        {/* Return navigation */}
+        <button
+          type="button"
+          onClick={handleBack}
+          className="mb-4 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
+        >
+          <ArrowLeft size={17} strokeWidth={1.8} />
+          <span>Back to Applications</span>
+        </button>
         {/* Application loading error */}
         <DataErrorState
           title="Application unavailable"
@@ -74,6 +91,15 @@ export default function BusinessApplicationReviewPage() {
         ]}
         title="Review Business Application"
       />
+      {/* Return navigation */}
+      <button
+        type="button"
+        onClick={handleBack}
+        className="mb-4 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
+      >
+        <ArrowLeft size={17} strokeWidth={1.8} />
+        <span>Back to Applications</span>
+      </button>
 
       {/* Application review */}
       <BusinessApplicationReview application={application} />

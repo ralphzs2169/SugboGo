@@ -15,3 +15,11 @@ export async function fetchBusinessApplication(applicationId) {
 
   return response.data.data;
 }
+
+export async function fetchBusinessApplicationStatistics() {
+  const response = await apiClient.get(
+    "/admin/businesses/applications/statistics/",
+  );
+
+  return response.data.data;
+}

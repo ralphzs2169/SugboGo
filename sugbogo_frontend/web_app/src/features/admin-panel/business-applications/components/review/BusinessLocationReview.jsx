@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { MapPin } from "lucide-react";
 
 import ApplicationReviewField from "./ApplicationReviewField";
@@ -9,6 +10,16 @@ import BusinessLocationMap from "./business-location/BusinessLocationMap";
  * for administrative verification.
  */
 export default function BusinessLocationReview({ location }) {
+  const [focusPosition, setFocusPosition] = useState(null);
+  const [selectedLandmarkId, setSelectedLandmarkId] = useState(null);
+
+  function handleLandmarkClick(landmark) {
+    setFocusPosition({
+      lat: Number(landmark.latitude),
+      lng: Number(landmark.longitude),
+    });
+  }
+
   return (
     <ApplicationReviewSection
       icon={MapPin}
@@ -16,10 +27,10 @@ export default function BusinessLocationReview({ location }) {
       description="Verify the submitted address, map position, and nearby landmarks."
     >
       {!location ? (
-        <div className="rounded-lg border border-stroke bg-surface-muted p-5">
-          <p className="text-sm font-medium text-text-primary">
+        <div>
+          <h3 className="text-sm font-medium text-text-primary">
             No business location information was submitted.
-          </p>
+          </h3>
 
           <p className="mt-1 text-sm text-text-secondary">
             The applicant did not provide location information for this
@@ -29,12 +40,7 @@ export default function BusinessLocationReview({ location }) {
       ) : (
         <>
           {/* Address information */}
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
-            <ApplicationReviewField
-              label="Province"
-              value={location.province}
-            />
-
+          <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <ApplicationReviewField label="City" value={location.city} />
 
             <ApplicationReviewField
@@ -68,6 +74,8 @@ export default function BusinessLocationReview({ location }) {
                   latitude={location.latitude}
                   longitude={location.longitude}
                   landmarks={location.landmarks}
+                  focusPosition={focusPosition}
+                  selectedLandmarkId={selectedLandmarkId}
                   className="h-full min-h-[320px]"
                 />
               </div>
@@ -86,7 +94,19 @@ export default function BusinessLocationReview({ location }) {
               {location.landmarks?.length ? (
                 <div className="mt-5 min-h-[320px] flex-1 divide-y divide-stroke overflow-y-auto rounded-lg border border-stroke">
                   {location.landmarks.map((landmark) => (
-                    <div key={landmark.id} className="flex gap-3 px-4 py-4">
+                    <button
+                      key={landmark.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedLandmarkId(landmark.id);
+
+                        setFocusPosition({
+                          lat: Number(landmark.latitude),
+                          lng: Number(landmark.longitude),
+                        });
+                      }}
+                      className="flex w-full cursor-pointer gap-3 px-4 py-4 text-left transition-colors hover:bg-interaction-hover"
+                    >
                       <MapPin
                         size={18}
                         strokeWidth={1.8}
@@ -94,25 +114,23 @@ export default function BusinessLocationReview({ location }) {
                       />
 
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-text-primary">
-                            {landmark.name}
+                        <p className="text-sm font-medium text-text-primary">
+                          {landmark.name}
+                        </p>
+
+                        {landmark.source === "custom" && (
+                          <p className="mt-1 text-xs text-text-secondary">
+                            Custom Landmark
                           </p>
+                        )}
 
-                          {landmark.source === "custom" && (
-                            <span className="text-xs text-text-secondary">
-                              Custom
-                            </span>
-                          )}
-                        </div>
-
-                        {landmark.address && (
+                        {landmark.source === "google" && (
                           <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-                            {landmark.address}
+                            {landmark.address ?? "No address provided"}
                           </p>
                         )}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (

@@ -6,9 +6,8 @@ import Tooltip from "@/shared/components/actions/Tooltip";
 /**
  * Reusable button component.
  *
- * Supports variants, sizes, icons, loading states,
- * disabled states, and optional tooltips for disabled buttons.
- *
+ * Supports variants, sizes, icons, loading states, disabled states,
+ * optional disabled tooltips, and optional hover tooltips.
  */
 export default function Button({
   children,
@@ -19,6 +18,7 @@ export default function Button({
   loading = false,
   disabled = false,
   disabledTooltip,
+  tooltipMessage,
   className = "",
   iconOnly = false,
   ...props
@@ -60,9 +60,9 @@ export default function Button({
       {...props}
     >
       {loading ? (
-        <LoaderCircle className="h-4 w-4 animate-spin" />
+        <LoaderCircle size={18} className="animate-spin" />
       ) : (
-        Icon && <Icon className="h-4 w-4" />
+        Icon && <Icon size={18} />
       )}
 
       {!iconOnly && <span>{children}</span>}
@@ -71,6 +71,14 @@ export default function Button({
 
   if (disabled && disabledTooltip) {
     return <Tooltip content={disabledTooltip}>{button}</Tooltip>;
+  }
+
+  if (tooltipMessage) {
+    return (
+      <Tooltip content={tooltipMessage} asChild>
+        {button}
+      </Tooltip>
+    );
   }
 
   return button;

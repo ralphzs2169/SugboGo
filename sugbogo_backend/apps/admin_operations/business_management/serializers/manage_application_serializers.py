@@ -120,7 +120,18 @@ class AdminApplicationIdentitySerializer(serializers.ModelSerializer):
             "specialty_tags",
         )
 
+class ApplicationSubmitterSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source="full_name", read_only=True)
+    email = serializers.EmailField(source="USER_EMAIL", read_only=True)
 
+    class Meta:
+        model = User
+        fields = (
+            "name",
+            "email",
+        )
+
+        
 class AdminMerchantApplicationListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for the administrator application table."""
 
@@ -154,6 +165,11 @@ class AdminMerchantApplicationListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    submitter = ApplicationSubmitterSerializer(
+        source="USER_ID",
+        read_only=True,
+    )
+
     class Meta:
         model = MerchantApplication
         fields = (
@@ -163,20 +179,10 @@ class AdminMerchantApplicationListSerializer(serializers.ModelSerializer):
             "category_name",
             "status",
             "submitted_at",
+            "submitter",
         )
 
 
-class ApplicationSubmitterSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source="full_name", read_only=True)
-    email = serializers.EmailField(source="USER_EMAIL", read_only=True)
-
-    class Meta:
-        model = User
-        fields = (
-            "name",
-            "email",
-        )
-        
 class AdminMerchantApplicationDetailSerializer(serializers.ModelSerializer):
     """Full application serializer for administrative review."""
 

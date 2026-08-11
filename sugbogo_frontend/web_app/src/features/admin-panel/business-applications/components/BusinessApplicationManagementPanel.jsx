@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
-
+import { FileText, SearchX } from "lucide-react";
 import getBusinessApplicationColumns from "../columns/businessApplicationColumns";
 import useBusinessApplications from "../hooks/useBusinessApplications";
 import useBusinessApplicationTableState from "../hooks/useBusinessApplicationTableState";
@@ -68,10 +68,15 @@ export default function BusinessApplicationManagementPanel() {
       onResetFilters={handleResetFilters}
       config={{
         searchPlaceholder: "Search business applications...",
+
         emptyState: {
-          title: "No business applications found",
+          title: "No business applications yet",
           description:
-            "Try adjusting your search or check back when new applications are submitted.",
+            "New applications will appear here once merchants submit them.",
+          icon: <FileText className="h-10 w-10 text-text-secondary" />,
+        },
+        noResultsState: {
+          title: "No business applications found",
         },
         errorState: {
           title: "Unable to load business applications",

@@ -75,3 +75,21 @@ class MerchantApplicationDetailView(APIView):
             data=serializer.data,
             message="Application retrieved successfully.",
         )
+
+class MerchantApplicationStatisticsView(APIView):
+    """Handle merchant application statistics for administrators."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def get(self, request):
+        """Retrieve aggregate merchant application statistics."""
+
+        statistics = ApplicationService.get_application_statistics()
+
+        return success_response(
+            data=statistics,
+            message="Application statistics retrieved successfully.",
+        )
