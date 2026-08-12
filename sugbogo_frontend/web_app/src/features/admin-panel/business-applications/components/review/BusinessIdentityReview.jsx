@@ -1,6 +1,7 @@
 import ApplicationReviewField from "./ApplicationReviewField";
 import ApplicationReviewSection from "./ApplicationReviewSection";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 import { Store } from "lucide-react";
 
 const representativeRoleLabels = {
@@ -16,7 +17,11 @@ const representativeRoleLabels = {
  * Groups business details, representative information, classification,
  * and specialty tags into a single reviewable section.
  */
-export default function BusinessIdentityReview({ identity }) {
+export default function BusinessIdentityReview({
+  identity,
+  feedback,
+  isResubmission,
+}) {
   if (!identity) {
     return (
       <ApplicationReviewSection title="Business Identity">
@@ -33,6 +38,11 @@ export default function BusinessIdentityReview({ identity }) {
       title="Business Identity"
       description="Review the business information and classification submitted by the merchant."
     >
+      <ApplicationReviewFeedback
+        feedback={feedback}
+        isResubmission={isResubmission}
+      />
+
       {/* Business information */}
       <dl className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
         <ApplicationReviewField

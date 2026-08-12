@@ -4,7 +4,7 @@ import { Text, View } from "react-native";
 import { theme } from "@/constants/theme";
 import RejectedStatusIllustartion from "../../assets/illustrations/application-rejected.svg";
 import { ApplicationFeedbackResponse } from "../../types/registration/registrationApi.types";
-import AdministratorFeedback from "../registration/AdministratorFeedback";
+import ResubmissionChecklist from "../registration/ResubmissionChecklist";
 
 type RejectionApplicationSectionProps = {
   feedback: ApplicationFeedbackResponse[];
@@ -68,7 +68,7 @@ export default function RejectionApplicationSection({
           Administrator Feedback
         </Text>
 
-        <AdministratorFeedback feedback={feedback} />
+        <ResubmissionChecklist feedback={feedback} />
       </View>
     </View>
   );

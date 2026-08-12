@@ -115,6 +115,7 @@ class MerchantApplicationRejectView(APIView):
         application = ApplicationService.reject_application(
             application_id=application_id,
             feedback=serializer.validated_data["feedback"],
+            reviewer=request.user,
         )
 
         return success_response(
@@ -138,6 +139,7 @@ class MerchantApplicationApproveView(APIView):
 
         application = ApplicationService.approve_application(
             application_id=application_id,
+            reviewer=request.user,
         )
 
         return success_response(

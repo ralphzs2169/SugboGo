@@ -1,26 +1,31 @@
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Prefetch, Q, Value, When
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
+from apps.merchant_application.constants import (
+    APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
+    APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
+)
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationFeedback,
+    MerchantApplicationReview,
 )
 
 
 class ApplicationService:
     """Service class for administrator-facing merchant application queries."""
-
+    
     @staticmethod
     def list_applications(search=None, ordering=None, status=None):
         """
         Retrieve merchant applications for the admin applications table.
 
         Supports optional business-name search, status filtering, and
-        ordering while eagerly loading the relationships required by
-        the list serializer.
+        ordering while eagerly loading the relationships required
+        by the list serializer.
         """
 
         queryset = (
@@ -52,10 +57,29 @@ class ApplicationService:
             "-submitted_at": "-MAPP_SUBMITTED_AT",
         }
 
-        return queryset.order_by(
-            ordering_map.get(
-                ordering,
-                "-MAPP_SUBMITTED_AT",
+        if ordering:
+            return queryset.order_by(
+                ordering_map.get(
+                    ordering,
+                    "-MAPP_SUBMITTED_AT",
+                )
+            )
+
+        return (
+            queryset
+            .annotate(
+                review_priority=Case(
+                    When(
+                        MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+                        then=Value(0),
+                    ),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by(
+                "review_priority",
+                "MAPP_SUBMITTED_AT",
             )
         )
 
@@ -63,8 +87,19 @@ class ApplicationService:
     def get_application_for_review(application_id):
         """
         Retrieve one merchant application with all data required
-        by the admin review page.
+        by the admin review page, including previous review history.
         """
+
+        review_history = Prefetch(
+            "reviews",
+            queryset=(
+                MerchantApplicationReview.objects
+                .select_related("USER_ID")
+                .prefetch_related("feedback")
+                .order_by("-MAREV_REVIEWED_AT")
+            ),
+            to_attr="admin_review_history",
+        )
 
         return get_object_or_404(
             MerchantApplication.objects
@@ -80,16 +115,16 @@ class ApplicationService:
                 "operating_hours",
                 "photos",
                 "documents",
-                "feedback",
+                review_history,
             ),
             MAPP_ID=application_id,
         )
 
     @staticmethod
     def get_application_statistics():
-        """Retrieve aggregate statistics for merchant applications."""
+        """Retrieve aggregate statistics and review SLA configuration."""
 
-        return MerchantApplication.objects.aggregate(
+        statistics = MerchantApplication.objects.aggregate(
             pending_review=Count(
                 "MAPP_ID",
                 filter=Q(
@@ -111,12 +146,23 @@ class ApplicationService:
             total_applications=Count("MAPP_ID"),
         )
 
+        return {
+            **statistics,
+            "review_sla_business_days": APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
+            "review_sla_approaching_business_days": (
+                APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS
+            ),
+        }
+
     @staticmethod
     @transaction.atomic
-    def reject_application(application_id, feedback):
+    def reject_application(application_id, feedback, reviewer):
         """
-        Reject a submitted merchant application and store
-        section-specific administrator feedback.
+        Reject a submitted merchant application.
+
+        Creates a permanent review record and stores the section-specific
+        feedback against that review so the feedback remains available
+        after future resubmissions.
         """
 
         try:
@@ -136,10 +182,30 @@ class ApplicationService:
                 "Only submitted applications can be rejected.",
             )
 
+        reviewed_at = timezone.now()
+
+        review = MerchantApplicationReview.objects.create(
+            MAPP_ID=application,
+            USER_ID=reviewer,
+            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+            MAREV_REVIEWED_AT=reviewed_at,
+        )
+
+        MerchantApplicationFeedback.objects.bulk_create(
+            [
+                MerchantApplicationFeedback(
+                    MAREV_ID=review,
+                    MAPF_SECTION=item["section"],
+                    MAPF_MESSAGE=item["message"],
+                )
+                for item in feedback
+            ]
+        )
+
         application.MAPP_STATUS = (
             MerchantApplication.ApplicationStatus.REJECTED
         )
-        application.MAPP_REVIEWED_AT = timezone.now()
+        application.MAPP_REVIEWED_AT = reviewed_at
 
         application.save(
             update_fields=[
@@ -149,28 +215,16 @@ class ApplicationService:
             ],
         )
 
-        MerchantApplicationFeedback.objects.filter(
-            MAPP_ID=application,
-        ).delete()
-
-        MerchantApplicationFeedback.objects.bulk_create(
-            [
-                MerchantApplicationFeedback(
-                    MAPP_ID=application,
-                    MAPF_SECTION=item["section"],
-                    MAPF_MESSAGE=item["message"],
-                )
-                for item in feedback
-            ]
-        )
-
         return application
 
     @staticmethod
     @transaction.atomic
-    def approve_application(application_id):
+    def approve_application(application_id, reviewer):
         """
         Approve a submitted merchant application.
+
+        Creates a permanent approval review record so the complete
+        administrative decision history is preserved.
         """
 
         try:
@@ -190,10 +244,19 @@ class ApplicationService:
                 "Only submitted applications can be approved.",
             )
 
+        reviewed_at = timezone.now()
+
+        MerchantApplicationReview.objects.create(
+            MAPP_ID=application,
+            USER_ID=reviewer,
+            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
+            MAREV_REVIEWED_AT=reviewed_at,
+        )
+
         application.MAPP_STATUS = (
             MerchantApplication.ApplicationStatus.APPROVED
         )
-        application.MAPP_REVIEWED_AT = timezone.now()
+        application.MAPP_REVIEWED_AT = reviewed_at
 
         application.save(
             update_fields=[

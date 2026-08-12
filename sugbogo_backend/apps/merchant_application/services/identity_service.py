@@ -50,13 +50,21 @@ class IdentityService:
             # Save only the fields included in the partial update.
             if validated_data:
                 identity.save(
-                    update_fields=list(validated_data.keys())
+                    update_fields=[
+                        *validated_data.keys(),
+                        "MIDN_UPDATED_AT",
+                    ]
                 )
 
         # Only modify specialty tags when they were included in the PATCH.
         if specialty_tags is not None:
             identity.specialty_tags.set(specialty_tags)
 
+        ApplicationService.mark_section_updated(
+            application,
+            "MAPP_IDENTITY_UPDATED_AT",
+        )
+        # Step 1 is complete only when the persisted identity satisfies
         ApplicationService.mark_step_completed(application, IdentityService.STEP)
 
         return application, identity

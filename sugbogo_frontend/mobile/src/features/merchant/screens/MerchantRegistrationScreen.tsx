@@ -54,7 +54,7 @@ import { buildPhotoUploadFormData } from "../utils/merchant-application/builders
 import { getUnsavedSections } from "../utils/merchant-application/comparisons/getUnsavedSections.utils";
 import DiscardChangesMessage from "../utils/merchant-application/discardChangesMessage.utils";
 
-import UnresolvedFeedbackMessage from "../components/registration/UnresolvedFeedbackMessage";
+import ResubmissionConfirmationMessage from "../components/registration/ResubmissionConfirmationMessage";
 import {
   NormalizedIdentity,
   normalizeIdentity,
@@ -133,18 +133,20 @@ export default function MerchantRegistrationScreen() {
     error: categoriesError,
     refetch: refetchCategories,
   } = useCategories();
-
   const {
     application,
     isLoading: isLoadingApplication,
     error: applicationError,
     refetch: refetchApplication,
+    refresh: refreshApplication,
   } = useCurrentApplication();
 
   // Administrator feedback
-  const feedback = application?.feedback ?? [];
+  const feedback = application?.latest_review?.feedback ?? [];
 
   const isResubmission = application?.status === "rejected";
+  const canResubmit =
+    !isResubmission || feedback.every((item) => item.is_changed);
 
   // Mutations
   const { saveIdentity, isSaving: isSavingIdentity } = useSaveIdentity();
@@ -170,6 +172,8 @@ export default function MerchantRegistrationScreen() {
     useState(false);
 
   const [restoreError, setRestoreError] = useState(false);
+
+  const [isRefreshingAfterSave, setIsRefreshingAfterSave] = useState(false);
 
   const { registerErrorScrollTarget, scrollToFirstError } =
     useRegistrationErrorScroll({
@@ -207,7 +211,8 @@ export default function MerchantRegistrationScreen() {
     isSavingLocation ||
     isSavingOperatingHours ||
     isSavingApplicationPhotos ||
-    isSavingApplicationDocuments;
+    isSavingApplicationDocuments ||
+    isRefreshingAfterSave;
 
   // Last Saved Snapshots
   const [lastSavedIdentity, setLastSavedIdentity] =
@@ -394,6 +399,35 @@ export default function MerchantRegistrationScreen() {
     form,
   });
 
+  const refreshAfterResubmission = async () => {
+    if (!isResubmission) {
+      return;
+    }
+
+    setIsRefreshingAfterSave(true);
+
+    try {
+      await refreshApplication();
+    } finally {
+      setIsRefreshingAfterSave(false);
+    }
+  };
+
+  // Used to refresh the application after saving changes to a section during resubmission.
+  const refreshApplicationAfterSave = async () => {
+    if (!isResubmission) {
+      return;
+    }
+
+    setIsRefreshingAfterSave(true);
+
+    try {
+      await refreshApplication();
+    } finally {
+      setIsRefreshingAfterSave(false);
+    }
+  };
+
   /**
    * Validates and persists the current registration step.
    *
@@ -426,6 +460,8 @@ export default function MerchantRegistrationScreen() {
         }
 
         setLastSavedIdentity(currentIdentity);
+
+        await refreshApplicationAfterSave();
       }
     }
 
@@ -448,6 +484,7 @@ export default function MerchantRegistrationScreen() {
         }
 
         setLastSavedLocation(currentLocation);
+        await refreshApplicationAfterSave();
       }
     }
 
@@ -471,6 +508,8 @@ export default function MerchantRegistrationScreen() {
         }
 
         setLastSavedOperatingHours(currentOperatingHours);
+
+        await refreshApplicationAfterSave();
       }
     }
 
@@ -505,6 +544,7 @@ export default function MerchantRegistrationScreen() {
       });
 
       setLastSavedPhotos(savedPhotos);
+      await refreshApplicationAfterSave();
     }
 
     // Save Step 5: Verification Documents
@@ -538,6 +578,7 @@ export default function MerchantRegistrationScreen() {
       });
 
       setLastSavedDocuments(savedDocuments);
+      await refreshApplicationAfterSave();
     }
 
     return true;
@@ -706,6 +747,7 @@ export default function MerchantRegistrationScreen() {
               onSaveAndReview={handleSaveAndReview}
               isSubmitting={isSavingCurrentStep}
               isResubmission={isResubmission}
+              canResubmit={canResubmit}
             />
           }
 
@@ -750,7 +792,7 @@ export default function MerchantRegistrationScreen() {
       <ConfirmModal
         visible={showResubmissionReminderModal}
         title="Ready to resubmit?"
-        message={<UnresolvedFeedbackMessage feedback={feedback} />}
+        message={<ResubmissionConfirmationMessage />}
         confirmText="Submit Application"
         cancelText="Review"
         onConfirm={async () => {

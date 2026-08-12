@@ -10,6 +10,7 @@ type RegistrationFooterProps = {
   isSubmitting?: boolean;
   isEditing?: boolean;
   isResubmission: boolean;
+  canResubmit?: boolean;
 };
 
 /**
@@ -32,6 +33,7 @@ export default function RegistrationFooter({
   isSubmitting = false,
   isEditing = false,
   isResubmission,
+  canResubmit = true,
 }: RegistrationFooterProps) {
   const isFirstStep = currentStep === 1;
   const isLastStep = currentStep === totalSteps;
@@ -79,7 +81,7 @@ export default function RegistrationFooter({
           title={primaryButtonTitle}
           className={!isFirstStep && !isLastStep ? "flex-[1.2]" : "flex-1"}
           loading={isSubmitting}
-          disabled={isSubmitting}
+          disabled={isSubmitting || (isResubmission && !canResubmit)}
           onPress={onNext}
           fontClassName="font-bold"
           icon={

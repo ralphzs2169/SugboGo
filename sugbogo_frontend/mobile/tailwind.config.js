@@ -24,6 +24,7 @@ module.exports = {
           secondary: "#AEB4BC",
           disabled: "#E5E7EB",
           error: "#ef4444",
+          success: "#16A34A",
         },
 
         text: {

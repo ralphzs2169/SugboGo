@@ -4,12 +4,16 @@ import { MapPin } from "lucide-react";
 import ApplicationReviewField from "./ApplicationReviewField";
 import ApplicationReviewSection from "./ApplicationReviewSection";
 import BusinessLocationMap from "./business-location/BusinessLocationMap";
-
+import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 /**
  * Displays the submitted business location and nearby landmarks
  * for administrative verification.
  */
-export default function BusinessLocationReview({ location }) {
+export default function BusinessLocationReview({
+  location,
+  feedback,
+  isResubmission,
+}) {
   const [focusPosition, setFocusPosition] = useState(null);
   const [selectedLandmarkId, setSelectedLandmarkId] = useState(null);
 
@@ -26,6 +30,10 @@ export default function BusinessLocationReview({ location }) {
       title="Business Location"
       description="Verify the submitted address, map position, and nearby landmarks."
     >
+      <ApplicationReviewFeedback
+        feedback={feedback}
+        isResubmission={isResubmission}
+      />
       {!location ? (
         <div>
           <h3 className="text-sm font-medium text-text-primary">

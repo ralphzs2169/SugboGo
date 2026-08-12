@@ -117,7 +117,7 @@ export default function MerchantPortalScreen() {
         {config.sections.feedback && (
           <RejectionApplicationSection
             reviewedAt={formatDate(application?.reviewed_at)}
-            feedback={application?.feedback ?? []}
+            feedback={application?.latest_review?.feedback ?? []}
           />
         )}
 

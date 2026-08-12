@@ -131,6 +131,11 @@ class DocumentService:
 
             raise
 
+        ApplicationService.mark_section_updated(
+            application,
+            "MAPP_DOCUMENTS_UPDATED_AT",
+        )
+
         # Step 5 is complete only after the entire save succeeds.
         ApplicationService.mark_step_completed(
             application,
@@ -259,11 +264,4 @@ class DocumentService:
             MAPP_ID=application,
         )
 
-    @staticmethod
-    def delete_document(document):
-        if document.MDOC_DOCUMENT_PUBLIC_ID:
-            CloudinaryService.delete_image(
-                document.MDOC_DOCUMENT_PUBLIC_ID
-            )
-
-        document.delete()
+   

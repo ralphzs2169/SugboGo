@@ -122,6 +122,11 @@ class PhotoService:
 
             raise
 
+        ApplicationService.mark_section_updated(
+            application,
+            "MAPP_PHOTOS_UPDATED_AT",
+        )
+        
         # Mark Step 4 complete after the entire save succeeds.
         ApplicationService.mark_step_completed(
             application,
@@ -177,9 +182,4 @@ class PhotoService:
             MAPP_ID=application,
         )
 
-    @staticmethod
-    def delete_photo(photo):
-        if photo.MPHT_PHOTO_PUBLIC_ID:
-            CloudinaryService.delete_image(photo.MPHT_PHOTO_PUBLIC_ID)
-
-        photo.delete()
+   

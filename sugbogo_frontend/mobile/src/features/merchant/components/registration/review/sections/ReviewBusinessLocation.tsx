@@ -9,18 +9,22 @@ import ReviewRow from "../ReviewRow";
 import LocationPickerMap from "../../location/LocationPickerMap";
 import { theme } from "@/constants/theme";
 import { useReviewLandmarksStore } from "@/features/merchant/stores/reviewLandmarksStore";
+import { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import ReviewSectionFeedback from "../ReviewSectionFeedback";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessLocationProps = {
   form: ReviewForm;
   onEdit?: () => void;
   returnTo: "registration-review" | "application-summary";
+  feedback?: ApplicationFeedbackResponse;
 };
 
 export default function ReviewBusinessLocation({
   form,
   onEdit,
   returnTo,
+  feedback,
 }: ReviewBusinessLocationProps) {
   const address = [form.streetAddress, form.barangay, form.city, form.province]
     .filter(Boolean)
@@ -58,6 +62,7 @@ export default function ReviewBusinessLocation({
       title="Business Location"
       onEdit={onEdit}
     >
+      <ReviewSectionFeedback feedback={feedback} />
       <LocationPickerMap
         latitude={form.latitude}
         longitude={form.longitude}

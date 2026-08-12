@@ -1,7 +1,8 @@
-import { Calendar, Contact, Clock, User, Mail } from "lucide-react";
+import { Calendar, Contact, Clock, User, Mail, History } from "lucide-react";
 import UserAvatar from "@/shared/components/UserAvatar";
 import StatusBadge from "@/shared/components/StatusBadge";
 import statusConfig from "../../config/applicationStatus.config";
+import ApplicationQueueStatus from "../../components/ApplicationQueueStatus";
 
 import {
   formatApplicationDate,
@@ -25,13 +26,13 @@ function MetaItem({ icon: Icon, label, value }) {
       <Icon
         size={18}
         strokeWidth={2}
-        className=" shrink-0 text-text-secondary"
+        className="shrink-0 text-text-secondary"
       />
 
       <div>
         <p className="text-xs font-medium text-text-secondary">{label}</p>
 
-        <p className="mt-1 text-sm font-medium text-text-primary">{value}</p>
+        <div className="mt-1">{value}</div>
       </div>
     </div>
   );
@@ -41,9 +42,12 @@ function MetaItem({ icon: Icon, label, value }) {
  * Displays the identity, current status, and key timing information
  * for the business application being reviewed.
  */
+
 export default function ApplicationReviewHeader({ application }) {
   const businessName =
     application.identity?.business_name || "Unnamed Business";
+  const submissionCount = application.submission_count ?? 0;
+  const isResubmission = submissionCount > 1;
 
   const status = application.status;
   const statusInfo = statusConfig[status];
@@ -91,36 +95,85 @@ export default function ApplicationReviewHeader({ application }) {
           </StatusBadge>
         </div>
 
+        {/* Resubmission context */}
+        {isResubmission && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg bg-info/10 px-3 py-2 text-sm text-info">
+            <History size={16} className="shrink-0" />
+
+            <span className="font-medium">
+              Resubmission #{submissionCount - 1}
+            </span>
+
+            {application.previous_review?.decision === "rejected" && (
+              <>
+                <span className="text-info/60">·</span>
+                <span>
+                  Previously rejected on{" "}
+                  {formatApplicationDate(
+                    application.previous_review.reviewed_at,
+                  )}
+                </span>
+              </>
+            )}
+          </div>
+        )}
         {/* Key application facts */}
-        <div className="mt-6 grid grid-cols-4 gap-4 border-t border-stroke pt-4">
-          <MetaItem
-            icon={Calendar}
-            label="Submitted"
-            value={formatApplicationDate(application.submitted_at)}
-          />
+        <div className="mt-6 grid grid-cols-1 gap-5 border-t border-stroke pt-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+          <div className="min-w-0">
+            <MetaItem
+              icon={Calendar}
+              label="Submitted"
+              value={formatApplicationDate(application.submitted_at)}
+            />
+          </div>
 
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium text-text-secondary">
-              <Contact size={15} />
-              <span>Submitted By</span>
-            </div>
+          <div className="min-w-0">
+            <div className="flex items-start gap-3">
+              <Contact
+                size={18}
+                strokeWidth={2}
+                className="shrink-0 text-text-secondary"
+              />
 
-            <div className="mt-1 flex items-center gap-2">
-              <UserAvatar avatarUrl={application.submitter?.avatar_url} />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-text-secondary">
+                  Submitted By
+                </p>
 
-              <p className="text-sm font-medium text-text-primary">
-                {application.submitter?.name || "—"}
-              </p>
+                <div className="mt-1 flex min-w-0 items-center gap-2">
+                  <UserAvatar avatarUrl={application.submitter?.avatar_url} />
+
+                  <p className="truncate text-sm font-medium text-text-primary">
+                    {application.submitter?.name || "—"}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <MetaItem
-            icon={Mail}
-            label="Email"
-            value={application.submitter?.email || "—"}
-          />
+          <div className="min-w-0">
+            <MetaItem
+              icon={Mail}
+              label="Email"
+              value={application.submitter?.email || "—"}
+            />
+          </div>
 
-          <MetaItem icon={Clock} label={queueLabel} value={queueValue || "—"} />
+          <div className="min-w-0">
+            <MetaItem
+              icon={Clock}
+              label={queueLabel}
+              value={
+                <ApplicationQueueStatus
+                  submittedAt={application.submitted_at}
+                  resolvedAt={application.reviewed_at}
+                  days={application.time_in_queue_business_days}
+                  status={application.queue_status}
+                  compact
+                />
+              }
+            />
+          </div>
         </div>
       </div>
     </section>

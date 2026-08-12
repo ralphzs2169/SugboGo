@@ -31,6 +31,8 @@ export default function RejectApplicationDrawer({
   const [feedback, setFeedback] = useState({});
   const [errors, setErrors] = useState({});
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(false);
 
   const { rejectApplication, isSubmitting } = useRejectBusinessApplication();
 
@@ -74,6 +76,29 @@ export default function RejectApplicationDrawer({
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isSubmitting]);
+
+  // Keep the drawer mounted long enough for the close animation to finish.
+  useEffect(() => {
+    if (isOpen) {
+      setIsMounted(true);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsVisible(true);
+        });
+      });
+
+      return undefined;
+    }
+
+    setIsVisible(false);
+
+    const timeout = setTimeout(() => {
+      setIsMounted(false);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [isOpen]);
 
   function handleSectionToggle(section) {
     setSelectedSections((previous) => {
@@ -126,6 +151,10 @@ export default function RejectApplicationDrawer({
     handleFeedbackChange(section, next);
   }
 
+  // Returns the validation errors found (also sets them into state).
+  // Returning them directly lets callers act on the result immediately
+  // instead of reading `errors` state, which won't reflect this update
+  // until the next render.
   function validate() {
     const validationErrors = {};
 
@@ -147,13 +176,25 @@ export default function RejectApplicationDrawer({
 
     setErrors(validationErrors);
 
-    return Object.keys(validationErrors).length === 0;
+    return validationErrors;
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!validate()) {
+    const validationErrors = validate();
+
+    if (Object.keys(validationErrors).length > 0) {
+      const firstErrorSection = rejectionFeedbackSections.find(
+        (section) => validationErrors[section.value],
+      )?.value;
+
+      if (firstErrorSection) {
+        document
+          .getElementById(`feedback-${firstErrorSection}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
       return;
     }
 
@@ -167,12 +208,7 @@ export default function RejectApplicationDrawer({
     }));
 
     try {
-      const result = await rejectApplication(applicationId, rejectionFeedback);
-
-      if (!result.success) {
-        toast.error(result.message);
-        return;
-      }
+      await rejectApplication(applicationId, rejectionFeedback);
 
       toast.success("Application rejected successfully.");
 
@@ -182,7 +218,10 @@ export default function RejectApplicationDrawer({
     } catch (error) {
       console.error("Failed to reject application:", error);
 
-      toast.error("The application could not be rejected. Please try again.");
+      toast.error(
+        error.response?.data?.message ||
+          "The application could not be rejected. Please try again.",
+      );
     }
   }
 
@@ -194,11 +233,14 @@ export default function RejectApplicationDrawer({
     onClose();
   }
 
+  if (!isMounted) {
+    return null;
+  }
   return createPortal(
     <>
       <div
         className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${
-          isOpen
+          isVisible
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
         }`}
@@ -216,7 +258,7 @@ export default function RejectApplicationDrawer({
           aria-modal="true"
           aria-labelledby="reject-drawer-title"
           className={`relative flex h-full w-full max-w-lg flex-col bg-background shadow-xl transition-transform duration-300 ease-out ${
-            isOpen ? "translate-x-0" : "translate-x-full"
+            isVisible ? "translate-x-0" : "translate-x-full"
           }`}
         >
           {/* Header */}

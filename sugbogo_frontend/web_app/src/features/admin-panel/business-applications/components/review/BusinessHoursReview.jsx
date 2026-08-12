@@ -7,6 +7,7 @@
 import { Clock } from "lucide-react";
 
 import ApplicationReviewSection from "./ApplicationReviewSection";
+import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 import {
   formatOperatingHours,
   isOvernightOperatingHours,
@@ -22,13 +23,22 @@ const dayLabels = {
   sunday: "Sunday",
 };
 
-export default function BusinessHoursReview({ operatingHours = [] }) {
+export default function BusinessHoursReview({
+  operatingHours = [],
+  feedback,
+  isResubmission = false,
+}) {
   return (
     <ApplicationReviewSection
       icon={Clock}
       title="Operating Hours"
       description="Review the weekly operating schedule submitted by the merchant."
     >
+      <ApplicationReviewFeedback
+        feedback={feedback}
+        isResubmission={isResubmission}
+      />
+
       {operatingHours.length ? (
         <div className="divide-y divide-stroke rounded-lg border border-stroke">
           {operatingHours.map((schedule) => {

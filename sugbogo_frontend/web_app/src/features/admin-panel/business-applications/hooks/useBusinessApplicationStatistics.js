@@ -13,6 +13,8 @@ export default function useBusinessApplicationStatistics({
     approved: 0,
     rejected: 0,
     total_applications: 0,
+    review_sla_business_days: 0,
+    review_sla_approaching_business_days: 0,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +32,9 @@ export default function useBusinessApplicationStatistics({
         approved: response.approved ?? 0,
         rejected: response.rejected ?? 0,
         total_applications: response.total_applications ?? 0,
+        review_sla_business_days: response.review_sla_business_days ?? 0,
+        review_sla_approaching_business_days:
+          response.review_sla_approaching_business_days ?? 0,
       });
     } catch (error) {
       console.error("Failed to load business application statistics:", error);

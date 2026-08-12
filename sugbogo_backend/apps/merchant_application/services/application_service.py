@@ -8,6 +8,7 @@ from apps.merchant_application.models import (
     MerchantApplicationFeedback,
     MerchantApplicationOperatingHours,
     MerchantApplicationPhotos,
+    MerchantApplicationReview,
 )
 
 
@@ -34,11 +35,22 @@ class ApplicationService:
                 "operating_hours",
                 "photos",
                 "documents",
-                "feedback",
+                "reviews__feedback",
             )
             .filter(USER_ID=user)
             .order_by("-MAPP_CREATED_AT")
             .first()
+        ) 
+    
+
+    @staticmethod
+    def mark_section_updated(application, field_name):
+        setattr(application, field_name, timezone.now())
+        application.save(
+            update_fields=[
+                field_name,
+                "MAPP_UPDATED_AT",
+            ]
         )
 
     @staticmethod
@@ -197,7 +209,6 @@ class ApplicationService:
         if errors:
             raise ValidationError(errors)
 
-
     @staticmethod
     @transaction.atomic
     def submit_application(application):
@@ -205,11 +216,10 @@ class ApplicationService:
         Submit or resubmit a merchant application.
 
         Draft applications may be submitted for the first time.
-        Rejected applications may be resubmitted after the merchant
-        addresses the administrator's feedback.
+        Rejected applications may be resubmitted after addressing
+        the administrator's previous feedback.
         """
 
-        # Validate that the application is in draft 
         if application.MAPP_STATUS not in (
             MerchantApplication.ApplicationStatus.DRAFT,
             MerchantApplication.ApplicationStatus.REJECTED,
@@ -218,90 +228,96 @@ class ApplicationService:
                 "This application can no longer be submitted."
             )
 
+        # Check if the application is being resubmitted after rejection
+        if application.MAPP_STATUS == MerchantApplication.ApplicationStatus.REJECTED:
+            # Check if all sections with feedback have been updated
+            latest_review = (
+                MerchantApplicationReview.objects
+                .filter(
+                    MAPP_ID=application,
+                    MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+                )
+                .prefetch_related("feedback")
+                .order_by("-MAREV_REVIEWED_AT")
+                .first()
+            )
+
+            if latest_review:
+                incomplete_feedback = [
+                    feedback
+                    for feedback in latest_review.feedback.all()
+                    if not ApplicationService.has_section_changed_after_review(
+                        feedback
+                    )
+                ]
+
+                if incomplete_feedback:
+                    raise ValidationError({
+                        "resubmission": (
+                            "All sections requiring changes must be updated "
+                            "before resubmitting."
+                        )
+                    })
+
         ApplicationService.mark_step_completed(application, step=None)
 
-        # Validate that the application has completed all steps
         if application.MAPP_HIGHEST_COMPLETED_STEP < 5:
             raise ValidationError(
                 f"Complete Step {application.MAPP_HIGHEST_COMPLETED_STEP + 1} first."
             )
-        
+
         ApplicationService.validate_application_for_submission(
             application
         )
 
-         # Remove previous admin feedback when starting a new review cycle.
-        if application.MAPP_STATUS == MerchantApplication.ApplicationStatus.REJECTED:
-            application.feedback.all().delete()
-
-        # Update the application status to submitted and record the submission timestamp
         application.MAPP_STATUS = (
             MerchantApplication.ApplicationStatus.SUBMITTED
         )
-
         application.MAPP_SUBMITTED_AT = timezone.now()
         application.MAPP_REVIEWED_AT = None
-        application.MAPP_REJECTION_REASON = None
+        application.MAPP_SUBMISSION_COUNT += 1
 
         application.save(
             update_fields=[
                 "MAPP_STATUS",
                 "MAPP_SUBMITTED_AT",
                 "MAPP_REVIEWED_AT",
-                "MAPP_REJECTION_REASON",
+                "MAPP_SUBMISSION_COUNT",
                 "MAPP_UPDATED_AT",
             ]
         )
 
         return application
+    
 
     @staticmethod
-    @transaction.atomic
-    def review_application(application, action, rejection_reason="", feedback=None):
-        """Complete one admin review of a submitted merchant application."""
-        locked_application = MerchantApplication.objects.select_for_update().get(
-            pk=application.pk
+    def has_section_changed_after_review(feedback):
+        """
+        Determine whether the application section associated with this
+        feedback was modified after the review that requested the change.
+        """
+        application = feedback.MAREV_ID.MAPP_ID
+        reviewed_at = feedback.MAREV_ID.MAREV_REVIEWED_AT
+        section = feedback.MAPF_SECTION
+
+        section_updated_at = {
+            MerchantApplicationFeedback.Section.IDENTITY:
+                application.MAPP_IDENTITY_UPDATED_AT,
+
+            MerchantApplicationFeedback.Section.LOCATION:
+                application.MAPP_LOCATION_UPDATED_AT,
+
+            MerchantApplicationFeedback.Section.OPERATING_HOURS:
+                application.MAPP_OPERATING_HOURS_UPDATED_AT,
+
+            MerchantApplicationFeedback.Section.PHOTOS:
+                application.MAPP_PHOTOS_UPDATED_AT,
+
+            MerchantApplicationFeedback.Section.DOCUMENTS:
+                application.MAPP_DOCUMENTS_UPDATED_AT,
+        }.get(section)
+
+        return (
+            section_updated_at is not None
+            and section_updated_at > reviewed_at
         )
-
-        if (
-            locked_application.MAPP_STATUS
-            != MerchantApplication.ApplicationStatus.SUBMITTED
-        ):
-            raise ValidationError("Only submitted applications can be reviewed.")
-
-        locked_application.MAPP_REVIEWED_AT = timezone.now()
-
-        if action == "approve":
-            locked_application.MAPP_STATUS = (
-                MerchantApplication.ApplicationStatus.APPROVED
-            )
-            locked_application.MAPP_REJECTION_REASON = None
-            locked_application.feedback.all().delete()
-        else:
-            locked_application.MAPP_STATUS = (
-                MerchantApplication.ApplicationStatus.REJECTED
-            )
-            locked_application.MAPP_REJECTION_REASON = rejection_reason
-            locked_application.feedback.all().delete()
-            MerchantApplicationFeedback.objects.bulk_create(
-                [
-                    MerchantApplicationFeedback(
-                        MAPP_ID=locked_application,
-                        MAPF_SECTION=item["section"],
-                        MAPF_MESSAGE=item["message"],
-                    )
-                    for item in feedback or []
-                ]
-            )
-
-        locked_application.save(
-            update_fields=[
-                "MAPP_STATUS",
-                "MAPP_REVIEWED_AT",
-                "MAPP_REJECTION_REASON",
-                "MAPP_UPDATED_AT",
-            ]
-        )
-
-        return locked_application
-

@@ -3,7 +3,7 @@ import Tooltip from "@/shared/components/actions/Tooltip";
 
 // Base styles for the sidebar link, shared between expanded and collapsed states.
 export const linkBase =
-  "flex items-center rounded-lg text-[12px] font-medium transition";
+  "flex items-center rounded-lg text-[11px] font-medium transition";
 
 /**
  * Renders a single navigation link within the admin sidebar.
@@ -46,7 +46,7 @@ export default function SidebarLink({
       `
       }
     >
-      <Icon className="h-5 w-5 shrink-0" />
+      <Icon className="h-4.5 w-4.5 shrink-0" />
 
       <span
         className={` truncate overflow-hidden whitespace-nowrap transition-all duration-300 ${isCollapsed ? "max-w-0 opacity-0" : "max-w-32 opacity-100"} `}

@@ -1,10 +1,14 @@
 from rest_framework import serializers
 
+from apps.admin_operations.business_management.serializers.mixins.application_queue import (
+    ApplicationQueueSerializerMixin,
+)
 from apps.business.models import SpecialtyTag
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationFeedback,
     MerchantApplicationIdentity,
+    MerchantApplicationReview,
 )
 from apps.merchant_application.serializers.application_location_serializers import (
     ApplicationLocationReadSerializer,
@@ -133,7 +137,10 @@ class ApplicationSubmitterSerializer(serializers.ModelSerializer):
         )
 
         
-class AdminMerchantApplicationListSerializer(serializers.ModelSerializer):
+class AdminMerchantApplicationListSerializer(
+    ApplicationQueueSerializerMixin,
+    serializers.ModelSerializer,
+):
     """Lightweight serializer for the administrator application table."""
 
     id = serializers.IntegerField(
@@ -161,6 +168,11 @@ class AdminMerchantApplicationListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    reviewed_at = serializers.DateTimeField(
+        source="MAPP_REVIEWED_AT",
+        read_only=True,
+    )
+    
     submitted_at = serializers.DateTimeField(
         source="MAPP_SUBMITTED_AT",
         read_only=True,
@@ -170,7 +182,11 @@ class AdminMerchantApplicationListSerializer(serializers.ModelSerializer):
         source="USER_ID",
         read_only=True,
     )
-
+    submission_count = serializers.IntegerField(
+        source="MAPP_SUBMISSION_COUNT",
+        read_only=True,
+    )
+  
     class Meta:
         model = MerchantApplication
         fields = (
@@ -179,12 +195,19 @@ class AdminMerchantApplicationListSerializer(serializers.ModelSerializer):
             "cluster_name",
             "category_name",
             "status",
+            "submission_count",
+            "reviewed_at",
             "submitted_at",
             "submitter",
+            "time_in_queue_business_days",
+            "queue_status",
         )
 
 
-class AdminMerchantApplicationDetailSerializer(serializers.ModelSerializer):
+class AdminMerchantApplicationDetailSerializer(
+    ApplicationQueueSerializerMixin,
+    serializers.ModelSerializer,
+):
     """Full application serializer for administrative review."""
 
     id = serializers.IntegerField(
@@ -212,15 +235,12 @@ class AdminMerchantApplicationDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    rejection_reason = serializers.CharField(
-        source="MAPP_REJECTION_REASON",
+    submission_count = serializers.IntegerField(
+        source="MAPP_SUBMISSION_COUNT",
         read_only=True,
     )
 
-    feedback = MerchantApplicationFeedbackSerializer(
-        many=True,
-        read_only=True,
-    )
+    previous_review = serializers.SerializerMethodField()
 
     created_at = serializers.DateTimeField(
         source="MAPP_CREATED_AT",
@@ -259,6 +279,20 @@ class AdminMerchantApplicationDetailSerializer(serializers.ModelSerializer):
         source="USER_ID",
         read_only=True,
     )
+
+    def get_previous_review(self, application):
+        """Return the most recent completed review for this application."""
+
+        review = application.reviews.all().first()
+
+        if review is None:
+            return None
+
+        return AdminMerchantApplicationReviewSerializer(
+            review,
+            context=self.context,
+        ).data
+    
         
 
     class Meta:
@@ -270,8 +304,11 @@ class AdminMerchantApplicationDetailSerializer(serializers.ModelSerializer):
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",
-            "rejection_reason",
-            "feedback",
+            "submission_count",
+            "time_in_queue_business_days",
+            "queue_status",
+            "previous_review",
+
             "created_at",
             "updated_at",
             "identity",
@@ -312,3 +349,61 @@ class AdminMerchantApplicationRejectSerializer(serializers.Serializer):
             )
 
         return feedback
+
+
+class AdminMerchantApplicationReviewerSerializer(serializers.ModelSerializer):
+    """Read serializer for the administrator who reviewed an application."""
+
+    name = serializers.CharField(
+        source="full_name",
+        read_only=True,
+    )
+    email = serializers.EmailField(
+        source="USER_EMAIL",
+        read_only=True,
+    )
+
+    class Meta:
+        model = User
+        fields = (
+            "name",
+            "email",
+        )
+
+
+class AdminMerchantApplicationReviewSerializer(serializers.ModelSerializer):
+    """Read serializer for the previous administrative review."""
+
+    decision = serializers.CharField(
+        source="MAREV_DECISION",
+        read_only=True,
+    )
+    reviewed_at = serializers.DateTimeField(
+        source="MAREV_REVIEWED_AT",
+        read_only=True,
+    )
+    reviewer = AdminMerchantApplicationReviewerSerializer(
+        source="USER_ID",
+        read_only=True,
+    )
+    feedback = MerchantApplicationFeedbackSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantApplicationReview
+        fields = (
+            "decision",
+            "reviewed_at",
+            "reviewer",
+            "feedback",
+        )
+
+class AdminMerchantApplicationStatisticsSerializer(serializers.Serializer):
+    pending_review = serializers.IntegerField()
+    approved = serializers.IntegerField()
+    rejected = serializers.IntegerField()
+    total_applications = serializers.IntegerField()
+    review_sla_business_days = serializers.IntegerField()
+    review_sla_approaching_business_days = serializers.IntegerField()

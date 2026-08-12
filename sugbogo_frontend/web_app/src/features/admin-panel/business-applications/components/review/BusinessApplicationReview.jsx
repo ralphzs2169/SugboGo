@@ -40,7 +40,9 @@ export default function BusinessApplicationReview({
     application.identity?.business_name || "Unnamed Business";
 
   const isResolved = ["approved", "rejected"].includes(application.status);
+  const isResubmission = application.status === "submitted";
 
+  // Show the compact context bar when the header is scrolled out of view
   useEffect(() => {
     const header = reviewHeaderRef.current;
 
@@ -62,6 +64,13 @@ export default function BusinessApplicationReview({
     return () => observer.disconnect();
   }, []);
 
+  function getSectionFeedback(section) {
+    return application.previous_review?.feedback?.find(
+      (item) => item.section === section,
+    );
+  }
+
+  // Handle approval confirmation
   async function handleConfirmApproval() {
     try {
       await approveApplication(application.id);
@@ -94,21 +103,41 @@ export default function BusinessApplicationReview({
       </div>
 
       {/* Business identity */}
-      <BusinessIdentityReview identity={application.identity} />
+      <BusinessIdentityReview
+        identity={application.identity}
+        feedback={getSectionFeedback("identity")}
+        isResubmission={isResubmission}
+      />
 
       {/* Business location */}
       <GoogleMapsProvider>
-        <BusinessLocationReview location={application.location} />
+        <BusinessLocationReview
+          location={application.location}
+          feedback={getSectionFeedback("location")}
+          isResubmission={isResubmission}
+        />
       </GoogleMapsProvider>
 
       {/* Operating hours */}
-      <BusinessHoursReview operatingHours={application.operating_hours} />
+      <BusinessHoursReview
+        operatingHours={application.operating_hours}
+        feedback={getSectionFeedback("operating_hours")}
+        isResubmission={isResubmission}
+      />
 
       {/* Business photos */}
-      <BusinessPhotosReview photos={application.photos} />
+      <BusinessPhotosReview
+        photos={application.photos}
+        feedback={getSectionFeedback("photos")}
+        isResubmission={isResubmission}
+      />
 
       {/* Verification documents */}
-      <BusinessDocumentsReview documents={application.documents} />
+      <BusinessDocumentsReview
+        documents={application.documents}
+        feedback={getSectionFeedback("documents")}
+        isResubmission={isResubmission}
+      />
 
       {!isResolved && (
         <>

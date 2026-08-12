@@ -2,20 +2,28 @@ import { ExternalLink, FileText } from "lucide-react";
 
 import ApplicationReviewSection from "./ApplicationReviewSection";
 import PdfFirstPagePreview from "./business-documents/PdfFirstPagePreview";
-
+import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 /**
  * Displays verification documents submitted with the merchant application.
  *
  * Provides compact first-page previews while keeping each document directly
  * accessible for detailed administrative inspection.
  */
-export default function BusinessDocumentsReview({ documents = [] }) {
+export default function BusinessDocumentsReview({
+  documents = [],
+  feedback,
+  isResubmission = false,
+}) {
   return (
     <ApplicationReviewSection
       icon={FileText}
       title="Verification Documents"
       description="Inspect the supporting documents submitted for verification."
     >
+      <ApplicationReviewFeedback
+        feedback={feedback}
+        isResubmission={isResubmission}
+      />
       {documents.length ? (
         /* Submitted documents */
         <div className="divide-y divide-stroke overflow-hidden rounded-lg border border-stroke">
