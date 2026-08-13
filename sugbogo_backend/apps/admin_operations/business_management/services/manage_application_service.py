@@ -13,13 +13,19 @@ from apps.merchant_application.models import (
     MerchantApplicationFeedback,
     MerchantApplicationReview,
 )
+from apps.merchant_application.utils.application_queue import get_business_day_cutoff
 
 
 class ApplicationService:
     """Service class for administrator-facing merchant application queries."""
     
     @staticmethod
-    def list_applications(search=None, ordering=None, status=None):
+    def list_applications(
+        search=None,
+        ordering=None,
+        status=None,
+        queue_status=None,
+    ):
         """
         Retrieve merchant applications for the admin applications table.
 
@@ -46,6 +52,12 @@ class ApplicationService:
         if status:
             queryset = queryset.filter(
                 MAPP_STATUS=status,
+            )
+
+        if queue_status:
+            queryset = ApplicationService._filter_by_queue_status(
+                queryset,
+                queue_status,
             )
 
         ordering_map = {
@@ -81,6 +93,60 @@ class ApplicationService:
                 "review_priority",
                 "MAPP_SUBMITTED_AT",
             )
+        )
+
+    @staticmethod
+    def _filter_by_queue_status(queryset, queue_status):
+        """
+        Filter applications by their calculated review queue status.
+
+        Uses business-day date boundaries so filtering happens in the
+        database before pagination.
+        """
+
+        if queue_status == "resolved":
+            return queryset.filter(
+                MAPP_STATUS__in=[
+                    MerchantApplication.ApplicationStatus.APPROVED,
+                    MerchantApplication.ApplicationStatus.REJECTED,
+                ],
+            )
+
+        if queue_status not in {
+            "on_time",
+            "approaching",
+            "overdue",
+        }:
+            raise ValidationError(
+                "Invalid queue status.",
+            )
+
+        queryset = queryset.filter(
+            MAPP_SUBMITTED_AT__isnull=False,
+            MAPP_REVIEWED_AT__isnull=True,
+        )
+
+        approaching_cutoff = get_business_day_cutoff(
+            APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
+        )
+
+        overdue_cutoff = get_business_day_cutoff(
+            APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
+        )
+
+        if queue_status == "overdue":
+            return queryset.filter(
+                MAPP_SUBMITTED_AT__date__lte=overdue_cutoff,
+            )
+
+        if queue_status == "approaching":
+            return queryset.filter(
+                MAPP_SUBMITTED_AT__date__gt=overdue_cutoff,
+                MAPP_SUBMITTED_AT__date__lte=approaching_cutoff,
+            )
+
+        return queryset.filter(
+            MAPP_SUBMITTED_AT__date__gt=approaching_cutoff,
         )
 
     @staticmethod

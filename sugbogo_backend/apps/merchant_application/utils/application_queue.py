@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 
 from apps.merchant_application.constants import (
+    APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
     APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
 )
 
@@ -38,6 +39,24 @@ def count_business_days(start, end):
 
     return business_days
 
+
+def get_business_day_cutoff(days):
+    """
+    Return the calendar date that is `days` business days before today.
+    """
+
+    current_date = timezone.localdate()
+    remaining_days = days
+
+    while remaining_days > 0:
+        current_date -= timedelta(days=1)
+
+        if current_date.weekday() < 5:
+            remaining_days -= 1
+
+    return current_date
+
+
 def get_application_queue_status(submitted_at, resolved_at=None):
     """
     Determine the application's review queue state relative to
@@ -60,7 +79,7 @@ def get_application_queue_status(submitted_at, resolved_at=None):
     if business_days >= APPLICATION_REVIEW_SLA_BUSINESS_DAYS:
         return "overdue"
 
-    if business_days == APPLICATION_REVIEW_SLA_BUSINESS_DAYS - 1:
+    if business_days >= APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS:
         return "approaching"
 
     return "on_time"

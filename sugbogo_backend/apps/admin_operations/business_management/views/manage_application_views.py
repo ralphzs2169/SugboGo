@@ -29,11 +29,13 @@ class MerchantApplicationListView(APIView):
         search = request.query_params.get("search")
         ordering = request.query_params.get("ordering")
         status_filter = request.query_params.get("status")
+        queue_status = request.query_params.get("queue_status")
 
         queryset = ApplicationService.list_applications(
             search=search,
             ordering=ordering,
             status=status_filter,
+            queue_status=queue_status,
         )
 
         paginator = StandardPagination()
