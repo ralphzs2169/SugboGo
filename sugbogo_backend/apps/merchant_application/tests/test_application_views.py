@@ -1,14 +1,10 @@
-from django.urls import reverse
-from rest_framework.test import APITestCase
-
 from apps.merchant_application.models import MerchantApplication
-from apps.merchant_application.services.application_service import (
-    ApplicationService,
-)
 from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
 from core.tests.assertions import APIResponseAssertionsMixin
+from django.urls import reverse
+from rest_framework.test import APITestCase
 
 
 class ApplicationViewTests(
@@ -96,3 +92,18 @@ class ApplicationViewTests(
             response.data["data"]["status"],
             MerchantApplication.ApplicationStatus.SUBMITTED,
         )
+
+    def test_application_submit_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.post(self.submit_url, {}, format="json")
+
+        self.assertEqual(response.status_code, 401)
+
+
+    def test_application_status_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.status_url)
+
+        self.assertEqual(response.status_code, 401)

@@ -78,3 +78,48 @@ class DocumentViewTests(
         )
 
         mock_upload.assert_called_once()
+
+
+    def test_document_save_returns_bad_request_for_invalid_document_operation(self):
+        application, _ = self._create_identity()
+        self._create_location(application)
+        self._create_hours(application)
+
+        application.MAPP_HIGHEST_COMPLETED_STEP = 4
+        application.save(
+            update_fields=["MAPP_HIGHEST_COMPLETED_STEP"],
+        )
+
+        with patch(
+            "apps.merchant_application.services.document_service.DocumentService.save_documents"
+        ) as mock_save:
+            mock_save.side_effect = ValueError(
+                "You can have up to 5 additional documents."
+            )
+
+            response = self.client.patch(
+                self.url,
+                {"additional_documents": [self.registration_file]},
+                format="multipart",
+            )
+
+        self.assertErrorResponse(
+            response,
+            message="You can have up to 5 additional documents.",
+            code="INVALID_DOCUMENT_OPERATION",
+            status_code=400,
+        )
+
+    def test_document_save_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.patch(
+            self.url,
+            {"business_registration": self.registration_file},
+            format="multipart",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            401,
+        )

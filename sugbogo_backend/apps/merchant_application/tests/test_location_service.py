@@ -1,12 +1,14 @@
-from django.contrib.gis.geos import Point
-from django.test import TestCase
-from rest_framework.exceptions import ValidationError
-
-from apps.merchant_application.models import MerchantApplicationLocation
+from apps.merchant_application.models import (
+    MerchantApplicationLandmark,
+    MerchantApplicationLocation,
+)
 from apps.merchant_application.services.location_service import LocationService
 from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
+from django.contrib.gis.geos import Point
+from django.test import TestCase
+from rest_framework.exceptions import ValidationError
 
 
 class LocationServiceTests(MerchantApplicationServiceMixin, TestCase):
@@ -59,4 +61,146 @@ class LocationServiceTests(MerchantApplicationServiceMixin, TestCase):
             MerchantApplicationLocation.objects.filter(
                 MAPP_ID=application,
             ).exists()
+        )
+
+    def test_save_location_updates_only_submitted_fields(self):
+        application, _ = self._create_identity()
+
+        original_location = LocationService.save_location(
+            application,
+            self._location_payload(),
+        )
+
+        original_point = original_location.MLOC_POINT
+
+        LocationService.save_location(
+            application,
+            {
+                "MLOC_CITY": "Mandaue City",
+            },
+        )
+
+        original_location.refresh_from_db()
+
+        self.assertEqual(
+            original_location.MLOC_PROVINCE,
+            "Cebu",
+        )
+
+        self.assertEqual(
+            original_location.MLOC_CITY,
+            "Mandaue City",
+        )
+
+        self.assertEqual(
+            original_location.MLOC_BARANGAY,
+            "Lahug",
+        )
+
+        self.assertEqual(
+            original_location.MLOC_POINT,
+            original_point,
+        )
+
+    def test_save_location_updates_coordinates(self):
+        application, _ = self._create_identity()
+
+        location = LocationService.save_location(
+            application,
+            self._location_payload(),
+        )
+
+        LocationService.save_location(
+            application,
+            {
+                "latitude": 10.3200,
+                "longitude": 123.8900,
+            },
+        )
+
+        location.refresh_from_db()
+
+        self.assertEqual(
+            location.MLOC_POINT,
+            Point(123.8900, 10.3200, srid=4326),
+        )
+
+    def test_save_location_replaces_landmarks_when_landmarks_are_provided(self):
+        application, _ = self._create_identity()
+
+        location = LocationService.save_location(
+            application,
+            self._location_payload(),
+        )
+
+        self.assertEqual(location.landmarks.count(), 2)
+
+        LocationService.save_location(
+            application,
+            {
+                "landmarks": [
+                    {
+                        "MLMK_NAME": "New Landmark",
+                        "MLMK_ADDRESS": "New Address",
+                        "latitude": 10.3200,
+                        "longitude": 123.8900,
+                        "MLMK_SOURCE": MerchantApplicationLandmark.LandmarkSource.CUSTOM,
+                        "MLMK_PLACE_ID": None,
+                    },
+                ],
+            },
+        )
+
+        location.refresh_from_db()
+
+        self.assertEqual(
+            location.landmarks.count(),
+            1,
+        )
+
+        landmark = location.landmarks.first()
+
+        self.assertEqual(
+            landmark.MLMK_NAME,
+            "New Landmark",
+        )
+
+
+    def test_save_location_preserves_landmarks_when_landmarks_are_omitted(self):
+        application, _ = self._create_identity()
+
+        location = LocationService.save_location(
+            application,
+            self._location_payload(),
+        )
+
+        original_landmark_ids = set(
+            location.landmarks.values_list(
+                "MLMK_ID",
+                flat=True,
+            )
+        )
+
+        LocationService.save_location(
+            application,
+            {
+                "MLOC_CITY": "Mandaue City",
+            },
+        )
+
+        location.refresh_from_db()
+
+        self.assertEqual(
+            set(
+                location.landmarks.values_list(
+                    "MLMK_ID",
+                    flat=True,
+                )
+            ),
+            original_landmark_ids,
+        )
+
+        self.assertEqual(
+            location.landmarks.count(),
+            2,
         )

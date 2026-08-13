@@ -91,3 +91,39 @@ class IdentityViewTests(
             "business_name",
             response.data["errors"],
         )
+
+    def test_identity_save_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.patch(
+            self.url,
+            self.valid_payload,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            401,
+        )
+
+    def test_identity_save_partial_update_preserves_specialty_tags(self):
+        self.client.patch(
+            self.url,
+            self.valid_payload,
+            format="json",
+        )
+
+        response = self.client.patch(
+            self.url,
+            {"business_name": "Sugbo Bistro Prime"},
+            format="json",
+        )
+
+        self.assertSuccessResponse(
+            response,
+            message="Business identity saved successfully.",
+        )
+
+        self.assertTrue(
+            response.data["data"]["specialty_tags"],
+        )
