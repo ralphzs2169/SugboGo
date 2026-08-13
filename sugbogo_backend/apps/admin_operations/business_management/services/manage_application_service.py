@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Case, Count, IntegerField, Prefetch, Q, Value, When
+from django.db.models import Case, IntegerField, Prefetch, Value, When
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
@@ -13,6 +13,7 @@ from apps.merchant_application.models import (
     MerchantApplicationDocument,
     MerchantApplicationFeedback,
     MerchantApplicationReview,
+    MerchantApplicationSubmission,
 )
 from apps.merchant_application.utils.application_queue import get_business_day_cutoff
 
@@ -199,40 +200,6 @@ class ApplicationService:
         )
 
     @staticmethod
-    def get_application_statistics():
-        """Retrieve aggregate statistics and review SLA configuration."""
-
-        statistics = MerchantApplication.objects.aggregate(
-            pending_review=Count(
-                "MAPP_ID",
-                filter=Q(
-                    MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
-                ),
-            ),
-            approved=Count(
-                "MAPP_ID",
-                filter=Q(
-                    MAPP_STATUS=MerchantApplication.ApplicationStatus.APPROVED,
-                ),
-            ),
-            rejected=Count(
-                "MAPP_ID",
-                filter=Q(
-                    MAPP_STATUS=MerchantApplication.ApplicationStatus.REJECTED,
-                ),
-            ),
-            total_applications=Count("MAPP_ID"),
-        )
-
-        return {
-            **statistics,
-            "review_sla_business_days": APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
-            "review_sla_approaching_business_days": (
-                APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS
-            ),
-        }
-
-    @staticmethod
     @transaction.atomic
     def reject_application(application_id, feedback, reviewer):
         """
@@ -243,15 +210,18 @@ class ApplicationService:
         after future resubmissions.
         """
 
-        try:
-            application = MerchantApplication.objects.get(
-                MAPP_ID=application_id,
-            )
-        except MerchantApplication.DoesNotExist:
+        application = (
+            MerchantApplication.objects
+            .select_for_update()
+            .filter(MAPP_ID=application_id)
+            .first()
+        )
+
+        if application is None:
             raise NotFound(
                 "The application could not be found.",
             )
-
+        
         if (
             application.MAPP_STATUS
             != MerchantApplication.ApplicationStatus.SUBMITTED
@@ -260,10 +230,24 @@ class ApplicationService:
                 "Only submitted applications can be rejected.",
             )
 
+        # Get the most recent submission for the application
+        submission = (
+            MerchantApplicationSubmission.objects
+            .filter(MAPP_ID=application)
+            .order_by("-MASUB_SUBMISSION_NUMBER")
+            .first()
+        )
+
+        if submission is None:
+            raise ValidationError(
+                "The application's submission history could not be found.",
+            )
+
         reviewed_at = timezone.now()
 
         review = MerchantApplicationReview.objects.create(
             MAPP_ID=application,
+            MASUB_ID=submission,
             USER_ID=reviewer,
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=reviewed_at,
@@ -295,21 +279,25 @@ class ApplicationService:
 
         return application
 
+
     @staticmethod
     @transaction.atomic
     def approve_application(application_id, reviewer):
         """
         Approve a submitted merchant application.
 
-        Creates a permanent approval review record so the complete
-        administrative decision history is preserved.
+        Creates a permanent approval review record linked to the
+        specific submission that was reviewed.
         """
 
-        try:
-            application = MerchantApplication.objects.get(
-                MAPP_ID=application_id,
-            )
-        except MerchantApplication.DoesNotExist:
+        application = (
+            MerchantApplication.objects
+            .select_for_update()
+            .filter(MAPP_ID=application_id)
+            .first()
+        )
+
+        if application is None:
             raise NotFound(
                 "The application could not be found.",
             )
@@ -322,10 +310,23 @@ class ApplicationService:
                 "Only submitted applications can be approved.",
             )
 
+        submission = (
+            MerchantApplicationSubmission.objects
+            .filter(MAPP_ID=application)
+            .order_by("-MASUB_SUBMISSION_NUMBER")
+            .first()
+        )
+
+        if submission is None:
+            raise ValidationError(
+                "The application's submission history could not be found.",
+            )
+
         reviewed_at = timezone.now()
 
         MerchantApplicationReview.objects.create(
             MAPP_ID=application,
+            MASUB_ID=submission,
             USER_ID=reviewer,
             MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
             MAREV_REVIEWED_AT=reviewed_at,

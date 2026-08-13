@@ -2,8 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchBusinessApplicationStatistics } from "../services/businessApplicationService";
 
 /**
- * Fetches aggregate business application statistics for the
- * administrator application management page.
+ * Fetches aggregate business application statistics and analytics
+ * for the administrator application management page.
+ *
+ * Normalizes optional analytics values so the dashboard can safely
+ * render while data is loading or when a trend has insufficient data.
  */
 export default function useBusinessApplicationStatistics({
   enabled = true,
@@ -13,6 +16,16 @@ export default function useBusinessApplicationStatistics({
     approved: 0,
     rejected: 0,
     total_applications: 0,
+
+    approval_rate: null,
+    resubmission_rate: null,
+    sla_compliance_rate: null,
+
+    approval_rate_trend: null,
+    resubmission_rate_trend: null,
+    pending_review_trend: null,
+    sla_compliance_rate_trend: null,
+
     review_sla_business_days: 0,
     review_sla_approaching_business_days: 0,
   });
@@ -32,6 +45,16 @@ export default function useBusinessApplicationStatistics({
         approved: response.approved ?? 0,
         rejected: response.rejected ?? 0,
         total_applications: response.total_applications ?? 0,
+
+        approval_rate: response.approval_rate ?? null,
+        resubmission_rate: response.resubmission_rate ?? null,
+        sla_compliance_rate: response.sla_compliance_rate ?? null,
+
+        approval_rate_trend: response.approval_rate_trend ?? null,
+        resubmission_rate_trend: response.resubmission_rate_trend ?? null,
+        pending_review_trend: response.pending_review_trend ?? null,
+        sla_compliance_rate_trend: response.sla_compliance_rate_trend ?? null,
+
         review_sla_business_days: response.review_sla_business_days ?? 0,
         review_sla_approaching_business_days:
           response.review_sla_approaching_business_days ?? 0,

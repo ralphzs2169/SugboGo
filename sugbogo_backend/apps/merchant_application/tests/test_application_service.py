@@ -1,9 +1,13 @@
 from datetime import timedelta
 
+from apps.admin_operations.business_management.services.manage_application_service import (
+    ApplicationService as AdminApplicationService,
+)
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationFeedback,
     MerchantApplicationReview,
+    MerchantApplicationSubmission,
 )
 from apps.merchant_application.services.application_service import (
     ApplicationService,
@@ -95,6 +99,30 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             1,
         )
 
+        submission = MerchantApplicationSubmission.objects.get(
+            MAPP_ID=submitted_application,
+        )
+
+        self.assertEqual(
+            submission.MASUB_SUBMISSION_NUMBER,
+            1,
+        )
+
+        self.assertEqual(
+            submission.MASUB_SUBMITTED_AT,
+            submitted_application.MAPP_SUBMITTED_AT,
+        )
+
+        submission = MerchantApplicationSubmission.objects.get(
+            MAPP_ID=submitted_application,
+            MASUB_SUBMISSION_NUMBER=1,
+        )
+
+        self.assertEqual(
+            submission.MASUB_SUBMITTED_AT,
+            submitted_application.MAPP_SUBMITTED_AT,
+        )
+
     def test_submit_application_resubmits_rejected_application(self):
         application = self._build_complete_application()
 
@@ -133,8 +161,24 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             1,
         )
 
+        submission = MerchantApplicationSubmission.objects.get(
+            MAPP_ID=submitted_application,
+        )
+
+        self.assertEqual(
+            submission.MASUB_SUBMISSION_NUMBER,
+            1,
+        )
+
+        self.assertEqual(
+            submission.MASUB_SUBMITTED_AT,
+            submitted_application.MAPP_SUBMITTED_AT,
+        )
+
     def test_submit_application_increments_submission_count_on_resubmission(self):
         application = self._build_complete_application()
+
+        first_submission_at = timezone.now()
 
         application.MAPP_STATUS = (
             MerchantApplication.ApplicationStatus.REJECTED
@@ -146,6 +190,12 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
                 "MAPP_SUBMISSION_COUNT",
                 "MAPP_UPDATED_AT",
             ]
+        )
+
+        MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=first_submission_at,
         )
 
         submitted_application = ApplicationService.submit_application(
@@ -162,6 +212,63 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
         self.assertEqual(
             submitted_application.MAPP_SUBMISSION_COUNT,
             2,
+        )
+
+        submissions = list(
+            MerchantApplicationSubmission.objects
+            .filter(MAPP_ID=submitted_application)
+            .order_by("MASUB_SUBMISSION_NUMBER")
+        )
+
+        self.assertEqual(len(submissions), 2)
+
+        self.assertEqual(
+            submissions[0].MASUB_SUBMISSION_NUMBER,
+            1,
+        )
+
+        self.assertEqual(
+            submissions[1].MASUB_SUBMISSION_NUMBER,
+            2,
+        )
+
+        self.assertIsNotNone(
+            submissions[0].MASUB_SUBMITTED_AT,
+        )
+
+        self.assertIsNotNone(
+            submissions[1].MASUB_SUBMITTED_AT,
+        )
+
+        self.assertEqual(
+            submissions[1].MASUB_SUBMITTED_AT,
+            submitted_application.MAPP_SUBMITTED_AT,
+        )
+
+        submissions = MerchantApplicationSubmission.objects.filter(
+            MAPP_ID=submitted_application,
+        ).order_by("MASUB_SUBMISSION_NUMBER")
+
+        self.assertEqual(submissions.count(), 2)
+
+        self.assertEqual(
+            submissions[0].MASUB_SUBMISSION_NUMBER,
+            1,
+        )
+
+        self.assertEqual(
+            submissions[1].MASUB_SUBMISSION_NUMBER,
+            2,
+        )
+
+        self.assertEqual(
+            submissions[0].MASUB_SUBMITTED_AT,
+            first_submission_at,
+        )
+
+        self.assertEqual(
+            submissions[1].MASUB_SUBMITTED_AT,
+            submitted_application.MAPP_SUBMITTED_AT,
         )
 
     def test_submit_application_rejects_submitted_application(self):
@@ -505,3 +612,281 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
                 application,
                 step_number=1,
             )
+
+    def test_application_submission_and_review_history_is_preserved_across_resubmission(
+        self,
+    ):
+        application = self._build_complete_application()
+
+        # First submission
+        submitted_application = ApplicationService.submit_application(
+            application,
+        )
+
+        first_submission = MerchantApplicationSubmission.objects.get(
+            MAPP_ID=submitted_application,
+            MASUB_SUBMISSION_NUMBER=1,
+        )
+
+        # First rejection
+        first_reviewed_at = timezone.now()
+
+        first_review = MerchantApplicationReview.objects.create(
+            MAPP_ID=submitted_application,
+            MASUB_ID=first_submission,
+            USER_ID=self.user,
+            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+            MAREV_REVIEWED_AT=first_reviewed_at,
+        )
+
+        MerchantApplicationFeedback.objects.create(
+            MAREV_ID=first_review,
+            MAPF_SECTION=MerchantApplicationFeedback.Section.IDENTITY,
+            MAPF_MESSAGE="Update your business identity.",
+        )
+
+        submitted_application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.REJECTED
+        )
+        submitted_application.MAPP_REVIEWED_AT = first_reviewed_at
+        submitted_application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_REVIEWED_AT",
+                "MAPP_UPDATED_AT",
+            ]
+        )
+
+        # Merchant updates the section requested by the reviewer
+        submitted_application.MAPP_IDENTITY_UPDATED_AT = (
+            first_reviewed_at + timedelta(seconds=1)
+        )
+        submitted_application.save(
+            update_fields=[
+                "MAPP_IDENTITY_UPDATED_AT",
+                "MAPP_UPDATED_AT",
+            ]
+        )
+
+        # Resubmit
+        resubmitted_application = ApplicationService.submit_application(
+            submitted_application,
+        )
+
+        resubmitted_application.refresh_from_db()
+
+        # Verify Submission #2 was created
+        submissions = list(
+            MerchantApplicationSubmission.objects
+            .filter(MAPP_ID=resubmitted_application)
+            .order_by("MASUB_SUBMISSION_NUMBER")
+        )
+
+        self.assertEqual(len(submissions), 2)
+
+        first_submission = submissions[0]
+        second_submission = submissions[1]
+
+        self.assertEqual(
+            first_submission.MASUB_SUBMISSION_NUMBER,
+            1,
+        )
+
+        self.assertEqual(
+            second_submission.MASUB_SUBMISSION_NUMBER,
+            2,
+        )
+
+        # First review must still point to Submission #1
+        first_review.refresh_from_db()
+
+        self.assertEqual(
+            first_review.MASUB_ID,
+            first_submission,
+        )
+
+        self.assertEqual(
+            first_review.MAREV_DECISION,
+            MerchantApplicationReview.Decision.REJECTED,
+        )
+
+        # Second submission is approved
+        second_reviewed_at = timezone.now()
+
+        second_review = MerchantApplicationReview.objects.create(
+            MAPP_ID=resubmitted_application,
+            MASUB_ID=second_submission,
+            USER_ID=self.user,
+            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
+            MAREV_REVIEWED_AT=second_reviewed_at,
+        )
+
+        resubmitted_application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.APPROVED
+        )
+        resubmitted_application.MAPP_REVIEWED_AT = second_reviewed_at
+        resubmitted_application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_REVIEWED_AT",
+                "MAPP_UPDATED_AT",
+            ]
+        )
+
+        # Second review must point to Submission #2
+        second_review.refresh_from_db()
+
+        self.assertEqual(
+            second_review.MASUB_ID,
+            second_submission,
+        )
+
+        self.assertEqual(
+            second_review.MAREV_DECISION,
+            MerchantApplicationReview.Decision.APPROVED,
+        )
+
+        # Final application state
+        resubmitted_application.refresh_from_db()
+
+        self.assertEqual(
+            resubmitted_application.MAPP_STATUS,
+            MerchantApplication.ApplicationStatus.APPROVED,
+        )
+
+        self.assertEqual(
+            resubmitted_application.MAPP_SUBMISSION_COUNT,
+            2,
+        )
+
+    def test_application_submission_review_lifecycle_links_each_review_to_correct_submission(
+        self,
+    ):
+        application = self._build_complete_application()
+
+        # First submission
+        submitted_application = ApplicationService.submit_application(
+            application,
+        )
+
+        first_submission = MerchantApplicationSubmission.objects.get(
+            MAPP_ID=submitted_application,
+            MASUB_SUBMISSION_NUMBER=1,
+        )
+
+        # First rejection through the actual service
+        rejected_application = AdminApplicationService.reject_application(
+            application_id=submitted_application.MAPP_ID,
+            feedback=[
+                {
+                    "section": MerchantApplicationFeedback.Section.IDENTITY,
+                    "message": "Update your business identity.",
+                }
+            ],
+            reviewer=self.user,
+        )
+
+        rejected_application.refresh_from_db()
+
+        first_review = MerchantApplicationReview.objects.get(
+            MAPP_ID=rejected_application,
+            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+        )
+
+        self.assertEqual(
+            first_review.MASUB_ID,
+            first_submission,
+        )
+
+        self.assertEqual(
+            first_review.feedback.count(),
+            1,
+        )
+
+        # Merchant updates the section requested by the reviewer
+        reviewed_at = first_review.MAREV_REVIEWED_AT
+
+        rejected_application.MAPP_IDENTITY_UPDATED_AT = (
+            reviewed_at + timedelta(seconds=1)
+        )
+
+        rejected_application.save(
+            update_fields=[
+                "MAPP_IDENTITY_UPDATED_AT",
+                "MAPP_UPDATED_AT",
+            ]
+        )
+
+        # Resubmit through the actual service
+        resubmitted_application = ApplicationService.submit_application(
+            rejected_application,
+        )
+
+        resubmitted_application.refresh_from_db()
+
+        second_submission = MerchantApplicationSubmission.objects.get(
+            MAPP_ID=resubmitted_application,
+            MASUB_SUBMISSION_NUMBER=2,
+        )
+
+        # The original submission must still exist
+        self.assertTrue(
+            MerchantApplicationSubmission.objects.filter(
+                MASUB_ID=first_submission.MASUB_ID,
+            ).exists()
+        )
+
+        self.assertEqual(
+            resubmitted_application.MAPP_SUBMISSION_COUNT,
+            2,
+        )
+
+        # Approve the second submission through the actual service
+        approved_application = AdminApplicationService.approve_application(
+            application_id=resubmitted_application.MAPP_ID,
+            reviewer=self.user,
+        )
+
+        approved_application.refresh_from_db()
+
+        second_review = MerchantApplicationReview.objects.get(
+            MAPP_ID=approved_application,
+            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
+        )
+
+        # Each review must remain linked to the submission it actually reviewed
+        self.assertEqual(
+            first_review.MASUB_ID,
+            first_submission,
+        )
+
+        self.assertEqual(
+            second_review.MASUB_ID,
+            second_submission,
+        )
+
+        # Final application state
+        self.assertEqual(
+            approved_application.MAPP_STATUS,
+            MerchantApplication.ApplicationStatus.APPROVED,
+        )
+
+        self.assertEqual(
+            approved_application.MAPP_SUBMISSION_COUNT,
+            2,
+        )
+
+        # Complete history should remain intact
+        self.assertEqual(
+            MerchantApplicationSubmission.objects.filter(
+                MAPP_ID=approved_application,
+            ).count(),
+            2,
+        )
+
+        self.assertEqual(
+            MerchantApplicationReview.objects.filter(
+                MAPP_ID=approved_application,
+            ).count(),
+            2,
+        )

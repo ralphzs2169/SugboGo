@@ -9,6 +9,7 @@ from apps.merchant_application.models import (
     MerchantApplicationOperatingHours,
     MerchantApplicationPhotos,
     MerchantApplicationReview,
+    MerchantApplicationSubmission,
 )
 
 
@@ -277,12 +278,15 @@ class ApplicationService:
             application
         )
 
+        submitted_at = timezone.now()
+        submission_number = application.MAPP_SUBMISSION_COUNT + 1
+
         application.MAPP_STATUS = (
             MerchantApplication.ApplicationStatus.SUBMITTED
         )
-        application.MAPP_SUBMITTED_AT = timezone.now()
+        application.MAPP_SUBMITTED_AT = submitted_at
         application.MAPP_REVIEWED_AT = None
-        application.MAPP_SUBMISSION_COUNT += 1
+        application.MAPP_SUBMISSION_COUNT = submission_number
 
         application.save(
             update_fields=[
@@ -292,6 +296,12 @@ class ApplicationService:
                 "MAPP_SUBMISSION_COUNT",
                 "MAPP_UPDATED_AT",
             ]
+        )
+
+        MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=submission_number,
+            MASUB_SUBMITTED_AT=submitted_at,
         )
 
         return application

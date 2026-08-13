@@ -10,9 +10,10 @@ export default function BusinessApplicationsPage() {
 
   const { statistics, isLoading: isStatisticsLoading } =
     useBusinessApplicationStatistics();
-  console.log("APPLICATION STATISTICS", statistics);
+
   return (
     <>
+      {/* Page header */}
       <PageHeader
         breadcrumbs={[
           {
@@ -30,6 +31,7 @@ export default function BusinessApplicationsPage() {
         title="Business Applications"
       />
 
+      {/* Application metrics */}
       <BusinessApplicationMetrics
         pendingReview={isStatisticsLoading ? "—" : statistics.pending_review}
         approved={isStatisticsLoading ? "—" : statistics.approved}
@@ -37,7 +39,16 @@ export default function BusinessApplicationsPage() {
         totalApplications={
           isStatisticsLoading ? "—" : statistics.total_applications
         }
+        approvalRate={isStatisticsLoading ? "—" : statistics.approval_rate}
+        resubmissionRate={
+          isStatisticsLoading ? "—" : statistics.resubmission_rate
+        }
+        slaComplianceRate={
+          isStatisticsLoading ? "—" : statistics.sla_compliance_rate
+        }
       />
+
+      {/* Review SLA information */}
       {!isStatisticsLoading && (
         <ApplicationReviewSlaInfo
           slaBusinessDays={statistics.review_sla_business_days}
@@ -47,6 +58,7 @@ export default function BusinessApplicationsPage() {
         />
       )}
 
+      {/* Application management */}
       <BusinessApplicationManagementPanel />
     </>
   );

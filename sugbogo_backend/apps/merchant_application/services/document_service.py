@@ -236,7 +236,7 @@ class DocumentService:
             resource_type="auto",
             type="authenticated",
         )
-        print("CLOUDINARY DOCUMENT RESULT:", result)
+     
         public_id = result["public_id"]
         uploaded_public_ids.append(public_id)
 

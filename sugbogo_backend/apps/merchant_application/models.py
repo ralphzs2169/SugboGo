@@ -66,6 +66,37 @@ class MerchantApplication(models.Model):
     def __str__(self):
         return f"Application #{self.MAPP_ID} ({self.MAPP_STATUS})"
 
+class MerchantApplicationSubmission(models.Model):
+    """Historical record of each merchant application submission."""
+
+    MASUB_ID = models.AutoField(primary_key=True)
+
+    MAPP_ID = models.ForeignKey(
+        MerchantApplication,
+        on_delete=models.CASCADE,
+        db_column="MAPP_ID",
+        related_name="submissions",
+    )
+
+    MASUB_SUBMISSION_NUMBER = models.PositiveIntegerField()
+
+    MASUB_SUBMITTED_AT = models.DateTimeField()
+
+    class Meta:
+        db_table = "MERCHANT_APPLICATION_SUBMISSION"
+        ordering = ["MASUB_SUBMISSION_NUMBER"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("MAPP_ID", "MASUB_SUBMISSION_NUMBER"),
+                name="unique_application_submission_number",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"Application #{self.MAPP_ID_id} "
+            f"Submission #{self.MASUB_SUBMISSION_NUMBER}"
+        )
 
 class MerchantApplicationReview(models.Model):
     class Decision(models.TextChoices):
@@ -88,6 +119,15 @@ class MerchantApplicationReview(models.Model):
         on_delete=models.CASCADE,
         db_column="MAPP_ID",
         related_name="reviews",
+    )
+    
+    MASUB_ID  = models.OneToOneField(
+        MerchantApplicationSubmission,
+        on_delete=models.CASCADE,
+        db_column="MASUB_ID",
+        related_name="review",
+        null=True,
+        blank=True,
     )
 
     USER_ID = models.ForeignKey(

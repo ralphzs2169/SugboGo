@@ -228,6 +228,7 @@ class MerchantApplicationServiceMixin:
             mock_upload.return_value = {
                 "secure_url": "https://cloudinary.com/business-registration.pdf",
                 "public_id": "merchant_application_documents/business-registration",
+                "version": 123456789,
             }
 
             DocumentService.save_documents(

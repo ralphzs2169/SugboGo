@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from core.pagination import StandardPagination
 from core.responses import success_response
@@ -6,6 +5,9 @@ from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from apps.admin_operations.analytics.services.merchant_application_analytics_service import (
+    MerchantApplicationAnalyticsService,
+)
 from apps.admin_operations.business_management.serializers.manage_application_serializers import (
     AdminMerchantApplicationDetailSerializer,
     AdminMerchantApplicationListSerializer,
@@ -94,13 +96,15 @@ class MerchantApplicationStatisticsView(APIView):
     def get(self, request):
         """Retrieve aggregate merchant application statistics."""
 
-        statistics = ApplicationService.get_application_statistics()
+        statistics = (
+            MerchantApplicationAnalyticsService
+            .get_application_statistics()
+        )
 
         return success_response(
             data=statistics,
             message="Application statistics retrieved successfully.",
         )
-
 
 class MerchantApplicationRejectView(APIView):
     """Handle administrator rejection of a merchant application."""
