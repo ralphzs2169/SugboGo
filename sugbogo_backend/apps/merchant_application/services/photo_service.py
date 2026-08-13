@@ -3,7 +3,10 @@ from typing import ClassVar
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
-from apps.merchant_application.models import MerchantApplicationPhotos
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationPhotos,
+)
 from apps.merchant_application.services.application_service import ApplicationService
 from apps.shared.services.cloudinary_service import CloudinaryService
 
@@ -33,6 +36,12 @@ class PhotoService:
         Final photo limits are validated against the complete resulting
         state before any database or Cloudinary changes are made.
         """
+        # Lock the application row to prevent concurrent photo saves.
+        application = (
+            MerchantApplication.objects
+            .select_for_update()
+            .get(MAPP_ID=application.MAPP_ID)
+        )
 
         ApplicationService.validate_step_access(
             application,

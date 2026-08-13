@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
 import RegistrationFooter from "../components/registration/RegistartionFooter";
@@ -175,6 +175,8 @@ export default function MerchantRegistrationScreen() {
 
   const [isRefreshingAfterSave, setIsRefreshingAfterSave] = useState(false);
 
+  const [unsavedSections, setUnsavedSections] = useState<string[]>([]);
+
   const { registerErrorScrollTarget, scrollToFirstError } =
     useRegistrationErrorScroll({
       scrollRef,
@@ -212,7 +214,8 @@ export default function MerchantRegistrationScreen() {
     isSavingOperatingHours ||
     isSavingApplicationPhotos ||
     isSavingApplicationDocuments ||
-    isRefreshingAfterSave;
+    isRefreshingAfterSave ||
+    isSubmittingApplication;
 
   // Last Saved Snapshots
   const [lastSavedIdentity, setLastSavedIdentity] =
@@ -244,41 +247,34 @@ export default function MerchantRegistrationScreen() {
 
   // Helper Functions
 
-  const values = form.watch();
-
-  const unsavedSections = useMemo(
-    () =>
-      getUnsavedSections({
-        values,
-
+  const requestExit = useCallback(
+    (action: () => void) => {
+      const sections = getUnsavedSections({
+        values: form.getValues(),
         lastSavedIdentity,
         lastSavedLocation,
         lastSavedOperatingHours,
-
         lastSavedPhotos,
         lastSavedDocuments,
-      }),
+      });
+
+      if (sections.length === 0) {
+        action();
+        return;
+      }
+
+      setUnsavedSections(sections);
+      pendingExitAction.current = action;
+      setShowDiscardChangesModal(true);
+    },
     [
-      values,
+      form,
       lastSavedIdentity,
       lastSavedLocation,
       lastSavedOperatingHours,
       lastSavedPhotos,
       lastSavedDocuments,
     ],
-  );
-
-  const requestExit = useCallback(
-    (action: () => void) => {
-      if (unsavedSections.length === 0) {
-        action();
-        return;
-      }
-
-      pendingExitAction.current = action;
-      setShowDiscardChangesModal(true);
-    },
-    [unsavedSections],
   );
 
   const handleDiscardChanges = () => {
@@ -399,20 +395,6 @@ export default function MerchantRegistrationScreen() {
     form,
   });
 
-  const refreshAfterResubmission = async () => {
-    if (!isResubmission) {
-      return;
-    }
-
-    setIsRefreshingAfterSave(true);
-
-    try {
-      await refreshApplication();
-    } finally {
-      setIsRefreshingAfterSave(false);
-    }
-  };
-
   // Used to refresh the application after saving changes to a section during resubmission.
   const refreshApplicationAfterSave = async () => {
     if (!isResubmission) {
@@ -448,11 +430,26 @@ export default function MerchantRegistrationScreen() {
     // Save Step 1: Business Identity
     if (currentStep === 1) {
       const values = form.getValues();
-
       const currentIdentity = normalizeIdentity(values);
-      const payload = buildIdentityPayload(values);
 
       if (hasIdentityChanged(lastSavedIdentity, currentIdentity)) {
+        let payload: ReturnType<typeof buildIdentityPayload>;
+
+        try {
+          payload = buildIdentityPayload(values);
+        } catch (error) {
+          console.error("Failed to build business identity payload:", error);
+
+          Toast.show({
+            type: "error",
+            text1: "Unable to save changes",
+            text2:
+              "Something went wrong while preparing your business information.",
+          });
+
+          return false;
+        }
+
         const response = await saveIdentity(payload);
 
         if (!response.success) {
@@ -460,7 +457,6 @@ export default function MerchantRegistrationScreen() {
         }
 
         setLastSavedIdentity(currentIdentity);
-
         await refreshApplicationAfterSave();
       }
     }
@@ -468,15 +464,26 @@ export default function MerchantRegistrationScreen() {
     // Save Step 2: Business Location
     if (currentStep === 2) {
       const values = form.getValues();
-
-      if (values.latitude === null || values.longitude === null) {
-        return false;
-      }
-
       const currentLocation = normalizeLocation(values);
-      const payload = buildLocationPayload(values);
 
       if (hasLocationChanged(lastSavedLocation, currentLocation)) {
+        let payload: ReturnType<typeof buildLocationPayload>;
+
+        try {
+          payload = buildLocationPayload(values);
+        } catch (error) {
+          console.error("Failed to build business location payload:", error);
+
+          Toast.show({
+            type: "error",
+            text1: "Unable to save changes",
+            text2:
+              "Something went wrong while preparing your business location.",
+          });
+
+          return false;
+        }
+
         const response = await saveLocation(payload);
 
         if (!response.success) {
@@ -605,6 +612,10 @@ export default function MerchantRegistrationScreen() {
    * to the review screen.
    */
   const handleNext = async () => {
+    if (isSavingCurrentStep) {
+      return;
+    }
+
     if (currentStep === REVIEW_STEP) {
       if (isResubmission && feedback.length > 0) {
         setShowResubmissionReminderModal(true);
@@ -629,7 +640,7 @@ export default function MerchantRegistrationScreen() {
       setShowReviewCelebration(true);
     }
 
-    completeCurrentStep();
+    completeCurrentStep(currentStep);
   };
 
   /**
@@ -638,6 +649,10 @@ export default function MerchantRegistrationScreen() {
    * Used when editing an existing section from the review screen.
    */
   const handleSaveAndReview = async () => {
+    if (isSavingCurrentStep) {
+      return;
+    }
+
     if (currentStep === 2) {
       persistCurrentAddress();
     }
@@ -656,6 +671,11 @@ export default function MerchantRegistrationScreen() {
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
         () => {
+          // Prevent navigation while a save or submission is in progress.
+          if (isSavingCurrentStep) {
+            return true;
+          }
+
           // While editing a section, Android Back is disabled.
           if (editingStep !== null) {
             return true;
@@ -680,7 +700,13 @@ export default function MerchantRegistrationScreen() {
       );
 
       return () => subscription.remove();
-    }, [editingStep, currentStep, handleBack, requestExit]),
+    }, [
+      editingStep,
+      currentStep,
+      handleBack,
+      requestExit,
+      isSavingCurrentStep,
+    ]),
   );
 
   if (isLoadingApplication) {
@@ -734,7 +760,7 @@ export default function MerchantRegistrationScreen() {
               editingStep={editingStep}
               highestCompletedStep={highestCompletedStep}
               title={REGISTRATION_STEPS[currentStep - 1].title}
-              isResubmission
+              isResubmission={isResubmission}
             />
           }
           footer={

@@ -220,6 +220,13 @@ class ApplicationService:
         the administrator's previous feedback.
         """
 
+        # Lock the application row to prevent concurrent submissions
+        application = (
+            MerchantApplication.objects
+            .select_for_update()
+            .get(MAPP_ID=application.MAPP_ID)
+        )
+
         if application.MAPP_STATUS not in (
             MerchantApplication.ApplicationStatus.DRAFT,
             MerchantApplication.ApplicationStatus.REJECTED,

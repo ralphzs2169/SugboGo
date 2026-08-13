@@ -18,18 +18,14 @@ function areLandmarksEqual(
   return a.every((landmark, index) => {
     const other = b[index];
 
-    return a.every((landmark, index) => {
-      const other = b[index];
-
-      return (
-        landmark.name === other.name &&
-        landmark.address === other.address &&
-        landmark.latitude === other.latitude &&
-        landmark.longitude === other.longitude &&
-        landmark.source === other.source &&
-        landmark.placeId === other.placeId
-      );
-    });
+    return (
+      landmark.name === other.name &&
+      landmark.address === other.address &&
+      landmark.latitude === other.latitude &&
+      landmark.longitude === other.longitude &&
+      landmark.source === other.source &&
+      landmark.placeId === other.placeId
+    );
   });
 }
 

@@ -1,7 +1,10 @@
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
-from apps.merchant_application.models import MerchantApplicationDocument
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationDocument,
+)
 from apps.merchant_application.services.application_service import ApplicationService
 from apps.shared.services.cloudinary_service import CloudinaryService
 
@@ -21,6 +24,14 @@ class DocumentService:
         Existing documents remain untouched when their fields are omitted.
         Explicitly deleted documents are removed.
         """
+
+        # Lock the application row to prevent concurrent document saves.
+        application = (
+            MerchantApplication.objects
+            .select_for_update()
+            .get(MAPP_ID=application.MAPP_ID)
+        )
+
         ApplicationService.validate_step_access(
             application,
             DocumentService.STEP,
