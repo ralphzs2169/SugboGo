@@ -10,6 +10,7 @@ from apps.merchant_application.constants import (
 )
 from apps.merchant_application.models import (
     MerchantApplication,
+    MerchantApplicationDocument,
     MerchantApplicationFeedback,
     MerchantApplicationReview,
 )
@@ -148,6 +149,17 @@ class ApplicationService:
         return queryset.filter(
             MAPP_SUBMITTED_AT__date__gt=approaching_cutoff,
         )
+
+    @staticmethod
+    def get_document_for_review(application_id, document_id):
+        """Retrieve one verification document belonging to an application."""
+
+        return get_object_or_404(
+            MerchantApplicationDocument,
+            MDOC_ID=document_id,
+            MAPP_ID=application_id,
+        )
+
 
     @staticmethod
     def get_application_for_review(application_id):

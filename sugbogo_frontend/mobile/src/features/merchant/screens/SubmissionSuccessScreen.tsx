@@ -8,25 +8,28 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type SubmissionSuccessScreenProps = {
   /**
-   * Called when the merchant finishes the success flow.
-   *
-   * Typically navigates back to the Merchant Portal.
+   * Displays the configured estimated review window and
+   * provides the action for leaving the success flow.
    */
+  reviewSlaMinBusinessDays: number;
+  reviewSlaMaxBusinessDays: number;
   onContinue: () => void;
 };
 
 export default function SubmissionSuccessScreen({
+  reviewSlaMinBusinessDays,
+  reviewSlaMaxBusinessDays,
   onContinue,
 }: SubmissionSuccessScreenProps) {
   return (
     <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-surface">
       <View className="flex-1 justify-center px-8">
+        {/* Success message */}
         <View className="items-center">
           <LottieView
             source={successAnimation}
             autoPlay
             loop={false}
-
             style={{ width: 260, height: 260 }}
           />
 
@@ -41,12 +44,15 @@ export default function SubmissionSuccessScreen({
 
           <View className="mt-6 flex-row items-center rounded-2xl bg-background px-4 py-3">
             <View className="h-2 w-2 rounded-full bg-brand" />
+
             <Text className="ml-2 text-sm font-medium text-text-secondary">
-              Estimated review time: 2–5 business days
+              Estimated review time: {reviewSlaMinBusinessDays}–
+              {reviewSlaMaxBusinessDays} business days
             </Text>
           </View>
         </View>
 
+        {/* Continue action */}
         <View className="mt-12">
           <Button
             title="Back to Merchant Portal"

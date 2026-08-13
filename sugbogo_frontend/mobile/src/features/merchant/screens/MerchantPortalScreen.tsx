@@ -13,7 +13,7 @@ import MerchantRequirements from "../components/portal/MerchantRequirements";
 import ResumeApplicationSection from "../components/portal/ResumeApplicationSection";
 import RejectionApplicationSection from "../components/portal/RejectedApplicationSection";
 import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
-import AcceptedApplicationSection from "../components/portal/AcceptedApplicationSection";
+import ApprovedApplicationSection from "../components/portal/ApprovedApplicationSection";
 
 function SectionDivider() {
   return <View className="mx-6 mt-3" />;
@@ -108,9 +108,12 @@ export default function MerchantPortalScreen() {
 
         {config.sections.status && (
           <SubmittedApplicationSection
-            status="UNDER_REVIEW"
             submittedAt={formatDate(application?.submitted_at)}
-            estimatedReview="2–5 business days"
+            estimatedReview={
+              application
+                ? `${application.review_sla_min_business_days}–${application.review_sla_max_business_days} business days`
+                : undefined
+            }
           />
         )}
 
@@ -120,11 +123,13 @@ export default function MerchantPortalScreen() {
             feedback={application?.latest_review?.feedback ?? []}
           />
         )}
-
+        {/* Approved application */}
         {config.sections.dashboard && (
-          <AcceptedApplicationSection
-            businessName="Cafe Sugbo"
-            approvedAt="July 30, 2026"
+          <ApprovedApplicationSection
+            businessName={
+              application?.identity?.business_name ?? "Your business"
+            }
+            approvedAt={formatDate(application?.reviewed_at)}
             onOpenDashboard={() => {}}
           />
         )}

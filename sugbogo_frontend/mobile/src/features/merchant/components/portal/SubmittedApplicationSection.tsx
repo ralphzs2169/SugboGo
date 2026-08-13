@@ -1,23 +1,23 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
-
-import ApplicationSubmittedIllustration from "../../assets/illustrations/application-submitted.svg";
+import underReviewAnimation from "../../assets/animations/under-review.json";
+import LottieView from "lottie-react-native";
 
 type SubmittedApplicationSectionProps = {
-  status: "UNDER_REVIEW" | "APPROVED";
   submittedAt: string;
   estimatedReview?: string;
-  approvedAt?: string;
 };
 
+/**
+ * Displays the merchant application's current post-submission status.
+ *
+ * Combines a focused under-review status header, the configured review SLA,
+ * and a simple vertical timeline showing the application's progress.
+ */
 export default function SubmittedApplicationSection({
-  status,
   submittedAt,
   estimatedReview,
-  approvedAt,
 }: SubmittedApplicationSectionProps) {
-  const isApproved = status === "APPROVED";
-
   const steps = [
     {
       label: "Application Submitted",
@@ -27,83 +27,106 @@ export default function SubmittedApplicationSection({
     },
     {
       label: "Under Review",
-      detail: isApproved ? approvedAt : estimatedReview,
-      icon: isApproved ? ("check" as const) : ("clock-outline" as const),
-      state: isApproved ? ("done" as const) : ("current" as const),
+      detail: estimatedReview ?? "Review in progress",
+      icon: "clock-outline" as const,
+      state: "current" as const,
     },
     {
-      label: "Approved",
-      detail: isApproved ? approvedAt : "Pending review",
+      label: "Application Decision",
+      detail: "Pending review",
       icon: "check" as const,
-      state: isApproved ? ("done" as const) : ("pending" as const),
+      state: "pending" as const,
     },
   ];
 
   return (
     <View className="bg-surface px-6 pb-6">
-      <View className="items-center pb-8">
-        <ApplicationSubmittedIllustration width="100%" height={180} />
+      {/* Status hero */}
+      <View className="items-center rounded-3xl bg-surface px-6 pb-7">
+        <LottieView
+          source={underReviewAnimation}
+          autoPlay
+          loop={false}
+          style={{ width: 100, height: 100 }}
+        />
 
-        <View
-          className={`mt-4 rounded-full px-4 py-2 ${
-            isApproved ? "bg-success/10" : "bg-brand/10"
-          }`}
-        >
-          <Text
-            className={`font-bold ${
-              isApproved ? "text-success" : "text-brand"
-            }`}
-          >
-            {isApproved ? "Approved" : "Under Review"}
+        <View className="mt-4 rounded-full bg-brand/10 px-3.5 py-1.5">
+          <Text className="text-xs font-bold uppercase tracking-wide text-brand">
+            Under Review
           </Text>
         </View>
 
-        <Text className="mt-4 text-center text-xl font-bold text-text-primary">
-          {isApproved
-            ? "Your application has been approved!"
-            : "We're reviewing your application"}
+        <Text className="mt-3 text-center text-2xl font-bold text-text-primary">
+          We're reviewing your application
         </Text>
 
-        <Text className="mt-2 text-center text-base leading-6 text-text-secondary">
-          {isApproved
-            ? "Congratulations! Your business is now part of SugboGo."
-            : "Our team is carefully reviewing your submitted documents. We'll notify you once a decision has been made."}
+        <Text className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
+          Our team is carefully reviewing your submitted documents. We'll notify
+          you once a decision has been made.
         </Text>
       </View>
 
-      <View className="rounded-2xl border border-border-primary bg-background px-5 py-4">
+      {/* Review SLA */}
+      <View className="mt-4 flex-row items-center rounded-2xl border border-border-primary bg-surface px-4 py-4">
+        <View className="h-10 w-10 items-center justify-center rounded-xl bg-brand">
+          <MaterialCommunityIcons name="clock-fast" size={21} color="white" />
+        </View>
+
+        <View className="ml-3 flex-1">
+          <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Estimated Review Time
+          </Text>
+
+          <Text className="mt-0.5 text-base font-bold text-text-primary">
+            {estimatedReview ?? "Review in progress"}
+          </Text>
+        </View>
+      </View>
+
+      {/* Application timeline */}
+      <View className="mt-4 rounded-2xl border border-border-primary bg-surface px-5 py-5">
+        <Text className="mb-5 text-sm font-bold text-text-primary">
+          Application Progress
+        </Text>
+
         {steps.map((step, index) => {
           const isLast = index === steps.length - 1;
 
           return (
             <View key={step.label} className="flex-row">
+              {/* Timeline indicator */}
               <View className="items-center">
                 <View
-                  className={`h-7 w-7 items-center justify-center rounded-full ${
-                    step.state === "pending"
-                      ? "border-2 border-border-primary bg-background"
+                  className={`h-9 w-9 items-center justify-center rounded-full ${
+                    step.state === "done"
+                      ? "bg-success"
                       : step.state === "current"
                         ? "bg-brand"
-                        : "bg-success"
+                        : "border-2 border-border-primary bg-surface"
                   }`}
                 >
-                  {step.state !== "pending" && (
-                    <MaterialCommunityIcons
-                      name={step.icon}
-                      size={16}
-                      color="white"
-                    />
-                  )}
+                  <MaterialCommunityIcons
+                    name={step.icon}
+                    size={17}
+                    color={step.state === "pending" ? "gray" : "white"}
+                  />
                 </View>
 
                 {!isLast && (
-                  <View className="my-1 h-12 w-0.5 bg-border-primary" />
+                  <View
+                    className={`my-1 h-10 w-0.5 ${
+                      step.state === "done"
+                        ? "bg-success/30"
+                        : "bg-border-primary"
+                    }`}
+                  />
                 )}
               </View>
 
-              <View className={`ml-4 flex-1 ${isLast ? "" : "pb-6"}`}>
+              {/* Timeline content */}
+              <View className={`ml-4 flex-1 ${isLast ? "" : "pb-5"}`}>
                 <Text
-                  className={`text-base font-bold ${
+                  className={`text-sm font-bold ${
                     step.state === "pending"
                       ? "text-text-secondary"
                       : "text-text-primary"
@@ -112,7 +135,7 @@ export default function SubmittedApplicationSection({
                   {step.label}
                 </Text>
 
-                <Text className="mt-1 text-sm text-text-secondary">
+                <Text className="mt-1 text-xs leading-5 text-text-secondary">
                   {step.detail}
                 </Text>
               </View>

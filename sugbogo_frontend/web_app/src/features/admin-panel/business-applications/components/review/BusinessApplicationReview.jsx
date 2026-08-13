@@ -10,6 +10,7 @@ import RejectApplicationDrawer from "./RejectApplicationDrawer";
 import ApproveApplicationConfirmationModal from "./ApproveApplicationConfirmationModal";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { fetchBusinessApplicationDocumentPreview } from "../../services/businessApplicationService";
 
 import Button from "@/shared/components/Button";
 import useApproveBusinessApplication from "../../hooks/useApproveBusinessApplication";
@@ -28,6 +29,8 @@ export default function BusinessApplicationReview({
 }) {
   const reviewHeaderRef = useRef(null);
   const [showContextBar, setShowContextBar] = useState(false);
+
+  const [documentPreviewUrls, setDocumentPreviewUrls] = useState({});
 
   const [isRejectDrawerOpen, setIsRejectDrawerOpen] = useState(false);
   const [isApproveConfirmationOpen, setIsApproveConfirmationOpen] =
@@ -63,6 +66,51 @@ export default function BusinessApplicationReview({
 
     return () => observer.disconnect();
   }, []);
+
+  // Load document previews for all submitted verification documents
+  useEffect(() => {
+    let cancelled = false;
+    const objectUrls = [];
+    async function loadDocumentPreviews() {
+      if (!application.documents?.length) {
+        setDocumentPreviewUrls({});
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        application.documents.map(async (document) => {
+          const blob = await fetchBusinessApplicationDocumentPreview(
+            application.id,
+            document.id,
+          );
+
+          const pdfBlob = new Blob([blob], { type: "application/pdf" });
+          const objectUrl = URL.createObjectURL(pdfBlob);
+          objectUrls.push(objectUrl); // also fixes the earlier cleanup-leak bug
+
+          return [document.id, objectUrl];
+        }),
+      );
+
+      if (cancelled) return;
+
+      const entries = results
+        .filter((result) => result.status === "fulfilled")
+        .map((result) => result.value);
+
+      setDocumentPreviewUrls(Object.fromEntries(entries));
+    }
+
+    loadDocumentPreviews();
+
+    return () => {
+      cancelled = true;
+
+      objectUrls.forEach((objectUrl) => {
+        URL.revokeObjectURL(objectUrl);
+      });
+    };
+  }, [application.id, application.documents]);
 
   function getSectionFeedback(section) {
     return application.previous_review?.feedback?.find(
@@ -135,6 +183,7 @@ export default function BusinessApplicationReview({
       {/* Verification documents */}
       <BusinessDocumentsReview
         documents={application.documents}
+        documentPreviewUrls={documentPreviewUrls}
         feedback={getSectionFeedback("documents")}
         isResubmission={isResubmission}
       />

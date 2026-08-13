@@ -16,6 +16,20 @@ export async function fetchBusinessApplication(applicationId) {
   return response.data.data;
 }
 
+export async function fetchBusinessApplicationDocumentPreview(
+  applicationId,
+  documentId,
+) {
+  const response = await apiClient.get(
+    `/admin/businesses/applications/${applicationId}/documents/${documentId}/preview/`,
+    {
+      responseType: "blob",
+    },
+  );
+
+  return response.data;
+}
+
 export async function fetchBusinessApplicationStatistics() {
   const response = await apiClient.get(
     "/admin/businesses/applications/statistics/",

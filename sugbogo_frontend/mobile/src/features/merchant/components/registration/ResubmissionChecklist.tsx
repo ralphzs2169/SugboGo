@@ -6,7 +6,7 @@ import type { ApplicationFeedbackResponse } from "@/features/merchant/types/regi
 
 type ResubmissionChecklistProps = {
   feedback: ApplicationFeedbackResponse[];
-  padding?: boolean;
+  isInMerchantPortal?: boolean;
 };
 
 const SECTION_LABELS: Record<ApplicationFeedbackResponse["section"], string> = {
@@ -26,7 +26,7 @@ const SECTION_LABELS: Record<ApplicationFeedbackResponse["section"], string> = {
  */
 export default function ResubmissionChecklist({
   feedback,
-  padding = false,
+  isInMerchantPortal = false,
 }: ResubmissionChecklistProps) {
   if (feedback.length === 0) {
     return null;
@@ -35,36 +35,33 @@ export default function ResubmissionChecklist({
   const allChangesMade = feedback.every((item) => item.is_changed);
 
   return (
-    <View
-      className={`relative mb-4 border-b border-border-primary bg-surface ${
-        padding ? "px-6 py-6" : "py-6"
-      }`}
-    >
-      {/* Checklist status icon */}
-      <MaterialCommunityIcons
-        name={allChangesMade ? "check-circle" : "alert-circle"}
-        size={22}
-        color={
-          allChangesMade
-            ? theme.extends.colors.success
-            : theme.extends.colors.error
-        }
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 12,
-          zIndex: 10,
-        }}
-      />
-
-      {/* Resubmission checklist */}
+    <View className={`bg-surface py-6 ${!isInMerchantPortal && "mb-4 px-6"}`}>
       <View
-        className={`rounded-md p-4 ${
+        className={`relative rounded-md p-4 ${
           allChangesMade
             ? "border border-border-success bg-green-50"
             : "border border-border-error bg-red-50"
         }`}
       >
+        {/* Checklist status icon */}
+        <MaterialCommunityIcons
+          name={allChangesMade ? "check-circle" : "alert-circle"}
+          size={22}
+          color={
+            allChangesMade
+              ? theme.extends.colors.success
+              : theme.extends.colors.error
+          }
+          style={{
+            position: "absolute",
+            top: -9,
+            right: -11,
+            zIndex: 10,
+            backgroundColor: theme.extends.colors.background,
+            borderRadius: 9999,
+          }}
+        />
+
         <Text className="text-xs font-bold text-text-secondary">
           {allChangesMade ? "READY TO RESUBMIT" : "CHANGES REQUIRED"}
         </Text>

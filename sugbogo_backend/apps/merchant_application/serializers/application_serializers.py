@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.merchant_application.constants import get_review_sla_business_days
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationReview,
@@ -176,6 +177,16 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    review_sla_min_business_days = serializers.SerializerMethodField()
+
+    review_sla_max_business_days = serializers.SerializerMethodField()
+
+    def get_review_sla_min_business_days(self, application):
+        return get_review_sla_business_days()["min"]
+
+    def get_review_sla_max_business_days(self, application):
+        return get_review_sla_business_days()["max"]
+
     class Meta:
         model = MerchantApplication
         fields = (
@@ -193,6 +204,9 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "operating_hours",
             "photos",
             "documents",
+
+            "review_sla_min_business_days",
+            "review_sla_max_business_days",
         )
 
     def get_latest_review(self, obj):
@@ -242,11 +256,23 @@ class MerchantApplicationStatusSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    review_sla_min_business_days = serializers.SerializerMethodField()
+
+    review_sla_max_business_days = serializers.SerializerMethodField()
+
+    def get_review_sla_min_business_days(self, application):
+        return get_review_sla_business_days()["min"]
+
+    def get_review_sla_max_business_days(self, application):
+        return get_review_sla_business_days()["max"]
+
     class Meta:
         model = MerchantApplication
         fields = (
             "status",
             "highest_completed_step",
+            "review_sla_min_business_days",
+            "review_sla_max_business_days",
         )
 
 
@@ -298,4 +324,29 @@ class MerchantApplicationListSerializer(serializers.ModelSerializer):
             "category_name",
             "status",
             "submitted_at",
+        )
+class ApplicationSubmissionSerializer(serializers.ModelSerializer):
+    """Return the information needed after a merchant application is submitted."""
+
+    status = serializers.CharField(
+        source="MAPP_STATUS",
+        read_only=True,
+    )
+
+    review_sla_min_business_days = serializers.SerializerMethodField()
+
+    review_sla_max_business_days = serializers.SerializerMethodField()
+
+    def get_review_sla_min_business_days(self, application):
+        return get_review_sla_business_days()["min"]
+
+    def get_review_sla_max_business_days(self, application):
+        return get_review_sla_business_days()["max"]
+
+    class Meta:
+        model = MerchantApplication
+        fields = (
+            "status",
+            "review_sla_min_business_days",
+            "review_sla_max_business_days",
         )

@@ -3,6 +3,7 @@ import { ExternalLink, FileText } from "lucide-react";
 import ApplicationReviewSection from "./ApplicationReviewSection";
 import PdfFirstPagePreview from "./business-documents/PdfFirstPagePreview";
 import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
+import DocumentPreview from "./business-documents/DocumentPreview";
 /**
  * Displays verification documents submitted with the merchant application.
  *
@@ -11,6 +12,7 @@ import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
  */
 export default function BusinessDocumentsReview({
   documents = [],
+  documentPreviewUrls = {},
   feedback,
   isResubmission = false,
 }) {
@@ -32,7 +34,7 @@ export default function BusinessDocumentsReview({
               key={document.id}
               className="flex items-center gap-4 bg-surface px-4 py-4"
             >
-              {/* PDF preview */}
+              {/* Document preview */}
               <a
                 href={document.document_url}
                 target="_blank"
@@ -40,8 +42,8 @@ export default function BusinessDocumentsReview({
                 className="block h-20 w-16 shrink-0 cursor-pointer overflow-hidden rounded border border-stroke bg-surface-muted"
                 aria-label={`Open ${document.file_name || "document"}`}
               >
-                <PdfFirstPagePreview
-                  url={document.document_url}
+                <DocumentPreview
+                  url={documentPreviewUrls[document.id]}
                   fileName={document.file_name}
                 />
               </a>

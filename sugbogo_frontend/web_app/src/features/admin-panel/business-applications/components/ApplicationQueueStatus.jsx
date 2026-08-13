@@ -96,14 +96,6 @@ export default function ApplicationQueueStatus({
   if (compact) {
     return (
       <div className="flex items-center gap-2">
-        {/* Queue duration */}
-        <span
-          className={`text-sm font-medium ${
-            status === "resolved" ? "text-text-secondary" : "text-text-primary"
-          }`}
-        >
-          {duration}
-        </span>
         {/* Compact queue status */}
         <div
           className={`flex items-center gap-1.5 text-xs font-medium ${
@@ -127,9 +119,15 @@ export default function ApplicationQueueStatus({
               ))}
             </div>
           )}
-
-          <span>{queueInfo?.label ?? "—"}</span>
         </div>
+        {/* Queue duration */}
+        <span
+          className={`text-sm font-medium ${
+            status === "resolved" ? "text-text-secondary" : "text-text-primary"
+          }`}
+        >
+          {duration}
+        </span>
       </div>
     );
   }

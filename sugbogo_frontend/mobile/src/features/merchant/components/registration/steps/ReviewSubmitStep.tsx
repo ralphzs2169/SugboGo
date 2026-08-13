@@ -62,9 +62,8 @@ export default function ReviewSubmitStep({
           showBorder={false}
         />
 
-        {isResubmission && (
-          <ResubmissionChecklist feedback={feedback} padding />
-        )}
+        {isResubmission && <ResubmissionChecklist feedback={feedback} />}
+
         <ReviewBusinessIdentity
           form={form}
           clusters={clusters}

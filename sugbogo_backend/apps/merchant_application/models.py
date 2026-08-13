@@ -321,6 +321,7 @@ class MerchantApplicationDocument(models.Model):
     )
     MDOC_DOCUMENT_URL = models.URLField()
     MDOC_DOCUMENT_PUBLIC_ID = models.CharField(max_length=255)
+    MDOC_CLOUDINARY_VERSION = models.BigIntegerField()
     MDOC_FILE_NAME = models.CharField(max_length=255, blank=True, null=True)
     MDOC_CREATED_AT = models.DateTimeField(auto_now_add=True)
     MDOC_UPDATED_AT = models.DateTimeField(auto_now=True)

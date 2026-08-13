@@ -1,8 +1,10 @@
+from pathlib import Path
 from typing import ClassVar
 
 from rest_framework import serializers
 
 from apps.merchant_application.models import MerchantApplicationDocument
+from apps.shared.services.cloudinary_service import CloudinaryService
 
 
 class BusinessDocumentFileField(serializers.FileField):
@@ -99,24 +101,37 @@ class ApplicationDocumentSaveSerializer(serializers.Serializer):
 
 
 class ApplicationDocumentSerializer(serializers.ModelSerializer):
-    """Read-only representation of one uploaded business document."""
+    """Read-only representation of an uploaded business document with authorized delivery."""
 
     id = serializers.IntegerField(
         source="MDOC_ID",
         read_only=True,
     )
+
     document_type = serializers.CharField(
         source="MDOC_DOCUMENT_TYPE",
         read_only=True,
     )
-    document_url = serializers.URLField(
-        source="MDOC_DOCUMENT_URL",
-        read_only=True,
-    )
+
+    document_url = serializers.SerializerMethodField()
+
     file_name = serializers.CharField(
         source="MDOC_FILE_NAME",
         read_only=True,
     )
+
+    def get_document_url(self, document):
+        """Generate a temporary authorized URL for document viewing."""
+
+        document_format = Path(
+            document.MDOC_FILE_NAME or ""
+        ).suffix.lstrip(".")
+
+        return CloudinaryService.generate_authenticated_document_url(
+            public_id=document.MDOC_DOCUMENT_PUBLIC_ID,
+            format=document_format,
+            version=document.MDOC_CLOUDINARY_VERSION,
+        )       
 
     class Meta:
         model = MerchantApplicationDocument

@@ -598,11 +598,17 @@ export default function MerchantRegistrationScreen() {
   const handleSubmitApplication = async () => {
     const result = await submit();
 
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return;
     }
 
-    router.replace("/(explorer)/merchant-registration/submission-success");
+    router.replace({
+      pathname: "/(explorer)/merchant-registration/submission-success",
+      params: {
+        minBusinessDays: String(result.data.review_sla_min_business_days),
+        maxBusinessDays: String(result.data.review_sla_max_business_days),
+      },
+    });
   };
 
   /**

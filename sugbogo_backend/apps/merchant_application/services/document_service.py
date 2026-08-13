@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import requests
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
@@ -157,6 +160,7 @@ class DocumentService:
             MAPP_ID=application
         ).order_by("MDOC_ID")
 
+
     @staticmethod
     def _validate_final_document_state(
         application,
@@ -230,8 +234,9 @@ class DocumentService:
             file=file,
             folder="merchant_application_documents",
             resource_type="auto",
+            type="authenticated",
         )
-        
+        print("CLOUDINARY DOCUMENT RESULT:", result)
         public_id = result["public_id"]
         uploaded_public_ids.append(public_id)
 
@@ -240,9 +245,11 @@ class DocumentService:
             MDOC_DOCUMENT_TYPE=document_type,
             MDOC_DOCUMENT_URL=result["secure_url"],
             MDOC_DOCUMENT_PUBLIC_ID=public_id,
+            MDOC_CLOUDINARY_VERSION=result["version"],
             MDOC_FILE_NAME=getattr(file, "name", None),
         )
 
+    
     @staticmethod
     def _delete_documents_by_type(application, document_type):
         """Remove existing documents of a single replaceable type."""
@@ -275,4 +282,30 @@ class DocumentService:
             MAPP_ID=application,
         )
 
-   
+    @staticmethod
+    def get_document_content(document):
+        """Fetch an authenticated document from Cloudinary."""
+
+        document_format = Path(
+            document.MDOC_FILE_NAME or ""
+        ).suffix.lstrip(".")
+
+        document_url = CloudinaryService.generate_authenticated_document_url(
+            public_id=document.MDOC_DOCUMENT_PUBLIC_ID,
+            format=document_format,
+            version=document.MDOC_CLOUDINARY_VERSION,
+        )
+
+        response = requests.get(
+            document_url,
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        return (
+            response.content,
+            response.headers.get(
+                "Content-Type",
+                "application/octet-stream",
+            ),
+        )

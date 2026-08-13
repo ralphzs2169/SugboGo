@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from core.pagination import StandardPagination
 from core.responses import success_response
+from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -12,6 +15,7 @@ from apps.admin_operations.business_management.services.manage_application_servi
     ApplicationService,
 )
 from apps.authentication.permissions import HasRole
+from apps.merchant_application.services.document_service import DocumentService
 from apps.users.models import User
 
 
@@ -150,4 +154,29 @@ class MerchantApplicationApproveView(APIView):
                 "status": application.MAPP_STATUS,
             },
             message="Application approved successfully.",
+        )
+
+class MerchantApplicationDocumentPreviewView(APIView):
+    """Serve an authorized verification document for administrator preview."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def get(self, request, application_id, document_id):
+        """Fetch and return the requested document for PDF.js."""
+
+        document = ApplicationService.get_document_for_review(
+            application_id=application_id,
+            document_id=document_id,
+        )
+
+        content, content_type = DocumentService.get_document_content(
+            document,
+        )
+
+        return HttpResponse(
+            content,
+            content_type=content_type,
         )

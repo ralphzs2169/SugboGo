@@ -193,8 +193,24 @@ export interface ApplicationDetailResponse {
   operating_hours: ApplicationOperatingHoursResponse[];
   photos: ApplicationPhotoResponse[];
   documents: ApplicationDocumentResponse[];
+
+  review_sla_min_business_days: number;
+  review_sla_max_business_days: number;
 }
 
 export interface ApplicationStatusResponse {
   status: "draft" | "submitted" | "rejected" | "approved";
+}
+
+export interface ApplicationSubmissionResponse {
+  status: "submitted";
+  review_sla_min_business_days: number;
+  review_sla_max_business_days: number;
+}
+
+export interface ApplicationStatusResponse {
+  status: "draft" | "submitted" | "rejected" | "approved";
+  highest_completed_step: number;
+  review_sla_min_business_days: number;
+  review_sla_max_business_days: number;
 }

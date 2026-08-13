@@ -17,12 +17,12 @@ const STATUS_BADGE_CONFIG = {
     color: theme.extends.colors.brand,
   },
   submitted: {
-    label: "In Review",
+    label: "Under Review",
     icon: "clock-outline" as const,
     color: "#D97706",
   },
   rejected: {
-    label: "Action Needed",
+    label: "Changes Required",
     icon: "alert-circle-outline" as const,
     color: theme.extends.colors.error,
   },
@@ -55,19 +55,16 @@ export default function MerchantPortalCard({
       title: "Application Under Review",
       description:
         "Your merchant application has been submitted and is being reviewed.",
-      buttonTitle: "View Application",
     },
     rejected: {
       title: "Changes Required",
       description:
         "Review the feedback, make the required changes, and resubmit.",
-      buttonTitle: "Review & Edit",
     },
     approved: {
       title: "You're a Merchant!",
       description:
         "Your business has been approved and is ready to reach more explorers.",
-      buttonTitle: "Go to Merchant Portal",
     },
   };
 
@@ -76,7 +73,6 @@ export default function MerchantPortalCard({
     : {
         title: "Become a Merchant",
         description: "Digitize your shop and reach more explorers in Cebu.",
-        buttonTitle: "Open Merchant Portal",
       };
 
   const badge = status ? STATUS_BADGE_CONFIG[status] : null;
@@ -121,7 +117,7 @@ export default function MerchantPortalCard({
             onPress={onPress}
           >
             <Text className="text-xs mr-2 font-bold text-brand">
-              {content.buttonTitle}
+              Open Merchant Portal
             </Text>
             <MaterialCommunityIcons
               name="arrow-right"
