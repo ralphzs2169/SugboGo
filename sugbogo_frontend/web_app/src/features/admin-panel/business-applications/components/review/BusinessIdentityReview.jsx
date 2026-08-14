@@ -2,6 +2,7 @@ import ApplicationReviewField from "./ApplicationReviewField";
 import ApplicationReviewSection from "./ApplicationReviewSection";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
+import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 import { Store } from "lucide-react";
 
 const representativeRoleLabels = {
@@ -20,6 +21,7 @@ const representativeRoleLabels = {
 export default function BusinessIdentityReview({
   identity,
   feedback,
+  isChangedSinceLastReview = false,
   isResubmission,
 }) {
   if (!identity) {
@@ -38,6 +40,12 @@ export default function BusinessIdentityReview({
       title="Business Identity"
       description="Review the business information and classification submitted by the merchant."
     >
+      <ApplicationReviewChangeStatus
+        feedback={feedback}
+        isChangedSinceLastReview={isChangedSinceLastReview}
+        isResubmission={isResubmission}
+      />
+
       <ApplicationReviewFeedback
         feedback={feedback}
         isResubmission={isResubmission}

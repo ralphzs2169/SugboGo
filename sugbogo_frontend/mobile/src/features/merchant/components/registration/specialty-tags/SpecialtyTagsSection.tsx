@@ -115,6 +115,7 @@ export default function SpecialtyTagsSection() {
   const handleOpenSheet = () => {
     setDraftSelectedTags(selectedTags);
     specialtyTagsSheetRef.current?.present();
+    Keyboard.dismiss();
   };
 
   /**

@@ -5,6 +5,7 @@ import ApplicationReviewField from "./ApplicationReviewField";
 import ApplicationReviewSection from "./ApplicationReviewSection";
 import BusinessLocationMap from "./business-location/BusinessLocationMap";
 import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
+import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 /**
  * Displays the submitted business location and nearby landmarks
  * for administrative verification.
@@ -12,6 +13,7 @@ import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 export default function BusinessLocationReview({
   location,
   feedback,
+  isChangedSinceLastReview = false,
   isResubmission,
 }) {
   const [focusPosition, setFocusPosition] = useState(null);
@@ -30,6 +32,12 @@ export default function BusinessLocationReview({
       title="Business Location"
       description="Verify the submitted address, map position, and nearby landmarks."
     >
+      <ApplicationReviewChangeStatus
+        feedback={feedback}
+        isChangedSinceLastReview={isChangedSinceLastReview}
+        isResubmission={isResubmission}
+      />
+
       <ApplicationReviewFeedback
         feedback={feedback}
         isResubmission={isResubmission}
@@ -78,14 +86,14 @@ export default function BusinessLocationReview({
               </p>
 
               <div className="mt-5 min-h-[320px] flex-1">
-                {/* <BusinessLocationMap
+                <BusinessLocationMap
                   latitude={location.latitude}
                   longitude={location.longitude}
                   landmarks={location.landmarks}
                   focusPosition={focusPosition}
                   selectedLandmarkId={selectedLandmarkId}
                   className="h-full min-h-[320px]"
-                /> */}
+                />
               </div>
             </div>
 

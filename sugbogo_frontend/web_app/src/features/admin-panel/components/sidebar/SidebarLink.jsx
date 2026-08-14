@@ -1,9 +1,9 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import Tooltip from "@/shared/components/actions/Tooltip";
 
 // Base styles for the sidebar link, shared between expanded and collapsed states.
 export const linkBase =
-  "flex items-center rounded-lg text-[11px] font-medium transition";
+  "flex rounded-sm items-center text-[11px] font-medium transition";
 
 /**
  * Renders a single navigation link within the admin sidebar.
@@ -11,48 +11,59 @@ export const linkBase =
  * Supports both:
  * - Expanded sidebar with icon and label.
  * - Collapsed sidebar with icon-only navigation and tooltip.
- *
- * @component
- *
- * @param {Object} props
- * @param {string} props.to - Route the link navigates to.
- * @param {string} props.label - Display label for the navigation item.
- * @param {React.ComponentType} props.Icon - Icon displayed alongside the label.
- * @param {function} props.onClick - Invoked after selecting the link.
- * @param {boolean} [props.isCollapsed=false] - Whether the sidebar is collapsed.
- *
- * @returns {JSX.Element}
  */
 export default function SidebarLink({
   to,
   label,
   Icon,
   onClick,
+  badge,
+  activePaths = [],
   isCollapsed = false,
 }) {
+  const location = useLocation();
+
+  const isCustomActive =
+    activePaths.length > 0
+      ? activePaths.some((path) => location.pathname.startsWith(path))
+      : location.pathname.startsWith(to);
+
   const link = (
     <NavLink
       to={to}
       onClick={onClick}
-      className={({ isActive }) =>
-        `
-      ${linkBase}
-      ${isCollapsed ? "h-10 w-10 justify-center" : "w-full gap-3 px-2 py-3"}
-      ${
-        isActive
-          ? "bg-primary text-white"
-          : "text-text-primary hover:bg-interaction-hover"
-      }
-      `
-      }
+      className={`
+        ${linkBase}
+        relative
+        ${isCollapsed ? "h-10 w-10 justify-center" : "w-full gap-3 px-2 py-3"}
+        ${
+          isCustomActive
+            ? "bg-sidebar-active text-text-primary"
+            : "text-text-primary hover:bg-interaction-hover"
+        }
+      `}
     >
       <Icon className="h-4.5 w-4.5 shrink-0" />
 
       <span
-        className={` truncate overflow-hidden whitespace-nowrap transition-all duration-300 ${isCollapsed ? "max-w-0 opacity-0" : "max-w-32 opacity-100"} `}
+        className={`truncate overflow-hidden whitespace-nowrap transition-all duration-300 ${
+          isCollapsed ? "max-w-0 opacity-0" : "max-w-32 opacity-100"
+        }`}
       >
         {label}
       </span>
+
+      {badge > 0 && (
+        <span
+          className={`flex shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold leading-none text-white ${
+            isCollapsed
+              ? "absolute -right-1 -top-1 h-4 min-w-4 px-1"
+              : "ml-auto min-w-5 px-1.5 py-1"
+          }`}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </NavLink>
   );
 

@@ -21,7 +21,7 @@ function FilterDropdown({
     <div className="relative flex items-center">
       <Filter
         className={`pointer-events-none absolute left-3 h-3.5 w-3.5 transition-colors ${
-          isActive ? "text-primary" : "text-text-secondary"
+          isActive ? "text-text-primary" : "text-text-secondary"
         }`}
       />
 
@@ -33,7 +33,7 @@ function FilterDropdown({
         aria-label={placeholder}
         className={`h-9 w-full cursor-pointer appearance-none rounded-lg border py-2 pl-9 pr-9 text-xs font-medium outline-none transition-colors ${
           isActive
-            ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+            ? "border-stroke-active bg-surface-muted text-text-primary hover:bg-interaction-hover"
             : "border-stroke-strong bg-background text-text-primary hover:bg-interaction-hover"
         } focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/10`}
       >
@@ -49,7 +49,7 @@ function FilterDropdown({
       {/* Custom dropdown indicator */}
       <ChevronDown
         className={`pointer-events-none absolute right-3 h-4 w-4 transition-colors ${
-          isActive ? "text-primary" : "text-text-secondary"
+          isActive ? "text-text-primary" : "text-text-secondary"
         }`}
         strokeWidth={2}
       />

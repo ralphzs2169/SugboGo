@@ -118,6 +118,12 @@ export default function BusinessApplicationReview({
     );
   }
 
+  function hasSectionChanged(section) {
+    return (
+      application.previous_review?.changed_sections?.includes(section) ?? false
+    );
+  }
+
   // Handle approval confirmation
   async function handleConfirmApproval() {
     try {
@@ -154,6 +160,7 @@ export default function BusinessApplicationReview({
       <BusinessIdentityReview
         identity={application.identity}
         feedback={getSectionFeedback("identity")}
+        isChangedSinceLastReview={hasSectionChanged("identity")}
         isResubmission={isResubmission}
       />
 
@@ -162,6 +169,7 @@ export default function BusinessApplicationReview({
         <BusinessLocationReview
           location={application.location}
           feedback={getSectionFeedback("location")}
+          isChangedSinceLastReview={hasSectionChanged("location")}
           isResubmission={isResubmission}
         />
       </GoogleMapsProvider>
@@ -170,6 +178,7 @@ export default function BusinessApplicationReview({
       <BusinessHoursReview
         operatingHours={application.operating_hours}
         feedback={getSectionFeedback("operating_hours")}
+        isChangedSinceLastReview={hasSectionChanged("operating_hours")}
         isResubmission={isResubmission}
       />
 
@@ -177,6 +186,7 @@ export default function BusinessApplicationReview({
       <BusinessPhotosReview
         photos={application.photos}
         feedback={getSectionFeedback("photos")}
+        isChangedSinceLastReview={hasSectionChanged("photos")}
         isResubmission={isResubmission}
       />
 
@@ -185,6 +195,7 @@ export default function BusinessApplicationReview({
         documents={application.documents}
         documentPreviewUrls={documentPreviewUrls}
         feedback={getSectionFeedback("documents")}
+        isChangedSinceLastReview={hasSectionChanged("documents")}
         isResubmission={isResubmission}
       />
 

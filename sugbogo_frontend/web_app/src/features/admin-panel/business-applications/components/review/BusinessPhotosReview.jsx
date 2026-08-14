@@ -5,6 +5,7 @@ import ApplicationReviewSection from "./ApplicationReviewSection";
 import BusinessPhotoGallery from "./business-photos/BusinessPhotoGallery";
 import BusinessPhotoPreviewModal from "./business-photos/BusinessPhotoPreviewModal";
 import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
+import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 /**
  * Displays business photos submitted as visual evidence for the
  * merchant application.
@@ -15,6 +16,7 @@ import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 export default function BusinessPhotosReview({
   photos = [],
   feedback,
+  isChangedSinceLastReview = false,
   isResubmission = false,
 }) {
   const [selectedIndex, setSelectedIndex] = useState(null);
@@ -93,6 +95,11 @@ export default function BusinessPhotosReview({
         title="Business Photos"
         description="Review the photos submitted as visual evidence of the business."
       >
+        <ApplicationReviewChangeStatus
+          feedback={feedback}
+          isChangedSinceLastReview={isChangedSinceLastReview}
+          isResubmission={isResubmission}
+        />
         <ApplicationReviewFeedback
           feedback={feedback}
           isResubmission={isResubmission}

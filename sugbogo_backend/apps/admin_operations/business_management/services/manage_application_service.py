@@ -1,6 +1,5 @@
 from django.db import transaction
 from django.db.models import Case, IntegerField, Prefetch, Value, When
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -20,6 +19,7 @@ from apps.merchant_application.utils.application_queue import (
     get_business_day_cutoff,
     is_review_sla_compliant,
 )
+from apps.users.models import User
 
 
 class ApplicationService:
@@ -162,11 +162,15 @@ class ApplicationService:
     def get_document_for_review(application_id, document_id):
         """Retrieve one verification document belonging to an application."""
 
-        return get_object_or_404(
-            MerchantApplicationDocument,
-            MDOC_ID=document_id,
-            MAPP_ID=application_id,
-        )
+        try:
+            return MerchantApplicationDocument.objects.get(
+                MDOC_ID=document_id,
+                MAPP_ID=application_id,
+            )
+        except MerchantApplicationDocument.DoesNotExist:
+            raise NotFound(
+                "The requested document could not be found.",
+            )
 
 
     @staticmethod
@@ -187,25 +191,30 @@ class ApplicationService:
             to_attr="admin_review_history",
         )
 
-        return get_object_or_404(
-            MerchantApplication.objects
-            .select_related(
-                "identity",
-                "identity__CLUS_ID",
-                "identity__CTGRY_ID",
-                "location",
+        try:
+            return (
+                MerchantApplication.objects
+                .select_related(
+                    "identity",
+                    "identity__CLUS_ID",
+                    "identity__CTGRY_ID",
+                    "location",
+                )
+                .prefetch_related(
+                    "identity__specialty_tags",
+                    "location__landmarks",
+                    "operating_hours",
+                    "photos",
+                    "documents",
+                    review_history,
+                )
+                .get(MAPP_ID=application_id)
             )
-            .prefetch_related(
-                "identity__specialty_tags",
-                "location__landmarks",
-                "operating_hours",
-                "photos",
-                "documents",
-                review_history,
-            ),
-            MAPP_ID=application_id,
-        )
-
+        except MerchantApplication.DoesNotExist:
+            raise NotFound(
+                "The application could not be found.",
+            )
+    
     @staticmethod
     @transaction.atomic
     def reject_application(application_id, feedback, reviewer):
@@ -361,6 +370,17 @@ class ApplicationService:
                 "MAPP_STATUS",
                 "MAPP_REVIEWED_AT",
                 "MAPP_UPDATED_AT",
+            ],
+        )
+
+        applicant = application.USER_ID
+
+        # YAYY MERCHANT NAKA!!!
+        applicant.USER_ROLE = User.UserRole.MERCHANT
+        applicant.save(
+            update_fields=[
+                "USER_ROLE",
+                "USER_UPDATED_AT",
             ],
         )
 

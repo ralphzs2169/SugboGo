@@ -137,6 +137,10 @@ const navigation = [
         label: "Merchant Applications",
         Icon: FiFileText,
         roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/businesses/applications",
+          "/admin-panel/business/application",
+        ],
       },
       {
         type: "link",

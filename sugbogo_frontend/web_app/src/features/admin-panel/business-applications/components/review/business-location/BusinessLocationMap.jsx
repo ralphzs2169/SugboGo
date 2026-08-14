@@ -111,6 +111,7 @@ export default function BusinessLocationMap({
         defaultCenter={businessPosition}
         defaultZoom={17}
         mapId={GOOGLE_MAP_ID}
+        streetViewControl={true}
       >
         {/* Map legend */}
         <MapControl position={ControlPosition.LEFT_BOTTOM}>

@@ -4,6 +4,7 @@ import ApplicationReviewSection from "./ApplicationReviewSection";
 import PdfFirstPagePreview from "./business-documents/PdfFirstPagePreview";
 import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 import DocumentPreview from "./business-documents/DocumentPreview";
+import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 /**
  * Displays verification documents submitted with the merchant application.
  *
@@ -14,6 +15,7 @@ export default function BusinessDocumentsReview({
   documents = [],
   documentPreviewUrls = {},
   feedback,
+  isChangedSinceLastReview = false,
   isResubmission = false,
 }) {
   return (
@@ -22,6 +24,11 @@ export default function BusinessDocumentsReview({
       title="Verification Documents"
       description="Inspect the supporting documents submitted for verification."
     >
+      <ApplicationReviewChangeStatus
+        feedback={feedback}
+        isChangedSinceLastReview={isChangedSinceLastReview}
+        isResubmission={isResubmission}
+      />
       <ApplicationReviewFeedback
         feedback={feedback}
         isResubmission={isResubmission}

@@ -49,6 +49,7 @@ body {
 
   --color-action-icon-background: #FFF7ED;
 
+  --color-sidebar-active: #E4E9F2;
   
   /* Animations  */
   --animate-loading: loading 1.8s ease-in-out infinite;
@@ -92,6 +93,8 @@ html.dark {
   --color-text-hover: #9CA3AF;
 
   --color-action-icon-background: #2A2A2A;
+
+  --color-sidebar-active: #2A2A2A;
 }
 
 /* Suppress transitions for one frame during a theme toggle, so

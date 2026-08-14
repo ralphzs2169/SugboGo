@@ -890,3 +890,121 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             ).count(),
             2,
         )
+
+
+    def test_get_section_updated_at_returns_identity_timestamp(self):
+        application = self._build_complete_application()
+
+        timestamp = timezone.now()
+
+        application.MAPP_IDENTITY_UPDATED_AT = timestamp
+        application.save(
+            update_fields=["MAPP_IDENTITY_UPDATED_AT"],
+        )
+
+        result = ApplicationService.get_section_updated_at(
+            application,
+            MerchantApplicationFeedback.Section.IDENTITY,
+        )
+
+        self.assertEqual(
+            result,
+            timestamp,
+        )
+
+
+    def test_get_section_updated_at_returns_location_timestamp(self):
+        application = self._build_complete_application()
+
+        timestamp = timezone.now()
+
+        application.MAPP_LOCATION_UPDATED_AT = timestamp
+        application.save(
+            update_fields=["MAPP_LOCATION_UPDATED_AT"],
+        )
+
+        result = ApplicationService.get_section_updated_at(
+            application,
+            MerchantApplicationFeedback.Section.LOCATION,
+        )
+
+        self.assertEqual(
+            result,
+            timestamp,
+        )
+
+
+    def test_get_section_updated_at_returns_operating_hours_timestamp(self):
+        application = self._build_complete_application()
+
+        timestamp = timezone.now()
+
+        application.MAPP_OPERATING_HOURS_UPDATED_AT = timestamp
+        application.save(
+            update_fields=["MAPP_OPERATING_HOURS_UPDATED_AT"],
+        )
+
+        result = ApplicationService.get_section_updated_at(
+            application,
+            MerchantApplicationFeedback.Section.OPERATING_HOURS,
+        )
+
+        self.assertEqual(
+            result,
+            timestamp,
+        )
+
+
+    def test_get_section_updated_at_returns_photos_timestamp(self):
+        application = self._build_complete_application()
+
+        timestamp = timezone.now()
+
+        application.MAPP_PHOTOS_UPDATED_AT = timestamp
+        application.save(
+            update_fields=["MAPP_PHOTOS_UPDATED_AT"],
+        )
+
+        result = ApplicationService.get_section_updated_at(
+            application,
+            MerchantApplicationFeedback.Section.PHOTOS,
+        )
+
+        self.assertEqual(
+            result,
+            timestamp,
+        )
+
+
+    def test_get_section_updated_at_returns_documents_timestamp(self):
+        application = self._build_complete_application()
+
+        timestamp = timezone.now()
+
+        application.MAPP_DOCUMENTS_UPDATED_AT = timestamp
+        application.save(
+            update_fields=["MAPP_DOCUMENTS_UPDATED_AT"],
+        )
+
+        result = ApplicationService.get_section_updated_at(
+            application,
+            MerchantApplicationFeedback.Section.DOCUMENTS,
+        )
+
+        self.assertEqual(
+            result,
+            timestamp,
+        )
+
+
+    def test_get_section_updated_at_returns_none_for_unknown_section(self):
+        application = self._build_complete_application()
+
+        result = ApplicationService.get_section_updated_at(
+            application,
+            "unknown_section",
+        )
+
+        self.assertIsNone(
+            result,
+        )

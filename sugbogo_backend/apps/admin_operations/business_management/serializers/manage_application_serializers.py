@@ -25,6 +25,7 @@ from apps.merchant_application.serializers.operating_hours_serializers import (
 from apps.merchant_application.serializers.photo_serializers import (
     ApplicationPhotoSerializer,
 )
+from apps.merchant_application.services.application_service import ApplicationService
 from apps.users.models import User
 
 
@@ -390,6 +391,7 @@ class AdminMerchantApplicationReviewSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
+    changed_sections = serializers.SerializerMethodField()
 
     class Meta:
         model = MerchantApplicationReview
@@ -398,7 +400,34 @@ class AdminMerchantApplicationReviewSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "reviewer",
             "feedback",
+            "changed_sections",
         )
+
+    def get_changed_sections(self, obj):
+        application = obj.MAPP_ID
+        reviewed_at = obj.MAREV_REVIEWED_AT
+
+        sections = (
+            MerchantApplicationFeedback.Section.IDENTITY,
+            MerchantApplicationFeedback.Section.LOCATION,
+            MerchantApplicationFeedback.Section.OPERATING_HOURS,
+            MerchantApplicationFeedback.Section.PHOTOS,
+            MerchantApplicationFeedback.Section.DOCUMENTS,
+        )
+
+        return [
+            section
+            for section in sections
+            if (
+                section_updated_at := ApplicationService.get_section_updated_at(
+                    application,
+                    section,
+                )
+            ) is not None
+            and section_updated_at > reviewed_at
+        ]
+
+
 
 class AdminMerchantApplicationStatisticsSerializer(serializers.Serializer):
     pending_review = serializers.IntegerField()

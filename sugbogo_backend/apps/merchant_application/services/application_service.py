@@ -310,18 +310,11 @@ class ApplicationService:
 
         return application
     
-
     @staticmethod
-    def has_section_changed_after_review(feedback):
-        """
-        Determine whether the application section associated with this
-        feedback was modified after the review that requested the change.
-        """
-        application = feedback.MAREV_ID.MAPP_ID
-        reviewed_at = feedback.MAREV_ID.MAREV_REVIEWED_AT
-        section = feedback.MAPF_SECTION
+    def get_section_updated_at(application, section):
+        """Return the last update timestamp for an application section."""
 
-        section_updated_at = {
+        return {
             MerchantApplicationFeedback.Section.IDENTITY:
                 application.MAPP_IDENTITY_UPDATED_AT,
 
@@ -337,6 +330,21 @@ class ApplicationService:
             MerchantApplicationFeedback.Section.DOCUMENTS:
                 application.MAPP_DOCUMENTS_UPDATED_AT,
         }.get(section)
+
+
+    @staticmethod
+    def has_section_changed_after_review(feedback):
+        """
+        Determine whether the application section associated with this
+        feedback was modified after the review that requested the change.
+        """
+        application = feedback.MAREV_ID.MAPP_ID
+        reviewed_at = feedback.MAREV_ID.MAREV_REVIEWED_AT
+        section = feedback.MAPF_SECTION
+
+        section_updated_at = ApplicationService.get_section_updated_at(
+            application, section
+        )
 
         return (
             section_updated_at is not None

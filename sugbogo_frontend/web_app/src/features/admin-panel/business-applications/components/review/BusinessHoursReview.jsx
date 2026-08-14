@@ -2,6 +2,7 @@ import { Clock } from "lucide-react";
 
 import ApplicationReviewSection from "./ApplicationReviewSection";
 import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
+import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 import {
   formatOperatingHours,
   isOvernightOperatingHours,
@@ -26,6 +27,7 @@ const dayLabels = {
 export default function BusinessHoursReview({
   operatingHours = [],
   feedback,
+  isChangedSinceLastReview = false,
   isResubmission = false,
 }) {
   return (
@@ -34,6 +36,11 @@ export default function BusinessHoursReview({
       title="Operating Hours"
       description="Review the weekly operating schedule submitted by the merchant."
     >
+      <ApplicationReviewChangeStatus
+        feedback={feedback}
+        isChangedSinceLastReview={isChangedSinceLastReview}
+        isResubmission={isResubmission}
+      />
       <ApplicationReviewFeedback
         feedback={feedback}
         isResubmission={isResubmission}

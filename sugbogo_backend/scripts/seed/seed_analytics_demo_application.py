@@ -1,5 +1,5 @@
 
-from datetime import date, time, timedelta
+from datetime import time, timedelta
 
 from apps.business.models import Category, Cluster, SpecialtyTag
 from apps.merchant_application.models import (
@@ -14,6 +14,7 @@ from apps.merchant_application.models import (
     MerchantApplicationReview,
     MerchantApplicationSubmission,
 )
+from apps.merchant_application.utils.application_queue import is_review_sla_compliant
 from apps.users.models import User
 from django.contrib.gis.geos import Point
 from django.utils import timezone
@@ -274,12 +275,18 @@ def create_application(
             first_review_date,
         )
 
+        first_sla_compliant = is_review_sla_compliant(
+            first_submission,
+            first_reviewed_at,
+        )
+
         first_review = MerchantApplicationReview.objects.create(
             MAPP_ID=application,
             MASUB_ID=first_submission,
             USER_ID=admin,
             MAREV_DECISION=first_decision,
             MAREV_REVIEWED_AT=first_reviewed_at,
+            MAREV_SLA_COMPLIANT=first_sla_compliant,
         )
 
         final_reviewed_at = first_reviewed_at
@@ -329,12 +336,18 @@ def create_application(
             second_review_date,
         )
 
+        second_sla_compliant = is_review_sla_compliant(
+            second_submission,
+            second_reviewed_at,
+        )
+
         MerchantApplicationReview.objects.create(
             MAPP_ID=application,
             MASUB_ID=second_submission,
             USER_ID=admin,
             MAREV_DECISION=second_decision,
             MAREV_REVIEWED_AT=second_reviewed_at,
+            MAREV_SLA_COMPLIANT=second_sla_compliant,
         )
 
         final_submitted_at = second_submitted_at
@@ -571,12 +584,104 @@ def main():
             ]
         )
 
-    print("Analytics demo dataset seeded successfully.")
-    print("Applications created: 22")
+    # Ten additional current-week applications remain pending review.
+    #
+    # These applications intentionally vary in queue age so the
+    # administrator demo shows different review queue states.
+    #
+    # Queue age:
+    # 23 -> 1 business day
+    # 24 -> 2 business days
+    # 25 -> 2 business days
+    # 26 -> 3 business days
+    # 27 -> 3 business days
+    # 28 -> 4 business days
+    # 29 -> 4 business days
+    # 30 -> 5 business days
+    # 31 -> 5 business days
+    # 32 -> 6 business days
+    pending_queue_days = {
+        23: 1,
+        24: 2,
+        25: 2,
+        26: 3,
+        27: 3,
+        28: 4,
+        29: 4,
+        30: 5,
+        31: 5,
+        32: 6,
+    }
+
+    for application_number, business_days_in_queue in pending_queue_days.items():
+        merchant = get_or_create_user(
+            f"{MERCHANT_EMAIL_PREFIX}-{application_number:02d}@example.com",
+            "Analytics",
+            f"Merchant {application_number:02d}",
+            User.UserRole.MERCHANT,
+        )
+
+        # Calculate the submission time relative to today so the
+        # queue age remains correct whenever the seed is rerun.
+        pending_submitted_at = get_submission_datetime(
+            today,
+            business_days_in_queue,
+        )
+
+        create_application(
+            merchant=merchant,
+            admin=admin,
+            cluster=cluster,
+            category=category,
+            specialty_tags=specialty_tags,
+            application_number=application_number,
+            status=(
+                MerchantApplication.ApplicationStatus.SUBMITTED
+            ),
+            submission_date=pending_submitted_at.date(),
+            first_review_date=None,
+            first_decision=(
+                MerchantApplicationReview.Decision.REJECTED
+            ),
+            first_review_business_days=1,
+        )
+
+        # Pending applications should not have a review or review history.
+        MerchantApplicationReview.objects.filter(
+            MAPP_ID__USER_ID=merchant,
+        ).delete()
+
+        MerchantApplicationSubmission.objects.filter(
+            MAPP_ID__USER_ID=merchant,
+        ).delete()
+
+        pending_application = MerchantApplication.objects.get(
+            USER_ID=merchant,
+        )
+
+        MerchantApplicationSubmission.objects.create(
+            MAPP_ID=pending_application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=pending_submitted_at,
+        )
+
+        pending_application.MAPP_SUBMITTED_AT = pending_submitted_at
+        pending_application.MAPP_REVIEWED_AT = None
+        pending_application.save(
+            update_fields=[
+                "MAPP_SUBMITTED_AT",
+                "MAPP_REVIEWED_AT",
+                "MAPP_UPDATED_AT",
+            ],
+        )
+
+    print("Applications created: 32")
+    print("Current week: 10 reviewed + 12 pending")
     print("Previous week: 10 reviewed")
     print("Current week: 10 reviewed + 2 pending")
     print("Previous week: 6 approved, 4 rejected")
     print("Current week: 7 approved, 3 rejected")
+    print("Additional pending queue ages: 1–6 business days")
     print("Resubmitted applications: 2")
     print("All applications contain identity, location, hours, photos, and documents.")
 
