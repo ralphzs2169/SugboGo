@@ -2,6 +2,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import Sidebar from "@/features/admin-panel/components/sidebar/Sidebar";
 import NavigationHeader from "@/features/admin-panel/components/NavigationHeader";
+import ScrollToTop from "../../../shared/components/ScrollToTop";
 
 const COLLAPSE_STORAGE_KEY = "sidebar:collapsed";
 
@@ -20,12 +21,15 @@ export default function AdminPanelLayout() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  const sidebarWidth = isSidebarCollapsed ? "5rem" : "15.5rem";
+
   const handleLogout = () => {
     navigate("/admin-panel/dashboard");
   };
 
   return (
     <div className="min-h-screen bg-surface text-text-primary">
+      <ScrollToTop />
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
@@ -39,6 +43,9 @@ export default function AdminPanelLayout() {
     transition-[margin] duration-300
     ${isSidebarCollapsed ? "lg:ml-20" : "lg:ml-62"}
   `}
+        style={{
+          "--admin-sidebar-width": sidebarWidth,
+        }}
       >
         <section className="sticky top-0 z-20 border-b border-stroke bg-background">
           <NavigationHeader onMenuClick={() => setIsSidebarOpen(true)} />

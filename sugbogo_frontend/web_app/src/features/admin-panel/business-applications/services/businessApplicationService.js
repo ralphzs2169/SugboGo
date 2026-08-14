@@ -15,3 +15,44 @@ export async function fetchBusinessApplication(applicationId) {
 
   return response.data.data;
 }
+
+export async function fetchBusinessApplicationDocumentPreview(
+  applicationId,
+  documentId,
+) {
+  const response = await apiClient.get(
+    `/admin/businesses/applications/${applicationId}/documents/${documentId}/preview/`,
+    {
+      responseType: "blob",
+    },
+  );
+
+  return response.data;
+}
+
+export async function fetchBusinessApplicationStatistics() {
+  const response = await apiClient.get(
+    "/admin/businesses/applications/statistics/",
+  );
+
+  return response.data.data;
+}
+
+export async function approveBusinessApplication(applicationId) {
+  const response = await apiClient.post(
+    `/admin/businesses/applications/${applicationId}/approve/`,
+  );
+
+  return response.data.data;
+}
+
+export async function rejectBusinessApplication(applicationId, feedback) {
+  const response = await apiClient.post(
+    `/admin/businesses/applications/${applicationId}/reject/`,
+    {
+      feedback,
+    },
+  );
+
+  return response.data.data;
+}

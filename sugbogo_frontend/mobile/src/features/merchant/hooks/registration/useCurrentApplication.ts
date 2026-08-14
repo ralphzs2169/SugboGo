@@ -1,16 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { getCurrentApplication } from "../../api/merchantApplication.service";
 
 import type { ApplicationDetailResponse } from "../../types/registration/registrationApi.types";
 
-/**
- * Fetches the authenticated user's current merchant application.
- *
- * Exposes the current application together with loading, error,
- * and refetch state for screens that need registration progress
- * or application status.
- */
 export default function useCurrentApplication() {
   const [application, setApplication] =
     useState<ApplicationDetailResponse | null>(null);
@@ -19,51 +12,64 @@ export default function useCurrentApplication() {
 
   const [error, setError] = useState(false);
 
-  const fetchApplication = async () => {
-    setIsLoading(true);
+  const fetchApplication = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setIsLoading(true);
+    }
+
     setError(false);
 
-    const response = await getCurrentApplication();
-    console.log("Operating hours from API:", JSON.stringify(response, null, 2));
-    if (!response.success) {
-      if (response.code === "APPLICATION_NOT_FOUND") {
-        /**
-         * No application exists yet.
-         *
-         * This is an expected state for users who have not started
-         * merchant registration, so it should not be treated as an error.
-         */
-        setApplication(null);
-        setError(false);
-        setIsLoading(false);
+    try {
+      const response = await getCurrentApplication();
+
+      if (!response.success) {
+        if (response.code === "APPLICATION_NOT_FOUND") {
+          setApplication(null);
+          setError(false);
+          return;
+        }
+
+        if (showLoading) {
+          setApplication(null);
+          setError(true);
+        }
+
         return;
       }
 
-      setApplication(null);
-      setError(true);
-      setIsLoading(false);
-      return;
-    }
+      setApplication(response.data);
+      setError(false);
+    } catch (error) {
+      console.error("Failed to fetch current application:", error);
 
-    /**
-     * Existing application found.
-     *
-     * Store the application details so screens can determine the
-     * current registration progress and resume where the user left off.
-     */
-    setApplication(response.data);
-    setError(false);
-    setIsLoading(false);
-  };
+      if (showLoading) {
+        setApplication(null);
+        setError(true);
+      }
+    } finally {
+      if (showLoading) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchApplication();
-  }, []);
+  }, [fetchApplication]);
+
+  // Memoized so callers relying on identity (e.g. a useCallback/useEffect
+  // dependency array) don't re-fire on every render.
+  const refetch = useCallback(() => fetchApplication(true), [fetchApplication]);
+  const refresh = useCallback(
+    () => fetchApplication(false),
+    [fetchApplication],
+  );
 
   return {
     application,
     isLoading,
     error,
-    refetch: fetchApplication,
+    refetch,
+    refresh,
   };
 }

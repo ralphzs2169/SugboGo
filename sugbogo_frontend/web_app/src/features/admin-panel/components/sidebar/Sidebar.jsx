@@ -18,15 +18,6 @@ const COLLAPSE_STORAGE_KEY = "sidebar:collapsed";
  * - Persistent collapsed state on desktop.
  * - Scrollable navigation with fixed header and footer.
  *
- * @component
- *
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether the mobile sidebar is open.
- * @param {Function} props.onClose - Closes the mobile sidebar.
- * @param {boolean} props.isCollapsed - Whether the desktop sidebar is collapsed.
- * @param {Function} props.onToggleCollapse - Toggles the desktop collapsed state.
- *
- * @returns {JSX.Element}
  */
 export default function Sidebar({
   isOpen,

@@ -5,7 +5,7 @@ import { useLocation } from "react-router-dom";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
 
 import navigation from "../../config/sidebarNavigation";
-
+import useBusinessApplicationStatistics from "../../business-applications/hooks/useBusinessApplicationStatistics";
 import SidebarLink from "./SidebarLink";
 import SidebarDropdown from "./SidebarDropdown";
 import SidebarSectionHeading from "./SidebarSectionHeading";
@@ -19,25 +19,17 @@ import SidebarSectionHeading from "./SidebarSectionHeading";
  * Behavior:
  * - Expanded sidebar: multiple dropdown groups may remain open.
  * - Collapsed sidebar: flyout menus behave like an accordion.
- *
- * @component
- *
- * @param {Object} props
- * @param {boolean} props.isCollapsed - Whether the sidebar is collapsed.
- * @param {Function} props.onClose - Closes the mobile sidebar after navigation.
- * @param {boolean} props.showLabels - Whether to show labels in the sidebar.
- *
- * @returns {JSX.Element}
  */
 export default function SidebarMenu({ onClose, isCollapsed, showLabels }) {
   const user = useAuthStore((state) => state.user);
   const location = useLocation();
 
-  // Tracks the currently open flyout while the sidebar is collapsed.
   const [openFlyout, setOpenFlyout] = useState(null);
 
-  // Tracks expanded dropdown groups while the sidebar is expanded.
   const [expandedGroups, setExpandedGroups] = useState(new Set());
+
+  const { statistics: applicationStatistics } =
+    useBusinessApplicationStatistics();
 
   // Close any flyout when switching into collapsed mode.
   useEffect(() => {
@@ -59,10 +51,6 @@ export default function SidebarMenu({ onClose, isCollapsed, showLabels }) {
     [user.role],
   );
 
-  /**
-   * Toggles the active flyout in collapsed mode.
-   * Only one flyout may be open at a time.
-   */
   function toggleFlyout(label) {
     setOpenFlyout((current) => (current === label ? null : label));
   }
@@ -131,6 +119,11 @@ export default function SidebarMenu({ onClose, isCollapsed, showLabels }) {
               <SidebarLink
                 key={item.to}
                 {...item}
+                badge={
+                  item.to === "/admin-panel/businesses/applications"
+                    ? applicationStatistics.pending_review
+                    : undefined
+                }
                 onClick={onClose}
                 isCollapsed={isCollapsed}
                 showLabels={showLabels}

@@ -24,7 +24,7 @@ export default function TableBody({ table, emptyState, onRowClick }) {
             {row.getVisibleCells().map((cell) => (
               <td
                 key={cell.id}
-                className={` px-4 py-2 align-middle ${
+                className={`px-4 py-2 align-middle ${
                   cell.column.id === "actions" ? "text-center" : ""
                 }`}
               >
@@ -35,7 +35,7 @@ export default function TableBody({ table, emptyState, onRowClick }) {
         ))
       ) : (
         <tr>
-          <td colSpan={table.getVisibleLeafColumns().length}>
+          <td colSpan={table.getVisibleLeafColumns().length} className="p-0">
             <TableEmptyState {...emptyState} />
           </td>
         </tr>

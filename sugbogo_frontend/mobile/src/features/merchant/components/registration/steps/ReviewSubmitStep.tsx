@@ -4,17 +4,20 @@ import type {
   CategoryOption,
   ClusterOption,
 } from "@/features/merchant/types/registration/registrationOption.types";
-import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import type {
+  ApplicationFeedbackResponse,
+  ApplicationFeedbackSection,
+} from "@/features/merchant/types/registration/registrationApi.types";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import { useFormContext } from "react-hook-form";
 
-import AdministratorFeedback from "../AdministratorFeedback";
 import ReviewSection from "../review/ReviewSection";
 import ReviewBusinessIdentity from "../review/sections/ReviewBusinessIdentity";
 import ReviewBusinessLocation from "../review/sections/ReviewBusinessLocation";
 import ReviewBusinessPhotos from "../review/sections/ReviewBusinessPhotos";
 import ReviewOperatingHours from "../review/sections/ReviewOperatingHours";
 import ReviewVerificationDocuments from "../review/sections/ReviewVerificationDocuments";
+import ResubmissionChecklist from "../ResubmissionChecklist";
 
 type ReviewSubmitStepProps = {
   clusters: ClusterOption[];
@@ -34,6 +37,14 @@ export default function ReviewSubmitStep({
   const { watch } = useFormContext<MerchantRegistrationForm>();
   const form = watch();
 
+  const getSectionFeedback = (section: ApplicationFeedbackSection) => {
+    if (!isResubmission) {
+      return undefined;
+    }
+
+    return feedback.find((item) => item.section === section);
+  };
+
   return (
     <>
       <View className="">
@@ -51,28 +62,37 @@ export default function ReviewSubmitStep({
           showBorder={false}
         />
 
-        {isResubmission && (
-          <AdministratorFeedback feedback={feedback ?? []} padding />
-        )}
+        {isResubmission && <ResubmissionChecklist feedback={feedback} />}
 
         <ReviewBusinessIdentity
           form={form}
           clusters={clusters}
           categories={categories}
           onEdit={() => onEditSection(1)}
+          feedback={getSectionFeedback("identity")}
         />
 
         <ReviewBusinessLocation
           form={form}
           onEdit={() => onEditSection(2)}
           returnTo="registration-review"
+          feedback={getSectionFeedback("location")}
         />
 
-        <ReviewOperatingHours form={form} onEdit={() => onEditSection(3)} />
-        <ReviewBusinessPhotos form={form} onEdit={() => onEditSection(4)} />
+        <ReviewOperatingHours
+          form={form}
+          onEdit={() => onEditSection(3)}
+          feedback={getSectionFeedback("operating_hours")}
+        />
+        <ReviewBusinessPhotos
+          form={form}
+          onEdit={() => onEditSection(4)}
+          feedback={getSectionFeedback("photos")}
+        />
         <ReviewVerificationDocuments
           form={form}
           onEdit={() => onEditSection(5)}
+          feedback={getSectionFeedback("documents")}
         />
       </View>
     </>

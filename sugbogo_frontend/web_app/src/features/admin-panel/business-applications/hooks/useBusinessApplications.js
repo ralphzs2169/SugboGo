@@ -65,6 +65,7 @@ export default function useBusinessApplications(
     enabled,
     params.search,
     params.status,
+    params.queue_status,
     params.page,
     params.page_size,
     params.ordering,

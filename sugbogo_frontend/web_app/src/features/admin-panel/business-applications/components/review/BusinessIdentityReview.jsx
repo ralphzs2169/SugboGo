@@ -1,6 +1,8 @@
 import ApplicationReviewField from "./ApplicationReviewField";
 import ApplicationReviewSection from "./ApplicationReviewSection";
-import { colorClasses } from "@/features/admin-panel/specialty-tags/constants/specialtyTagColors.js";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
+import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 import { Store } from "lucide-react";
 
 const representativeRoleLabels = {
@@ -16,7 +18,12 @@ const representativeRoleLabels = {
  * Groups business details, representative information, classification,
  * and specialty tags into a single reviewable section.
  */
-export default function BusinessIdentityReview({ identity }) {
+export default function BusinessIdentityReview({
+  identity,
+  feedback,
+  isChangedSinceLastReview = false,
+  isResubmission,
+}) {
   if (!identity) {
     return (
       <ApplicationReviewSection title="Business Identity">
@@ -33,6 +40,17 @@ export default function BusinessIdentityReview({ identity }) {
       title="Business Identity"
       description="Review the business information and classification submitted by the merchant."
     >
+      <ApplicationReviewChangeStatus
+        feedback={feedback}
+        isChangedSinceLastReview={isChangedSinceLastReview}
+        isResubmission={isResubmission}
+      />
+
+      <ApplicationReviewFeedback
+        feedback={feedback}
+        isResubmission={isResubmission}
+      />
+
       {/* Business information */}
       <dl className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
         <ApplicationReviewField
@@ -110,14 +128,7 @@ export default function BusinessIdentityReview({ identity }) {
           <div className="mt-2 flex flex-wrap gap-2">
             {identity.specialty_tags?.length ? (
               identity.specialty_tags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
-                    colorClasses[tag.color] ?? colorClasses.blue
-                  }`}
-                >
-                  {tag.name}
-                </span>
+                <SpecialtyTagChip key={tag.id} tag={tag} />
               ))
             ) : (
               <span className="text-sm text-text-secondary">

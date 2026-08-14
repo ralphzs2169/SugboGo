@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
-from apps.merchant_application.models import MerchantApplication
+from apps.merchant_application.constants import get_review_sla_business_days
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationReview,
+)
 from apps.merchant_application.serializers.application_location_serializers import (
     ApplicationLocationReadSerializer,
 )
@@ -21,26 +25,75 @@ from apps.merchant_application.serializers.photo_serializers import (
 )
 
 
+class MerchantApplicationReviewSerializer(serializers.ModelSerializer):
+    """Read serializer for the latest administrative review relevant to the merchant."""
+
+    decision = serializers.CharField(
+        source="MAREV_DECISION",
+        read_only=True,
+    )
+
+    reviewed_at = serializers.DateTimeField(
+        source="MAREV_REVIEWED_AT",
+        read_only=True,
+    )
+
+    feedback = MerchantApplicationFeedbackSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantApplicationReview
+        fields = (
+            "decision",
+            "reviewed_at",
+            "feedback",
+        )
+
+
 class MerchantApplicationSerializer(serializers.ModelSerializer):
     """Read serializer for the top-level application record."""
 
-    id = serializers.IntegerField(source="MAPP_ID", read_only=True)
-    status = serializers.CharField(source="MAPP_STATUS", read_only=True)
+    id = serializers.IntegerField(
+        source="MAPP_ID",
+        read_only=True,
+    )
+
+    status = serializers.CharField(
+        source="MAPP_STATUS",
+        read_only=True,
+    )
 
     highest_completed_step = serializers.IntegerField(
-        source="MAPP_HIGHEST_COMPLETED_STEP"
+        source="MAPP_HIGHEST_COMPLETED_STEP",
+        read_only=True,
     )
+
     submitted_at = serializers.DateTimeField(
-        source="MAPP_SUBMITTED_AT", read_only=True
+        source="MAPP_SUBMITTED_AT",
+        read_only=True,
     )
+
     reviewed_at = serializers.DateTimeField(
-        source="MAPP_REVIEWED_AT", read_only=True
+        source="MAPP_REVIEWED_AT",
+        read_only=True,
     )
-    rejection_reason = serializers.CharField(
-        source="MAPP_REJECTION_REASON", read_only=True
+
+    submission_count = serializers.IntegerField(
+        source="MAPP_SUBMISSION_COUNT",
+        read_only=True,
     )
-    created_at = serializers.DateTimeField(source="MAPP_CREATED_AT", read_only=True)
-    updated_at = serializers.DateTimeField(source="MAPP_UPDATED_AT", read_only=True)
+
+    created_at = serializers.DateTimeField(
+        source="MAPP_CREATED_AT",
+        read_only=True,
+    )
+
+    updated_at = serializers.DateTimeField(
+        source="MAPP_UPDATED_AT",
+        read_only=True,
+    )
 
     class Meta:
         model = MerchantApplication
@@ -50,7 +103,7 @@ class MerchantApplicationSerializer(serializers.ModelSerializer):
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",
-            "rejection_reason",
+            "submission_count",
             "created_at",
             "updated_at",
         )
@@ -59,32 +112,61 @@ class MerchantApplicationSerializer(serializers.ModelSerializer):
 class ApplicationDetailSerializer(serializers.ModelSerializer):
     """
     Full nested read serializer for GET /application/ — everything the
-    frontend needs to resume the wizard at the correct step in one call.
-    Any section not yet filled in returns null/empty rather than erroring.
+    frontend needs to resume the wizard and display the latest review
+    feedback when applicable.
     """
 
-    id = serializers.IntegerField(source="MAPP_ID", read_only=True)
-    status = serializers.CharField(source="MAPP_STATUS", read_only=True)
+    id = serializers.IntegerField(
+        source="MAPP_ID",
+        read_only=True,
+    )
+
+    status = serializers.CharField(
+        source="MAPP_STATUS",
+        read_only=True,
+    )
+
     highest_completed_step = serializers.IntegerField(
-        source="MAPP_HIGHEST_COMPLETED_STEP", read_only=True
+        source="MAPP_HIGHEST_COMPLETED_STEP",
+        read_only=True,
     )
-    submitted_at = serializers.DateTimeField(source="MAPP_SUBMITTED_AT", read_only=True)
-    reviewed_at = serializers.DateTimeField(source="MAPP_REVIEWED_AT", read_only=True)
-    rejection_reason = serializers.CharField(
-        source="MAPP_REJECTION_REASON", read_only=True
+
+    submitted_at = serializers.DateTimeField(
+        source="MAPP_SUBMITTED_AT",
+        read_only=True,
     )
-    feedback = MerchantApplicationFeedbackSerializer(
+
+    reviewed_at = serializers.DateTimeField(
+        source="MAPP_REVIEWED_AT",
+        read_only=True,
+    )
+
+    submission_count = serializers.IntegerField(
+        source="MAPP_SUBMISSION_COUNT",
+        read_only=True,
+    )
+
+    latest_review = serializers.SerializerMethodField()
+
+    created_at = serializers.DateTimeField(
+        source="MAPP_CREATED_AT",
+        read_only=True,
+    )
+
+    updated_at = serializers.DateTimeField(
+        source="MAPP_UPDATED_AT",
+        read_only=True,
+    )
+
+    identity = serializers.SerializerMethodField()
+
+    location = serializers.SerializerMethodField()
+
+    operating_hours = ApplicationOperatingHoursReadSerializer(
         many=True,
         read_only=True,
     )
-    created_at = serializers.DateTimeField(source="MAPP_CREATED_AT", read_only=True)
-    updated_at = serializers.DateTimeField(source="MAPP_UPDATED_AT", read_only=True)
 
-    identity = serializers.SerializerMethodField()
-    location = serializers.SerializerMethodField()
-    operating_hours = ApplicationOperatingHoursReadSerializer(
-        many=True, read_only=True
-    )
     photos = ApplicationPhotoSerializer(
         many=True,
         read_only=True,
@@ -93,8 +175,18 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     documents = ApplicationDocumentSerializer(
         many=True,
         read_only=True,
-    ) 
-  
+    )
+
+    review_sla_min_business_days = serializers.SerializerMethodField()
+
+    review_sla_max_business_days = serializers.SerializerMethodField()
+
+    def get_review_sla_min_business_days(self, application):
+        return get_review_sla_business_days()["min"]
+
+    def get_review_sla_max_business_days(self, application):
+        return get_review_sla_business_days()["max"]
+
     class Meta:
         model = MerchantApplication
         fields = (
@@ -103,8 +195,8 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",
-            "rejection_reason",
-            "feedback",
+            "submission_count",
+            "latest_review",
             "created_at",
             "updated_at",
             "identity",
@@ -112,18 +204,44 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "operating_hours",
             "photos",
             "documents",
+
+            "review_sla_min_business_days",
+            "review_sla_max_business_days",
         )
+
+    def get_latest_review(self, obj):
+        """
+        Return only the most recent completed review.
+
+        This gives the merchant the feedback relevant to the latest
+        application review without exposing the complete administrative
+        review history.
+        """
+
+        review = obj.reviews.order_by("-MAREV_REVIEWED_AT").first()
+
+        if review is None:
+            return None
+
+        return MerchantApplicationReviewSerializer(
+            review,
+            context=self.context,
+        ).data
 
     def get_identity(self, obj):
         identity = getattr(obj, "identity", None)
+
         if identity is None:
             return None
+
         return ApplicationIdentityReadSerializer(identity).data
 
     def get_location(self, obj):
         location = getattr(obj, "location", None)
+
         if location is None:
             return None
+
         return ApplicationLocationReadSerializer(location).data
 
 
@@ -132,17 +250,31 @@ class MerchantApplicationStatusSerializer(serializers.ModelSerializer):
         source="MAPP_STATUS",
         read_only=True,
     )
+
     highest_completed_step = serializers.IntegerField(
         source="MAPP_HIGHEST_COMPLETED_STEP",
         read_only=True,
     )
+
+    review_sla_min_business_days = serializers.SerializerMethodField()
+
+    review_sla_max_business_days = serializers.SerializerMethodField()
+
+    def get_review_sla_min_business_days(self, application):
+        return get_review_sla_business_days()["min"]
+
+    def get_review_sla_max_business_days(self, application):
+        return get_review_sla_business_days()["max"]
 
     class Meta:
         model = MerchantApplication
         fields = (
             "status",
             "highest_completed_step",
+            "review_sla_min_business_days",
+            "review_sla_max_business_days",
         )
+
 
 class MerchantApplicationListSerializer(serializers.ModelSerializer):
     """
@@ -192,4 +324,29 @@ class MerchantApplicationListSerializer(serializers.ModelSerializer):
             "category_name",
             "status",
             "submitted_at",
+        )
+class ApplicationSubmissionSerializer(serializers.ModelSerializer):
+    """Return the information needed after a merchant application is submitted."""
+
+    status = serializers.CharField(
+        source="MAPP_STATUS",
+        read_only=True,
+    )
+
+    review_sla_min_business_days = serializers.SerializerMethodField()
+
+    review_sla_max_business_days = serializers.SerializerMethodField()
+
+    def get_review_sla_min_business_days(self, application):
+        return get_review_sla_business_days()["min"]
+
+    def get_review_sla_max_business_days(self, application):
+        return get_review_sla_business_days()["max"]
+
+    class Meta:
+        model = MerchantApplication
+        fields = (
+            "status",
+            "review_sla_min_business_days",
+            "review_sla_max_business_days",
         )

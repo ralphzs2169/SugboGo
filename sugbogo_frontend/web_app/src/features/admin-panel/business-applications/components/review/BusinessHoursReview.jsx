@@ -1,16 +1,12 @@
-/**
- * Displays the weekly operating schedule submitted by the merchant.
- *
- * Presents each day with its operating hours and a clear open/closed
- * status indicator for quick administrative review.
- */
 import { Clock } from "lucide-react";
 
 import ApplicationReviewSection from "./ApplicationReviewSection";
+import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
+import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 import {
   formatOperatingHours,
   isOvernightOperatingHours,
-} from "../utils/operatingHours.utils";
+} from "../../utils/operatingHours.utils";
 
 const dayLabels = {
   monday: "Monday",
@@ -22,13 +18,34 @@ const dayLabels = {
   sunday: "Sunday",
 };
 
-export default function BusinessHoursReview({ operatingHours = [] }) {
+/**
+ * Displays the weekly operating schedule submitted by the merchant.
+ *
+ * Presents each day with its operating hours and a clear open/closed
+ * status indicator for quick administrative review.
+ */
+export default function BusinessHoursReview({
+  operatingHours = [],
+  feedback,
+  isChangedSinceLastReview = false,
+  isResubmission = false,
+}) {
   return (
     <ApplicationReviewSection
       icon={Clock}
       title="Operating Hours"
       description="Review the weekly operating schedule submitted by the merchant."
     >
+      <ApplicationReviewChangeStatus
+        feedback={feedback}
+        isChangedSinceLastReview={isChangedSinceLastReview}
+        isResubmission={isResubmission}
+      />
+      <ApplicationReviewFeedback
+        feedback={feedback}
+        isResubmission={isResubmission}
+      />
+
       {operatingHours.length ? (
         <div className="divide-y divide-stroke rounded-lg border border-stroke">
           {operatingHours.map((schedule) => {

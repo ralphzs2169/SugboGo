@@ -301,9 +301,13 @@ export default function ClusterCategoryTable({
           footerMetaText: `Showing ${data.length} ${resourcePlural}`,
 
           emptyState: {
-            title: `No ${resourcePlural} found`,
-            description: "Try adjusting your search or create a new entry.",
+            title: `No ${resourcePlural} yet`,
+            description:
+              "New " + resourcePlural + " will appear here once created.",
             icon: <FaLayerGroup className="h-10 w-10 text-text-secondary" />,
+          },
+          noResultsState: {
+            title: `No ${resourcePlural} found`,
           },
           errorState: {
             title: `Unable to load ${resourcePlural}`,

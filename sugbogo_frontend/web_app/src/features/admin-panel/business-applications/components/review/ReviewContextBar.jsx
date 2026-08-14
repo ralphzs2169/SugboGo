@@ -2,20 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import StatusBadge from "@/shared/components/StatusBadge";
-
-const statusVariants = {
-  draft: "neutral",
-  submitted: "info",
-  rejected: "danger",
-  approved: "success",
-};
-
-const statusLabels = {
-  draft: "Draft",
-  submitted: "Pending Review",
-  rejected: "Rejected",
-  approved: "Approved",
-};
+import statusConfig from "../../config/applicationStatus.config";
 
 /**
  * Provides persistent application context while the administrator
@@ -31,8 +18,7 @@ export default function ApplicationReviewContextBar({ application }) {
     application.identity?.business_name || "Unnamed Business";
 
   const status = application.status;
-  const statusVariant = statusVariants[status] ?? "neutral";
-  const statusLabel = statusLabels[status] ?? status ?? "Unknown";
+  const statusInfo = statusConfig[status];
 
   function handleBack() {
     navigate(-1);
@@ -61,7 +47,9 @@ export default function ApplicationReviewContextBar({ application }) {
             </p>
           </div>
 
-          <StatusBadge variant={statusVariant}>{statusLabel}</StatusBadge>
+          <StatusBadge variant={statusInfo?.variant ?? "neutral"}>
+            {statusInfo?.label ?? status ?? "—"}
+          </StatusBadge>
         </div>
       </div>
     </div>

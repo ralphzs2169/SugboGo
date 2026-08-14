@@ -20,15 +20,15 @@ export default function PdfFirstPagePreview({ url, fileName }) {
     let loadingTask = null;
 
     async function renderFirstPage() {
+      console.log("PDF PREVIEW URL RECEIVED:", url, typeof url);
       if (!url || !canvasRef.current) {
-        setStatus("error");
         return;
       }
 
       setStatus("loading");
 
       try {
-        loadingTask = pdfjsLib.getDocument(url);
+        loadingTask = pdfjsLib.getDocument({ url });
 
         const pdf = await loadingTask.promise;
 

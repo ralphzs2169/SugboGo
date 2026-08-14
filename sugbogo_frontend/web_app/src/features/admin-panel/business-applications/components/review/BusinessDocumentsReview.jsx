@@ -2,20 +2,37 @@ import { ExternalLink, FileText } from "lucide-react";
 
 import ApplicationReviewSection from "./ApplicationReviewSection";
 import PdfFirstPagePreview from "./business-documents/PdfFirstPagePreview";
-
+import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
+import DocumentPreview from "./business-documents/DocumentPreview";
+import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 /**
  * Displays verification documents submitted with the merchant application.
  *
  * Provides compact first-page previews while keeping each document directly
  * accessible for detailed administrative inspection.
  */
-export default function BusinessDocumentsReview({ documents = [] }) {
+export default function BusinessDocumentsReview({
+  documents = [],
+  documentPreviewUrls = {},
+  feedback,
+  isChangedSinceLastReview = false,
+  isResubmission = false,
+}) {
   return (
     <ApplicationReviewSection
       icon={FileText}
       title="Verification Documents"
       description="Inspect the supporting documents submitted for verification."
     >
+      <ApplicationReviewChangeStatus
+        feedback={feedback}
+        isChangedSinceLastReview={isChangedSinceLastReview}
+        isResubmission={isResubmission}
+      />
+      <ApplicationReviewFeedback
+        feedback={feedback}
+        isResubmission={isResubmission}
+      />
       {documents.length ? (
         /* Submitted documents */
         <div className="divide-y divide-stroke overflow-hidden rounded-lg border border-stroke">
@@ -24,7 +41,7 @@ export default function BusinessDocumentsReview({ documents = [] }) {
               key={document.id}
               className="flex items-center gap-4 bg-surface px-4 py-4"
             >
-              {/* PDF preview */}
+              {/* Document preview */}
               <a
                 href={document.document_url}
                 target="_blank"
@@ -32,8 +49,8 @@ export default function BusinessDocumentsReview({ documents = [] }) {
                 className="block h-20 w-16 shrink-0 cursor-pointer overflow-hidden rounded border border-stroke bg-surface-muted"
                 aria-label={`Open ${document.file_name || "document"}`}
               >
-                <PdfFirstPagePreview
-                  url={document.document_url}
+                <DocumentPreview
+                  url={documentPreviewUrls[document.id]}
                   fileName={document.file_name}
                 />
               </a>

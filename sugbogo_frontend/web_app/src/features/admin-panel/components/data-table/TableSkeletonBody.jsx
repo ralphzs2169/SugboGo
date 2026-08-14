@@ -11,7 +11,10 @@ export default function TableSkeletonBody({ columns, rowCount = 8 }) {
   return (
     <tbody>
       {Array.from({ length: rowCount }).map((_, rowIndex) => (
-        <tr key={rowIndex} className="border-b border-stroke last:border-b-0">
+        <tr
+          key={rowIndex}
+          className="border-b border-stroke last:border-b-0 bg-background"
+        >
           {columns.map((column) => (
             <td key={column.id} className="px-4 py-4">
               <SkeletonCell type={column.columnDef.meta?.skeleton} />

@@ -15,6 +15,7 @@ import BusinessMapMarker from "./BusinessMapMarker";
 export default function StreetViewMarkerOverlay({
   position,
   variant,
+  name,
   onClick,
 }) {
   const map = useMap();
@@ -206,10 +207,16 @@ export default function StreetViewMarkerOverlay({
       {/* Distance from the current Street View position */}
       {formattedDistance && (
         <div
-          className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/80 bg-black/75 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
-          aria-label={`${formattedDistance} away`}
+          className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded-lg border border-white/80 bg-black/75 px-2.5 py-1.5 text-center text-white shadow-sm"
+          aria-label={`${name}, ${formattedDistance} away`}
         >
-          {formattedDistance} away
+          <p className="max-w-[180px] truncate text-[11px] font-semibold">
+            {name}
+          </p>
+
+          <p className="mt-0.5 text-[10px] font-medium text-white/75">
+            {formattedDistance} away
+          </p>
         </div>
       )}
     </>,

@@ -29,7 +29,6 @@ urlpatterns = [
     # Admin Operations
     path('api/admin/dashboard/', include('apps.admin_operations.dashboard.urls')),
     path('api/admin/businesses/', include('apps.admin_operations.business_management.urls')),
-    path('api/admin/users/', include('apps.admin_operations.user_management.urls')),
     path('api/admin/landmarks/', include('apps.admin_operations.landmark_management.urls')),
     path('api/admin/taxonomy/', include('apps.admin_operations.taxonomy_management.urls')),
     path('api/admin/explorer-activities/', include('apps.admin_operations.activity_management.urls')),

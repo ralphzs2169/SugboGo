@@ -1,14 +1,18 @@
-from django.db import IntegrityError, transaction
-from django.urls import reverse
-from rest_framework.exceptions import ValidationError
-from rest_framework.test import APITestCase
-
-from apps.merchant_application.models import MerchantApplication
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationReview,
+    MerchantApplicationSubmission,
+)
 from apps.merchant_application.serializers.identity_serializers import (
     ApplicationIdentitySerializer,
 )
 from apps.merchant_application.services.application_service import ApplicationService
 from apps.users.models import User
+from django.db import IntegrityError, transaction
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework.exceptions import ValidationError
+from rest_framework.test import APITestCase
 
 
 class MerchantApplicationLifecycleTests(APITestCase):
@@ -56,14 +60,23 @@ class MerchantApplicationLifecycleTests(APITestCase):
         application = MerchantApplication.objects.create(
             USER_ID=self.merchant,
             MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+            MAPP_SUBMISSION_COUNT=1,
         )
+
+        submission = MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=timezone.now(),
+        )
+
         self.client.force_authenticate(self.admin)
 
-        response = self.client.patch(
-            reverse("application-review", args=[application.MAPP_ID]),
+        response = self.client.post(
+            reverse(
+                "merchant-application-reject",
+                args=[application.MAPP_ID],
+            ),
             {
-                "action": "reject",
-                "rejection_reason": "Please correct the business identity.",
                 "feedback": [
                     {
                         "section": "identity",
@@ -76,25 +89,16 @@ class MerchantApplicationLifecycleTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["success"])
+
         application.refresh_from_db()
-        self.assertEqual(
-            application.MAPP_STATUS,
-            MerchantApplication.ApplicationStatus.REJECTED,
-        )
-        self.assertEqual(application.feedback.count(), 1)
 
-    def test_review_requires_submitted_application(self):
-        application = MerchantApplication.objects.create(USER_ID=self.merchant)
-        self.client.force_authenticate(self.admin)
-
-        response = self.client.patch(
-            reverse("application-review", args=[application.MAPP_ID]),
-            {"action": "approve"},
-            format="json",
+        review = MerchantApplicationReview.objects.get(
+            MAPP_ID=application,
+            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(response.data["success"])
+        self.assertEqual(review.MASUB_ID, submission)
+        self.assertEqual(review.feedback.count(), 1)
 
     def test_first_identity_save_requires_a_complete_payload(self):
         self.client.force_authenticate(self.merchant)
@@ -113,6 +117,7 @@ class MerchantApplicationLifecycleTests(APITestCase):
 
     def test_first_location_save_requires_a_complete_payload(self):
         MerchantApplication.objects.create(USER_ID=self.merchant)
+
         self.client.force_authenticate(self.merchant)
 
         response = self.client.patch(
@@ -151,3 +156,108 @@ class MerchantApplicationLifecycleTests(APITestCase):
         application.refresh_from_db()
 
         self.assertEqual(application.MAPP_HIGHEST_COMPLETED_STEP, 0)
+
+    def test_admin_can_approve_submitted_application(self):
+        application = MerchantApplication.objects.create(
+            USER_ID=self.merchant,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+            MAPP_SUBMISSION_COUNT=1,
+        )
+
+        submission = MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=timezone.now(),
+        )
+
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "merchant-application-approve",
+                args=[application.MAPP_ID],
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+
+        application.refresh_from_db()
+
+        self.assertEqual(
+            application.MAPP_STATUS,
+            MerchantApplication.ApplicationStatus.APPROVED,
+        )
+
+        review = MerchantApplicationReview.objects.get(
+            MAPP_ID=application,
+            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
+        )
+
+        self.assertEqual(review.MASUB_ID, submission)
+
+    def test_admin_cannot_reject_non_submitted_application(self):
+        application = MerchantApplication.objects.create(
+            USER_ID=self.merchant,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.DRAFT,
+        )
+
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "merchant-application-reject",
+                args=[application.MAPP_ID],
+            ),
+            {
+                "feedback": [
+                    {
+                        "section": "identity",
+                        "message": "Use the legal business name.",
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.data["success"])
+
+    def test_admin_cannot_approve_non_submitted_application(self):
+        application = MerchantApplication.objects.create(
+            USER_ID=self.merchant,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.DRAFT,
+        )
+
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "merchant-application-approve",
+                args=[application.MAPP_ID],
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.data["success"])
+
+    def test_application_cannot_have_duplicate_submission_numbers(self):
+        application = MerchantApplication.objects.create(
+            USER_ID=self.merchant,
+        )
+
+        MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=timezone.now(),
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                MerchantApplicationSubmission.objects.create(
+                    MAPP_ID=application,
+                    MASUB_SUBMISSION_NUMBER=1,
+                    MASUB_SUBMITTED_AT=timezone.now(),
+                )

@@ -153,12 +153,25 @@ export interface ApplicationDocumentResponse {
   file_name: string | null;
 }
 
+export interface ApplicationReviewerResponse {
+  name: string;
+  email: string;
+}
+
+export interface ApplicationReviewResponse {
+  decision: "approved" | "rejected";
+  reviewed_at: string;
+  reviewer: ApplicationReviewerResponse;
+  feedback: ApplicationFeedbackResponse[];
+}
+
 export type ApplicationFeedbackSection =
   "identity" | "location" | "operating_hours" | "photos" | "documents";
 
 export interface ApplicationFeedbackResponse {
   section: ApplicationFeedbackSection;
   message: string;
+  is_changed: boolean;
 }
 
 // Merchant Application Detail Types
@@ -168,9 +181,9 @@ export interface ApplicationDetailResponse {
   highest_completed_step: number;
   submitted_at: string | null;
   reviewed_at: string | null;
+  submission_count: number;
 
-  feedback: ApplicationFeedbackResponse[];
-  rejection_reason: string | null;
+  latest_review: ApplicationReviewResponse | null;
 
   created_at: string;
   updated_at: string;
@@ -180,8 +193,24 @@ export interface ApplicationDetailResponse {
   operating_hours: ApplicationOperatingHoursResponse[];
   photos: ApplicationPhotoResponse[];
   documents: ApplicationDocumentResponse[];
+
+  review_sla_min_business_days: number;
+  review_sla_max_business_days: number;
 }
 
 export interface ApplicationStatusResponse {
   status: "draft" | "submitted" | "rejected" | "approved";
+}
+
+export interface ApplicationSubmissionResponse {
+  status: "submitted";
+  review_sla_min_business_days: number;
+  review_sla_max_business_days: number;
+}
+
+export interface ApplicationStatusResponse {
+  status: "draft" | "submitted" | "rejected" | "approved";
+  highest_completed_step: number;
+  review_sla_min_business_days: number;
+  review_sla_max_business_days: number;
 }

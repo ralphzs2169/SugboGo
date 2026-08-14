@@ -47,11 +47,13 @@ export default function useRegistrationNavigation({
     goToStep(step);
   };
 
-  const completeCurrentStep = () => {
-    setHighestCompletedStep((step) => Math.max(step, currentStep));
+  const completeCurrentStep = (step: number) => {
+    // Update the highest completed step if the current step is greater than the previous highest completed step
+    setHighestCompletedStep((highestStep) => Math.max(highestStep, step));
 
-    goToStep(currentStep + 1);
+    goToStep(step + 1);
   };
+
   return {
     currentStep,
     editingStep,

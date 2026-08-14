@@ -12,6 +12,8 @@ import useSpecialtyTags from "@/features/merchant/hooks/registration/useSpecialt
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
 import SpecialtyTagChip from "../../specialty-tags/SpecialtyTagChip";
+import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import ReviewSectionFeedback from "../ReviewSectionFeedback";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessIdentityProps = {
@@ -19,7 +21,9 @@ type ReviewBusinessIdentityProps = {
   clusters: ClusterOption[];
   categories: CategoryOption[];
   onEdit?: () => void;
+  feedback?: ApplicationFeedbackResponse;
 };
+
 const REPRESENTATIVE_ROLE_LABELS = {
   owner: "Owner",
   manager: "Manager",
@@ -32,6 +36,7 @@ export default function ReviewBusinessIdentity({
   clusters,
   categories,
   onEdit,
+  feedback,
 }: ReviewBusinessIdentityProps) {
   const { specialtyTags } = useSpecialtyTags();
 
@@ -55,6 +60,7 @@ export default function ReviewBusinessIdentity({
       onEdit={onEdit}
     >
       <View className="w-full">
+        <ReviewSectionFeedback feedback={feedback} />
         <ReviewRow
           label="Business Name"
           value={form.businessName}

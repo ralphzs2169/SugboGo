@@ -2,4 +2,3 @@ from .application_service import ApplicationService
 from .identity_service import IdentityService
 from .location_service import LocationService
 from .operating_hours_service import OperatingHoursService
-from .photo_document_service import PhotoDocumentService

@@ -4,16 +4,8 @@ import { useEffect } from "react";
 /**
  * Reusable modal dialog.
  *
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether the modal is visible.
- * @param {string} props.title - Modal heading.
- * @param {string} [props.description] - Optional supporting text.
- * @param {Function} props.onClose - Called when the modal is dismissed.
- * @param {React.ReactNode} props.children - Modal content.
- * @param {boolean} [props.showCloseButton=true] - Whether to show the close button.
- * @param {string} [props.maxWidth="max-w-lg"] - Maximum width of the modal.
- *
- * @returns {JSX.Element|null}
+ * Supports optional scrollable content for forms or dialogs that may exceed
+ * the available viewport height.
  */
 export default function Modal({
   isOpen,
@@ -23,6 +15,7 @@ export default function Modal({
   children,
   showCloseButton = true,
   maxWidth = "max-w-lg",
+  scrollable = false,
 }) {
   useEffect(() => {
     if (!isOpen) return;
@@ -34,7 +27,6 @@ export default function Modal({
     }
 
     document.addEventListener("keydown", handleEscape);
-
     document.body.style.overflow = "hidden";
 
     return () => {
@@ -53,11 +45,13 @@ export default function Modal({
       onClick={onClose}
     >
       <div
-        className={` w-full ${maxWidth} rounded-xl border border-stroke bg-background shadow-x `}
+        className={`w-full ${maxWidth} ${
+          scrollable ? "max-h-[calc(100vh-2rem)]" : ""
+        } overflow-hidden rounded-xl border border-stroke bg-background shadow-x`}
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-stroke p-6">
+        <div className="flex shrink-0 items-start justify-between border-b border-stroke p-6">
           <div>
             <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
 
@@ -70,7 +64,7 @@ export default function Modal({
             <button
               type="button"
               onClick={onClose}
-              className=" rounded-lg p-2 text-text-secondary transition hover:bg-surface hover:text-text-primary "
+              className="cursor-pointer rounded-lg p-2 text-text-secondary transition hover:bg-surface hover:text-text-primary"
               aria-label="Close modal"
             >
               <X className="h-5 w-5" />
@@ -79,7 +73,13 @@ export default function Modal({
         </div>
 
         {/* Body */}
-        <div className="p-6">{children}</div>
+        <div
+          className={
+            scrollable ? "max-h-[calc(100vh-10rem)] overflow-y-auto p-6" : "p-6"
+          }
+        >
+          {children}
+        </div>
       </div>
     </div>
   );

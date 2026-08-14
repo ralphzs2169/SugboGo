@@ -4,12 +4,13 @@ import { getOrdering } from "@/features/admin-panel/components/data-table/tableU
 /**
  * Manages table state and API query parameters for business application management.
  *
- * Handles global search, status filtering, sorting, pagination, and
- * resetting the table to its default state.
+ * Handles global search, status filtering, queue-status filtering, sorting,
+ * pagination, and resetting the table to its default state.
  */
 export default function useBusinessApplicationTableState() {
   const [globalFilter, setGlobalFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilterState] = useState("");
+  const [queueStatusFilter, setQueueStatusFilterState] = useState("");
   const [sorting, setSorting] = useState([]);
 
   const [pagination, setPagination] = useState({
@@ -17,26 +18,45 @@ export default function useBusinessApplicationTableState() {
     pageSize: 10,
   });
 
+  function setStatusFilter(status) {
+    setStatusFilterState(status);
+
+    setPagination((previous) => ({
+      ...previous,
+      pageIndex: 0,
+    }));
+  }
+
+  function setQueueStatusFilter(queueStatus) {
+    setQueueStatusFilterState(queueStatus);
+
+    setPagination((previous) => ({
+      ...previous,
+      pageIndex: 0,
+    }));
+  }
+
   const params = {
     search: globalFilter || undefined,
     status: statusFilter || undefined,
+    queue_status: queueStatusFilter || undefined,
     ordering: getOrdering(sorting),
     page: pagination.pageIndex + 1,
     page_size: pagination.pageSize,
   };
 
   const hasActiveFilters = Boolean(
-    globalFilter || statusFilter || sorting.length,
+    globalFilter || statusFilter || queueStatusFilter || sorting.length,
   );
 
-  // Resets search, status, and sorting filters and returns to the first page.
   function handleResetFilters() {
     setGlobalFilter("");
-    setStatusFilter("");
+    setStatusFilterState("");
+    setQueueStatusFilterState("");
     setSorting([]);
 
-    setPagination((prev) => ({
-      ...prev,
+    setPagination((previous) => ({
+      ...previous,
       pageIndex: 0,
     }));
   }
@@ -47,6 +67,9 @@ export default function useBusinessApplicationTableState() {
 
     statusFilter,
     setStatusFilter,
+
+    queueStatusFilter,
+    setQueueStatusFilter,
 
     sorting,
     setSorting,

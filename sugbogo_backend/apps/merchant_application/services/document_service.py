@@ -1,7 +1,13 @@
+from pathlib import Path
+
+import requests
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
-from apps.merchant_application.models import MerchantApplicationDocument
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationDocument,
+)
 from apps.merchant_application.services.application_service import ApplicationService
 from apps.shared.services.cloudinary_service import CloudinaryService
 
@@ -21,6 +27,14 @@ class DocumentService:
         Existing documents remain untouched when their fields are omitted.
         Explicitly deleted documents are removed.
         """
+
+        # Lock the application row to prevent concurrent document saves.
+        application = (
+            MerchantApplication.objects
+            .select_for_update()
+            .get(MAPP_ID=application.MAPP_ID)
+        )
+
         ApplicationService.validate_step_access(
             application,
             DocumentService.STEP,
@@ -131,6 +145,11 @@ class DocumentService:
 
             raise
 
+        ApplicationService.mark_section_updated(
+            application,
+            "MAPP_DOCUMENTS_UPDATED_AT",
+        )
+
         # Step 5 is complete only after the entire save succeeds.
         ApplicationService.mark_step_completed(
             application,
@@ -140,6 +159,7 @@ class DocumentService:
         return MerchantApplicationDocument.objects.filter(
             MAPP_ID=application
         ).order_by("MDOC_ID")
+
 
     @staticmethod
     def _validate_final_document_state(
@@ -214,8 +234,9 @@ class DocumentService:
             file=file,
             folder="merchant_application_documents",
             resource_type="auto",
+            type="authenticated",
         )
-        
+     
         public_id = result["public_id"]
         uploaded_public_ids.append(public_id)
 
@@ -224,9 +245,11 @@ class DocumentService:
             MDOC_DOCUMENT_TYPE=document_type,
             MDOC_DOCUMENT_URL=result["secure_url"],
             MDOC_DOCUMENT_PUBLIC_ID=public_id,
+            MDOC_CLOUDINARY_VERSION=result["version"],
             MDOC_FILE_NAME=getattr(file, "name", None),
         )
 
+    
     @staticmethod
     def _delete_documents_by_type(application, document_type):
         """Remove existing documents of a single replaceable type."""
@@ -260,10 +283,29 @@ class DocumentService:
         )
 
     @staticmethod
-    def delete_document(document):
-        if document.MDOC_DOCUMENT_PUBLIC_ID:
-            CloudinaryService.delete_image(
-                document.MDOC_DOCUMENT_PUBLIC_ID
-            )
+    def get_document_content(document):
+        """Fetch an authenticated document from Cloudinary."""
 
-        document.delete()
+        document_format = Path(
+            document.MDOC_FILE_NAME or ""
+        ).suffix.lstrip(".")
+
+        document_url = CloudinaryService.generate_authenticated_document_url(
+            public_id=document.MDOC_DOCUMENT_PUBLIC_ID,
+            format=document_format,
+            version=document.MDOC_CLOUDINARY_VERSION,
+        )
+
+        response = requests.get(
+            document_url,
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        return (
+            response.content,
+            response.headers.get(
+                "Content-Type",
+                "application/octet-stream",
+            ),
+        )

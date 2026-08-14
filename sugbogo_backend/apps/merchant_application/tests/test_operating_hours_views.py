@@ -59,3 +59,17 @@ class OperatingHoursViewTests(
             MerchantApplicationOperatingHours.objects.count(),
             7,
         )
+
+    def test_operating_hours_save_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.put(
+            self.url,
+            self.valid_payload,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            401,
+        )

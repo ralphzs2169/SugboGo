@@ -8,19 +8,6 @@ import { FaRotateLeft } from "react-icons/fa6";
  *
  * Supports custom filter UI and action buttons through render props,
  * allowing individual tables to inject feature-specific controls.
- *
- * @component
- *
- * @param {Object} props
- * @param {string} props.globalFilter - Current search input value.
- * @param {Function} props.setGlobalFilter - Updates the search query state.
- * @param {string} props.searchPlaceholder - Search input placeholder text.
- * @param {Function} [props.renderFilters] - Renders custom filter controls.
- * @param {Function} [props.renderHeaderActions] - Renders action buttons.
- * @param {boolean} props.hasActiveFilters - Determines whether reset action is shown.
- * @param {Function} props.onResetFilters - Clears active filters and sorting.
- *
- * @returns {JSX.Element}
  */
 function TableControls({
   globalFilter,

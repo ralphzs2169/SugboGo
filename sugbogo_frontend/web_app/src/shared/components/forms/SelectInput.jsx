@@ -47,18 +47,18 @@ export default function SelectInput({
         onChange={onChange}
         disabled={disabled}
         className={clsx(
-          "w-full rounded-md border bg-background px-4 py-3 text-sm text-text-primary outline-none transition focus:ring-4",
+          "w-full rounded-md border-2 bg-background px-4 py-3 text-sm text-text-primary outline-none transition",
           disabled && "cursor-not-allowed opacity-60",
           error
-            ? "border-red-500 focus:border-red-500 focus:ring-red-500/15"
-            : "border-stroke focus:border-primary focus:ring-primary/15",
+            ? "border-danger focus:border-danger "
+            : "border-stroke focus:border-stroke-active ",
         )}
       >
         <option value="">{placeholder}</option>
         {children}
       </select>
 
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
   );
 }

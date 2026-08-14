@@ -4,11 +4,14 @@ import type { z } from "zod";
 import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
 import ReviewSection from "../ReviewSection";
 import PhotoPreview from "../../business-photos/PhotoPreview";
+import { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import ReviewSectionFeedback from "../ReviewSectionFeedback";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessPhotosProps = {
   form: ReviewForm;
   onEdit?: () => void;
+  feedback?: ApplicationFeedbackResponse;
 };
 
 type PhotoList = ReviewForm["businessPhotos"]["storefront"];
@@ -16,6 +19,7 @@ type PhotoList = ReviewForm["businessPhotos"]["storefront"];
 export default function ReviewBusinessPhotos({
   form,
   onEdit,
+  feedback,
 }: ReviewBusinessPhotosProps) {
   const photos = form.businessPhotos;
 
@@ -33,6 +37,7 @@ export default function ReviewBusinessPhotos({
         title="Business Photos"
         onEdit={onEdit}
       >
+        <ReviewSectionFeedback feedback={feedback} />
         {groups.map((group) => (
           <PhotoGroup
             key={group.title}

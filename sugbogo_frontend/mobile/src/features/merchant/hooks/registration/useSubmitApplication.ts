@@ -15,6 +15,12 @@ export default function useSubmitApplication() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const submit = async () => {
+    if (isSubmitting) {
+      return {
+        success: false,
+      };
+    }
+
     setIsSubmitting(true);
 
     try {

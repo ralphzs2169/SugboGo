@@ -38,6 +38,10 @@ class OperatingHoursService:
 
         hours = MerchantApplicationOperatingHours.objects.bulk_create(records)
 
+        ApplicationService.mark_section_updated(
+            application,
+            "MAPP_OPERATING_HOURS_UPDATED_AT",
+        )
         # Mark Step 3 as completed on the parent application.
         ApplicationService.mark_step_completed(
             application,

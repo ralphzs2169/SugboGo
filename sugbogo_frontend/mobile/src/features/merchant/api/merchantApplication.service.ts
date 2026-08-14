@@ -16,6 +16,8 @@ import {
   ApplicationOperatingHoursPayload,
   ApplicationOperatingHoursResponse,
   ApplicationPhotoResponse,
+  ApplicationStatusResponse,
+  ApplicationSubmissionResponse,
 } from "../types/registration/registrationApi.types";
 import { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
 
@@ -86,13 +88,13 @@ export async function saveApplicationDocuments(
 // Final submission
 
 export async function submitApplication(): Promise<
-  ApiResponse<ApplicationDetailResponse>
+  ApiResponse<ApplicationSubmissionResponse>
 > {
   return request(apiClient.post("/merchant/application/submit/"));
 }
 
 export async function getApplicationStatus(): Promise<
-  ApiResponse<{ status: MerchantApplicationStatus } | null>
+  ApiResponse<ApplicationStatusResponse | null>
 > {
   return request(apiClient.get("/merchant/application/status/"));
 }

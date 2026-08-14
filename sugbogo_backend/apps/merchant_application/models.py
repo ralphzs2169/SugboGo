@@ -22,13 +22,36 @@ class MerchantApplication(models.Model):
     MAPP_HIGHEST_COMPLETED_STEP = models.PositiveIntegerField(default=0)
     MAPP_SUBMITTED_AT = models.DateTimeField(blank=True, null=True)
     MAPP_REVIEWED_AT = models.DateTimeField(blank=True, null=True)
-    MAPP_REJECTION_REASON = models.TextField(blank=True, null=True)
+    MAPP_SUBMISSION_COUNT = models.PositiveIntegerField(default=0)
     MAPP_CREATED_AT = models.DateTimeField(auto_now_add=True)
     MAPP_UPDATED_AT = models.DateTimeField(auto_now=True)
 
     USER_ID = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
         db_column='USER_ID', related_name='merchant_applications'
+    )
+
+    # Timestamps for when each section of the application was last updated. 
+    # These are used to determine if a section has been modified since the last review.
+    MAPP_IDENTITY_UPDATED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    MAPP_LOCATION_UPDATED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    MAPP_OPERATING_HOURS_UPDATED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    MAPP_PHOTOS_UPDATED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    MAPP_DOCUMENTS_UPDATED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
     )
 
     class Meta:
@@ -43,6 +66,85 @@ class MerchantApplication(models.Model):
     def __str__(self):
         return f"Application #{self.MAPP_ID} ({self.MAPP_STATUS})"
 
+class MerchantApplicationSubmission(models.Model):
+    """Historical record of each merchant application submission."""
+
+    MASUB_ID = models.AutoField(primary_key=True)
+
+    MAPP_ID = models.ForeignKey(
+        MerchantApplication,
+        on_delete=models.CASCADE,
+        db_column="MAPP_ID",
+        related_name="submissions",
+    )
+
+    MASUB_SUBMISSION_NUMBER = models.PositiveIntegerField()
+
+    MASUB_SUBMITTED_AT = models.DateTimeField()
+
+    class Meta:
+        db_table = "MERCHANT_APPLICATION_SUBMISSION"
+        ordering = ["MASUB_SUBMISSION_NUMBER"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("MAPP_ID", "MASUB_SUBMISSION_NUMBER"),
+                name="unique_application_submission_number",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"Application #{self.MAPP_ID_id} "
+            f"Submission #{self.MASUB_SUBMISSION_NUMBER}"
+        )
+
+class MerchantApplicationReview(models.Model):
+    class Decision(models.TextChoices):
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    MAREV_ID = models.AutoField(primary_key=True)
+
+    MAREV_DECISION = models.CharField(
+        max_length=20,
+        choices=Decision.choices,
+    )
+
+    MAREV_REVIEWED_AT = models.DateTimeField()
+    MAREV_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    MAREV_UPDATED_AT = models.DateTimeField(auto_now=True)
+    MAREV_SLA_COMPLIANT = models.BooleanField(
+        null=True,
+        blank=True,
+    )
+
+    MAPP_ID = models.ForeignKey(
+        MerchantApplication,
+        on_delete=models.CASCADE,
+        db_column="MAPP_ID",
+        related_name="reviews",
+    )
+    
+    MASUB_ID  = models.OneToOneField(
+        MerchantApplicationSubmission,
+        on_delete=models.CASCADE,
+        db_column="MASUB_ID",
+        related_name="review",
+        null=True,
+        blank=True,
+    )
+
+    USER_ID = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        db_column="USER_ID",
+        related_name="merchant_application_reviews",
+    )
+
+    class Meta:
+        db_table = "MERCHANT_APPLICATION_REVIEW"
+        ordering = ["-MAREV_REVIEWED_AT"]
+
 
 class MerchantApplicationFeedback(models.Model):
     class Section(models.TextChoices):
@@ -54,10 +156,10 @@ class MerchantApplicationFeedback(models.Model):
 
     MAPF_ID = models.AutoField(primary_key=True)
 
-    MAPP_ID = models.ForeignKey(
-        MerchantApplication,
+    MAREV_ID = models.ForeignKey(
+        MerchantApplicationReview,
         on_delete=models.CASCADE,
-        db_column="MAPP_ID",
+        db_column="MAREV_ID",
         related_name="feedback",
     )
 
@@ -69,12 +171,18 @@ class MerchantApplicationFeedback(models.Model):
     MAPF_MESSAGE = models.TextField()
 
     MAPF_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    MAPF_UPDATED_AT = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "MERCHANT_APPLICATION_FEEDBACK"
+        ordering = ["MAPF_CREATED_AT"]
 
     def __str__(self):
-        return f"Application #{self.MAPP_ID.pk} - {self.MAPF_SECTION}"
+        return f"Review #{self.MAREV_ID_id} - {self.MAPF_SECTION}"
+   
+
+
+
 
 
 class MerchantApplicationIdentity(models.Model):
@@ -257,6 +365,7 @@ class MerchantApplicationDocument(models.Model):
     )
     MDOC_DOCUMENT_URL = models.URLField()
     MDOC_DOCUMENT_PUBLIC_ID = models.CharField(max_length=255)
+    MDOC_CLOUDINARY_VERSION = models.BigIntegerField()
     MDOC_FILE_NAME = models.CharField(max_length=255, blank=True, null=True)
     MDOC_CREATED_AT = models.DateTimeField(auto_now_add=True)
     MDOC_UPDATED_AT = models.DateTimeField(auto_now=True)

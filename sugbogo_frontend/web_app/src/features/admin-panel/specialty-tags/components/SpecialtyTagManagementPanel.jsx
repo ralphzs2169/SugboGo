@@ -129,6 +129,9 @@ export default function SpecialtyTagManagementPanel() {
               "Try adjusting your search or create a new specialty tag.",
             icon: <FiTag className="h-10 w-10 text-text-secondary" />,
           },
+          noResultsState: {
+            title: `No specialty tags found`,
+          },
           errorState: {
             title: "Unable to load specialty tags",
             message: "The requested specialty tags could not be loaded.",

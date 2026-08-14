@@ -1,15 +1,14 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.urls import reverse
-from rest_framework.test import APITestCase
-
 from apps.merchant_application.models import MerchantApplicationPhotos
 from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
 from core.tests.assertions import APIResponseAssertionsMixin
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
+from rest_framework.test import APITestCase
 
 
 class PhotoViewTests(
@@ -83,3 +82,29 @@ class PhotoViewTests(
         )
 
         mock_upload.assert_called_once()
+
+
+    def test_photo_save_returns_bad_request_for_invalid_photo_operation(self):
+        application, _ = self._create_identity()
+        self._create_location(application)
+        self._create_hours(application)
+
+        with patch(
+            "apps.merchant_application.services.photo_service.PhotoService.save_photos"
+        ) as mock_save:
+            mock_save.side_effect = ValueError(
+                "You can only have up to 3 storefront photos."
+            )
+
+            response = self.client.patch(
+                self.url,
+                {"storefront": [self.photo_file]},
+                format="multipart",
+            )
+
+        self.assertErrorResponse(
+            response,
+            message="You can only have up to 3 storefront photos.",
+            code="INVALID_PHOTO_OPERATION",
+            status_code=400,
+        )

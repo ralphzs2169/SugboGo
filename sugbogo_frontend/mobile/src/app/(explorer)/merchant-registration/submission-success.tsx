@@ -1,10 +1,15 @@
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback } from "react";
 import { BackHandler } from "react-native";
 
 import SubmissionSuccessScreen from "@/features/merchant/screens/SubmissionSuccessScreen";
 
 export default function SubmissionSuccessPage() {
+  const { minBusinessDays, maxBusinessDays } = useLocalSearchParams<{
+    minBusinessDays: string;
+    maxBusinessDays: string;
+  }>();
+
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener(
@@ -21,6 +26,8 @@ export default function SubmissionSuccessPage() {
 
   return (
     <SubmissionSuccessScreen
+      reviewSlaMinBusinessDays={Number(minBusinessDays)}
+      reviewSlaMaxBusinessDays={Number(maxBusinessDays)}
       onContinue={() => {
         router.dismissTo("/(explorer)/profile/merchant-portal");
       }}

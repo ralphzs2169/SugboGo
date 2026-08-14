@@ -7,11 +7,14 @@ import { merchantRegistrationSchema } from "@/features/merchant/validation/merch
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
 import StatusBadge from "../../operating-hours/StatusBadge";
+import { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import ReviewSectionFeedback from "../ReviewSectionFeedback";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewOperatingHoursProps = {
   form: ReviewForm;
   onEdit?: () => void;
+  feedback?: ApplicationFeedbackResponse;
 };
 
 const formatDay = (day: string) => day.charAt(0).toUpperCase() + day.slice(1);
@@ -29,11 +32,13 @@ const formatTime = (time: string) => {
 export default function ReviewOperatingHours({
   form,
   onEdit,
+  feedback,
 }: ReviewOperatingHoursProps) {
   const operatingHours = form.operatingHours;
 
   return (
     <ReviewSection icon="clock-outline" title="Operating Hours" onEdit={onEdit}>
+      <ReviewSectionFeedback feedback={feedback} />
       <View className="gap-2">
         {DAYS.map((day) => {
           const schedule = operatingHours[day];

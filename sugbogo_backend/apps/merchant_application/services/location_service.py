@@ -68,7 +68,12 @@ class LocationService:
 
             # Save only the fields included in the partial update.
             if update_fields:
-                location.save(update_fields=update_fields)
+                location.save(
+                    update_fields=[
+                        *update_fields,
+                        "MLOC_UPDATED_AT",
+                    ]
+                )
 
         if landmarks_data is not None:
             # Replace landmarks only when the request explicitly updates them.
@@ -103,6 +108,10 @@ class LocationService:
             if records:
                 MerchantApplicationLandmark.objects.bulk_create(records)
 
+        ApplicationService.mark_section_updated(
+            application,
+            "MAPP_LOCATION_UPDATED_AT",
+        )
         ApplicationService.mark_step_completed(application, LocationService.STEP)
 
         return location
