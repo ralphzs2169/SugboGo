@@ -70,13 +70,13 @@ function LoginForm() {
   }
 
   return (
-    <section className="w-full">
-      {/* Header Section - Enhanced title sizing & spacing for full-screen layout */}
+    <section className="w-full bg-background">
+      {/* Header Section */}
       <div className="mb-8 lg:mb-10 xl:mb-12">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+        <h1 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
           Welcome, Admin
         </h1>
-        <p className="mt-2.5 text-sm sm:text-base text-gray-500">
+        <p className="mt-2.5 text-sm text-text-secondary sm:text-base">
           Sign in to manage SugboGo's tourism operations
         </p>
       </div>
@@ -113,7 +113,7 @@ function LoginForm() {
         <div className="flex items-center justify-between gap-4 pt-1 text-sm">
           <label
             htmlFor="remember-me"
-            className="flex select-none items-center gap-2.5 text-gray-600 cursor-pointer text-xs sm:text-sm font-medium"
+            className="flex cursor-pointer select-none items-center gap-2.5 text-xs font-medium text-text-secondary sm:text-sm"
           >
             <input
               id="remember-me"

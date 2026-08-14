@@ -3,16 +3,19 @@ from datetime import timedelta
 from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 
+from apps.admin_operations.analytics.constants import (
+    ANALYTICS_MINIMUM_TREND_SAMPLE_SIZE,
+)
 from apps.merchant_application.constants import (
     APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
     APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
+    REVIEWABLE_APPLICATION_STATUSES,
 )
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationReview,
     MerchantApplicationSubmission,
 )
-from apps.merchant_application.utils.application_queue import count_business_days
 
 
 class MerchantApplicationAnalyticsService:
@@ -41,7 +44,12 @@ class MerchantApplicationAnalyticsService:
                     MAPP_STATUS=MerchantApplication.ApplicationStatus.REJECTED,
                 ),
             ),
-            total_applications=Count("MAPP_ID"),
+            total_applications=Count(
+                "MAPP_ID",
+                filter=Q(
+                    MAPP_STATUS__in=REVIEWABLE_APPLICATION_STATUSES,
+                ),
+            ),
         )
 
         return {
@@ -66,13 +74,29 @@ class MerchantApplicationAnalyticsService:
                 MerchantApplicationAnalyticsService
                 .get_resubmission_rate_trend()
             ),
-             "pending_review_trend": (
+            "pending_review_this_week": (
                 MerchantApplicationAnalyticsService
-                .get_pending_review_trend()
+                .get_pending_review_this_week()
             ),
             "sla_compliance_rate_trend": (
                 MerchantApplicationAnalyticsService
                 .get_sla_compliance_rate_trend()
+            ),
+            "pending_review_history": (
+                MerchantApplicationAnalyticsService
+                .get_pending_review_history()
+            ),
+            "approval_rate_history": (
+                MerchantApplicationAnalyticsService
+                .get_approval_rate_history()
+            ),
+            "resubmission_rate_history": (
+                MerchantApplicationAnalyticsService
+                .get_resubmission_rate_history()
+            ),
+            "sla_compliance_rate_history": (
+                MerchantApplicationAnalyticsService
+                .get_sla_compliance_rate_history()
             ),
             "review_sla_business_days": APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
             "review_sla_approaching_business_days": (
@@ -105,7 +129,22 @@ class MerchantApplicationAnalyticsService:
             "previous_start": previous_week_start,
             "previous_end": previous_week_end,
         }
-    
+
+    @staticmethod
+    def get_daily_analytics_periods(days=7):
+        """
+        Return the daily periods used for KPI sparkline history.
+
+        The returned periods cover the most recent `days` calendar days,
+        including today.
+        """
+
+        today = timezone.localdate()
+
+        return [
+            today - timedelta(days=offset)
+            for offset in range(days - 1, -1, -1)
+        ]
 
     @staticmethod
     def calculate_trend(
@@ -113,7 +152,7 @@ class MerchantApplicationAnalyticsService:
         previous_value,
         current_sample_size,
         previous_sample_size,
-        minimum_sample_size=10,
+        minimum_sample_size=ANALYTICS_MINIMUM_TREND_SAMPLE_SIZE,
         unit="count",
     ):
         """
@@ -147,7 +186,6 @@ class MerchantApplicationAnalyticsService:
             "unit": unit,
         }
 
-
     @staticmethod
     def get_sla_compliance_rate():
         """
@@ -158,10 +196,8 @@ class MerchantApplicationAnalyticsService:
         it reviewed, so resubmissions are evaluated independently.
         """
 
-        completed_reviews = (
-            MerchantApplicationReview.objects
-            .select_related("MASUB_ID")
-            .filter(MASUB_ID__isnull=False)
+        completed_reviews = MerchantApplicationReview.objects.filter(
+            MAREV_SLA_COMPLIANT__isnull=False,
         )
 
         total_reviews = completed_reviews.count()
@@ -169,16 +205,9 @@ class MerchantApplicationAnalyticsService:
         if total_reviews == 0:
             return None
 
-        compliant_reviews = 0
-
-        for review in completed_reviews:
-            business_days = count_business_days(
-                review.MASUB_ID.MASUB_SUBMITTED_AT,
-                review.MAREV_REVIEWED_AT,
-            )
-
-            if business_days < APPLICATION_REVIEW_SLA_BUSINESS_DAYS:
-                compliant_reviews += 1
+        compliant_reviews = completed_reviews.filter(
+            MAREV_SLA_COMPLIANT=True,
+        ).count()
 
         return round(
             (compliant_reviews / total_reviews) * 100,
@@ -201,9 +230,8 @@ class MerchantApplicationAnalyticsService:
         )
 
         def get_period_rate(start, end):
-            reviews = list(
+            reviews = (
                 MerchantApplicationReview.objects
-                .select_related("MASUB_ID")
                 .filter(
                     MASUB_ID__isnull=False,
                     MAREV_REVIEWED_AT__date__gte=start,
@@ -211,21 +239,14 @@ class MerchantApplicationAnalyticsService:
                 )
             )
 
-            total_reviews = len(reviews)
+            total_reviews = reviews.count()
 
             if total_reviews == 0:
                 return None, 0
 
-            compliant_reviews = 0
-
-            for review in reviews:
-                business_days = count_business_days(
-                    review.MASUB_ID.MASUB_SUBMITTED_AT,
-                    review.MAREV_REVIEWED_AT,
-                )
-
-                if business_days < APPLICATION_REVIEW_SLA_BUSINESS_DAYS:
-                    compliant_reviews += 1
+            compliant_reviews = reviews.filter(
+                MAREV_SLA_COMPLIANT=True,
+            ).count()
 
             return (
                 round(
@@ -297,46 +318,52 @@ class MerchantApplicationAnalyticsService:
     @staticmethod
     def get_resubmission_rate():
         """
-        Calculate the percentage of reviewed applications that were
-        subsequently resubmitted.
+        Calculate the percentage of rejected applications that have been
+        resubmitted.
 
-        Each application is counted once regardless of how many times
-        it was resubmitted.
+        Each application is counted once regardless of how many times it
+        was resubmitted.
 
-        The denominator contains applications with at least one completed
-        review. Draft and never-reviewed submitted applications are excluded.
+        The denominator contains applications that have been rejected.
+        Draft, submitted-only, and approved applications are excluded.
         """
 
-        reviewed_applications = (
+        rejected_applications = (
             MerchantApplication.objects
-            .filter(reviews__isnull=False)
+            .filter(
+                reviews__MAREV_DECISION=(
+                    MerchantApplicationReview.Decision.REJECTED
+                ),
+            )
             .distinct()
         )
 
-        total_reviewed = reviewed_applications.count()
+        total_rejected = rejected_applications.count()
 
-        if total_reviewed == 0:
+        if total_rejected == 0:
             return None
 
-        resubmitted = reviewed_applications.filter(
+        resubmitted = rejected_applications.filter(
             MAPP_SUBMISSION_COUNT__gte=2,
         ).count()
 
         return round(
-            (resubmitted / total_reviewed) * 100,
+            (resubmitted / total_rejected) * 100,
             1,
         )
-
 
     @staticmethod
     def get_resubmission_rate_trend():
         """
         Calculate the weekly resubmission-rate trend.
 
-        Each application is counted once per period. The denominator
-        contains applications that received at least one completed review
-        during the period. An application is considered resubmitted when
-        its submission count is at least 2.
+        For each period, the denominator contains applications that received
+        a rejection review during that period.
+
+        The numerator contains rejected applications that were resubmitted
+        during the same period.
+
+        Each application is counted once per period.
         """
 
         periods = (
@@ -345,30 +372,35 @@ class MerchantApplicationAnalyticsService:
         )
 
         def get_period_rate(start, end):
-            reviewed_applications = (
+            rejected_applications = (
                 MerchantApplication.objects
                 .filter(
+                    reviews__MAREV_DECISION=(
+                        MerchantApplicationReview.Decision.REJECTED
+                    ),
                     reviews__MAREV_REVIEWED_AT__date__gte=start,
                     reviews__MAREV_REVIEWED_AT__date__lte=end,
                 )
                 .distinct()
             )
 
-            total_reviewed = reviewed_applications.count()
+            total_rejected = rejected_applications.count()
 
-            if total_reviewed == 0:
+            if total_rejected == 0:
                 return None, 0
 
-            resubmitted = reviewed_applications.filter(
-                MAPP_SUBMISSION_COUNT__gte=2,
-            ).count()
+            resubmitted = rejected_applications.filter(
+                submissions__MASUB_SUBMISSION_NUMBER__gte=2,
+                submissions__MASUB_SUBMITTED_AT__date__gte=start,
+                submissions__MASUB_SUBMITTED_AT__date__lte=end,
+            ).distinct().count()
 
             return (
                 round(
-                    (resubmitted / total_reviewed) * 100,
+                    (resubmitted / total_rejected) * 100,
                     1,
                 ),
-                total_reviewed,
+                total_rejected,
             )
 
         current_rate, current_sample = get_period_rate(
@@ -473,17 +505,13 @@ class MerchantApplicationAnalyticsService:
     
 
     @staticmethod
-    def get_pending_review_trend():
+    def get_pending_review_this_week():
         """
-        Calculate the weekly trend in submissions pending administrator
-        review.
+        Return the number of application submissions that entered the
+        administrator review queue during the current week.
 
-        A submission is considered pending at a historical cutoff when it
-        was submitted on or before that date and had not yet received a
-        review by that date.
-
-        Each submission is evaluated independently, so resubmissions are
-        treated as separate review events.
+        Each submission is counted independently, so resubmissions are
+        included as separate review events.
         """
 
         periods = (
@@ -491,46 +519,231 @@ class MerchantApplicationAnalyticsService:
             .get_weekly_analytics_periods()
         )
 
-        def get_period_pending_count(cutoff):
+        return MerchantApplicationSubmission.objects.filter(
+            MASUB_SUBMITTED_AT__date__gte=periods["current_start"],
+            MASUB_SUBMITTED_AT__date__lte=periods["current_end"],
+        ).count()
+
+
+    @staticmethod
+    def get_approval_rate_history():
+        """
+        Return daily approval-rate values for the KPI sparkline.
+
+        Each application is counted once per day using its latest review
+        for that day.
+        """
+
+        dates = (
+            MerchantApplicationAnalyticsService
+            .get_daily_analytics_periods()
+        )
+
+        history = []
+
+        for date in dates:
+            reviews = list(
+                MerchantApplicationReview.objects
+                .filter(
+                    MAREV_REVIEWED_AT__date=date,
+                    MAREV_DECISION__in=[
+                        MerchantApplicationReview.Decision.APPROVED,
+                        MerchantApplicationReview.Decision.REJECTED,
+                    ],
+                )
+                .order_by(
+                    "MAPP_ID",
+                    "-MAREV_REVIEWED_AT",
+                    "-MAREV_ID",
+                )
+                .distinct("MAPP_ID")
+            )
+
+            total = len(reviews)
+
+            if total == 0:
+                value = None
+            else:
+                approved = sum(
+                    review.MAREV_DECISION
+                    == MerchantApplicationReview.Decision.APPROVED
+                    for review in reviews
+                )
+
+                value = round((approved / total) * 100, 1)
+
+            history.append({
+                "date": date.isoformat(),
+                "value": value,
+            })
+
+        return history
+
+
+    @staticmethod
+    def get_resubmission_rate_history():
+        """
+        Return daily resubmission-rate values for the KPI sparkline.
+
+        An application is considered resubmitted only if a second or later
+        submission existed by the historical date being evaluated.
+        """
+
+        dates = (
+            MerchantApplicationAnalyticsService
+            .get_daily_analytics_periods()
+        )
+
+        history = []
+
+        for date in dates:
+            reviewed_applications = (
+                MerchantApplicationReview.objects
+                .filter(
+                    MAREV_REVIEWED_AT__date=date,
+                )
+                .values("MAPP_ID")
+                .distinct()
+            )
+
+            application_ids = list(
+                reviewed_applications.values_list(
+                    "MAPP_ID",
+                    flat=True,
+                )
+            )
+
+            total_reviewed = len(application_ids)
+
+            if total_reviewed == 0:
+                value = None
+            else:
+                resubmitted = (
+                    MerchantApplicationSubmission.objects
+                    .filter(
+                        MAPP_ID__in=application_ids,
+                        MASUB_SUBMISSION_NUMBER__gte=2,
+                        MASUB_SUBMITTED_AT__date__lte=date,
+                    )
+                    .values("MAPP_ID")
+                    .distinct()
+                    .count()
+                )
+
+                value = round(
+                    (resubmitted / total_reviewed) * 100,
+                    1,
+                )
+
+            history.append({
+                "date": date.isoformat(),
+                "value": value,
+            })
+
+        return history
+
+
+    @staticmethod
+    def get_sla_compliance_rate_history():
+        """
+        Return daily SLA-compliance-rate values for the KPI sparkline.
+
+        Each completed review event is evaluated independently using its
+        persisted SLA-compliance result.
+        """
+
+        dates = (
+            MerchantApplicationAnalyticsService
+            .get_daily_analytics_periods()
+        )
+
+        history = []
+
+        reviews = list(
+            MerchantApplicationReview.objects
+            .select_related("MASUB_ID")
+            .filter(
+                MASUB_ID__isnull=False,
+                MAREV_SLA_COMPLIANT__isnull=False,
+                MAREV_REVIEWED_AT__date__gte=dates[0],
+                MAREV_REVIEWED_AT__date__lte=dates[-1],
+            )
+        )
+
+        reviews_by_date = {}
+
+        for review in reviews:
+            review_date = review.MAREV_REVIEWED_AT.date()
+
+            reviews_by_date.setdefault(
+                review_date,
+                [],
+            ).append(review.MAREV_SLA_COMPLIANT)
+
+        for date in dates:
+            date_results = reviews_by_date.get(date, [])
+
+            if not date_results:
+                value = None
+            else:
+                compliant_reviews = sum(date_results)
+
+                value = round(
+                    (compliant_reviews / len(date_results)) * 100,
+                    1,
+                )
+
+            history.append({
+                "date": date.isoformat(),
+                "value": value,
+            })
+
+        return history
+
+
+    @staticmethod
+    def get_pending_review_history():
+        """
+        Return daily pending-review counts for the KPI sparkline.
+
+        A submission is pending at a historical cutoff when it was submitted
+        on or before that date and had not received a review by that date.
+        """
+
+        dates = (
+            MerchantApplicationAnalyticsService
+            .get_daily_analytics_periods()
+        )
+
+        history = []
+
+        for date in dates:
             reviewed_submission_ids = (
                 MerchantApplicationReview.objects
                 .filter(
                     MASUB_ID=OuterRef("pk"),
-                    MAREV_REVIEWED_AT__date__lte=cutoff,
+                    MAREV_REVIEWED_AT__date__lte=date,
                 )
                 .values("MAREV_ID")
             )
 
-            submissions = (
+            pending_count = (
                 MerchantApplicationSubmission.objects
                 .filter(
-                    MASUB_SUBMITTED_AT__date__lte=cutoff,
+                    MASUB_SUBMITTED_AT__date__lte=date,
                 )
                 .annotate(
                     was_reviewed=Exists(reviewed_submission_ids),
                 )
+                .filter(
+                    was_reviewed=False,
+                )
+                .count()
             )
 
-            total_submissions = submissions.count()
+            history.append({
+                "date": date.isoformat(),
+                "value": pending_count,
+            })
 
-            pending_count = submissions.filter(
-                was_reviewed=False,
-            ).count()
-
-            return pending_count, total_submissions
-
-        current_pending, current_sample = get_period_pending_count(
-            periods["current_end"],
-        )
-
-        previous_pending, previous_sample = get_period_pending_count(
-            periods["previous_end"],
-        )
-
-        return MerchantApplicationAnalyticsService.calculate_trend(
-            current_value=current_pending,
-            previous_value=previous_pending,
-            current_sample_size=current_sample,
-            previous_sample_size=previous_sample,
-            unit="count",
-        )
+        return history

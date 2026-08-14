@@ -1,4 +1,5 @@
 from datetime import timedelta
+from email.mime import application
 
 from django.test import TestCase
 from django.utils import timezone
@@ -49,12 +50,14 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             MASUB_SUBMITTED_AT=submitted_at,
         )
 
+        
         MerchantApplicationReview.objects.create(
             MAPP_ID=application,
             MASUB_ID=submission,
             USER_ID=merchant,
             MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
             MAREV_REVIEWED_AT=timezone.now(),
+            MAREV_SLA_COMPLIANT=True,
         )
 
         result = (
@@ -91,12 +94,14 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             MASUB_SUBMITTED_AT=submitted_at,
         )
 
+        
         MerchantApplicationReview.objects.create(
             MAPP_ID=application,
             MASUB_ID=submission,
             USER_ID=merchant,
-            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
             MAREV_REVIEWED_AT=timezone.now(),
+            MAREV_SLA_COMPLIANT=False,
         )
 
         result = (
@@ -136,8 +141,9 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             MAPP_ID=application,
             MASUB_ID=first_submission,
             USER_ID=merchant,
-            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
             MAREV_REVIEWED_AT=timezone.now(),
+            MAREV_SLA_COMPLIANT=True,
         )
 
         second_submitted_at = timezone.now() - timedelta(
@@ -156,6 +162,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             USER_ID=merchant,
             MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
             MAREV_REVIEWED_AT=timezone.now(),
+            MAREV_SLA_COMPLIANT=False,
         )
 
         result = (
@@ -198,6 +205,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             USER_ID=merchant,
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=now,
+            MAREV_SLA_COMPLIANT=True,
         )
 
         # Submission #2 — outside SLA
@@ -215,6 +223,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             USER_ID=merchant,
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=now,
+            MAREV_SLA_COMPLIANT=True,
         )
 
         # Submission #3 — within SLA
@@ -232,6 +241,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             USER_ID=merchant,
             MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
             MAREV_REVIEWED_AT=now,
+            MAREV_SLA_COMPLIANT=False,
         )
 
         result = (
@@ -240,6 +250,54 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
         )
 
         self.assertEqual(result, 66.7)
+
+    def test_sla_compliance_rate_returns_0_for_review_exactly_at_sla_boundary(
+        self,
+    ):
+        merchant = User.objects.create_user(
+            email="merchant-sla-boundary@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Merchant",
+            USER_LNAME="SLA Boundary",
+            USER_ROLE=User.UserRole.MERCHANT,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        application = MerchantApplication.objects.create(
+            USER_ID=merchant,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+            MAPP_SUBMISSION_COUNT=1,
+        )
+
+        # Monday → following Monday = exactly 5 business days.
+        submitted_at = timezone.now()
+
+        while submitted_at.weekday() != 0:
+            submitted_at -= timedelta(days=1)
+
+        reviewed_at = submitted_at + timedelta(days=7)
+
+        submission = MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=submitted_at,
+        )
+
+        MerchantApplicationReview.objects.create(
+            MAPP_ID=application,
+            MASUB_ID=submission,
+            USER_ID=merchant,
+            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
+            MAREV_REVIEWED_AT=reviewed_at,
+            MAREV_SLA_COMPLIANT=False,
+        )
+
+        result = (
+            MerchantApplicationAnalyticsService
+            .get_sla_compliance_rate()
+        )
+
+        self.assertEqual(result, 0.0)
 
     def test_approval_rate_returns_none_when_no_applications_are_decided(self):
         result = (
@@ -426,7 +484,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
 
         self.assertIsNone(result)
 
-    def test_resubmission_rate_returns_0_when_no_reviewed_application_was_resubmitted(
+    def test_resubmission_rate_returns_0_when_no_rejected_application_was_resubmitted(
         self,
     ):
         merchant = User.objects.create_user(
@@ -440,15 +498,24 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
 
         application = MerchantApplication.objects.create(
             USER_ID=merchant,
-            MAPP_STATUS=MerchantApplication.ApplicationStatus.APPROVED,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.REJECTED,
             MAPP_SUBMISSION_COUNT=1,
+        )
+
+        reviewed_at = timezone.now()
+
+        submission = MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=reviewed_at,
         )
 
         MerchantApplicationReview.objects.create(
             MAPP_ID=application,
             USER_ID=merchant,
-            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
-            MAREV_REVIEWED_AT=timezone.now(),
+            MASUB_ID=submission,
+            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+            MAREV_REVIEWED_AT=reviewed_at,
         )
 
         result = MerchantApplicationAnalyticsService.get_resubmission_rate()
@@ -456,7 +523,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
         self.assertEqual(result, 0.0)
 
 
-    def test_resubmission_rate_calculates_percentage_of_reviewed_applications(
+    def test_resubmission_rate_calculates_percentage_of_rejected_applications(
         self,
     ):
         merchants = [
@@ -472,33 +539,51 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
         ]
 
         for index, merchant in enumerate(merchants):
+            is_rejected = index >= 2
+            is_resubmitted = index == 2
+
             application = MerchantApplication.objects.create(
                 USER_ID=merchant,
                 MAPP_STATUS=(
-                    MerchantApplication.ApplicationStatus.APPROVED
-                    if index < 2
-                    else MerchantApplication.ApplicationStatus.REJECTED
+                    MerchantApplication.ApplicationStatus.REJECTED
+                    if is_rejected
+                    else MerchantApplication.ApplicationStatus.APPROVED
                 ),
-                MAPP_SUBMISSION_COUNT=(
-                    2 if index < 2 else 1
-                ),
+                MAPP_SUBMISSION_COUNT=2 if is_resubmitted else 1,
+            )
+
+            reviewed_at = timezone.now()
+
+            first_submission = (
+                MerchantApplicationSubmission.objects.create(
+                    MAPP_ID=application,
+                    MASUB_SUBMISSION_NUMBER=1,
+                    MASUB_SUBMITTED_AT=reviewed_at,
+                )
             )
 
             MerchantApplicationReview.objects.create(
                 MAPP_ID=application,
                 USER_ID=merchant,
+                MASUB_ID=first_submission,
                 MAREV_DECISION=(
-                    MerchantApplicationReview.Decision.APPROVED
-                    if index < 2
-                    else MerchantApplicationReview.Decision.REJECTED
+                    MerchantApplicationReview.Decision.REJECTED
+                    if is_rejected
+                    else MerchantApplicationReview.Decision.APPROVED
                 ),
-                MAREV_REVIEWED_AT=timezone.now(),
+                MAREV_REVIEWED_AT=reviewed_at,
             )
+
+            if is_resubmitted:
+                MerchantApplicationSubmission.objects.create(
+                    MAPP_ID=application,
+                    MASUB_SUBMISSION_NUMBER=2,
+                    MASUB_SUBMITTED_AT=timezone.now(),
+                )
 
         result = MerchantApplicationAnalyticsService.get_resubmission_rate()
 
         self.assertEqual(result, 50.0)
-
 
     def test_resubmission_rate_excludes_unreviewed_applications(self):
         reviewed_merchant = User.objects.create_user(
@@ -512,15 +597,30 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
 
         resubmitted_application = MerchantApplication.objects.create(
             USER_ID=reviewed_merchant,
-            MAPP_STATUS=MerchantApplication.ApplicationStatus.APPROVED,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.REJECTED,
             MAPP_SUBMISSION_COUNT=2,
+        )
+
+        reviewed_at = timezone.now()
+
+        first_submission = MerchantApplicationSubmission.objects.create(
+            MAPP_ID=resubmitted_application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=reviewed_at,
         )
 
         MerchantApplicationReview.objects.create(
             MAPP_ID=resubmitted_application,
             USER_ID=reviewed_merchant,
-            MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
-            MAREV_REVIEWED_AT=timezone.now(),
+            MASUB_ID=first_submission,
+            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+            MAREV_REVIEWED_AT=reviewed_at,
+        )
+
+        MerchantApplicationSubmission.objects.create(
+            MAPP_ID=resubmitted_application,
+            MASUB_SUBMISSION_NUMBER=2,
+            MASUB_SUBMITTED_AT=timezone.now(),
         )
 
         unreviewed_merchant = User.objects.create_user(
@@ -696,4 +796,220 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
         )
 
 
-    
+    def test_total_applications_equals_reviewable_status_counts(self):
+        """Total applications must equal the sum of all reviewable statuses."""
+
+        users = [
+            User.objects.create_user(
+                 f"total-status-{index}@example.com",
+                USER_FNAME="Test",
+                USER_LNAME=f"Merchant {index}",
+            )
+            for index in range(4)
+        ]
+
+        statuses = [
+            MerchantApplication.ApplicationStatus.SUBMITTED,
+            MerchantApplication.ApplicationStatus.APPROVED,
+            MerchantApplication.ApplicationStatus.REJECTED,
+            MerchantApplication.ApplicationStatus.DRAFT,
+        ]
+
+        MerchantApplication.objects.bulk_create(
+            [
+                MerchantApplication(
+                    USER_ID=user,
+                    MAPP_STATUS=status,
+                )
+                for user, status in zip(users, statuses)
+            ]
+        )
+
+        statistics = (
+            MerchantApplicationAnalyticsService
+            .get_application_statistics()
+        )
+
+        self.assertEqual(
+            statistics["total_applications"],
+            (
+                statistics["pending_review"]
+                + statistics["approved"]
+                + statistics["rejected"]
+            ),
+        )
+
+        self.assertEqual(
+            statistics["total_applications"],
+            3,
+        )
+
+
+    def test_pending_review_counts_only_submitted_applications(self):
+        statuses = [
+            MerchantApplication.ApplicationStatus.DRAFT,
+            MerchantApplication.ApplicationStatus.SUBMITTED,
+            MerchantApplication.ApplicationStatus.APPROVED,
+            MerchantApplication.ApplicationStatus.REJECTED,
+        ]
+
+        for index, status in enumerate(statuses):
+            merchant = User.objects.create_user(
+                email=f"pending-status-{index}@example.com",
+                password="StrongPassword123!",
+                USER_FNAME="Merchant",
+                USER_LNAME=f"Pending Status {index}",
+                USER_ROLE=User.UserRole.MERCHANT,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+
+            MerchantApplication.objects.create(
+                USER_ID=merchant,
+                MAPP_STATUS=status,
+            )
+
+        statistics = (
+            MerchantApplicationAnalyticsService
+            .get_application_statistics()
+        )
+
+        self.assertEqual(statistics["pending_review"], 1)
+
+
+    def test_pending_review_this_week_counts_current_week_submissions(self):
+        periods = (
+            MerchantApplicationAnalyticsService
+            .get_weekly_analytics_periods()
+        )
+
+        users = [
+            User.objects.create_user(
+                email=f"pending-current-week-{index}@example.com",
+                password="StrongPassword123!",
+                USER_FNAME="Merchant",
+                USER_LNAME=f"Current{index}",
+                USER_ROLE=User.UserRole.MERCHANT,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+            for index in range(3)
+        ]
+
+        applications = MerchantApplication.objects.bulk_create(
+            [
+                MerchantApplication(
+                    USER_ID=user,
+                    MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+                )
+                for user in users
+            ]
+        )
+
+        MerchantApplicationSubmission.objects.bulk_create(
+            [
+                MerchantApplicationSubmission(
+                    MAPP_ID=application,
+                    MASUB_SUBMISSION_NUMBER=1,
+                    MASUB_SUBMITTED_AT=timezone.now(),
+                )
+                for application in applications
+            ]
+        )
+
+        result = (
+            MerchantApplicationAnalyticsService
+            .get_pending_review_this_week()
+        )
+
+        self.assertEqual(result, 3)
+
+
+    def test_pending_review_this_week_excludes_previous_week_submissions(self):
+        periods = (
+            MerchantApplicationAnalyticsService
+            .get_weekly_analytics_periods()
+        )
+
+        users = [
+            User.objects.create_user(
+                email=f"pending-previous-week-{index}@example.com",
+                password="StrongPassword123!",
+                USER_FNAME="Merchant",
+                USER_LNAME=f"Previous{index}",
+                USER_ROLE=User.UserRole.MERCHANT,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+            for index in range(2)
+        ]
+
+        applications = MerchantApplication.objects.bulk_create(
+            [
+                MerchantApplication(
+                    USER_ID=user,
+                    MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+                )
+                for user in users
+            ]
+        )
+
+        MerchantApplicationSubmission.objects.bulk_create(
+            [
+                MerchantApplicationSubmission(
+                    MAPP_ID=application,
+                    MASUB_SUBMISSION_NUMBER=1,
+                    MASUB_SUBMITTED_AT=timezone.now() - timedelta(days=7),
+                )
+                for application in applications
+            ]
+        )
+
+        result = (
+            MerchantApplicationAnalyticsService
+            .get_pending_review_this_week()
+        )
+
+        self.assertEqual(result, 0)
+
+
+    def test_pending_review_this_week_counts_resubmissions_as_separate_submissions(
+        self,
+    ):
+        periods = (
+            MerchantApplicationAnalyticsService
+            .get_weekly_analytics_periods()
+        )
+
+        user = User.objects.create_user(
+            email="pending-resubmission@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Merchant",
+            USER_LNAME="Resubmission",
+            USER_ROLE=User.UserRole.MERCHANT,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        application = MerchantApplication.objects.create(
+            USER_ID=user,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+            MAPP_SUBMISSION_COUNT=2,
+        )
+
+        submitted_at = timezone.now()
+
+        MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=submitted_at,
+        )
+
+        MerchantApplicationSubmission.objects.create(
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=2,
+            MASUB_SUBMITTED_AT=submitted_at,
+        )
+
+        result = (
+            MerchantApplicationAnalyticsService
+            .get_pending_review_this_week()
+        )
+
+        self.assertEqual(result, 2)

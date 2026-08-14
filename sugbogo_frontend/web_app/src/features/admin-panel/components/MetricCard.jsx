@@ -1,31 +1,78 @@
-import MetricBadge from "./MetricBadge";
+import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+
+import { getMetricVariant } from "@/features/admin-panel/constants/metricVariants";
+import MetricSparkline from "./MetricSparkline";
+
+const TREND_ICONS = {
+  up: ArrowUp,
+  down: ArrowDown,
+  unchanged: Minus,
+};
 
 /**
- * Displays a primary dashboard KPI with optional trend and contextual
- * supporting text.
+ * Displays one KPI value with an optional historical sparkline and either
+ * a week-over-week trend or a simple contextual footer value.
  */
-function MetricCard({ title, value, badgeVariant, badgeText, secondaryLabel }) {
+function MetricCard({
+  title,
+  value,
+  trend,
+  sparklineData = [],
+  footerLabel = "vs last week",
+  footerValue,
+  sparklineValueFormatter,
+}) {
+  const trendColor = trend ? getMetricVariant(trend.variant).text : null;
+
+  const TrendIcon = trend ? (TREND_ICONS[trend.direction] ?? Minus) : null;
+
   return (
-    <div className="relative flex min-h-[165px] flex-col justify-between overflow-hidden rounded-lg border border-stroke bg-background p-6 shadow-sm transition-shadow hover:shadow-md">
-      {/* Card header */}
-      <div className="relative z-10 flex items-start justify-between gap-4">
-        <h3 className="max-w-[160px] text-[11px] font-bold uppercase leading-relaxed tracking-widest text-text-secondary">
-          {title}
-        </h3>
+    <div className="flex min-h-[165px] flex-col justify-between rounded-lg border border-stroke bg-background p-6 shadow-sm hover:shadow-md">
+      {/* Card title */}
+      <h3 className="max-w-[160px] text-[11px] font-bold uppercase leading-relaxed tracking-widest text-text-secondary">
+        {title}
+      </h3>
 
-        {badgeText && <MetricBadge variant={badgeVariant} text={badgeText} />}
-      </div>
+      {/* KPI value, footer, and sparkline */}
+      <div className="mt-5 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-3xl font-bold tracking-tight text-text-primary">
+            {value}
+          </div>
 
-      {/* Primary metric */}
-      <div className="relative z-10 mt-5">
-        <div className="text-3xl font-bold tracking-tight text-text-primary">
-          {value}
+          {trend && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px]">
+              <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                <TrendIcon
+                  className={`h-3 w-3 shrink-0 stroke-[3] ${trendColor}`}
+                />
+                <span className={`font-bold ${trendColor}`}>{trend.value}</span>
+              </span>
+
+              <span className="whitespace-nowrap text-text-secondary">
+                {footerLabel}
+              </span>
+            </div>
+          )}
+
+          {!trend && footerValue && (
+            <div className="mt-2 text-[11px] font-bold text-text-secondary">
+              {footerValue}
+            </div>
+          )}
         </div>
 
-        {secondaryLabel && (
-          <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-text-secondary">
-            {secondaryLabel}
-          </p>
+        {/* Historical sparkline */}
+        {sparklineData.filter(
+          (item) => item.value !== null && item.value !== undefined,
+        ).length >= 2 && (
+          <div className="h-14 w-20 shrink-0">
+            <MetricSparkline
+              data={sparklineData}
+              variant="neutral"
+              valueFormatter={sparklineValueFormatter}
+            />
+          </div>
         )}
       </div>
     </div>

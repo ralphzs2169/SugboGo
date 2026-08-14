@@ -83,3 +83,14 @@ def get_application_queue_status(submitted_at, resolved_at=None):
         return "approaching"
 
     return "on_time"
+
+
+def is_review_sla_compliant(submission, reviewed_at):
+    """Determine whether a review met the configured application SLA."""
+
+    business_days = count_business_days(
+        submission.MASUB_SUBMITTED_AT,
+        reviewed_at,
+    )
+
+    return business_days < APPLICATION_REVIEW_SLA_BUSINESS_DAYS

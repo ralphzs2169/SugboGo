@@ -7,6 +7,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from apps.merchant_application.constants import (
     APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
     APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
+    REVIEWABLE_APPLICATION_STATUSES,
 )
 from apps.merchant_application.models import (
     MerchantApplication,
@@ -15,7 +16,10 @@ from apps.merchant_application.models import (
     MerchantApplicationReview,
     MerchantApplicationSubmission,
 )
-from apps.merchant_application.utils.application_queue import get_business_day_cutoff
+from apps.merchant_application.utils.application_queue import (
+    get_business_day_cutoff,
+    is_review_sla_compliant,
+)
 
 
 class ApplicationService:
@@ -38,6 +42,9 @@ class ApplicationService:
 
         queryset = (
             MerchantApplication.objects
+            .filter(
+                MAPP_STATUS__in=REVIEWABLE_APPLICATION_STATUSES,
+            )
             .select_related(
                 "USER_ID",
                 "identity",
@@ -245,12 +252,18 @@ class ApplicationService:
 
         reviewed_at = timezone.now()
 
+        sla_compliant = is_review_sla_compliant(
+            submission,
+            reviewed_at,
+        )
+        
         review = MerchantApplicationReview.objects.create(
             MAPP_ID=application,
             MASUB_ID=submission,
             USER_ID=reviewer,
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=reviewed_at,
+            MAREV_SLA_COMPLIANT=sla_compliant,
         )
 
         MerchantApplicationFeedback.objects.bulk_create(
@@ -324,12 +337,18 @@ class ApplicationService:
 
         reviewed_at = timezone.now()
 
+        sla_compliant = is_review_sla_compliant(
+            submission,
+            reviewed_at,
+        )
+
         MerchantApplicationReview.objects.create(
             MAPP_ID=application,
             MASUB_ID=submission,
             USER_ID=reviewer,
             MAREV_DECISION=MerchantApplicationReview.Decision.APPROVED,
             MAREV_REVIEWED_AT=reviewed_at,
+            MAREV_SLA_COMPLIANT=sla_compliant,
         )
 
         application.MAPP_STATUS = (

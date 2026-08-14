@@ -4,9 +4,9 @@ import LoginIllustration from "../LoginIllustration";
 
 export default function AuthSplitLayout({ children }) {
   return (
-    <main className="relative h-screen w-full grid grid-cols-1 lg:grid-cols-[55%_45%] bg-white overflow-hidden">
+    <main className="relative h-screen w-full grid grid-cols-1 lg:grid-cols-[55%_45%] bg-background overflow-hidden">
       {/* Left */}
-      <section className="hidden lg:flex h-full flex-col items-center justify-between border-r-2 border-slate-200/60 p-12">
+      <section className="hidden lg:flex h-full flex-col items-center justify-between border-r-2 border-stroke p-12">
         <LoginIllustration />
       </section>
 

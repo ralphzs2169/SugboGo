@@ -2,6 +2,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from apps.merchant_application.constants import APPLICATION_REVIEW_SLA_BUSINESS_DAYS
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationDocument,
@@ -11,6 +12,7 @@ from apps.merchant_application.models import (
     MerchantApplicationReview,
     MerchantApplicationSubmission,
 )
+from apps.merchant_application.utils.application_queue import count_business_days
 
 
 class ApplicationService:
@@ -209,6 +211,8 @@ class ApplicationService:
 
         if errors:
             raise ValidationError(errors)
+
+  
 
     @staticmethod
     @transaction.atomic

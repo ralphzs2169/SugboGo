@@ -8,7 +8,7 @@ import {
   formatApplicationDate,
   formatApplicationElapsedTime,
   isApplicationResolved,
-} from "../utils/applicationReviewUtils";
+} from "../../utils/applicationReview.utils";
 
 const statusAccents = {
   draft: "bg-stroke",

@@ -40,16 +40,19 @@ class DocumentServiceTests(MerchantApplicationServiceMixin, TestCase):
         additional_file = self._pdf_file("additional-document.pdf")
 
         with patch(
-            "apps.merchant_application.services.document_service.CloudinaryService.upload_image"
+            "apps.merchant_application.services.document_service.CloudinaryService.upload_image",
+            autospec=True,
         ) as mock_upload:
             mock_upload.side_effect = [
                 {
                     "secure_url": "https://cloudinary.com/business-registration.pdf",
                     "public_id": "merchant_application_documents/business-registration",
+                    "version": 1234567890,
                 },
                 {
                     "secure_url": "https://cloudinary.com/additional-document.pdf",
                     "public_id": "merchant_application_documents/additional-document",
+                    "version": 1234567891,
                 },
             ]
 
@@ -63,10 +66,7 @@ class DocumentServiceTests(MerchantApplicationServiceMixin, TestCase):
 
         application.refresh_from_db()
 
-        self.assertEqual(
-            documents.count(),
-            2,
-        )
+        self.assertEqual(documents.count(), 2)
 
         self.assertTrue(
             documents.filter(
@@ -105,6 +105,7 @@ class DocumentServiceTests(MerchantApplicationServiceMixin, TestCase):
                     MDOC_DOCUMENT_URL=f"https://example.com/additional-{index}.pdf",
                     MDOC_DOCUMENT_PUBLIC_ID=f"additional-{index}",
                     MDOC_FILE_NAME=f"additional-{index}.pdf",
+                    MDOC_CLOUDINARY_VERSION=1234567894 + index,
                 )
                 for index in range(5)
             ]
@@ -143,6 +144,7 @@ class DocumentServiceTests(MerchantApplicationServiceMixin, TestCase):
             mock_upload.return_value = {
                 "secure_url": "https://cloudinary.com/replacement-registration.pdf",
                 "public_id": "merchant_application_documents/replacement-registration",
+                "version": 1234567892,
             }
 
             with self.captureOnCommitCallbacks(execute=True):
@@ -190,6 +192,7 @@ class DocumentServiceTests(MerchantApplicationServiceMixin, TestCase):
             MDOC_DOCUMENT_URL="https://example.com/additional.pdf",
             MDOC_DOCUMENT_PUBLIC_ID="additional-document",
             MDOC_FILE_NAME="additional.pdf",
+            MDOC_CLOUDINARY_VERSION=1234567893,
         )
 
         with patch(
@@ -240,6 +243,7 @@ class DocumentServiceTests(MerchantApplicationServiceMixin, TestCase):
             MDOC_DOCUMENT_URL="https://example.com/other.pdf",
             MDOC_DOCUMENT_PUBLIC_ID="other-document",
             MDOC_FILE_NAME="other.pdf",
+            MDOC_CLOUDINARY_VERSION=1234567898,
         )
 
         with self.assertRaisesMessage(

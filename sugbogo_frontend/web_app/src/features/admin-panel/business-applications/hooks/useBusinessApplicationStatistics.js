@@ -26,6 +26,11 @@ export default function useBusinessApplicationStatistics({
     pending_review_trend: null,
     sla_compliance_rate_trend: null,
 
+    pending_review_history: [],
+    approval_rate_history: [],
+    resubmission_rate_history: [],
+    sla_compliance_rate_history: [],
+
     review_sla_business_days: 0,
     review_sla_approaching_business_days: 0,
   });
@@ -52,8 +57,13 @@ export default function useBusinessApplicationStatistics({
 
         approval_rate_trend: response.approval_rate_trend ?? null,
         resubmission_rate_trend: response.resubmission_rate_trend ?? null,
-        pending_review_trend: response.pending_review_trend ?? null,
+        pending_review_this_week: response.pending_review_this_week ?? null,
         sla_compliance_rate_trend: response.sla_compliance_rate_trend ?? null,
+
+        pending_review_history: response.pending_review_history ?? [],
+        approval_rate_history: response.approval_rate_history ?? [],
+        resubmission_rate_history: response.resubmission_rate_history ?? [],
+        sla_compliance_rate_history: response.sla_compliance_rate_history ?? [],
 
         review_sla_business_days: response.review_sla_business_days ?? 0,
         review_sla_approaching_business_days:

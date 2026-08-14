@@ -1,9 +1,69 @@
 import { useNavigate } from "react-router-dom";
+import { ChevronDown, Clock, FileText, Tag } from "lucide-react";
+
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
-import { FileText } from "lucide-react";
 import getBusinessApplicationColumns from "../columns/businessApplicationColumns";
 import useBusinessApplications from "../hooks/useBusinessApplications";
 import useBusinessApplicationTableState from "../hooks/useBusinessApplicationTableState";
+
+const STATUS_OPTIONS = [
+  { value: "submitted", label: "Pending Review" },
+  { value: "rejected", label: "Rejected" },
+  { value: "approved", label: "Approved" },
+];
+
+const QUEUE_STATUS_OPTIONS = [
+  { value: "on_time", label: "On time" },
+  { value: "approaching", label: "Approaching" },
+  { value: "overdue", label: "Overdue" },
+  { value: "resolved", label: "Resolved" },
+];
+
+/**
+ * A pill-shaped filter select with active-state styling, used for the
+ * toolbar-level filters above the table. Clearing an individual filter
+ * happens by re-selecting the placeholder, or via the page-level
+ * "Clear filters" action.
+ */
+function FilterPill({ icon: Icon, placeholder, options, value, onChange }) {
+  const isActive = Boolean(value);
+
+  return (
+    <div className="relative flex items-center">
+      <Icon
+        className={`pointer-events-none absolute left-3.5 h-3.5 w-3.5 transition-colors ${
+          isActive ? "text-primary" : "text-text-secondary"
+        }`}
+      />
+
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={placeholder}
+        className={`h-9 cursor-pointer appearance-none rounded-full border py-2 pl-9 pr-8 text-sm font-medium outline-none transition-colors ${
+          isActive
+            ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+            : "border-stroke-strong bg-background text-text-primary hover:bg-interaction-hover"
+        } focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/10`}
+      >
+        <option value="">{placeholder}</option>
+
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      <ChevronDown
+        className={`pointer-events-none absolute right-3 h-3.5 w-3.5 transition-colors ${
+          isActive ? "text-primary" : "text-text-secondary"
+        }`}
+        strokeWidth={2}
+      />
+    </div>
+  );
+}
 
 /**
  * Management panel for merchant business applications.
@@ -50,31 +110,22 @@ export default function BusinessApplicationManagementPanel() {
     return (
       <>
         {/* Application status filter */}
-        <select
+        <FilterPill
+          icon={Tag}
+          placeholder="All statuses"
+          options={STATUS_OPTIONS}
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          className="h-9 cursor-pointer rounded-full border border-stroke-strong bg-background px-4 text-sm text-text-primary outline-none focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/10"
-          aria-label="Filter applications by status"
-        >
-          <option value="">All statuses</option>
-          <option value="submitted">Submitted</option>
-          <option value="rejected">Rejected</option>
-          <option value="approved">Approved</option>
-        </select>
+          onChange={setStatusFilter}
+        />
 
         {/* Queue status filter */}
-        <select
+        <FilterPill
+          icon={Clock}
+          placeholder="All queue statuses"
+          options={QUEUE_STATUS_OPTIONS}
           value={queueStatusFilter}
-          onChange={(event) => setQueueStatusFilter(event.target.value)}
-          className="h-9 cursor-pointer rounded-full border border-stroke-strong bg-background px-4 text-sm text-text-primary outline-none focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/10"
-          aria-label="Filter applications by queue status"
-        >
-          <option value="">All queue statuses</option>
-          <option value="on_time">On time</option>
-          <option value="approaching">Approaching</option>
-          <option value="overdue">Overdue</option>
-          <option value="resolved">Resolved</option>
-        </select>
+          onChange={setQueueStatusFilter}
+        />
       </>
     );
   }
@@ -103,7 +154,7 @@ export default function BusinessApplicationManagementPanel() {
         renderFilters,
       }}
       config={{
-        searchPlaceholder: "Search business applications...",
+        searchPlaceholder: "Search merchant applications...",
 
         emptyState: {
           title: "No business applications yet",

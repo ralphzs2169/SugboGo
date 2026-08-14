@@ -24,7 +24,7 @@ export default function PasswordInput({
     <div>
       <label
         htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
+        className="mb-2 block text-sm font-medium text-text-primary"
       >
         {label}
       </label>

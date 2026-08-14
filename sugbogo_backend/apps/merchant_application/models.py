@@ -113,6 +113,10 @@ class MerchantApplicationReview(models.Model):
     MAREV_REVIEWED_AT = models.DateTimeField()
     MAREV_CREATED_AT = models.DateTimeField(auto_now_add=True)
     MAREV_UPDATED_AT = models.DateTimeField(auto_now=True)
+    MAREV_SLA_COMPLIANT = models.BooleanField(
+        null=True,
+        blank=True,
+    )
 
     MAPP_ID = models.ForeignKey(
         MerchantApplication,

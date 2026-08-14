@@ -366,7 +366,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                 MerchantApplication(
                     USER_ID=user,
                     MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.APPROVED
+                        MerchantApplication.ApplicationStatus.REJECTED
                     ),
                     MAPP_SUBMISSION_COUNT=1,
                 )
@@ -398,7 +398,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                     MASUB_ID=submission,
                     USER_ID=user,
                     MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.APPROVED
+                        MerchantApplicationReview.Decision.REJECTED
                     ),
                     MAREV_REVIEWED_AT=previous_reviewed_at,
                 )
@@ -445,6 +445,17 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
             )
         )
 
+        MerchantApplicationSubmission.objects.bulk_create(
+            [
+                MerchantApplicationSubmission(
+                    MAPP_ID=application,
+                    MASUB_SUBMISSION_NUMBER=2,
+                    MASUB_SUBMITTED_AT=current_reviewed_at,
+                )
+                for application in current_applications[:5]
+            ]
+        )
+
         MerchantApplicationReview.objects.bulk_create(
             [
                 MerchantApplicationReview(
@@ -452,7 +463,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                     MASUB_ID=submission,
                     USER_ID=user,
                     MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.APPROVED
+                        MerchantApplicationReview.Decision.REJECTED
                     ),
                     MAREV_REVIEWED_AT=current_reviewed_at,
                 )
@@ -496,7 +507,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                 MerchantApplication(
                     USER_ID=user,
                     MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.APPROVED
+                        MerchantApplication.ApplicationStatus.REJECTED
                     ),
                     MAPP_SUBMISSION_COUNT=2 if index < 5 else 1,
                 )
@@ -521,6 +532,17 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
             )
         )
 
+        MerchantApplicationSubmission.objects.bulk_create(
+            [
+                MerchantApplicationSubmission(
+                    MAPP_ID=application,
+                    MASUB_SUBMISSION_NUMBER=2,
+                    MASUB_SUBMITTED_AT=previous_reviewed_at,
+                )
+                for application in previous_applications[:5]
+            ]
+        )
+
         MerchantApplicationReview.objects.bulk_create(
             [
                 MerchantApplicationReview(
@@ -528,7 +550,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                     MASUB_ID=submission,
                     USER_ID=user,
                     MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.APPROVED
+                        MerchantApplicationReview.Decision.REJECTED
                     ),
                     MAREV_REVIEWED_AT=previous_reviewed_at,
                 )
@@ -582,7 +604,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                     MASUB_ID=submission,
                     USER_ID=user,
                     MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.APPROVED
+                        MerchantApplicationReview.Decision.REJECTED
                     ),
                     MAREV_REVIEWED_AT=current_reviewed_at,
                 )
@@ -662,7 +684,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                         MASUB_ID=submission,
                         USER_ID=user,
                         MAREV_DECISION=(
-                            MerchantApplicationReview.Decision.APPROVED
+                            MerchantApplicationReview.Decision.REJECTED
                         ),
                         MAREV_REVIEWED_AT=reviewed_at,
                     )
@@ -825,6 +847,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                         MerchantApplicationReview.Decision.APPROVED
                     ),
                     MAREV_REVIEWED_AT=previous_reviewed_at,
+                    MAREV_SLA_COMPLIANT=False,
                 )
                 for application, submission, user in zip(
                     previous_applications,
@@ -880,6 +903,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                         MerchantApplicationReview.Decision.APPROVED
                     ),
                     MAREV_REVIEWED_AT=current_reviewed_at,
+                    MAREV_SLA_COMPLIANT=True
                 )
                 for application, submission, user in zip(
                     current_applications,
@@ -957,6 +981,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                         MerchantApplicationReview.Decision.APPROVED
                     ),
                     MAREV_REVIEWED_AT=previous_reviewed_at,
+                    MAREV_SLA_COMPLIANT=True,
                 )
                 for application, submission, user in zip(
                     previous_applications,
@@ -1015,6 +1040,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                         MerchantApplicationReview.Decision.APPROVED
                     ),
                     MAREV_REVIEWED_AT=current_reviewed_at,
+                    MAREV_SLA_COMPLIANT=False,
                 )
                 for application, submission, user in zip(
                     current_applications,
@@ -1178,6 +1204,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                         MerchantApplicationReview.Decision.REJECTED
                     ),
                     MAREV_REVIEWED_AT=previous_reviewed_at,
+                    MAREV_SLA_COMPLIANT=False,
                 )
                 for application, submission, user in zip(
                     previous_applications,
@@ -1235,6 +1262,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                         MerchantApplicationReview.Decision.REJECTED
                     ),
                     MAREV_REVIEWED_AT=current_reviewed_at,
+                    MAREV_SLA_COMPLIANT=False,
                 )
                 for application, submission, user in zip(
                     current_applications,
@@ -1259,6 +1287,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                 MerchantApplicationReview.Decision.APPROVED
             ),
             MAREV_REVIEWED_AT=current_reviewed_at,
+            MAREV_SLA_COMPLIANT=True,
         )
 
         result = (
@@ -1275,446 +1304,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
             },
         )
 
-    def test_pending_review_trend_returns_none_when_sample_size_is_too_small(
-        self,
-    ):
-        periods = (
-            MerchantApplicationAnalyticsService
-            .get_weekly_analytics_periods()
-        )
+    
+   
 
-        users = self._create_merchants(
-            count=9,
-            prefix="pending-small",
-        )
-
-        applications = MerchantApplication.objects.bulk_create(
-            [
-                MerchantApplication(
-                    USER_ID=user,
-                    MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.SUBMITTED
-                    ),
-                    MAPP_SUBMISSION_COUNT=1,
-                )
-                for user in users
-            ]
-        )
-
-        submitted_at = self._timestamp(
-            periods["current_start"],
-        )
-
-        MerchantApplicationSubmission.objects.bulk_create(
-            [
-                MerchantApplicationSubmission(
-                    MAPP_ID=application,
-                    MASUB_SUBMISSION_NUMBER=1,
-                    MASUB_SUBMITTED_AT=submitted_at,
-                )
-                for application in applications
-            ]
-        )
-
-        result = (
-            MerchantApplicationAnalyticsService
-            .get_pending_review_trend()
-        )
-
-        self.assertIsNone(result)
-
-    def test_pending_review_trend_returns_up_when_current_pending_count_is_higher(
-        self,
-    ):
-        periods = (
-            MerchantApplicationAnalyticsService
-            .get_weekly_analytics_periods()
-        )
-
-        # Previous period: 10 submissions, all pending.
-        previous_users = self._create_merchants(
-            count=10,
-            prefix="pending-up-previous",
-        )
-
-        previous_applications = MerchantApplication.objects.bulk_create(
-            [
-                MerchantApplication(
-                    USER_ID=user,
-                    MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.SUBMITTED
-                    ),
-                    MAPP_SUBMISSION_COUNT=1,
-                )
-                for user in previous_users
-            ]
-        )
-
-        previous_submitted_at = self._timestamp(
-            periods["previous_start"],
-        )
-
-        previous_submissions = (
-            MerchantApplicationSubmission.objects.bulk_create(
-                [
-                    MerchantApplicationSubmission(
-                        MAPP_ID=application,
-                        MASUB_SUBMISSION_NUMBER=1,
-                        MASUB_SUBMITTED_AT=previous_submitted_at,
-                    )
-                    for application in previous_applications
-                ]
-            )
-        )
-
-        # Current period: 3 previous submissions get reviewed,
-        # while 5 new submissions enter the queue.
-        reviewed_at = self._timestamp(
-            periods["current_start"],
-        )
-
-        MerchantApplicationReview.objects.bulk_create(
-            [
-                MerchantApplicationReview(
-                    MAPP_ID=previous_applications[index],
-                    MASUB_ID=previous_submissions[index],
-                    USER_ID=previous_users[index],
-                    MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.APPROVED
-                    ),
-                    MAREV_REVIEWED_AT=reviewed_at,
-                )
-                for index in range(3)
-            ]
-        )
-
-        current_users = self._create_merchants(
-            count=5,
-            prefix="pending-up-current",
-        )
-
-        current_applications = MerchantApplication.objects.bulk_create(
-            [
-                MerchantApplication(
-                    USER_ID=user,
-                    MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.SUBMITTED
-                    ),
-                    MAPP_SUBMISSION_COUNT=1,
-                )
-                for user in current_users
-            ]
-        )
-
-        MerchantApplicationSubmission.objects.bulk_create(
-            [
-                MerchantApplicationSubmission(
-                    MAPP_ID=application,
-                    MASUB_SUBMISSION_NUMBER=1,
-                    MASUB_SUBMITTED_AT=reviewed_at,
-                )
-                for application in current_applications
-            ]
-        )
-
-        result = (
-            MerchantApplicationAnalyticsService
-            .get_pending_review_trend()
-        )
-
-        self.assertEqual(
-            result,
-            {
-                "value": 2,
-                "direction": "up",
-                "unit": "count",
-            },
-        )
-
-    def test_pending_review_trend_returns_down_when_current_pending_count_is_lower(
-        self,
-    ):
-        periods = (
-            MerchantApplicationAnalyticsService
-            .get_weekly_analytics_periods()
-        )
-
-        # Previous period: 12 submissions, all pending.
-        previous_users = self._create_merchants(
-            count=12,
-            prefix="pending-down-previous",
-        )
-
-        previous_applications = MerchantApplication.objects.bulk_create(
-            [
-                MerchantApplication(
-                    USER_ID=user,
-                    MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.SUBMITTED
-                    ),
-                    MAPP_SUBMISSION_COUNT=1,
-                )
-                for user in previous_users
-            ]
-        )
-
-        previous_submitted_at = self._timestamp(
-            periods["previous_start"],
-        )
-
-        previous_submissions = (
-            MerchantApplicationSubmission.objects.bulk_create(
-                [
-                    MerchantApplicationSubmission(
-                        MAPP_ID=application,
-                        MASUB_SUBMISSION_NUMBER=1,
-                        MASUB_SUBMITTED_AT=previous_submitted_at,
-                    )
-                    for application in previous_applications
-                ]
-            )
-        )
-
-        # Current period: 4 of those submissions are reviewed.
-        reviewed_at = self._timestamp(
-            periods["current_start"],
-        )
-
-        MerchantApplicationReview.objects.bulk_create(
-            [
-                MerchantApplicationReview(
-                    MAPP_ID=previous_applications[index],
-                    MASUB_ID=previous_submissions[index],
-                    USER_ID=previous_users[index],
-                    MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.APPROVED
-                    ),
-                    MAREV_REVIEWED_AT=reviewed_at,
-                )
-                for index in range(4)
-            ]
-        )
-
-        # 12 - 4 = 8 pending.
-
-        result = (
-            MerchantApplicationAnalyticsService
-            .get_pending_review_trend()
-        )
-
-        self.assertEqual(
-            result,
-            {
-                "value": 4,
-                "direction": "down",
-                "unit": "count",
-            },
-        )
-
-    def test_pending_review_trend_returns_unchanged_when_pending_counts_are_equal(
-        self,
-    ):
-        periods = (
-            MerchantApplicationAnalyticsService
-            .get_weekly_analytics_periods()
-        )
-
-        # Previous period: 10 pending submissions.
-        previous_users = self._create_merchants(
-            count=10,
-            prefix="pending-equal-previous",
-        )
-
-        previous_applications = MerchantApplication.objects.bulk_create(
-            [
-                MerchantApplication(
-                    USER_ID=user,
-                    MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.SUBMITTED
-                    ),
-                    MAPP_SUBMISSION_COUNT=1,
-                )
-                for user in previous_users
-            ]
-        )
-
-        previous_submitted_at = self._timestamp(
-            periods["previous_start"],
-        )
-
-        previous_submissions = (
-            MerchantApplicationSubmission.objects.bulk_create(
-                [
-                    MerchantApplicationSubmission(
-                        MAPP_ID=application,
-                        MASUB_SUBMISSION_NUMBER=1,
-                        MASUB_SUBMITTED_AT=previous_submitted_at,
-                    )
-                    for application in previous_applications
-                ]
-            )
-        )
-
-        # Review 3 old submissions.
-        current_reviewed_at = self._timestamp(
-            periods["current_start"],
-        )
-
-        MerchantApplicationReview.objects.bulk_create(
-            [
-                MerchantApplicationReview(
-                    MAPP_ID=previous_applications[index],
-                    MASUB_ID=previous_submissions[index],
-                    USER_ID=previous_users[index],
-                    MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.APPROVED
-                    ),
-                    MAREV_REVIEWED_AT=current_reviewed_at,
-                )
-                for index in range(3)
-            ]
-        )
-
-        # Add 3 new submissions.
-        current_users = self._create_merchants(
-            count=3,
-            prefix="pending-equal-current",
-        )
-
-        current_applications = MerchantApplication.objects.bulk_create(
-            [
-                MerchantApplication(
-                    USER_ID=user,
-                    MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.SUBMITTED
-                    ),
-                    MAPP_SUBMISSION_COUNT=1,
-                )
-                for user in current_users
-            ]
-        )
-
-        MerchantApplicationSubmission.objects.bulk_create(
-            [
-                MerchantApplicationSubmission(
-                    MAPP_ID=application,
-                    MASUB_SUBMISSION_NUMBER=1,
-                    MASUB_SUBMITTED_AT=current_reviewed_at,
-                )
-                for application in current_applications
-            ]
-        )
-
-        # Previous: 10 pending.
-        # Current: 10 - 3 + 3 = 10 pending.
-
-        result = (
-            MerchantApplicationAnalyticsService
-            .get_pending_review_trend()
-        )
-
-        self.assertEqual(
-            result,
-            {
-                "value": 0,
-                "direction": "unchanged",
-                "unit": "count",
-            },
-        )
-
-    def test_pending_review_trend_treats_resubmissions_as_separate_submissions(
-        self,
-    ):
-        periods = (
-            MerchantApplicationAnalyticsService
-            .get_weekly_analytics_periods()
-        )
-
-        users = self._create_merchants(
-            count=10,
-            prefix="pending-resubmission",
-        )
-
-        applications = MerchantApplication.objects.bulk_create(
-            [
-                MerchantApplication(
-                    USER_ID=user,
-                    MAPP_STATUS=(
-                        MerchantApplication.ApplicationStatus.SUBMITTED
-                    ),
-                    MAPP_SUBMISSION_COUNT=2,
-                )
-                for user in users
-            ]
-        )
-
-        previous_submitted_at = self._timestamp(
-            periods["previous_start"],
-        )
-
-        first_submissions = (
-            MerchantApplicationSubmission.objects.bulk_create(
-                [
-                    MerchantApplicationSubmission(
-                        MAPP_ID=application,
-                        MASUB_SUBMISSION_NUMBER=1,
-                        MASUB_SUBMITTED_AT=previous_submitted_at,
-                    )
-                    for application in applications
-                ]
-            )
-        )
-
-        # All first submissions are reviewed during the current period.
-        current_reviewed_at = self._timestamp(
-            periods["current_start"],
-        )
-
-        MerchantApplicationReview.objects.bulk_create(
-            [
-                MerchantApplicationReview(
-                    MAPP_ID=application,
-                    MASUB_ID=submission,
-                    USER_ID=user,
-                    MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.REJECTED
-                    ),
-                    MAREV_REVIEWED_AT=current_reviewed_at,
-                )
-                for application, submission, user in zip(
-                    applications,
-                    first_submissions,
-                    users,
-                )
-            ]
-        )
-
-        # Resubmit the first application.
-        MerchantApplicationSubmission.objects.create(
-            MAPP_ID=applications[0],
-            MASUB_SUBMISSION_NUMBER=2,
-            MASUB_SUBMITTED_AT=current_reviewed_at,
-        )
-
-        result = (
-            MerchantApplicationAnalyticsService
-            .get_pending_review_trend()
-        )
-
-        # Previous cutoff:
-        # 10 first submissions were pending.
-        #
-        # Current cutoff:
-        # all 10 first submissions were reviewed,
-        # and submission #2 is pending.
-        #
-        # Therefore the trend is 10 -> 1, or -9.
-
-        self.assertEqual(
-            result,
-            {
-                "value": 9,
-                "direction": "down",
-                "unit": "count",
-            },
-        )
+   

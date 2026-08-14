@@ -1,6 +1,6 @@
 import MetricCard from "@/features/admin-panel/components/MetricCard";
 
-function getTrendBadge(trend, positiveDirection = "up") {
+function getTrend(trend, positiveDirection = "up") {
   if (!trend) {
     return null;
   }
@@ -8,50 +8,55 @@ function getTrendBadge(trend, positiveDirection = "up") {
   if (trend.direction === "unchanged") {
     return {
       variant: "neutral",
-      text: "No change",
+      direction: "unchanged",
+      value: "No change",
     };
   }
 
   const isPositive = trend.direction === positiveDirection;
 
+  const unitSuffix = trend.unit === "percentage_points" ? " pts" : "";
+
   return {
     variant: isPositive ? "success" : "danger",
-    text: `${trend.direction === "up" ? "+" : "-"}${trend.value}${
-      trend.unit === "percentage_points" ? " pp" : ""
-    }`,
+    direction: trend.direction,
+    value: `${trend.direction === "up" ? "+" : "-"}${trend.value}${unitSuffix}`,
   };
 }
 
 /**
  * Displays the primary merchant application KPIs for administrators.
  *
- * The cards focus on review workload, approval performance, SLA compliance,
- * and overall application volume.
+ * The cards focus on review workload, approval performance,
+ * SLA compliance, and resubmission activity.
  */
 export default function BusinessApplicationMetrics({
   pendingReview,
   approvalRate,
+  resubmissionRate,
   slaComplianceRate,
-  totalApplications,
-  pendingReviewTrend,
+  pendingReviewThisWeek,
   approvalRateTrend,
+  resubmissionRateTrend,
   slaComplianceRateTrend,
+  pendingReviewHistory,
+  approvalRateHistory,
+  resubmissionRateHistory,
+  slaComplianceRateHistory,
 }) {
-  const pendingTrend = getTrendBadge(pendingReviewTrend, "down");
-
-  const approvalTrend = getTrendBadge(approvalRateTrend, "up");
-
-  const slaTrend = getTrendBadge(slaComplianceRateTrend, "up");
-
   return (
     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {/* Pending review KPI */}
       <MetricCard
         title="Pending Review"
         value={pendingReview}
-        badgeVariant={pendingTrend?.variant}
-        badgeText={pendingTrend?.text}
-        secondaryLabel="Awaiting administrator review"
+        footerValue={
+          pendingReviewThisWeek === 0
+            ? "0 this week"
+            : `+${pendingReviewThisWeek} this week`
+        }
+        sparklineData={pendingReviewHistory}
+        sparklineValueFormatter={(value) => [value, "Pending Review"]}
       />
 
       {/* Approval rate KPI */}
@@ -62,11 +67,23 @@ export default function BusinessApplicationMetrics({
             ? "—"
             : `${approvalRate}%`
         }
-        badgeVariant={approvalTrend?.variant}
-        badgeText={approvalTrend?.text}
-        secondaryLabel="Of decided applications"
+        trend={getTrend(approvalRateTrend, "up")}
+        sparklineData={approvalRateHistory}
+        sparklineValueFormatter={(value) => [`${value}%`, "Approval Rate"]}
       />
 
+      {/* Resubmission rate KPI */}
+      <MetricCard
+        title="Resubmission Rate"
+        value={
+          resubmissionRate === null || resubmissionRate === undefined
+            ? "—"
+            : `${resubmissionRate}%`
+        }
+        trend={getTrend(resubmissionRateTrend, "down")}
+        sparklineData={resubmissionRateHistory}
+        sparklineValueFormatter={(value) => [`${value}%`, "Resubmission Rate"]}
+      />
       {/* SLA compliance KPI */}
       <MetricCard
         title="SLA Compliance"
@@ -75,16 +92,9 @@ export default function BusinessApplicationMetrics({
             ? "—"
             : `${slaComplianceRate}%`
         }
-        badgeVariant={slaTrend?.variant}
-        badgeText={slaTrend?.text}
-        secondaryLabel="Reviewed within SLA"
-      />
-
-      {/* Total applications KPI */}
-      <MetricCard
-        title="Total Applications"
-        value={totalApplications}
-        secondaryLabel="All applications"
+        trend={getTrend(slaComplianceRateTrend, "up")}
+        sparklineData={slaComplianceRateHistory}
+        sparklineValueFormatter={(value) => [`${value}%`, "SLA Compliance"]}
       />
     </div>
   );

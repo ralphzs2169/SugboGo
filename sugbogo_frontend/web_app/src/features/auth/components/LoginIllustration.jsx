@@ -24,7 +24,7 @@ function LoginIllustration() {
           className="mb-6 h-auto max-h-[70vh] w-full max-w-[460px] object-contain lg:max-w-[540px] xl:max-w-[620px]"
         />
 
-        <p className="max-w-md shrink-0 text-sm leading-relaxed text-gray-500">
+        <p className="max-w-md shrink-0 text-sm leading-relaxed text-text-secondary sm:text-base">
           Simplify tourism management and operations seamlessly.
         </p>
       </div>
