@@ -189,3 +189,24 @@ class BusinessSpecialtyTag(models.Model):
                 name='unique_business_specialty_tag',
             ),
         ]
+
+
+class ServiceableBoundary(models.Model):
+    """Stores the geographic region(s) SugboGo currently accepts business
+    locations within. Starts as Cebu City only; additional rows can be
+    added later if the service area expands (e.g. Mandaue, Lapu-Lapu,
+    or eventually the whole province)."""
+
+    SBND_ID = models.AutoField(primary_key=True)
+    SBND_NAME = models.CharField(max_length=100)
+    SBND_PSGC_CODE = models.CharField(max_length=15, blank=True, null=True)
+    SBND_BOUNDARY = gis_models.MultiPolygonField(srid=4326)
+    SBND_IS_ACTIVE = models.BooleanField(default=True)
+    SBND_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    SBND_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'SERVICEABLE_BOUNDARY'
+
+    def __str__(self):
+        return self.SBND_NAME
