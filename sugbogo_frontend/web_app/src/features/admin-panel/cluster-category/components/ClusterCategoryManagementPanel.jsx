@@ -25,6 +25,8 @@ import EditClusterModal from "./EditClusterModal";
 import EditCategoryModal from "./EditCategoryModal";
 import CategoryFilters from "./CategoryFilters";
 
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+
 /**
  * Combined data table for managing MSME clusters and categories.
  *
@@ -251,18 +253,10 @@ export default function ClusterCategoryTable({
     refetchSummary();
   }
 
-  useEffect(() => {
-    const error = clusterError || categoryError || summaryError;
-
-    if (!error) {
-      return;
-    }
-
-    toast.error(
-      error.response?.data?.message ||
-        "Unable to load the requested data. Please try again.",
-    );
-  }, [clusterError, categoryError, summaryError]);
+  useApiErrorNotification(clusterError || categoryError || summaryError, {
+    toastId: "cluster-category-load-error",
+    fallbackMessage: "Unable to load the requested data. Please try again.",
+  });
   return (
     <>
       <DataTable

@@ -10,8 +10,13 @@ import ApplicationReviewSlaInfoSkeleton from "../business-applications/component
 export default function BusinessApplicationsPage() {
   useDocumentTitle("Business Applications | SugboGo Admin");
 
-  const { statistics, isLoading: isStatisticsLoading } =
-    useBusinessApplicationStatistics();
+  const {
+    statistics,
+    isLoading: isStatisticsLoading,
+    error: statisticsError,
+  } = useBusinessApplicationStatistics();
+
+  const statisticsUnavailable = Boolean(statisticsError);
 
   return (
     <>
@@ -41,23 +46,26 @@ export default function BusinessApplicationsPage() {
 
         {!isStatisticsLoading && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
-            <span>{statistics.total_applications} applications</span>
+            <span>
+              {statisticsUnavailable ? "—" : statistics.total_applications}{" "}
+              applications
+            </span>
 
             <span className="text-stroke">·</span>
 
             <span className="text-emerald-500">
-              {statistics.approved} approved
+              {statisticsUnavailable ? "—" : statistics.approved} approved
             </span>
 
             <span className="text-stroke">·</span>
 
             <span className="text-rose-500">
-              {statistics.rejected} rejected
+              {statisticsUnavailable ? "—" : statistics.rejected} rejected
             </span>
 
-            <span className="text-stroke">·</span>
-
-            <span>{statistics.pending_review} pending</span>
+            <span>
+              {statisticsUnavailable ? "—" : statistics.pending_review} pending
+            </span>
           </div>
         )}
       </div>
@@ -91,6 +99,7 @@ export default function BusinessApplicationsPage() {
           approachingBusinessDays={
             statistics.review_sla_approaching_business_days
           }
+          isError={statisticsUnavailable}
         />
       )}
 

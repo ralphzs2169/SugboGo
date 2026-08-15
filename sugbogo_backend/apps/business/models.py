@@ -4,6 +4,7 @@ from django.db import models
 
 
 class Cluster(models.Model):
+    
     CLUS_ID = models.AutoField(primary_key=True)
     CLUS_NAME = models.CharField(max_length=100, unique=True)
     CLUS_DESCRIPTION = models.TextField(blank=True, null=True)

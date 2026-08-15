@@ -4,8 +4,8 @@ import { createSpecialtyTag } from "../services/specialtyTagService";
 /**
  * Handles specialty tag creation.
  *
- * Manages the submission loading state and normalizes
- * successful and failed creation responses.
+ * Manages the submission loading state while allowing
+ * API errors to propagate to the consuming component.
  */
 export default function useCreateSpecialtyTag() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -14,18 +14,7 @@ export default function useCreateSpecialtyTag() {
     setIsSubmitting(true);
 
     try {
-      const data = await createSpecialtyTag(values);
-
-      return {
-        success: true,
-        data,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message,
-        errors: error.response?.data?.errors ?? {},
-      };
+      return await createSpecialtyTag(values);
     } finally {
       setIsSubmitting(false);
     }

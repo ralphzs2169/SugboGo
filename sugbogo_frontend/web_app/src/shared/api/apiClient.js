@@ -1,7 +1,7 @@
 import axios from "axios";
 
 import { refreshSession } from "./refresh";
-import { getAccessToken, clearTokens } from "./storage";
+import { getAccessToken, clearTokens, setSessionExpired } from "./storage";
 import { attachSyntheticResponse } from "./apiErrors";
 import { API_ERROR_CODE } from "./errorCodes";
 
@@ -82,7 +82,9 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         clearTokens();
 
+        setSessionExpired();
         useAuthStore.getState().clearUser();
+
         window.location.replace("/login");
 
         // If the refresh failed with a real backend response (e.g. the

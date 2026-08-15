@@ -4,8 +4,8 @@ import { deleteSpecialtyTag } from "../services/specialtyTagService";
 /**
  * Handles specialty tag deletion.
  *
- * Manages the deletion loading state and normalizes
- * successful and failed deletion responses.
+ * Manages the deletion loading state while allowing
+ * API errors to propagate to the consuming component.
  */
 export default function useDeleteSpecialtyTag() {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -14,18 +14,7 @@ export default function useDeleteSpecialtyTag() {
     setIsDeleting(true);
 
     try {
-      const response = await deleteSpecialtyTag(specialtyTagId);
-
-      return {
-        success: true,
-        data: response,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message,
-        errors: error.response?.data?.errors,
-      };
+      return await deleteSpecialtyTag(specialtyTagId);
     } finally {
       setIsDeleting(false);
     }

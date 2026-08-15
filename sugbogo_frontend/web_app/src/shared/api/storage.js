@@ -20,3 +20,17 @@ export function clearTokens() {
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
 }
+
+const SESSION_EXPIRED_KEY = "session_expired";
+
+export function setSessionExpired() {
+  sessionStorage.setItem(SESSION_EXPIRED_KEY, "true");
+}
+
+export function getSessionExpired() {
+  return sessionStorage.getItem(SESSION_EXPIRED_KEY) === "true";
+}
+
+export function clearSessionExpired() {
+  sessionStorage.removeItem(SESSION_EXPIRED_KEY);
+}

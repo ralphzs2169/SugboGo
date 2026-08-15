@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { FiTag } from "react-icons/fi";
 import toast from "react-hot-toast";
@@ -14,6 +14,7 @@ import useDeleteSpecialtyTag from "../hooks/useDeleteSpecialtyTag";
 
 import CreateSpecialtyTagModal from "./CreateSpecialtyTagModal";
 import EditSpecialtyTagModal from "./EditSpecialtyTagModal";
+import useApiErrorNotification from "../../../../shared/hooks/useApiErrorNotification";
 
 /**
  * Management panel for specialty tags.
@@ -60,7 +61,7 @@ export default function SpecialtyTagManagementPanel() {
   } = useSpecialtyTags(params);
 
   // Mutations
-  const { remove: deleteSpecialtyTag } = useDeleteSpecialtyTag();
+  const { remove: deleteSpecialtyTag, isDeleting } = useDeleteSpecialtyTag();
 
   // Refresh the table after mutations.
   async function refreshSpecialtyTags() {
@@ -81,24 +82,34 @@ export default function SpecialtyTagManagementPanel() {
 
   // Confirm deletion.
   async function handleConfirmDelete() {
-    const result = await deleteSpecialtyTag(deletingSpecialtyTag.id);
+    try {
+      await deleteSpecialtyTag(deletingSpecialtyTag.id);
 
-    if (!result.success) {
-      return;
+      await refreshSpecialtyTags();
+
+      toast.success("Specialty tag deleted successfully.");
+
+      setDeleteModalOpen(false);
+      setDeletingSpecialtyTag(null);
+    } catch (error) {
+      console.error("Failed to delete specialty tag:", error);
+
+      toast.error(
+        error.response?.data?.message ||
+          "The specialty tag could not be deleted. Please try again.",
+      );
     }
-
-    await refreshSpecialtyTags();
-
-    toast.success("Specialty tag deleted successfully.");
-
-    setDeleteModalOpen(false);
-    setDeletingSpecialtyTag(null);
   }
 
   const columns = getSpecialtyTagColumns(
     handleEditSpecialtyTag,
     handleDeleteSpecialtyTag,
   );
+
+  useApiErrorNotification(error, {
+    toastId: "specialty-tags-error",
+    fallbackMessage: "Unable to load specialty tags. Please try again.",
+  });
 
   return (
     <>
@@ -178,6 +189,7 @@ export default function SpecialtyTagManagementPanel() {
           setDeletingSpecialtyTag(null);
         }}
         onConfirm={handleConfirmDelete}
+        loading={isDeleting}
       />
     </>
   );
