@@ -8,18 +8,7 @@ export default function useDeleteCluster() {
     setIsDeleting(true);
 
     try {
-      const response = await deleteCluster(clusterId);
-
-      return {
-        success: true,
-        data: response,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message,
-        errors: error.response?.data?.errors,
-      };
+      return await deleteCluster(clusterId);
     } finally {
       setIsDeleting(false);
     }

@@ -1,26 +1,21 @@
 import { useState } from "react";
 import Modal from "@/shared/components/modals/Modal";
-import CategoryForm from "./CategoryForm";
-import useCreateCategory from "../hooks/useCreateCategory";
-import useClusters from "../hooks/useClusters";
-import { validateCategory } from "../validation/categoryValidation";
+import ClusterForm from "./ClusterForm";
+import useCreateCluster from "../hooks/useCreateCluster";
+import { toast } from "react-hot-toast";
 
 /**
- * Modal for creating a new category.
- *
+ * Modal for creating a new cluster.
+
  */
-export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
+export default function CreateClusterModal({ isOpen, onClose, onSuccess }) {
   const [values, setValues] = useState({
     name: "",
     description: "",
-    cluster_id: "",
   });
 
   const [errors, setErrors] = useState({});
-
-  const { submit, isSubmitting } = useCreateCategory();
-
-  const { clusters, isLoading: isLoadingClusters } = useClusters();
+  const { submit, isSubmitting } = useCreateCluster();
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -41,49 +36,43 @@ export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    const validationErrors = validateCategory(values);
+    try {
+      await submit(values);
 
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
+      onSuccess?.();
+
+      onClose();
+
+      setValues({
+        name: "",
+        description: "",
+      });
+
+      setErrors({});
+    } catch (error) {
+      setErrors(error.response?.data?.errors ?? {});
+
+      toast.error(
+        error.response?.data?.message ||
+          "The cluster could not be created. Please try again.",
+      );
     }
-
-    const result = await submit(values);
-
-    if (!result.success) {
-      setErrors(result.errors);
-      return;
-    }
-
-    onSuccess?.();
-
-    onClose();
-
-    setValues({
-      name: "",
-      description: "",
-      cluster_id: "",
-    });
-
-    setErrors({});
   }
 
   return (
     <Modal
       isOpen={isOpen}
-      title="Create Category"
-      description="Add a new category and assign it to a cluster."
+      title="Create Cluster"
+      description="Add a new business cluster."
       onClose={onClose}
     >
-      <CategoryForm
+      <ClusterForm
         values={values}
         errors={errors}
-        clusters={clusters}
-        isLoadingClusters={isLoadingClusters}
         onChange={handleChange}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
-        submitLabel="Create Category"
+        submitLabel="Create Cluster"
         onClearError={onClearError}
       />
     </Modal>

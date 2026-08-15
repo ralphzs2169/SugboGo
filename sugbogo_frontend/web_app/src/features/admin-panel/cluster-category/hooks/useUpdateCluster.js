@@ -8,18 +8,7 @@ export default function useUpdateCluster() {
     setIsSubmitting(true);
 
     try {
-      const data = await updateCluster(clusterId, payload);
-
-      return {
-        success: true,
-        data,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || "Something went wrong.",
-        errors: error.response?.data?.errors || {},
-      };
+      return await updateCluster(clusterId, payload);
     } finally {
       setIsSubmitting(false);
     }

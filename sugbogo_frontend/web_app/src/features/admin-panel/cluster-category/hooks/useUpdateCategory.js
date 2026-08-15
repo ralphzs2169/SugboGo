@@ -8,18 +8,7 @@ export default function useUpdateCategory() {
     setIsSubmitting(true);
 
     try {
-      const data = await updateCategory(categoryId, payload);
-
-      return {
-        success: true,
-        data,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || "Something went wrong.",
-        errors: error.response?.data?.errors || {},
-      };
+      return await updateCategory(categoryId, payload);
     } finally {
       setIsSubmitting(false);
     }

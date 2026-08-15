@@ -38,15 +38,6 @@ import CategoryFilters from "./CategoryFilters";
  * Data fetching is handled internally through useClusters
  * and useCategories hooks.
  *
- * @component
- *
- * @param {Object} props
- * @param {Function} props.onEditCluster - Opens cluster edit modal.
- * @param {Function} props.onEditCategory - Opens category edit modal.
- * @param {Function} props.onCreateCluster - Opens create cluster modal.
- * @param {Function} props.onCreateCategory - Opens create category modal.
- *
- * @returns {JSX.Element}
  */
 export default function ClusterCategoryTable({
   onEditCluster,
@@ -73,8 +64,14 @@ export default function ClusterCategoryTable({
   const [deleteType, setDeleteType] = useState(null);
 
   // Mutations
-  const { remove: deleteCluster } = useDeleteCluster();
-  const { remove: deleteCategory } = useDeleteCategory();
+  const { remove: deleteCluster, isDeleting: isDeletingCluster } =
+    useDeleteCluster();
+
+  const { remove: deleteCategory, isDeleting: isDeletingCategory } =
+    useDeleteCategory();
+
+  const isDeleting =
+    deleteType === "cluster" ? isDeletingCluster : isDeletingCategory;
 
   // Table state management hook for global filter, sorting, column filters, and pagination.
   const {
@@ -95,6 +92,7 @@ export default function ClusterCategoryTable({
   const {
     summary,
     isLoading: isLoadingSummary,
+    error: summaryError,
     refetch: refetchSummary,
   } = useClusterCategorySummary();
 
@@ -203,35 +201,34 @@ export default function ClusterCategoryTable({
   const activeResource = isClusterTab ? "Cluster" : "Category";
 
   async function handleConfirmDelete() {
-    let result;
+    try {
+      if (deleteType === "cluster") {
+        await deleteCluster(deletingItem.id);
 
-    if (deleteType === "cluster") {
-      result = await deleteCluster(deletingItem.id);
-
-      if (result.success) {
         await refreshClusters();
 
         toast.success("Cluster deleted successfully.");
       }
-    }
 
-    if (deleteType === "category") {
-      result = await deleteCategory(deletingItem.id);
+      if (deleteType === "category") {
+        await deleteCategory(deletingItem.id);
 
-      if (result.success) {
         await refreshCategories();
 
         toast.success("Category deleted successfully.");
       }
-    }
 
-    if (!result?.success) {
-      return;
-    }
+      setDeleteModalOpen(false);
+      setDeletingItem(null);
+      setDeleteType(null);
+    } catch (error) {
+      console.error("Failed to delete item:", error);
 
-    setDeleteModalOpen(false);
-    setDeletingItem(null);
-    setDeleteType(null);
+      toast.error(
+        error.response?.data?.message ||
+          "The item could not be deleted. Please try again.",
+      );
+    }
   }
 
   useEffect(() => {
@@ -253,6 +250,19 @@ export default function ClusterCategoryTable({
 
     refetchSummary();
   }
+
+  useEffect(() => {
+    const error = clusterError || categoryError || summaryError;
+
+    if (!error) {
+      return;
+    }
+
+    toast.error(
+      error.response?.data?.message ||
+        "Unable to load the requested data. Please try again.",
+    );
+  }, [clusterError, categoryError, summaryError]);
   return (
     <>
       <DataTable
@@ -397,6 +407,7 @@ export default function ClusterCategoryTable({
           setDeleteType(null);
         }}
         onConfirm={handleConfirmDelete}
+        loading={isDeleting}
       />
     </>
   );

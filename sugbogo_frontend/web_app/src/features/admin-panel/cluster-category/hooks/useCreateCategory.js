@@ -8,18 +8,7 @@ export default function useCreateCategory() {
     setIsSubmitting(true);
 
     try {
-      const data = await createCategory(values);
-
-      return {
-        success: true,
-        data,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message,
-        errors: error.response?.data?.errors ?? {},
-      };
+      return await createCategory(values);
     } finally {
       setIsSubmitting(false);
     }

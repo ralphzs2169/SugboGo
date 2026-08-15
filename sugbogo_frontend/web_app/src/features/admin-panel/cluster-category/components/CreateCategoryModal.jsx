@@ -4,6 +4,7 @@ import CategoryForm from "./CategoryForm";
 import useCreateCategory from "../hooks/useCreateCategory";
 import useClusters from "../hooks/useClusters";
 import { validateCategory } from "../validation/categoryValidation";
+import { toast } from "react-hot-toast";
 
 /**
  * Modal for creating a new category.
@@ -48,24 +49,27 @@ export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
       return;
     }
 
-    const result = await submit(values);
+    try {
+      await submit(values);
 
-    if (!result.success) {
-      setErrors(result.errors);
-      return;
+      onSuccess?.();
+
+      onClose();
+
+      setValues({
+        name: "",
+        description: "",
+        cluster_id: "",
+      });
+
+      setErrors({});
+    } catch (error) {
+      setErrors(error.response?.data?.errors ?? {});
+
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      }
     }
-
-    onSuccess?.();
-
-    onClose();
-
-    setValues({
-      name: "",
-      description: "",
-      cluster_id: "",
-    });
-
-    setErrors({});
   }
 
   return (

@@ -2,19 +2,7 @@ import clsx from "clsx";
 
 /**
  * Reusable select input for admin forms.
- *
- * @param {Object} props
- * @param {string} props.id - Select input id.
- * @param {string} props.name - Select input name.
- * @param {string} props.label - Field label.
- * @param {string} props.value - Current select value.
- * @param {Function} props.onChange - Change handler.
- * @param {string} [props.error] - Validation error message.
- * @param {boolean} [props.required=false] - Whether the field is required.
- * @param {boolean} [props.disabled=false] - Whether the select input is disabled.
- * @param {string} [props.placeholder="Select an option"] - Placeholder text for the select input.
- * @param {React.ReactNode} props.children - Options to be rendered inside the select input.
- *
+ 
  */
 export default function SelectInput({
   id,
@@ -36,7 +24,7 @@ export default function SelectInput({
           className="mb-2 block text-sm font-medium text-text-primary"
         >
           {label}
-          {required && <span className="ml-1 text-text-error">*</span>}
+          {required && <span className="ml-1 text-danger">*</span>}
         </label>
       )}
 
