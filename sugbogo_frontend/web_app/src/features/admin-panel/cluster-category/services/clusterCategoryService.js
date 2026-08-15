@@ -10,6 +10,12 @@ export async function fetchClusters(params = {}) {
   return response.data.data;
 }
 
+export async function fetchClusterStatistics() {
+  const response = await apiClient.get("/admin/taxonomy/clusters/statistics/");
+
+  return response.data.data;
+}
+
 export async function createCluster(payload) {
   const response = await apiClient.post("/admin/taxonomy/clusters/", payload);
 
@@ -39,6 +45,14 @@ export async function fetchCategories(params = {}) {
   const response = await apiClient.get("/admin/taxonomy/categories/", {
     params,
   });
+
+  return response.data.data;
+}
+
+export async function fetchCategoryStatistics() {
+  const response = await apiClient.get(
+    "/admin/taxonomy/categories/statistics/",
+  );
 
   return response.data.data;
 }

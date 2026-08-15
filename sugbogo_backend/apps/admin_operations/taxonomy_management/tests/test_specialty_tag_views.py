@@ -345,3 +345,26 @@ class SpecialtyTagViewTests(APITestCase):
             response.status_code,
             status.HTTP_404_NOT_FOUND,
         )
+
+
+    def test_create_specialty_tag_fails_with_name_shorter_than_minimum(self):
+        payload = {
+            "name": "AI",
+            "color": "blue",
+        }
+
+        response = self.client.post(
+            "/api/admin/taxonomy/specialty-tags/",
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertEqual(
+            response.data["errors"]["name"][0],
+            "Specialty tag name must be at least 3 characters.",
+        )
