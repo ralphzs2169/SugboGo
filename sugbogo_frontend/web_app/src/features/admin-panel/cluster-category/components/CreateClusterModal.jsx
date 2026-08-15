@@ -11,6 +11,7 @@ import { toast } from "react-hot-toast";
 export default function CreateClusterModal({ isOpen, onClose, onSuccess }) {
   const [values, setValues] = useState({
     name: "",
+    icon: "utensils",
     description: "",
   });
 
@@ -45,6 +46,7 @@ export default function CreateClusterModal({ isOpen, onClose, onSuccess }) {
 
       setValues({
         name: "",
+        icon: "utensils",
         description: "",
       });
 

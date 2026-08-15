@@ -11,7 +11,7 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only=True,
     )
     created_at = serializers.DateTimeField(source="CTGRY_CREATED_AT", read_only=True)
-
+    updated_at = serializers.DateTimeField(source="CTGRY_UPDATED_AT", read_only=True)
     cluster_id = serializers.PrimaryKeyRelatedField(
         source="CLUS_ID",
         queryset=Cluster.objects.all(),
@@ -20,7 +20,11 @@ class CategorySerializer(serializers.ModelSerializer):
         source="CLUS_ID.CLUS_NAME",
         read_only=True,
     )
-    
+    cluster_icon = serializers.CharField(
+        source="CLUS_ID.CLUS_ICON",
+        read_only=True,
+    )
+    application_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Category
@@ -30,7 +34,10 @@ class CategorySerializer(serializers.ModelSerializer):
             "description",
             "cluster_id",
             "cluster_name",
+            "application_count",
+            "updated_at",
             "created_at",
+            "cluster_icon",
         )
 
 
@@ -73,6 +80,11 @@ class CategoryCreateSerializer(serializers.ModelSerializer):
     def validate_name(self, value):
         value = value.strip()
 
+        if len(value) < 3:
+                raise serializers.ValidationError(
+                    "Category name must be at least 3 characters."
+                )
+        
         if Category.objects.filter(CTGRY_NAME__iexact=value).exists():
             raise serializers.ValidationError(
                 "A category with this name already exists."

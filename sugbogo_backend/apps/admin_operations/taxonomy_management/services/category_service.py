@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 
 from apps.business.models import Category
@@ -10,14 +10,19 @@ class CategoryService:
     def list_categories(search=None, ordering=None, cluster_id=None):
         """
         Retrieve categories with optional search filtering,
-        cluster filtering, and ordering.
+        cluster filtering, ordering, and application usage count.
         """
 
-        queryset = Category.objects.select_related("CLUS_ID")
+        queryset = Category.objects.select_related("CLUS_ID").annotate(
+            application_count=Count(
+                "merchant_application_identities",
+                distinct=True,
+            ),
+        )
 
         if cluster_id:
             queryset = queryset.filter(
-                CLUS_ID=cluster_id
+                CLUS_ID=cluster_id,
             )
 
         if search:
@@ -36,7 +41,7 @@ class CategoryService:
         }
 
         return queryset.order_by(
-            ordering_map.get(ordering, "CTGRY_NAME")
+            ordering_map.get(ordering, "CTGRY_NAME"),
         )
    
     @staticmethod

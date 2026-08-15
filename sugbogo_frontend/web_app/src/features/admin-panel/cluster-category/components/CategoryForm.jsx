@@ -2,7 +2,7 @@ import TextInput from "@/shared/components/forms/TextInput";
 import TextArea from "@/shared/components/forms/TextArea";
 import Button from "@/shared/components/Button";
 import SelectInput from "@/shared/components/forms/SelectInput";
-
+import ClusterSelectInput from "./ClusterSelectInput";
 /**
  * Reusable form for creating and editing categories.
  *
@@ -35,6 +35,8 @@ export default function CategoryForm({
         onChange={handleChange}
         error={errors.name}
         required
+        minLength={3}
+        showCharacterCount
       />
 
       <TextArea
@@ -50,7 +52,7 @@ export default function CategoryForm({
         showCharacterCount
       />
 
-      <SelectInput
+      <ClusterSelectInput
         id="cluster_id"
         name="cluster_id"
         label="Cluster"
@@ -62,13 +64,8 @@ export default function CategoryForm({
         placeholder={
           isLoadingClusters ? "Loading clusters..." : "Select a cluster"
         }
-      >
-        {clusters?.map((cluster) => (
-          <option key={cluster.id} value={cluster.id}>
-            {cluster.name}
-          </option>
-        ))}
-      </SelectInput>
+        clusters={clusters}
+      />
 
       <div className="flex justify-end">
         <Button

@@ -40,6 +40,8 @@ export default function SpecialtyTagForm({
         onChange={handleChange}
         error={errors.name}
         required
+        minLength={3}
+        showCharacterCount
       />
 
       <ColorPicker

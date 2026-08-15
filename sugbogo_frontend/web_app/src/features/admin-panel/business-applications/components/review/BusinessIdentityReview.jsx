@@ -5,6 +5,8 @@ import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 import { Store } from "lucide-react";
 
+import { CLUSTER_ICONS } from "../../../cluster-category/constants/clusterIcons";
+
 const representativeRoleLabels = {
   owner: "Owner",
   manager: "Manager",
@@ -33,6 +35,12 @@ export default function BusinessIdentityReview({
       </ApplicationReviewSection>
     );
   }
+
+  const clusterIcon = CLUSTER_ICONS.find(
+    (icon) => icon.value === identity.business_cluster_icon,
+  );
+
+  const ClusterIcon = clusterIcon?.icon;
 
   return (
     <ApplicationReviewSection
@@ -109,10 +117,23 @@ export default function BusinessIdentityReview({
         </h3>
 
         <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
-          <ApplicationReviewField
-            label="Cluster"
-            value={identity.business_cluster_name}
-          />
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+              Cluster
+            </dt>
+
+            <div className="mt-2 flex items-center gap-2">
+              {ClusterIcon && (
+                <div className="flex shrink-0 items-center justify-center text-text-secondary">
+                  <ClusterIcon className="h-4 w-4" strokeWidth={2} />
+                </div>
+              )}
+
+              <span className="text-sm text-text-primary">
+                {identity.business_cluster_name || "—"}
+              </span>
+            </div>
+          </div>
 
           <ApplicationReviewField
             label="Category"

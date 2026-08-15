@@ -121,6 +121,7 @@ export default function getSpecialtyTagColumns(
       enableSorting: false,
       cell: ({ row }) => {
         const specialtyTag = row.original;
+        const hasApplications = specialtyTag.application_count > 0;
 
         return (
           <div className="flex items-center justify-center gap-2">
@@ -132,7 +133,7 @@ export default function getSpecialtyTagColumns(
               onClick={() => onEditSpecialtyTag(specialtyTag)}
             />
 
-            {specialtyTag.is_used_by_applications ? (
+            {hasApplications ? (
               <Tooltip
                 content="Cannot be deleted because this specialty tag is currently in use."
                 place="top"

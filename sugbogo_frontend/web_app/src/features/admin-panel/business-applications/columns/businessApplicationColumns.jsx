@@ -6,6 +6,7 @@ import { formatDateTime } from "@/shared/utils/dateUtils";
 import StatusBadge from "../../../../shared/components/StatusBadge";
 import statusConfig from "../config/applicationStatus.config";
 import ApplicationQueueStatus from "../components/ApplicationQueueStatus";
+import { CLUSTER_ICONS } from "../../cluster-category/constants/clusterIcons";
 
 const columnHelper = createColumnHelper();
 
@@ -77,15 +78,29 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
       cell: ({ row }) => {
         const application = row.original;
 
+        const clusterIcon = CLUSTER_ICONS.find(
+          (icon) => icon.value === application.cluster_icon,
+        );
+
+        const Icon = clusterIcon?.icon;
+
         return (
           <div>
             <p className="text-sm font-medium text-text-primary">
               {application.category_name || "—"}
             </p>
 
-            <p className="mt-1 text-xs text-text-secondary">
-              {application.cluster_name || "—"}
-            </p>
+            <div className="mt-1 flex items-center gap-2">
+              {Icon && (
+                <span className="flex shrink-0 items-center justify-center text-text-secondary">
+                  <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+                </span>
+              )}
+
+              <p className="truncate text-xs text-text-secondary">
+                {application.cluster_name || "—"}
+              </p>
+            </div>
           </div>
         );
       },

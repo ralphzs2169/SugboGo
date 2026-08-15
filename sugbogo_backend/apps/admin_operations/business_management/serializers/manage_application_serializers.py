@@ -94,6 +94,10 @@ class AdminApplicationIdentitySerializer(serializers.ModelSerializer):
         source="CLUS_ID.CLUS_NAME",
         read_only=True,
     )
+    business_cluster_icon = serializers.CharField(
+        source="CLUS_ID.CLUS_ICON",
+        read_only=True,
+    )
 
     business_category_id = serializers.IntegerField(
         source="CTGRY_ID_id",
@@ -121,6 +125,7 @@ class AdminApplicationIdentitySerializer(serializers.ModelSerializer):
             "representative_role",
             "business_cluster_id",
             "business_cluster_name",
+            "business_cluster_icon",
             "business_category_id",
             "business_category_name",
             "specialty_tags",
@@ -156,6 +161,10 @@ class AdminMerchantApplicationListSerializer(
 
     cluster_name = serializers.CharField(
         source="identity.CLUS_ID.CLUS_NAME",
+        read_only=True,
+    )
+    cluster_icon = serializers.CharField(
+        source="identity.CLUS_ID.CLUS_ICON",
         read_only=True,
     )
 
@@ -194,6 +203,7 @@ class AdminMerchantApplicationListSerializer(
             "id",
             "business_name",
             "cluster_name",
+            "cluster_icon",
             "category_name",
             "status",
             "submission_count",
