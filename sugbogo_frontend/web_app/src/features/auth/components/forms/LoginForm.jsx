@@ -2,13 +2,14 @@ import PasswordInput from "../password/PasswordInput";
 import AuthTextInput from "../common/AuthTextInput";
 import AuthTextButton from "../common/AuthTextButton";
 import PrimaryButton from "../common/PrimaryButton";
-
+import { useAuthStore } from "@/features/auth/storage/auth.store";
 import { LogIn } from "lucide-react";
 import { validateLoginForm } from "../../utils/loginValidator";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useLogin } from "../../hooks/useLogin";
 import { ArrowRight, Anchor } from "lucide-react";
+import { getSessionExpired, clearSessionExpired } from "@/shared/api/storage";
 
 /**
  * LoginForm component renders a login form for the admin dashboard.
@@ -68,6 +69,15 @@ function LoginForm() {
     }
     setFormError(result.message);
   }
+
+  useEffect(() => {
+    if (!getSessionExpired()) {
+      return;
+    }
+
+    setFormError("Your session has expired. Please log in again.");
+    clearSessionExpired();
+  }, []);
 
   return (
     <section className="w-full bg-background">

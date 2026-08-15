@@ -4,9 +4,8 @@ import { updateSpecialtyTag } from "../services/specialtyTagService";
 /**
  * Handles specialty tag updates.
  *
- * Manages the submission state and normalizes API
- * success and validation error responses.
- *
+ * Manages the submission loading state while allowing
+ * API errors to propagate to the consuming component.
  */
 export default function useUpdateSpecialtyTag() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -15,18 +14,7 @@ export default function useUpdateSpecialtyTag() {
     setIsSubmitting(true);
 
     try {
-      const data = await updateSpecialtyTag(tagId, payload);
-
-      return {
-        success: true,
-        data,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || "Something went wrong.",
-        errors: error.response?.data?.errors || {},
-      };
+      return await updateSpecialtyTag(tagId, payload);
     } finally {
       setIsSubmitting(false);
     }

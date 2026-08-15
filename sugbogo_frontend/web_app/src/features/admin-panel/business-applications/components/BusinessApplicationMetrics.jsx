@@ -43,32 +43,37 @@ export default function BusinessApplicationMetrics({
   approvalRateHistory,
   resubmissionRateHistory,
   slaComplianceRateHistory,
+  isError = false,
 }) {
+  const unavailable = isError ? "—" : null;
+
+  const pendingReviewValue = unavailable ?? pendingReview ?? "—";
+
+  const pendingReviewFooter = isError
+    ? "Unable to load"
+    : pendingReviewThisWeek == null
+      ? "—"
+      : pendingReviewThisWeek === 0
+        ? "0 this week"
+        : `+${pendingReviewThisWeek} this week`;
+
   return (
     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {/* Pending review KPI */}
       <MetricCard
         title="Pending Review"
-        value={pendingReview}
-        footerValue={
-          pendingReviewThisWeek === 0
-            ? "0 this week"
-            : `+${pendingReviewThisWeek} this week`
-        }
-        sparklineData={pendingReviewHistory}
+        value={pendingReviewValue}
+        footerValue={pendingReviewFooter}
+        sparklineData={isError ? [] : pendingReviewHistory}
         sparklineValueFormatter={(value) => [value, "Pending Review"]}
       />
 
       {/* Approval rate KPI */}
       <MetricCard
         title="Approval Rate"
-        value={
-          approvalRate === null || approvalRate === undefined
-            ? "—"
-            : `${approvalRate}%`
-        }
-        trend={getTrend(approvalRateTrend, "up")}
-        sparklineData={approvalRateHistory}
+        value={isError || approvalRate == null ? "—" : `${approvalRate}%`}
+        trend={isError ? null : getTrend(approvalRateTrend, "up")}
+        sparklineData={isError ? [] : approvalRateHistory}
         sparklineValueFormatter={(value) => [`${value}%`, "Approval Rate"]}
       />
 
@@ -76,24 +81,21 @@ export default function BusinessApplicationMetrics({
       <MetricCard
         title="Resubmission Rate"
         value={
-          resubmissionRate === null || resubmissionRate === undefined
-            ? "—"
-            : `${resubmissionRate}%`
+          isError || resubmissionRate == null ? "—" : `${resubmissionRate}%`
         }
-        trend={getTrend(resubmissionRateTrend, "down")}
-        sparklineData={resubmissionRateHistory}
+        trend={isError ? null : getTrend(resubmissionRateTrend, "down")}
+        sparklineData={isError ? [] : resubmissionRateHistory}
         sparklineValueFormatter={(value) => [`${value}%`, "Resubmission Rate"]}
       />
+
       {/* SLA compliance KPI */}
       <MetricCard
         title="SLA Compliance"
         value={
-          slaComplianceRate === null || slaComplianceRate === undefined
-            ? "—"
-            : `${slaComplianceRate}%`
+          isError || slaComplianceRate == null ? "—" : `${slaComplianceRate}%`
         }
-        trend={getTrend(slaComplianceRateTrend, "up")}
-        sparklineData={slaComplianceRateHistory}
+        trend={isError ? null : getTrend(slaComplianceRateTrend, "up")}
+        sparklineData={isError ? [] : slaComplianceRateHistory}
         sparklineValueFormatter={(value) => [`${value}%`, "SLA Compliance"]}
       />
     </div>

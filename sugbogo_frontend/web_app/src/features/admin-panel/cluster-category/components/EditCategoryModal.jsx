@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 import Modal from "@/shared/components/modals/Modal";
 import { hasFormChanges } from "@/shared/utils/formUtils";
@@ -85,18 +86,20 @@ export default function EditCategoryModal({
       return;
     }
 
-    const result = await submit(category.id, values);
+    try {
+      await submit(category.id, values);
 
-    if (!result.success) {
-      setErrors(result.errors);
-      return;
+      onSuccess?.();
+      onClose();
+      setErrors({});
+    } catch (error) {
+      setErrors(error.response?.data?.errors ?? {});
+
+      toast.error(
+        error.response?.data?.message ||
+          "The category could not be updated. Please try again.",
+      );
     }
-
-    onSuccess?.();
-
-    onClose();
-
-    setErrors({});
   }
 
   if (!category) return null;

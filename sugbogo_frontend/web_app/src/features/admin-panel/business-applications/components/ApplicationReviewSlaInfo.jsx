@@ -9,6 +9,7 @@ import { useState } from "react";
 export default function ApplicationReviewSlaInfo({
   slaBusinessDays,
   approachingBusinessDays,
+  isError = false,
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -23,6 +24,29 @@ export default function ApplicationReviewSlaInfo({
 
   const onTimeEnd = approachingBusinessDays - 1;
   const approachingEnd = slaBusinessDays - 1;
+
+  if (isError) {
+    return (
+      <div className="mb-6 overflow-hidden rounded-xl border border-info/20 bg-info/5">
+        {/* SLA header */}
+        <div className="flex items-center gap-3 p-4 sm:px-5">
+          <div className="shrink-0 rounded-lg bg-info/10 p-2 text-info">
+            <Clock3 size={18} strokeWidth={2} />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-text-primary">
+              Application Review SLA
+            </h2>
+
+            <p className="mt-0.5 text-xs text-text-secondary">
+              SLA information is currently unavailable.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-6 overflow-hidden rounded-xl border border-info/20 bg-info/5">

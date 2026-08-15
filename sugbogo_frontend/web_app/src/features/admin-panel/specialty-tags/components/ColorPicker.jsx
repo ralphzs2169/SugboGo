@@ -31,7 +31,7 @@ export default function SpecialtyTagColorPicker({
               key={color}
               type="button"
               onClick={() => onChange(color)}
-              className={`min-w-28 rounded-full px-4 py-2 text-sm font-medium transition-all ${
+              className={`cursor-pointer min-w-28 rounded-full px-4 py-2 text-sm font-medium transition-all ${
                 colorClasses[color]
               } ${
                 isSelected

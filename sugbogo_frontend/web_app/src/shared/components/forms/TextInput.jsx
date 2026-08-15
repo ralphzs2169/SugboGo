@@ -25,7 +25,7 @@ export default function TextInput({
           className="mb-2 block text-sm font-medium text-text-primary"
         >
           {label}
-          {required && <span className="ml-1 text-text-error">*</span>}
+          {required && <span className="ml-1 text-danger">*</span>}
         </label>
       )}
 
@@ -58,7 +58,7 @@ export default function TextInput({
         />
       </div>
 
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+      {error && <p className="mt-1 text-xs font-bold text-danger">{error}</p>}
     </div>
   );
 }

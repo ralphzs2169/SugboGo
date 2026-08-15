@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import Modal from "@/shared/components/modals/Modal";
 import { hasFormChanges } from "@/shared/utils/formUtils";
-
+import toast from "react-hot-toast";
 import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
 import useUpdateSpecialtyTag from "../hooks/useUpdateSpecialtyTag";
 
@@ -80,17 +80,21 @@ export default function EditSpecialtyTagModal({
       return;
     }
 
-    const result = await submit(specialtyTag.id, values);
+    try {
+      await submit(specialtyTag.id, values);
 
-    if (!result.success) {
-      setErrors(result.errors);
-      return;
+      onSuccess?.();
+      onClose();
+
+      setErrors({});
+    } catch (error) {
+      setErrors(error.response?.data?.errors ?? {});
+
+      toast.error(
+        error.response?.data?.message ||
+          "The specialty tag could not be updated. Please try again.",
+      );
     }
-
-    onSuccess?.();
-    onClose();
-
-    setErrors({});
   }
 
   if (!specialtyTag) return null;

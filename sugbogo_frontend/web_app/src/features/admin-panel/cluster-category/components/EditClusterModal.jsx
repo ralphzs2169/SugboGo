@@ -6,20 +6,13 @@ import { hasFormChanges } from "@/shared/utils/formUtils";
 import ClusterForm from "./ClusterForm";
 import useUpdateCluster from "../hooks/useUpdateCluster";
 import { validateCluster } from "../validation/clusterValidation";
+import { toast } from "react-hot-toast";
 
 /**
  * Modal for editing an existing cluster.
  *
  * Tracks the original cluster values so the save button
  * can be disabled when no changes have been made.
- *
- * @param {Object} props
- * @param {boolean} props.isOpen
- * @param {Function} props.onClose
- * @param {Function} props.onSuccess
- * @param {Object|null} props.cluster
- *
- * @returns {JSX.Element}
  */
 export default function EditClusterModal({
   isOpen,
@@ -86,18 +79,19 @@ export default function EditClusterModal({
       return;
     }
 
-    const result = await submit(cluster.id, values);
+    try {
+      await submit(cluster.id, values);
 
-    if (!result.success) {
-      setErrors(result.errors);
-      return;
+      onSuccess?.();
+      onClose();
+      setErrors({});
+    } catch (error) {
+      setErrors(error.response?.data?.errors ?? {});
+
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      }
     }
-
-    onSuccess?.();
-
-    onClose();
-
-    setErrors({});
   }
 
   if (!cluster) {

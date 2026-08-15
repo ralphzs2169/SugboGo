@@ -42,6 +42,7 @@ export default function useClusterCategorySummary() {
   return {
     summary,
     isLoading,
+    error,
     refetch: loadSummary,
   };
 }

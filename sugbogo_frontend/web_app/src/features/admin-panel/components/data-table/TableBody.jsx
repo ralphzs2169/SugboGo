@@ -24,11 +24,13 @@ export default function TableBody({ table, emptyState, onRowClick }) {
             {row.getVisibleCells().map((cell) => (
               <td
                 key={cell.id}
-                className={`px-4 py-2 align-middle ${
+                className={`min-w-0 overflow-hidden px-4 py-2 align-middle ${
                   cell.column.id === "actions" ? "text-center" : ""
                 }`}
               >
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                <div className="min-w-0 break-words">
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </div>
               </td>
             ))}
           </tr>

@@ -122,41 +122,39 @@ function DataTable({
         onResetFilters={onResetFilters}
       />
 
-      <div className="w-full overflow-x-auto">
-        <div className="min-h-[520px] overflow-hidden rounded-lg border border-stroke-strong bg-surface">
-          <table className=" w-full table-fixed border-collapse text-left">
-            <TableHeader table={table} />
+      <div className="min-h-[520px] overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-left">
+          <TableHeader table={table} />
 
-            {isLoading ? (
-              <TableSkeletonBody
-                columns={table.getVisibleLeafColumns()}
-                rowCount={pagination.pageSize}
-              />
-            ) : error ? (
-              <tbody>
-                <tr>
-                  <td
-                    colSpan={table.getVisibleLeafColumns().length}
-                    className="p-0"
-                  >
-                    <DataErrorState
-                      title={errorState.title}
-                      message={errorState.message}
-                      onRetry={onRetry}
-                      fullHeight
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            ) : (
-              <TableBody
-                table={table}
-                emptyState={activeEmptyState}
-                onRowClick={onRowClick}
-              />
-            )}
-          </table>
-        </div>
+          {isLoading ? (
+            <TableSkeletonBody
+              columns={table.getVisibleLeafColumns()}
+              rowCount={pagination.pageSize}
+            />
+          ) : error ? (
+            <tbody>
+              <tr>
+                <td
+                  colSpan={table.getVisibleLeafColumns().length}
+                  className="p-0"
+                >
+                  <DataErrorState
+                    title={errorState.title}
+                    message={errorState.message}
+                    onRetry={onRetry}
+                    fullHeight
+                  />
+                </td>
+              </tr>
+            </tbody>
+          ) : (
+            <TableBody
+              table={table}
+              emptyState={activeEmptyState}
+              onRowClick={onRowClick}
+            />
+          )}
+        </table>
       </div>
 
       <TablePagination

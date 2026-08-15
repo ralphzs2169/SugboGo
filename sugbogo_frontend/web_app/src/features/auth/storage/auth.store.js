@@ -10,6 +10,8 @@ export const useAuthStore = create((set) => ({
 
   isLoading: true,
 
+  sessionExpired: false,
+
   setUser: (user) =>
     set({
       user,
@@ -19,6 +21,16 @@ export const useAuthStore = create((set) => ({
   setLoading: (loading) =>
     set({
       isLoading: loading,
+    }),
+
+  setSessionExpired: (sessionExpired) =>
+    set({
+      sessionExpired,
+    }),
+
+  clearSessionExpired: () =>
+    set({
+      sessionExpired: false,
     }),
 
   clearUser: () =>

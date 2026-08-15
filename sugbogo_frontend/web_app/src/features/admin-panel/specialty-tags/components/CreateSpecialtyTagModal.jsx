@@ -4,7 +4,7 @@ import Modal from "@/shared/components/modals/Modal";
 
 import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
 import useCreateSpecialtyTag from "../hooks/useCreateSpecialtyTag";
-
+import { toast } from "react-hot-toast";
 import SpecialtyTagForm from "./SpecialtyTagForm";
 
 export default function CreateSpecialtyTagModal({
@@ -54,24 +54,26 @@ export default function CreateSpecialtyTagModal({
       return;
     }
 
-    const result = await submit(values);
+    try {
+      await submit(values);
 
-    if (!result.success) {
-      setErrors(result.errors);
-      return;
+      onSuccess?.();
+      onClose();
+
+      setValues({
+        name: "",
+        color: "blue",
+      });
+
+      setErrors({});
+    } catch (error) {
+      setErrors(error.response?.data?.errors ?? {});
+
+      toast.error(
+        error.response?.data?.message ||
+          "The specialty tag could not be created. Please try again.",
+      );
     }
-
-    onSuccess?.();
-    onClose();
-
-    // Reset the form so the next creation starts with
-    // an empty name and the default blue color.
-    setValues({
-      name: "",
-      color: "blue",
-    });
-
-    setErrors({});
   }
 
   return (
