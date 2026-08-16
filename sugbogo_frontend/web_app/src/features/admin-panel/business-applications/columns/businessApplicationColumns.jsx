@@ -2,7 +2,7 @@ import { Eye } from "lucide-react";
 import { createColumnHelper } from "@tanstack/react-table";
 import UserAvatar from "@/shared/components/UserAvatar";
 import Button from "@/shared/components/Button";
-import { formatDateTime } from "@/shared/utils/dateUtils";
+import { formatDate } from "@/shared/utils/dateUtils";
 import StatusBadge from "../../../../shared/components/StatusBadge";
 import statusConfig from "../config/applicationStatus.config";
 import ApplicationQueueStatus from "../components/ApplicationQueueStatus";
@@ -143,7 +143,7 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
       },
       cell: (info) => (
         <span className="text-sm text-text-secondary">
-          {formatDateTime(info.getValue())}
+          {formatDate(info.getValue())}
         </span>
       ),
     }),

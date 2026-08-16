@@ -127,7 +127,7 @@ const navigation = [
       {
         type: "link",
         to: "/admin-panel/businesses",
-        label: "Listings",
+        label: "Businesses",
         Icon: FiMapPin,
         roles: ["admin", "super_admin"],
       },

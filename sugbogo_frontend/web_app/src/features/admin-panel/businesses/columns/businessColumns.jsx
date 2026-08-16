@@ -4,7 +4,7 @@ import { Eye, FileText, Ban, CheckCircle, MapPin, Image } from "lucide-react";
 import UserAvatar from "@/shared/components/UserAvatar";
 import Button from "@/shared/components/Button";
 import StatusBadge from "@/shared/components/StatusBadge";
-import { formatDateTime } from "@/shared/utils/dateUtils";
+import { formatDate } from "@/shared/utils/dateUtils";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "../../cluster-category/constants/clusterIcons";
 import ActionMenu from "@/features/admin-panel/components/ActionMenu";
@@ -48,8 +48,8 @@ export default function getBusinessColumns(onViewBusiness) {
     columnHelper.accessor((business) => business.business_name, {
       id: "business_name",
       header: "Business",
-      size: 250,
-      minSize: 180,
+      size: 300,
+      minSize: 250,
       meta: {
         skeleton: "longText",
       },
@@ -108,8 +108,8 @@ export default function getBusinessColumns(onViewBusiness) {
     columnHelper.display({
       id: "classification",
       header: "Classification",
-      size: 230,
-      minSize: 200,
+      size: 250,
+      minSize: 220,
       meta: {
         skeleton: "longText",
       },
@@ -124,7 +124,7 @@ export default function getBusinessColumns(onViewBusiness) {
 
         return (
           <div>
-            <p className="text-sm font-medium text-text-primary">
+            <p className="text-[13px] font-medium text-text-primary">
               {business.category_name || "—"}
             </p>
 
@@ -198,13 +198,13 @@ export default function getBusinessColumns(onViewBusiness) {
     columnHelper.accessor((business) => business.created_at, {
       id: "created_at",
       header: "Created",
-      size: 180,
+      size: 120,
       meta: {
         skeleton: "text",
       },
       cell: (info) => (
         <span className="text-sm text-text-secondary">
-          {formatDateTime(info.getValue())}
+          {formatDate(info.getValue())}
         </span>
       ),
     }),
@@ -215,39 +215,43 @@ export default function getBusinessColumns(onViewBusiness) {
       meta: {
         skeleton: "actions",
       },
-      size: 80,
+      size: 150,
       enableSorting: false,
       cell: ({ row }) => {
         const business = row.original;
         const isActive = business.status === "active";
 
         return (
-          <ActionMenu
-            items={[
-              {
-                key: "view",
-                label: "View business",
-                icon: Eye,
-                onClick: () => onViewBusiness(business),
-              },
-              {
-                key: "application",
-                label: "View application",
-                icon: FileText,
-                onClick: () => onViewApplication(business),
-              },
-              {
-                separator: true,
-              },
-              {
-                key: "status",
-                label: isActive ? "Suspend business" : "Activate business",
-                icon: isActive ? Ban : CheckCircle,
-                destructive: isActive,
-                onClick: () => onToggleStatus(business),
-              },
-            ]}
-          />
+          <div className="flex items-center justify-center ">
+            <Button
+              variant="action"
+              size="sm"
+              icon={Eye}
+              iconOnly
+              tooltipMessage="View business"
+              onClick={() => onViewBusiness(business)}
+            />
+
+            <Button
+              variant="action"
+              size="sm"
+              icon={FileText}
+              iconOnly
+              tooltipMessage="View application"
+              onClick={() => onViewApplication(business)}
+            />
+
+            <Button
+              variant="action"
+              size="sm"
+              icon={isActive ? Ban : CheckCircle}
+              iconOnly
+              tooltipMessage={
+                isActive ? "Suspend business" : "Activate business"
+              }
+              onClick={() => onToggleStatus(business)}
+            />
+          </div>
         );
       },
     }),

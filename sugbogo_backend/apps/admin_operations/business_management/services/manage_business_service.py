@@ -1,3 +1,5 @@
+from rest_framework.exceptions import NotFound
+
 from apps.business.models import Business
 
 
@@ -61,3 +63,50 @@ class BusinessService:
         return queryset.order_by(
             "-BUSN_CREATED_AT",
         )
+
+    @staticmethod
+    def list_business_locations():
+        """
+        Retrieve businesses with valid coordinates for the administrator map.
+        """
+
+        return (
+            Business.objects
+            .select_related(
+                "CTGRY_ID",
+                "CTGRY_ID__CLUS_ID",
+                "LOC_ID",
+            )
+            .filter(
+                LOC_ID__LOCT_POINT__isnull=False,
+            )
+            .order_by(
+                "BUSN_NAME",
+            )
+        )
+
+    @staticmethod
+    def get_business_detail(business_id):
+        try:
+            return (
+                Business.objects
+                .select_related(
+                    "USER_ID",
+                    "CTGRY_ID",
+                    "CTGRY_ID__CLUS_ID",
+                    "LOC_ID",
+                    "merchant_application",
+                )
+                .prefetch_related(
+                    "SPECIALTY_TAGS",
+                    "photos",
+                    "operating_hours",
+                )
+                .get(
+                    BUSN_ID=business_id,
+                )
+            )
+        except Business.DoesNotExist:
+            raise NotFound(
+                "The business could not be found.",
+            )

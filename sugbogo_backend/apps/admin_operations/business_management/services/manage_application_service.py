@@ -3,7 +3,12 @@ from django.db.models import Case, IntegerField, Prefetch, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
-from apps.business.models import Business, BusinessOperatingHours, BusinessPhoto, BusinessSpecialtyTag, Location
+from apps.business.models import (
+    Business,
+    BusinessOperatingHours,
+    BusinessSpecialtyTag,
+    Location,
+)
 from apps.merchant_application.constants import (
     APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
     APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
