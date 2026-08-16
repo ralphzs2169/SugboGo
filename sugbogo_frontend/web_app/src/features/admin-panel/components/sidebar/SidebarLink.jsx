@@ -26,8 +26,7 @@ export default function SidebarLink({
   const isCustomActive =
     activePaths.length > 0
       ? activePaths.some((path) => location.pathname.startsWith(path))
-      : location.pathname.startsWith(to);
-
+      : location.pathname === to;
   const link = (
     <NavLink
       to={to}

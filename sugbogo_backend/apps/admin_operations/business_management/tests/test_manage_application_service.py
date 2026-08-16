@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
+from django.contrib.gis.geos import MultiPolygon, Polygon
 
 from apps.admin_operations.business_management.services.manage_application_service import (
     ApplicationService,
@@ -28,10 +29,12 @@ from apps.merchant_application.utils.application_queue import (
     get_business_day_cutoff,
 )
 from apps.merchant_application.services.identity_service import IdentityService
+from apps.business.models import Business, BusinessSpecialtyTag
 
 
 class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
     """Test administrator-facing merchant application service operations."""
+
 
     def _create_admin(self, email="admin-application-service@example.com"):
         return User.objects.create_user(
@@ -985,6 +988,40 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             review.MAREV_SLA_COMPLIANT,
         )
 
+        self.assertIsNotNone(result.BUSN_ID)
+
+        business = result.BUSN_ID
+
+        self.assertEqual(
+            business.BUSN_NAME,
+            application.identity.MIDN_BUSINESS_NAME,
+        )
+
+        self.assertEqual(
+            business.BUSN_DESCRIPTION,
+            application.identity.MIDN_BUSINESS_DESCRIPTION,
+        )
+
+        self.assertEqual(
+            business.USER_ID_id,
+            application.USER_ID_id,
+        )
+
+        self.assertEqual(
+            business.CTGRY_ID_id,
+            application.identity.CTGRY_ID_id,
+        )
+
+        self.assertEqual(
+            business.BUSN_STATUS,
+            Business.BusinessStatus.ACTIVE,
+        )
+
+        self.assertEqual(
+            business.merchant_application.MAPP_ID,
+            application.MAPP_ID,
+        )
+
     def test_approve_application_uses_latest_submission_for_review(self):
         application = self._build_complete_application()
         reviewer = self._create_admin(
@@ -1153,4 +1190,255 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
         self.assertEqual(
             applicant.USER_ROLE,
             User.UserRole.MERCHANT,
+        )
+
+
+    def test_approve_application_creates_business_location(self):
+        application = self._build_complete_application()
+        reviewer = self._create_admin(
+            email="approve-location-admin@example.com",
+        )
+
+        submitted_at = timezone.now() - timedelta(days=1)
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.SUBMITTED
+        )
+        application.MAPP_SUBMITTED_AT = submitted_at
+        application.MAPP_REVIEWED_AT = None
+        application.MAPP_SUBMISSION_COUNT = 1
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_SUBMITTED_AT",
+                "MAPP_REVIEWED_AT",
+                "MAPP_SUBMISSION_COUNT",
+            ],
+        )
+
+        self._create_submission(
+            application,
+            submission_number=1,
+            submitted_at=submitted_at,
+        )
+
+        application_location = application.location
+
+        ApplicationService.approve_application(
+            application_id=application.MAPP_ID,
+            reviewer=reviewer,
+        )
+
+        application.refresh_from_db()
+
+        business = application.BUSN_ID
+        location = business.LOC_ID
+
+        self.assertIsNotNone(
+            location,
+        )
+
+        self.assertEqual(
+            location.LOCT_POINT,
+            application_location.MLOC_POINT,
+        )
+
+        expected_address = ", ".join(
+            part
+            for part in [
+                application_location.MLOC_STREET_ADDRESS,
+                application_location.MLOC_UNIT,
+                application_location.MLOC_BARANGAY,
+            ]
+            if part
+        )
+
+        self.assertEqual(
+            location.LOCT_ADDRESS,
+            expected_address,
+        )
+
+        self.assertEqual(
+            location.LOCT_CITY,
+            application_location.MLOC_CITY,
+        )
+
+        self.assertEqual(
+            location.LOCT_PROVINCE,
+            application_location.MLOC_PROVINCE,
+        )
+
+
+    def test_approve_application_copies_specialty_tags_to_business(self):
+        application = self._build_complete_application()
+        reviewer = self._create_admin(
+            email="approve-tags-admin@example.com",
+        )
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.SUBMITTED
+        )
+        application.MAPP_SUBMISSION_COUNT = 1
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_SUBMISSION_COUNT",
+            ],
+        )
+
+        submission = self._create_submission(
+            application,
+            submission_number=1,
+        )
+
+        application_tags = list(
+            application.identity.specialty_tags.all()
+        )
+
+        ApplicationService.approve_application(
+            application_id=application.MAPP_ID,
+            reviewer=reviewer,
+        )
+
+        business = (
+            MerchantApplication.objects
+            .get(MAPP_ID=application.MAPP_ID)
+            .BUSN_ID
+        )
+
+        business_tag_ids = set(
+            BusinessSpecialtyTag.objects
+            .filter(BUSN_ID=business)
+            .values_list("TAG_ID", flat=True)
+        )
+
+        application_tag_ids = {
+            tag.TAG_ID
+            for tag in application_tags
+        }
+
+        self.assertEqual(
+            business_tag_ids,
+            application_tag_ids,
+        )
+
+    def test_approve_application_links_business_to_application(self):
+        application = self._build_complete_application()
+        reviewer = self._create_admin(
+            email="approve-business-link-admin@example.com",
+        )
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.SUBMITTED
+        )
+        application.MAPP_SUBMISSION_COUNT = 1
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_SUBMISSION_COUNT",
+            ],
+        )
+
+        self._create_submission(
+            application,
+            submission_number=1,
+        )
+
+        ApplicationService.approve_application(
+            application_id=application.MAPP_ID,
+            reviewer=reviewer,
+        )
+
+        application.refresh_from_db()
+
+        business = application.BUSN_ID
+
+        self.assertIsNotNone(
+            business,
+        )
+
+        self.assertEqual(
+            business.merchant_application.MAPP_ID,
+            application.MAPP_ID,
+        )
+
+        self.assertEqual(
+            MerchantApplication.objects.filter(
+                BUSN_ID=business,
+            ).count(),
+            1,
+        )
+
+
+    def test_approve_application_copies_operating_hours_to_business(self):
+        application = self._build_complete_application()
+        reviewer = self._create_admin(
+            email="approve-hours-admin@example.com",
+        )
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.SUBMITTED
+        )
+        application.MAPP_SUBMISSION_COUNT = 1
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_SUBMISSION_COUNT",
+            ],
+        )
+
+        self._create_submission(
+            application,
+            submission_number=1,
+        )
+
+        application_hours = list(
+            application.operating_hours.all()
+        )
+
+        ApplicationService.approve_application(
+            application_id=application.MAPP_ID,
+            reviewer=reviewer,
+        )
+
+        business = (
+            MerchantApplication.objects
+            .get(MAPP_ID=application.MAPP_ID)
+            .BUSN_ID
+        )
+
+        business_hours = list(
+            business.operating_hours.all()
+        )
+
+        self.assertEqual(
+            len(business_hours),
+            len(application_hours),
+        )
+
+        application_hours_data = {
+            (
+                hours.MHRS_DAY,
+                hours.MHRS_IS_OPEN,
+                hours.MHRS_IS_24_HOURS,
+                hours.MHRS_OPEN_TIME,
+                hours.MHRS_CLOSE_TIME,
+            )
+            for hours in application_hours
+        }
+
+        business_hours_data = {
+            (
+                hours.BOHR_DAY,
+                hours.BOHR_IS_OPEN,
+                hours.BOHR_IS_24_HOURS,
+                hours.BOHR_OPEN_TIME,
+                hours.BOHR_CLOSE_TIME,
+            )
+            for hours in business_hours
+        }
+
+        self.assertEqual(
+            business_hours_data,
+            application_hours_data,
         )

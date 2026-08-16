@@ -54,6 +54,15 @@ class MerchantApplication(models.Model):
         null=True,
     )
 
+    BUSN_ID = models.OneToOneField(
+        "business.Business",
+        on_delete=models.PROTECT,
+        db_column="BUSN_ID",
+        related_name="merchant_application",
+        null=True,
+        blank=True,
+    )
+
     class Meta:
         db_table = 'MERCHANT_APPLICATION'
         constraints = [
@@ -243,7 +252,7 @@ class MerchantApplicationLocation(models.Model):
     MLOC_POINT = gis_models.PointField(srid=4326)
     MLOC_CREATED_AT = models.DateTimeField(auto_now_add=True)
     MLOC_UPDATED_AT = models.DateTimeField(auto_now=True)
-
+    
     MAPP_ID = models.OneToOneField(
         MerchantApplication, on_delete=models.CASCADE,
         db_column='MAPP_ID', related_name='location'

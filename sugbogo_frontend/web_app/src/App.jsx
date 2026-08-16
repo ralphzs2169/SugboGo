@@ -7,6 +7,7 @@ import LoginPage from "@/features/auth/pages/LoginPage";
 
 import AdminPanelLayout from "@/features/admin-panel/pages/AdminPanelLayout";
 import Dashboard from "@/features/admin-panel/pages/Dashboard";
+import Businesses from "@/features/admin-panel/pages/BusinessesPage";
 import Msmes from "@/features/admin-panel/pages/Msmes";
 import Users from "@/features/admin-panel/pages/Users";
 import ExplorerActivities from "@/features/admin-panel/pages/ExplorerActivities";
@@ -61,6 +62,7 @@ function App() {
               element={<BusinessApplicationReviewPage />}
             />
             <Route path="businesses/listings" element={<Msmes />} />
+            <Route path="businesses" element={<Businesses />} />
 
             <Route path="cluster-category" element={<ClusterCategoryPage />} />
             <Route path="users" element={<Users />} />

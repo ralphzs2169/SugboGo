@@ -244,7 +244,7 @@ export default function BusinessLocationMap({
               ) : (
                 <p className="mt-1 text-xs text-gray-600">
                   {selectedMarker.source === "google"
-                    ? selectedMarker.address || "No address provided."
+                    ? selectedMarker.address
                     : "Custom landmark"}
                 </p>
               )}

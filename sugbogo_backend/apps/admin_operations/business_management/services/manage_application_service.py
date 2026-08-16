@@ -3,6 +3,7 @@ from django.db.models import Case, IntegerField, Prefetch, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
+from apps.business.models import Business, BusinessOperatingHours, BusinessPhoto, BusinessSpecialtyTag, Location
 from apps.merchant_application.constants import (
     APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
     APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
@@ -12,6 +13,8 @@ from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationDocument,
     MerchantApplicationFeedback,
+    MerchantApplicationIdentity,
+    MerchantApplicationLocation,
     MerchantApplicationReview,
     MerchantApplicationSubmission,
 )
@@ -308,8 +311,9 @@ class ApplicationService:
         """
         Approve a submitted merchant application.
 
-        Creates a permanent approval review record linked to the
-        specific submission that was reviewed.
+        Creates the permanent Business, Location, Photo, and Operating Hours
+        records from the approved application data, records the approval review,
+        and promotes the applicant to the merchant role.
         """
 
         application = (
@@ -344,6 +348,20 @@ class ApplicationService:
                 "The application's submission history could not be found.",
             )
 
+        try:
+            identity = application.identity
+        except MerchantApplicationIdentity.DoesNotExist:
+            raise ValidationError(
+                "The application's business identity could not be found.",
+            )
+
+        try:
+            application_location = application.location
+        except MerchantApplicationLocation.DoesNotExist:
+            raise ValidationError(
+                "The application's business location could not be found.",
+            )
+
         reviewed_at = timezone.now()
 
         sla_compliant = is_review_sla_compliant(
@@ -360,6 +378,71 @@ class ApplicationService:
             MAREV_SLA_COMPLIANT=sla_compliant,
         )
 
+        # Create permanent location.
+
+        location_address_parts = [
+            application_location.MLOC_STREET_ADDRESS,
+            application_location.MLOC_UNIT,
+            application_location.MLOC_BARANGAY,
+        ]
+
+        location = Location.objects.create(
+            LOCT_POINT=application_location.MLOC_POINT,
+            LOCT_ADDRESS=", ".join(
+                part
+                for part in location_address_parts
+                if part
+            ),
+            LOCT_CITY=application_location.MLOC_CITY,
+            LOCT_PROVINCE=application_location.MLOC_PROVINCE,
+        )
+
+        # Create permanent business.
+
+        business = Business.objects.create(
+            BUSN_NAME=identity.MIDN_BUSINESS_NAME,
+            BUSN_DESCRIPTION=identity.MIDN_BUSINESS_DESCRIPTION,
+            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            USER_ID=application.USER_ID,
+            CTGRY_ID=identity.CTGRY_ID,
+            LOC_ID=location,
+        )
+
+        # Copy specialty tags.
+
+        specialty_tags = identity.specialty_tags.all()
+
+        BusinessSpecialtyTag.objects.bulk_create(
+            [
+                BusinessSpecialtyTag(
+                    BUSN_ID=business,
+                    TAG_ID=tag,
+                )
+                for tag in specialty_tags
+            ]
+        )
+
+        # Copy approved operating hours.
+
+        application_hours = application.operating_hours.all()
+
+        BusinessOperatingHours.objects.bulk_create(
+            [
+                BusinessOperatingHours(
+                    BUSN_ID=business,
+                    BOHR_DAY=hours.MHRS_DAY,
+                    BOHR_IS_OPEN=hours.MHRS_IS_OPEN,
+                    BOHR_IS_24_HOURS=hours.MHRS_IS_24_HOURS,
+                    BOHR_OPEN_TIME=hours.MHRS_OPEN_TIME,
+                    BOHR_CLOSE_TIME=hours.MHRS_CLOSE_TIME,
+                )
+                for hours in application_hours
+            ]
+        )
+
+        # Link the permanent Business to the approved application.
+
+        application.BUSN_ID = business
         application.MAPP_STATUS = (
             MerchantApplication.ApplicationStatus.APPROVED
         )
@@ -367,15 +450,17 @@ class ApplicationService:
 
         application.save(
             update_fields=[
+                "BUSN_ID",
                 "MAPP_STATUS",
                 "MAPP_REVIEWED_AT",
                 "MAPP_UPDATED_AT",
             ],
         )
 
+        # Promote the applicant to merchant.
+
         applicant = application.USER_ID
 
-        # YAYY MERCHANT NAKA!!!
         applicant.USER_ROLE = User.UserRole.MERCHANT
         applicant.save(
             update_fields=[

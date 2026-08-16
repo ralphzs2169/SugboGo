@@ -1,7 +1,7 @@
 from django.urls import path
 
 from apps.admin_operations.business_management.views.business_views import (
-    BusinessVerifyView,
+    BusinessListView
 )
 from apps.admin_operations.business_management.views.manage_application_views import (
     MerchantApplicationApproveView,
@@ -13,7 +13,10 @@ from apps.admin_operations.business_management.views.manage_application_views im
 )
 
 urlpatterns = [
- 
+  
+    path("", BusinessListView.as_view(), name="business-list"),
+
+
     path("applications/", MerchantApplicationListView.as_view(), name="merchant-application-list", ),
     path("applications/<int:application_id>/", MerchantApplicationDetailView.as_view(), name="merchant-application-detail"),
     path("applications/<int:application_id>/documents/<int:document_id>/preview/", MerchantApplicationDocumentPreviewView.as_view(),name="merchant-application-document-preview",),
@@ -21,5 +24,5 @@ urlpatterns = [
     path("applications/<int:application_id>/approve/",MerchantApplicationApproveView.as_view(),name="merchant-application-approve"),
     path('applications/statistics/', MerchantApplicationStatisticsView.as_view(), name='merchant-application-statistics'),
 
-    path('<int:BUSN_ID>/verify/', BusinessVerifyView.as_view(), name='business-verify'),
+  
 ]
