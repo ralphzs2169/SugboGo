@@ -9,17 +9,23 @@ class ApplicationIdentitySerializer(serializers.ModelSerializer):
 
     business_name = serializers.CharField(
         source="MIDN_BUSINESS_NAME",
+        min_length=2,
         error_messages={
             "blank": "Business name is required.",
             "required": "Business name is required.",
+            "min_length": "Business name must be at least 2 characters.",
         },
     )
     business_description = serializers.CharField(
         source="MIDN_BUSINESS_DESCRIPTION",
         trim_whitespace=True,
+        min_length=10,
         error_messages={
             "blank": "Business description is required.",
             "required": "Business description is required.",
+            "min_length": (
+                "Business description must be at least 10 characters."
+            ),
         },
     )
     contact_number = serializers.RegexField(
@@ -45,9 +51,11 @@ class ApplicationIdentitySerializer(serializers.ModelSerializer):
     )
     representative_name = serializers.CharField(
         source="MIDN_REPRESENTATIVE_NAME",
+        min_length=2,
         error_messages={
             "blank": "Representative name is required.",
             "required": "Representative name is required.",
+            "min_length": "Representative name must be at least 2 characters.",
         },
     )
     representative_role = serializers.ChoiceField(

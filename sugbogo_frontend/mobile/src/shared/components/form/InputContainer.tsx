@@ -9,17 +9,14 @@ interface InputContainerProps {
   required?: boolean;
   editable?: boolean;
   helperText?: string;
+  bottomElement?: ReactNode;
 }
 
 /**
  * InputContainer provides a reusable wrapper for form inputs.
  *
- * It renders:
- * - a field label
- * - an optional right-side element
- * - the input container
- * - an optional validation error
- * - an optional editable state
+ * It renders the field label, input container, validation feedback,
+ * helper content, and optional additional content below the input.
  */
 export default function InputContainer({
   label,
@@ -29,9 +26,11 @@ export default function InputContainer({
   required = false,
   editable = true,
   helperText,
+  bottomElement,
 }: InputContainerProps) {
   return (
     <View className="mb-5">
+      {/* Field label */}
       <View className="mb-1.5 flex-row items-center justify-between">
         <Text className="text-xs font-bold tracking-[0.5px] text-text-secondary">
           {label}
@@ -41,6 +40,7 @@ export default function InputContainer({
         {rightElement}
       </View>
 
+      {/* Input */}
       <View
         className={`flex-row items-center rounded-input border px-[14px] ${
           error
@@ -53,7 +53,10 @@ export default function InputContainer({
         {children}
       </View>
 
-      {error ? (
+      {/* Validation and helper feedback */}
+      {bottomElement ? (
+        bottomElement
+      ) : error ? (
         <Text className="mt-1 text-xs font-medium text-text-error">
           {error}
         </Text>

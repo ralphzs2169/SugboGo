@@ -10,6 +10,7 @@ export type BusinessLocationAddress = {
 export type BusinessLocation = BusinessLocationAddress & {
   latitude: number;
   longitude: number;
+  isWithinServiceArea: boolean;
 };
 
 // Represents a place suggestion returned by Google Places autocomplete.
@@ -27,18 +28,11 @@ export type PlaceSuggestion = {
  */
 export type BusinessLandmark = {
   id: string;
-
   name: string;
-
   address: string;
-
   latitude: number;
-
   longitude: number;
-
   source: "google" | "custom";
-
   placeId?: string;
-
   isSelected?: boolean;
 };

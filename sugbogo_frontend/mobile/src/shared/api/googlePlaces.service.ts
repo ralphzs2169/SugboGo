@@ -45,12 +45,22 @@ export function reverseGeocode(
   latitude: number,
   longitude: number,
 ): Promise<
-  ApiResponse<{ address: Omit<BusinessLocation, "latitude" | "longitude"> }>
+  ApiResponse<{
+    address: Omit<
+      BusinessLocation,
+      "latitude" | "longitude" | "isWithinServiceArea"
+    >;
+    is_within_service_area: boolean;
+  }>
 > {
   return request(
     apiClient.post<
       ApiResponse<{
-        address: Omit<BusinessLocation, "latitude" | "longitude">;
+        address: Omit<
+          BusinessLocation,
+          "latitude" | "longitude" | "isWithinServiceArea"
+        >;
+        is_within_service_area: boolean;
       }>
     >("/merchant/application/reverse-geocode/", {
       latitude,
@@ -58,7 +68,6 @@ export function reverseGeocode(
     }),
   );
 }
-
 /**
  * Retrieves nearby landmarks for the given geographic coordinates.
  */

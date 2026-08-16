@@ -201,6 +201,8 @@ export default function BusinessLocationStep({
                 ? "Unable to detect automatically. Please enter it manually."
                 : undefined
             }
+            minLength={2}
+            showCharacterCount
           />
         </View>
 
@@ -221,6 +223,8 @@ export default function BusinessLocationStep({
                 ? "Unable to detect automatically. Please enter it manually."
                 : undefined
             }
+            minLength={2}
+            showCharacterCount
           />
         </View>
 
@@ -239,6 +243,8 @@ export default function BusinessLocationStep({
                 ? "Unable to detect automatically. Please enter it manually."
                 : undefined
             }
+            minLength={2}
+            showCharacterCount
           />
         </View>
 
@@ -258,6 +264,8 @@ export default function BusinessLocationStep({
               ? "Unable to detect automatically. Please enter it manually."
               : undefined
           }
+          minLength={5}
+          showCharacterCount
         />
 
         <RHFFormInput

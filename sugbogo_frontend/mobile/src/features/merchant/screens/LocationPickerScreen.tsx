@@ -82,6 +82,11 @@ export default function BusinessLocationPickerScreen({
         }
 
         console.error("Failed to reverse geocode location:", response.message);
+
+        // The address couldn't be resolved at all, so we have no way to
+        // know whether it's within the service area either — treat this
+        // failure state as "unknown, not confirmed in-bounds" rather
+        // than silently defaulting to true.
         setSelectedLocation({
           latitude,
           longitude,
@@ -90,6 +95,7 @@ export default function BusinessLocationPickerScreen({
           city: "",
           barangay: "",
           streetAddress: "",
+          isWithinServiceArea: false,
         });
         return;
       }
@@ -100,6 +106,7 @@ export default function BusinessLocationPickerScreen({
         latitude,
         longitude,
         ...response.data.address,
+        isWithinServiceArea: response.data.is_within_service_area,
       });
     } catch (error) {
       console.error("Failed to reverse geocode location:", error);
@@ -114,6 +121,7 @@ export default function BusinessLocationPickerScreen({
           city: "",
           barangay: "",
           streetAddress: "",
+          isWithinServiceArea: false,
         });
       }
     } finally {
@@ -122,8 +130,13 @@ export default function BusinessLocationPickerScreen({
   }
 
   // Commit the selected location only after the user confirms it.
+  // Locations outside the service area cannot be confirmed.
   function handleConfirm() {
     if (!selectedLocation) {
+      return;
+    }
+
+    if (!selectedLocation.isWithinServiceArea) {
       return;
     }
 
@@ -156,6 +169,7 @@ export default function BusinessLocationPickerScreen({
         <ConfirmLocationSheet
           address={selectedLocation?.formattedAddress || "Address unavailable"}
           isResolvingAddress={isResolvingAddress}
+          isWithinServiceArea={selectedLocation?.isWithinServiceArea ?? false}
           onConfirm={handleConfirm}
           isConfirming={isConfirming}
         />

@@ -14,6 +14,24 @@ class LocationService:
     STEP = 2
 
     @staticmethod
+    def is_within_service_area(latitude, longitude):
+        """
+        Returns whether the given coordinates fall within any active
+        ServiceableBoundary (currently Cebu City only).
+
+        Unlike `_validate_within_service_area`, this never raises —
+        it's meant for read-only checks (e.g. surfacing the result to
+        the frontend before a save is attempted), not enforcement.
+        """
+        point = Point(x=longitude, y=latitude, srid=4326)
+
+        return ServiceableBoundary.objects.filter(
+            SBND_IS_ACTIVE=True,
+            SBND_BOUNDARY__contains=point,
+        ).exists()
+    
+   
+    @staticmethod
     def _validate_within_service_area(latitude, longitude, field_label="location"):
         """
         Raises a ValidationError if the given coordinates do not fall
@@ -21,12 +39,7 @@ class LocationService:
         """
         point = Point(x=longitude, y=latitude, srid=4326)
 
-        is_within_service_area = ServiceableBoundary.objects.filter(
-            SBND_IS_ACTIVE=True,
-            SBND_BOUNDARY__contains=point,
-        ).exists()
-
-        if not is_within_service_area:
+        if not LocationService.is_within_service_area(latitude, longitude):
             raise ValidationError({
                 field_label: (
                     "The selected location is outside our current service "

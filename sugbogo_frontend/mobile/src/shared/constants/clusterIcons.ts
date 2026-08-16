@@ -1,0 +1,37 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+
+export const CLUSTER_ICONS: Record<
+  string,
+  keyof typeof MaterialCommunityIcons.glyphMap
+> = {
+  utensils: "silverware-fork-knife",
+  coffee: "coffee",
+  shopping_bag: "shopping",
+  store: "store",
+  bed_double: "bed",
+  hotel: "bed",
+  landmark: "city",
+  church: "church",
+  tree_palm: "palm-tree",
+  waves: "waves",
+  mountain: "image-filter-hdr",
+  trees: "forest",
+  compass: "compass",
+  map_pinned: "map-marker",
+  camera: "camera",
+  music: "music",
+  ticket: "ticket",
+  dumbbell: "dumbbell",
+  heart_pulse: "heart-pulse",
+  sparkles: "creation",
+  palette: "palette",
+  book_open: "book-open-variant",
+  graduation_cap: "school",
+  briefcase_business: "briefcase",
+  car: "car",
+  bus: "bus",
+  bike: "bike",
+  ship: "ferry",
+  paw_print: "paw",
+  leaf: "leaf",
+};

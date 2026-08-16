@@ -14,6 +14,9 @@ import ReviewRow from "../ReviewRow";
 import SpecialtyTagChip from "../../specialty-tags/SpecialtyTagChip";
 import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import ReviewSectionFeedback from "../ReviewSectionFeedback";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { theme } from "@/constants/theme";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessIdentityProps = {
@@ -40,9 +43,14 @@ export default function ReviewBusinessIdentity({
 }: ReviewBusinessIdentityProps) {
   const { specialtyTags } = useSpecialtyTags();
 
-  const clusterName =
-    clusters.find((cluster) => cluster.id.toString() === form.businessCluster)
-      ?.name ?? "Not provided";
+  const selectedCluster = clusters.find(
+    (cluster) => cluster.id.toString() === form.businessCluster,
+  );
+
+  const clusterName = selectedCluster?.name ?? "Not provided";
+  const clusterIcon = selectedCluster
+    ? CLUSTER_ICONS[selectedCluster.icon]
+    : undefined;
 
   const categoryName =
     categories.find(
@@ -70,7 +78,23 @@ export default function ReviewBusinessIdentity({
 
       <View className="flex-row flex-wrap">
         <View className="w-1/2 pr-2">
-          <ReviewRow label="Business Cluster" value={clusterName} />
+          <Text className="mb-1 text-sm font-medium text-text-secondary">
+            Business Cluster
+          </Text>
+
+          <View className="flex-row items-center">
+            {clusterIcon && (
+              <MaterialCommunityIcons
+                name={clusterIcon}
+                size={17}
+                color={theme.extends.colors.text.primary}
+              />
+            )}
+
+            <Text className="ml-1 flex-1 text-base text-text-primary">
+              {clusterName}
+            </Text>
+          </View>
         </View>
 
         <View className="w-1/2 pl-2">

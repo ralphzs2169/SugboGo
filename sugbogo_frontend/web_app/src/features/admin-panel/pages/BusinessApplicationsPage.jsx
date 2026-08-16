@@ -72,7 +72,7 @@ export default function BusinessApplicationsPage() {
 
       {/* Application metrics */}
       {isStatisticsLoading ? (
-        <MetricCardsSkeleton count={8} includeSparkline={true} />
+        <MetricCardsSkeleton count={4} includeSparkline={true} />
       ) : (
         <BusinessApplicationMetrics
           pendingReview={statistics.pending_review}

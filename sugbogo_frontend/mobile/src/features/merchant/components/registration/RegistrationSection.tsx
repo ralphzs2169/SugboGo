@@ -28,7 +28,7 @@ export default function RegistrationSection({
             color={theme.extends.colors.text.primary}
           />
 
-          <Text className="text-2xl ml-2 font-bold text-text-primary">
+          <Text className="text-xl ml-2 font-bold text-text-primary">
             {title}
           </Text>
         </View>
