@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
 const columnHelper = createColumnHelper();
 import { formatDateTime } from "@/shared/utils/dateUtils";
+import { CLUSTER_ICONS } from "../../constants/clusterIcons";
 
 /**
  * Creates TanStack Table column definitions for cluster management.
@@ -28,23 +29,35 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
 
     columnHelper.accessor("name", {
       header: "Cluster Name",
-      size: 250,
-      minSize: 200,
+      size: 200,
+      minSize: 150,
       meta: {
         skeleton: "longText",
       },
       cell: (info) => {
         const cluster = info.row.original;
 
-        return (
-          <div>
-            <p className="text-sm font-medium text-text-primary">
-              {cluster.name}
-            </p>
+        const clusterIcon = CLUSTER_ICONS.find(
+          (icon) => icon.value === cluster.icon,
+        );
 
-            <p className="mt-1 text-xs text-text-secondary">
-              {cluster.description || "No description"}
-            </p>
+        const Icon = clusterIcon?.icon;
+
+        return (
+          <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center justify-center  text-text-secondary">
+              {Icon && <Icon className="h-5 w-5" strokeWidth={2} />}
+            </div>
+
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-text-primary">
+                {cluster.name}
+              </p>
+
+              <p className="mt-1 truncate text-xs text-text-secondary">
+                {cluster.description || "No description"}
+              </p>
+            </div>
           </div>
         );
       },
@@ -63,7 +76,7 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
     }),
 
     columnHelper.accessor("msme_count", {
-      header: "MSMEs",
+      header: "Businesses",
       meta: {
         skeleton: "number",
       },
@@ -76,6 +89,18 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
 
     columnHelper.accessor("created_at", {
       header: "Created",
+      meta: {
+        skeleton: "text",
+      },
+      cell: (info) => (
+        <span className="text-sm text-text-secondary">
+          {formatDateTime(info.getValue())}
+        </span>
+      ),
+    }),
+
+    columnHelper.accessor("updated_at", {
+      header: "Last Updated",
       meta: {
         skeleton: "text",
       },

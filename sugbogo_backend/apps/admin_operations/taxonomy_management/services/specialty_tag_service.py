@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 
 from apps.business.models import SpecialtyTag
@@ -13,7 +13,12 @@ class SpecialtyTagService:
         and ordering.
         """
 
-        queryset = SpecialtyTag.objects.all()
+        queryset = SpecialtyTag.objects.annotate(
+            application_count=Count(
+                "merchant_application_identities",
+                distinct=True,
+            ),
+        )
 
         if search:
             queryset = queryset.filter(

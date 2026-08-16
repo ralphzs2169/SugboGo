@@ -16,7 +16,6 @@ import useClusters from "../hooks/useClusters";
 import useCategories from "../hooks/useCategories";
 import useDeleteCluster from "../hooks/useDeleteCluster";
 import useDeleteCategory from "../hooks/useDeleteCategory";
-import useClusterCategorySummary from "../hooks/useClusterCategorySummary";
 import useClusterCategoryTableState from "../hooks/useClusterCategoryTableState";
 
 import CreateClusterModal from "./CreateClusterModal";
@@ -41,13 +40,7 @@ import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
  * and useCategories hooks.
  *
  */
-export default function ClusterCategoryTable({
-  onEditCluster,
-  onEditCategory,
-  onCreateCluster,
-  onCreateCategory,
-  onCreateSuccessReady,
-}) {
+export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
   // Table state management
   const [currentTab, setCurrentTab] = useState("clusters");
 
@@ -91,12 +84,6 @@ export default function ClusterCategoryTable({
   } = useClusterCategoryTableState(currentTab, setCurrentTab);
 
   // Data fetching hooks for clusters, categories, and summary
-  const {
-    summary,
-    isLoading: isLoadingSummary,
-    error: summaryError,
-    refetch: refetchSummary,
-  } = useClusterCategorySummary();
 
   const {
     clusters,
@@ -121,15 +108,6 @@ export default function ClusterCategoryTable({
   } = useCategories(params, {
     enabled: currentTab === "categories",
   });
-
-  // Refresh Helpers
-  async function refreshClusters() {
-    await Promise.all([refetchClusters(), refetchSummary()]);
-  }
-
-  async function refreshCategories() {
-    await Promise.all([refetchCategories(), refetchSummary()]);
-  }
 
   // Derived state for conditional rendering and actions
   const isClusterTab = currentTab === "clusters";
@@ -206,16 +184,16 @@ export default function ClusterCategoryTable({
     try {
       if (deleteType === "cluster") {
         await deleteCluster(deletingItem.id);
-
-        await refreshClusters();
+        await refetchClusters();
+        await onStatisticsChange?.();
 
         toast.success("Cluster deleted successfully.");
       }
 
       if (deleteType === "category") {
         await deleteCategory(deletingItem.id);
-
-        await refreshCategories();
+        await refetchCategories();
+        await onStatisticsChange?.();
 
         toast.success("Category deleted successfully.");
       }
@@ -233,13 +211,6 @@ export default function ClusterCategoryTable({
     }
   }
 
-  useEffect(() => {
-    onCreateSuccessReady?.({
-      refreshClusters,
-      refreshCategories,
-    });
-  }, []);
-
   const resourceLabel = isClusterTab ? "cluster" : "category";
   const resourcePlural = isClusterTab ? "clusters" : "categories";
 
@@ -249,11 +220,9 @@ export default function ClusterCategoryTable({
     } else {
       refetchCategories();
     }
-
-    refetchSummary();
   }
 
-  useApiErrorNotification(clusterError || categoryError || summaryError, {
+  useApiErrorNotification(clusterError || categoryError, {
     toastId: "cluster-category-load-error",
     fallbackMessage: "Unable to load the requested data. Please try again.",
   });
@@ -285,13 +254,11 @@ export default function ClusterCategoryTable({
             {
               id: "clusters",
               label: "Clusters",
-              count: summary.clusterCount,
               icon: FiLayers,
             },
             {
               id: "categories",
               label: "Categories",
-              count: summary.categoryCount,
               icon: FiTag,
             },
           ],
@@ -351,7 +318,9 @@ export default function ClusterCategoryTable({
         isOpen={isCreateClusterOpen}
         onClose={() => setIsCreateClusterOpen(false)}
         onSuccess={async () => {
-          await refreshClusters();
+          await refetchClusters();
+          await onStatisticsChange?.();
+
           toast.success("Cluster created successfully.");
         }}
       />
@@ -360,7 +329,9 @@ export default function ClusterCategoryTable({
         isOpen={isCreateCategoryOpen}
         onClose={() => setIsCreateCategoryOpen(false)}
         onSuccess={async () => {
-          await refreshCategories();
+          await refetchCategories();
+          await onStatisticsChange?.();
+
           toast.success("Category created successfully.");
         }}
       />
@@ -373,7 +344,9 @@ export default function ClusterCategoryTable({
           setEditingCluster(null);
         }}
         onSuccess={async () => {
-          await refreshClusters();
+          await refetchClusters();
+          await onStatisticsChange?.();
+
           toast.success("Cluster updated successfully.");
         }}
       />
@@ -386,7 +359,9 @@ export default function ClusterCategoryTable({
           setEditingCategory(null);
         }}
         onSuccess={async () => {
-          await refreshCategories();
+          await refetchCategories();
+          await onStatisticsChange?.();
+
           toast.success("Category updated successfully.");
         }}
       />

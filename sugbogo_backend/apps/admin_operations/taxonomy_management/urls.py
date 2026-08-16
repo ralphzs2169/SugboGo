@@ -3,17 +3,16 @@ from django.urls import path
 from apps.admin_operations.taxonomy_management.views.category_views import (
     CategoryDetailView,
     CategoryListView,
+    CategoryStatisticsView,
 )
 from apps.admin_operations.taxonomy_management.views.cluster_views import (
     ClusterDetailView,
     ClusterListView,
+    ClusterStatisticsView,
 )
 from apps.admin_operations.taxonomy_management.views.specialty_tag_views import (
     SpecialtyTagDetailView,
     SpecialtyTagListView,
-)
-from apps.admin_operations.taxonomy_management.views.summary_views import (
-    get_cluster_category_summary,
 )
 from apps.admin_operations.taxonomy_management.views.tag_statistics_views import (
     SpecialtyTagStatisticsView,
@@ -28,13 +27,12 @@ urlpatterns = [
     # Cluster
     path("clusters/", ClusterListView.as_view()),
     path("clusters/<int:cluster_id>/", ClusterDetailView.as_view()),
+    path("clusters/statistics/", ClusterStatisticsView.as_view()),
 
     # Category
     path("categories/", CategoryListView.as_view()),
     path("categories/<int:category_id>/", CategoryDetailView.as_view()),
+    path("categories/statistics/", CategoryStatisticsView.as_view()),
 
-    
 
-    # Summary
-    path("cluster-category/summary/", get_cluster_category_summary),
 ]

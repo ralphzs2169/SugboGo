@@ -4,6 +4,9 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from apps.admin_operations.analytics.services.cluster_analytics_service import (
+    ClusterAnalyticsService,
+)
 from apps.admin_operations.taxonomy_management.serializers.cluster_serializers import (
     ClusterCreateSerializer,
     ClusterSerializer,
@@ -130,4 +133,23 @@ class ClusterDetailView(APIView):
 
         return success_response(
             message="Cluster deleted successfully.",
+        )
+
+
+class ClusterStatisticsView(APIView):
+    """Handle cluster statistics for administrators."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def get(self, request):
+        """Retrieve aggregate cluster statistics."""
+
+        statistics = ClusterAnalyticsService.get_cluster_statistics()
+
+        return success_response(
+            data=statistics,
+            message="Cluster statistics retrieved successfully.",
         )

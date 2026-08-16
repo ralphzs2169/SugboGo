@@ -454,3 +454,86 @@ class CategoryViewTests(APITestCase):
             response.status_code,
             status.HTTP_404_NOT_FOUND,
         )
+
+
+    def test_get_category_statistics_successfully(self):
+        Category.objects.all().delete()
+
+        Category.objects.create(
+            CTGRY_NAME="Restaurants",
+            CLUS_ID=self.cluster,
+        )
+
+        Category.objects.create(
+            CTGRY_NAME="Hotels",
+            CLUS_ID=self.cluster,
+        )
+
+        response = self.client.get(
+            "/api/admin/taxonomy/categories/statistics/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data["data"]["total_categories"],
+            2,
+        )
+
+        self.assertEqual(
+            response.data["data"]["categories_created_this_week"],
+            2,
+        )
+
+        self.assertEqual(
+            response.data["message"],
+            "Category statistics retrieved successfully.",
+        )
+
+
+    def test_get_category_statistics_returns_zero_when_no_categories_exist(self):
+        Category.objects.all().delete()
+
+        response = self.client.get(
+            "/api/admin/taxonomy/categories/statistics/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data["data"]["total_categories"],
+            0,
+        )
+
+        self.assertEqual(
+            response.data["data"]["categories_created_this_week"],
+            0,
+        )
+
+    def test_create_category_fails_with_name_shorter_than_minimum(self):
+        payload = {
+            "name": "IT",
+            "cluster_id": self.cluster.CLUS_ID,
+        }
+
+        response = self.client.post(
+            "/api/admin/taxonomy/categories/",
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertEqual(
+            response.data["errors"]["name"][0],
+            "Category name must be at least 3 characters.",
+        )

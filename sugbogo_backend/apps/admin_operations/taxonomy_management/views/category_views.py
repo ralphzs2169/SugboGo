@@ -4,6 +4,9 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from apps.admin_operations.analytics.services.category_analytics_service import (
+    CategoryAnalyticsService,
+)
 from apps.admin_operations.taxonomy_management.serializers.category_serializers import (
     CategoryCreateSerializer,
     CategorySerializer,
@@ -132,4 +135,24 @@ class CategoryDetailView(APIView):
 
         return success_response(
             message="Category deleted successfully.",
+        )
+
+
+    
+class CategoryStatisticsView(APIView):
+    """Handle cluster statistics for administrators."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def get(self, request):
+        """Retrieve aggregate category statistics."""
+
+        statistics = CategoryAnalyticsService.get_category_statistics()
+
+        return success_response(
+            data=statistics,
+            message="Category statistics retrieved successfully.",
         )

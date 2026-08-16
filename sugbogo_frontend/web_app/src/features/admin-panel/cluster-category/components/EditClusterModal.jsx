@@ -22,11 +22,13 @@ export default function EditClusterModal({
 }) {
   const [initialValues, setInitialValues] = useState({
     name: "",
+    icon: "utensils",
     description: "",
   });
 
   const [values, setValues] = useState({
     name: "",
+    icon: "utensils",
     description: "",
   });
 
@@ -39,6 +41,7 @@ export default function EditClusterModal({
 
     const nextValues = {
       name: cluster.name ?? "",
+      icon: cluster.icon ?? "utensils",
       description: cluster.description ?? "",
     };
 
@@ -50,6 +53,7 @@ export default function EditClusterModal({
   // Determines whether the user changed any editable cluster fields.
   const hasChanges = hasFormChanges(values, initialValues, [
     "name",
+    "icon",
     "description",
   ]);
 

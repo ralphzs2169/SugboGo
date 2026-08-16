@@ -1,5 +1,4 @@
 from datetime import timedelta
-from email.mime import application
 
 from django.test import TestCase
 from django.utils import timezone
@@ -7,13 +6,14 @@ from django.utils import timezone
 from apps.admin_operations.analytics.services.merchant_application_analytics_service import (
     MerchantApplicationAnalyticsService,
 )
+from apps.merchant_application.constants import APPLICATION_REVIEW_SLA_BUSINESS_DAYS
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationReview,
     MerchantApplicationSubmission,
 )
 from apps.users.models import User
-from apps.merchant_application.constants import APPLICATION_REVIEW_SLA_BUSINESS_DAYS
+
 
 class MerchantApplicationAnalyticsServiceTests(TestCase):
     def test_sla_compliance_rate_returns_none_when_no_reviews_exist(self):

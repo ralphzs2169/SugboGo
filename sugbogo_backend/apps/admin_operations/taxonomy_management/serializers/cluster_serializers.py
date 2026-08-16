@@ -6,11 +6,13 @@ from apps.business.models import Cluster
 class ClusterSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="CLUS_ID", read_only=True)
     name = serializers.CharField(source="CLUS_NAME", read_only=True)
+    icon = serializers.CharField(source="CLUS_ICON", read_only=True)
     description = serializers.CharField(
         source="CLUS_DESCRIPTION",
         read_only=True,
     )
     created_at = serializers.DateTimeField(source="CLUS_CREATED_AT", read_only=True)
+    updated_at = serializers.DateTimeField(source="CLUS_UPDATED_AT", read_only=True)
     category_count = serializers.IntegerField(read_only=True)
     
     class Meta:
@@ -18,12 +20,13 @@ class ClusterSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
+            "icon",
             "description",
             "category_count",
+            "updated_at",
             "created_at",
         )
-
-
+        
 class ClusterCreateSerializer(serializers.ModelSerializer):
     name = serializers.CharField(
         source="CLUS_NAME",
@@ -32,6 +35,10 @@ class ClusterCreateSerializer(serializers.ModelSerializer):
             "null": "Cluster name is required.",
             "required": "Cluster name is required.",
         },
+    )
+    icon = serializers.ChoiceField(
+        source="CLUS_ICON",
+        choices=Cluster.ClusterIcon.choices,
     )
     description = serializers.CharField(
         source="CLUS_DESCRIPTION",
@@ -44,12 +51,17 @@ class ClusterCreateSerializer(serializers.ModelSerializer):
         model = Cluster
         fields = (
             "name",
+            "icon",
             "description",
         )
 
-    # Validate that the cluster name is unique (case-insensitive).
     def validate_name(self, value):
         value = value.strip()
+
+        if len(value) < 3:
+            raise serializers.ValidationError(
+                "Cluster name must be at least 3 characters."
+            )
 
         if Cluster.objects.filter(CLUS_NAME__iexact=value).exists():
             raise serializers.ValidationError(
@@ -68,6 +80,11 @@ class ClusterUpdateSerializer(serializers.ModelSerializer):
             "null": "Cluster name is required.",
         },
     )
+    icon = serializers.ChoiceField(
+        source="CLUS_ICON",
+        choices=Cluster.ClusterIcon.choices,
+        required=False,
+    )
     description = serializers.CharField(
         source="CLUS_DESCRIPTION",
         required=False,
@@ -79,17 +96,20 @@ class ClusterUpdateSerializer(serializers.ModelSerializer):
         model = Cluster
         fields = (
             "name",
+            "icon",
             "description",
         )
 
-   # Validate that the cluster name is unique (case-insensitive).
     def validate_name(self, value):
         value = value.strip()
 
+        if len(value) < 3:
+            raise serializers.ValidationError(
+                "Cluster name must be at least 3 characters."
+            )
+
         queryset = Cluster.objects.filter(CLUS_NAME__iexact=value)
 
-        # Exclude the current cluster during updates so an unchanged
-        # name is not treated as a duplicate.
         if self.instance:
             queryset = queryset.exclude(CLUS_ID=self.instance.CLUS_ID)
 

@@ -1,10 +1,10 @@
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import PageHeader from "../components/PageHeader";
-import BusinessApplicationManagementPanel from "../business-applications/components/BusinessApplicationManagementPanel";
+import BusinessApplicationManagementTable from "../business-applications/components/BusinessApplicationManagementTable";
 import useBusinessApplicationStatistics from "../business-applications/hooks/useBusinessApplicationStatistics";
 import BusinessApplicationMetrics from "../business-applications/components/BusinessApplicationMetrics";
 import ApplicationReviewSlaInfo from "../business-applications/components/ApplicationReviewSlaInfo";
-import ApplicationMetricsSkeleton from "../business-applications/components/skeleton/ApplicationsMetricsSkeleton";
+import MetricCardsSkeleton from "@/features/admin-panel/components/MetricCardsSkeleton";
 import ApplicationReviewSlaInfoSkeleton from "../business-applications/components/skeleton/ApplicationReviewSlaInfoSkeleton";
 
 export default function BusinessApplicationsPage() {
@@ -41,7 +41,7 @@ export default function BusinessApplicationsPage() {
       {/* Application overview */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
-          Application Overview
+          Merchant Application Overview
         </h2>
 
         {!isStatisticsLoading && (
@@ -72,7 +72,7 @@ export default function BusinessApplicationsPage() {
 
       {/* Application metrics */}
       {isStatisticsLoading ? (
-        <ApplicationMetricsSkeleton />
+        <MetricCardsSkeleton count={8} includeSparkline={true} />
       ) : (
         <BusinessApplicationMetrics
           pendingReview={statistics.pending_review}
@@ -103,8 +103,11 @@ export default function BusinessApplicationsPage() {
         />
       )}
 
+      <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
+        Merchant Application Management
+      </h2>
       {/* Application management */}
-      <BusinessApplicationManagementPanel />
+      <BusinessApplicationManagementTable />
     </>
   );
 }

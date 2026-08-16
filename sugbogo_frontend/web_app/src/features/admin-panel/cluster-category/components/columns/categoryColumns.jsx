@@ -1,16 +1,15 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import Button from "@/shared/components/Button";
 import { Pencil, Trash2 } from "lucide-react";
+import Tooltip from "@/shared/components/actions/Tooltip";
 import { formatDateTime } from "@/shared/utils/dateUtils";
+
+import { CLUSTER_ICONS } from "../../constants/clusterIcons";
+
 const columnHelper = createColumnHelper();
 
 /**
  * Creates TanStack Table column definitions for category management.
- *
- * @param {Function} onEditCategory - Callback triggered when a category is edited.
- * @param {Function} onDeleteCategory - Callback triggered when a category is deleted.
- *
- * @returns {Array<Object>} TanStack Table column configuration.
  */
 export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
   return [
@@ -38,7 +37,7 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
 
         return (
           <div>
-            <p className="text-sm font-medium text-text-primary">
+            <p className="text-sm font-semibold text-text-primary">
               {category.name}
             </p>
 
@@ -52,13 +51,31 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
 
     columnHelper.accessor("cluster_name", {
       header: "Cluster",
-      cell: (info) => (
-        <span className="text-sm text-text-primary">{info.getValue()}</span>
-      ),
+      cell: (info) => {
+        const category = info.row.original;
+
+        const clusterIcon = CLUSTER_ICONS.find(
+          (icon) => icon.value === category.cluster_icon,
+        );
+
+        const Icon = clusterIcon?.icon;
+
+        return (
+          <div className="flex items-center gap-2.5">
+            <div className="flex shrink-0 items-center justify-center text-text-secondary">
+              {Icon && <Icon className="h-5 w-5" strokeWidth={2} />}
+            </div>
+
+            <span className="text-sm text-text-primary">
+              {category.cluster_name}
+            </span>
+          </div>
+        );
+      },
     }),
 
     columnHelper.accessor("msme_count", {
-      header: "MSMEs",
+      header: "Businesses",
       cell: (info) => (
         <span className="text-sm text-text-primary">
           {info.getValue() ?? 0}
@@ -78,16 +95,44 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
       ),
     }),
 
+    columnHelper.accessor("updated_at", {
+      header: "Last Updated",
+      meta: {
+        skeleton: "text",
+      },
+      cell: (info) => (
+        <span className="text-sm text-text-secondary">
+          {formatDateTime(info.getValue())}
+        </span>
+      ),
+    }),
+
     columnHelper.display({
       id: "actions",
       header: "Actions",
       meta: {
         skeleton: "actions",
       },
-
       enableSorting: false,
       cell: ({ row }) => {
         const category = row.original;
+        const hasApplications = category.application_count > 0;
+
+        const deleteButton = (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Trash2}
+            iconOnly
+            disabled={hasApplications}
+            onClick={() => onDeleteCategory(category)}
+            disabledTooltip={
+              hasApplications
+                ? "Cannot be deleted because it is referenced by merchant applications."
+                : undefined
+            }
+          />
+        );
 
         return (
           <div className="flex items-center justify-center gap-2">
@@ -99,13 +144,16 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
               onClick={() => onEditCategory(category)}
             />
 
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Trash2}
-              iconOnly
-              onClick={() => onDeleteCategory(category)}
-            />
+            {hasApplications ? (
+              <Tooltip
+                content="Cannot be deleted because it is referenced by merchant applications."
+                place="top"
+              >
+                {deleteButton}
+              </Tooltip>
+            ) : (
+              deleteButton
+            )}
           </div>
         );
       },

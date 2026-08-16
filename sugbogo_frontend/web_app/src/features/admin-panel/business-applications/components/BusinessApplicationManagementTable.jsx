@@ -29,7 +29,7 @@ const QUEUE_STATUS_OPTIONS = [
  * Handles server-side search, status filtering, queue-status filtering,
  * sorting, pagination, and navigation to the dedicated application review page.
  */
-export default function BusinessApplicationManagementPanel() {
+export default function BusinessApplicationManagementTable() {
   const navigate = useNavigate();
 
   const {

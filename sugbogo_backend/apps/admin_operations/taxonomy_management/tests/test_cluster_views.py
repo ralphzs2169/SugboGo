@@ -110,6 +110,31 @@ class ClusterViewTests(APITestCase):
             ["Tourism", "Food & Beverage"],
         )
 
+    def test_create_cluster_fails_with_name_shorter_than_minimum(self):
+        payload = {
+            "name": "IT",
+        }
+
+        response = self.client.post(
+            "/api/admin/taxonomy/clusters/",
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertEqual(
+            response.data["errors"]["name"][0],
+            "Cluster name must be at least 3 characters.",
+        )
+
+        self.assertFalse(
+            Cluster.objects.filter(CLUS_NAME="IT").exists()
+        )
+
     def test_retrieve_cluster_returns_cluster(self):
         response = self.client.get(
             f"/api/admin/taxonomy/clusters/{self.cluster.CLUS_ID}/",
@@ -147,8 +172,9 @@ class ClusterViewTests(APITestCase):
 
     def test_create_cluster_successfully(self):
         payload = {
-            "name": "Arts & Culture",
-            "description": "Arts and culture businesses.",
+            "name": "Food & Dining",
+            "description": "Food and dining businesses.",
+            "icon": "palette",
         }
 
         response = self.client.post(
@@ -164,17 +190,22 @@ class ClusterViewTests(APITestCase):
 
         self.assertTrue(
             Cluster.objects.filter(
-                CLUS_NAME="Arts & Culture",
+                CLUS_NAME="Food & Dining",
             ).exists()
         )
 
         cluster = Cluster.objects.get(
-            CLUS_NAME="Arts & Culture",
+            CLUS_NAME="Food & Dining",
         )
 
         self.assertEqual(
             cluster.CLUS_DESCRIPTION,
-            "Arts and culture businesses.",
+            "Food and dining businesses.",
+        )
+
+        self.assertEqual(
+            cluster.CLUS_ICON,
+            "palette",
         )
 
         self.assertEqual(
@@ -184,13 +215,21 @@ class ClusterViewTests(APITestCase):
 
         self.assertEqual(
             response.data["data"]["name"],
-            "Arts & Culture",
+            "Food & Dining",
         )
+
+        self.assertEqual(
+            response.data["data"]["icon"],
+            "palette",
+        )
+        
+       
 
     def test_create_cluster_strips_name(self):
         payload = {
             "name": "  Arts & Culture  ",
             "description": "Arts and culture businesses.",
+            "icon": "palette",
         }
 
         response = self.client.post(
@@ -198,6 +237,7 @@ class ClusterViewTests(APITestCase):
             payload,
             format="json",
         )
+     
 
         self.assertEqual(
             response.status_code,
@@ -432,3 +472,61 @@ class ClusterViewTests(APITestCase):
             status.HTTP_404_NOT_FOUND,
         )
 
+
+    def test_get_cluster_statistics_successfully(self):
+        Cluster.objects.all().delete()
+
+        Cluster.objects.create(
+            CLUS_NAME="Food and Dining",
+        )
+
+        Cluster.objects.create(
+            CLUS_NAME="Arts and Culture",
+        )
+
+        response = self.client.get(
+            "/api/admin/taxonomy/clusters/statistics/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data["data"]["total_clusters"],
+            2,
+        )
+
+        self.assertEqual(
+            response.data["data"]["clusters_created_this_week"],
+            2,
+        )
+
+        self.assertEqual(
+            response.data["message"],
+            "Cluster statistics retrieved successfully.",
+        )
+
+
+    def test_get_cluster_statistics_returns_zero_when_no_clusters_exist(self):
+        Cluster.objects.all().delete()
+
+        response = self.client.get(
+            "/api/admin/taxonomy/clusters/statistics/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data["data"]["total_clusters"],
+            0,
+        )
+
+        self.assertEqual(
+            response.data["data"]["clusters_created_this_week"],
+            0,
+        )

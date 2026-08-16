@@ -26,14 +26,7 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
         source="TAG_UPDATED_AT",
         read_only=True,
     )
-    is_used_by_applications = serializers.BooleanField(
-        source="merchant_application_identities.exists",
-        read_only=True,
-    )
-    application_count = serializers.IntegerField(
-        source="merchant_application_identities.count",
-        read_only=True,
-    )
+    application_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = SpecialtyTag
@@ -43,7 +36,6 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
             "color",
             "created_at",
             "updated_at",
-            "is_used_by_applications",
             "application_count",    
         )
 
@@ -76,6 +68,11 @@ class SpecialtyTagCreateSerializer(serializers.ModelSerializer):
 
     def validate_name(self, value):
         value = value.strip()
+
+        if len(value) < 3:
+            raise serializers.ValidationError(
+                "Specialty tag name must be at least 3 characters."
+            )
 
         if SpecialtyTag.objects.filter(TAG_NAME__iexact=value).exists():
             raise serializers.ValidationError(
