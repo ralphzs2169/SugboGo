@@ -10,6 +10,7 @@ from apps.merchant_application.serializers.location_serializers import (
     PlaceSearchSerializer,
     ReverseGeocodeSerializer,
 )
+from apps.merchant_application.services.location_service import LocationService
 from apps.merchant_application.throttles import (
     NearbyLandmarksThrottle,
     PlaceDetailsThrottle,
@@ -60,7 +61,12 @@ def reverse_geocode_view(request):
         )
 
     return success_response(
-        data={"address": address},
+        data={
+            "address": address,
+            "is_within_service_area": LocationService.is_within_service_area(
+                latitude, longitude
+            ),
+        },
         message="Location resolved successfully.",
     )
 

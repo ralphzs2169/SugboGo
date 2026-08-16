@@ -9,6 +9,7 @@ type ConfirmLocationSheetProps = {
   address: string;
   isResolvingAddress: boolean;
   isConfirming: boolean;
+  isWithinServiceArea: boolean;
   onConfirm: () => void;
 };
 
@@ -24,6 +25,7 @@ export default function ConfirmLocationSheet({
   isResolvingAddress,
   onConfirm,
   isConfirming,
+  isWithinServiceArea,
 }: ConfirmLocationSheetProps) {
   const hasAddress = address.trim().length > 0;
 
@@ -69,11 +71,22 @@ export default function ConfirmLocationSheet({
             )}
           </View>
         </View>
-
+        {!isWithinServiceArea && (
+          <View className="mt-3 flex-row items-center rounded-lg bg-red-50 px-3 py-2">
+            <MaterialCommunityIcons
+              name="alert-circle"
+              size={16}
+              color="#DC2626"
+            />
+            <Text className="ml-2 flex-1 text-xs font-medium text-red-600">
+              This location is outside our current service area (Cebu City).
+            </Text>
+          </View>
+        )}
         <Button
           title="Confirm Location"
           onPress={onConfirm}
-          disabled={isResolvingAddress || isConfirming}
+          disabled={isResolvingAddress || isConfirming || !isWithinServiceArea}
           className="mt-4"
           fontClassName="font-bold"
         />

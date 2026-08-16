@@ -1,3 +1,4 @@
+from apps.business.models import ServiceableBoundary
 from apps.merchant_application.models import (
     MerchantApplicationLandmark,
     MerchantApplicationLocation,
@@ -6,12 +7,33 @@ from apps.merchant_application.services.location_service import LocationService
 from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
-from django.contrib.gis.geos import Point
+from django.contrib.gis.geos import MultiPolygon, Point, Polygon
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 
 
 class LocationServiceTests(MerchantApplicationServiceMixin, TestCase):
+   
+    def setUp(self):
+        super().setUp()
+
+        self.serviceable_boundary = ServiceableBoundary.objects.create(
+            SBND_NAME="Cebu City Test Boundary",
+            SBND_IS_ACTIVE=True,
+            SBND_BOUNDARY=MultiPolygon(
+                Polygon(
+                    (
+                        (123.87, 10.30),
+                        (123.92, 10.30),
+                        (123.92, 10.34),
+                        (123.87, 10.34),
+                        (123.87, 10.30),
+                    ),
+                    srid=4326,
+                )
+            ),
+        )
+
     def test_save_location_creates_location_and_landmarks(self):
         application, _ = self._create_identity()
 
@@ -203,4 +225,28 @@ class LocationServiceTests(MerchantApplicationServiceMixin, TestCase):
         self.assertEqual(
             location.landmarks.count(),
             2,
+        )
+
+    def test_save_location_rejects_location_outside_service_area(self):
+        application, _ = self._create_identity()
+
+        with self.assertRaises(ValidationError) as context:
+            LocationService.save_location(
+                application,
+                {
+                    **self._location_payload(),
+                    "latitude": 10.5000,
+                    "longitude": 124.0000,
+                },
+            )
+
+        self.assertIn(
+            "outside our current service area",
+            str(context.exception),
+        )
+
+        self.assertFalse(
+            MerchantApplicationLocation.objects.filter(
+                MAPP_ID=application,
+            ).exists(),
         )

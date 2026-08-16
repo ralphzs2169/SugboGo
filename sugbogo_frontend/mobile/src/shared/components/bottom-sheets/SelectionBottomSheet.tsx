@@ -5,6 +5,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { theme } from "@/constants/theme";
 
 export type SelectionOption = {
   label: string;
@@ -16,19 +17,22 @@ export type SelectionOption = {
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
   title: string;
+  description?: string;
   options: SelectionOption[];
   selectedValue?: string;
   onSelect: (value: string) => void;
 };
 
 /**
- * SelectionBottomSheet provides a generic selection interface for choosing from a list of options.
- * The component manages bottom sheet presentation and dismissal while delegating the selected value
- *  back to the parent component.
+ * Provides a reusable bottom-sheet selection interface.
+ *
+ * Supports optional icons and colors for individual options while keeping
+ * the component flexible for different selection fields across the app.
  */
 export default function SelectionBottomSheet({
   sheetRef,
   title,
+  description,
   options,
   selectedValue,
   onSelect,
@@ -66,19 +70,33 @@ export default function SelectionBottomSheet({
     >
       <BottomSheetView className="px-6 pb-8">
         {/* Header */}
-        <View className="flex-row items-center justify-between border-b border-gray-100 pb-4">
-          <Text className="text-lg font-bold text-gray-900">{title}</Text>
+        <View className="border-b border-gray-100 pb-4">
+          <View className="flex-row items-center justify-between">
+            <Text className="flex-1 pr-4 text-lg font-bold text-gray-900">
+              {title}
+            </Text>
 
-          <Pressable
-            onPress={handleClose}
-            className="rounded-full p-1 active:bg-gray-100"
-          >
-            <MaterialCommunityIcons name="close" size={24} color="#6B7280" />
-          </Pressable>
+            <Pressable
+              onPress={handleClose}
+              className="rounded-full p-1 active:bg-gray-100"
+            >
+              <MaterialCommunityIcons
+                name="close"
+                size={24}
+                color={theme.extends.colors.text.secondary}
+              />
+            </Pressable>
+          </View>
+
+          {description && (
+            <Text className="mt-1.5 pr-10 text-sm leading-5 text-text-secondary">
+              {description}
+            </Text>
+          )}
         </View>
 
         {/* Options */}
-        <View className="pt-2">
+        <View className="pt-1">
           {options.map((option) => (
             <Pressable
               key={option.value}
@@ -87,9 +105,11 @@ export default function SelectionBottomSheet({
             >
               {option.icon && (
                 <MaterialCommunityIcons
-                  name={option.icon as any}
+                  name={
+                    option.icon as keyof typeof MaterialCommunityIcons.glyphMap
+                  }
                   size={24}
-                  color={option.color ?? "#1B4D3E"}
+                  color={theme.extends.colors.text.secondary}
                 />
               )}
 

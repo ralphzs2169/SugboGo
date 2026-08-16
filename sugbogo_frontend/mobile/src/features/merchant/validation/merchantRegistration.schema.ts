@@ -107,7 +107,10 @@ const verificationDocumentsSchema = z
   });
 
 export const merchantRegistrationSchema = z.object({
-  businessName: z.string().min(1, "Business name is required."),
+  businessName: z
+    .string()
+    .trim()
+    .min(3, "Business name must be at least 3 characters."),
 
   businessCluster: z.string().min(1, "Business cluster is required."),
 
@@ -116,7 +119,7 @@ export const merchantRegistrationSchema = z.object({
   businessDescription: z
     .string()
     .trim()
-    .min(1, "Business description is required."),
+    .min(10, "Business description must be at least 10 characters."),
 
   contactNumber: z
     .string()
@@ -143,7 +146,7 @@ export const merchantRegistrationSchema = z.object({
   representativeName: z
     .string()
     .trim()
-    .min(1, "Representative name is required."),
+    .min(2, "Representative name must be at least 2 characters."),
 
   representativeRole: z
     .enum(["", "owner", "manager", "authorized_representative", "other"], {
@@ -154,13 +157,19 @@ export const merchantRegistrationSchema = z.object({
     }),
 
   // Business Location
-  province: z.string().trim().min(1, "Province is required."),
+  province: z.string().trim().min(2, "Province must be at least 2 characters."),
 
-  city: z.string().trim().min(1, "City / Municipality is required."),
+  city: z
+    .string()
+    .trim()
+    .min(2, "City / Municipality must be at least 2 characters."),
 
-  barangay: z.string().trim().min(1, "Barangay is required."),
+  barangay: z.string().trim().min(2, "Barangay must be at least 2 characters."),
 
-  streetAddress: z.string().trim().min(1, "Street address is required."),
+  streetAddress: z
+    .string()
+    .trim()
+    .min(5, "Street address must be at least 5 characters."),
 
   unit: z.string(),
 

@@ -6,6 +6,7 @@ import type { MerchantRegistrationForm } from "@/features/merchant/validation/me
 type SelectOption = {
   label: string;
   value: string;
+  icon?: React.ComponentProps<typeof FormSelect>["icon"];
 };
 
 type RHFFormSelectProps = {
@@ -20,8 +21,8 @@ type RHFFormSelectProps = {
 /**
  * Connects FormSelect to React Hook Form for string-based select fields.
  *
- * Resolves the stored form value to its corresponding option label while
- * keeping the option value as the value stored in the form.
+ * Resolves the stored form value to its corresponding option label and
+ * optional icon while keeping the option value as the form value.
  *
  * Clears the field's validation error when the user opens the selector.
  */
@@ -51,6 +52,7 @@ export default function RHFFormSelect({
           <FormSelect
             {...props}
             value={selectedOption?.label}
+            icon={selectedOption?.icon}
             error={fieldState.error?.message}
             onPress={handlePress}
           />

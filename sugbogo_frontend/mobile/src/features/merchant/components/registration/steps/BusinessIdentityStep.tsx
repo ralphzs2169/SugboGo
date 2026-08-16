@@ -1,8 +1,8 @@
 import { useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { Keyboard } from "react-native";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
 import RHFFormSelect from "@/shared/components/form/RHFFormSelect";
 import RHFFormTextArea from "@/shared/components/form/RHFFormTextArea";
@@ -89,6 +89,7 @@ export default function BusinessIdentityStep({
       clusters.map((cluster) => ({
         label: cluster.name,
         value: String(cluster.id),
+        icon: CLUSTER_ICONS[cluster.icon],
       })),
     [clusters],
   );
@@ -163,6 +164,13 @@ export default function BusinessIdentityStep({
     });
   }
 
+  // Determine the name of the selected cluster for display in the category sheet description.
+  const selectedClusterName = useMemo(
+    () =>
+      clusters.find((cluster) => String(cluster.id) === selectedCluster)?.name,
+    [clusters, selectedCluster],
+  );
+
   return (
     <>
       <RegistrationSection
@@ -175,6 +183,8 @@ export default function BusinessIdentityStep({
             name="businessName"
             label="Business Name"
             placeholder="e.g. Cafe Sugbo"
+            minLength={3}
+            showCharacterCount
             required
           />
         </View>
@@ -229,6 +239,8 @@ export default function BusinessIdentityStep({
             placeholder="Tell explorers about your business..."
             maxLength={500}
             required
+            minLength={10}
+            showCharacterCount
           />
         </View>
 
@@ -288,6 +300,8 @@ export default function BusinessIdentityStep({
             label="Full Name"
             required
             placeholder="e.g. Juan Dela Cruz"
+            minLength={2}
+            showCharacterCount
           />
         </View>
 
@@ -314,6 +328,11 @@ export default function BusinessIdentityStep({
       <SelectionBottomSheet
         sheetRef={categorySheetRef}
         title="Select Category"
+        description={
+          selectedClusterName
+            ? `Categories under ${selectedClusterName} cluster`
+            : undefined
+        }
         options={categoryOptions}
         selectedValue={selectedCategory}
         onSelect={handleSelectCategory}
