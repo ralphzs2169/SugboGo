@@ -8,7 +8,6 @@ import LoginPage from "@/features/auth/pages/LoginPage";
 import AdminPanelLayout from "@/features/admin-panel/pages/AdminPanelLayout";
 import Dashboard from "@/features/admin-panel/pages/Dashboard";
 import Businesses from "@/features/admin-panel/pages/BusinessesPage";
-import Msmes from "@/features/admin-panel/pages/Msmes";
 import Users from "@/features/admin-panel/pages/Users";
 import ExplorerActivities from "@/features/admin-panel/pages/ExplorerActivities";
 import SuspiciousActivities from "@/features/admin-panel/pages/SuspiciousActivities";
@@ -19,6 +18,7 @@ import ProtectedRoute from "@/features/auth/routes/ProtectedRoute";
 import ClusterCategoryPage from "@/features/admin-panel/pages/ClusterCategoryPage";
 import BusinessApplications from "@/features/admin-panel/pages/BusinessApplicationsPage";
 import BusinessApplicationReviewPage from "@/features/admin-panel/pages/BusinessApplicationReviewPage";
+import BusinessDetailPage from "@/features/admin-panel/pages/BusinessDetailPage";
 
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -61,8 +61,13 @@ function App() {
               path="business/application/:applicationId"
               element={<BusinessApplicationReviewPage />}
             />
-            <Route path="businesses/listings" element={<Msmes />} />
+
+            {/* Business Management */}
             <Route path="businesses" element={<Businesses />} />
+            <Route
+              path="businesses/:businessId"
+              element={<BusinessDetailPage />}
+            />
 
             <Route path="cluster-category" element={<ClusterCategoryPage />} />
             <Route path="users" element={<Users />} />

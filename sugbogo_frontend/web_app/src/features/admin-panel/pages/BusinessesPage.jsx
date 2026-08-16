@@ -12,6 +12,8 @@ import { useNavigate } from "react-router-dom";
 export default function BusinessesPage() {
   useDocumentTitle("Businesses | SugboGo Admin");
 
+  const navigate = useNavigate();
+
   function handleViewBusiness(business) {
     navigate(`/admin-panel/businesses/${business.id}`);
   }

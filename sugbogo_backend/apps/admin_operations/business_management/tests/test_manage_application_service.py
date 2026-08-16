@@ -1232,7 +1232,7 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
         application.refresh_from_db()
 
         business = application.BUSN_ID
-        location = business.LOC_ID
+        location = business.LOCT_ID
 
         self.assertIsNotNone(
             location,
@@ -1441,4 +1441,78 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
         self.assertEqual(
             business_hours_data,
             application_hours_data,
+        )
+
+
+    def test_approve_application_copies_landmarks_to_business(self):
+        application = self._build_complete_application()
+        reviewer = self._create_admin(
+            email="approve-landmarks-admin@example.com",
+        )
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.SUBMITTED
+        )
+        application.MAPP_SUBMISSION_COUNT = 1
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_SUBMISSION_COUNT",
+            ],
+        )
+
+        self._create_submission(
+            application,
+            submission_number=1,
+        )
+
+        application_landmarks = list(
+            application.location.landmarks.all()
+        )
+
+        ApplicationService.approve_application(
+            application_id=application.MAPP_ID,
+            reviewer=reviewer,
+        )
+
+        business = (
+            MerchantApplication.objects
+            .get(MAPP_ID=application.MAPP_ID)
+            .BUSN_ID
+        )
+
+        business_landmarks = list(
+            business.LOCT_ID.landmarks.all()
+        )
+
+        self.assertEqual(
+            len(business_landmarks),
+            len(application_landmarks),
+        )
+
+        application_landmarks_data = {
+            (
+                landmark.MLMK_NAME,
+                landmark.MLMK_ADDRESS,
+                landmark.MLMK_POINT,
+                landmark.MLMK_SOURCE,
+                landmark.MLMK_PLACE_ID,
+            )
+            for landmark in application_landmarks
+        }
+
+        business_landmarks_data = {
+            (
+                landmark.BLMK_NAME,
+                landmark.BLMK_ADDRESS,
+                landmark.BLMK_POINT,
+                landmark.BLMK_SOURCE,
+                landmark.BLMK_PLACE_ID,
+            )
+            for landmark in business_landmarks
+        }
+
+        self.assertEqual(
+            business_landmarks_data,
+            application_landmarks_data,
         )

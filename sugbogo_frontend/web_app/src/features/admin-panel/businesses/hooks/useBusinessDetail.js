@@ -7,10 +7,7 @@ import { fetchBusiness } from "../services/businessService";
  * Owns the request lifecycle so the business detail page can present
  * loading, error, and retry states without managing API state itself.
  */
-export default function useBusinessInformation(
-  businessId,
-  { enabled = true } = {},
-) {
+export default function useBusinessDetail(businessId, { enabled = true } = {}) {
   const [business, setBusiness] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);

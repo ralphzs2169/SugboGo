@@ -3,7 +3,7 @@ from rest_framework import serializers
 from apps.admin_operations.taxonomy_management.serializers.specialty_tag_serializers import (
     SpecialtyTagSerializer,
 )
-from apps.business.models import Business
+from apps.business.models import Business, BusinessLandmark
 from apps.business.serializers.business_serializers import BusinessOwnerSerializer
 from apps.merchant_application.models import MerchantApplication
 
@@ -41,7 +41,7 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
     )
 
     location = serializers.CharField(
-        source="LOC_ID.LOCT_ADDRESS",
+        source="LOCT_ID.LOCT_ADDRESS",
         read_only=True,
     )
 
@@ -88,7 +88,7 @@ class AdminBusinessMapSerializer(serializers.ModelSerializer):
     )
 
     location = serializers.CharField(
-        source="LOC_ID.LOCT_ADDRESS",
+        source="LOCT_ID.LOCT_ADDRESS",
         read_only=True,
     )
 
@@ -101,10 +101,10 @@ class AdminBusinessMapSerializer(serializers.ModelSerializer):
     longitude = serializers.SerializerMethodField()
 
     def get_latitude(self, obj):
-        return obj.LOC_ID.LOCT_POINT.y
+        return obj.LOCT_ID.LOCT_POINT.y
 
     def get_longitude(self, obj):
-        return obj.LOC_ID.LOCT_POINT.x
+        return obj.LOCT_ID.LOCT_POINT.x
 
     class Meta:
         model = Business
@@ -120,12 +120,52 @@ class AdminBusinessMapSerializer(serializers.ModelSerializer):
         )
 
 
+class AdminBusinessLandmarkSerializer(serializers.ModelSerializer):
+    """Serializes a permanent nearby landmark for administrator viewing."""
+
+    id = serializers.IntegerField(source="BLMK_ID", read_only=True)
+    name = serializers.CharField(source="BLMK_NAME", read_only=True)
+    address = serializers.CharField(source="BLMK_ADDRESS", read_only=True)
+    source = serializers.CharField(source="BLMK_SOURCE", read_only=True)
+    place_id = serializers.CharField(
+        source="BLMK_PLACE_ID",
+        read_only=True,
+    )
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
+
+    def get_latitude(self, obj):
+        return obj.BLMK_POINT.y
+
+    def get_longitude(self, obj):
+        return obj.BLMK_POINT.x
+
+    class Meta:
+        model = BusinessLandmark
+        fields = (
+            "id",
+            "name",
+            "address",
+            "source",
+            "place_id",
+            "latitude",
+            "longitude",
+        )
+
 class AdminBusinessPhotoSerializer(serializers.ModelSerializer):
     """Serializes a permanent business photo for administrator viewing."""
 
     id = serializers.IntegerField(source="BPHO_ID", read_only=True)
     category = serializers.CharField(source="BPHO_CATEGORY", read_only=True)
-    url = serializers.URLField(source="BPHO_PHOTO_URL", read_only=True)
+    photo_url = serializers.URLField(
+        source="BPHO_PHOTO_URL",
+        read_only=True,
+    )
+
+    file_name = serializers.CharField(
+        source="BPHO_FILE_NAME",
+        read_only=True,
+    )
 
     class Meta:
         model = Business.photos.rel.related_model
@@ -254,6 +294,12 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     )
 
     location = serializers.SerializerMethodField()
+    landmarks = AdminBusinessLandmarkSerializer(
+        source="LOCT_ID.landmarks",
+        many=True,
+        read_only=True,
+    )
+    
     photos = AdminBusinessPhotoSerializer(
         many=True,
         read_only=True,
@@ -268,13 +314,13 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     )
 
     def get_location(self, obj):
-        point = obj.LOC_ID.LOCT_POINT
+        point = obj.LOCT_ID.LOCT_POINT
 
         return {
-            "address": obj.LOC_ID.LOCT_ADDRESS,
-            "city": obj.LOC_ID.LOCT_CITY,
-            "province": obj.LOC_ID.LOCT_PROVINCE,
-            "postal_code": obj.LOC_ID.LOCT_POSTAL_CODE,
+            "address": obj.LOCT_ID.LOCT_ADDRESS,
+            "city": obj.LOCT_ID.LOCT_CITY,
+            "province": obj.LOCT_ID.LOCT_PROVINCE,
+            "postal_code": obj.LOCT_ID.LOCT_POSTAL_CODE,
             "latitude": point.y,
             "longitude": point.x,
         }
@@ -295,7 +341,9 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
             "cluster_name",
             "cluster_icon",
             "specialty_tags",
+            "landmarks",
             "location",
+
             "photos",
             "operating_hours",
             "application",

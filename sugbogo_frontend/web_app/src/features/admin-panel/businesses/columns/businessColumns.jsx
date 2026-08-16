@@ -1,7 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import { Eye, FileText, Ban, CheckCircle, MapPin, Image } from "lucide-react";
 
-import UserAvatar from "@/shared/components/UserAvatar";
 import Button from "@/shared/components/Button";
 import StatusBadge from "@/shared/components/StatusBadge";
 import { formatDate } from "@/shared/utils/dateUtils";
@@ -89,14 +88,6 @@ export default function getBusinessColumns(onViewBusiness) {
                   title={business.location || undefined}
                 >
                   {business.location || "No location"}
-                </p>
-              </div>
-
-              <div className="mt-1 flex items-center gap-1.5">
-                <UserAvatar avatarUrl={business.owner?.avatar_url} size="sm" />
-
-                <p className="truncate text-xs text-text-secondary">
-                  {business.owner?.name || "Unknown owner"}
                 </p>
               </div>
             </div>
@@ -225,7 +216,7 @@ export default function getBusinessColumns(onViewBusiness) {
           <div className="flex items-center justify-center ">
             <Button
               variant="action"
-              size="sm"
+              size="md"
               icon={Eye}
               iconOnly
               tooltipMessage="View business"
@@ -234,7 +225,7 @@ export default function getBusinessColumns(onViewBusiness) {
 
             <Button
               variant="action"
-              size="sm"
+              size="md"
               icon={FileText}
               iconOnly
               tooltipMessage="View application"
@@ -243,7 +234,7 @@ export default function getBusinessColumns(onViewBusiness) {
 
             <Button
               variant="action"
-              size="sm"
+              size="md"
               icon={isActive ? Ban : CheckCircle}
               iconOnly
               tooltipMessage={

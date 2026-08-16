@@ -26,7 +26,7 @@ class BusinessService:
                 "USER_ID",
                 "CTGRY_ID",
                 "CTGRY_ID__CLUS_ID",
-                "LOC_ID",
+                "LOCT_ID",
             )
             .prefetch_related(
                 "SPECIALTY_TAGS",
@@ -75,10 +75,10 @@ class BusinessService:
             .select_related(
                 "CTGRY_ID",
                 "CTGRY_ID__CLUS_ID",
-                "LOC_ID",
+                "LOCT_ID",
             )
             .filter(
-                LOC_ID__LOCT_POINT__isnull=False,
+                LOCT_ID__LOCT_POINT__isnull=False,
             )
             .order_by(
                 "BUSN_NAME",
@@ -94,7 +94,7 @@ class BusinessService:
                     "USER_ID",
                     "CTGRY_ID",
                     "CTGRY_ID__CLUS_ID",
-                    "LOC_ID",
+                    "LOCT_ID",
                     "merchant_application",
                 )
                 .prefetch_related(

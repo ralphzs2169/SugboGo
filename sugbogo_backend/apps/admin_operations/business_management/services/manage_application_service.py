@@ -5,6 +5,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.business.models import (
     Business,
+    BusinessLandmark,
     BusinessOperatingHours,
     BusinessSpecialtyTag,
     Location,
@@ -410,7 +411,7 @@ class ApplicationService:
             BUSN_STATUS=Business.BusinessStatus.ACTIVE,
             USER_ID=application.USER_ID,
             CTGRY_ID=identity.CTGRY_ID,
-            LOC_ID=location,
+            LOCT_ID=location,
         )
 
         # Copy specialty tags.
@@ -424,6 +425,24 @@ class ApplicationService:
                     TAG_ID=tag,
                 )
                 for tag in specialty_tags
+            ]
+        )
+
+        # Copy permanent business landmarks.
+
+        application_landmarks = application_location.landmarks.all()
+
+        BusinessLandmark.objects.bulk_create(
+            [
+                BusinessLandmark(
+                    BLMK_NAME=landmark.MLMK_NAME,
+                    BLMK_ADDRESS=landmark.MLMK_ADDRESS,
+                    BLMK_POINT=landmark.MLMK_POINT,
+                    BLMK_SOURCE=landmark.MLMK_SOURCE,
+                    BLMK_PLACE_ID=landmark.MLMK_PLACE_ID,
+                    LOCT_ID=location,
+                )
+                for landmark in application_landmarks
             ]
         )
 

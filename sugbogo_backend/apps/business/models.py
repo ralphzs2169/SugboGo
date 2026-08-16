@@ -92,6 +92,42 @@ class Location(models.Model):
     def __str__(self):
         return self.LOCT_ADDRESS
 
+class BusinessLandmark(models.Model):
+    """Permanent nearby landmark belonging to a business location."""
+
+    class LandmarkSource(models.TextChoices):
+        GOOGLE = "google", "Google"
+        CUSTOM = "custom", "Custom"
+
+    BLMK_ID = models.AutoField(primary_key=True)
+    BLMK_NAME = models.CharField(max_length=150)
+    BLMK_ADDRESS = models.CharField(max_length=255)
+    BLMK_POINT = gis_models.PointField(srid=4326)
+    BLMK_SOURCE = models.CharField(
+        max_length=10,
+        choices=LandmarkSource.choices,
+    )
+    BLMK_PLACE_ID = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+    BLMK_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    BLMK_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    LOCT_ID = models.ForeignKey(
+        Location,
+        on_delete=models.CASCADE,
+        db_column="LOCT_ID",
+        related_name="landmarks",
+    )
+
+    class Meta:
+        db_table = "BUSINESS_LANDMARK"
+
+    def __str__(self):
+        return self.BLMK_NAME
+    
 
 class SpecialtyTag(models.Model):
 
@@ -149,8 +185,8 @@ class Business(models.Model):
         Category, on_delete=models.PROTECT, db_column='CTGRY_ID',
         related_name='businesses'
     )
-    LOC_ID = models.ForeignKey(
-        Location, on_delete=models.PROTECT, db_column='LOC_ID',
+    LOCT_ID = models.ForeignKey(
+        Location, on_delete=models.PROTECT, db_column='LOCT_ID',
         related_name='businesses'
     )
     SPECIALTY_TAGS = models.ManyToManyField(

@@ -2,22 +2,20 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
-import useBusiness from "../hooks/useBusiness";
+import PageHeader from "../components/PageHeader";
+import useBusinessDetail from "../businesses/hooks/useBusinessDetail";
 
-import BusinessDetailHero from "../components/BusinessDetailHero";
-import BusinessDetailMetrics from "../components/BusinessDetailMetrics";
-import BusinessDescription from "../components/BusinessDescription";
-import BusinessDetailLocation from "../components/BusinessDetailLocation";
-import BusinessOperatingHours from "../components/BusinessOperatingHours";
-import BusinessPhotoGallery from "../components/BusinessPhotoGallery";
-import BusinessReviews from "../components/BusinessReviews";
-import BusinessApplicationHistory from "../components/BusinessApplicationHistory";
+import BusinessDetailHero from "../businesses/components/business-detail/BusinessDetailHero";
+import BusinessDetailMetrics from "../businesses/components/business-detail/BusinessDetailMetrics";
+import BusinessDetailLocation from "../businesses/components/business-detail/BusinessDetailLocation";
+import BusinessDetailHours from "../businesses/components/business-detail/BusinessDetailHours";
+import BusinessDetailPhotoGallery from "../businesses/components/business-detail/BusinessDetailPhotoGallery";
 
 export default function BusinessDetailPage() {
   const { businessId } = useParams();
   const navigate = useNavigate();
 
-  const { business, isLoading, error, refetch } = useBusiness(businessId);
+  const { business, isLoading, error, refetch } = useBusinessDetail(businessId);
 
   useApiErrorNotification(error, {
     toastId: "business-detail-load-error",
@@ -25,48 +23,104 @@ export default function BusinessDetailPage() {
   });
 
   if (isLoading) {
-    return <BusinessDetailSkeleton />;
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          breadcrumbs={[
+            { label: "SugboGo Admin", href: "/admin" },
+            { label: "Management", href: "/admin/businesses" },
+            { label: "Businesses", href: "/admin/businesses" },
+            { label: "Business" },
+          ]}
+          title="Business"
+        />
+
+        <div className="h-72 animate-pulse rounded-xl border border-stroke bg-surface" />
+      </div>
+    );
   }
 
   if (error || !business) {
     return (
-      <BusinessDetailError
-        onRetry={refetch}
-        onBack={() => navigate("/admin-panel/businesses")}
-      />
+      <div className="space-y-6">
+        <PageHeader
+          breadcrumbs={[
+            { label: "SugboGo Admin", href: "/admin" },
+            { label: "Management", href: "/admin/businesses" },
+            { label: "Businesses", href: "/admin/businesses" },
+            { label: "Business" },
+          ]}
+          title="Business"
+        />
+
+        <div className="flex min-h-72 items-center justify-center rounded-xl border border-stroke bg-surface-muted">
+          <div className="text-center">
+            <p className="text-sm font-semibold text-text-primary">
+              Unable to load business
+            </p>
+
+            <p className="mt-1 text-sm text-text-secondary">
+              The requested business could not be loaded.
+            </p>
+
+            <button
+              type="button"
+              onClick={refetch}
+              className="mt-4 cursor-pointer text-sm font-semibold text-primary hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* Business identity */}
-      <BusinessDetailHero business={business} />
-
-      {/* Business engagement */}
-      <BusinessDetailMetrics
-        vouchCount={business.vouch_count}
-        reviewCount={business.review_count}
-        pocketCount={business.pocket_count}
+      {/* Page header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: "SugboGo Admin", href: "/admin" },
+          { label: "Management", href: "/admin/businesses" },
+          { label: "Businesses", href: "/admin/businesses" },
+          { label: business.business_name },
+        ]}
+        title={business.business_name}
       />
 
-      {/* Business description */}
-      <BusinessDescription description={business.description} />
+      {/* Business identity */}
+      <BusinessDetailHero
+        business={business}
+        onBack={() => navigate("/admin-panel/businesses")}
+      />
+
+      {/* Business engagement */}
+      <section>
+        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
+          Business Overview
+        </h2>
+
+        <BusinessDetailMetrics
+          vouchCount={business.vouch_count}
+          reviewCount={business.review_count}
+          pocketCount={business.pocket_count}
+        />
+      </section>
 
       {/* Business location */}
-      <BusinessDetailLocation location={business.location} />
+      {/* 
+      <BusinessDetailLocation
+        location={business.location}
+        landmarks={business.landmarks}
+      /> */}
 
-      {/* Operating hours and photos */}
+      {/* Operating hours and photo gallery */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <BusinessOperatingHours operatingHours={business.operating_hours} />
+        <BusinessDetailHours operatingHours={business.operating_hours} />
 
-        <BusinessPhotoGallery photos={business.photos} />
+        <BusinessDetailPhotoGallery photos={business.photos} />
       </div>
-
-      {/* Explorer reviews */}
-      <BusinessReviews reviewCount={business.review_count} />
-
-      {/* Application history */}
-      <BusinessApplicationHistory application={business.application} />
     </div>
   );
 }
