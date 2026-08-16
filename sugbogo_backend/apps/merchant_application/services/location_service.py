@@ -2,6 +2,7 @@ from django.contrib.gis.geos import Point
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
+from apps.business.models import ServiceableBoundary
 from apps.merchant_application.models import (
     MerchantApplicationLandmark,
     MerchantApplicationLocation,
@@ -11,6 +12,30 @@ from apps.merchant_application.services.application_service import ApplicationSe
 
 class LocationService:
     STEP = 2
+
+    @staticmethod
+    def _validate_within_service_area(latitude, longitude, field_label="location"):
+        """
+        Raises a ValidationError if the given coordinates do not fall
+        within any active ServiceableBoundary (currently Cebu City only).
+        """
+        point = Point(x=longitude, y=latitude, srid=4326)
+
+        is_within_service_area = ServiceableBoundary.objects.filter(
+            SBND_IS_ACTIVE=True,
+            SBND_BOUNDARY__contains=point,
+        ).exists()
+
+        if not is_within_service_area:
+            raise ValidationError({
+                field_label: (
+                    "The selected location is outside our current service "
+                    "area (Cebu City). Please choose a location within "
+                    "city limits."
+                )
+            })
+
+        return point
 
     @staticmethod
     @transaction.atomic
@@ -41,13 +66,13 @@ class LocationService:
                     "coordinates": "Latitude and longitude are required when creating a location."
                 })
 
+            point = LocationService._validate_within_service_area(
+                latitude, longitude, field_label="coordinates"
+            )
+
             location = MerchantApplicationLocation.objects.create(
                 MAPP_ID=application,
-                MLOC_POINT=Point(
-                    x=longitude,
-                    y=latitude,
-                    srid=4326,
-                ),
+                MLOC_POINT=point,
                 **validated_data,
             )
         else:
@@ -59,11 +84,10 @@ class LocationService:
                 update_fields.append(field)
 
             if latitude is not None and longitude is not None:
-                location.MLOC_POINT = Point(
-                    x=longitude,
-                    y=latitude,
-                    srid=4326,
+                point = LocationService._validate_within_service_area(
+                    latitude, longitude, field_label="coordinates"
                 )
+                location.MLOC_POINT = point
                 update_fields.append("MLOC_POINT")
 
             # Save only the fields included in the partial update.
@@ -76,6 +100,16 @@ class LocationService:
                 )
 
         if landmarks_data is not None:
+            # Validate every landmark's coordinates before touching the
+            # database, so a bad landmark doesn't leave a partial delete
+            # in place if it fails partway through.
+            for landmark in landmarks_data:
+                LocationService._validate_within_service_area(
+                    landmark["latitude"],
+                    landmark["longitude"],
+                    field_label="landmarks",
+                )
+
             # Replace landmarks only when the request explicitly updates them.
             MerchantApplicationLandmark.objects.filter(
                 MLOC_ID=location
