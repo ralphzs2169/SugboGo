@@ -1,10 +1,12 @@
+import { Ban, Building2, Store, Trophy } from "lucide-react";
+
 import MetricCard from "@/features/admin-panel/components/MetricCard";
 
 /**
  * Displays the primary business-management KPIs for administrators.
  *
- * Uses the current business totals and a compact distribution visualization
- * to provide immediate context around the active business population.
+ * Uses the current business totals and compact trend/distribution
+ * visualizations to provide immediate context around the business population.
  */
 export default function BusinessMetrics() {
   const businessGrowthData = [
@@ -22,6 +24,7 @@ export default function BusinessMetrics() {
       {/* Total businesses KPI */}
       <MetricCard
         title="Total Businesses"
+        icon={Building2}
         value="248"
         trend={{
           direction: "up",
@@ -35,6 +38,7 @@ export default function BusinessMetrics() {
       {/* Active businesses KPI */}
       <MetricCard
         title="Active Businesses"
+        icon={Store}
         value="241"
         footerValue="97.2% of total"
         distribution={{
@@ -48,6 +52,7 @@ export default function BusinessMetrics() {
       {/* Suspended businesses KPI */}
       <MetricCard
         title="Suspended Businesses"
+        icon={Ban}
         value="7"
         footerValue="2.8% of total"
       />
@@ -55,6 +60,7 @@ export default function BusinessMetrics() {
       {/* Top business KPI */}
       <MetricCard
         title="Top Business"
+        icon={Trophy}
         value="Sugbo Bistro"
         footerValue="Most discovered"
       />

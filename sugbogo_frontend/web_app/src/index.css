@@ -35,6 +35,10 @@ body {
   --color-tooltip-background: #1F2937;
   --color-tooltip-text: #F8FAFC;
 
+
+  --color-metric-header: #F8FAFC;
+
+
   /* Stroke Borders */
   --color-stroke: #E5E7EB;           /* gray-200 */
   --color-stroke-strong: #D1D5DB;    /* gray-300 */
@@ -82,6 +86,10 @@ html.dark {
 
    --color-tooltip-background: #F1F5F9;
    --color-tooltip-text: #0F172A;
+
+
+  --color-metric-header: #242424;
+
 
   --color-stroke: #2E333A;          
   --color-stroke-strong: #3F4551;  
