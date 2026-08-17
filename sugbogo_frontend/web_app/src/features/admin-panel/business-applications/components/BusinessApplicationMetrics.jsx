@@ -1,3 +1,10 @@
+import {
+  CircleCheck,
+  ClockCheck,
+  ClipboardList,
+  RefreshCw,
+} from "lucide-react";
+
 import MetricCard from "@/features/admin-panel/components/MetricCard";
 
 function getTrend(trend, positiveDirection = "up") {
@@ -62,6 +69,7 @@ export default function BusinessApplicationMetrics({
       {/* Pending review KPI */}
       <MetricCard
         title="Pending Review"
+        icon={ClipboardList}
         value={pendingReviewValue}
         footerValue={pendingReviewFooter}
         sparklineData={isError ? [] : pendingReviewHistory}
@@ -71,6 +79,7 @@ export default function BusinessApplicationMetrics({
       {/* Approval rate KPI */}
       <MetricCard
         title="Approval Rate"
+        icon={CircleCheck}
         value={isError || approvalRate == null ? "—" : `${approvalRate}%`}
         trend={isError ? null : getTrend(approvalRateTrend, "up")}
         sparklineData={isError ? [] : approvalRateHistory}
@@ -80,6 +89,7 @@ export default function BusinessApplicationMetrics({
       {/* Resubmission rate KPI */}
       <MetricCard
         title="Resubmission Rate"
+        icon={RefreshCw}
         value={
           isError || resubmissionRate == null ? "—" : `${resubmissionRate}%`
         }
@@ -91,6 +101,7 @@ export default function BusinessApplicationMetrics({
       {/* SLA compliance KPI */}
       <MetricCard
         title="SLA Compliance"
+        icon={ClockCheck}
         value={
           isError || slaComplianceRate == null ? "—" : `${slaComplianceRate}%`
         }

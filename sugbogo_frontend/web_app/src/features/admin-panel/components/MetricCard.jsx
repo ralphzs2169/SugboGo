@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 
 import { getMetricVariant } from "@/features/admin-panel/constants/metricVariants";
+import MetricDonut from "./MetricDonut";
 import MetricSparkline from "./MetricSparkline";
 
 const TREND_ICONS = {
@@ -10,14 +11,16 @@ const TREND_ICONS = {
 };
 
 /**
- * Displays one KPI value with an optional historical sparkline and either
- * a week-over-week trend or a simple contextual footer value.
+ * Displays one KPI value with optional historical or distribution
+ * visualization and either a historical trend or contextual footer.
  */
 function MetricCard({
   title,
+  icon: Icon,
   value,
   trend,
   sparklineData = [],
+  distribution,
   footerLabel = "vs last week",
   footerValue,
   sparklineValueFormatter,
@@ -26,15 +29,28 @@ function MetricCard({
 
   const TrendIcon = trend ? (TREND_ICONS[trend.direction] ?? Minus) : null;
 
-  return (
-    <div className="flex min-h-[165px] flex-col justify-between rounded-lg border border-stroke bg-background p-6 shadow-sm hover:shadow-md">
-      {/* Card title */}
-      <h3 className="max-w-[160px] text-[11px] font-bold uppercase leading-relaxed tracking-widest text-text-secondary">
-        {title}
-      </h3>
+  const hasSparkline =
+    sparklineData.filter(
+      (item) => item.value !== null && item.value !== undefined,
+    ).length >= 2;
 
-      {/* KPI value, footer, and sparkline */}
-      <div className="mt-5 flex items-end justify-between gap-3">
+  return (
+    <div className="flex min-h-[165px] flex-col overflow-hidden rounded-xl border border-stroke bg-background shadow-sm transition-shadow hover:shadow-md">
+      {/* Metric header */}
+
+      <div className="flex items-center  border-b justify-between border-stroke bg-metric-header px-4 py-3">
+        <h3 className="min-w-0 truncate text-xs font-medium  text-text-primary">
+          {title}
+        </h3>
+        {Icon && (
+          <div className=" text-text-primary">
+            <Icon size={20} strokeWidth={2} />
+          </div>
+        )}
+      </div>
+
+      {/* KPI body */}
+      <div className="flex flex-1 items-end justify-between gap-3 p-5">
         <div className="min-w-0">
           <div className="text-3xl font-bold tracking-tight text-text-primary">
             {value}
@@ -46,6 +62,7 @@ function MetricCard({
                 <TrendIcon
                   className={`h-3 w-3 shrink-0 stroke-[3] ${trendColor}`}
                 />
+
                 <span className={`font-bold ${trendColor}`}>{trend.value}</span>
               </span>
 
@@ -62,17 +79,19 @@ function MetricCard({
           )}
         </div>
 
-        {/* Historical sparkline */}
-        {sparklineData.filter(
-          (item) => item.value !== null && item.value !== undefined,
-        ).length >= 2 && (
-          <div className="h-14 w-20 shrink-0">
-            <MetricSparkline
-              data={sparklineData}
-              variant="neutral"
-              valueFormatter={sparklineValueFormatter}
-            />
-          </div>
+        {/* KPI visualization */}
+        {distribution ? (
+          <MetricDonut data={distribution.data} />
+        ) : (
+          hasSparkline && (
+            <div className="h-14 w-20 shrink-0">
+              <MetricSparkline
+                data={sparklineData}
+                variant="neutral"
+                valueFormatter={sparklineValueFormatter}
+              />
+            </div>
+          )
         )}
       </div>
     </div>

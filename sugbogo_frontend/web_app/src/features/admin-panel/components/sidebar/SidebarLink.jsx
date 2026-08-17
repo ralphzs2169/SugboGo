@@ -26,23 +26,26 @@ export default function SidebarLink({
   const isCustomActive =
     activePaths.length > 0
       ? activePaths.some((path) => location.pathname.startsWith(path))
-      : location.pathname.startsWith(to);
-
+      : location.pathname === to;
   const link = (
     <NavLink
       to={to}
       onClick={onClick}
       className={`
-        ${linkBase}
-        relative
-        ${isCollapsed ? "h-10 w-10 justify-center" : "w-full gap-3 px-2 py-3"}
-        ${
-          isCustomActive
-            ? "bg-sidebar-active text-text-primary"
-            : "text-text-primary hover:bg-interaction-hover"
-        }
-      `}
+    ${linkBase}
+    relative
+    ${isCollapsed ? "h-10 w-10 justify-center" : "w-full gap-3 px-2 py-3"}
+    ${
+      isCustomActive
+        ? "bg-sidebar-active text-text-primary"
+        : "text-text-primary hover:bg-interaction-hover"
+    }
+  `}
     >
+      {isCustomActive && (
+        <span className="absolute inset-y-0 left-0 w-1 rounded-l-full bg-primary" />
+      )}
+
       <Icon className="h-4.5 w-4.5 shrink-0" />
 
       <span

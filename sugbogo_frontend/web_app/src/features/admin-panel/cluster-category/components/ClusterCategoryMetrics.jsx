@@ -1,4 +1,5 @@
-import React from "react";
+import { BarChart3, Layers3, Tags, TrendingUp } from "lucide-react";
+
 import MetricCard from "@/features/admin-panel/components/MetricCard";
 
 /**
@@ -18,6 +19,7 @@ export default function ClusterCategoryMetrics({
       {/* Total clusters KPI */}
       <MetricCard
         title="Total Clusters"
+        icon={Layers3}
         value={isError ? "—" : (totalClusters ?? "—")}
         footerValue={
           isError
@@ -31,6 +33,7 @@ export default function ClusterCategoryMetrics({
       {/* Total categories KPI */}
       <MetricCard
         title="Total Categories"
+        icon={Tags}
         value={isError ? "—" : (totalCategories ?? "—")}
         footerValue={
           isError
@@ -41,14 +44,18 @@ export default function ClusterCategoryMetrics({
         }
       />
 
+      {/* Most used cluster KPI */}
       <MetricCard
         title="Most Used Cluster"
+        icon={TrendingUp}
         value="Food & Beverage"
         footerValue="used in 12 businesses"
       />
 
+      {/* Most used category KPI */}
       <MetricCard
         title="Most Used Category"
+        icon={BarChart3}
         value="Restaurant"
         footerValue="used in 34 businesses"
       />

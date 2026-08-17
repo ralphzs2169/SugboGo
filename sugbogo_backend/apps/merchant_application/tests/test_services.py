@@ -16,7 +16,14 @@ from apps.merchant_application.services.operating_hours_service import (
     OperatingHoursService,
 )
 from apps.merchant_application.services.photo_service import PhotoService
-from apps.business.models import Category, Cluster, SpecialtyTag
+from django.contrib.gis.geos import MultiPolygon, Polygon
+
+from apps.business.models import (
+    Category,
+    Cluster,
+    ServiceableBoundary,
+    SpecialtyTag,
+)
 from apps.users.models import User
 
 
@@ -48,6 +55,23 @@ class MerchantApplicationServiceMixin:
             SpecialtyTag.objects.create(TAG_NAME=f"Tag {index}")
             for index in range(1, 4)
         ]
+
+        self.serviceable_boundary = ServiceableBoundary.objects.create(
+            SBND_NAME="Cebu City Test Boundary",
+            SBND_IS_ACTIVE=True,
+            SBND_BOUNDARY=MultiPolygon(
+                Polygon(
+                    (
+                        (123.87, 10.30),
+                        (123.92, 10.30),
+                        (123.92, 10.34),
+                        (123.87, 10.34),
+                        (123.87, 10.30),
+                    ),
+                    srid=4326,
+                )
+            ),
+        )
 
     def _identity_payload(self):
         return {

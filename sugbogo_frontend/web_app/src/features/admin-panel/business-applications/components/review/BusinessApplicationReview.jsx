@@ -4,7 +4,7 @@ import BusinessHoursReview from "./BusinessHoursReview";
 import BusinessIdentityReview from "./BusinessIdentityReview";
 import BusinessLocationReview from "./BusinessLocationReview";
 import BusinessPhotosReview from "./BusinessPhotosReview";
-import GoogleMapsProvider from "../../../providers/GoogleMapsProvider";
+
 import ApplicationReviewContextBar from "./ReviewContextBar";
 import RejectApplicationDrawer from "./RejectApplicationDrawer";
 import ApproveApplicationConfirmationModal from "./ApproveApplicationConfirmationModal";
@@ -165,14 +165,13 @@ export default function BusinessApplicationReview({
       />
 
       {/* Business location */}
-      <GoogleMapsProvider>
-        <BusinessLocationReview
-          location={application.location}
-          feedback={getSectionFeedback("location")}
-          isChangedSinceLastReview={hasSectionChanged("location")}
-          isResubmission={isResubmission}
-        />
-      </GoogleMapsProvider>
+
+      <BusinessLocationReview
+        location={application.location}
+        feedback={getSectionFeedback("location")}
+        isChangedSinceLastReview={hasSectionChanged("location")}
+        isResubmission={isResubmission}
+      />
 
       {/* Operating hours */}
       <BusinessHoursReview

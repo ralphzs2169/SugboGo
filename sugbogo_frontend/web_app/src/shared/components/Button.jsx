@@ -24,7 +24,7 @@ export default function Button({
   ...props
 }) {
   const baseClasses =
-    "cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50";
+    "cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-stroke-active/20 disabled:cursor-not-allowed disabled:opacity-50";
 
   const sizeClasses = {
     sm: iconOnly ? "h-8 w-8 p-0" : "px-3 py-2 text-sm",
@@ -36,6 +36,11 @@ export default function Button({
 
     secondary:
       "border border-stroke bg-background text-text-primary hover:bg-surface",
+
+    // used for actions column in tables
+    action:
+      "bg-transparent text-text-secondary hover:bg-surface hover:text-text-primary",
+
     success: "bg-success text-white hover:opacity-90 active:opacity-80",
 
     danger: "bg-red-600 text-white hover:bg-red-700 active:bg-red-800",

@@ -2,7 +2,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
 import Button from "@/shared/components/Button";
-import { formatDateTime } from "@/shared/utils/dateUtils";
+import { formatDate } from "@/shared/utils/dateUtils";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 
 const columnHelper = createColumnHelper();
@@ -94,7 +94,7 @@ export default function getSpecialtyTagColumns(
       },
       cell: (info) => (
         <span className="text-sm text-text-secondary">
-          {formatDateTime(info.getValue())}
+          {formatDate(info.getValue())}
         </span>
       ),
     }),
@@ -107,7 +107,7 @@ export default function getSpecialtyTagColumns(
       },
       cell: (info) => (
         <span className="text-sm text-text-secondary">
-          {formatDateTime(info.getValue())}
+          {formatDate(info.getValue())}
         </span>
       ),
     }),

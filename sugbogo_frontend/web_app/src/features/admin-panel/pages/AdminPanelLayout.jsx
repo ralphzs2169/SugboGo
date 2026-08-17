@@ -3,6 +3,7 @@ import { useState } from "react";
 import Sidebar from "@/features/admin-panel/components/sidebar/Sidebar";
 import NavigationHeader from "@/features/admin-panel/components/NavigationHeader";
 import ScrollToTop from "../../../shared/components/ScrollToTop";
+import GoogleMapsProvider from "@/features/admin-panel/providers/GoogleMapsProvider";
 
 const COLLAPSE_STORAGE_KEY = "sidebar:collapsed";
 
@@ -28,32 +29,34 @@ export default function AdminPanelLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-surface text-text-primary">
-      <ScrollToTop />
-      <Sidebar
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-      />
+    <GoogleMapsProvider>
+      <div className="min-h-screen bg-surface text-text-primary">
+        <ScrollToTop />
+        <Sidebar
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
 
-      <div
-        className={`
+        <div
+          className={`
     min-h-screen
     transition-[margin] duration-300
     ${isSidebarCollapsed ? "lg:ml-20" : "lg:ml-62"}
   `}
-        style={{
-          "--admin-sidebar-width": sidebarWidth,
-        }}
-      >
-        <section className="sticky top-0 z-20 border-b border-stroke bg-background">
-          <NavigationHeader onMenuClick={() => setIsSidebarOpen(true)} />
-        </section>
-        <main className=" p-6 sm:p-4 ">
-          <Outlet />
-        </main>
+          style={{
+            "--admin-sidebar-width": sidebarWidth,
+          }}
+        >
+          <section className="sticky top-0 z-20 border-b border-stroke bg-background">
+            <NavigationHeader onMenuClick={() => setIsSidebarOpen(true)} />
+          </section>
+          <main className=" p-6 sm:p-4 ">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </GoogleMapsProvider>
   );
 }

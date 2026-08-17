@@ -2,7 +2,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import Button from "@/shared/components/Button";
 import { Pencil, Trash2 } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
-import { formatDateTime } from "@/shared/utils/dateUtils";
+import { formatDate } from "@/shared/utils/dateUtils";
 
 import { CLUSTER_ICONS } from "../../constants/clusterIcons";
 
@@ -90,7 +90,7 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
       },
       cell: (info) => (
         <span className="text-sm text-text-secondary">
-          {formatDateTime(info.getValue())}
+          {formatDate(info.getValue())}
         </span>
       ),
     }),
@@ -102,7 +102,7 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
       },
       cell: (info) => (
         <span className="text-sm text-text-secondary">
-          {formatDateTime(info.getValue())}
+          {formatDate(info.getValue())}
         </span>
       ),
     }),

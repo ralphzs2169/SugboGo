@@ -8,12 +8,14 @@ import { User } from "lucide-react";
  */
 export default function UserAvatar({ avatarUrl, size = "md", className = "" }) {
   const sizeClasses = {
+    xs: "h-4 w-4",
     sm: "h-6 w-6",
     md: "h-7 w-7",
     lg: "h-10 w-10",
   };
 
   const iconSizes = {
+    xs: 10,
     sm: 12,
     md: 14,
     lg: 18,
@@ -27,7 +29,7 @@ export default function UserAvatar({ avatarUrl, size = "md", className = "" }) {
       <img
         src={avatarUrl}
         alt=""
-        className={`${sizeClass} border border-text-secondary shrink-0 rounded-full object-cover ${className}`}
+        className={`${sizeClass} border border-stroke shrink-0 rounded-full object-cover  ${className}`}
       />
     );
   }

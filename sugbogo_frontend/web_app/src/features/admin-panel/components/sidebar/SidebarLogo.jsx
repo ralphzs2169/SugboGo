@@ -8,13 +8,6 @@ import SugboGoText from "@/shared/components/SugboGoText";
  * When collapsed, or while the expand animation is
  * still in progress, only the logo mark is shown.
  *
- * @component
- *
- * @param {Object} props
- * @param {boolean} props.isCollapsed - Whether the sidebar is collapsed.
- * @param {boolean} props.showLabels - Whether text labels should be visible.
- *
- * @returns {JSX.Element}
  */
 export default function SidebarLogo({ isCollapsed, showLabels = true }) {
   const showFullLogo = !isCollapsed && showLabels;

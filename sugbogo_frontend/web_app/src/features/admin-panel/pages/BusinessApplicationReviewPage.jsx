@@ -27,8 +27,8 @@ export default function BusinessApplicationReviewPage() {
     <PageHeader
       breadcrumbs={[
         { label: "SugboGo Admin" },
-        { label: "Business Management" },
-        { label: "Applications" },
+        { label: "Management" },
+        { label: "Merchant Applications" },
         {
           label: application?.identity?.business_name || "Review",
         },

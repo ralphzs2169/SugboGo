@@ -32,10 +32,10 @@ export default function BusinessApplicationsPage() {
             href: "/admin/businesses/applications",
           },
           {
-            label: "Applications",
+            label: "Merchant Applications",
           },
         ]}
-        title="Merchant Applications"
+        title="Merchant Application Management"
       />
 
       {/* Application overview */}
@@ -104,7 +104,7 @@ export default function BusinessApplicationsPage() {
       )}
 
       <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
-        Merchant Application Management
+        All Merchant Applications
       </h2>
       {/* Application management */}
       <BusinessApplicationManagementTable />
