@@ -6,7 +6,6 @@ import BusinessManagementTable from "../businesses/components/BusinessManagement
 import BusinessLocationsSection from "../businesses/components/business-location/BusinessLocationsSection";
 import BusinessMetrics from "../businesses/components/BusinessMetrics";
 import useBusinessMap from "../businesses/hooks/useBusinessMap";
-import GoogleMapsProvider from "../providers/GoogleMapsProvider";
 import { useNavigate } from "react-router-dom";
 
 export default function BusinessesPage() {

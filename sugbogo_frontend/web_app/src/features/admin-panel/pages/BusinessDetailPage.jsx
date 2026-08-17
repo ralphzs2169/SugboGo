@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
@@ -7,13 +8,14 @@ import useBusinessDetail from "../businesses/hooks/useBusinessDetail";
 
 import BusinessDetailHero from "../businesses/components/business-detail/BusinessDetailHero";
 import BusinessDetailMetrics from "../businesses/components/business-detail/BusinessDetailMetrics";
-import BusinessDetailLocation from "../businesses/components/business-detail/BusinessDetailLocation";
-import BusinessDetailHours from "../businesses/components/business-detail/BusinessDetailHours";
 import BusinessDetailPhotoGallery from "../businesses/components/business-detail/BusinessDetailPhotoGallery";
+import BusinessLocationModal from "../businesses/components/business-detail/BusinessLocationModal";
 
 export default function BusinessDetailPage() {
   const { businessId } = useParams();
   const navigate = useNavigate();
+
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
 
   const { business, isLoading, error, refetch } = useBusinessDetail(businessId);
 
@@ -93,12 +95,13 @@ export default function BusinessDetailPage() {
       <BusinessDetailHero
         business={business}
         onBack={() => navigate("/admin-panel/businesses")}
+        onOpenLocation={() => setIsLocationOpen(true)}
       />
 
       {/* Business engagement */}
       <section>
         <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
-          Business Overview
+          Business Engagement
         </h2>
 
         <BusinessDetailMetrics
@@ -108,19 +111,16 @@ export default function BusinessDetailPage() {
         />
       </section>
 
-      {/* Business location */}
-      {/* 
-      <BusinessDetailLocation
+      {/* Business photo gallery */}
+      <BusinessDetailPhotoGallery photos={business.photos} />
+
+      {/* Location modal */}
+      <BusinessLocationModal
+        isOpen={isLocationOpen}
         location={business.location}
         landmarks={business.landmarks}
-      /> */}
-
-      {/* Operating hours and photo gallery */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <BusinessDetailHours operatingHours={business.operating_hours} />
-
-        <BusinessDetailPhotoGallery photos={business.photos} />
-      </div>
+        onClose={() => setIsLocationOpen(false)}
+      />
     </div>
   );
 }

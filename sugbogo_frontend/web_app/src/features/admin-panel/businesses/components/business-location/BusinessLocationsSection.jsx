@@ -2,7 +2,6 @@ import { ChevronDown, MapPinned } from "lucide-react";
 import { useState } from "react";
 
 import BusinessManagementMap from "./BusinessManagementMap";
-import GoogleMapsProvider from "../../../providers/GoogleMapsProvider";
 
 /**
  * Displays the geographic distribution of managed businesses.
@@ -34,7 +33,7 @@ export default function BusinessLocationsSection({
 
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-text-primary">
-            Business Locations
+            Business Directory Map
           </h3>
 
           {!isExpanded && (
@@ -72,15 +71,13 @@ export default function BusinessLocationsSection({
       >
         <div className="overflow-hidden">
           <div className="border-t border-stroke">
-            <GoogleMapsProvider>
-              {/* <BusinessManagementMap
-                businesses={businesses}
-                isLoading={isLoading}
-                error={error}
-                onRetry={onRetry}
-                className="h-[420px] rounded-none border-0"
-              /> */}
-            </GoogleMapsProvider>
+            <BusinessManagementMap
+              businesses={businesses}
+              isLoading={isLoading}
+              error={error}
+              onRetry={onRetry}
+              className="h-[420px] rounded-none border-0"
+            />
           </div>
         </div>
       </div>

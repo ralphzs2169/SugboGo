@@ -8,7 +8,7 @@ import {
   useMap,
 } from "@vis.gl/react-google-maps";
 import BusinessMapInfoWindow from "./BusinessMapInfoWindow";
-import BusinessMapMarker from "../../../business-applications/components/review/business-location/BusinessMapMarker";
+import BusinessMapMarker from "@/shared/components/maps/BusinessMapMarker";
 
 const DEFAULT_CENTER = {
   lat: 10.3157,
@@ -111,7 +111,7 @@ export default function BusinessManagementMap({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-lg border border-stroke ${className}`}
+      className={`relative overflow-hidden rounded-lg border p-2 border-stroke ${className}`}
     >
       <Map
         defaultCenter={DEFAULT_CENTER}

@@ -154,7 +154,7 @@ export default function getBusinessColumns(onViewBusiness) {
         return (
           <div className="flex flex-col items-start gap-1.5">
             {tags.slice(0, 3).map((tag) => (
-              <SpecialtyTagChip key={tag.id} tag={tag} />
+              <SpecialtyTagChip key={tag.id} tag={tag} fullWidth />
             ))}
 
             {tags.length > 3 && (

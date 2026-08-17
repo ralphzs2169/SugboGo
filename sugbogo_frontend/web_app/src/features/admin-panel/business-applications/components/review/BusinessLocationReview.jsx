@@ -3,7 +3,7 @@ import { MapPin } from "lucide-react";
 
 import ApplicationReviewField from "./ApplicationReviewField";
 import ApplicationReviewSection from "./ApplicationReviewSection";
-import BusinessLocationMap from "./business-location/BusinessLocationMap";
+import BusinessLocationMap from "@/shared/components/maps/BusinessLocationMap";
 import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
 /**

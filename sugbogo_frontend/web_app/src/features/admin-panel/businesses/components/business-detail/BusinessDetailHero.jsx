@@ -1,12 +1,16 @@
-import { ArrowLeft, Image, MapPin, MoreVertical } from "lucide-react";
-import { AdvancedMarker, Map } from "@vis.gl/react-google-maps";
+import { ArrowLeft, Clock, Image, MoreVertical } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import UserAvatar from "@/shared/components/UserAvatar";
-import GoogleMapsProvider from "@/features/admin-panel/providers/GoogleMapsProvider";
-import BusinessMapMarker from "../../../business-applications/components/review/business-location/BusinessMapMarker";
+import BusinessLocationPreview from "./BusinessLocationPreview";
+import BusinessHoursPreview from "./BusinessHoursPreview";
+import StatusBadge from "@/shared/components/StatusBadge";
+import {
+  formatOperatingHours,
+  isOvernightOperatingHours,
+} from "../../../business-applications/utils/operatingHours.utils";
 
 const STATUS_CONFIG = {
   active: {
@@ -19,21 +23,35 @@ const STATUS_CONFIG = {
   },
 };
 
+const DAY_ORDER = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
 /**
  * Displays the primary identity of a permanent business.
  *
  * Combines the storefront, classification, specialty tags, owner,
- * current business status, and a compact location preview into the
- * business header.
+ * business status, description, compact location preview, and a
+ * summary of the current day's operating status.
  */
 export default function BusinessDetailHero({
   business,
   onBack,
   onOpenLocation,
+  onOpenHours,
 }) {
   const storefrontPhoto = business.photos?.find(
     (photo) => photo.category === "storefront",
   );
+
+  const otherPhotos =
+    business.photos?.filter((photo) => photo.category !== "storefront") ?? [];
 
   const status = STATUS_CONFIG[business.status] ?? {
     label: business.status ?? "Unknown",
@@ -43,14 +61,16 @@ export default function BusinessDetailHero({
   const hasLocation =
     business.location?.latitude != null && business.location?.longitude != null;
 
-  const GOOGLE_MAP_ID = import.meta.env.VITE_GOOGLE_MAP_ID;
+  const today = DAY_ORDER[new Date().getDay()];
+  const todayHours = business.operating_hours?.find(
+    (hours) => hours.day === today,
+  );
 
-  const locationPosition = hasLocation
-    ? {
-        lat: Number(business.location.latitude),
-        lng: Number(business.location.longitude),
-      }
-    : null;
+  const isOpenToday = todayHours?.is_open ?? false;
+  const isTwentyFourHours = todayHours?.is_24_hours ?? false;
+  const isOvernight = todayHours
+    ? isOvernightOperatingHours(todayHours)
+    : false;
 
   return (
     <section>
@@ -69,8 +89,8 @@ export default function BusinessDetailHero({
       <div className="overflow-hidden rounded-xl border border-stroke bg-background">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,420px)_1fr]">
           {/* Storefront */}
-          <div className="p-4 sm:p-5 lg:min-h-[300px]">
-            <div className="relative h-full min-h-[260px] overflow-hidden rounded-xl bg-surface-muted">
+          <div className="p-4 sm:p-5">
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-surface-muted">
               {storefrontPhoto?.url ? (
                 <img
                   src={storefrontPhoto.url}
@@ -78,14 +98,49 @@ export default function BusinessDetailHero({
                   className="absolute inset-0 h-full w-full object-cover"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center">
+                <div className="flex h-full flex-col items-center justify-center gap-1.5">
                   <Image
                     className="h-10 w-10 text-text-secondary"
                     strokeWidth={1.5}
                   />
+
+                  <span className="text-xs font-medium text-text-secondary">
+                    No storefront photo
+                  </span>
                 </div>
               )}
             </div>
+
+            {/* Additional photos */}
+            {otherPhotos.length > 0 && (
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {otherPhotos.slice(0, 4).map((photo, index) => {
+                  const isLastVisible = index === 3;
+                  const remainingCount = otherPhotos.length - 4;
+
+                  return (
+                    <div
+                      key={photo.id ?? photo.url}
+                      className="relative aspect-square overflow-hidden rounded-lg border border-stroke bg-surface-muted"
+                    >
+                      <img
+                        src={photo.url}
+                        alt={`${business.business_name} photo`}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+
+                      {isLastVisible && remainingCount > 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                          <span className="text-xs font-semibold text-white">
+                            +{remainingCount}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Business identity */}
@@ -124,7 +179,6 @@ export default function BusinessDetailHero({
               <ClusterDisplay
                 clusterName={business.cluster_name}
                 clusterIcon={business.cluster_icon}
-                variant="badge"
               />
 
               <span className="text-sm text-text-secondary">·</span>
@@ -155,86 +209,21 @@ export default function BusinessDetailHero({
                 </p>
               </div>
             )}
-
-            {/* Owner and location */}
-            <div className="mt-6 grid grid-cols-1 gap-5 border-t border-stroke pt-5 lg:grid-cols-2">
-              {/* Owner */}
-              <div className="flex items-center gap-3">
-                <UserAvatar avatarUrl={business.owner?.avatar_url} size="sm" />
-
-                <div className="min-w-0">
-                  <p className="text-xs text-text-secondary">Owner</p>
-
-                  <p className="truncate text-sm font-semibold text-text-primary">
-                    {business.owner?.name || "Unknown owner"}
-                  </p>
-
-                  {business.owner?.email && (
-                    <p className="truncate text-xs text-text-secondary">
-                      {business.owner.email}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Location preview */}
-              {hasLocation && (
-                <button
-                  type="button"
+            {/* Location and availability */}
+            {hasLocation && (
+              <div className="mt-5 border-t border-stroke pt-5">
+                <BusinessLocationPreview
+                  location={business.location}
                   onClick={onOpenLocation}
-                  className="group flex cursor-pointer items-center gap-3 text-left"
-                >
-                  {/* Compact map */}
-                  <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-lg border border-stroke bg-surface-muted">
-                    <div className="pointer-events-none h-full w-full">
-                      <GoogleMapsProvider>
-                        <Map
-                          defaultCenter={locationPosition}
-                          defaultZoom={16}
-                          mapId={GOOGLE_MAP_ID}
-                          disableDefaultUI
-                          gestureHandling="none"
-                        >
-                          <AdvancedMarker position={locationPosition}>
-                            <BusinessMapMarker variant="business" />
-                          </AdvancedMarker>
-                        </Map>
-                      </GoogleMapsProvider>
-                    </div>
+                />
 
-                    {/* Preview overlay */}
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/10">
-                      <span className="rounded-full bg-background/95 px-2.5 py-1.5 text-xs font-semibold text-text-primary opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
-                        View map
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Location summary */}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin
-                        size={14}
-                        strokeWidth={1.8}
-                        className="text-text-secondary"
-                      />
-
-                      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                        Location
-                      </p>
-                    </div>
-
-                    <p className="mt-1 truncate text-sm font-medium text-text-primary">
-                      {business.location.address || "No address"}
-                    </p>
-
-                    <p className="mt-1 text-xs text-text-secondary">
-                      {business.location.city}, {business.location.province}
-                    </p>
-                  </div>
-                </button>
-              )}
-            </div>
+                {business.operating_hours?.length > 0 && (
+                  <BusinessHoursPreview
+                    operatingHours={business.operating_hours}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

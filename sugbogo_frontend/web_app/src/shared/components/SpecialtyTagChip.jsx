@@ -14,10 +14,10 @@ export const colorClasses = {
 /**
  * Displays a specialty tag using its configured color.
  */
-export default function SpecialtyTagChip({ tag }) {
+export default function SpecialtyTagChip({ tag, fullWidth = false }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+      className={`inline-flex items-center rounded-full ${fullWidth ? "w-full" : "w-auto"} px-3 py-1 text-xs font-medium ${
         colorClasses[tag.color] ?? colorClasses.blue
       }`}
     >
