@@ -48,6 +48,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(explorer)" />
                 <Stack.Screen name="(setup)" />
+                <Stack.Screen name="(merchant)" />
               </Stack>
 
               <Toast config={toastConfig} />

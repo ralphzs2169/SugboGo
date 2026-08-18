@@ -1,9 +1,10 @@
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 
-import * as onboardingStorage from "@/shared/api/onboardingStorage.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import * as onboardingStorage from "@/shared/api/onboardingStorage.service";
 
 export default function Index() {
   const [completedOnboarding, setCompletedOnboarding] = useState<
@@ -11,6 +12,8 @@ export default function Index() {
   >(null);
 
   const { user, isAuthenticated } = useAuthStore();
+
+  const activeMode = useAppModeStore((state) => state.activeMode);
 
   const pendingEmail = useVerificationStore((state) => state.pendingEmail);
 
@@ -32,8 +35,6 @@ export default function Index() {
     return <Redirect href="/onboarding" />;
   }
 
-  // If the user is not authenticated, redirect to the login page
-  // or email verification page if there's a pending email.
   if (!isAuthenticated) {
     if (pendingEmail) {
       return (
@@ -53,6 +54,10 @@ export default function Index() {
 
   if (!user?.has_completed_interest_selection) {
     return <Redirect href="/(setup)/interests" />;
+  }
+
+  if (activeMode === "merchant") {
+    return <Redirect href="/(merchant)/(tabs)/dashboard" />;
   }
 
   return <Redirect href="/(explorer)/(tabs)/explore" />;

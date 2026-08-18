@@ -9,7 +9,7 @@ export interface User {
   gender: "male" | "female" | "non_binary" | "prefer_not_to_say" | null;
   avatar_url?: string | null;
   email: string;
-  role: string;
+  role: "explorer" | "merchant";
   status: string;
 
   oauth_avatar_url?: string | null;

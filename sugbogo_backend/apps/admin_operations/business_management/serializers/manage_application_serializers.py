@@ -134,13 +134,18 @@ class AdminApplicationIdentitySerializer(serializers.ModelSerializer):
 class ApplicationSubmitterSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="full_name", read_only=True)
     email = serializers.EmailField(source="USER_EMAIL", read_only=True)
+    avatar_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = (
             "name",
             "email",
+            "avatar_url",
         )
+
+    def get_avatar_url(self, obj):
+        return obj.avatar_url
 
         
 class AdminMerchantApplicationListSerializer(

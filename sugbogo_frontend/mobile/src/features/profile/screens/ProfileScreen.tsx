@@ -12,6 +12,7 @@ import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import ProfileScrollView from "../components/ProfileScrollView";
 import { useState } from "react";
 import useApplicationStatus from "../hooks/useApplicationStatus";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 
 /**
  * ProfileScreen component.
@@ -20,6 +21,9 @@ import useApplicationStatus from "../hooks/useApplicationStatus";
  */
 export default function ProfileScreen({}) {
   const user = useAuthStore((state) => state.user);
+
+  const canAccessMerchantMode = user?.role === "merchant";
+  const setActiveMode = useAppModeStore((state) => state.setActiveMode);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { logout } = useLogout();
@@ -33,6 +37,11 @@ export default function ProfileScreen({}) {
 
   const handleMerchantPortalPress = () => {
     router.push("/profile/merchant-portal");
+  };
+
+  const handleSwitchToMerchant = () => {
+    setActiveMode("merchant");
+    router.replace("/(merchant)/(tabs)/dashboard");
   };
 
   return (
@@ -97,6 +106,16 @@ export default function ProfileScreen({}) {
             status={applicationStatus}
             onPress={handleMerchantPortalPress}
           />
+
+          {canAccessMerchantMode && (
+            <ProfileMenuSection>
+              <ProfileMenuItem
+                title="Switch to Merchant"
+                icon="storefront-outline"
+                onPress={handleSwitchToMerchant}
+              />
+            </ProfileMenuSection>
+          )}
 
           <ProfileMenuSection title="Settings & Support">
             <ProfileMenuItem
