@@ -1,20 +1,20 @@
 from unittest.mock import patch
 
-from google.auth.exceptions import GoogleAuthError
-
+from core.tests.assertions import APIResponseAssertionsMixin
+from django.core.cache import cache
 from django.urls import reverse
+from google.auth.exceptions import GoogleAuthError
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.authentication.models import OAuthAccount
 from apps.authentication.services.oauth.base import OAuthUser
 from apps.users.models import User
-from core.tests.assertions import APIResponseAssertionsMixin
-from apps.authentication.models import OAuthAccount
 
 
 class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
     def setUp(self):
-        
+        cache.clear()
         self.url = reverse("google_login")
 
         self.oauth_user = OAuthUser(

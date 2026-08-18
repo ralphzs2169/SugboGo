@@ -1,8 +1,9 @@
+from core.tests.assertions import APIResponseAssertionsMixin
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from core.tests.assertions import APIResponseAssertionsMixin
 from apps.users.models import User
 
 
@@ -13,6 +14,8 @@ class AdminLoginViewTests(
     """Tests for the admin login endpoint."""
 
     def setUp(self):
+        cache.clear()
+
         self.url = reverse("admin_login")
 
         self.password = "StrongPassword123!"
@@ -213,3 +216,29 @@ class AdminLoginViewTests(
             response,
             "email",
         )
+
+    def test_admin_login_is_rate_limited(self):
+        payload = {
+            "email": "admin@example.com",
+            "password": self.password,
+        }
+
+        for _ in range(5):
+            response = self.client.post(
+                self.url,
+                payload,
+                format="json",
+            )
+
+            self.assertNotEqual(
+                response.status_code,
+                status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        response = self.client.post(
+            self.url,
+            payload,
+            format="json",
+        )
+
+        self.assertRateLimitError(response)

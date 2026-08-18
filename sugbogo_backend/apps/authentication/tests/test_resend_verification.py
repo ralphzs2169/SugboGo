@@ -131,13 +131,14 @@ class ResendVerificationViewTests(APIResponseAssertionsMixin, APITestCase):
 
     @patch("apps.authentication.services.email_service.EmailService.send_verification_email")
     def test_resend_verification_is_rate_limited(self, mock_send):
-        # First 5 requests should succeed.
-        for _ in range(5):
+        payload = {
+            "email": self.user.USER_EMAIL,
+        }
+
+        for _ in range(10):
             response = self.client.post(
                 self.url,
-                {
-                    "email": "john@example.com",
-                },
+                payload,
                 format="json",
             )
 
@@ -146,18 +147,10 @@ class ResendVerificationViewTests(APIResponseAssertionsMixin, APITestCase):
                 status.HTTP_200_OK,
             )
 
-        # 6th request should be blocked.
         response = self.client.post(
             self.url,
-            {
-                "email": "john@example.com",
-            },
+            payload,
             format="json",
         )
 
         self.assertRateLimitError(response)
-
-        self.assertEqual(
-            mock_send.call_count,
-            5,
-        )

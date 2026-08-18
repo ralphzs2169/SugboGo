@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useForgotPassword } from "@/features/auth/hooks/useForgotPassword";
 import { validateForgotPasswordForm } from "@/features/auth/utils/forgotPasswordValidator";
-import { handleSystemError } from "@/shared/utils/apiErrors";
+import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -16,7 +16,6 @@ import FormInput from "@/shared/components/form/FormInput";
 
 /**
  * Screen that allows users to request a password reset link.
- *
  * Validates the email address, sends a reset request,
  * and redirects users to the reset confirmation screen.
  */
@@ -59,6 +58,16 @@ export default function ForgotPasswordScreen() {
           return;
         }
 
+        const emailError = getFieldError(response, "email");
+
+        if (emailError) {
+          setErrors({
+            email: emailError,
+          });
+
+          return;
+        }
+
         if (handleSystemError(response)) {
           return;
         }
@@ -89,9 +98,12 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthLayout>
+      {/* Password Reset Illustration */}
       <View className="mb-6 items-center justify-center">
         <ForgotPasswordIllustration width={150} height={150} />
       </View>
+
+      {/* Page Introduction */}
       <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
         Forgot your password?
       </Text>
@@ -101,6 +113,7 @@ export default function ForgotPasswordScreen() {
         password.
       </Text>
 
+      {/* Email Field */}
       <FormInput
         label="EMAIL ADDRESS"
         placeholder="Enter your email"
@@ -109,9 +122,10 @@ export default function ForgotPasswordScreen() {
         keyboardType="email-address"
         autoCapitalize="none"
         error={errors.email}
-        onFocus={() => clearEmailError()}
+        onFocus={clearEmailError}
       />
 
+      {/* Submit Action */}
       <Button
         title="Send Reset Link"
         loading={loading}
@@ -126,6 +140,8 @@ export default function ForgotPasswordScreen() {
         className="mb-20 mt-2 shadow"
         fontClassName="text-md font-bold"
       />
+
+      {/* Back Navigation */}
       <BottomAuthLink
         text=""
         actionText="Back to Login"

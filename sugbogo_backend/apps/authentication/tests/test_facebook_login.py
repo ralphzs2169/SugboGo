@@ -1,15 +1,15 @@
 from unittest.mock import patch
 
-from requests.exceptions import RequestException
-
+from core.tests.assertions import APIResponseAssertionsMixin
+from django.core.cache import cache
 from django.urls import reverse
+from requests.exceptions import RequestException
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.authentication.services.oauth.base import OAuthUser
 from apps.authentication.models import OAuthAccount
+from apps.authentication.services.oauth.base import OAuthUser
 from apps.users.models import User
-from core.tests.assertions import APIResponseAssertionsMixin
 
 
 class FacebookLoginViewTests(
@@ -17,6 +17,8 @@ class FacebookLoginViewTests(
     APITestCase,
 ):
     def setUp(self):
+        cache.clear()
+
         self.url = reverse("facebook_login")
 
         self.oauth_user = OAuthUser(
@@ -26,9 +28,10 @@ class FacebookLoginViewTests(
             first_name="John",
             last_name="Doe",
         )
+            
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_existing_user_can_login(
         self,
@@ -74,7 +77,7 @@ class FacebookLoginViewTests(
         )
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_new_user_is_created(
         self,
@@ -119,7 +122,7 @@ class FacebookLoginViewTests(
         )
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_invalid_facebook_token_returns_401(
         self,
@@ -148,7 +151,7 @@ class FacebookLoginViewTests(
         )
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_facebook_service_unavailable_returns_503(
         self,
@@ -177,7 +180,7 @@ class FacebookLoginViewTests(
         )
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_pending_user_is_activated(
         self,
@@ -217,7 +220,7 @@ class FacebookLoginViewTests(
         )
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_existing_user_is_linked_to_facebook_account(
         self,
@@ -262,7 +265,7 @@ class FacebookLoginViewTests(
         )
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_new_facebook_user_creates_oauth_account(
         self,
@@ -306,7 +309,7 @@ class FacebookLoginViewTests(
         )
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_facebook_user_has_unusable_password(
         self,
@@ -329,9 +332,9 @@ class FacebookLoginViewTests(
         self.assertFalse(user.has_usable_password())
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
-    def test_facebook_login_twice_does_not_create_duplicates(
+    def test_facebook_login_view_twice_does_not_create_duplicates(
         self,
         mock_verify,
     ):
@@ -363,7 +366,7 @@ class FacebookLoginViewTests(
         self.assertEqual(OAuthAccount.objects.count(), 1)
 
     @patch(
-        "apps.authentication.views.facebook_login.FacebookOAuthService.verify_access_token"
+        "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
     def test_existing_oauth_account_is_reused(
         self,

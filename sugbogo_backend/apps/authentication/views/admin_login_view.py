@@ -1,14 +1,16 @@
-from rest_framework.decorators import api_view
+from core.responses import error_response, success_response
+from rest_framework.decorators import api_view, throttle_classes
 
+from apps.authentication.permissions import user_has_role
 from apps.authentication.serializers import LoginSerializer
 from apps.authentication.services.login_service import LoginService
+from apps.authentication.throttles import LoginThrottle
 from apps.authentication.utils.jwt import issue_tokens
-from core.responses import success_response, error_response
 from apps.users.models import User
-from apps.authentication.permissions import user_has_role
 
 
 @api_view(["POST"])
+@throttle_classes([LoginThrottle])
 def admin_login_view(request):
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)

@@ -1,7 +1,7 @@
 from core.responses import error_response, success_response
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.exceptions import Throttled
 
 from apps.authentication.serializers import ResendVerificationSerializer
@@ -50,6 +50,7 @@ def verify_email_view(request):
     return success_response(message="Email verified successfully.")
 
 @api_view(["POST"])
+@throttle_classes([ResendVerificationThrottle])
 def resend_verification_view(request):
     serializer = ResendVerificationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -58,7 +59,6 @@ def resend_verification_view(request):
 
     try:
         user = User.objects.get(USER_EMAIL=email)
-
     except User.DoesNotExist:
         return error_response(
             message="No account found with this email.",
@@ -67,21 +67,14 @@ def resend_verification_view(request):
         )
 
     if user.EMAIL_VERIFIED:
-         return error_response(
+        return error_response(
             message="Email is already verified.",
             code="EMAIL_ALREADY_VERIFIED",
             status_code=status.HTTP_409_CONFLICT,
         )
 
-    throttle = ResendVerificationThrottle()
-
-    if not throttle.allow_request(request, view=None):
-        raise Throttled(wait=throttle.wait())
-    
-
     try:
         EmailService.send_verification_email(user)
-    
     except Exception:
         return error_response(
             message=(
@@ -92,4 +85,6 @@ def resend_verification_view(request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    return success_response(message="Verification email sent successfully.")
+    return success_response(
+        message="Verification email sent successfully.",
+    )

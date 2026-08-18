@@ -32,7 +32,7 @@ export default function PasswordInput({
       <div className="relative">
         <Icon
           className={`pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 ${
-            error ? "text-red-400" : "text-gray-400"
+            error ? "text-danger" : "text-text-secondary"
           }`}
         />
 
@@ -45,10 +45,10 @@ export default function PasswordInput({
           value={value}
           onChange={onChange}
           onFocus={onFocus}
-          className={`w-full rounded-lg border bg-white py-3 pl-12 pr-12 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:ring-4 ${
+          className={`w-full rounded-lg border bg-background py-3 pl-12 pr-12 text-sm text-text-primary outline-none transition placeholder:text-text-secondary ${
             error
-              ? "border-red-500 focus:border-red-500 focus:ring-red-500/15"
-              : "border-gray-300 focus:border-primary focus:ring-primary/15"
+              ? "border-danger focus:border-danger "
+              : "border-stroke focus:border-stroke-active "
           }`}
         />
 
@@ -58,7 +58,7 @@ export default function PasswordInput({
           aria-label={showPassword ? "Hide password" : "Show password"}
           aria-pressed={showPassword}
           tabIndex={-1}
-          className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 transition hover:text-gray-600 focus:outline-none focus-visible:text-primary"
+          className="absolute inset-y-0 right-0 flex items-center px-3 text-text-secondary transition hover:text-text-primary focus:outline-none focus-visible:text-text-primary"
         >
           {showPassword ? (
             <FiEyeOff className="h-4 w-4" />
@@ -68,7 +68,7 @@ export default function PasswordInput({
         </button>
       </div>
 
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-sm text-danger">{error}</p>}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 html {
   font-family: "Inter", sans-serif;
+  scrollbar-gutter: stable;
 }
 
 body {

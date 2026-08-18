@@ -16,15 +16,17 @@ export default function ExploreScreen() {
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
       />
-      
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pt-4 pb-8">
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName="pt-4 pb-8"
+      >
         <HiddenGemsSection selectedCategory={selectedCategory} />
-        <InterestsSection  selectedCategory={selectedCategory} />
+        <InterestsSection selectedCategory={selectedCategory} />
         <DiscoverMoreSection selectedCategory={selectedCategory} />
         <TrendingSection selectedCategory={selectedCategory} />
         <DiscoverNearYouButton onPress={() => {}} />
       </ScrollView>
-
     </View>
   );
 }

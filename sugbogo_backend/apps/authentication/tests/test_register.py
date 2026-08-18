@@ -1,15 +1,19 @@
 from unittest.mock import patch
 
+from core.tests.assertions import APIResponseAssertionsMixin
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.users.models import User
-from core.tests.assertions import APIResponseAssertionsMixin
+
 
 class RegisterViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the user registration endpoint."""
 
     def setUp(self):
+        cache.clear()
+        
         self.url = "/api/auth/register/"
 
         self.valid_payload = {

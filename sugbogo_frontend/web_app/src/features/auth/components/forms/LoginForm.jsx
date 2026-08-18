@@ -2,13 +2,11 @@ import PasswordInput from "../password/PasswordInput";
 import AuthTextInput from "../common/AuthTextInput";
 import AuthTextButton from "../common/AuthTextButton";
 import PrimaryButton from "../common/PrimaryButton";
-import { useAuthStore } from "@/features/auth/storage/auth.store";
 import { LogIn } from "lucide-react";
 import { validateLoginForm } from "../../utils/loginValidator";
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useLogin } from "../../hooks/useLogin";
-import { ArrowRight, Anchor } from "lucide-react";
 import { getSessionExpired, clearSessionExpired } from "@/shared/api/storage";
 
 /**
@@ -23,10 +21,24 @@ function LoginForm() {
 
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState("");
+  const [retryAfter, setRetryAfter] = useState(0);
 
   const navigate = useNavigate();
 
-  // Clear specific field error when the user focuses on the input
+  // Run a live countdown while the login request is rate limited.
+  useEffect(() => {
+    if (retryAfter <= 0) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setRetryAfter((previous) => Math.max(previous - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [retryAfter]);
+
+  // Clear specific field errors when the user focuses on the input.
   const clearFieldError = (field) => {
     setErrors((prev) => ({
       ...prev,
@@ -36,11 +48,13 @@ function LoginForm() {
     setFormError("");
   };
 
-  // Handle form submission
+  // Handle form submission.
   async function onSubmit(event) {
     event.preventDefault();
 
-    if (loading) return;
+    if (loading || retryAfter > 0) {
+      return;
+    }
 
     const validationErrors = validateLoginForm(email, password);
 
@@ -59,6 +73,14 @@ function LoginForm() {
       return;
     }
 
+    if (result.code === "RATE_LIMIT_EXCEEDED") {
+      setRetryAfter(result.errors?.retry_after ?? 0);
+      setFormError("");
+      return;
+    }
+
+    setRetryAfter(0);
+
     if (result.errors) {
       setErrors({
         email: result.errors.email,
@@ -67,6 +89,7 @@ function LoginForm() {
 
       return;
     }
+
     setFormError(result.message);
   }
 
@@ -79,6 +102,11 @@ function LoginForm() {
     clearSessionExpired();
   }, []);
 
+  const displayedFormError =
+    retryAfter > 0
+      ? `Too many login attempts. Please try again in ${retryAfter} seconds.`
+      : formError;
+
   return (
     <section className="w-full bg-background">
       {/* Header Section */}
@@ -86,6 +114,7 @@ function LoginForm() {
         <h1 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
           Welcome, Admin
         </h1>
+
         <p className="mt-2.5 text-sm text-text-secondary sm:text-base">
           Sign in to manage SugboGo's tourism operations
         </p>
@@ -129,8 +158,9 @@ function LoginForm() {
               id="remember-me"
               name="remember-me"
               type="checkbox"
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary accent-primary cursor-pointer"
+              className="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary accent-primary focus:ring-primary"
             />
+
             <span>Remember me</span>
           </label>
 
@@ -140,9 +170,12 @@ function LoginForm() {
         </div>
 
         {/* Form Level Error Message */}
-        {formError && (
-          <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-xs sm:text-sm text-red-600 font-medium">
-            {formError}
+        {displayedFormError && (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 p-3.5 text-xs font-medium text-red-600 sm:text-sm"
+          >
+            {displayedFormError}
           </div>
         )}
 
@@ -150,9 +183,10 @@ function LoginForm() {
         <PrimaryButton
           type="submit"
           loading={loading}
+          disabled={loading || retryAfter > 0}
           icon={<LogIn className="h-5 w-5" />}
         >
-          Sign In
+          Log In
         </PrimaryButton>
       </form>
     </section>
