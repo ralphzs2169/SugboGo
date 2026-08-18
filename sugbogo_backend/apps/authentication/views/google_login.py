@@ -1,7 +1,7 @@
 from core.responses import error_response, success_response
 from google.auth.exceptions import GoogleAuthError
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, throttle_classes
 
 from apps.authentication.permissions import user_has_role
 from apps.authentication.serializers import (
@@ -10,11 +10,13 @@ from apps.authentication.serializers import (
 )
 from apps.authentication.services.oauth.account import OAuthAccountService
 from apps.authentication.services.oauth.google import GoogleOAuthService
+from apps.authentication.throttles import OAuthLoginThrottle
 from apps.authentication.utils.jwt import issue_tokens
 from apps.users.models import User
 
 
 @api_view(["POST"])
+@throttle_classes([OAuthLoginThrottle])
 def google_login_view(request):
     serializer = GoogleLoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)

@@ -17,7 +17,7 @@ export const colorClasses = {
 export default function SpecialtyTagChip({ tag, fullWidth = false }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full ${fullWidth ? "w-full" : "w-auto"} px-3 py-1 text-xs font-medium ${
+      className={`inline-flex items-center rounded-full ${fullWidth ? "w-full text-[10px] py-0.5" : "w-auto py-1 text-xs"} px-3  font-medium ${
         colorClasses[tag.color] ?? colorClasses.blue
       }`}
     >

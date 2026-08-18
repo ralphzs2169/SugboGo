@@ -28,7 +28,7 @@ export default function AuthTextInput({
       <div className="relative">
         <Icon
           className={`pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 ${
-            error ? "text-red-400" : "text-gray-400"
+            error ? "text-danger" : "text-text-secondary"
           }`}
         />
 
@@ -41,15 +41,15 @@ export default function AuthTextInput({
           value={value}
           onChange={onChange}
           onFocus={onFocus}
-          className={`w-full rounded-md border bg-white py-3 pl-12 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:ring-4 ${
+          className={`w-full rounded-md border bg-background py-3 pl-12 pr-4 text-sm text-text-primary outline-none transition placeholder:text-text-secondary  ${
             error
-              ? "border-red-500 focus:border-red-500 focus:ring-red-500/15"
-              : "border-gray-300 focus:border-primary focus:ring-primary/15"
+              ? "border-danger focus:border-danger "
+              : "border-stroke focus:border-stroke-active "
           }`}
         />
       </div>
 
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-sm text-danger">{error}</p>}
     </div>
   );
 }

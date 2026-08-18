@@ -26,7 +26,7 @@ export default function StatusBadge({ children, variant = "neutral" }) {
       }`}
     >
       <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+        className={`h-2 w-2 shrink-0 rounded-full ${
           dotClasses[variant] ?? dotClasses.neutral
         }`}
       />

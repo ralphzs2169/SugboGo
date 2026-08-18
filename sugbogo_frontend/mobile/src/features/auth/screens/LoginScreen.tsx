@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Text, TouchableOpacity } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 
 import LoadingScreen from "@/shared/components/LoadingScreen";
 import { useLogin } from "@/features/auth/hooks/useLogin";
@@ -29,6 +29,11 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 
+/**
+ * Login screen for explorer authentication.
+ * Handles credential validation, authentication errors, session expiration,
+ * OAuth login, and temporary login rate limits with a live cooldown.
+ */
 export default function LoginScreen() {
   const router = useRouter();
 
@@ -37,6 +42,7 @@ export default function LoginScreen() {
   );
 
   const [navigating, setNavigating] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0);
 
   const sessionExpired = useAuthStore((state) => state.sessionExpired);
   const setSessionExpired = useAuthStore((state) => state.setSessionExpired);
@@ -52,7 +58,9 @@ export default function LoginScreen() {
   const { handleGoogleLogin } = useGoogleLogin();
   const { handleFacebookLogin } = useFacebookLogin();
 
+  const isRateLimited = retryAfter > 0;
   const isAuthenticating = loading || navigating || signingIn;
+  const isLoginDisabled = isAuthenticating || isRateLimited;
 
   /**
    * Shows a one-time message when the previous session expired.
@@ -67,17 +75,45 @@ export default function LoginScreen() {
     setSessionExpired(false);
   }, [sessionExpired, setSessionExpired]);
 
+  /**
+   * Counts down the server-provided rate-limit cooldown.
+   */
+  useEffect(() => {
+    if (retryAfter <= 0) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setRetryAfter((previous) => Math.max(previous - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [retryAfter]);
+
+  /**
+   * Clears the rate-limit error after the cooldown expires.
+   */
+  useEffect(() => {
+    if (retryAfter === 0 && formError.startsWith("Too many login attempts.")) {
+      setFormError("");
+    }
+  }, [retryAfter, formError]);
+
   const clearFieldError = (field: keyof LoginErrors) => {
     setErrors((prev) => ({
       ...prev,
       [field]: undefined,
     }));
 
-    setFormError("");
+    if (!isRateLimited) {
+      setFormError("");
+    }
   };
 
   const onLogin = async () => {
-    if (isAuthenticating) return;
+    if (isLoginDisabled) {
+      return;
+    }
 
     const validationErrors = validateLoginForm(email, password);
 
@@ -98,6 +134,14 @@ export default function LoginScreen() {
 
           setNavigating(true);
           router.replace("/(auth)/verify-email");
+
+          return;
+        }
+
+        if (response.code === "RATE_LIMIT_EXCEEDED") {
+          const seconds = Number(response.errors?.retry_after ?? 0);
+
+          setRetryAfter(seconds);
 
           return;
         }
@@ -145,11 +189,14 @@ export default function LoginScreen() {
 
   return (
     <AuthLayout>
+      {/* Authentication Header */}
       <AuthHeader />
+
       <Text className="mb-8 text-[17px] font-bold text-text-primary">
         Login to your account
       </Text>
 
+      {/* Login Fields */}
       <FormInput
         label="EMAIL ADDRESS"
         placeholder="Enter your email"
@@ -171,6 +218,7 @@ export default function LoginScreen() {
         rightElement={
           <TouchableOpacity
             onPress={() => router.push("/(auth)/forgot-password")}
+            className="cursor-pointer"
           >
             <Text className="text-xs font-bold tracking-[0.5px] text-brand">
               FORGOT?
@@ -179,25 +227,37 @@ export default function LoginScreen() {
         }
       />
 
-      {formError ? (
-        <Text className="text-sm font-semibold text-text-error">
-          {formError}
-        </Text>
+      {/* Login Error */}
+      {isRateLimited ? (
+        <View className="my-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
+          <Text className="text-sm font-semibold text-text-error">
+            Too many login attempts. Please try again in {retryAfter} seconds.
+          </Text>
+        </View>
+      ) : formError ? (
+        <View className="my-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
+          <Text className="text-sm font-semibold text-text-error">
+            {formError}
+          </Text>
+        </View>
       ) : null}
 
+      {/* Login Action */}
       <Button
         title="Login"
         loading={isAuthenticating}
+        disabled={isLoginDisabled}
         onPress={onLogin}
         icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
         className="mb-20 mt-2 shadow"
         fontClassName="text-md font-bold"
       />
 
+      {/* Social Login */}
       <Divider text="OR LOG IN WITH" />
 
       <SocialLoginButtons
-        disabled={isAuthenticating}
+        disabled={isLoginDisabled}
         onGooglePress={handleGoogleLogin}
         onFacebookPress={handleFacebookLogin}
         onApplePress={() => {
@@ -205,6 +265,7 @@ export default function LoginScreen() {
         }}
       />
 
+      {/* Registration Link */}
       <BottomAuthLink
         text="New to SugboGo?"
         actionText="Create an account"

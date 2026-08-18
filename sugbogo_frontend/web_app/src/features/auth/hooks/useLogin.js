@@ -1,12 +1,12 @@
 import { useState } from "react";
-import axios from "axios";
 
 import { login } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
 
 /**
- * Custom hook for handling user login.
- * Provides a function to perform login and manage loading state.
+ * Handles administrator authentication while preserving the API response
+ * so the login form can distinguish validation, authentication, and
+ * temporary request errors.
  */
 export function useLogin() {
   const [loading, setLoading] = useState(false);
@@ -28,14 +28,16 @@ export function useLogin() {
 
       return response;
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.data) {
-        return error.response.data;
+      const responseData = error.response?.data;
+
+      if (responseData) {
+        return responseData;
       }
 
       return {
         success: false,
-        message: "Something went wrong.",
-        code: "UNKNOWN_ERROR",
+        message: "Unable to connect to the server. Please try again.",
+        code: "NETWORK_ERROR",
       };
     } finally {
       setLoading(false);

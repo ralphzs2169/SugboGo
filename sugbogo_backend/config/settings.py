@@ -158,19 +158,30 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
 
-    # Throttle settings for resending verification emails
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ),
+
     "DEFAULT_THROTTLE_RATES": {
+        # Global API baseline
+        "anon": "60/min",
+        "user": "120/min",
+
+        # Authentication
+        "login": "5/min",
+        "oauth_login": "5/min",
         "resend_verification": "10/hour",
         "forgot_password": "10/hour",
 
+        "register": "5/hour",
+
+        # Google Maps
         "place_search": "10/min",
         "place_details": "5/min",
         "reverse_geocode": "5/min",
         "nearby_landmarks": "3/min",
     },
-
-    # Custom exception handler for consistent error responses
-    # "EXCEPTION_HANDLER": "config.exceptions.custom_exception_handler",
 
     "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",
 }

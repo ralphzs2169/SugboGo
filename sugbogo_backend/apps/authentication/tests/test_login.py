@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from core.tests.assertions import APIResponseAssertionsMixin
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -13,6 +14,7 @@ class LoginViewTests(APIResponseAssertionsMixin, APITestCase):
     """Tests for the user login endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.url = reverse("login")
 
         self.password = "StrongPassword123!"

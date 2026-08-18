@@ -1,14 +1,16 @@
 from core.responses import error_response, success_response
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, throttle_classes
 
 from apps.authentication.serializers import LoginResponseSerializer, LoginSerializer
 from apps.authentication.services.login_service import LoginService
+from apps.authentication.throttles import LoginThrottle
 from apps.authentication.utils.jwt import issue_tokens
 from apps.users.models import User
 
 
 @api_view(["POST"])
+@throttle_classes([LoginThrottle])
 def login_view(request):
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
