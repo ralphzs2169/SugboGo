@@ -1,8 +1,8 @@
 import { Pressable, ImageBackground, View, Text } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
-import { TAG_COLORS, DEFAULT_TAG_COLOR } from "../../constants/tagColors";
-import { CATEGORY_ICONS } from "../../constants/categoryIcons";
+import { TAG_COLORS, DEFAULT_TAG_COLOR } from "@/shared/constants/tagColors";
+import { CATEGORY_ICONS } from "@/shared/constants/categoryIcons";
 
 type Props = {
   name: string;
