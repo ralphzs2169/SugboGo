@@ -22,7 +22,7 @@ export default function CommunityTopBar() {
         </Pressable>
       </View>
 
-      <View className="flex-row items-center rounded-md bg-background border border-brand px-3 py-2">
+      <View className="flex-row items-center rounded-input bg-background px-3 py-2">
         <MaterialCommunityIcons
           name="magnify"
           size={18}
