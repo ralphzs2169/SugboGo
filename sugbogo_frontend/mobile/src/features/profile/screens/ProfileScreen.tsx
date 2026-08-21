@@ -30,6 +30,7 @@ export default function ProfileScreen({}) {
 
   const {
     status: applicationStatus,
+    merchantModeAcknowledged,
     isLoading: isLoadingApplicationStatus,
     error: applicationStatusError,
     refetch: refetchApplicationStatus,
@@ -47,7 +48,7 @@ export default function ProfileScreen({}) {
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
-      className="flex-1 bg-background"
+      className="flex-1 bg-surface"
     >
       <View className="flex-1">
         <ProfileScrollView
@@ -59,10 +60,28 @@ export default function ProfileScreen({}) {
             lastname={user?.last_name ?? ""}
             email={user?.email ?? ""}
             avatarUrl={user?.avatar_url ?? null}
+            role={user?.role ?? "explorer"}
             onEditProfile={() => router.push("/profile/edit-profile")}
           />
 
           {/* Menu Sections */}
+
+          {/* Merchant mode */}
+          {!isLoadingApplicationStatus && (
+            <>
+              {canAccessMerchantMode && merchantModeAcknowledged && (
+                <ProfileMenuSection title="Merchant">
+                  <ProfileMenuItem
+                    title="Switch to Merchant"
+                    icon="storefront-outline"
+                    onPress={handleSwitchToMerchant}
+                  />
+                </ProfileMenuSection>
+              )}
+            </>
+          )}
+
+          {/* Activity */}
           <ProfileMenuSection title="Your Activity">
             <ProfileMenuItem
               title="My Pockets"
@@ -102,19 +121,12 @@ export default function ProfileScreen({}) {
             />
           </ProfileMenuSection>
 
-          <MerchantPortalCard
-            status={applicationStatus}
-            onPress={handleMerchantPortalPress}
-          />
-
-          {canAccessMerchantMode && (
-            <ProfileMenuSection>
-              <ProfileMenuItem
-                title="Switch to Merchant"
-                icon="storefront-outline"
-                onPress={handleSwitchToMerchant}
-              />
-            </ProfileMenuSection>
+          {/* Merchant portal */}
+          {!isLoadingApplicationStatus && !merchantModeAcknowledged && (
+            <MerchantPortalCard
+              status={applicationStatus}
+              onPress={handleMerchantPortalPress}
+            />
           )}
 
           <ProfileMenuSection title="Settings & Support">

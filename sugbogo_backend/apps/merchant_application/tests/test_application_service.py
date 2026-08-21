@@ -15,6 +15,7 @@ from apps.merchant_application.services.application_service import (
 from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
+from apps.users.models import User
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -1008,3 +1009,115 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
         self.assertIsNone(
             result,
         )
+
+
+    def test_acknowledge_merchant_mode_marks_approved_merchant_application(self):
+        application = self._build_complete_application()
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.APPROVED
+        )
+        application.MAPP_MERCHANT_MODE_ACKNOWLEDGED = False
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_MERCHANT_MODE_ACKNOWLEDGED",
+            ],
+        )
+
+        user = application.USER_ID
+
+        result = ApplicationService.acknowledge_merchant_mode(
+            application,
+            user,
+        )
+
+        application.refresh_from_db()
+
+        self.assertEqual(
+            result,
+            application,
+        )
+        self.assertTrue(
+            application.MAPP_MERCHANT_MODE_ACKNOWLEDGED,
+        )
+
+
+    def test_acknowledge_merchant_mode_is_idempotent(self):
+        application = self._build_complete_application()
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.APPROVED
+        )
+        application.MAPP_MERCHANT_MODE_ACKNOWLEDGED = True
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_MERCHANT_MODE_ACKNOWLEDGED",
+            ],
+        )
+
+        user = application.USER_ID
+
+        result = ApplicationService.acknowledge_merchant_mode(
+            application,
+            user,
+        )
+
+        application.refresh_from_db()
+
+        self.assertEqual(
+            result,
+            application,
+        )
+        self.assertTrue(
+            application.MAPP_MERCHANT_MODE_ACKNOWLEDGED,
+        )
+
+
+    def test_acknowledge_merchant_mode_rejects_non_approved_application(self):
+        application = self._build_complete_application()
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.SUBMITTED
+        )
+        application.save(
+            update_fields=["MAPP_STATUS"],
+        )
+
+        user = application.USER_ID
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Only approved applications can be acknowledged.",
+        ):
+            ApplicationService.acknowledge_merchant_mode(
+                application,
+                user,
+            )
+
+
+    def test_acknowledge_merchant_mode_rejects_non_merchant_user(self):
+        application = self._build_complete_application()
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.APPROVED
+        )
+        application.save(
+            update_fields=["MAPP_STATUS"],
+        )
+
+        user = application.USER_ID
+        user.USER_ROLE = User.UserRole.EXPLORER
+        user.save(
+            update_fields=["USER_ROLE"],
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Merchant mode is only available to merchant accounts.",
+        ):
+            ApplicationService.acknowledge_merchant_mode(
+                application,
+                user,
+            )

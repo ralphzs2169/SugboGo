@@ -1,5 +1,6 @@
 import { View, Text } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { theme } from "@/constants/theme";
 
 export const toastConfig = {
   success: (props: any) => (
@@ -12,9 +13,7 @@ export const toastConfig = {
         paddingVertical: 10,
         paddingHorizontal: 14,
         borderRadius: 10,
-        backgroundColor: "#FFFFFF",
-        borderWidth: 1,
-        borderColor: "#E6F4EC",
+        backgroundColor: theme.extends.colors.success,
         shadowColor: "#1a2e2a",
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.1,
@@ -27,12 +26,12 @@ export const toastConfig = {
           width: 28,
           height: 28,
           borderRadius: 14,
-          backgroundColor: "#1B6E4A",
+          backgroundColor: "#FFFFFF",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <MaterialCommunityIcons name="check" size={15} color="#FFFFFF" />
+        <MaterialCommunityIcons name="check" size={15} color="#1B6E4A" />
       </View>
 
       <View style={{ marginLeft: 10, flexShrink: 1 }}>
@@ -41,7 +40,7 @@ export const toastConfig = {
           style={{
             fontSize: 13.5,
             fontWeight: "600",
-            color: "#14251F",
+            color: "#FFFFFF",
           }}
         >
           {props.text1}
@@ -53,7 +52,7 @@ export const toastConfig = {
             style={{
               fontSize: 12,
               fontWeight: "400",
-              color: "#5B6B65",
+              color: "#FFFFFF",
               marginTop: 1,
             }}
           >
@@ -74,9 +73,7 @@ export const toastConfig = {
         paddingVertical: 10,
         paddingHorizontal: 14,
         borderRadius: 10,
-        backgroundColor: "#FFFFFF",
-        borderWidth: 1,
-        borderColor: "#FBE3E1",
+        backgroundColor: theme.extends.colors.error,
         shadowColor: "#3b1d1d",
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.1,
@@ -89,12 +86,12 @@ export const toastConfig = {
           width: 28,
           height: 28,
           borderRadius: 14,
-          backgroundColor: "#B42318",
+          backgroundColor: "#FFFFFF",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <MaterialCommunityIcons name="alert" size={15} color="#FFFFFF" />
+        <MaterialCommunityIcons name="alert" size={15} color="#B42318" />
       </View>
 
       <View style={{ marginLeft: 10, flexShrink: 1 }}>
@@ -103,7 +100,7 @@ export const toastConfig = {
           style={{
             fontSize: 13.5,
             fontWeight: "600",
-            color: "#3B1414",
+            color: "#FFFFFF",
           }}
         >
           {props.text1}
@@ -115,7 +112,7 @@ export const toastConfig = {
             style={{
               fontSize: 12,
               fontWeight: "400",
-              color: "#7A5252",
+              color: "#FFFFFF",
               marginTop: 1,
             }}
           >

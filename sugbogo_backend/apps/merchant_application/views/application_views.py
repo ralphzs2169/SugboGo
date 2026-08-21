@@ -1,7 +1,7 @@
 from core.responses import error_response, success_response
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 
 from apps.merchant_application.serializers.application_serializers import (
     ApplicationDetailSerializer,
@@ -11,65 +11,97 @@ from apps.merchant_application.serializers.application_serializers import (
 from apps.merchant_application.services.application_service import ApplicationService
 
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def application_detail_view(request):
-    """Return the merchant's current application, fully nested."""
+class MerchantApplicationView(APIView):
+    permission_classes = (IsAuthenticated,)
 
-    application = ApplicationService.get_current_application(request.user)
+    def get_application(self, request):
+        return ApplicationService.get_current_application(request.user)
 
-    if application is None:
-        return error_response(
-            message="No application found. Start by submitting your business identity.",
-            code="APPLICATION_NOT_FOUND",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
+    def get(self, request):
+        """Return the merchant's current application, fully nested."""
 
-    serializer = ApplicationDetailSerializer(application)
+        application = self.get_application(request)
 
-    return success_response(
-        data=serializer.data,
-        message="Application retrieved successfully.",
-    )
+        if application is None:
+            return error_response(
+                message=(
+                    "No application found. "
+                    "Start by submitting your business identity."
+                ),
+                code="APPLICATION_NOT_FOUND",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
 
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def application_submit_view(request):
-    """Final submit — flips the application status to SUBMITTED."""
+        serializer = ApplicationDetailSerializer(application)
 
-    application = ApplicationService.get_current_application(request.user)
-
-    if application is None:
-        return error_response(
-            message="No application found to submit.",
-            code="APPLICATION_NOT_FOUND",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-
-    application = ApplicationService.submit_application(application)
-
-    serializer = ApplicationSubmissionSerializer(application)
-
-    return success_response(
-        data=serializer.data,
-        message="Application submitted successfully.",
-    )
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def application_status_view(request):
-    application = ApplicationService.get_current_application(request.user)
-
-    if application is None:
         return success_response(
-            data=None,
-            message="No merchant application found.",
+            data=serializer.data,
+            message="Application retrieved successfully.",
         )
 
-    serializer = MerchantApplicationStatusSerializer(application)
+    def post(self, request):
+        """Final submit — flips the application status to SUBMITTED."""
 
-    return success_response(
-        data=serializer.data,
-        message="Application status retrieved successfully.",
-    )
+        application = self.get_application(request)
+
+        if application is None:
+            return error_response(
+                message="No application found to submit.",
+                code="APPLICATION_NOT_FOUND",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        application = ApplicationService.submit_application(application)
+
+        serializer = ApplicationSubmissionSerializer(application)
+
+        return success_response(
+            data=serializer.data,
+            message="Application submitted successfully.",
+        )
+
+
+class MerchantApplicationStatusView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        application = ApplicationService.get_current_application(request.user)
+
+        if application is None:
+            return success_response(
+                data=None,
+                message="No merchant application found.",
+            )
+
+        serializer = MerchantApplicationStatusSerializer(application)
+
+        return success_response(
+            data=serializer.data,
+            message="Application status retrieved successfully.",
+        )
+
+
+class MerchantModeAcknowledgeView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def patch(self, request):
+        application = ApplicationService.get_current_application(request.user)
+
+        if application is None:
+            return error_response(
+                message="No application found.",
+                code="APPLICATION_NOT_FOUND",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        application = ApplicationService.acknowledge_merchant_mode(
+            application,
+            request.user,
+        )
+
+        serializer = MerchantApplicationStatusSerializer(application)
+
+        return success_response(
+            data=serializer.data,
+            message="Merchant mode acknowledged successfully.",
+        )

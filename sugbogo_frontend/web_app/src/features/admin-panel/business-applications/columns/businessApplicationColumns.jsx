@@ -109,7 +109,7 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
     columnHelper.accessor((application) => application.status, {
       id: "status",
       header: "Status",
-      size: 150,
+      size: 170,
       meta: {
         skeleton: "text",
       },
@@ -137,7 +137,7 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
     columnHelper.accessor((application) => application.submitted_at, {
       id: "submitted_at",
       header: "Submitted",
-      size: 180,
+      size: 150,
       meta: {
         skeleton: "text",
       },

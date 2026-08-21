@@ -1,45 +1,23 @@
-import { useCallback, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
 import { getApplicationStatus } from "@/features/merchant/api/merchantApplication.service";
-import { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 export default function useApplicationStatus() {
-  const [status, setStatus] = useState<MerchantApplicationStatus | null>(null);
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  const fetchStatus = useCallback(async () => {
-    setIsLoading(true);
-    setError(false);
-
-    try {
+  const query = useQuery({
+    queryKey: ["merchant-application-status"],
+    queryFn: async () => {
       const response = await getApplicationStatus();
 
-      if (!response.success) {
-        setError(true);
-        return;
-      }
-
-      setStatus(response.data?.status ?? null);
-    } catch {
-      setError(true);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchStatus();
-    }, [fetchStatus]),
-  );
+      return throwOnApiError(response);
+    },
+  });
 
   return {
-    status,
-    isLoading,
-    error,
-    refetch: fetchStatus,
+    status: query.data?.status ?? null,
+    merchantModeAcknowledged: query.data?.merchant_mode_acknowledged ?? false,
+    isLoading: query.isLoading,
+    error: query.isError,
+    refetch: query.refetch,
   };
 }

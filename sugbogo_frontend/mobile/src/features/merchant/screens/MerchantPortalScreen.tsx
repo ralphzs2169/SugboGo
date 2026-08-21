@@ -14,6 +14,11 @@ import ResumeApplicationSection from "../components/portal/ResumeApplicationSect
 import RejectionApplicationSection from "../components/portal/RejectedApplicationSection";
 import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
 import ApprovedApplicationSection from "../components/portal/ApprovedApplicationSection";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import useAcknowledgeMerchantMode from "../hooks/useAcknowledgeMerchantMode";
+import { handleSystemError } from "@/shared/utils/apiErrors";
+import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 function SectionDivider() {
   return <View className="mx-6 mt-3" />;
@@ -30,6 +35,11 @@ function SectionDivider() {
 export default function MerchantPortalScreen() {
   const { registrationStatus, config, application, isLoading, error, refetch } =
     useMerchantPortalState();
+
+  const { mutateAsync: acknowledgeMerchantMode, isPending: isAcknowledging } =
+    useAcknowledgeMerchantMode();
+
+  const setActiveMode = useAppModeStore((state) => state.setActiveMode);
 
   useFocusEffect(
     useCallback(() => {
@@ -78,7 +88,7 @@ export default function MerchantPortalScreen() {
     );
   }
 
-  const handlePrimaryAction = () => {
+  const handlePrimaryAction = async () => {
     switch (registrationStatus) {
       case "NONE":
       case "DRAFT":
@@ -88,7 +98,26 @@ export default function MerchantPortalScreen() {
 
       case "SUBMITTED":
       case "APPROVED":
-        router.push("/(explorer)/merchant-registration/submitted-application");
+        try {
+          await acknowledgeMerchantMode();
+
+          setActiveMode("merchant");
+
+          router.replace("/(merchant)/(tabs)/dashboard");
+        } catch (error) {
+          const response = error as ApiResponse<unknown>;
+
+          if (handleSystemError(response)) {
+            return;
+          }
+
+          Toast.show({
+            type: "error",
+            text1: "Unable to switch to Merchant Mode",
+            text2:
+              response.message || "Something went wrong. Please try again.",
+          });
+        }
         break;
     }
   };
@@ -130,7 +159,6 @@ export default function MerchantPortalScreen() {
               application?.identity?.business_name ?? "Your business"
             }
             approvedAt={formatDate(application?.reviewed_at)}
-            onOpenDashboard={() => {}}
           />
         )}
 
@@ -153,6 +181,7 @@ export default function MerchantPortalScreen() {
             title={config.primaryAction.buttonTitle}
             fontClassName="font-bold tracking wider"
             onPress={handlePrimaryAction}
+            loading={isAcknowledging}
           />
         </View>
       </ScrollView>

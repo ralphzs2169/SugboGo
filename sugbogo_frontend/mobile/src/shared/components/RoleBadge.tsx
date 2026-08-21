@@ -29,11 +29,11 @@ export default function RoleBadge({ role }: RoleBadgeProps) {
     <View
       className={`mt-2 flex-row items-center self-start rounded-full px-2.5 py-1 ${config.background}`}
     >
-      <MaterialCommunityIcons
+      {/* <MaterialCommunityIcons
         name={config.icon}
         size={14}
         color={role === "explorer" ? "#2563EB" : "#16A34A"}
-      />
+      /> */}
 
       <Text className={`ml-1 text-xs font-semibold ${config.text}`}>
         {config.label}

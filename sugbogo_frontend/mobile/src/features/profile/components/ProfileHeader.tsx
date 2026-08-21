@@ -10,6 +10,7 @@ type ProfileHeaderProps = {
   lastname: string;
   email: string;
   avatarUrl?: string | null;
+  role: "explorer" | "merchant";
   onEditProfile?: () => void;
 };
 
@@ -22,6 +23,7 @@ export default function ProfileHeader({
   email,
   avatarUrl,
   onEditProfile,
+  role,
 }: ProfileHeaderProps) {
   return (
     <View className="relative rounded-md bg-surface p-5">
@@ -54,7 +56,7 @@ export default function ProfileHeader({
             {email}
           </Text>
 
-          <RoleBadge role="explorer" />
+          <RoleBadge role={role} />
         </View>
       </View>
     </View>

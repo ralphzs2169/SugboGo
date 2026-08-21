@@ -1,4 +1,6 @@
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/shared/query/queryClient";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
@@ -10,6 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+
 import "../../global.css";
 
 export default function RootLayout() {
@@ -38,24 +41,27 @@ export default function RootLayout() {
 
   return (
     <>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <StatusBar style="dark" />
-        <ActionSheetProvider>
-          <SafeAreaProvider>
-            <BottomSheetModalProvider>
-              <Stack screenOptions={{ headerShown: false, animation: "none" }}>
-                <Stack.Screen name="index" />
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="(explorer)" />
-                <Stack.Screen name="(setup)" />
-                <Stack.Screen name="(merchant)" />
-              </Stack>
-
-              <Toast config={toastConfig} />
-            </BottomSheetModalProvider>
-          </SafeAreaProvider>
-        </ActionSheetProvider>
-      </GestureHandlerRootView>
+      <QueryClientProvider client={queryClient}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <StatusBar style="dark" />
+          <ActionSheetProvider>
+            <SafeAreaProvider>
+              <BottomSheetModalProvider>
+                <Stack
+                  screenOptions={{ headerShown: false, animation: "none" }}
+                >
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="(explorer)" />
+                  <Stack.Screen name="(setup)" />
+                  <Stack.Screen name="(merchant)" />
+                </Stack>
+                <Toast config={toastConfig} />
+              </BottomSheetModalProvider>
+            </SafeAreaProvider>
+          </ActionSheetProvider>
+        </GestureHandlerRootView>
+      </QueryClientProvider>
     </>
   );
 }

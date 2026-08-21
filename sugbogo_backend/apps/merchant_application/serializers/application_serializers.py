@@ -256,6 +256,11 @@ class MerchantApplicationStatusSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    merchant_mode_acknowledged = serializers.BooleanField(
+        source="MAPP_MERCHANT_MODE_ACKNOWLEDGED",
+        read_only=True,
+    )
+
     review_sla_min_business_days = serializers.SerializerMethodField()
 
     review_sla_max_business_days = serializers.SerializerMethodField()
@@ -271,6 +276,7 @@ class MerchantApplicationStatusSerializer(serializers.ModelSerializer):
         fields = (
             "status",
             "highest_completed_step",
+            "merchant_mode_acknowledged",
             "review_sla_min_business_days",
             "review_sla_max_business_days",
         )
