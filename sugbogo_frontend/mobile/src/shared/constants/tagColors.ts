@@ -18,6 +18,10 @@ export const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   SEAFOOD: { bg: "bg-sky-600", text: "text-white" },
   WOODWORK: { bg: "bg-amber-800", text: "text-white" },
   WEAVING: { bg: "bg-fuchsia-600", text: "text-white" },
+  "NATURE SPOT": { bg: "bg-green-600", text: "text-white" },
+  "SCENIC VIEW": { bg: "bg-cyan-600", text: "text-white" },
+  "TRADITIONAL COOKING": { bg: "bg-orange-600", text: "text-white" },
+  "CULTURAL LANDMARK": { bg: "bg-indigo-600", text: "text-white" },
 };
 
 // Fallback for any tag not listed above
