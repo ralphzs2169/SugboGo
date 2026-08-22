@@ -177,9 +177,11 @@ class Business(models.Model):
     BUSN_CREATED_AT = models.DateTimeField(auto_now_add=True)
     BUSN_UPDATED_AT = models.DateTimeField(auto_now=True)
 
-    USER_ID = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-        db_column='USER_ID', related_name='owned_businesses'
+    USER_ID = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        db_column="USER_ID",
+        related_name="owned_business",
     )
     CTGRY_ID = models.ForeignKey(
         Category, on_delete=models.PROTECT, db_column='CTGRY_ID',

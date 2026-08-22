@@ -186,7 +186,7 @@ REST_FRAMEWORK = {
         "nearby_landmarks": "3/min",
 
         # Merhcant Operations
-        "business_cover_photo_update": "3/day",
+        "business_cover_photo_update": "1/day",
     },
 
     "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",

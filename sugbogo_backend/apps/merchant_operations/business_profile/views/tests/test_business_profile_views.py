@@ -213,19 +213,18 @@ class BusinessCoverPhotoViewTests(TestCase):
             mock_get_business.return_value = self.business
             mock_update_cover_photo.return_value = self.business
 
-            for _ in range(3):
-                response = self.client.patch(
-                    self.url,
-                    {
-                        "cover_photo": self._cover_photo(),
-                    },
-                    format="multipart",
-                )
+            response = self.client.patch(
+                self.url,
+                {
+                    "cover_photo": self._cover_photo(),
+                },
+                format="multipart",
+            )
 
-                self.assertEqual(
-                    response.status_code,
-                    200,
-                )
+            self.assertEqual(
+                response.status_code,
+                200,
+            )
 
             response = self.client.patch(
                 self.url,

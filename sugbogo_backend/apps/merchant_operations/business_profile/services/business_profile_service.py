@@ -1,7 +1,8 @@
-from apps.business.models import Business
-from apps.shared.services.cloudinary_service import CloudinaryService
 from django.db import transaction
 from rest_framework.exceptions import NotFound
+
+from apps.business.models import Business
+from apps.shared.services.cloudinary_service import CloudinaryService
 
 
 class BusinessProfileService:
@@ -32,9 +33,19 @@ class BusinessProfileService:
         """
         Replace the business cover photo with a newly uploaded image.
 
+        The business row is locked for the duration of the transaction to
+        prevent concurrent cover photo updates from overwriting each other.
         The previous Cloudinary asset is removed only after the database
         transaction successfully commits.
         """
+
+        business = (
+            Business.objects
+            .select_for_update()
+            .get(
+                pk=business.pk,
+            )
+        )
 
         old_public_id = business.BUSN_COVER_PHOTO_PUBLIC_ID
 

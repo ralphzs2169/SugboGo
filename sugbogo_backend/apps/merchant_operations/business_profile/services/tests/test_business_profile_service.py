@@ -201,3 +201,6 @@ class BusinessProfileServiceTests(TestCase):
             b"cover-image-bytes",
             content_type="image/jpeg",
         )
+
+
+    
