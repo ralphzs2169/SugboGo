@@ -50,7 +50,7 @@ export default function ApprovedApplicationSection({
       </View>
 
       {/* Approval details */}
-      <View className="mt-4 rounded-2xl border border-border-primary bg-surface px-5 py-1">
+      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 py-1">
         {/* Business */}
         <View className="flex-row items-center border-b border-border-primary/60 py-4">
           <MaterialCommunityIcons

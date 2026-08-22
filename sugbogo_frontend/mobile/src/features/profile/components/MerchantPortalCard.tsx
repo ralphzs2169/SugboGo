@@ -78,7 +78,7 @@ export default function MerchantPortalCard({
   const badge = status ? STATUS_BADGE_CONFIG[status] : null;
 
   return (
-    <View className="relative mt-6 rounded-l-[40px] rounded-r-md bg-[#ff860e]/90 p-4">
+    <View className="relative mt-6 rounded-l-[40px] rounded-r-md bg-[#ff860e]/90 p-4 mx-4">
       {badge && (
         <View
           className="absolute -right-1 -top-3 z-10 flex-row items-center gap-1 rounded-full bg-white/95 px-2.5 py-1"

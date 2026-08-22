@@ -97,6 +97,8 @@ export default function MerchantPortalScreen() {
         break;
 
       case "SUBMITTED":
+        router.push("/(explorer)/merchant-registration/submitted-application");
+        break;
       case "APPROVED":
         try {
           await acknowledgeMerchantMode();

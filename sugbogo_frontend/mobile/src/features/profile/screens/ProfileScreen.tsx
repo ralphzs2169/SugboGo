@@ -7,12 +7,13 @@ import ProfileMenuSection from "../components/ProfileMenuSection";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import AppVersion from "../components/AppVersion";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import ProfileScrollView from "../components/ProfileScrollView";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import useApplicationStatus from "../hooks/useApplicationStatus";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import Toast from "react-native-toast-message";
 
 /**
  * ProfileScreen component.
@@ -36,11 +37,23 @@ export default function ProfileScreen({}) {
     refetch: refetchApplicationStatus,
   } = useApplicationStatus();
 
+  useFocusEffect(
+    useCallback(() => {
+      refetchApplicationStatus();
+    }, [refetchApplicationStatus]),
+  );
+
   const handleMerchantPortalPress = () => {
     router.push("/profile/merchant-portal");
   };
 
   const handleSwitchToMerchant = () => {
+    Toast.show({
+      type: "success",
+      text1: "Switched to Merchant Mode",
+      text2: "You are now in Merchant mode.",
+    });
+
     setActiveMode("merchant");
     router.replace("/(merchant)/(tabs)/dashboard");
   };
@@ -48,7 +61,7 @@ export default function ProfileScreen({}) {
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
-      className="flex-1 bg-surface"
+      className="flex-1 bg-background"
     >
       <View className="flex-1">
         <ProfileScrollView

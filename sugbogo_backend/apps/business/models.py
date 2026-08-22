@@ -196,6 +196,16 @@ class Business(models.Model):
         blank=True,
     )
 
+    BUSN_COVER_PHOTO_URL = models.URLField(
+        blank=True,
+        null=True,
+    )
+    BUSN_COVER_PHOTO_PUBLIC_ID = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+
     class Meta:
         db_table = 'BUSINESS'
 

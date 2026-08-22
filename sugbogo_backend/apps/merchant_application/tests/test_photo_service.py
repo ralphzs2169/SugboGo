@@ -1,12 +1,15 @@
-from django.test import TestCase
 from unittest.mock import patch
 
-from apps.merchant_application.models import MerchantApplication, MerchantApplicationPhotos
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationPhotos,
+)
 from apps.merchant_application.services.photo_service import PhotoService
 from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
 from apps.users.models import User
+from django.test import TestCase
 
 
 class PhotoServiceTests(MerchantApplicationServiceMixin, TestCase):

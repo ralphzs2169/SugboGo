@@ -15,6 +15,7 @@ export default function MerchantTabLayout() {
         tabBarInactiveTintColor: theme.extends.colors.text.secondary,
       }}
     >
+      {/* Dashboard */}
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -26,26 +27,31 @@ export default function MerchantTabLayout() {
         }}
       />
 
+      {/* Analytics */}
       <Tabs.Screen
-        name="business"
+        name="analytics"
         options={{
-          title: "Business",
+          title: "Analytics",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="storefront" size={size} color={color} />
+            <Ionicons name="analytics" size={size} color={color} />
           ),
+          animation: "none",
         }}
       />
 
+      {/* Reviews */}
       <Tabs.Screen
-        name="applications"
+        name="reviews"
         options={{
-          title: "Applications",
+          title: "Reviews",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text" size={size} color={color} />
+            <Ionicons name="chatbubble-ellipses" size={size} color={color} />
           ),
+          animation: "none",
         }}
       />
 
+      {/* Profile */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -53,6 +59,7 @@ export default function MerchantTabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
+          animation: "none",
         }}
       />
     </Tabs>

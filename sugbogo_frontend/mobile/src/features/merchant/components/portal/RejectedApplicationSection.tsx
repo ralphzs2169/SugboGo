@@ -5,6 +5,7 @@ import { ApplicationFeedbackResponse } from "../../types/registration/registrati
 import ResubmissionChecklist from "../registration/ResubmissionChecklist";
 import rejectedApplicationAnimation from "../../assets/animations/changes-required.json";
 import LottieView from "lottie-react-native";
+import { theme } from "@/constants/theme";
 
 type RejectionApplicationSectionProps = {
   feedback: ApplicationFeedbackResponse[];
@@ -49,14 +50,12 @@ export default function RejectionApplicationSection({
       </View>
 
       {/* Review information */}
-      <View className="mt-4 flex-row items-center rounded-2xl border border-border-primary bg-surface px-4 py-4">
-        <View className="h-10 w-10 items-center justify-center rounded-xl bg-text-error/90">
-          <MaterialCommunityIcons
-            name="calendar-check-outline"
-            size={21}
-            color="white"
-          />
-        </View>
+      <View className="mt-4 flex-row items-center rounded-md border border-border-primary bg-surface px-4 py-4">
+        <MaterialCommunityIcons
+          name="calendar-check-outline"
+          size={25}
+          color={theme.extends.colors.text.secondary}
+        />
 
         <View className="ml-3 flex-1">
           <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
@@ -70,7 +69,7 @@ export default function RejectionApplicationSection({
       </View>
 
       {/* Administrator feedback */}
-      <View className="mt-4 rounded-2xl border border-border-primary bg-surface px-5 pt-5">
+      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 pt-5">
         <Text className="mb-1 text-sm font-bold text-text-primary">
           Administrator Feedback
         </Text>

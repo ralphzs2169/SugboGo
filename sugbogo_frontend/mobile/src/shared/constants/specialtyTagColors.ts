@@ -1,45 +1,44 @@
+import { theme } from "@/constants/theme";
+
 export const specialtyTagColors = {
   blue: {
-    background: "bg-blue-100",
-    border: "border-blue-200",
+    background: "bg-blue-500",
+
     selectedBorder: "border-blue-500",
-    text: "text-blue-700",
-    icon: "#1d4ed8",
+    text: "text-white",
+    icon: "#ffffff",
   },
   green: {
-    background: "bg-green-100",
-    border: "border-green-200",
-    selectedBorder: "border-green-500",
-    text: "text-green-700",
-    icon: "#15803d",
+    background: "bg-green-600",
+
+    selectedBorder: "border-green-600",
+    text: "text-white",
+    icon: "#ffffff",
   },
   purple: {
-    background: "bg-purple-100",
-    border: "border-purple-200",
-    selectedBorder: "border-purple-500",
-    text: "text-purple-700",
-    icon: "#7e22ce",
+    background: "bg-purple-600",
+    selectedBorder: "border-purple-600",
+    text: "text-white",
+    icon: "#ffffff",
   },
   yellow: {
-    background: "bg-yellow-100",
-    border: "border-yellow-200",
-    selectedBorder: "border-yellow-500",
-    text: "text-yellow-700",
-    icon: "#a16207",
+    background: "bg-yellow-500",
+    selectedBorder: theme.extends.colors.brand,
+    text: "text-white",
+    icon: "#ffffff",
   },
   red: {
-    background: "bg-red-100",
-    border: "border-red-200",
-    selectedBorder: "border-red-500",
-    text: "text-red-700",
-    icon: "#b91c1c",
+    background: "bg-rose-600",
+    selectedBorder: theme.extends.colors.brand,
+    text: "text-white",
+    icon: "#ffffff",
   },
   teal: {
-    background: "bg-teal-100",
-    border: "border-teal-200",
-    selectedBorder: "border-teal-500",
-    text: "text-teal-700",
-    icon: "#0f766e",
+    background: "bg-teal-700",
+
+    selectedBorder: theme.extends.colors.brand,
+    text: "text-white",
+    icon: "#ffffff",
   },
 } as const;
 

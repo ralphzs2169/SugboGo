@@ -17,20 +17,19 @@ export default function ProfileMenuSection({
   const items = Children.toArray(children);
 
   return (
-    <View className="mt-6">
-      {title ? (
-        <Text className="mb-3 px-1 text-sm font-semibold uppercase tracking-wide text-text-secondary">
-          {title}
-        </Text>
-      ) : null}
-
-      <View className="overflow-hidden  py-2 rounded-md bg-surface">
+    <View className="mt-3">
+      <View className="overflow-hidden pt-6 pb-4 rounded-md bg-surface">
+        {title ? (
+          <Text className="mb-3 px-5 text-sm font-semibold  text-text-secondary">
+            {title}
+          </Text>
+        ) : null}
         {items.map((child, index) => (
           <View key={index}>
             {child}
 
             {/* {index < items.length - 1 && (
-              <View className="ml-16 h-px bg-border mr-6" />
+              <View className="ml-16 h-px bg-border-primary mr-6" />
             )} */}
           </View>
         ))}
