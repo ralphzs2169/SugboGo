@@ -10,8 +10,10 @@ import {
   FiFileText,
   FiLayers,
   FiActivity,
+  FiHome,
 } from "react-icons/fi";
 
+import { MdStorefront } from "react-icons/md";
 /**
  * Sidebar navigation configuration.
  *
@@ -128,7 +130,7 @@ const navigation = [
         type: "link",
         to: "/admin-panel/businesses",
         label: "Businesses",
-        Icon: FiMapPin,
+        Icon: MdStorefront,
         roles: ["admin", "super_admin"],
       },
       {

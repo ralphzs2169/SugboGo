@@ -1,45 +1,32 @@
-import { useCallback, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getApplicationStatus } from "@/features/merchant/api/merchantApplication.service";
-import { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
+/**
+ * Fetches the authenticated merchant's application status.
+ * The status indicates whether the merchant's application is pending, approved, or rejected.
+ * The merchantModeAcknowledged flag indicates whether the merchant has acknowledged their mode.
+ */
 export default function useApplicationStatus() {
-  const [status, setStatus] = useState<MerchantApplicationStatus | null>(null);
+  const userId = useAuthStore((state) => state.user?.id);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  const fetchStatus = useCallback(async () => {
-    setIsLoading(true);
-    setError(false);
-
-    try {
+  const query = useQuery({
+    queryKey: ["merchant-application-status", userId],
+    queryFn: async () => {
       const response = await getApplicationStatus();
 
-      if (!response.success) {
-        setError(true);
-        return;
-      }
-
-      setStatus(response.data?.status ?? null);
-    } catch {
-      setError(true);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchStatus();
-    }, [fetchStatus]),
-  );
+      return throwOnApiError(response);
+    },
+    enabled: !!userId,
+  });
 
   return {
-    status,
-    isLoading,
-    error,
-    refetch: fetchStatus,
+    status: query.data?.status ?? null,
+    merchantModeAcknowledged: query.data?.merchant_mode_acknowledged ?? false,
+    isLoading: query.isLoading,
+    error: query.isError,
+    refetch: query.refetch,
   };
 }

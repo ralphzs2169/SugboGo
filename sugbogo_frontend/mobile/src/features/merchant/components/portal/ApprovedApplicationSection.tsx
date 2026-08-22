@@ -1,26 +1,26 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
-import approvedApplicationAnimation from "../../assets/animations/approved-application.json";
 import LottieView from "lottie-react-native";
+
+import approvedApplicationAnimation from "../../assets/animations/approved-application.json";
+
 import { theme } from "@/constants/theme";
 
 type ApprovedApplicationSectionProps = {
   businessName: string;
   approvedAt: string;
-  onOpenDashboard: () => void;
 };
 
 /**
  * Welcomes a newly approved merchant and summarizes the
  * active merchant account information.
  *
- * Provides a clear approval state, business identity,
- * approval date, and entry point to the merchant dashboard.
+ * Displays the approval state, business identity, and
+ * approval date without owning the Merchant Mode transition.
  */
 export default function ApprovedApplicationSection({
   businessName,
   approvedAt,
-  onOpenDashboard,
 }: ApprovedApplicationSectionProps) {
   return (
     <View className="bg-surface px-6 pb-6">
@@ -50,16 +50,14 @@ export default function ApprovedApplicationSection({
       </View>
 
       {/* Approval details */}
-      <View className="mt-4 rounded-2xl border border-border-primary bg-surface px-5 py-1">
+      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 py-1">
         {/* Business */}
         <View className="flex-row items-center border-b border-border-primary/60 py-4">
-          <View className="h-10 w-10 items-center justify-center rounded-xl bg-brand">
-            <MaterialCommunityIcons
-              name="storefront-outline"
-              size={21}
-              color="white"
-            />
-          </View>
+          <MaterialCommunityIcons
+            name="storefront-outline"
+            size={25}
+            color={theme.extends.colors.text.secondary}
+          />
 
           <View className="ml-3 flex-1">
             <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
@@ -77,13 +75,11 @@ export default function ApprovedApplicationSection({
 
         {/* Approval date */}
         <View className="flex-row items-center py-4">
-          <View className="h-10 w-10 items-center justify-center rounded-xl bg-success">
-            <MaterialCommunityIcons
-              name="calendar-check-outline"
-              size={21}
-              color="white"
-            />
-          </View>
+          <MaterialCommunityIcons
+            name="calendar-check-outline"
+            size={25}
+            color={theme.extends.colors.text.secondary}
+          />
 
           <View className="ml-3 flex-1">
             <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">

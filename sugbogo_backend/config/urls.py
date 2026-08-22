@@ -39,4 +39,7 @@ urlpatterns = [
 
     path('api/admin/settings/', include('apps.admin_operations.system_configuration.urls')),
     path('api/business/', include('apps.business.urls')),
+
+    # Merchant Operations
+    path('api/merchant/business-profile/', include('apps.merchant_operations.business_profile.urls')),
 ]

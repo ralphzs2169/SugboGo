@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import underReviewAnimation from "../../assets/animations/under-review.json";
 import LottieView from "lottie-react-native";
+import { theme } from "@/constants/theme";
 
 type SubmittedApplicationSectionProps = {
   submittedAt: string;
@@ -67,10 +68,12 @@ export default function SubmittedApplicationSection({
       </View>
 
       {/* Review SLA */}
-      <View className="mt-4 flex-row items-center rounded-2xl border border-border-primary bg-surface px-4 py-4">
-        <View className="h-10 w-10 items-center justify-center rounded-xl bg-brand">
-          <MaterialCommunityIcons name="clock-fast" size={21} color="white" />
-        </View>
+      <View className="mt-4 flex-row items-center rounded-md border border-border-primary bg-surface px-4 py-4">
+        <MaterialCommunityIcons
+          name="clock-fast"
+          size={25}
+          color={theme.extends.colors.text.secondary}
+        />
 
         <View className="ml-3 flex-1">
           <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
@@ -84,7 +87,7 @@ export default function SubmittedApplicationSection({
       </View>
 
       {/* Application timeline */}
-      <View className="mt-4 rounded-2xl border border-border-primary bg-surface px-5 py-5">
+      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 py-5">
         <Text className="mb-5 text-sm font-bold text-text-primary">
           Application Progress
         </Text>

@@ -7,11 +7,13 @@ import ProfileMenuSection from "../components/ProfileMenuSection";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import AppVersion from "../components/AppVersion";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import ProfileScrollView from "../components/ProfileScrollView";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import useApplicationStatus from "../hooks/useApplicationStatus";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import Toast from "react-native-toast-message";
 
 /**
  * ProfileScreen component.
@@ -21,18 +23,39 @@ import useApplicationStatus from "../hooks/useApplicationStatus";
 export default function ProfileScreen({}) {
   const user = useAuthStore((state) => state.user);
 
+  const canAccessMerchantMode = user?.role === "merchant";
+  const setActiveMode = useAppModeStore((state) => state.setActiveMode);
+
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { logout } = useLogout();
 
   const {
     status: applicationStatus,
+    merchantModeAcknowledged,
     isLoading: isLoadingApplicationStatus,
     error: applicationStatusError,
     refetch: refetchApplicationStatus,
   } = useApplicationStatus();
 
+  useFocusEffect(
+    useCallback(() => {
+      refetchApplicationStatus();
+    }, [refetchApplicationStatus]),
+  );
+
   const handleMerchantPortalPress = () => {
     router.push("/profile/merchant-portal");
+  };
+
+  const handleSwitchToMerchant = () => {
+    Toast.show({
+      type: "success",
+      text1: "Switched to Merchant Mode",
+      text2: "You are now in Merchant mode.",
+    });
+
+    setActiveMode("merchant");
+    router.replace("/(merchant)/(tabs)/dashboard");
   };
 
   return (
@@ -50,10 +73,28 @@ export default function ProfileScreen({}) {
             lastname={user?.last_name ?? ""}
             email={user?.email ?? ""}
             avatarUrl={user?.avatar_url ?? null}
+            role={user?.role ?? "explorer"}
             onEditProfile={() => router.push("/profile/edit-profile")}
           />
 
           {/* Menu Sections */}
+
+          {/* Merchant mode */}
+          {!isLoadingApplicationStatus && (
+            <>
+              {canAccessMerchantMode && merchantModeAcknowledged && (
+                <ProfileMenuSection title="Merchant">
+                  <ProfileMenuItem
+                    title="Switch to Merchant"
+                    icon="storefront-outline"
+                    onPress={handleSwitchToMerchant}
+                  />
+                </ProfileMenuSection>
+              )}
+            </>
+          )}
+
+          {/* Activity */}
           <ProfileMenuSection title="Your Activity">
             <ProfileMenuItem
               title="My Pockets"
@@ -93,10 +134,13 @@ export default function ProfileScreen({}) {
             />
           </ProfileMenuSection>
 
-          <MerchantPortalCard
-            status={applicationStatus}
-            onPress={handleMerchantPortalPress}
-          />
+          {/* Merchant portal */}
+          {!isLoadingApplicationStatus && !merchantModeAcknowledged && (
+            <MerchantPortalCard
+              status={applicationStatus}
+              onPress={handleMerchantPortalPress}
+            />
+          )}
 
           <ProfileMenuSection title="Settings & Support">
             <ProfileMenuItem

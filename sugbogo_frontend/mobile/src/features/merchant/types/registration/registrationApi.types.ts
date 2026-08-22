@@ -198,9 +198,9 @@ export interface ApplicationDetailResponse {
   review_sla_max_business_days: number;
 }
 
-export interface ApplicationStatusResponse {
-  status: "draft" | "submitted" | "rejected" | "approved";
-}
+// export interface ApplicationStatusResponse {
+//   status: "draft" | "submitted" | "rejected" | "approved";
+// }
 
 export interface ApplicationSubmissionResponse {
   status: "submitted";
@@ -210,6 +210,7 @@ export interface ApplicationSubmissionResponse {
 
 export interface ApplicationStatusResponse {
   status: "draft" | "submitted" | "rejected" | "approved";
+  merchant_mode_acknowledged: boolean;
   highest_completed_step: number;
   review_sla_min_business_days: number;
   review_sla_max_business_days: number;

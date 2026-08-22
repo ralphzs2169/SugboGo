@@ -19,7 +19,6 @@ import {
   ApplicationStatusResponse,
   ApplicationSubmissionResponse,
 } from "../types/registration/registrationApi.types";
-import { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
 
 // Registration options
 
@@ -97,4 +96,13 @@ export async function getApplicationStatus(): Promise<
   ApiResponse<ApplicationStatusResponse | null>
 > {
   return request(apiClient.get("/merchant/application/status/"));
+}
+
+// Acknowledgement of Merchant Mode
+export async function acknowledgeMerchantMode(): Promise<
+  ApiResponse<ApplicationStatusResponse>
+> {
+  return request(
+    apiClient.patch("/merchant/application/acknowledge-merchant-mode/"),
+  );
 }

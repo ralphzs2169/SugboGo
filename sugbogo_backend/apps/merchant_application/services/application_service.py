@@ -2,7 +2,6 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.merchant_application.constants import APPLICATION_REVIEW_SLA_BUSINESS_DAYS
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationDocument,
@@ -12,7 +11,7 @@ from apps.merchant_application.models import (
     MerchantApplicationReview,
     MerchantApplicationSubmission,
 )
-from apps.merchant_application.utils.application_queue import count_business_days
+from apps.users.models import User
 
 
 class ApplicationService:
@@ -68,6 +67,32 @@ class ApplicationService:
             )
 
 
+    @staticmethod
+    def acknowledge_merchant_mode(application, user):
+        """
+        Mark an approved merchant application as acknowledged for
+        Merchant Mode access.
+        """
+        if application.MAPP_STATUS != MerchantApplication.ApplicationStatus.APPROVED:
+            raise ValidationError(
+                "Only approved applications can be acknowledged."
+            )
+
+        if user.USER_ROLE != User.UserRole.MERCHANT:
+            raise ValidationError(
+                "Merchant mode is only available to merchant accounts."
+            )
+
+        if not application.MAPP_MERCHANT_MODE_ACKNOWLEDGED:
+            application.MAPP_MERCHANT_MODE_ACKNOWLEDGED = True
+            application.save(
+                update_fields=[
+                    "MAPP_MERCHANT_MODE_ACKNOWLEDGED",
+                    "MAPP_UPDATED_AT",
+                ]
+            )
+
+        return application
     
     @staticmethod
     def mark_step_completed(application, step):

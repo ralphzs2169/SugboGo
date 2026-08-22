@@ -102,7 +102,7 @@ INSTALLED_APPS = [
 
     'apps.users.apps.UsersConfig',
     'apps.authentication.apps.AuthenticationConfig',
-    'apps.merchant_operations.apps.MerchantOperationsConfig',
+    # 'apps.merchant_operations.apps.MerchantOperationsConfig',
 
     # Admin Operations
     'apps.admin_operations.dashboard.apps.DashboardConfig',
@@ -119,6 +119,9 @@ INSTALLED_APPS = [
     'apps.business.apps.BusinessConfig',
 
     "apps.merchant_application.apps.MerchantApplicationConfig",
+
+    # Merchant Operations
+    'apps.merchant_operations.business_profile.apps.BusinessProfileConfig',
 ]
 
 MIDDLEWARE = [
@@ -181,6 +184,9 @@ REST_FRAMEWORK = {
         "place_details": "5/min",
         "reverse_geocode": "5/min",
         "nearby_landmarks": "3/min",
+
+        # Merhcant Operations
+        "business_cover_photo_update": "1/day",
     },
 
     "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",

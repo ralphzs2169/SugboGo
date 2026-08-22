@@ -141,7 +141,7 @@ export const portalConfig: Record<MerchantRegistrationStatus, PortalConfig> = {
     },
 
     primaryAction: {
-      buttonTitle: "Go to Merchant Dashboard",
+      buttonTitle: "Switch to Merchant Mode",
     },
 
     sections: {

@@ -25,15 +25,6 @@ const badgeColors: Record<BadgeVariant, string> = {
 /**
  * ProfileMenuItem component represents a single item in the profile menu.
  * It displays an icon, title, optional badge, and a chevron indicating navigation.
- * @param {title} title - The title of the menu item.
- * @param {icon} icon - The name of the MaterialCommunityIcons icon to display.
- * @param {onPress} onPress - Function to call when the item is pressed.
- * @param {badge} badge - Optional badge text or number to display.
- * @param {badgeVariant} badgeVariant - Optional variant for the badge color.
- * @param {variant} variant - Optional variant for the menu item style (default or danger).
- * @param {showChevron} showChevron - Optional boolean to show or hide the chevron.
- *
- * @returns {JSX.Element} The rendered ProfileMenuItem component.
  */
 export default function ProfileMenuItem({
   title,
@@ -49,7 +40,7 @@ export default function ProfileMenuItem({
   return (
     <Pressable
       onPress={onPress}
-      className="flex-row items-center px-4 py-4 active:opacity-70"
+      className="flex-row items-center px-4 py-3.5 active:opacity-70"
     >
       <MaterialCommunityIcons
         name={icon}

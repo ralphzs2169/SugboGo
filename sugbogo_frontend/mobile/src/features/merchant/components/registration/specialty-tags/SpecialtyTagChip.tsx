@@ -45,10 +45,10 @@ export default function SpecialtyTagChip({
     <Pressable
       onPress={onPress}
       disabled={!isInteractive || isDisabled}
-      className={`mb-2 mr-2 flex-row items-center rounded-full border px-3 py-2 ${
+      className={`mb-2 mr-2 flex-row items-center rounded-full  px-3 py-2 ${
         styles.background
       } ${
-        isSelected ? `${styles.selectedBorder} border-2` : styles.border
+        isSelected ? `border ${styles.selectedBorder} border-2` : ""
       } ${isDisabled && showDisabledStyle ? "opacity-40" : ""}`}
     >
       {showCheckIcon && isSelected && (

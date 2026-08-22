@@ -26,6 +26,7 @@ class MerchantApplication(models.Model):
     MAPP_CREATED_AT = models.DateTimeField(auto_now_add=True)
     MAPP_UPDATED_AT = models.DateTimeField(auto_now=True)
 
+
     USER_ID = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
         db_column='USER_ID', related_name='merchant_applications'
@@ -61,6 +62,13 @@ class MerchantApplication(models.Model):
         related_name="merchant_application",
         null=True,
         blank=True,
+    )
+
+    # Tracks whether the merchant has acknowledged their approval by entering Merchant Mode.
+    # Once acknowledged, the merchant portal card now disappears from the profile page,
+    # and a new menu item appears in the profile menu for "Merchant Mode".
+    MAPP_MERCHANT_MODE_ACKNOWLEDGED = models.BooleanField(
+        default=False,
     )
 
     class Meta:

@@ -47,7 +47,7 @@ export default function ProfileScrollView({
       />
 
       <Animated.ScrollView
-        contentContainerClassName="p-4 pb-8"
+        contentContainerClassName=" pb-8"
         onScroll={handleScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
