@@ -104,6 +104,9 @@ INSTALLED_APPS = [
     'apps.authentication.apps.AuthenticationConfig',
     # 'apps.merchant_operations.apps.MerchantOperationsConfig',
 
+    # Explorer Operations
+    'apps.explorer_operations.explore_businesses.apps.ExploreBusinessesConfig',
+
     # Admin Operations
     'apps.admin_operations.dashboard.apps.DashboardConfig',
     'apps.admin_operations.business_management.apps.BusinessManagementConfig',

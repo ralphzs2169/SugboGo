@@ -6,6 +6,7 @@ import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 
 type SpecialtyTagChipProps = {
   tag: SpecialtyTagOption;
+  size?: "default" | "small";
   isSelected?: boolean;
   isDisabled?: boolean;
   onPress?: () => void;
@@ -31,6 +32,7 @@ type SpecialtyTagChipProps = {
  */
 export default function SpecialtyTagChip({
   tag,
+  size = "default",
   isSelected = false,
   isDisabled = false,
   onPress,
@@ -40,27 +42,34 @@ export default function SpecialtyTagChip({
   const styles = getSpecialtyTagColor(tag.color);
 
   const isInteractive = Boolean(onPress);
+  const isSmall = size === "small";
 
   return (
     <Pressable
       onPress={onPress}
       disabled={!isInteractive || isDisabled}
-      className={`mb-2 mr-2 flex-row items-center rounded-full  px-3 py-2 ${
-        styles.background
-      } ${
+      className={`mb-2 mr-2 flex-row items-center rounded-full ${
+        isSmall ? "px-2 py-0.5" : "px-3 py-2"
+      } ${styles.background} ${
         isSelected ? `border ${styles.selectedBorder} border-2` : ""
       } ${isDisabled && showDisabledStyle ? "opacity-40" : ""}`}
     >
       {showCheckIcon && isSelected && (
         <MaterialCommunityIcons
           name="check"
-          size={16}
+          size={isSmall ? 12 : 16}
           color={styles.icon}
           style={{ marginRight: 4 }}
         />
       )}
 
-      <Text className={`text-sm font-medium ${styles.text}`}>{tag.name}</Text>
+      <Text
+        className={`font-medium ${
+          isSmall ? "text-[10px]" : "text-sm"
+        } ${styles.text}`}
+      >
+        {tag.name}
+      </Text>
     </Pressable>
   );
 }

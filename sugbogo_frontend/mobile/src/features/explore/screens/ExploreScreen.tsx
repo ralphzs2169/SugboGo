@@ -6,6 +6,7 @@ import InterestsSection from "../components/interests/InterestsSection";
 import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
 import DiscoverMoreSection from "../components/discover-more/DiscoverMoreSection";
 import TrendingSection from "../components/trending/TrendingSection";
+import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
 
 export default function ExploreScreen() {
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -25,6 +26,11 @@ export default function ExploreScreen() {
         <InterestsSection selectedCategory={selectedCategory} />
         <DiscoverMoreSection selectedCategory={selectedCategory} />
         <TrendingSection selectedCategory={selectedCategory} />
+        <NewBusinessesSection
+          onBusinessPress={(businessId) => {
+            // Business profile navigation will be added next.
+          }}
+        />
         <DiscoverNearYouButton onPress={() => {}} />
       </ScrollView>
     </View>

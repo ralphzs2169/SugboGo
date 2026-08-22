@@ -23,7 +23,12 @@ urlpatterns = [
     path('api/users/', include('apps.users.urls')),
     # path('merchant/', include('apps.merchant_operations.urls')),
 
+    # Explorer Operations
+    path('api/explorer/explore/', include('apps.explorer_operations.explore_businesses.urls')),
+
     
+    # Merchant Operations
+    path('api/merchant/business-profile/', include('apps.merchant_operations.business_profile.urls')),
     path('api/merchant/application/', include('apps.merchant_application.urls')),
 
     # Admin Operations
@@ -40,6 +45,4 @@ urlpatterns = [
     path('api/admin/settings/', include('apps.admin_operations.system_configuration.urls')),
     path('api/business/', include('apps.business.urls')),
 
-    # Merchant Operations
-    path('api/merchant/business-profile/', include('apps.merchant_operations.business_profile.urls')),
 ]
