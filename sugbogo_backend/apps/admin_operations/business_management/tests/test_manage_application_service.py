@@ -1516,3 +1516,80 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             business_landmarks_data,
             application_landmarks_data,
         )
+
+
+    def test_approve_application_copies_photos_to_business(self):
+        application = self._build_complete_application()
+        reviewer = self._create_admin(
+            email="approve-photos-admin@example.com",
+        )
+
+        application.MAPP_STATUS = (
+            MerchantApplication.ApplicationStatus.SUBMITTED
+        )
+        application.MAPP_SUBMISSION_COUNT = 1
+        application.save(
+            update_fields=[
+                "MAPP_STATUS",
+                "MAPP_SUBMISSION_COUNT",
+            ],
+        )
+
+        self._create_submission(
+            application,
+            submission_number=1,
+        )
+
+        application_photos = list(
+            application.photos.all()
+        )
+
+        self.assertGreater(
+            len(application_photos),
+            0,
+        )
+
+        ApplicationService.approve_application(
+            application_id=application.MAPP_ID,
+            reviewer=reviewer,
+        )
+
+        business = (
+            MerchantApplication.objects
+            .get(MAPP_ID=application.MAPP_ID)
+            .BUSN_ID
+        )
+
+        business_photos = list(
+            business.photos.all()
+        )
+
+        self.assertEqual(
+            len(business_photos),
+            len(application_photos),
+        )
+
+        application_photos_data = {
+            (
+                photo.MPHT_CATEGORY,
+                photo.MPHT_PHOTO_URL,
+                photo.MPHT_PHOTO_PUBLIC_ID,
+                photo.MPHT_FILE_NAME,
+            )
+            for photo in application_photos
+        }
+
+        business_photos_data = {
+            (
+                photo.BPHO_CATEGORY,
+                photo.BPHO_PHOTO_URL,
+                photo.BPHO_PHOTO_PUBLIC_ID,
+                photo.BPHO_FILE_NAME,
+            )
+            for photo in business_photos
+        }
+
+        self.assertEqual(
+            business_photos_data,
+            application_photos_data,
+        )

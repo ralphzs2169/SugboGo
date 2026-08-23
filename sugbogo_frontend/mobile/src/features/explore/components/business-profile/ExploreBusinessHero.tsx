@@ -1,0 +1,118 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { Pressable, Text, View } from "react-native";
+
+import { theme } from "@/constants/theme";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
+
+import type { ExploreBusiness } from "../../types/exploreBusiness.types";
+
+type Props = {
+  business: ExploreBusiness;
+};
+
+console.log("LinearGradient:", LinearGradient);
+/**
+ * Displays the business cover photo and primary identity information.
+ *
+ * The business identity is anchored to the bottom of the hero with a subtle
+ * gradient scrim so the cover photo remains the primary visual element while
+ * the text stays readable.
+ */
+export default function ExploreBusinessHero({ business }: Props) {
+  const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
+
+  return (
+    <View className="relative h-80 w-full bg-surface-secondary">
+      {/* Cover photo */}
+      {business.cover_photo_url ? (
+        <Image
+          source={{ uri: business.cover_photo_url }}
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+          contentFit="cover"
+          transition={150}
+        />
+      ) : (
+        <View className="h-full w-full items-center justify-center bg-brand/8">
+          <MaterialCommunityIcons
+            name="store-outline"
+            size={64}
+            color={theme.extends.colors.brand}
+            style={{ opacity: 0.45 }}
+          />
+        </View>
+      )}
+      <LinearGradient
+        colors={[
+          "transparent",
+          "rgba(0,0,0,0.05)",
+          "rgba(0,0,0,0.3)",
+          "rgba(0,0,0,0.75)",
+        ]}
+        locations={[0, 0.4, 0.7, 1]}
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 250,
+        }}
+        pointerEvents="none"
+      />
+
+      {/* Navigation controls */}
+      <View className="absolute left-4 right-4 top-4 flex-row items-center justify-between">
+        <Pressable
+          onPress={() => router.back()}
+          className="h-10 w-10 items-center justify-center rounded-full bg-white/95 active:opacity-80"
+          android_ripple={{ color: "rgba(0,0,0,0.08)" }}
+        >
+          <MaterialCommunityIcons
+            name="arrow-left"
+            size={22}
+            color={theme.extends.colors.text.primary}
+          />
+        </Pressable>
+
+        <Pressable
+          onPress={() => {}}
+          className="h-10 w-10 items-center justify-center rounded-full bg-white/95 active:opacity-80"
+          android_ripple={{ color: "rgba(0,0,0,0.08)" }}
+        >
+          <MaterialCommunityIcons
+            name="dots-vertical"
+            size={22}
+            color={theme.extends.colors.text.primary}
+          />
+        </Pressable>
+      </View>
+
+      {/* Business identity */}
+      <View className="absolute bottom-5 left-4 right-4">
+        <Text className="text-2xl font-bold text-white" numberOfLines={2}>
+          {business.business_name}
+        </Text>
+
+        <View className="mt-1.5 flex-row items-center">
+          <MaterialCommunityIcons
+            name={clusterIconName}
+            size={16}
+            color="#FFFFFF"
+          />
+
+          <Text
+            className="ml-1.5 flex-1 text-sm font-medium text-white/90"
+            numberOfLines={1}
+          >
+            {business.cluster.name} · {business.category.name}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}

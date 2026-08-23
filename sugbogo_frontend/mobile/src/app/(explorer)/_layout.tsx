@@ -13,6 +13,14 @@ export default function ExplorerLayout() {
       <Stack.Screen name="(tabs)" />
 
       <Stack.Screen
+        name="business/[businessId]"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
         name="profile"
         options={{
           ...defaultStackScreenOptions,
