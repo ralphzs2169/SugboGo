@@ -11,7 +11,7 @@ import type {
 import useSpecialtyTags from "@/features/merchant/hooks/registration/useSpecialtyTags";
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
-import SpecialtyTagChip from "../../specialty-tags/SpecialtyTagChip";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import ReviewSectionFeedback from "../ReviewSectionFeedback";
 import { MaterialCommunityIcons } from "@expo/vector-icons";

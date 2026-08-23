@@ -7,7 +7,7 @@ import { View } from "react-native";
 
 import type { SpecialtyTagOption } from "@/features/merchant/types/registration/registrationOption.types";
 import SpecialtyTagsSheetHeader from "./SpecialtyTagsSheetHeader";
-import SpecialtyTagChip from "./SpecialtyTagChip";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 
 type SpecialtyTagsBottomSheetProps = {
   sheetRef: React.RefObject<BottomSheetModal | null>;

@@ -80,16 +80,6 @@ export default function MerchantProfileScreen() {
         text2: "Your business cover photo has been updated.",
       });
     } catch (error) {
-      if (error instanceof Error) {
-        Toast.show({
-          type: "error",
-          text1: "Unable to process image",
-          text2: error.message,
-        });
-
-        return;
-      }
-
       const response = error as ApiResponse<unknown>;
 
       if (!response.success) {

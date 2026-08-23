@@ -54,15 +54,15 @@ export default function getBusinessColumns(onViewBusiness) {
       },
       cell: (info) => {
         const business = info.row.original;
-        const photoUrl = business.storefront_photo?.url;
+        const photoUrl = business.cover_photo_url;
 
         return (
           <div className="flex items-center gap-3">
-            {/* Business photo */}
+            {/* Business cover photo */}
             {photoUrl ? (
               <img
                 src={photoUrl}
-                alt={`${business.business_name} storefront`}
+                alt={`${business.business_name} cover`}
                 className="h-12 w-12 shrink-0 rounded-lg object-cover"
               />
             ) : (

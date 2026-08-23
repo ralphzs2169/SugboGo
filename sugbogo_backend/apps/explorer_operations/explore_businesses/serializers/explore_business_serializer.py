@@ -60,7 +60,7 @@ class ExploreSpecialtyTagSerializer(serializers.Serializer):
 
 
 class ExploreLocationSerializer(serializers.Serializer):
-    """Serializes the location information shown on Explorer business cards."""
+    """Serializes location information shown on Explorer business cards."""
 
     address = serializers.CharField(
         source="LOCT_ADDRESS",
@@ -72,6 +72,14 @@ class ExploreLocationSerializer(serializers.Serializer):
     )
     province = serializers.CharField(
         source="LOCT_PROVINCE",
+        read_only=True,
+    )
+    latitude = serializers.FloatField(
+        source="LOCT_POINT.y",
+        read_only=True,
+    )
+    longitude = serializers.FloatField(
+        source="LOCT_POINT.x",
         read_only=True,
     )
 

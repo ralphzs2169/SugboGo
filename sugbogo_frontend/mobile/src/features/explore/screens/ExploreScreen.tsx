@@ -1,17 +1,21 @@
 import { router } from "expo-router";
-import { View, ScrollView } from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import ExploreTopBar from "../components/ExploreTopBar";
 import HiddenGemsSection from "../components/hidden-gems/HiddenGemsSection";
 import InterestsSection from "../components/interests/InterestsSection";
-import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
 import DiscoverMoreSection from "../components/discover-more/DiscoverMoreSection";
 import TrendingSection from "../components/trending/TrendingSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
+import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
 
 export default function ExploreScreen() {
+  const queryClient = useQueryClient();
+
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleBusinessPress = (businessId: number) => {
     router.push({
@@ -20,6 +24,18 @@ export default function ExploreScreen() {
         businessId: businessId.toString(),
       },
     });
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+
+    try {
+      await queryClient.refetchQueries({
+        queryKey: ["explore-new-businesses"],
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
@@ -32,6 +48,9 @@ export default function ExploreScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pt-4 pb-8"
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+        }
       >
         <HiddenGemsSection selectedCategory={selectedCategory} />
 

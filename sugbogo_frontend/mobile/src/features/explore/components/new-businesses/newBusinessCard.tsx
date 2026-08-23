@@ -6,10 +6,12 @@ import { theme } from "@/constants/theme";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
-import SpecialtyTagChip from "@/features/merchant/components/registration/specialty-tags/SpecialtyTagChip";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { formatDistance } from "@/shared/utils/distance.utils";
 
 type Props = {
   business: ExploreBusiness;
+  distance: number | null;
   onPress: () => void;
 };
 
@@ -23,14 +25,28 @@ const CARD_WIDTH = 224; // w-56
  * category/cluster, specialty tags, and location — lives in a single
  * compact block below the photo, read top-to-bottom in priority order.
  */
-export default function NewBusinessCard({ business, onPress }: Props) {
+export default function NewBusinessCard({
+  business,
+  onPress,
+  distance,
+}: Props) {
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
   return (
     <Pressable
       onPress={onPress}
-      style={{ width: CARD_WIDTH }}
-      className="overflow-hidden rounded-md bg-surface active:opacity-90"
+      style={{
+        width: CARD_WIDTH,
+        shadowColor: "#000",
+        shadowOffset: {
+          width: 0,
+          height: 2,
+        },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        elevation: 3,
+      }}
+      className="overflow-hidden rounded-xl my-1 bg-surface  active:opacity-90"
       android_ripple={{ color: "rgba(0,0,0,0.06)" }}
     >
       {/* Cover photo — kept fully clean, no overlaid text/gradient,
@@ -103,19 +119,21 @@ export default function NewBusinessCard({ business, onPress }: Props) {
           </View>
         )}
 
-        {/* Location — least emphasis, last in the hierarchy */}
+        {/* Distance */}
         <View className="mt-2 flex-row items-center">
           <MaterialCommunityIcons
             name="map-marker-outline"
             size={12}
-            color="#8A9691"
+            color={theme.extends.colors.text.tertiary}
           />
 
           <Text
             className="ml-1 flex-1 text-[11px] text-text-tertiary"
             numberOfLines={1}
           >
-            {business.location.city}
+            {distance !== null
+              ? formatDistance(distance)
+              : business.location.city}
           </Text>
         </View>
       </View>

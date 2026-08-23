@@ -11,8 +11,20 @@ from apps.merchant_application.models import MerchantApplication
 class AdminBusinessListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for the administrator business table."""
 
-    id = serializers.IntegerField(source="BUSN_ID", read_only=True)
-    business_name = serializers.CharField(source="BUSN_NAME", read_only=True)
+    id = serializers.IntegerField(
+        source="BUSN_ID",
+        read_only=True,
+    )
+
+    business_name = serializers.CharField(
+        source="BUSN_NAME",
+        read_only=True,
+    )
+
+    cover_photo_url = serializers.CharField(
+        source="BUSN_COVER_PHOTO_URL",
+        read_only=True,
+    )
 
     owner = BusinessOwnerSerializer(
         source="USER_ID",
@@ -60,6 +72,7 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "business_name",
+            "cover_photo_url",
             "owner",
             "cluster_name",
             "cluster_icon",
@@ -155,8 +168,16 @@ class AdminBusinessLandmarkSerializer(serializers.ModelSerializer):
 class AdminBusinessPhotoSerializer(serializers.ModelSerializer):
     """Serializes a permanent business photo for administrator viewing."""
 
-    id = serializers.IntegerField(source="BPHO_ID", read_only=True)
-    category = serializers.CharField(source="BPHO_CATEGORY", read_only=True)
+    id = serializers.IntegerField(
+        source="BPHO_ID",
+        read_only=True,
+    )
+
+    category = serializers.CharField(
+        source="BPHO_CATEGORY",
+        read_only=True,
+    )
+
     photo_url = serializers.URLField(
         source="BPHO_PHOTO_URL",
         read_only=True,
@@ -172,7 +193,8 @@ class AdminBusinessPhotoSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "category",
-            "url",
+            "photo_url",
+            "file_name",
         )
 
 
@@ -244,13 +266,31 @@ class AdminBusinessApplicationSerializer(serializers.ModelSerializer):
 class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     """Complete administrator-facing business detail serializer."""
 
-    id = serializers.IntegerField(source="BUSN_ID", read_only=True)
-    business_name = serializers.CharField(source="BUSN_NAME", read_only=True)
+    id = serializers.IntegerField(
+        source="BUSN_ID",
+        read_only=True,
+    )
+
+    business_name = serializers.CharField(
+        source="BUSN_NAME",
+        read_only=True,
+    )
+
+    cover_photo_url = serializers.CharField(
+        source="BUSN_COVER_PHOTO_URL",
+        read_only=True,
+    )
+
     description = serializers.CharField(
         source="BUSN_DESCRIPTION",
         read_only=True,
     )
-    status = serializers.CharField(source="BUSN_STATUS", read_only=True)
+
+    status = serializers.CharField(
+        source="BUSN_STATUS",
+        read_only=True,
+    )
+
     is_verified = serializers.BooleanField(
         source="BUSN_IS_VERIFIED",
         read_only=True,
@@ -260,10 +300,12 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
         source="BUSN_VOUCH_COUNT",
         read_only=True,
     )
+
     review_count = serializers.IntegerField(
         source="BUSN_REVIEW_COUNT",
         read_only=True,
     )
+
     pocket_count = serializers.IntegerField(
         source="BUSN_POCKET_COUNT",
         read_only=True,
@@ -278,10 +320,12 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
         source="CTGRY_ID.CTGRY_NAME",
         read_only=True,
     )
+
     cluster_name = serializers.CharField(
         source="CTGRY_ID.CLUS_ID.CLUS_NAME",
         read_only=True,
     )
+
     cluster_icon = serializers.CharField(
         source="CTGRY_ID.CLUS_ID.CLUS_ICON",
         read_only=True,
@@ -294,20 +338,23 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     )
 
     location = serializers.SerializerMethodField()
+
     landmarks = AdminBusinessLandmarkSerializer(
         source="LOCT_ID.landmarks",
         many=True,
         read_only=True,
     )
-    
+
     photos = AdminBusinessPhotoSerializer(
         many=True,
         read_only=True,
     )
+
     operating_hours = AdminBusinessOperatingHoursSerializer(
         many=True,
         read_only=True,
     )
+
     application = AdminBusinessApplicationSerializer(
         source="merchant_application",
         read_only=True,
@@ -330,6 +377,7 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "business_name",
+            "cover_photo_url",
             "description",
             "status",
             "is_verified",
@@ -343,7 +391,6 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
             "specialty_tags",
             "landmarks",
             "location",
-
             "photos",
             "operating_hours",
             "application",
