@@ -37,7 +37,7 @@ class ExploreCategorySerializer(serializers.Serializer):
 
 
 class ExploreSpecialtyTagSerializer(serializers.Serializer):
-    """Serializes a specialty tag shown on Explorer business cards."""
+    """Serializes a specialty tag with its Explorer vouch information."""
 
     id = serializers.IntegerField(
         source="TAG_ID",
@@ -49,6 +49,12 @@ class ExploreSpecialtyTagSerializer(serializers.Serializer):
     )
     color = serializers.CharField(
         source="TAG_COLOR",
+        read_only=True,
+    )
+    vouch_count = serializers.IntegerField(
+        read_only=True,
+    )
+    is_vouched = serializers.BooleanField(
         read_only=True,
     )
 

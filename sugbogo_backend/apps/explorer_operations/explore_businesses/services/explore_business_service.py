@@ -1,4 +1,9 @@
-from apps.business.models import Business
+from apps.business.models import (
+    Business,
+    BusinessVouch,
+    SpecialtyTag,
+)
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q
 from rest_framework.exceptions import NotFound
 
 
@@ -6,8 +11,30 @@ class ExploreBusinessService:
     """Service class for Explorer-facing business discovery queries."""
 
     @staticmethod
-    def get_business_detail(business_id):
+    def get_business_detail(business_id, user):
         """Retrieve an active business and its public Explorer details."""
+
+        user_vouch_exists = BusinessVouch.objects.filter(
+            BUSN_ID=business_id,
+            USER_ID=user,
+            TAG_ID=OuterRef("TAG_ID"),
+        )
+
+        specialty_tags = (
+            SpecialtyTag.objects
+            .annotate(
+                vouch_count=Count(
+                    "vouches",
+                    filter=Q(
+                        vouches__BUSN_ID=business_id,
+                    ),
+                    distinct=True,
+                ),
+                is_vouched=Exists(
+                    user_vouch_exists,
+                ),
+            )
+        )
 
         try:
             return (
@@ -18,7 +45,10 @@ class ExploreBusinessService:
                     "LOCT_ID",
                 )
                 .prefetch_related(
-                    "SPECIALTY_TAGS",
+                    Prefetch(
+                        "SPECIALTY_TAGS",
+                        queryset=specialty_tags,
+                    ),
                     "photos",
                     "operating_hours",
                 )

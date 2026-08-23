@@ -42,13 +42,13 @@ export default function ExplorerLayout() {
           animationTypeForReplace: "push",
         }}
       />
-
+      {/* 
       <Stack.Screen
         name="submission-success"
         options={{
           headerShown: false,
         }}
-      />
+      /> */}
     </Stack>
   );
 }

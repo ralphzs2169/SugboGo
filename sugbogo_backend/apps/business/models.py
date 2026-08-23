@@ -2,6 +2,8 @@ from django.conf import settings
 from django.contrib.gis.db import models as gis_models
 from django.db import models
 
+from apps.users.models import User
+
 
 class Cluster(models.Model):
     class ClusterIcon(models.TextChoices):
@@ -258,7 +260,7 @@ class BusinessSpecialtyTag(models.Model):
 
     class Meta:
         db_table = 'BUSINESS_SPECIALTY_TAG'
-        constraints = [  
+        constraints = [  # noqa: RUF012
             models.UniqueConstraint(
                 fields=['BUSN_ID', 'TAG_ID'],
                 name='unique_business_specialty_tag',
@@ -342,7 +344,7 @@ class BusinessOperatingHours(models.Model):
 
     class Meta:
         db_table = "BUSINESS_OPERATING_HOURS"
-        constraints = [
+        constraints = [  # noqa: RUF012
             models.UniqueConstraint(
                 fields=("BUSN_ID", "BOHR_DAY"),
                 name="unique_business_operating_hours_day",
@@ -371,3 +373,56 @@ class ServiceableBoundary(models.Model):
 
     def __str__(self):
         return self.SBND_NAME
+
+class BusinessVouch(models.Model):
+    """A user's endorsement of a specialty associated with a business."""
+
+    VOUCH_ID = models.AutoField(primary_key=True)
+
+    BUSN_ID = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="vouches",
+        db_column="BUSN_ID",
+    )
+
+    USER_ID = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="business_vouches",
+        db_column="USER_ID",
+    )
+
+    TAG_ID = models.ForeignKey(
+        SpecialtyTag,
+        on_delete=models.CASCADE,
+        related_name="vouches",
+        db_column="TAG_ID",
+    )
+
+    VOUCH_FLAG_SUSPICIOUS = models.BooleanField(
+        default=False,
+    )
+
+    VOUCH_DEVICE_ID = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+
+    VOUCH_CREATED_AT = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    VOUCH_UPDATED_AT = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        db_table = "BUSINESS_VOUCH"
+        constraints = [  # noqa: RUF012
+            models.UniqueConstraint(
+                fields=["BUSN_ID", "USER_ID", "TAG_ID"],
+                name="unique_business_user_tag_vouch",
+            ),
+        ]
