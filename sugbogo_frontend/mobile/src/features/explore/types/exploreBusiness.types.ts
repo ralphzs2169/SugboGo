@@ -1,4 +1,4 @@
-import type { SpecialtyTagOption } from "@/features/merchant/types/registration/registrationOption.types";
+import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
 
 export type ExploreBusinessCluster = {
   id: number;
@@ -9,6 +9,12 @@ export type ExploreBusinessCluster = {
 export type ExploreBusinessCategory = {
   id: number;
   name: string;
+};
+
+export type ExploreBusinessSpecialtyTag = {
+  id: number;
+  name: string;
+  color: SpecialtyTagColor;
 };
 
 export type ExploreBusinessLocation = {
@@ -23,7 +29,7 @@ export type ExploreBusiness = {
   cover_photo_url: string | null;
   cluster: ExploreBusinessCluster;
   category: ExploreBusinessCategory;
-  specialty_tags: SpecialtyTagOption[];
+  specialty_tags: ExploreBusinessSpecialtyTag[];
   location: ExploreBusinessLocation;
 };
 
@@ -39,4 +45,25 @@ export type ExploreBusinessPagination = {
 export type ExploreBusinessListResponse = {
   items: ExploreBusiness[];
   pagination: ExploreBusinessPagination;
+};
+
+export type ExploreBusinessPhoto = {
+  id: number;
+  photo_url: string;
+  category: string;
+};
+
+export type ExploreOperatingHours = {
+  id: number;
+  day: string;
+  is_open: boolean;
+  is_24_hours: boolean;
+  open_time: string | null;
+  close_time: string | null;
+};
+
+export type ExploreBusinessDetail = ExploreBusiness & {
+  description: string | null;
+  photos: ExploreBusinessPhoto[];
+  operating_hours: ExploreOperatingHours[];
 };

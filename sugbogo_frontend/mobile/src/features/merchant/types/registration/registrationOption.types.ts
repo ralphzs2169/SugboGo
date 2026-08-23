@@ -1,5 +1,7 @@
 // UI types
 
+import { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+
 export type ClusterIcon =
   | "utensils"
   | "coffee"
@@ -57,9 +59,6 @@ export type BusinessDocument = {
   fileName?: string | null;
   mimeType?: string | null;
 };
-
-export type SpecialtyTagColor =
-  "blue" | "green" | "purple" | "yellow" | "red" | "teal";
 
 export type SpecialtyTagOption = {
   id: number;

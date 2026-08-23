@@ -7,6 +7,7 @@ from apps.business.models import (
     Business,
     BusinessLandmark,
     BusinessOperatingHours,
+    BusinessPhoto,
     BusinessSpecialtyTag,
     Location,
 )
@@ -461,6 +462,23 @@ class ApplicationService:
                     BOHR_CLOSE_TIME=hours.MHRS_CLOSE_TIME,
                 )
                 for hours in application_hours
+            ]
+        )
+
+        # Copy approved business photos.
+
+        application_photos = application.photos.all()
+
+        BusinessPhoto.objects.bulk_create(
+            [
+                BusinessPhoto(
+                    BUSN_ID=business,
+                    BPHO_CATEGORY=photo.MPHT_CATEGORY,
+                    BPHO_PHOTO_URL=photo.MPHT_PHOTO_URL,
+                    BPHO_PHOTO_PUBLIC_ID=photo.MPHT_PHOTO_PUBLIC_ID,
+                    BPHO_FILE_NAME=photo.MPHT_FILE_NAME,
+                )
+                for photo in application_photos
             ]
         )
 

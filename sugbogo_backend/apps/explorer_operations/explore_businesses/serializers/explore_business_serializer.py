@@ -1,4 +1,8 @@
-from apps.business.models import Business
+from apps.business.models import (
+    Business,
+    BusinessOperatingHours,
+    BusinessPhoto,
+)
 from rest_framework import serializers
 
 
@@ -111,4 +115,98 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
             "category",
             "specialty_tags",
             "location",
+        )
+
+
+class ExploreBusinessPhotoSerializer(serializers.ModelSerializer):
+    """Serializes a public business photo for Explorer."""
+
+    id = serializers.IntegerField(
+        source="BPHO_ID",
+        read_only=True,
+    )
+    photo_url = serializers.URLField(
+        source="BPHO_PHOTO_URL",
+        read_only=True,
+    )
+    category = serializers.CharField(
+        source="BPHO_CATEGORY",
+        read_only=True,
+    )
+
+    class Meta:
+        model = BusinessPhoto
+        fields = (
+            "id",
+            "photo_url",
+            "category",
+        )
+
+
+class ExploreOperatingHoursSerializer(serializers.ModelSerializer):
+    """Serializes business operating hours for Explorer."""
+
+    id = serializers.IntegerField(
+        source="BOHR_ID",
+        read_only=True,
+    )
+    day = serializers.CharField(
+        source="BOHR_DAY",
+        read_only=True,
+    )
+    is_open = serializers.BooleanField(
+        source="BOHR_IS_OPEN",
+        read_only=True,
+    )
+    is_24_hours = serializers.BooleanField(
+        source="BOHR_IS_24_HOURS",
+        read_only=True,
+    )
+    open_time = serializers.TimeField(
+        source="BOHR_OPEN_TIME",
+        read_only=True,
+        allow_null=True,
+    )
+    close_time = serializers.TimeField(
+        source="BOHR_CLOSE_TIME",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = BusinessOperatingHours
+        fields = (
+            "id",
+            "day",
+            "is_open",
+            "is_24_hours",
+            "open_time",
+            "close_time",
+        )
+
+
+class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
+    """Serializes the complete public business profile for Explorer."""
+
+    description = serializers.CharField(
+        source="BUSN_DESCRIPTION",
+        read_only=True,
+        allow_null=True,
+    )
+
+    photos = ExploreBusinessPhotoSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    operating_hours = ExploreOperatingHoursSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta(ExploreBusinessSerializer.Meta):
+        fields = ExploreBusinessSerializer.Meta.fields + (
+            "description",
+            "photos",
+            "operating_hours",
         )
