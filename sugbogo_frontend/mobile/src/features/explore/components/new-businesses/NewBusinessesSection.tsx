@@ -1,6 +1,9 @@
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import * as Location from "expo-location";
+import { useEffect, useState } from "react";
 
 import ErrorState from "@/shared/components/ErrorState";
+import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
 import useNewBusinesses from "../../hooks/useNewBusinesses";
 import NewBusinessCard from "./newBusinessCard";
@@ -12,11 +15,33 @@ type Props = {
 /**
  * Displays newly added active businesses from the Explorer API.
  *
- * Handles loading, empty, and error states independently so the rest of the
- * Explore screen remains usable when this section cannot load.
+ * Business distances are calculated locally from the explorer's current
+ * location. Location access is optional, so businesses remain visible when
+ * permission is denied or the device location is unavailable.
  */
 export default function NewBusinessesSection({ onBusinessPress }: Props) {
   const { businesses, isLoading, error, refetch } = useNewBusinesses();
+
+  const [userLocation, setUserLocation] =
+    useState<Location.LocationObject | null>(null);
+
+  useEffect(() => {
+    const loadLocation = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== Location.PermissionStatus.GRANTED) {
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      setUserLocation(location);
+    };
+
+    loadLocation();
+  }, []);
 
   if (isLoading) {
     return (
@@ -84,13 +109,26 @@ export default function NewBusinessesSection({ onBusinessPress }: Props) {
         showsHorizontalScrollIndicator={false}
         contentContainerClassName="gap-3 px-4"
       >
-        {businesses.map((business) => (
-          <NewBusinessCard
-            key={business.id}
-            business={business}
-            onPress={() => onBusinessPress(business.id)}
-          />
-        ))}
+        {businesses.map((business) => {
+          const distance =
+            userLocation !== null
+              ? calculateDistanceInKm(
+                  userLocation.coords.latitude,
+                  userLocation.coords.longitude,
+                  business.location.latitude,
+                  business.location.longitude,
+                )
+              : null;
+
+          return (
+            <NewBusinessCard
+              key={business.id}
+              business={business}
+              distance={distance}
+              onPress={() => onBusinessPress(business.id)}
+            />
+          );
+        })}
       </ScrollView>
     </View>
   );

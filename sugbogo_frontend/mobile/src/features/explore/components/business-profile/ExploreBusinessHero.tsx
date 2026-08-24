@@ -13,7 +13,6 @@ type Props = {
   business: ExploreBusiness;
 };
 
-console.log("LinearGradient:", LinearGradient);
 /**
  * Displays the business cover photo and primary identity information.
  *

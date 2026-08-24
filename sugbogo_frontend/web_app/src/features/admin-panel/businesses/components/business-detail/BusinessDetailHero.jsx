@@ -1,16 +1,11 @@
-import { ArrowLeft, Clock, Image, MoreVertical } from "lucide-react";
+import { ArrowLeft, Image, MoreVertical } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
-import UserAvatar from "@/shared/components/UserAvatar";
 import BusinessLocationPreview from "./BusinessLocationPreview";
 import BusinessHoursPreview from "./BusinessHoursPreview";
-import StatusBadge from "@/shared/components/StatusBadge";
-import {
-  formatOperatingHours,
-  isOvernightOperatingHours,
-} from "../../../business-applications/utils/operatingHours.utils";
+import { formatOperatingHours } from "../../../business-applications/utils/operatingHours.utils";
 
 const STATUS_CONFIG = {
   active: {
@@ -23,22 +18,11 @@ const STATUS_CONFIG = {
   },
 };
 
-const DAY_ORDER = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
-
 /**
  * Displays the primary identity of a permanent business.
  *
- * Combines the storefront, classification, specialty tags, owner,
- * business status, description, compact location preview, and a
- * summary of the current day's operating status.
+ * Combines the cover photo, classification, specialty tags, description,
+ * compact location preview, operating hours, and business status.
  */
 export default function BusinessDetailHero({
   business,
@@ -46,12 +30,7 @@ export default function BusinessDetailHero({
   onOpenLocation,
   onOpenHours,
 }) {
-  const storefrontPhoto = business.photos?.find(
-    (photo) => photo.category === "storefront",
-  );
-
-  const otherPhotos =
-    business.photos?.filter((photo) => photo.category !== "storefront") ?? [];
+  const photos = business.photos ?? [];
 
   const status = STATUS_CONFIG[business.status] ?? {
     label: business.status ?? "Unknown",
@@ -60,17 +39,6 @@ export default function BusinessDetailHero({
 
   const hasLocation =
     business.location?.latitude != null && business.location?.longitude != null;
-
-  const today = DAY_ORDER[new Date().getDay()];
-  const todayHours = business.operating_hours?.find(
-    (hours) => hours.day === today,
-  );
-
-  const isOpenToday = todayHours?.is_open ?? false;
-  const isTwentyFourHours = todayHours?.is_24_hours ?? false;
-  const isOvernight = todayHours
-    ? isOvernightOperatingHours(todayHours)
-    : false;
 
   return (
     <section>
@@ -88,13 +56,14 @@ export default function BusinessDetailHero({
       {/* Business profile */}
       <div className="overflow-hidden rounded-xl border border-stroke bg-background">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,420px)_1fr]">
-          {/* Storefront */}
+          {/* Business photos */}
           <div className="p-4 sm:p-5">
+            {/* Cover photo */}
             <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-surface-muted">
-              {storefrontPhoto?.url ? (
+              {business.cover_photo_url ? (
                 <img
-                  src={storefrontPhoto.url}
-                  alt={`${business.business_name} storefront`}
+                  src={business.cover_photo_url}
+                  alt={`${business.business_name} cover`}
                   className="absolute inset-0 h-full w-full object-cover"
                 />
               ) : (
@@ -105,26 +74,26 @@ export default function BusinessDetailHero({
                   />
 
                   <span className="text-xs font-medium text-text-secondary">
-                    No storefront photo
+                    No cover photo
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Additional photos */}
-            {otherPhotos.length > 0 && (
+            {/* Additional business photos */}
+            {photos.length > 0 && (
               <div className="mt-3 grid grid-cols-4 gap-2">
-                {otherPhotos.slice(0, 4).map((photo, index) => {
+                {photos.slice(0, 4).map((photo, index) => {
                   const isLastVisible = index === 3;
-                  const remainingCount = otherPhotos.length - 4;
+                  const remainingCount = photos.length - 4;
 
                   return (
                     <div
-                      key={photo.id ?? photo.url}
+                      key={photo.id ?? photo.photo_url}
                       className="relative aspect-square overflow-hidden rounded-lg border border-stroke bg-surface-muted"
                     >
                       <img
-                        src={photo.url}
+                        src={photo.photo_url}
                         alt={`${business.business_name} photo`}
                         className="absolute inset-0 h-full w-full object-cover"
                       />
@@ -209,6 +178,7 @@ export default function BusinessDetailHero({
                 </p>
               </div>
             )}
+
             {/* Location and availability */}
             {hasLocation && (
               <div className="mt-5 border-t border-stroke pt-5">

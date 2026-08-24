@@ -1,41 +1,86 @@
 import { Text, View } from "react-native";
+import Toast from "react-native-toast-message";
 
-import SpecialtyTagChip from "@/features/merchant/components/registration/specialty-tags/SpecialtyTagChip";
+import { handleSystemError } from "@/shared/utils/apiErrors";
+import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 
+import useBusinessVouch from "../../hooks/useBusinessVouch";
 import type { ExploreBusinessSpecialtyTag } from "../../types/exploreBusiness.types";
 
 type Props = {
+  businessId: number;
   specialtyTags: ExploreBusinessSpecialtyTag[];
 };
 
 /**
- * Displays the specialties associated with a business.
+ * Displays the specialties associated with a business and allows explorers
+ * to vouch for or remove their vouch from individual specialties.
  *
- * The section currently presents specialties as read-only discovery signals.
- * Vouch counts and the user's vouch state will be added once the Explorer
- * vouch API is available.
+ * Vouch interactions update optimistically while only the specialty currently
+ * being submitted is temporarily disabled.
  */
-export default function BusinessSpecialtiesSection({ specialtyTags }: Props) {
+export default function BusinessSpecialtiesSection({
+  businessId,
+  specialtyTags,
+}: Props) {
+  const { vouch, pendingTagId } = useBusinessVouch({
+    businessId,
+  });
+
   if (specialtyTags.length === 0) {
     return null;
   }
 
+  const handleVouch = async (tag: ExploreBusinessSpecialtyTag) => {
+    if (pendingTagId !== null) {
+      return;
+    }
+
+    try {
+      await vouch({
+        tagId: tag.id,
+        isVouched: tag.is_vouched,
+      });
+    } catch (error) {
+      const response = error as ApiResponse<unknown>;
+
+      if (!response.success) {
+        if (handleSystemError(response)) {
+          return;
+        }
+
+        Toast.show({
+          type: "error",
+          text1: "Unable to update vouch",
+          text2: response.message || "Something went wrong. Please try again.",
+        });
+      }
+    }
+  };
+
   return (
     <View className="px-4 pt-6">
       {/* Section heading */}
-      <Text className="text-lg font-bold text-text-primary">Specialties</Text>
+      <Text className="text-md font-bold text-text-primary">Specialties</Text>
 
-      {/* Specialty tags */}
+      {/* Specialty vouch chips */}
       <View className="mt-3 flex-row flex-wrap">
         {specialtyTags.map((tag) => (
-          <SpecialtyTagChip key={tag.id} tag={tag} />
+          <SpecialtyTagChip
+            key={tag.id}
+            tag={tag}
+            scaleOnPress
+            showVouchCount
+            count={tag.vouch_count}
+            isSelected={tag.is_vouched}
+            showCheckIcon
+            showDisabledStyle={false}
+            isDisabled={pendingTagId === tag.id}
+            onPress={() => handleVouch(tag)}
+          />
         ))}
       </View>
-
-      {/* Future vouch summary */}
-      <Text className="mt-1 text-sm text-text-secondary">
-        Specialty vouches will appear here
-      </Text>
     </View>
   );
 }

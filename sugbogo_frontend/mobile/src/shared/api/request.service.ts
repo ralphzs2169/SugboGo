@@ -16,9 +16,6 @@ import { API_ERROR_MESSAGE } from "../constants/errorMessages";
  * Axios interceptors. Backend validation and business errors are returned
  * directly from the server.
  *
- * @template T - The expected API response type.
- * @param promise - The Axios request promise.
- * @returns The standardized API response.
  */
 export async function request<T>(promise: Promise<{ data: T }>): Promise<T> {
   try {

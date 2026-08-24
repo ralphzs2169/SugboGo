@@ -28,7 +28,9 @@ export default function BusinessAboutSection({ description }: Props) {
   return (
     <View className="mt-6 border-t border-border-primary px-4 pt-5">
       {/* Section heading */}
-      <Text className="text-lg font-bold text-text-primary">About</Text>
+      <Text className="text-md font-bold text-text-primary">
+        About this place
+      </Text>
 
       {/* Business description */}
       <Text className="mt-2 text-sm leading-6 text-text-secondary">

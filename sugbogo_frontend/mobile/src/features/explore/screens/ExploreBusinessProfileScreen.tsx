@@ -55,7 +55,7 @@ export default function ExploreBusinessProfileScreen({ businessId }: Props) {
     );
   }
 
-  if (error || !business) {
+  if (!business) {
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
@@ -92,7 +92,10 @@ export default function ExploreBusinessProfileScreen({ businessId }: Props) {
         <ExploreBusinessHero business={business} />
 
         {/* Business specialties */}
-        <BusinessSpecialtiesSection specialtyTags={business.specialty_tags} />
+        <BusinessSpecialtiesSection
+          businessId={business.id}
+          specialtyTags={business.specialty_tags}
+        />
 
         {/* Business about */}
         <BusinessAboutSection description={business.description} />

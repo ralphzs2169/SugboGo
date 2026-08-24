@@ -15,12 +15,16 @@ export type ExploreBusinessSpecialtyTag = {
   id: number;
   name: string;
   color: SpecialtyTagColor;
+  vouch_count: number;
+  is_vouched: boolean;
 };
 
 export type ExploreBusinessLocation = {
   address: string;
   city: string;
   province: string;
+  latitude: number;
+  longitude: number;
 };
 
 export type ExploreBusiness = {

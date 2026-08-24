@@ -57,25 +57,23 @@ export function getFieldError(
  * request.ts. User-facing messages are retrieved from
  * `API_ERROR_MESSAGES`, keeping all default system error text in a
  * single location.
- *
- * @param response - The standardized API response.
- * @returns True if a system error was handled; otherwise false.
  */
 export function handleSystemError(response: ApiResponse<any>) {
   if (response.success) {
     return false;
   }
 
-  const message =
+  const errorMessage =
     API_ERROR_MESSAGE[response.code as keyof typeof API_ERROR_MESSAGE];
 
-  if (!message) {
+  if (!errorMessage) {
     return false;
   }
 
   Toast.show({
     type: "error",
-    text1: message,
+    text1: errorMessage.text1,
+    text2: errorMessage.text2,
   });
 
   return true;

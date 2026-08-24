@@ -27,6 +27,7 @@ class BusinessDetailView(APIView):
 
         business = ExploreBusinessService.get_business_detail(
             business_id,
+            request.user,
         )
 
         serializer = ExploreBusinessDetailSerializer(

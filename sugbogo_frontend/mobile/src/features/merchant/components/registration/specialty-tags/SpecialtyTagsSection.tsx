@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import SpecialtyTagsBottomSheet from "./SpecialtyTagsBottomSheet";
 import useSpecialtyTags from "@/features/merchant/hooks/registration/useSpecialtyTags";
-import SpecialtyTagChip from "./SpecialtyTagChip";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import TagSectionEmptyState from "./TagSectionEmptyState";
 /**
  * Renders the specialty-tag selection field for merchant registration.

@@ -29,7 +29,7 @@ export default function BusinessLocationSection({
   return (
     <View className="mt-6 border-t border-border-primary px-4 pt-5">
       {/* Section heading */}
-      <Text className="text-lg font-bold text-text-primary">Location</Text>
+      <Text className="text-md font-bold text-text-primary">Location</Text>
 
       {/* Location details */}
       <View className="mt-3 flex-row">

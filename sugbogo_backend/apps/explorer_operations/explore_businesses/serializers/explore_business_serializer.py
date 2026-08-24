@@ -37,7 +37,7 @@ class ExploreCategorySerializer(serializers.Serializer):
 
 
 class ExploreSpecialtyTagSerializer(serializers.Serializer):
-    """Serializes a specialty tag shown on Explorer business cards."""
+    """Serializes a specialty tag with its Explorer vouch information."""
 
     id = serializers.IntegerField(
         source="TAG_ID",
@@ -51,10 +51,16 @@ class ExploreSpecialtyTagSerializer(serializers.Serializer):
         source="TAG_COLOR",
         read_only=True,
     )
+    vouch_count = serializers.IntegerField(
+        read_only=True,
+    )
+    is_vouched = serializers.BooleanField(
+        read_only=True,
+    )
 
 
 class ExploreLocationSerializer(serializers.Serializer):
-    """Serializes the location information shown on Explorer business cards."""
+    """Serializes location information shown on Explorer business cards."""
 
     address = serializers.CharField(
         source="LOCT_ADDRESS",
@@ -66,6 +72,14 @@ class ExploreLocationSerializer(serializers.Serializer):
     )
     province = serializers.CharField(
         source="LOCT_PROVINCE",
+        read_only=True,
+    )
+    latitude = serializers.FloatField(
+        source="LOCT_POINT.y",
+        read_only=True,
+    )
+    longitude = serializers.FloatField(
+        source="LOCT_POINT.x",
         read_only=True,
     )
 
