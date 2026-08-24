@@ -42,6 +42,12 @@ export default function BusinessSpecialtiesSection({
         tagId: tag.id,
         isVouched: tag.is_vouched,
       });
+
+      Toast.show({
+        type: "info",
+        text1: tag.is_vouched ? "Vouch removed" : `Vouched for ${tag.name}`,
+        visibilityTime: 1500,
+      });
     } catch (error) {
       const response = error as ApiResponse<unknown>;
 

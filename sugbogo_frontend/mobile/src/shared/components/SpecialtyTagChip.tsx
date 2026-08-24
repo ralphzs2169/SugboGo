@@ -19,6 +19,7 @@ type SpecialtyTagChipProps = {
   count?: number;
   scaleOnPress?: boolean;
   showVouchCount?: boolean;
+  showVouchIndicator?: boolean;
 };
 
 /**
@@ -26,16 +27,11 @@ type SpecialtyTagChipProps = {
  *
  * The chip is presentation-focused and does not manage selection state.
  * Parent components control selection, disabled state, interaction, and
- * optional vouch count display. Vouch interactions use the heart icon to
- * communicate whether the current user has vouched for the specialty.
+ * optional vouch indicators or counts.
  *
- * When used in a vouch context (`showVouchCount`), newly vouching a
- * specialty triggers a brief pop + pulse animation on the heart icon,
- * similar in spirit to Instagram/TikTok's like animation, scaled down
- * for an inline chip. Un-vouching stays quiet, matching that same
- * convention. This animation never fires outside a vouch context (e.g.
- * the merchant registration specialty picker, which reuses this same
- * chip for selection but never passes `showVouchCount`).
+ * When used in a vouch context, newly vouching a specialty triggers a brief
+ * pop + pulse animation on the heart icon. The animation is enabled by
+ * either `showVouchIndicator` or `showVouchCount`.
  */
 export default function SpecialtyTagChip({
   tag,
@@ -48,11 +44,13 @@ export default function SpecialtyTagChip({
   count,
   scaleOnPress = false,
   showVouchCount = false,
+  showVouchIndicator = false,
 }: SpecialtyTagChipProps) {
   const styles = getSpecialtyTagColor(tag.color);
 
   const isInteractive = Boolean(onPress);
   const isSmall = size === "small";
+  const isVouchContext = showVouchIndicator || showVouchCount;
 
   // Heart pop + pulse animation — vouch context only.
   const heartScale = useRef(new Animated.Value(1)).current;
@@ -62,10 +60,8 @@ export default function SpecialtyTagChip({
   const previousSelectedRef = useRef(isSelected);
 
   useEffect(() => {
-    // Outside a vouch context (e.g. registration's tag picker), never
-    // animate — just keep the ref in sync so a later switch into a
-    // vouch context doesn't misfire off a stale comparison.
-    if (!showVouchCount) {
+    // Outside a vouch context, never animate.
+    if (!isVouchContext) {
       previousSelectedRef.current = isSelected;
       return;
     }
@@ -78,6 +74,7 @@ export default function SpecialtyTagChip({
     }
 
     heartScale.setValue(1);
+
     Animated.sequence([
       Animated.spring(heartScale, {
         toValue: 1.5,
@@ -95,6 +92,7 @@ export default function SpecialtyTagChip({
 
     pulseScale.setValue(1);
     pulseOpacity.setValue(0.5);
+
     Animated.parallel([
       Animated.timing(pulseScale, {
         toValue: 2.2,
@@ -107,7 +105,7 @@ export default function SpecialtyTagChip({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [isSelected, showVouchCount]);
+  }, [isSelected, isVouchContext]);
 
   const heartSize = isSmall ? 13 : 16;
 
@@ -125,12 +123,12 @@ export default function SpecialtyTagChip({
       className={`mb-2 mr-2 flex-row items-center rounded-full ${
         isSmall ? "px-2.5 py-1" : "px-3.5 py-2"
       } ${styles.background} ${
-        isSelected && !showVouchCount && !scaleOnPress
+        isSelected && !isVouchContext && !scaleOnPress
           ? `border ${styles.selectedBorder} border-2`
           : ""
       } ${isDisabled && showDisabledStyle ? "opacity-50" : ""}`}
     >
-      {showCheckIcon && isSelected && !showVouchCount && (
+      {showCheckIcon && isSelected && !isVouchContext && (
         <MaterialCommunityIcons
           name="check"
           size={isSmall ? 12 : 16}
@@ -148,6 +146,7 @@ export default function SpecialtyTagChip({
         {tag.name}
       </Text>
 
+      {/* Vouch indicator */}
       {/* Vouch indicator */}
       {showVouchCount && count !== undefined && (
         <View
@@ -167,7 +166,7 @@ export default function SpecialtyTagChip({
               justifyContent: "center",
             }}
           >
-            {/* Pulse burst — fires once on vouch, fades and expands */}
+            {/* Pulse burst */}
             <Animated.View
               pointerEvents="none"
               style={{
@@ -198,6 +197,15 @@ export default function SpecialtyTagChip({
             {count}
           </Text>
         </View>
+      )}
+
+      {showVouchIndicator && isSelected && (
+        <MaterialCommunityIcons
+          name="heart"
+          size={heartSize}
+          color={styles.icon}
+          style={{ marginLeft: 5 }}
+        />
       )}
     </Pressable>
   );

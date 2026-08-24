@@ -12,23 +12,25 @@ import { formatDistance } from "@/shared/utils/distance.utils";
 type Props = {
   business: ExploreBusiness;
   distance: number | null;
+  distanceAccuracy: number | null;
   onPress: () => void;
 };
 
-const CARD_WIDTH = 224; // w-56
+const CARD_WIDTH = 248;
 
 /**
- * Displays a newly added business as a modern discovery card.
+ * Displays a newly added business as a discovery card.
  *
- * The cover photo stays fully clean (no overlaid text) so it reads as
- * the card's visual focal point. All identity information — name,
- * category/cluster, specialty tags, and location — lives in a single
- * compact block below the photo, read top-to-bottom in priority order.
+ * Uses the cover photo as the primary visual element, with business identity,
+ * specialty information, and distance presented below. The Pocket state is
+ * surfaced directly on the cover so saved businesses are recognizable while
+ * browsing the discovery feed.
  */
 export default function NewBusinessCard({
   business,
   onPress,
   distance,
+  distanceAccuracy,
 }: Props) {
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
@@ -46,14 +48,13 @@ export default function NewBusinessCard({
         shadowRadius: 6,
         elevation: 3,
       }}
-      className="overflow-hidden rounded-xl my-1 bg-surface  active:opacity-90"
+      className="my-1 overflow-hidden rounded-xl bg-surface active:opacity-90"
       android_ripple={{ color: "rgba(0,0,0,0.06)" }}
     >
-      {/* Cover photo — kept fully clean, no overlaid text/gradient,
-          so it reads as the card's visual focal point */}
+      {/* Cover photo */}
       <View
         style={{ aspectRatio: 4 / 3 }}
-        className="w-full overflow-hidden bg-surface-secondary"
+        className="relative w-full overflow-hidden bg-surface-secondary"
       >
         {business.cover_photo_url ? (
           <Image
@@ -63,9 +64,6 @@ export default function NewBusinessCard({
             transition={150}
           />
         ) : (
-          // Intentional placeholder: tinted with the business's own
-          // cluster identity rather than a generic empty-image icon,
-          // so an unphotographed listing still feels branded, not broken.
           <View className="h-full w-full items-center justify-center bg-brand/8">
             <MaterialCommunityIcons
               name={clusterIconName}
@@ -75,12 +73,22 @@ export default function NewBusinessCard({
             />
           </View>
         )}
+
+        {/* Pocket indicator */}
+        {business.is_pocketed && (
+          <View className="absolute right-2.5 top-2.5 h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-sm">
+            <MaterialCommunityIcons
+              name="bookmark"
+              size={19}
+              color={theme.extends.colors.brand}
+            />
+          </View>
+        )}
       </View>
 
-      {/* Identity block — name → category/cluster → tags → location,
-          read in one continuous top-to-bottom hierarchy */}
+      {/* Business identity */}
       <View className="px-3.5 pb-3.5 pt-2.5">
-        {/* Business name — primary focal text */}
+        {/* Business name */}
         <Text
           className="text-[15px] font-bold leading-[19px] text-text-primary"
           numberOfLines={1}
@@ -88,7 +96,7 @@ export default function NewBusinessCard({
           {business.business_name}
         </Text>
 
-        {/* Cluster + category — paired on one line, matching hierarchy */}
+        {/* Cluster + category */}
         <View className="mt-1 flex-row items-center">
           <MaterialCommunityIcons
             name={clusterIconName}
@@ -104,38 +112,38 @@ export default function NewBusinessCard({
           </Text>
         </View>
 
-        {/* Specialty tags — always shown in full. Every business has
-            exactly 3 (enforced at registration: specialtyTags requires
-            length 3), so there's no realistic overflow case to design
-            around. flex-wrap is kept only as a defensive fallback if
-            that constraint ever changes, not as the expected path.
-            Renders nothing at all when there are no tags, rather than
-            leaving a dead gap in the card's rhythm. */}
+        {/* Specialty tags */}
         {business.specialty_tags.length > 0 && (
           <View className="mt-2 flex-row flex-wrap items-center">
             {business.specialty_tags.map((tag) => (
-              <SpecialtyTagChip key={tag.id} tag={tag} size="small" />
+              <SpecialtyTagChip
+                key={tag.id}
+                tag={tag}
+                size="small"
+                isSelected={tag.is_vouched}
+                showVouchIndicator={tag.is_vouched}
+              />
             ))}
           </View>
         )}
 
         {/* Distance */}
-        <View className="mt-2 flex-row items-center">
-          <MaterialCommunityIcons
-            name="map-marker-outline"
-            size={12}
-            color={theme.extends.colors.text.tertiary}
-          />
+        {distance !== null && (
+          <View className="mt-2 flex-row items-center">
+            <MaterialCommunityIcons
+              name="map-marker-outline"
+              size={12}
+              color={theme.extends.colors.text.tertiary}
+            />
 
-          <Text
-            className="ml-1 flex-1 text-[11px] text-text-tertiary"
-            numberOfLines={1}
-          >
-            {distance !== null
-              ? formatDistance(distance)
-              : business.location.city}
-          </Text>
-        </View>
+            <Text
+              className="ml-1 flex-1 text-[11px] text-text-tertiary"
+              numberOfLines={1}
+            >
+              {formatDistance(distance, distanceAccuracy)}
+            </Text>
+          </View>
+        )}
       </View>
     </Pressable>
   );

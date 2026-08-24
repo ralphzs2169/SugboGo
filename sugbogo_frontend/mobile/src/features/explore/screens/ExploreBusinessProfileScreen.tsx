@@ -1,22 +1,19 @@
 import { router } from "expo-router";
-import { RefreshControl, ScrollView } from "react-native";
 import { useState } from "react";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 
 import ExploreBusinessHero from "../components/business-profile/ExploreBusinessHero";
+import BusinessProfileScrollView from "../components/business-profile/BusinessProfileScrollView";
 import BusinessSpecialtiesSection from "../components/business-profile/BusinessSpecialtiesSection";
 import BusinessAboutSection from "../components/business-profile/BusinessAboutSection";
 import BusinessLocationSection from "../components/business-profile/BusinessLocationSection";
 import BusinessPhotosSection from "../components/business-profile/BusinessPhotosSection";
 import BusinessHoursSection from "../components/business-profile/BusinessHoursSection";
 
-import useExploreBusinessDetail from "../hooks/useExploreBusinessDetail";
+import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 
 type Props = {
   businessId: number;
@@ -31,9 +28,8 @@ type Props = {
  */
 export default function ExploreBusinessProfileScreen({ businessId }: Props) {
   const { business, isLoading, error, refetch } =
-    useExploreBusinessDetail(businessId);
+    useExploreBusinessProfile(businessId);
 
-  const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -75,18 +71,10 @@ export default function ExploreBusinessProfileScreen({ businessId }: Props) {
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-surface">
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + 32,
-        }}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={undefined}
-          />
-        }
+      <BusinessProfileScrollView
+        business={business}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
       >
         {/* Business hero */}
         <ExploreBusinessHero business={business} />
@@ -116,7 +104,7 @@ export default function ExploreBusinessProfileScreen({ businessId }: Props) {
           operatingHours={business.operating_hours}
           onViewFullHours={() => {}}
         />
-      </ScrollView>
+      </BusinessProfileScrollView>
     </SafeAreaView>
   );
 }

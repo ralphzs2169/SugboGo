@@ -1,14 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
-  removeBusinessSpecialtyVouch,
-  vouchForBusinessSpecialty,
+  pocketBusiness,
+  removeBusinessFromPocket,
 } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
-import { getInstallationId } from "@/shared/api/storage.service";
 
 import type {
-  ExploreBusiness,
   ExploreBusinessDetail,
   ExploreBusinessListResponse,
 } from "../types/exploreBusiness.types";
@@ -18,34 +16,29 @@ type Props = {
 };
 
 type Variables = {
-  tagId: number;
-  isVouched: boolean;
+  isPocketed: boolean;
 };
 
 /**
- * Manages business specialty vouch mutations with optimistic UI updates.
+ * Manages business pocket mutations with optimistic UI updates.
  *
- * Updates both the business detail and discovery feed caches immediately,
- * then synchronizes both caches with the server after the mutation settles.
- * Failed mutations roll back both cached states.
+ * The pocket state updates immediately across both the business detail
+ * and discovery feed. Failed mutations restore both cached states, while
+ * settled mutations synchronize the caches with the server.
  */
-export default function useBusinessVouch({ businessId }: Props) {
+export default function useBusinessPocket({ businessId }: Props) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: async ({ tagId, isVouched }: Variables) => {
-      const response = isVouched
-        ? await removeBusinessSpecialtyVouch(businessId, tagId)
-        : await vouchForBusinessSpecialty(
-            businessId,
-            tagId,
-            await getInstallationId(),
-          );
+    mutationFn: async ({ isPocketed }: Variables) => {
+      const response = isPocketed
+        ? await removeBusinessFromPocket(businessId)
+        : await pocketBusiness(businessId);
 
       return throwOnApiError(response);
     },
 
-    onMutate: async ({ tagId, isVouched }) => {
+    onMutate: async ({ isPocketed }) => {
       const detailQueryKey = ["explore-business-detail", businessId];
       const feedQueryKey = ["explore-new-businesses"];
 
@@ -74,20 +67,7 @@ export default function useBusinessVouch({ businessId }: Props) {
 
           return {
             ...currentBusiness,
-            specialty_tags: currentBusiness.specialty_tags.map((tag) => {
-              if (tag.id !== tagId) {
-                return tag;
-              }
-
-              return {
-                ...tag,
-                is_vouched: !isVouched,
-                vouch_count: Math.max(
-                  0,
-                  tag.vouch_count + (isVouched ? -1 : 1),
-                ),
-              };
-            }),
+            is_pocketed: !isPocketed,
           };
         },
       );
@@ -109,16 +89,7 @@ export default function useBusinessVouch({ businessId }: Props) {
 
               return {
                 ...business,
-                specialty_tags: business.specialty_tags.map((tag) => {
-                  if (tag.id !== tagId) {
-                    return tag;
-                  }
-
-                  return {
-                    ...tag,
-                    is_vouched: !isVouched,
-                  };
-                }),
+                is_pocketed: !isPocketed,
               };
             }),
           };
@@ -160,10 +131,8 @@ export default function useBusinessVouch({ businessId }: Props) {
   });
 
   return {
-    vouch: mutation.mutateAsync,
-    pendingTagId: mutation.isPending
-      ? (mutation.variables?.tagId ?? null)
-      : null,
+    pocket: mutation.mutateAsync,
+    isPending: mutation.isPending,
     error: mutation.error,
   };
 }

@@ -1,5 +1,6 @@
 from apps.business.models import (
     Business,
+    BusinessPocket,
     BusinessVouch,
     SpecialtyTag,
 )
@@ -18,6 +19,11 @@ class ExploreBusinessService:
             BUSN_ID=business_id,
             USER_ID=user,
             TAG_ID=OuterRef("TAG_ID"),
+        )
+
+        user_pocket_exists = BusinessPocket.objects.filter(
+            BUSN_ID=OuterRef("BUSN_ID"),
+            USER_ID=user,
         )
 
         specialty_tags = (
@@ -43,6 +49,11 @@ class ExploreBusinessService:
                     "CTGRY_ID",
                     "CTGRY_ID__CLUS_ID",
                     "LOCT_ID",
+                )
+                .annotate(
+                    is_pocketed=Exists(
+                        user_pocket_exists,
+                    ),
                 )
                 .prefetch_related(
                     Prefetch(

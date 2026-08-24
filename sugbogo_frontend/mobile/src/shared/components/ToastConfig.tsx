@@ -122,4 +122,34 @@ export const toastConfig = {
       </View>
     </View>
   ),
+
+  info: (props: any) => (
+    <View
+      style={{
+        alignSelf: "center",
+        maxWidth: "88%",
+        paddingVertical: 9,
+        paddingHorizontal: 14,
+        borderRadius: 10,
+        backgroundColor: "#3F4543",
+        shadowColor: "#1a2e2a",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 3,
+      }}
+    >
+      <Text
+        numberOfLines={2}
+        style={{
+          fontSize: 13,
+          fontWeight: "500",
+          color: "#FFFFFF",
+          textAlign: "center",
+        }}
+      >
+        {props.text1}
+      </Text>
+    </View>
+  ),
 };

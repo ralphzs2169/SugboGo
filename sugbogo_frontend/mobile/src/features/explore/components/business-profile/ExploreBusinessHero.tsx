@@ -7,6 +7,7 @@ import { Pressable, Text, View } from "react-native";
 import { theme } from "@/constants/theme";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
+import BusinessPocketButton from "./BusinessPocketButton";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 
 type Props = {
@@ -18,7 +19,8 @@ type Props = {
  *
  * The business identity is anchored to the bottom of the hero with a subtle
  * gradient scrim so the cover photo remains the primary visual element while
- * the text stays readable.
+ * the text stays readable. The top-right Pocket action allows the explorer
+ * to save or remove the business from their Pocket.
  */
 export default function ExploreBusinessHero({ business }: Props) {
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
@@ -46,6 +48,8 @@ export default function ExploreBusinessHero({ business }: Props) {
           />
         </View>
       )}
+
+      {/* Photo readability gradient */}
       <LinearGradient
         colors={[
           "transparent",
@@ -64,11 +68,11 @@ export default function ExploreBusinessHero({ business }: Props) {
         pointerEvents="none"
       />
 
-      {/* Navigation controls */}
+      {/* Navigation and Pocket controls */}
       <View className="absolute left-4 right-4 top-4 flex-row items-center justify-between">
         <Pressable
           onPress={() => router.back()}
-          className="h-10 w-10 items-center justify-center rounded-full bg-white/95 active:opacity-80"
+          className="h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
           android_ripple={{ color: "rgba(0,0,0,0.08)" }}
         >
           <MaterialCommunityIcons
@@ -78,17 +82,10 @@ export default function ExploreBusinessHero({ business }: Props) {
           />
         </Pressable>
 
-        <Pressable
-          onPress={() => {}}
-          className="h-10 w-10 items-center justify-center rounded-full bg-white/95 active:opacity-80"
-          android_ripple={{ color: "rgba(0,0,0,0.08)" }}
-        >
-          <MaterialCommunityIcons
-            name="dots-vertical"
-            size={22}
-            color={theme.extends.colors.text.primary}
-          />
-        </Pressable>
+        <BusinessPocketButton
+          businessId={business.id}
+          isPocketed={business.is_pocketed}
+        />
       </View>
 
       {/* Business identity */}

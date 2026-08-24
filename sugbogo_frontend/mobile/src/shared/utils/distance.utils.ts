@@ -29,10 +29,34 @@ export function calculateDistanceInKm(
 
 /**
  * Formats a distance for compact mobile discovery UI.
+ *
+ * When GPS accuracy is poor relative to the calculated distance,
+ * the result is rounded to avoid displaying false precision.
  */
-export function formatDistance(distanceInKm: number): string {
+export function formatDistance(
+  distanceInKm: number,
+  accuracyInMeters?: number | null,
+): string {
+  const distanceInMeters = distanceInKm * 1000;
+
+  if (
+    accuracyInMeters !== null &&
+    accuracyInMeters !== undefined &&
+    accuracyInMeters > 100
+  ) {
+    if (distanceInMeters < accuracyInMeters) {
+      return "Nearby";
+    }
+
+    if (distanceInKm < 10) {
+      return `~${Math.round(distanceInKm)} km away`;
+    }
+
+    return `~${Math.round(distanceInKm)} km away`;
+  }
+
   if (distanceInKm < 1) {
-    return `${Math.round(distanceInKm * 1000)} m away`;
+    return `${Math.round(distanceInMeters)} m away`;
   }
 
   if (distanceInKm < 10) {

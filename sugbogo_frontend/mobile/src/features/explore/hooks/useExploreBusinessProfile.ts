@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getExploreBusinessDetail } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
-export default function useExploreBusinessDetail(businessId: number) {
+export default function useExploreBusinessProfile(businessId: number) {
   const query = useQuery({
     queryKey: ["explore-business-detail", businessId],
     queryFn: async () => {
