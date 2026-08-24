@@ -1,11 +1,12 @@
 from django.db import models
 
+from apps.business.models.business_core_models import (
+    Business,
+)
 from apps.users.models import User
 
-from .business_core_models import Business
 
-
-class BusinessReview(models.Model):
+class Review(models.Model):
     """A user's review of a business."""
 
     class ReviewStatus(models.TextChoices):
@@ -21,7 +22,7 @@ class BusinessReview(models.Model):
         User,
         on_delete=models.CASCADE,
         db_column="USER_ID",
-        related_name="business_reviews",
+        related_name="reviews",
     )
 
     BUSN_ID = models.ForeignKey(
@@ -99,6 +100,12 @@ class BusinessReview(models.Model):
     class Meta:
         db_table = "BUSINESS_REVIEW"
         ordering = ["-REVW_CREATED_AT"]
+        constraints = [  # noqa: RUF012
+            models.UniqueConstraint(
+                fields=["USER_ID", "BUSN_ID"],
+                name="unique_user_business_review",
+            ),
+        ]
 
     def __str__(self):
         return f"Review {self.REVW_ID}"
@@ -112,7 +119,7 @@ class ReviewPhoto(models.Model):
     )
 
     REVW_ID = models.ForeignKey(
-        BusinessReview,
+        Review,
         on_delete=models.CASCADE,
         db_column="REVW_ID",
         related_name="photos",
@@ -151,7 +158,7 @@ class ReviewReport(models.Model):
     )
 
     REVW_ID = models.ForeignKey(
-        BusinessReview,
+        Review,
         on_delete=models.CASCADE,
         db_column="REVW_ID",
         related_name="reports",
@@ -218,7 +225,7 @@ class ReviewLike(models.Model):
     )
 
     REVW_ID = models.ForeignKey(
-        BusinessReview,
+        Review,
         on_delete=models.CASCADE,
         db_column="REVW_ID",
         related_name="likes",
@@ -260,7 +267,7 @@ class ReviewReply(models.Model):
     )
 
     REVW_ID = models.OneToOneField(
-        BusinessReview,
+        Review,
         on_delete=models.CASCADE,
         db_column="REVW_ID",
         related_name="reply",
@@ -283,3 +290,22 @@ class ReviewReply(models.Model):
 
     def __str__(self):
         return f"Reply {self.RPLY_ID}"
+
+# MIGRATEEEEEEEE
+class ReplyPhoto(models.Model):
+    RPHO_ID = models.AutoField(primary_key=True)
+
+    RPLY_ID = models.ForeignKey(
+        ReviewReply,
+        on_delete=models.CASCADE,
+        db_column="RPLY_ID",
+        related_name="photos",
+    )
+
+    RPHO_PHOTO_URL = models.URLField()
+    RPHO_PHOTO_PUBLIC_ID = models.CharField(
+        max_length=255,
+    )
+
+    class Meta:
+        db_table = "REVIEW_REPLY_PHOTO"

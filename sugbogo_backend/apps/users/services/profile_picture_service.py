@@ -1,5 +1,5 @@
-from apps.users.models import User
 from apps.shared.services.cloudinary_service import CloudinaryService
+from apps.users.models import User
 
 
 class ProfilePictureService:

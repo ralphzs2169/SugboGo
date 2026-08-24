@@ -4,6 +4,10 @@ from apps.business.models import (
     BusinessVouch,
     SpecialtyTag,
 )
+from apps.reviews.models import (
+    ReviewLike,
+    Review,
+)
 from django.db.models import Count, Exists, OuterRef, Prefetch, Q
 from rest_framework.exceptions import NotFound
 
@@ -26,6 +30,11 @@ class ExploreBusinessService:
             USER_ID=user,
         )
 
+        user_review_like_exists = ReviewLike.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            USER_ID=user,
+        )
+
         specialty_tags = (
             SpecialtyTag.objects
             .annotate(
@@ -39,6 +48,25 @@ class ExploreBusinessService:
                 is_vouched=Exists(
                     user_vouch_exists,
                 ),
+            )
+        )
+
+        reviews = (
+            Review.objects
+            .select_related(
+                "USER_ID",
+            )
+            .annotate(
+                is_liked=Exists(
+                    user_review_like_exists,
+                ),
+            )
+            .prefetch_related(
+                "photos",
+                "reply",
+            )
+            .order_by(
+                "-REVW_CREATED_AT",
             )
         )
 
@@ -62,6 +90,10 @@ class ExploreBusinessService:
                     ),
                     "photos",
                     "operating_hours",
+                    Prefetch(
+                        "reviews",
+                        queryset=reviews,
+                    ),
                 )
                 .get(
                     BUSN_ID=business_id,

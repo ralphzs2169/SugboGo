@@ -3,6 +3,11 @@ from apps.business.models import (
     BusinessOperatingHours,
     BusinessPhoto,
 )
+from apps.reviews.models import (
+    Review,
+    ReviewPhoto,
+    ReviewReply,
+)
 from rest_framework import serializers
 
 
@@ -136,6 +141,7 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         )
 
 
+
 class ExploreBusinessPhotoSerializer(serializers.ModelSerializer):
     """Serializes a public business photo for Explorer."""
 
@@ -203,6 +209,141 @@ class ExploreOperatingHoursSerializer(serializers.ModelSerializer):
         )
 
 
+class ExploreReviewAuthorSerializer(serializers.Serializer):
+    """Serializes the public author information shown with a business review."""
+
+    id = serializers.IntegerField(
+        source="USER_ID",
+        read_only=True,
+    )
+    first_name = serializers.CharField(
+        source="USER_FNAME",
+        read_only=True,
+    )
+    last_name = serializers.CharField(
+        source="USER_LNAME",
+        read_only=True,
+    )
+    avatar_url = serializers.ReadOnlyField()
+
+
+class ExploreReviewPhotoSerializer(serializers.ModelSerializer):
+    """Serializes a public photo attached to a business review."""
+
+    id = serializers.IntegerField(
+        source="RPHO_ID",
+        read_only=True,
+    )
+    photo_url = serializers.URLField(
+        source="RPHO_PHOTO_URL",
+        read_only=True,
+    )
+
+    class Meta:
+        model = ReviewPhoto
+        fields = (
+            "id",
+            "photo_url",
+        )
+
+
+class ExploreReviewReplySerializer(serializers.ModelSerializer):
+    """Serializes the business owner's public reply to a review."""
+
+    id = serializers.IntegerField(
+        source="RPLY_ID",
+        read_only=True,
+    )
+    text = serializers.CharField(
+        source="RPLY_TEXT",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="RPLY_CREATED_AT",
+        read_only=True,
+    )
+    updated_at = serializers.DateTimeField(
+        source="RPLY_UPDATED_AT",
+        read_only=True,
+    )
+
+    class Meta:
+        model = ReviewReply
+        fields = (
+            "id",
+            "text",
+            "created_at",
+            "updated_at",
+        )
+
+
+class ExploreReviewSerializer(serializers.ModelSerializer):
+    """Serializes a public business review for Explorer."""
+
+    id = serializers.IntegerField(
+        source="REVW_ID",
+        read_only=True,
+    )
+    text = serializers.CharField(
+        source="REVW_TEXT",
+        read_only=True,
+    )
+    status = serializers.CharField(
+        source="REVW_STATUS",
+        read_only=True,
+    )
+    like_count = serializers.IntegerField(
+        source="REVW_LIKE_COUNT",
+        read_only=True,
+    )
+    is_liked = serializers.BooleanField(
+        read_only=True,
+    )
+    sentiment_label = serializers.CharField(
+        source="REVW_SENTIMENT_LABEL",
+        read_only=True,
+        allow_null=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="REVW_CREATED_AT",
+        read_only=True,
+    )
+    updated_at = serializers.DateTimeField(
+        source="REVW_UPDATED_AT",
+        read_only=True,
+    )
+
+    author = ExploreReviewAuthorSerializer(
+        source="USER_ID",
+        read_only=True,
+    )
+
+    photos = ExploreReviewPhotoSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    reply = ExploreReviewReplySerializer(
+        read_only=True,
+    )
+
+    class Meta:
+        model = Review
+        fields = (
+            "id",
+            "text",
+            "status",
+            "like_count",
+            "is_liked",
+            "sentiment_label",
+            "created_at",
+            "updated_at",
+            "author",
+            "photos",
+            "reply",
+        )
+
+
 class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
     """Serializes the complete public business profile for Explorer."""
 
@@ -222,9 +363,15 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
         read_only=True,
     )
 
+    reviews = ExploreReviewSerializer(
+        many=True,
+        read_only=True,
+    )
+
     class Meta(ExploreBusinessSerializer.Meta):
         fields = ExploreBusinessSerializer.Meta.fields + (
             "description",
             "photos",
             "operating_hours",
+            "reviews",
         )
