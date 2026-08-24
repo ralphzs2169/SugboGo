@@ -57,3 +57,26 @@ export async function removeBusinessSpecialtyVouch(
     }),
   );
 }
+
+export async function pocketBusiness(businessId: number): Promise<
+  ApiResponse<{
+    id: number;
+    business_id: number;
+    is_pocketed: boolean;
+  }>
+> {
+  return request(
+    apiClient.post(`/explorer/explore/businesses/${businessId}/pocket/`),
+  );
+}
+
+export async function removeBusinessFromPocket(businessId: number): Promise<
+  ApiResponse<{
+    business_id: number;
+    is_pocketed: boolean;
+  }>
+> {
+  return request(
+    apiClient.delete(`/explorer/explore/businesses/${businessId}/pocket/`),
+  );
+}

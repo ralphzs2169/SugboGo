@@ -16,7 +16,7 @@ import BusinessLocationSection from "../components/business-profile/BusinessLoca
 import BusinessPhotosSection from "../components/business-profile/BusinessPhotosSection";
 import BusinessHoursSection from "../components/business-profile/BusinessHoursSection";
 
-import useExploreBusinessDetail from "../hooks/useExploreBusinessDetail";
+import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 
 type Props = {
   businessId: number;
@@ -31,7 +31,7 @@ type Props = {
  */
 export default function ExploreBusinessProfileScreen({ businessId }: Props) {
   const { business, isLoading, error, refetch } =
-    useExploreBusinessDetail(businessId);
+    useExploreBusinessProfile(businessId);
 
   const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);

@@ -31,6 +31,7 @@ export type ExploreBusiness = {
   id: number;
   business_name: string;
   cover_photo_url: string | null;
+  is_pocketed: boolean;
   cluster: ExploreBusinessCluster;
   category: ExploreBusinessCategory;
   specialty_tags: ExploreBusinessSpecialtyTag[];

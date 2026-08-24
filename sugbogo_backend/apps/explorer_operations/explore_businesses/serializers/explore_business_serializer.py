@@ -135,6 +135,7 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
             "location",
         )
 
+
 class ExploreBusinessPhotoSerializer(serializers.ModelSerializer):
     """Serializes a public business photo for Explorer."""
 

@@ -25,7 +25,9 @@ class NewBusinessesView(APIView):
     def get(self, request):
         """Retrieve a paginated list of newly added active businesses."""
 
-        queryset = NewBusinessesService.list_new_businesses()
+        queryset = NewBusinessesService.list_new_businesses(
+            request.user,
+        )
 
         paginator = StandardPagination()
 
