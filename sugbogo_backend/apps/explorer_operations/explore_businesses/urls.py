@@ -1,6 +1,9 @@
 from apps.explorer_operations.explore_businesses.views.business_detail_views import (
     BusinessDetailView,
 )
+from apps.explorer_operations.explore_businesses.views.business_pocket_views import (
+    BusinessPocketView,
+)
 from apps.explorer_operations.explore_businesses.views.business_vouch_views import (
     BusinessVouchView,
 )
@@ -16,4 +19,5 @@ urlpatterns = [
     path("new-businesses/", NewBusinessesView.as_view(), name="new-businesses", ),
 
     path("businesses/<int:business_id>/vouch/", BusinessVouchView.as_view(), name="business-vouch", ),
+    path("businesses/<int:business_id>/pocket/", BusinessPocketView.as_view(), name="business-pocket" ),
 ]

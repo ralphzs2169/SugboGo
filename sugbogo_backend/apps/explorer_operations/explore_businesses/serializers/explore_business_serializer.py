@@ -100,6 +100,9 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    is_pocketed = serializers.BooleanField(
+        read_only=True,
+    )
 
     cluster = ExploreClusterSerializer(
         source="CTGRY_ID.CLUS_ID",
@@ -125,12 +128,12 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
             "id",
             "business_name",
             "cover_photo_url",
+            "is_pocketed",
             "cluster",
             "category",
             "specialty_tags",
             "location",
         )
-
 
 class ExploreBusinessPhotoSerializer(serializers.ModelSerializer):
     """Serializes a public business photo for Explorer."""
