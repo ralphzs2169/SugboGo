@@ -75,6 +75,7 @@ export default function BusinessSpecialtiesSection({
             count={tag.vouch_count}
             isSelected={tag.is_vouched}
             showCheckIcon
+            showDisabledStyle={false}
             isDisabled={pendingTagId === tag.id}
             onPress={() => handleVouch(tag)}
           />

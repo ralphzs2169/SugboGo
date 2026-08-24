@@ -1,5 +1,6 @@
+import { useEffect, useRef } from "react";
+import { Animated, Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
 
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
@@ -27,6 +28,14 @@ type SpecialtyTagChipProps = {
  * Parent components control selection, disabled state, interaction, and
  * optional vouch count display. Vouch interactions use the heart icon to
  * communicate whether the current user has vouched for the specialty.
+ *
+ * When used in a vouch context (`showVouchCount`), newly vouching a
+ * specialty triggers a brief pop + pulse animation on the heart icon,
+ * similar in spirit to Instagram/TikTok's like animation, scaled down
+ * for an inline chip. Un-vouching stays quiet, matching that same
+ * convention. This animation never fires outside a vouch context (e.g.
+ * the merchant registration specialty picker, which reuses this same
+ * chip for selection but never passes `showVouchCount`).
  */
 export default function SpecialtyTagChip({
   tag,
@@ -44,6 +53,63 @@ export default function SpecialtyTagChip({
 
   const isInteractive = Boolean(onPress);
   const isSmall = size === "small";
+
+  // Heart pop + pulse animation — vouch context only.
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const pulseScale = useRef(new Animated.Value(1)).current;
+  const pulseOpacity = useRef(new Animated.Value(0)).current;
+
+  const previousSelectedRef = useRef(isSelected);
+
+  useEffect(() => {
+    // Outside a vouch context (e.g. registration's tag picker), never
+    // animate — just keep the ref in sync so a later switch into a
+    // vouch context doesn't misfire off a stale comparison.
+    if (!showVouchCount) {
+      previousSelectedRef.current = isSelected;
+      return;
+    }
+
+    const justVouched = isSelected && !previousSelectedRef.current;
+    previousSelectedRef.current = isSelected;
+
+    if (!justVouched) {
+      return;
+    }
+
+    heartScale.setValue(1);
+    Animated.sequence([
+      Animated.spring(heartScale, {
+        toValue: 1.5,
+        speed: 30,
+        bounciness: 12,
+        useNativeDriver: true,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        speed: 20,
+        bounciness: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    pulseScale.setValue(1);
+    pulseOpacity.setValue(0.5);
+    Animated.parallel([
+      Animated.timing(pulseScale, {
+        toValue: 2.2,
+        duration: 420,
+        useNativeDriver: true,
+      }),
+      Animated.timing(pulseOpacity, {
+        toValue: 0,
+        duration: 420,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [isSelected, showVouchCount]);
+
+  const heartSize = isSmall ? 13 : 16;
 
   return (
     <Pressable
@@ -93,11 +159,36 @@ export default function SpecialtyTagChip({
             className={`mr-1 ${isSmall ? "h-3" : "h-4"} w-px bg-black/10`}
           />
 
-          <MaterialCommunityIcons
-            name={isSelected ? "heart" : "heart-outline"}
-            size={isSmall ? 13 : 16}
-            color={styles.icon}
-          />
+          <View
+            style={{
+              width: heartSize,
+              height: heartSize,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {/* Pulse burst — fires once on vouch, fades and expands */}
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                width: heartSize,
+                height: heartSize,
+                borderRadius: heartSize,
+                backgroundColor: styles.icon,
+                opacity: pulseOpacity,
+                transform: [{ scale: pulseScale }],
+              }}
+            />
+
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <MaterialCommunityIcons
+                name={isSelected ? "heart" : "heart-outline"}
+                size={heartSize}
+                color={styles.icon}
+              />
+            </Animated.View>
+          </View>
 
           <Text
             className={`ml-1 font-bold ${
