@@ -5,7 +5,8 @@ from rest_framework.views import APIView
 from apps.authentication.permissions import HasRole
 from apps.reviews.serializers.review_serializers import (
     ReviewCreateSerializer,
-    ReviewReportSerializer,
+    ReviewResponseSerializer,
+    ReviewUpdateSerializer,
 )
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
@@ -50,38 +51,90 @@ class ReviewView(APIView):
         )
 
 
-class ReviewLikeView(APIView):
-    """Handle liking and unliking business reviews."""
+    def get(self, request, business_id):
+        reviews = ReviewService.list_reviews(
+            business_id, 
+            request.user
+        )
+        
+        return success_response(
+            data=ReviewResponseSerializer(
+                reviews, 
+                many=True)
+            .data,
+            message="Reviews retrieved successfully.",
+        )
 
-    permission_classes = (
-        IsAuthenticated,
-        HasRole(
-            User.UserRole.EXPLORER,
-            User.UserRole.MERCHANT,
-        ),
-    )
 
-    def post(self, request, review_id):
-        """Like a business review."""
+class ReviewDetailView(APIView):
+    """Handle updating and deleting explorer business reviews."""
 
-        like = ReviewService.create_like(
+    permission_classes = ReviewView.permission_classes
+
+    def patch(
+        self,
+        request,
+        review_id,
+    ):
+        """Update an explorer's business review."""
+
+        data = {
+            "photos": request.FILES.getlist(
+                "photos",
+            ),
+        }
+
+        if "text" in request.data:
+            data["text"] = request.data.get(
+                "text",
+            )
+
+        if "keep_photo_ids" in request.data:
+            if hasattr(
+                request.data,
+                "getlist",
+            ):
+                data["keep_photo_ids"] = request.data.getlist(
+                    "keep_photo_ids",
+                )
+            else:
+                data["keep_photo_ids"] = request.data.get(
+                    "keep_photo_ids",
+                )
+
+        serializer = ReviewUpdateSerializer(
+            data=data,
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        review = ReviewService.update_review(
             user=request.user,
             review_id=review_id,
+            **serializer.validated_data,
+        )
+
+        review.is_liked = ReviewService.has_liked(
+            user=request.user,
+            review_id=review.REVW_ID,
         )
 
         return success_response(
-            data={
-                "id": like.RLIK_ID,
-                "review_id": like.REVW_ID_id,
-                "is_liked": True,
-            },
-            message="Review liked successfully.",
+            data=ReviewResponseSerializer(
+                review,
+            ).data,
+            message="Review updated successfully.",
         )
 
-    def delete(self, request, review_id):
-        """Remove the authenticated user's like from a review."""
+    def delete(
+        self,
+        request,
+        review_id,
+    ):
+        """Delete an explorer's business review."""
 
-        ReviewService.remove_like(
+        ReviewService.delete_review(
             user=request.user,
             review_id=review_id,
         )
@@ -89,42 +142,31 @@ class ReviewLikeView(APIView):
         return success_response(
             data={
                 "review_id": review_id,
-                "is_liked": False,
             },
-            message="Review like removed successfully.",
+            message="Review deleted successfully.",
         )
 
 
-class ReviewReportView(APIView):
-    """Handle reporting business reviews."""
+class ReviewPhotoView(APIView):
+    """Handle deleting photos attached to business reviews."""
 
-    permission_classes = (
-        IsAuthenticated,
-        HasRole(
-            User.UserRole.EXPLORER,
-            User.UserRole.MERCHANT,
-        ),
-    )
+    permission_classes = ReviewView.permission_classes
 
-    def post(self, request, review_id):
-        """Submit a report against a business review."""
+    def delete(
+        self,
+        request,
+        photo_id,
+    ):
+        """Delete a review photo."""
 
-        serializer = ReviewReportSerializer(
-            data=request.data,
-        )
-        serializer.is_valid(raise_exception=True)
-
-        report = ReviewService.create_report(
+        ReviewService.delete_photo(
             user=request.user,
-            review_id=review_id,
-            **serializer.validated_data,
+            photo_id=photo_id,
         )
 
         return success_response(
             data={
-                "id": report.RREP_ID,
-                "review_id": report.REVW_ID_id,
-                "status": report.RREP_STATUS,
+                "photo_id": photo_id,
             },
-            message="Review reported successfully.",
+            message="Review photo deleted successfully.",
         )

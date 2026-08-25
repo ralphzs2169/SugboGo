@@ -63,7 +63,7 @@ class ExploreBusinessService:
             )
             .prefetch_related(
                 "photos",
-                "reply",
+                "reply__photos",
             )
             .order_by(
                 "-REVW_CREATED_AT",

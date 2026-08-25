@@ -8,7 +8,7 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import Review, ReviewReply
+from apps.reviews.models import ReviewReply
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
 

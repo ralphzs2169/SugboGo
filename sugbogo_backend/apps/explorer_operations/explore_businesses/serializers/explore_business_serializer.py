@@ -266,6 +266,10 @@ class ExploreReviewReplySerializer(serializers.ModelSerializer):
         source="RPLY_UPDATED_AT",
         read_only=True,
     )
+    photos = serializers.SerializerMethodField()
+
+    def get_photos(self, instance):
+        return ExploreReviewPhotoSerializer(instance.photos.all(), many=True).data
 
     class Meta:
         model = ReviewReply
@@ -274,6 +278,7 @@ class ExploreReviewReplySerializer(serializers.ModelSerializer):
             "text",
             "created_at",
             "updated_at",
+            "photos",
         )
 
 

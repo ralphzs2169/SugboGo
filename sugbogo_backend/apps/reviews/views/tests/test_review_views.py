@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
 from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase

@@ -212,6 +212,12 @@ class ReviewReport(models.Model):
 
     class Meta:
         db_table = "REVIEW_REPORT"
+        constraints = [  # noqa: RUF012
+            models.UniqueConstraint(
+                fields=["USER_ID", "REVW_ID"],
+                name="unique_user_review_report",
+            ),
+        ]
 
     def __str__(self):
         return f"Review report {self.RREP_ID}"

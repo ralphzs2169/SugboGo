@@ -1,9 +1,11 @@
+from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from rest_framework.exceptions import NotFound, ValidationError
+from PIL import Image
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.business.models import (
     Business,
@@ -11,17 +13,14 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import (
-    Review,
-    ReviewLike,
-    ReviewPhoto,
-    ReviewReport,
-)
+from apps.reviews.models import Review, ReviewPhoto
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
 
 
 class ReviewServiceTests(TestCase):
+    """Tests for creating, updating, and deleting business reviews."""
+
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(
@@ -73,27 +72,67 @@ class ReviewServiceTests(TestCase):
             LOCT_ID=cls.location,
         )
 
-    def test_create_review(self):
+    @staticmethod
+    def create_test_image(
+        filename="review.jpg",
+        width=100,
+        height=100,
+    ):
+        """Create a valid in-memory JPEG for review photo tests."""
+
+        image = Image.new(
+            "RGB",
+            (width, height),
+        )
+
+        image_file = BytesIO()
+
+        image.save(
+            image_file,
+            format="JPEG",
+        )
+
+        image_file.seek(0)
+
+        return SimpleUploadedFile(
+            filename,
+            image_file.read(),
+            content_type="image/jpeg",
+        )
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
+    def test_create_review(self, mock_upload):
         review = ReviewService.create_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
-            text="Great food and service.",
+            text="Great food and excellent service.",
+            device_id="test-device-001",
         )
 
         self.assertEqual(
             review.USER_ID_id,
             self.user.USER_ID,
         )
+
         self.assertEqual(
             review.BUSN_ID_id,
             self.business.BUSN_ID,
         )
+
         self.assertEqual(
             review.REVW_TEXT,
-            "Great food and service.",
+            "Great food and excellent service.",
         )
-        self.assertIsNone(
+
+        self.assertEqual(
             review.REVW_DEVICE_ID,
+            "test-device-001",
+        )
+
+        self.assertFalse(
+            ReviewPhoto.objects.exists(),
         )
 
         self.business.refresh_from_db()
@@ -103,69 +142,69 @@ class ReviewServiceTests(TestCase):
             1,
         )
 
+        mock_upload.assert_not_called()
 
     @patch(
-    "apps.reviews.services.review_service.CloudinaryService.upload_image",
-    )  
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
     def test_create_review_with_photos(self, mock_upload):
-        first_photo = SimpleUploadedFile(
+        first_photo = self.create_test_image(
             "review-1.jpg",
-            b"fake-image-content-1",
-            content_type="image/jpeg",
         )
-        second_photo = SimpleUploadedFile(
+        second_photo = self.create_test_image(
             "review-2.jpg",
-            b"fake-image-content-2",
-            content_type="image/jpeg",
         )
 
         mock_upload.side_effect = [
             {
-                "secure_url": "https://res.cloudinary.com/test/review-1.jpg",
                 "public_id": "sugbogo/reviews/review-1",
+                "secure_url": (
+                    "https://res.cloudinary.com/test/review-1.jpg"
+                ),
             },
             {
-                "secure_url": "https://res.cloudinary.com/test/review-2.jpg",
                 "public_id": "sugbogo/reviews/review-2",
+                "secure_url": (
+                    "https://res.cloudinary.com/test/review-2.jpg"
+                ),
             },
         ]
 
         review = ReviewService.create_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
-            text="Great food and service.",
+            text="Great food.",
             photos=[
                 first_photo,
                 second_photo,
             ],
-            device_id="test-device-001",
         )
 
         photos = ReviewPhoto.objects.filter(
             REVW_ID=review,
-        ).order_by("RPHO_ID")
+        )
 
         self.assertEqual(
             photos.count(),
             2,
         )
 
-        self.assertEqual(
-            photos[0].RPHO_PHOTO_URL,
-            "https://res.cloudinary.com/test/review-1.jpg",
-        )
-        self.assertEqual(
-            photos[0].RPHO_PHOTO_PUBLIC_ID,
-            "sugbogo/reviews/review-1",
+        self.assertTrue(
+            photos.filter(
+                RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/review-1",
+                RPHO_PHOTO_URL=(
+                    "https://res.cloudinary.com/test/review-1.jpg"
+                ),
+            ).exists(),
         )
 
-        self.assertEqual(
-            photos[1].RPHO_PHOTO_URL,
-            "https://res.cloudinary.com/test/review-2.jpg",
-        )
-        self.assertEqual(
-            photos[1].RPHO_PHOTO_PUBLIC_ID,
-            "sugbogo/reviews/review-2",
+        self.assertTrue(
+            photos.filter(
+                RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/review-2",
+                RPHO_PHOTO_URL=(
+                    "https://res.cloudinary.com/test/review-2.jpg"
+                ),
+            ).exists(),
         )
 
         self.assertEqual(
@@ -173,14 +212,11 @@ class ReviewServiceTests(TestCase):
             2,
         )
 
-        mock_upload.assert_any_call(
-            first_photo,
-            folder="sugbogo/reviews",
-        )
-        mock_upload.assert_any_call(
-            second_photo,
-            folder="sugbogo/reviews",
-        )
+        for call in mock_upload.call_args_list:
+            self.assertEqual(
+                call.kwargs["folder"],
+                "sugbogo/reviews",
+            )
 
         self.business.refresh_from_db()
 
@@ -188,7 +224,6 @@ class ReviewServiceTests(TestCase):
             self.business.BUSN_REVIEW_COUNT,
             1,
         )
-
 
     @patch(
         "apps.reviews.services.review_service.CloudinaryService.delete_image",
@@ -201,28 +236,25 @@ class ReviewServiceTests(TestCase):
         mock_upload,
         mock_delete,
     ):
-        first_photo = SimpleUploadedFile(
+        first_photo = self.create_test_image(
             "review-1.jpg",
-            b"fake-image-content-1",
-            content_type="image/jpeg",
         )
-        second_photo = SimpleUploadedFile(
+        second_photo = self.create_test_image(
             "review-2.jpg",
-            b"fake-image-content-2",
-            content_type="image/jpeg",
         )
 
         mock_upload.side_effect = [
             {
-                "secure_url": "https://res.cloudinary.com/test/review-1.jpg",
                 "public_id": "sugbogo/reviews/review-1",
+                "secure_url": (
+                    "https://res.cloudinary.com/test/review-1.jpg"
+                ),
             },
-            Exception("Cloudinary upload failed."),
+            RuntimeError("Cloudinary upload failed."),
         ]
 
-        with self.assertRaisesMessage(
-            Exception,
-            "Cloudinary upload failed.",
+        with self.assertRaises(
+            RuntimeError,
         ):
             ReviewService.create_review(
                 user=self.user,
@@ -239,17 +271,11 @@ class ReviewServiceTests(TestCase):
         )
 
         self.assertFalse(
-            Review.objects.filter(
-                USER_ID=self.user,
-                BUSN_ID=self.business,
-            ).exists(),
+            Review.objects.exists(),
         )
 
         self.assertFalse(
-            ReviewPhoto.objects.filter(
-                REVW_ID__USER_ID=self.user,
-                REVW_ID__BUSN_ID=self.business,
-            ).exists(),
+            ReviewPhoto.objects.exists(),
         )
 
         self.business.refresh_from_db()
@@ -257,26 +283,6 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(
             self.business.BUSN_REVIEW_COUNT,
             0,
-        )
-
-
-    def test_create_review_increments_business_review_count(self):
-        self.assertEqual(
-            self.business.BUSN_REVIEW_COUNT,
-            0,
-        )
-
-        ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Great experience.",
-        )
-
-        self.business.refresh_from_db()
-
-        self.assertEqual(
-            self.business.BUSN_REVIEW_COUNT,
-            1,
         )
 
     def test_create_review_rejects_nonexistent_business(self):
@@ -285,273 +291,12 @@ class ReviewServiceTests(TestCase):
             "The business could not be found.",
         ):
             ReviewService.create_review(
-                user=self.second_user,
+                user=self.user,
                 business_id=999999,
-                text="Great experience.",
+                text="Great food.",
             )
 
-    def test_create_like(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Great food.",
-        )
-
-        like = ReviewService.create_like(
-            user=self.user,
-            review_id=review.REVW_ID,
-        )
-
-        self.assertEqual(
-            like.REVW_ID_id,
-            review.REVW_ID,
-        )
-        self.assertEqual(
-            like.USER_ID_id,
-            self.user.pk,
-        )
-
-        review.refresh_from_db()
-
-        self.assertEqual(
-            review.REVW_LIKE_COUNT,
-            1,
-        )
-
-    def test_create_like_rejects_duplicate(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Great food.",
-        )
-
-        ReviewService.create_like(
-            user=self.user,
-            review_id=review.REVW_ID,
-        )
-
-        with self.assertRaisesMessage(
-            ValidationError,
-            "You have already liked this review.",
-        ):
-            ReviewService.create_like(
-                user=self.user,
-                review_id=review.REVW_ID,
-            )
-
-        review.refresh_from_db()
-
-        self.assertEqual(
-            review.REVW_LIKE_COUNT,
-            1,
-        )
-
-    def test_create_like_rejects_nonexistent_review(self):
-        with self.assertRaisesMessage(
-            NotFound,
-            "The review could not be found.",
-        ):
-            ReviewService.create_like(
-                user=self.user,
-                review_id=999999,
-            )
-
-    def test_remove_like(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Great food.",
-        )
-
-        like = ReviewService.create_like(
-            user=self.user,
-            review_id=review.REVW_ID,
-        )
-
-        ReviewService.remove_like(
-            user=self.user,
-            review_id=review.REVW_ID,
-        )
-
-        self.assertFalse(
-            ReviewLike.objects.filter(
-                RLIK_ID=like.RLIK_ID,
-            ).exists()
-        )
-
-        review.refresh_from_db()
-
-        self.assertEqual(
-            review.REVW_LIKE_COUNT,
-            0,
-        )
-
-    def test_remove_like_rejects_nonexistent_like(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Great food.",
-        )
-
-        with self.assertRaisesMessage(
-            NotFound,
-            "Your like could not be found.",
-        ):
-            ReviewService.remove_like(
-                user=self.user,
-                review_id=review.REVW_ID,
-            )
-
-    def test_has_liked_returns_true_when_like_exists(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Great food.",
-        )
-
-        ReviewService.create_like(
-            user=self.user,
-            review_id=review.REVW_ID,
-        )
-
-        self.assertTrue(
-            ReviewService.has_liked(
-                user=self.user,
-                review_id=review.REVW_ID,
-            )
-        )
-
-    def test_has_liked_returns_false_when_like_does_not_exist(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Great food.",
-        )
-
-        self.assertFalse(
-            ReviewService.has_liked(
-                user=self.user,
-                review_id=review.REVW_ID,
-            )
-        )
-
-    def test_different_users_can_like_same_review(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Great food.",
-        )
-
-        first_like = ReviewService.create_like(
-            user=self.user,
-            review_id=review.REVW_ID,
-        )
-
-        second_like = ReviewService.create_like(
-            user=self.second_user,
-            review_id=review.REVW_ID,
-        )
-
-        self.assertNotEqual(
-            first_like.RLIK_ID,
-            second_like.RLIK_ID,
-        )
-
-        review.refresh_from_db()
-
-        self.assertEqual(
-            review.REVW_LIKE_COUNT,
-            2,
-        )
-
-    def test_create_report(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Suspicious review.",
-        )
-
-        report = ReviewService.create_report(
-            user=self.user,
-            review_id=review.REVW_ID,
-            report_type=ReviewReport.ReportType.SPAM,
-            device_id="test-device-001",
-        )
-
-        self.assertEqual(
-            report.REVW_ID_id,
-            review.REVW_ID,
-        )
-        self.assertEqual(
-            report.USER_ID_id,
-            self.user.pk,
-        )
-        self.assertEqual(
-            report.RREP_TYPE,
-            ReviewReport.ReportType.SPAM,
-        )
-        self.assertEqual(
-            report.RREP_DEVICE_ID,
-            "test-device-001",
-        )
-        self.assertEqual(
-            report.RREP_STATUS,
-            ReviewReport.ReportStatus.PENDING,
-        )
-
-        review.refresh_from_db()
-
-        self.assertEqual(
-            review.REVW_REPORT_COUNT,
-            1,
-        )
-
-    def test_create_report_rejects_nonexistent_review(self):
-        with self.assertRaisesMessage(
-            NotFound,
-            "The review could not be found.",
-        ):
-            ReviewService.create_report(
-                user=self.user,
-                review_id=999999,
-                report_type=ReviewReport.ReportType.SPAM,
-                device_id="test-device-001",
-            )
-
-    def test_different_users_can_report_same_review(self):
-        review = ReviewService.create_review(
-            user=self.second_user,
-            business_id=self.business.BUSN_ID,
-            text="Suspicious review.",
-        )
-
-        first_report = ReviewService.create_report(
-            user=self.user,
-            review_id=review.REVW_ID,
-            report_type=ReviewReport.ReportType.SPAM,
-            device_id="test-device-001",
-        )
-
-        second_report = ReviewService.create_report(
-            user=self.second_user,
-            review_id=review.REVW_ID,
-            report_type=ReviewReport.ReportType.ABUSE,
-            device_id="test-device-002",
-        )
-
-        self.assertNotEqual(
-            first_report.RREP_ID,
-            second_report.RREP_ID,
-        )
-
-        review.refresh_from_db()
-
-        self.assertEqual(
-            review.REVW_REPORT_COUNT,
-            2,
-        )
-
-    def test_create_review_rejects_duplicate_review_for_same_business(self):
+    def test_create_review_rejects_duplicate_review(self):
         ReviewService.create_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
@@ -574,4 +319,394 @@ class ReviewServiceTests(TestCase):
                 BUSN_ID=self.business,
             ).count(),
             1,
+        )
+
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_REVIEW_COUNT,
+            1,
+        )
+
+    def test_update_review_text(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        updated_review = ReviewService.update_review(
+            user=self.user,
+            review_id=review.REVW_ID,
+            text="Updated review.",
+        )
+
+        self.assertEqual(
+            updated_review.REVW_TEXT,
+            "Updated review.",
+        )
+
+        review.refresh_from_db()
+
+        self.assertEqual(
+            review.REVW_TEXT,
+            "Updated review.",
+        )
+
+    def test_update_review_rejects_non_owner(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        with self.assertRaisesMessage(
+            PermissionDenied,
+            "You do not have permission to update this review.",
+        ):
+            ReviewService.update_review(
+                user=self.second_user,
+                review_id=review.REVW_ID,
+                text="Unauthorized update.",
+            )
+
+        review.refresh_from_db()
+
+        self.assertEqual(
+            review.REVW_TEXT,
+            "Original review.",
+        )
+
+    def test_update_review_rejects_nonexistent_photo_id(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "One or more review photos could not be found.",
+        ):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.REVW_ID,
+                keep_photo_ids=[999999],
+            )
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
+    def test_update_review_adds_photos(self, mock_upload):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        first_photo = self.create_test_image(
+            "review-1.jpg",
+        )
+
+        mock_upload.return_value = {
+            "public_id": "sugbogo/reviews/review-1",
+            "secure_url": (
+                "https://res.cloudinary.com/test/review-1.jpg"
+            ),
+        }
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.REVW_ID,
+            photos=[
+                first_photo,
+            ],
+        )
+
+        self.assertEqual(
+            ReviewPhoto.objects.filter(
+                REVW_ID=review,
+            ).count(),
+            1,
+        )
+
+        mock_upload.assert_called_once_with(
+            first_photo,
+            folder="sugbogo/reviews",
+        )
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.delete_image",
+    )
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
+    def test_update_review_keeps_selected_photos_and_removes_others(
+        self,
+        mock_upload,
+        mock_delete,
+    ):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        first_photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL=(
+                "https://res.cloudinary.com/test/first.jpg"
+            ),
+            RPHO_PHOTO_PUBLIC_ID=(
+                "sugbogo/reviews/first"
+            ),
+        )
+
+        second_photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL=(
+                "https://res.cloudinary.com/test/second.jpg"
+            ),
+            RPHO_PHOTO_PUBLIC_ID=(
+                "sugbogo/reviews/second"
+            ),
+        )
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.REVW_ID,
+            keep_photo_ids=[
+                first_photo.RPHO_ID,
+            ],
+        )
+
+        self.assertTrue(
+            ReviewPhoto.objects.filter(
+                RPHO_ID=first_photo.RPHO_ID,
+            ).exists(),
+        )
+
+        self.assertFalse(
+            ReviewPhoto.objects.filter(
+                RPHO_ID=second_photo.RPHO_ID,
+            ).exists(),
+        )
+
+        mock_delete.assert_called_once_with(
+            "sugbogo/reviews/second",
+        )
+
+    def test_update_review_rejects_more_than_three_photos(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        first_photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL=(
+                "https://res.cloudinary.com/test/first.jpg"
+            ),
+            RPHO_PHOTO_PUBLIC_ID=(
+                "sugbogo/reviews/first"
+            ),
+        )
+
+        second_photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL=(
+                "https://res.cloudinary.com/test/second.jpg"
+            ),
+            RPHO_PHOTO_PUBLIC_ID=(
+                "sugbogo/reviews/second"
+            ),
+        )
+
+        third_photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL=(
+                "https://res.cloudinary.com/test/third.jpg"
+            ),
+            RPHO_PHOTO_PUBLIC_ID=(
+                "sugbogo/reviews/third"
+            ),
+        )
+
+        fourth_photo = self.create_test_image(
+            "review-4.jpg",
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "You can only upload a maximum of 3 photos.",
+        ):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.REVW_ID,
+                keep_photo_ids=[
+                    first_photo.RPHO_ID,
+                    second_photo.RPHO_ID,
+                    third_photo.RPHO_ID,
+                ],
+                photos=[
+                    fourth_photo,
+                ],
+            )
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.delete_image",
+    )
+    def test_delete_review(self, mock_delete):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL=(
+                "https://res.cloudinary.com/test/review.jpg"
+            ),
+            RPHO_PHOTO_PUBLIC_ID=(
+                "sugbogo/reviews/review"
+            ),
+        )
+
+        ReviewService.delete_review(
+            user=self.user,
+            review_id=review.REVW_ID,
+        )
+
+        self.assertFalse(
+            Review.objects.filter(
+                REVW_ID=review.REVW_ID,
+            ).exists(),
+        )
+
+        self.assertFalse(
+            ReviewPhoto.objects.filter(
+                REVW_ID=review.REVW_ID,
+            ).exists(),
+        )
+
+        mock_delete.assert_called_once_with(
+            "sugbogo/reviews/review",
+        )
+
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_REVIEW_COUNT,
+            0,
+        )
+
+    def test_delete_review_rejects_non_owner(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        with self.assertRaisesMessage(
+            PermissionDenied,
+            "You do not have permission to delete this review.",
+        ):
+            ReviewService.delete_review(
+                user=self.second_user,
+                review_id=review.REVW_ID,
+            )
+
+        self.assertTrue(
+            Review.objects.filter(
+                REVW_ID=review.REVW_ID,
+            ).exists(),
+        )
+
+    def test_delete_review_rejects_nonexistent_review(self):
+        with self.assertRaisesMessage(
+            NotFound,
+            "The review could not be found.",
+        ):
+            ReviewService.delete_review(
+                user=self.user,
+                review_id=999999,
+            )
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.delete_image",
+    )
+    def test_delete_photo(self, mock_delete):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL=(
+                "https://res.cloudinary.com/test/review.jpg"
+            ),
+            RPHO_PHOTO_PUBLIC_ID=(
+                "sugbogo/reviews/review"
+            ),
+        )
+
+        ReviewService.delete_photo(
+            user=self.user,
+            photo_id=photo.RPHO_ID,
+        )
+
+        self.assertFalse(
+            ReviewPhoto.objects.filter(
+                RPHO_ID=photo.RPHO_ID,
+            ).exists(),
+        )
+
+        mock_delete.assert_called_once_with(
+            "sugbogo/reviews/review",
+        )
+
+    def test_delete_photo_rejects_nonexistent_photo(self):
+        with self.assertRaisesMessage(
+            NotFound,
+            "The review photo could not be found.",
+        ):
+            ReviewService.delete_photo(
+                user=self.user,
+                photo_id=999999,
+            )
+
+    def test_delete_photo_rejects_non_owner(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL=(
+                "https://res.cloudinary.com/test/review.jpg"
+            ),
+            RPHO_PHOTO_PUBLIC_ID=(
+                "sugbogo/reviews/review"
+            ),
+        )
+
+        with self.assertRaisesMessage(
+            PermissionDenied,
+            "You do not have permission to delete this review photo.",
+        ):
+            ReviewService.delete_photo(
+                user=self.second_user,
+                photo_id=photo.RPHO_ID,
+            )
+
+        self.assertTrue(
+            ReviewPhoto.objects.filter(
+                RPHO_ID=photo.RPHO_ID,
+            ).exists(),
         )

@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -8,7 +10,7 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import Review, ReviewReply
+from apps.reviews.models import ReplyPhoto, Review, ReviewReply
 from apps.reviews.services.review_reply_service import ReviewReplyService
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
@@ -163,3 +165,14 @@ class ReviewReplyServiceTests(TestCase):
             review.reply.RPLY_ID,
             reply.RPLY_ID,
         )
+
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.delete_image")
+    def test_delete_reply_cleans_up_reply_photos(self, mock_delete):
+        review = ReviewService.create_review(user=self.explorer, business_id=self.business.BUSN_ID, text="Great food.")
+        reply = ReviewReplyService.create_reply(user=self.merchant, review_id=review.REVW_ID, text="Thank you.")
+        ReplyPhoto.objects.create(RPLY_ID=reply, RPHO_PHOTO_URL="https://example.com/a.jpg", RPHO_PHOTO_PUBLIC_ID="reply/a")
+
+        ReviewReplyService.delete_reply(self.merchant, reply.RPLY_ID)
+
+        self.assertFalse(ReviewReply.objects.filter(RPLY_ID=reply.RPLY_ID).exists())
+        mock_delete.assert_called_once_with("reply/a")
