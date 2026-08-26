@@ -75,8 +75,12 @@ class ReviewViewTests(APITestCase):
             LOCT_ID=self.location,
         )
 
-        self.create_url = (
+        self.preview_url = (
             f"/api/reviews/business/{self.business.BUSN_ID}/"
+        )
+
+        self.list_url = (
+            f"/api/reviews/business/{self.business.BUSN_ID}/all/"
         )
 
     @staticmethod
@@ -144,7 +148,7 @@ class ReviewViewTests(APITestCase):
         }
 
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             payload,
             format="multipart",
         )
@@ -162,14 +166,17 @@ class ReviewViewTests(APITestCase):
             review.USER_ID_id,
             self.explorer.USER_ID,
         )
+
         self.assertEqual(
             review.BUSN_ID_id,
             self.business.BUSN_ID,
         )
+
         self.assertEqual(
             review.REVW_TEXT,
             "Great food and excellent service.",
         )
+
         self.assertEqual(
             review.REVW_DEVICE_ID,
             "test-device-001",
@@ -185,6 +192,113 @@ class ReviewViewTests(APITestCase):
             self.business.BUSN_ID,
         )
 
+    def test_get_review_preview_returns_maximum_three_reviews(self):
+        for index in range(5):
+            user = self.explorer
+
+            if index > 0:
+                user = User.objects.create_user(
+                    email=f"reviewer-{index}@example.com",
+                    password="StrongPassword123!",
+                    USER_FNAME=f"Reviewer{index}",
+                    USER_LNAME="User",
+                    USER_ROLE=User.UserRole.EXPLORER,
+                    USER_STATUS=User.UserStatus.ACTIVE,
+                )
+
+            Review.objects.create(
+                USER_ID=user,
+                BUSN_ID=self.business,
+                REVW_TEXT=f"Review {index + 1}.",
+            )
+
+        response = self.client.get(
+            self.preview_url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertTrue(
+            response.data["success"],
+        )
+
+        self.assertEqual(
+            response.data["message"],
+            "Reviews retrieved successfully.",
+        )
+
+        self.assertEqual(
+            len(response.data["data"]),
+            3,
+        )
+
+    def test_get_all_reviews_returns_all_business_reviews(self):
+        reviews = []
+
+        for index in range(4):
+            user = self.explorer
+
+            if index > 0:
+                user = User.objects.create_user(
+                    email=f"all-reviewer-{index}@example.com",
+                    password="StrongPassword123!",
+                    USER_FNAME=f"Reviewer{index}",
+                    USER_LNAME="User",
+                    USER_ROLE=User.UserRole.EXPLORER,
+                    USER_STATUS=User.UserStatus.ACTIVE,
+                )
+
+            reviews.append(
+                Review.objects.create(
+                    USER_ID=user,
+                    BUSN_ID=self.business,
+                    REVW_TEXT=f"Review {index + 1}.",
+                ),
+            )
+
+        response = self.client.get(
+            self.list_url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertTrue(
+            response.data["success"],
+        )
+
+        self.assertEqual(
+            response.data["message"],
+            "Reviews retrieved successfully.",
+        )
+
+        returned_reviews = response.data["data"]
+
+        self.assertEqual(
+            len(returned_reviews),
+            4,
+        )
+
+        returned_ids = {
+            review["id"]
+            for review in returned_reviews
+        }
+
+        expected_ids = {
+            review.REVW_ID
+            for review in reviews
+        }
+
+        self.assertEqual(
+            returned_ids,
+            expected_ids,
+        )
+
     @patch(
         "apps.reviews.views.review_views.ReviewService.create_review",
     )
@@ -195,6 +309,7 @@ class ReviewViewTests(APITestCase):
         first_photo = self.create_test_image(
             "review-1.jpg",
         )
+
         second_photo = self.create_test_image(
             "review-2.jpg",
         )
@@ -208,7 +323,7 @@ class ReviewViewTests(APITestCase):
         mock_create_review.return_value = mock_review
 
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             {
                 "text": "Great food.",
                 "photos": [
@@ -278,7 +393,7 @@ class ReviewViewTests(APITestCase):
         ]
 
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             {
                 "text": "Too many photos.",
                 "photos": photos,
@@ -314,7 +429,7 @@ class ReviewViewTests(APITestCase):
         )
 
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             {
                 "text": "Large photo.",
                 "photos": [oversized_photo],
@@ -349,7 +464,7 @@ class ReviewViewTests(APITestCase):
         )
 
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             {
                 "text": "Invalid photo.",
                 "photos": [invalid_photo],
@@ -384,7 +499,7 @@ class ReviewViewTests(APITestCase):
         )
 
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             {
                 "text": "Second review.",
             },
@@ -411,7 +526,7 @@ class ReviewViewTests(APITestCase):
 
     def test_create_review_rejects_missing_text(self):
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             {},
             format="multipart",
         )
@@ -433,7 +548,7 @@ class ReviewViewTests(APITestCase):
 
     def test_create_review_rejects_text_over_1000_characters(self):
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             {
                 "text": "a" * 1001,
             },
@@ -480,7 +595,7 @@ class ReviewViewTests(APITestCase):
         )
 
         response = self.client.post(
-            self.create_url,
+            self.preview_url,
             {
                 "text": "Great food.",
             },

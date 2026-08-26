@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { LayoutAnimation, Pressable, Text, View } from "react-native";
+import { useState } from "react";
 
 import { theme } from "@/constants/theme";
 
@@ -20,6 +21,12 @@ export default function BusinessHoursSection({
   onViewFullHours,
 }: Props) {
   const summary = getBusinessHoursSummary(operatingHours);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const toggleHours = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsExpanded((expanded) => !expanded);
+    onViewFullHours?.();
+  };
 
   return (
     <View className="mt-6 border-t border-border-primary px-4 pt-5">
@@ -42,20 +49,38 @@ export default function BusinessHoursSection({
 
       {/* Full schedule action */}
       <Pressable
-        onPress={onViewFullHours}
-        disabled={!onViewFullHours}
-        className="mt-3 flex-row items-center self-start active:opacity-70"
+        onPress={toggleHours}
+        className="mt-3 flex-row items-center self-start cursor-pointer active:opacity-70"
       >
         <Text className="text-sm font-semibold text-brand">
-          View full hours
+          {isExpanded ? "View less" : "View full hours"}
         </Text>
 
         <MaterialCommunityIcons
-          name="chevron-down"
+          name={isExpanded ? "chevron-up" : "chevron-down"}
           size={18}
           color={theme.extends.colors.brand}
         />
       </Pressable>
+
+      {isExpanded && (
+        <View className="mt-3 gap-2">
+          {operatingHours.map((hours) => (
+            <View key={hours.id} className="flex-row justify-between">
+              <Text className="capitalize text-sm text-text-secondary">
+                {hours.day}
+              </Text>
+              <Text className="text-sm text-text-primary">
+                {!hours.is_open
+                  ? "Closed"
+                  : hours.is_24_hours
+                    ? "Open 24 hours"
+                    : `${hours.open_time ?? ""} – ${hours.close_time ?? ""}`}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }

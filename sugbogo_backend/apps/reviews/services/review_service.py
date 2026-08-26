@@ -1,5 +1,5 @@
 from django.db import IntegrityError, models, transaction
-from django.db.models import Exists, OuterRef, Prefetch
+from django.db.models import Exists, OuterRef
 from django.db.models.functions import Greatest
 from rest_framework.exceptions import (
     NotFound,
@@ -7,7 +7,7 @@ from rest_framework.exceptions import (
     ValidationError,
 )
 
-from apps.business.models import Business
+from apps.business.models import Business, BusinessVouch
 from apps.reviews.models import (
     Review,
     ReviewLike,
@@ -18,7 +18,7 @@ from apps.users.models import User
 
 
 class ReviewService:
-    """Handles creating, updating, deleting, liking, and reporting business reviews."""
+    """Handles creating, updating, and deleting business reviews."""
 
     @staticmethod
     @transaction.atomic
@@ -74,7 +74,9 @@ class ReviewService:
             Business.objects.filter(
                 BUSN_ID=business.BUSN_ID,
             ).update(
-                BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
+                BUSN_REVIEW_COUNT=models.F(
+                    "BUSN_REVIEW_COUNT",
+                ) + 1,
             )
 
         except Exception:
@@ -94,7 +96,9 @@ class ReviewService:
         try:
             return (
                 Review.objects
-                .select_related("BUSN_ID")
+                .select_related(
+                    "BUSN_ID",
+                )
                 .get(
                     REVW_ID=review_id,
                 )
@@ -103,6 +107,122 @@ class ReviewService:
             raise NotFound(
                 "The review could not be found.",
             )
+
+    @staticmethod
+    def _attach_vouched_specialties(
+        reviews,
+    ):
+        """Attach each review author's business vouches to the review."""
+
+        reviews = list(
+            reviews,
+        )
+
+        if not reviews:
+            return reviews
+
+        business_id = reviews[0].BUSN_ID_id
+
+        user_ids = {
+            review.USER_ID_id
+            for review in reviews
+        }
+
+        vouches = (
+            BusinessVouch.objects
+            .filter(
+                BUSN_ID=business_id,
+                USER_ID__in=user_ids,
+            )
+            .select_related(
+                "TAG_ID",
+            )
+        )
+
+        vouches_by_user = {}
+
+        for vouch in vouches:
+            vouches_by_user.setdefault(
+                vouch.USER_ID_id,
+                [],
+            ).append(
+                vouch,
+            )
+
+        for review in reviews:
+            review.vouched_specialties = vouches_by_user.get(
+                review.USER_ID_id,
+                [],
+            )
+
+        return reviews
+
+    @staticmethod
+    def _get_review_queryset(
+        business_id: int,
+        user: User,
+    ):
+        likes = ReviewLike.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            USER_ID=user,
+        )
+
+        own_reviews = Review.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            USER_ID=user,
+        )
+
+        return (
+            Review.objects
+            .filter(
+                BUSN_ID=business_id,
+            )
+            .select_related(
+                "USER_ID",
+            )
+            .annotate(
+                is_liked=Exists(likes),
+                is_own_review=Exists(own_reviews),
+            )
+            .prefetch_related(
+                "photos",
+                "reply__photos",
+            )
+            .order_by(
+                "-REVW_CREATED_AT",
+            )
+        )
+
+    @staticmethod
+    def get_review_preview(
+        business_id: int,
+        user: User,
+    ):
+        try:
+            Business.objects.get(
+                BUSN_ID=business_id,
+            )
+        except Business.DoesNotExist:
+            raise NotFound(
+                "The business could not be found.",
+            )
+
+        total_count = Review.objects.filter(
+            BUSN_ID=business_id,
+        ).count()
+
+        # Get the first 3 reviews for the business, ordered by creation date (most recent first).
+        reviews = ReviewService._get_review_queryset(
+            business_id,
+            user,
+        )[:3]
+
+        return {
+            "reviews": ReviewService._attach_vouched_specialties(
+                reviews,
+            ),
+            "total_count": total_count,
+        }
 
     @staticmethod
     def list_reviews(
@@ -118,28 +238,13 @@ class ReviewService:
                 "The business could not be found.",
             )
 
-        likes = ReviewLike.objects.filter(
-            REVW_ID=OuterRef("REVW_ID"),
-            USER_ID=user,
+        reviews = ReviewService._get_review_queryset(
+            business_id,
+            user,
         )
 
-        return (
-            Review.objects
-            .filter(
-                BUSN_ID=business_id,
-            )
-            .select_related(
-                "USER_ID",
-            )
-            .annotate(
-                is_liked=Exists(likes),
-            )
-            .prefetch_related(
-                "photos",
-                Prefetch(
-                    "reply__photos",
-                ),
-            )
+        return ReviewService._attach_vouched_specialties(
+            reviews,
         )
 
     @staticmethod
@@ -295,7 +400,9 @@ class ReviewService:
             BUSN_ID=business_id,
         ).update(
             BUSN_REVIEW_COUNT=Greatest(
-                models.F("BUSN_REVIEW_COUNT") - 1,
+                models.F(
+                    "BUSN_REVIEW_COUNT",
+                ) - 1,
                 0,
             ),
         )
@@ -309,7 +416,9 @@ class ReviewService:
         try:
             photo = (
                 ReviewPhoto.objects
-                .select_related("REVW_ID")
+                .select_related(
+                    "REVW_ID",
+                )
                 .get(
                     RPHO_ID=photo_id,
                 )
@@ -329,5 +438,3 @@ class ReviewService:
         )
 
         photo.delete()
-
-   

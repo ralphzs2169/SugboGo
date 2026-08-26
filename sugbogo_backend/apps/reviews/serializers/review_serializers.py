@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from apps.reviews.models import ReplyPhoto, Review, ReviewPhoto, ReviewReport, ReviewReply
+from apps.business.models.business_vouch_models import BusinessVouch
+from apps.reviews.models import (
+    ReplyPhoto,
+    Review,
+    ReviewPhoto,
+    ReviewReply,
+    ReviewReport,
+)
 
 MAX_REVIEW_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_REVIEW_PHOTOS = 3
@@ -77,7 +84,7 @@ class ReplyPhotoResponseSerializer(serializers.ModelSerializer):
         model = ReplyPhoto
         fields = ("id", "photo_url")
 
-
+        
 class ReviewReplyResponseSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="RPLY_ID", read_only=True)
     text = serializers.CharField(source="RPLY_TEXT", read_only=True)
@@ -95,6 +102,33 @@ class ReviewAuthorResponseSerializer(serializers.Serializer):
     first_name = serializers.CharField(source="USER_FNAME", read_only=True)
     last_name = serializers.CharField(source="USER_LNAME", read_only=True)
     avatar_url = serializers.ReadOnlyField()
+
+
+class ReviewVouchedSpecialtySerializer(serializers.ModelSerializer):
+    """Serializes a specialty tag vouched for by a review author."""
+
+    id = serializers.IntegerField(
+        source="TAG_ID_id",
+        read_only=True,
+    )
+
+    name = serializers.CharField(
+        source="TAG_ID.TAG_NAME",
+        read_only=True,
+    )
+
+    color = serializers.CharField(
+        source="TAG_ID.TAG_COLOR",
+        read_only=True,
+    )
+
+    class Meta:
+        model = BusinessVouch
+        fields = (
+            "id",
+            "name",
+            "color",
+        )
 
 
 class ReviewResponseSerializer(serializers.ModelSerializer):
@@ -124,12 +158,35 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
         source="REVW_CREATED_AT",
         read_only=True,
     )
-    updated_at = serializers.DateTimeField(source="REVW_UPDATED_AT", read_only=True)
-    is_liked = serializers.BooleanField(read_only=True)
-    photos = ReviewPhotoResponseSerializer(many=True, read_only=True)
-    author = ReviewAuthorResponseSerializer(source="USER_ID", read_only=True)
-    reply = ReviewReplyResponseSerializer(read_only=True)
+    updated_at = serializers.DateTimeField(
+        source="REVW_UPDATED_AT",
+        read_only=True,
+    )
+    is_liked = serializers.BooleanField(
+        read_only=True,
+    )
+    photos = ReviewPhotoResponseSerializer(
+        many=True,
+        read_only=True,
+    )
+    author = ReviewAuthorResponseSerializer(
+        source="USER_ID",
+        read_only=True,
+    )
 
+    vouched_specialties = ReviewVouchedSpecialtySerializer(
+        many=True,
+        read_only=True,
+    )
+
+    reply = ReviewReplyResponseSerializer(
+        read_only=True,
+    )
+
+    is_own_review = serializers.BooleanField(
+        read_only=True,
+    )
+    
     class Meta:
         model = Review
         fields = (
@@ -142,10 +199,11 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "updated_at",
             "is_liked",
             "photos",
+            "vouched_specialties",
             "author",
             "reply",
+            "is_own_review",
         )
-
 
 class ReviewReportSerializer(serializers.Serializer):
     """Validates a business review report request."""

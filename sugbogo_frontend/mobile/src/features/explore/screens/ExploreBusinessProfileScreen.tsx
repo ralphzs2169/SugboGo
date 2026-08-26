@@ -12,6 +12,7 @@ import BusinessAboutSection from "../components/business-profile/BusinessAboutSe
 import BusinessLocationSection from "../components/business-profile/BusinessLocationSection";
 import BusinessPhotosSection from "../components/business-profile/BusinessPhotosSection";
 import BusinessHoursSection from "../components/business-profile/BusinessHoursSection";
+import BusinessReviewsSection from "../components/business-profile/BusinessReviewsSection";
 
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 
@@ -103,6 +104,12 @@ export default function ExploreBusinessProfileScreen({ businessId }: Props) {
         <BusinessHoursSection
           operatingHours={business.operating_hours}
           onViewFullHours={() => {}}
+        />
+
+        {/* Business reviews */}
+        <BusinessReviewsSection
+          businessId={business.id}
+          businessName={business.business_name}
         />
       </BusinessProfileScrollView>
     </SafeAreaView>

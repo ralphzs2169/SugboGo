@@ -9,9 +9,11 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 
 from apps.business.models import (
     Business,
+    BusinessVouch,
     Category,
     Cluster,
     Location,
+    SpecialtyTag,
 )
 from apps.reviews.models import Review, ReviewPhoto
 from apps.reviews.services.review_service import ReviewService
@@ -326,6 +328,224 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(
             self.business.BUSN_REVIEW_COUNT,
             1,
+        )
+
+    def test_get_review_preview_includes_author_vouched_specialties(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        tag = SpecialtyTag.objects.create(
+            TAG_NAME="Authentic Cebuano Food",
+        )
+
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.user,
+            TAG_ID=tag,
+        )
+
+        reviews = ReviewService.get_review_preview(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )
+
+        self.assertEqual(
+            len(reviews),
+            1,
+        )
+
+        self.assertEqual(
+            reviews[0].REVW_ID,
+            review.REVW_ID,
+        )
+
+        self.assertEqual(
+            len(reviews[0].vouched_specialties),
+            1,
+        )
+
+        self.assertEqual(
+            reviews[0].vouched_specialties[0].TAG_ID_id,
+            tag.TAG_ID,
+        )
+
+    def test_get_review_preview_limits_results_to_three_reviews(self):
+        review_users = [
+            self.user,
+            self.second_user,
+        ]
+
+        for index in range(3):
+            if index >= len(review_users):
+                user = User.objects.create_user(
+                    email=f"preview-user-{index}@example.com",
+                    password="StrongPassword123!",
+                    USER_FNAME=f"Preview{index}",
+                    USER_LNAME="User",
+                    USER_ROLE=User.UserRole.EXPLORER,
+                    USER_STATUS=User.UserStatus.ACTIVE,
+                )
+
+                review_users.append(user)
+
+            ReviewService.create_review(
+                user=review_users[index],
+                business_id=self.business.BUSN_ID,
+                text=f"Review {index + 1}.",
+            )
+
+        reviews = ReviewService.get_review_preview(
+            business_id=self.business.BUSN_ID,
+            user=self.user,
+        )
+
+        self.assertEqual(
+            len(reviews),
+            3,
+        )
+
+    def test_list_reviews_includes_author_vouched_specialties(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great local restaurant.",
+        )
+
+        first_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Local Favorite",
+        )
+
+        second_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Authentic Food",
+        )
+
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.user,
+            TAG_ID=first_tag,
+        )
+
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.user,
+            TAG_ID=second_tag,
+        )
+
+        reviews = ReviewService.list_reviews(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )
+
+        self.assertEqual(
+            len(reviews),
+            1,
+        )
+
+        self.assertEqual(
+            reviews[0].REVW_ID,
+            review.REVW_ID,
+        )
+
+        vouched_specialties = reviews[0].vouched_specialties
+
+        self.assertEqual(
+            len(vouched_specialties),
+            2,
+        )
+
+        self.assertSetEqual(
+            {
+                vouch.TAG_ID_id
+                for vouch in vouched_specialties
+            },
+            {
+                first_tag.TAG_ID,
+                second_tag.TAG_ID,
+            },
+        )
+
+    def test_list_reviews_excludes_vouches_from_other_businesses(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        other_location = Location.objects.create(
+            LOCT_POINT=Point(
+                123.9000,
+                10.3200,
+                srid=4326,
+            ),
+            LOCT_ADDRESS="Other Street",
+            LOCT_CITY="Cebu City",
+            LOCT_PROVINCE="Cebu",
+        )
+
+        other_business = Business.objects.create(
+            BUSN_NAME="Other Bistro",
+            BUSN_DESCRIPTION="Another local restaurant.",
+            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            USER_ID=self.second_user,
+            CTGRY_ID=self.category,
+            LOCT_ID=other_location,
+        )
+
+        tag = SpecialtyTag.objects.create(
+            TAG_NAME="Hidden Specialty",
+        )
+
+        BusinessVouch.objects.create(
+            BUSN_ID=other_business,
+            USER_ID=self.user,
+            TAG_ID=tag,
+        )
+
+        reviews = ReviewService.list_reviews(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )
+
+        self.assertEqual(
+            len(reviews),
+            1,
+        )
+
+        self.assertEqual(
+            reviews[0].REVW_ID,
+            review.REVW_ID,
+        )
+
+        self.assertEqual(
+            reviews[0].vouched_specialties,
+            [],
+        )
+
+    def test_list_reviews_returns_empty_vouched_specialties_when_author_has_none(
+        self,
+    ):
+        ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        reviews = ReviewService.list_reviews(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )
+
+        self.assertEqual(
+            len(reviews),
+            1,
+        )
+
+        self.assertEqual(
+            reviews[0].vouched_specialties,
+            [],
         )
 
     def test_update_review_text(self):
@@ -709,4 +929,108 @@ class ReviewServiceTests(TestCase):
             ReviewPhoto.objects.filter(
                 RPHO_ID=photo.RPHO_ID,
             ).exists(),
+        )
+
+    def test_get_review_preview_prioritizes_current_users_review(self):
+        ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="My review.",
+        )
+
+        other_users = []
+
+        for index in range(3):
+            user = User.objects.create_user(
+                email=f"preview-other-{index}@example.com",
+                password="StrongPassword123!",
+                USER_FNAME=f"Other{index}",
+                USER_LNAME="User",
+                USER_ROLE=User.UserRole.EXPLORER,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+
+            other_users.append(user)
+
+            ReviewService.create_review(
+                user=user,
+                business_id=self.business.BUSN_ID,
+                text=f"Other review {index}.",
+            )
+
+        reviews = ReviewService.get_review_preview(
+            business_id=self.business.BUSN_ID,
+            user=self.user,
+        )
+
+        self.assertEqual(
+            len(reviews),
+            3,
+        )
+
+        self.assertEqual(
+            reviews[0].USER_ID_id,
+            self.user.USER_ID,
+        )
+
+        self.assertTrue(
+            reviews[0].is_own_review,
+        )
+
+        self.assertFalse(
+            reviews[1].is_own_review,
+        )
+
+        self.assertFalse(
+            reviews[2].is_own_review,
+        )
+
+
+    def test_list_reviews_marks_current_users_review(self):
+        own_review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="My review.",
+        )
+
+        other_user = User.objects.create_user(
+            email="other-reviewer@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Other",
+            USER_LNAME="Reviewer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        ReviewService.create_review(
+            user=other_user,
+            business_id=self.business.BUSN_ID,
+            text="Someone else's review.",
+        )
+
+        reviews = list(
+            ReviewService.list_reviews(
+                business_id=self.business.BUSN_ID,
+                user=self.user,
+            )
+        )
+
+        own_review_result = next(
+            review
+            for review in reviews
+            if review.REVW_ID == own_review.REVW_ID
+        )
+
+        other_review_result = next(
+            review
+            for review in reviews
+            if review.USER_ID_id == other_user.USER_ID
+        )
+
+        self.assertTrue(
+            own_review_result.is_own_review,
+        )
+
+        self.assertFalse(
+            other_review_result.is_own_review,
         )
