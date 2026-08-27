@@ -201,6 +201,7 @@ export default function ReviewComposerSheet({
       enableDynamicSizing={false}
       enablePanDownToClose
       keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
       onChange={(index) => {
         const isOpen = index >= 0;
 
@@ -219,7 +220,10 @@ export default function ReviewComposerSheet({
         />
       )}
     >
-      <BottomSheetScrollView contentContainerClassName="px-5 pb-10 pt-3">
+      <BottomSheetScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerClassName="px-5 pb-32 pt-3"
+      >
         {/* Review content */}
         <Text className="text-xl font-bold text-text-primary">
           {isEditing ? "Edit review" : "Write a review"}

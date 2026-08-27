@@ -19,8 +19,8 @@ import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomShe
 import {
   useDeleteReview,
   useReportReview,
-  useReviewLike,
 } from "../../hooks/useBusinessReviews";
+import { useReviewLike } from "../../hooks/useReviewLike";
 import type { BusinessReview } from "../../types/review.types";
 
 type Props = {

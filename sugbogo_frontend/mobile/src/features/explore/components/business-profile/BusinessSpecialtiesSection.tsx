@@ -11,6 +11,7 @@ import type { ExploreBusinessSpecialtyTag } from "../../types/exploreBusiness.ty
 type Props = {
   businessId: number;
   specialtyTags: ExploreBusinessSpecialtyTag[];
+  isOwnBusiness: boolean;
 };
 
 /**
@@ -23,6 +24,7 @@ type Props = {
 export default function BusinessSpecialtiesSection({
   businessId,
   specialtyTags,
+  isOwnBusiness,
 }: Props) {
   const { vouch, pendingTagId } = useBusinessVouch({
     businessId,
@@ -67,16 +69,15 @@ export default function BusinessSpecialtiesSection({
 
   return (
     <View className="px-4 py-6 bg-surface">
-      {/* Section heading */}
-
       <Text className="text-base font-bold tracking-wide text-text-primary">
         Specialties
       </Text>
       <Text className="mt-1 text-sm text-text-secondary">
-        Vouch for what this place gets right
+        {isOwnBusiness
+          ? "What Explorers vouch for at your business"
+          : "Vouch for what this place gets right"}
       </Text>
 
-      {/* Specialty vouch cards */}
       <View className="mt-3 flex-row flex-wrap gap-2">
         {specialtyTags.map((tag) => (
           <BusinessSpecialtyVouchCard
@@ -85,7 +86,7 @@ export default function BusinessSpecialtiesSection({
             color={tag.color}
             vouchCount={tag.vouch_count}
             isVouched={tag.is_vouched}
-
+            disabled={isOwnBusiness}
             onPress={() => handleVouch(tag)}
           />
         ))}

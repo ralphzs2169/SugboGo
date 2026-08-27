@@ -1,61 +1,45 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { theme } from "@/constants/theme";
-import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 
-import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
-
-import useBusinessReviews from "../../hooks/useBusinessReviews";
+import { useBusinessReviewPreview } from "../../hooks/useBusinessReviews";
 import type { BusinessReview } from "../../types/review.types";
 import BusinessReviewCard from "./BusinessReviewCard";
-import ReviewComposerSheet from "./ReviewComposerSheet";
 
 type Props = {
   businessId: number;
   businessName: string;
+  isOwnBusiness: boolean;
+  onEditReview: (review: BusinessReview) => void;
 };
 
 /**
  * Displays a compact preview of the business's latest reviews.
  *
- * The preview endpoint is limited to three reviews, while the dedicated
- * reviews screen handles the complete review list and editing workflow.
+ * Uses the preview endpoint, which provides up to three reviews and the
+ * total review count. The dedicated reviews screen handles the complete
+ * review collection and review management workflow.
  */
 export default function BusinessReviewsSection({
   businessId,
   businessName,
+  isOwnBusiness,
+  onEditReview,
 }: Props) {
-  const { reviews, isLoading, error, refetch, totalCount } =
-    useBusinessReviews(businessId);
+  const { reviews, isLoading, error, refetch, totalCount, hasOwnReview } =
+    useBusinessReviewPreview(businessId);
 
-  const composerRef = useRef<BottomSheetModal | null>(null);
-
-  const [editingReview, setEditingReview] = useState<BusinessReview | null>(
-    null,
-  );
-
-  const hasOwnReview = reviews.some((review) => review.is_own_review);
-
-  const editReview = (review: BusinessReview) => {
-    setEditingReview(review);
-    presentBottomSheet(composerRef);
-  };
-
-  const createReview = () => {
-    setEditingReview(null);
-    presentBottomSheet(composerRef);
-  };
+  const reviewCount = totalCount ?? 0;
 
   const openReviews = () => {
     router.push({
       pathname: "/(explorer)/business/[businessId]/reviews",
       params: {
         businessId: String(businessId),
+        isOwnBusiness: isOwnBusiness ? "1" : "0",
       },
     });
   };
@@ -65,12 +49,12 @@ export default function BusinessReviewsSection({
       {/* Reviews heading */}
       <View className="mb-4 flex-row items-center justify-between">
         <Text className="text-base font-bold text-text-primary">
-          Reviews {totalCount > 0 ? `(${totalCount})` : ""}
+          Reviews {reviewCount > 0 ? `(${reviewCount})` : ""}
         </Text>
 
         {!isLoading && !error && (
           <>
-            {totalCount > 0 ? (
+            {reviewCount > 0 ? (
               <Pressable
                 onPress={openReviews}
                 className="cursor-pointer flex-row items-center active:opacity-70"
@@ -113,31 +97,42 @@ export default function BusinessReviewsSection({
         </View>
       )}
 
+      {/* Existing review notice */}
+      {!isLoading && !error && hasOwnReview && (
+        <View className="mb-4 flex-row items-center bg-info rounded-md bg-surface-secondary px-3 py-2.5">
+          <MaterialCommunityIcons
+            name="information-outline"
+            size={16}
+            color={theme.extends.colors.text.info}
+          />
+
+          <Text className="ml-2 flex-1 text-xs text-text-info">
+            You've already reviewed this business. You can edit your review
+            anytime.
+          </Text>
+        </View>
+      )}
+
       {/* Empty state */}
-      {!isLoading && !error && totalCount === 0 && !hasOwnReview && (
+      {!isLoading && !error && reviewCount === 0 && !hasOwnReview && (
         <View className="items-center border-t border-border-primary px-4 py-8">
+          {isOwnBusiness && (
+            <MaterialCommunityIcons
+              name="comment-text-outline"
+              size={32}
+              color={theme.extends.colors.text.tertiary}
+            />
+          )}
+
           <Text className="mt-2 text-sm font-semibold text-text-primary">
             No reviews yet
           </Text>
 
           <Text className="mt-1 text-center text-xs text-text-secondary">
-            Be the first to share your experience.
+            {isOwnBusiness
+              ? "Reviews from Explorers will show up here."
+              : "Be the first to share your experience."}
           </Text>
-
-          <Button
-            title="Write a review"
-            onPress={createReview}
-            icon={
-              <MaterialCommunityIcons
-                name="comment-edit-outline"
-                size={18}
-                color="white"
-              />
-            }
-            rounded="full"
-            className="mt-5"
-            fontClassName="text-sm font-semibold"
-          />
         </View>
       )}
 
@@ -150,37 +145,22 @@ export default function BusinessReviewsSection({
               businessId={businessId}
               businessName={businessName}
               review={review}
-              onEdit={editReview}
+              onEdit={onEditReview}
             />
           ))}
         </View>
       )}
 
-      {/* Review creation action */}
-      {!isLoading && !error && totalCount > 0 && !hasOwnReview && (
-        <View className="items-center pt-5">
-          <Button
-            title="Write a review"
-            onPress={createReview}
-            icon={
-              <MaterialCommunityIcons
-                name="comment-edit-outline"
-                size={18}
-                color="white"
-              />
-            }
-            rounded="full"
-            fontClassName="text-sm font-semibold"
-            className="px-8"
-          />
-        </View>
-      )}
-      {/* Review composer */}
-      <ReviewComposerSheet
-        businessId={businessId}
-        sheetRef={composerRef}
-        review={editingReview}
-      />
+      {/* Review action */}
+      {!isLoading &&
+        !error &&
+        reviewCount === 0 &&
+        !hasOwnReview &&
+        !isOwnBusiness && (
+          <View className="items-center pt-5">
+            {/* The fixed footer provides the primary review action. */}
+          </View>
+        )}
     </View>
   );
 }

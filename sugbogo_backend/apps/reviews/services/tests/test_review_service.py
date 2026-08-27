@@ -15,7 +15,7 @@ from apps.business.models import (
     Location,
     SpecialtyTag,
 )
-from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.models import Review, ReviewLike, ReviewPhoto
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
 
@@ -39,6 +39,15 @@ class ReviewServiceTests(TestCase):
             password="StrongPassword123!",
             USER_FNAME="Second",
             USER_LNAME="Explorer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        cls.business_owner = User.objects.create_user(
+            email="business-owner@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Business",
+            USER_LNAME="Owner",
             USER_ROLE=User.UserRole.EXPLORER,
             USER_STATUS=User.UserStatus.ACTIVE,
         )
@@ -69,7 +78,7 @@ class ReviewServiceTests(TestCase):
             BUSN_NAME="Sugbo Bistro",
             BUSN_DESCRIPTION="A Cebu-based local restaurant.",
             BUSN_STATUS=Business.BusinessStatus.ACTIVE,
-            USER_ID=cls.user,
+            USER_ID=cls.business_owner,
             CTGRY_ID=cls.category,
             LOCT_ID=cls.location,
         )
@@ -347,30 +356,18 @@ class ReviewServiceTests(TestCase):
             TAG_ID=tag,
         )
 
-        reviews = ReviewService.get_review_preview(
+        preview = ReviewService.get_review_preview(
             business_id=self.business.BUSN_ID,
             user=self.second_user,
         )
 
-        self.assertEqual(
-            len(reviews),
-            1,
-        )
+        reviews = preview["reviews"]
 
-        self.assertEqual(
-            reviews[0].REVW_ID,
-            review.REVW_ID,
-        )
+        self.assertEqual(len(reviews), 1)
+        self.assertEqual(reviews[0].REVW_ID, review.REVW_ID)
+        self.assertEqual(len(reviews[0].vouched_specialties), 1)
+        self.assertEqual(reviews[0].vouched_specialties[0].TAG_ID_id, tag.TAG_ID)
 
-        self.assertEqual(
-            len(reviews[0].vouched_specialties),
-            1,
-        )
-
-        self.assertEqual(
-            reviews[0].vouched_specialties[0].TAG_ID_id,
-            tag.TAG_ID,
-        )
 
     def test_get_review_preview_limits_results_to_three_reviews(self):
         review_users = [
@@ -397,15 +394,159 @@ class ReviewServiceTests(TestCase):
                 text=f"Review {index + 1}.",
             )
 
-        reviews = ReviewService.get_review_preview(
+        preview = ReviewService.get_review_preview(
             business_id=self.business.BUSN_ID,
             user=self.user,
         )
 
-        self.assertEqual(
-            len(reviews),
-            3,
+        reviews = preview["reviews"]
+
+        self.assertEqual(len(reviews), 3)
+
+    def test_list_reviews_excludes_non_published_reviews(self):
+        published_review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Published review.",
         )
+
+        flagged_user = User.objects.create_user(
+            email="flagged-review@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Flagged",
+            USER_LNAME="Reviewer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        rejected_user = User.objects.create_user(
+            email="rejected-review@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Rejected",
+            USER_LNAME="Reviewer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        flagged_review = ReviewService.create_review(
+            user=flagged_user,
+            business_id=self.business.BUSN_ID,
+            text="Flagged review.",
+        )
+
+        rejected_review = ReviewService.create_review(
+            user=rejected_user,
+            business_id=self.business.BUSN_ID,
+            text="Rejected review.",
+        )
+
+        flagged_review.REVW_STATUS = Review.ReviewStatus.FLAGGED
+        flagged_review.save(
+            update_fields=["REVW_STATUS"],
+        )
+
+        rejected_review.REVW_STATUS = Review.ReviewStatus.REJECTED
+        rejected_review.save(
+            update_fields=["REVW_STATUS"],
+        )
+
+        reviews = ReviewService.list_reviews(
+            business_id=self.business.BUSN_ID,
+            user=self.user,
+        )
+
+        review_ids = {
+            review.REVW_ID
+            for review in reviews
+        }
+
+        self.assertIn(
+            published_review.REVW_ID,
+            review_ids,
+        )
+
+        self.assertNotIn(
+            flagged_review.REVW_ID,
+            review_ids,
+        )
+
+        self.assertNotIn(
+            rejected_review.REVW_ID,
+            review_ids,
+        )
+
+    def test_get_review_preview_excludes_non_published_reviews(self):
+        published_review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Published review.",
+        )
+
+        flagged_user = User.objects.create_user(
+            email="preview-flagged@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Flagged",
+            USER_LNAME="Reviewer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        rejected_user = User.objects.create_user(
+            email="preview-rejected@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Rejected",
+            USER_LNAME="Reviewer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        flagged_review = ReviewService.create_review(
+            user=flagged_user,
+            business_id=self.business.BUSN_ID,
+            text="Flagged review.",
+        )
+
+        rejected_review = ReviewService.create_review(
+            user=rejected_user,
+            business_id=self.business.BUSN_ID,
+            text="Rejected review.",
+        )
+
+        flagged_review.REVW_STATUS = Review.ReviewStatus.FLAGGED
+        flagged_review.save(
+            update_fields=["REVW_STATUS"],
+        )
+
+        rejected_review.REVW_STATUS = Review.ReviewStatus.REJECTED
+        rejected_review.save(
+            update_fields=["REVW_STATUS"],
+        )
+
+        preview = ReviewService.get_review_preview(
+            business_id=self.business.BUSN_ID,
+            user=self.user,
+        )
+
+        review_ids = {
+            review.REVW_ID
+            for review in preview["reviews"]
+        }
+
+        self.assertIn(
+            published_review.REVW_ID,
+            review_ids,
+        )
+
+        self.assertNotIn(
+            flagged_review.REVW_ID,
+            review_ids,
+        )
+
+        self.assertNotIn(
+            rejected_review.REVW_ID,
+            review_ids,
+        )
+
 
     def test_list_reviews_includes_author_vouched_specialties(self):
         review = ReviewService.create_review(
@@ -465,6 +606,29 @@ class ReviewServiceTests(TestCase):
                 first_tag.TAG_ID,
                 second_tag.TAG_ID,
             },
+        )
+
+    def test_merchant_cannot_review_own_business(self):
+        self.business.USER_ID = self.user
+        self.business.save(
+            update_fields=["USER_ID"],
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "You cannot review your own business.",
+        ):
+            ReviewService.create_review(
+                user=self.user,
+                business_id=self.business.BUSN_ID,
+                text="I am reviewing my own business.",
+            )
+
+        self.assertFalse(
+            Review.objects.filter(
+                USER_ID=self.user,
+                BUSN_ID=self.business,
+            ).exists(),
         )
 
     def test_list_reviews_excludes_vouches_from_other_businesses(self):
@@ -931,16 +1095,10 @@ class ReviewServiceTests(TestCase):
             ).exists(),
         )
 
-    def test_get_review_preview_prioritizes_current_users_review(self):
-        ReviewService.create_review(
-            user=self.user,
-            business_id=self.business.BUSN_ID,
-            text="My review.",
-        )
+    def test_get_review_preview_returns_three_most_recent_reviews(self):
+        reviews = []
 
-        other_users = []
-
-        for index in range(3):
+        for index in range(4):
             user = User.objects.create_user(
                 email=f"preview-other-{index}@example.com",
                 password="StrongPassword123!",
@@ -950,39 +1108,72 @@ class ReviewServiceTests(TestCase):
                 USER_STATUS=User.UserStatus.ACTIVE,
             )
 
-            other_users.append(user)
-
-            ReviewService.create_review(
-                user=user,
-                business_id=self.business.BUSN_ID,
-                text=f"Other review {index}.",
+            reviews.append(
+                ReviewService.create_review(
+                    user=user,
+                    business_id=self.business.BUSN_ID,
+                    text=f"Review {index}.",
+                )
             )
 
-        reviews = ReviewService.get_review_preview(
+        preview = ReviewService.get_review_preview(
             business_id=self.business.BUSN_ID,
             user=self.user,
         )
 
+        preview_reviews = preview["reviews"]
+
+        self.assertEqual(len(preview_reviews), 3)
+
+        # The preview should contain the three most recent reviews.
         self.assertEqual(
-            len(reviews),
-            3,
+            [review.REVW_ID for review in preview_reviews],
+            [review.REVW_ID for review in reviews[-3:][::-1]],
         )
 
-        self.assertEqual(
-            reviews[0].USER_ID_id,
-            self.user.USER_ID,
-        )
-
+        # Ownership is metadata, not a sorting priority.
         self.assertTrue(
-            reviews[0].is_own_review,
+            all(not review.is_own_review for review in preview_reviews)
         )
 
-        self.assertFalse(
-            reviews[1].is_own_review,
+
+    def test_get_review_preview_does_not_prioritize_current_users_review(self):
+        ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="My older review.",
         )
 
-        self.assertFalse(
-            reviews[2].is_own_review,
+        recent_reviews = []
+
+        for index in range(3):
+            user = User.objects.create_user(
+                email=f"preview-recent-{index}@example.com",
+                password="StrongPassword123!",
+                USER_FNAME=f"Recent{index}",
+                USER_LNAME="User",
+                USER_ROLE=User.UserRole.EXPLORER,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+
+            recent_reviews.append(
+                ReviewService.create_review(
+                    user=user,
+                    business_id=self.business.BUSN_ID,
+                    text=f"Recent review {index}.",
+                )
+            )
+
+        preview = ReviewService.get_review_preview(
+            business_id=self.business.BUSN_ID,
+            user=self.user,
+        )
+
+        reviews = preview["reviews"]
+
+        self.assertEqual(len(reviews), 3)
+        self.assertTrue(
+            all(not review.is_own_review for review in reviews)
         )
 
 
@@ -1033,4 +1224,138 @@ class ReviewServiceTests(TestCase):
 
         self.assertFalse(
             other_review_result.is_own_review,
+        )
+
+
+    def test_get_review_detail_returns_full_response_fields(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        tag = SpecialtyTag.objects.create(
+            TAG_NAME="Local Favorite",
+        )
+
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.user,
+            TAG_ID=tag,
+        )
+
+        result = ReviewService.get_review_detail(
+            review_id=review.REVW_ID,
+            user=self.user,
+        )
+
+        self.assertEqual(
+            result.REVW_ID,
+            review.REVW_ID,
+        )
+
+        # These are the exact three attributes that were missing and
+        # caused the original AttributeError when this method didn't exist.
+        self.assertTrue(
+            result.is_own_review,
+        )
+
+        self.assertFalse(
+            result.is_liked,
+        )
+
+        self.assertEqual(
+            len(result.vouched_specialties),
+            1,
+        )
+
+        self.assertEqual(
+            result.vouched_specialties[0].TAG_ID_id,
+            tag.TAG_ID,
+        )
+
+    def test_get_review_detail_reflects_is_liked_for_viewer(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+
+        ReviewLike.objects.create(
+            REVW_ID=review,
+            USER_ID=self.second_user,
+        )
+
+        result = ReviewService.get_review_detail(
+            review_id=review.REVW_ID,
+            user=self.second_user,
+        )
+
+        self.assertTrue(
+            result.is_liked,
+        )
+
+        self.assertFalse(
+            result.is_own_review,
+        )
+
+    def test_get_review_detail_rejects_nonexistent_review(self):
+        with self.assertRaisesMessage(
+            NotFound,
+            "The review could not be found.",
+        ):
+            ReviewService.get_review_detail(
+                review_id=999999,
+                user=self.user,
+            )
+
+
+    def test_update_review_then_get_detail_matches_view_flow(self):
+        """Regression test: PATCH previously 500'd because update_review's
+        return value was missing is_own_review/vouched_specialties, which
+        ReviewResponseSerializer requires. This mirrors the exact call
+        sequence ReviewDetailView.patch performs."""
+
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.REVW_ID,
+            text="Updated review.",
+        )
+
+        result = ReviewService.get_review_detail(
+            review_id=review.REVW_ID,
+            user=self.user,
+        )
+
+        self.assertEqual(
+            result.REVW_TEXT,
+            "Updated review.",
+        )
+
+        # Serializing this should not raise AttributeError.
+        from apps.reviews.serializers.review_serializers import (
+            ReviewResponseSerializer,
+        )
+
+        data = ReviewResponseSerializer(result).data
+
+        self.assertEqual(
+            data["text"],
+            "Updated review.",
+        )
+
+        self.assertIn(
+            "is_own_review",
+            data,
+        )
+
+        self.assertIn(
+            "vouched_specialties",
+            data,
         )

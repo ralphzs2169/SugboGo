@@ -12,6 +12,7 @@ type Props = {
   isRefreshing: boolean;
   onRefresh: () => void;
   children: ReactNode;
+  isOwnBusiness: boolean;
 };
 
 // Calibrated against the hero's fixed h-80 (320px) height.
@@ -27,6 +28,7 @@ export default function BusinessProfileScrollView({
   isRefreshing,
   onRefresh,
   children,
+  isOwnBusiness,
 }: Props) {
   const { bottom } = useSafeAreaInsets();
 
@@ -94,11 +96,12 @@ export default function BusinessProfileScrollView({
         navOpacity={navOpacity}
         identityOpacity={identityOpacity}
         translateY={stickyHeaderTranslateY}
+        isOwnBusiness={isOwnBusiness}
       />
 
       <Animated.ScrollView
         contentContainerStyle={{
-          paddingBottom: bottom,
+          paddingBottom: 100,
         }}
         onScroll={handleScroll}
         scrollEventThrottle={16}

@@ -1,16 +1,18 @@
 from rest_framework import serializers
 
 from apps.business.models.business_vouch_models import BusinessVouch
+from apps.reviews.constants import (
+    MAX_REVIEW_PHOTO_SIZE,
+    MAX_REVIEW_PHOTOS,
+)
 from apps.reviews.models import (
-    ReplyPhoto,
     Review,
     ReviewPhoto,
-    ReviewReply,
     ReviewReport,
 )
-
-MAX_REVIEW_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
-MAX_REVIEW_PHOTOS = 3
+from apps.reviews.serializers.review_reply_serializers import (
+    ReviewReplyResponseSerializer,
+)
 
 
 class ReviewCreateSerializer(serializers.Serializer):
@@ -75,26 +77,6 @@ class ReviewPhotoResponseSerializer(serializers.ModelSerializer):
         model = ReviewPhoto
         fields = ("id", "photo_url")
 
-
-class ReplyPhotoResponseSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(source="RPHO_ID", read_only=True)
-    photo_url = serializers.URLField(source="RPHO_PHOTO_URL", read_only=True)
-
-    class Meta:
-        model = ReplyPhoto
-        fields = ("id", "photo_url")
-
-        
-class ReviewReplyResponseSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(source="RPLY_ID", read_only=True)
-    text = serializers.CharField(source="RPLY_TEXT", read_only=True)
-    created_at = serializers.DateTimeField(source="RPLY_CREATED_AT", read_only=True)
-    updated_at = serializers.DateTimeField(source="RPLY_UPDATED_AT", read_only=True)
-    photos = ReplyPhotoResponseSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = ReviewReply
-        fields = ("id", "text", "created_at", "updated_at", "photos")
 
 
 class ReviewAuthorResponseSerializer(serializers.Serializer):

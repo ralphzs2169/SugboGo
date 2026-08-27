@@ -21,6 +21,7 @@ type Props = {
   email: string | null;
   website: string | null;
   onGetDirections: () => void;
+  isOwnBusiness: boolean;
 };
 
 /**
@@ -36,6 +37,7 @@ export default function BusinessVisitInfoContent({
   email,
   website,
   onGetDirections,
+  isOwnBusiness,
 }: Props) {
   const summary = getBusinessHoursSummary(operatingHours);
 
@@ -99,21 +101,6 @@ export default function BusinessVisitInfoContent({
           )}
         </View>
       </View>
-
-      {/* Directions */}
-      <Button
-        title="Get Directions"
-        onPress={onGetDirections}
-        icon={
-          <MaterialCommunityIcons
-            name="navigation-outline"
-            size={20}
-            color="white"
-          />
-        }
-        className="mt-4 rounded-md py-3"
-        fontClassName="text-sm font-semibold"
-      />
 
       {/* Hours */}
       <View className="mt-4 border-t border-border-primary/60 pt-4">

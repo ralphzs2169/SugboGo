@@ -16,6 +16,7 @@ type Props = {
   clusterIconName: keyof typeof MaterialCommunityIcons.glyphMap;
   clusterName: string;
   categoryName: string;
+  isOwnBusiness: boolean;
   navOpacity: Animated.Value;
   identityOpacity: Animated.Value;
   translateY: Animated.Value;
@@ -42,6 +43,7 @@ export default function BusinessProfileStickyHeader({
   navOpacity,
   identityOpacity,
   translateY,
+  isOwnBusiness,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -125,12 +127,24 @@ export default function BusinessProfileStickyHeader({
           )}
 
           <View className="ml-2 flex-1">
-            <Text
-              className="text-base font-bold text-text-primary"
-              numberOfLines={1}
-            >
-              {businessName}
-            </Text>
+            <View className="flex-row items-center">
+              <Text
+                className="flex-shrink text-base font-bold text-text-primary"
+                numberOfLines={1}
+              >
+                {businessName}
+              </Text>
+
+              {isOwnBusiness && (
+                <View className="ml-1.5 flex-row items-center rounded-full bg-brand px-1.5 py-0.5">
+                  <MaterialCommunityIcons
+                    name="store-check-outline"
+                    size={14}
+                    color="#FFFFFF"
+                  />
+                </View>
+              )}
+            </View>
 
             <View className="mt-0.5 flex-row items-center">
               <MaterialCommunityIcons

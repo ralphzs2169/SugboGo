@@ -8,6 +8,7 @@ from rest_framework.exceptions import (
 )
 
 from apps.business.models import Business, BusinessVouch
+from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
     Review,
     ReviewLike,
@@ -36,6 +37,12 @@ class ReviewService:
         except Business.DoesNotExist:
             raise NotFound(
                 "The business could not be found.",
+            )
+
+        # Prevent merchants from reviewing their own business.
+        if business.USER_ID_id == user.USER_ID:
+            raise ValidationError(
+                "You cannot review your own business.",
             )
 
         try:
@@ -109,6 +116,63 @@ class ReviewService:
             )
 
     @staticmethod
+    def _annotated_review_queryset(user: User):
+        """Base queryset with is_liked/is_own_review annotations, unfiltered by business."""
+
+        likes = ReviewLike.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            USER_ID=user,
+        )
+
+        own_reviews = Review.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            USER_ID=user,
+        )
+
+        return (
+            Review.objects
+            .select_related("USER_ID")
+            .annotate(
+                is_liked=Exists(likes),
+                is_own_review=Exists(own_reviews),
+            )
+            .prefetch_related(
+                "photos",
+                "reply__photos",
+            )
+        )
+
+    @staticmethod
+    def _get_review_queryset(business_id: int, user: User):
+        """Annotated queryset scoped to a single business, ordered for listing."""
+
+        return (
+            ReviewService._annotated_review_queryset(user)
+            .filter(
+                BUSN_ID=business_id,
+                REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+            )
+            .order_by("-REVW_CREATED_AT")
+        )
+
+    @staticmethod
+    def get_review_detail(review_id: int, user: User) -> Review:
+        """Fetch a single review through the same annotation/attachment path
+        used for listing, so the serializer's is_own_review and
+        vouched_specialties fields are always populated."""
+
+        try:
+            review = ReviewService._annotated_review_queryset(user).get(
+                REVW_ID=review_id,
+            )
+        except Review.DoesNotExist:
+            raise NotFound(
+                "The review could not be found.",
+            )
+
+        return ReviewService._attach_vouched_specialties([review])[0]
+
+    @staticmethod
     def _attach_vouched_specialties(
         reviews,
     ):
@@ -156,42 +220,6 @@ class ReviewService:
             )
 
         return reviews
-
-    @staticmethod
-    def _get_review_queryset(
-        business_id: int,
-        user: User,
-    ):
-        likes = ReviewLike.objects.filter(
-            REVW_ID=OuterRef("REVW_ID"),
-            USER_ID=user,
-        )
-
-        own_reviews = Review.objects.filter(
-            REVW_ID=OuterRef("REVW_ID"),
-            USER_ID=user,
-        )
-
-        return (
-            Review.objects
-            .filter(
-                BUSN_ID=business_id,
-            )
-            .select_related(
-                "USER_ID",
-            )
-            .annotate(
-                is_liked=Exists(likes),
-                is_own_review=Exists(own_reviews),
-            )
-            .prefetch_related(
-                "photos",
-                "reply__photos",
-            )
-            .order_by(
-                "-REVW_CREATED_AT",
-            )
-        )
 
     @staticmethod
     def get_review_preview(
@@ -293,9 +321,9 @@ class ReviewService:
 
         new_photos = photos or []
 
-        if len(keep_ids) + len(new_photos) > 3:
+        if len(keep_ids) + len(new_photos) > MAX_REVIEW_PHOTOS:
             raise ValidationError(
-                "You can only upload a maximum of 3 photos.",
+                f"You can only upload a maximum of {MAX_REVIEW_PHOTOS} photos.",
             )
 
         uploaded_public_ids = []

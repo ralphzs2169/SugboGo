@@ -3,36 +3,38 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigation, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
-import LoadingScreen from "@/shared/components/LoadingScreen";
-import { useAllBusinessReviews } from "../hooks/useBusinessReviews";
+import { useBusinessReviews } from "../hooks/useBusinessReviews";
 import BusinessReviewCard from "../components/business-profile/BusinessReviewCard";
 import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import type { BusinessReview } from "../types/review.types";
 import { theme } from "@/constants/theme";
 import BusinessReviewsSkeleton from "../components/business-profile/state/BusinessReviewsSkeleton";
+import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
 
 type Props = {
   businessId: number;
   businessName?: string;
+  isOwnBusiness: boolean;
 };
 
 /**
  * Presents the complete collection of reviews for a business.
  *
- * Provides review management through a bottom sheet and a fixed action footer
- * that remains above the device's system navigation area.
+ * Separates the current user's review from community reviews so their own
+ * review is immediately accessible while keeping the remaining reviews focused
+ * on community experiences. Review management is handled through a bottom
+ * sheet and the fixed footer provides the primary review action.
  */
 export default function ExploreBusinessReviewsScreen({
   businessId,
   businessName = "Business",
+  isOwnBusiness = false,
 }: Props) {
   const { reviews, isLoading, isRefetching, error, refetch, totalCount } =
-    useAllBusinessReviews(businessId);
+    useBusinessReviews(businessId);
 
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -54,7 +56,9 @@ export default function ExploreBusinessReviewsScreen({
     presentBottomSheet(reviewSheetRef);
   };
 
-  const hasOwnReview = reviews.some((review) => review.is_own_review);
+  const myReview = reviews.find((review) => review.is_own_review);
+  const communityReviews = reviews.filter((review) => !review.is_own_review);
+  const hasOwnReview = Boolean(myReview);
 
   if (isLoading) {
     return <BusinessReviewsSkeleton bottomInset={insets.bottom} />;
@@ -90,68 +94,63 @@ export default function ExploreBusinessReviewsScreen({
           />
         }
       >
-        {reviews.length === 0 ? (
+        {/* My review */}
+        {myReview && (
+          <View>
+            <Text className="mb-3 text-base font-bold text-text-primary">
+              My Review
+            </Text>
+
+            <BusinessReviewCard
+              businessId={businessId}
+              businessName={businessName}
+              review={myReview}
+              onEdit={editReview}
+            />
+          </View>
+        )}
+
+        {/* Community reviews */}
+        {communityReviews.length > 0 && (
+          <View className={myReview ? "mt-3" : ""}>
+            <Text className="mb-3 text-base font-bold text-text-primary">
+              Community Reviews
+            </Text>
+
+            <View className="gap-3">
+              {communityReviews.map((review) => (
+                <BusinessReviewCard
+                  key={review.id}
+                  businessId={businessId}
+                  businessName={businessName}
+                  review={review}
+                  onEdit={editReview}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Empty state */}
+        {!myReview && communityReviews.length === 0 && (
           <View className="mt-10 rounded-card bg-surface-secondary p-5">
             <Text className="text-center text-text-secondary">
               No reviews yet. Be the first to share your experience.
             </Text>
           </View>
-        ) : (
-          reviews.map((review) => (
-            <BusinessReviewCard
-              key={review.id}
-              businessId={businessId}
-              businessName={businessName}
-              review={review}
-              onEdit={editReview}
-            />
-          ))
         )}
       </ScrollView>
 
       {/* Fixed action footer */}
-      <View
-        className="absolute bottom-0 left-0 right-0 border-t border-border-primary bg-surface px-4 pt-3"
-        style={{ paddingBottom: Math.max(insets.bottom, 12) }}
-      >
-        <View className="flex-row gap-3">
-          <Button
-            title="Get directions"
-            onPress={() => {}}
-            variant="soft"
-            icon={
-              <MaterialCommunityIcons
-                name="navigation-outline"
-                size={18}
-                color={theme.extends.colors.brand}
-              />
-            }
-            rounded="full"
-            className="flex-1"
-            fontClassName="text-sm font-semibold"
-          />
-
-          {!hasOwnReview && (
-            <Button
-              title="Write a review"
-              onPress={() => {
-                setEditingReview(null);
-                presentBottomSheet(reviewSheetRef);
-              }}
-              icon={
-                <MaterialCommunityIcons
-                  name="comment-edit-outline"
-                  size={18}
-                  color="white"
-                />
-              }
-              rounded="full"
-              className="flex-1"
-              fontClassName="text-sm font-semibold"
-            />
-          )}
-        </View>
-      </View>
+      <BusinessProfileFooter
+        isOwnBusiness={isOwnBusiness}
+        hasOwnReview={hasOwnReview}
+        onGetDirections={() => {}}
+        onWriteReview={() => {
+          setEditingReview(null);
+          presentBottomSheet(reviewSheetRef);
+        }}
+      />
 
       {/* Review composer */}
       <ReviewComposerSheet

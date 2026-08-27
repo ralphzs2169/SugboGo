@@ -83,11 +83,11 @@ export function deleteReviewPhoto(photoId: number) {
   return request(apiClient.delete(`/reviews/photos/${photoId}/`));
 }
 
-export function likeReview(reviewId: number) {
+export function likeReview(reviewId: number): Promise<ApiResponse<null>> {
   return request(apiClient.post(`/reviews/${reviewId}/like/`));
 }
 
-export function unlikeReview(reviewId: number) {
+export function unlikeReview(reviewId: number): Promise<ApiResponse<null>> {
   return request(apiClient.delete(`/reviews/${reviewId}/like/`));
 }
 

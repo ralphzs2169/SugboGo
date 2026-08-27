@@ -1,20 +1,11 @@
-// shared/components/SafePressable.tsx
-import { Pressable, type PressableProps } from "react-native";
-import { useIsFocused } from "expo-router";
+import { useNavigation } from "expo-router";
+import { Pressable, PressableProps } from "react-native";
 
-/**
- * Drop-in Pressable replacement that ignores taps while the screen isn't
- * focused — i.e. while a previous press from this screen is still
- * transitioning away. Unlike a time-based throttle, this doesn't guess
- * a delay: it reflects whether navigation away from here has actually
- * started, so a genuine re-tap after a slow transition is still allowed
- * once the screen becomes focused again on return.
- */
 export default function SafePressable({ onPress, ...props }: PressableProps) {
-  const isFocused = useIsFocused();
+  const navigation = useNavigation();
 
   const handlePress: PressableProps["onPress"] = (event) => {
-    if (!isFocused) {
+    if (!navigation.isFocused()) {
       return;
     }
     onPress?.(event);

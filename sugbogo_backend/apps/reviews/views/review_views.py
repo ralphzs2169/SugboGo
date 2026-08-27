@@ -136,28 +136,22 @@ class ReviewDetailView(APIView):
                     "keep_photo_ids",
                 )
 
-        serializer = ReviewUpdateSerializer(
-            data=data,
-        )
-        serializer.is_valid(
-            raise_exception=True,
-        )
+        serializer = ReviewUpdateSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
 
-        review = ReviewService.update_review(
+        ReviewService.update_review(
             user=request.user,
             review_id=review_id,
             **serializer.validated_data,
         )
 
-        review.is_liked = ReviewLikeService.has_liked(
+        review = ReviewService.get_review_detail(
+            review_id=review_id,
             user=request.user,
-            review_id=review.REVW_ID,
         )
 
         return success_response(
-            data=ReviewResponseSerializer(
-                review,
-            ).data,
+            data=ReviewResponseSerializer(review).data,
             message="Review updated successfully.",
         )
 

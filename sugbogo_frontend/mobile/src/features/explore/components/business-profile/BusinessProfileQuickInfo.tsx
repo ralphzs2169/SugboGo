@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 type Props = {
-  reviewCount: number;
+  reviewCount: number | null;
   statusLabel: string;
   statusDetail: string;
   distance: string | null;
@@ -34,7 +34,9 @@ export default function BusinessProfileQuickInfo({
         />
 
         <Text className="mt-0.5 text-sm text-text-secondary">
-          {reviewCount} {reviewCount === 1 ? "review" : "reviews"}
+          {reviewCount === null
+            ? "—"
+            : `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}`}
         </Text>
       </View>
 

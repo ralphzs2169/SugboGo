@@ -390,6 +390,32 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
         read_only=True,
     )
 
+    is_own_business = serializers.SerializerMethodField()
+
+    has_own_review = serializers.SerializerMethodField()
+
+    def get_is_own_business(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        return bool(
+            user
+            and user.is_authenticated
+            and obj.USER_ID_id == user.USER_ID
+        )
+
+    def get_has_own_review(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if not user or not user.is_authenticated:
+            return False
+
+        return Review.objects.filter(
+            BUSN_ID=obj.BUSN_ID,
+            USER_ID=user,
+        ).exists()
+
     class Meta(ExploreBusinessSerializer.Meta):
         fields = ExploreBusinessSerializer.Meta.fields + (
             "description",
@@ -399,4 +425,6 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
             "photos",
             "operating_hours",
             "reviews",
+            "is_own_business",
+            "has_own_review",
         )

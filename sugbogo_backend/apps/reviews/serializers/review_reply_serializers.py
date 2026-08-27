@@ -1,7 +1,10 @@
 from rest_framework import serializers
 
+from apps.reviews.constants import (
+    MAX_REVIEW_PHOTO_SIZE,
+    MAX_REVIEW_PHOTOS,
+)
 from apps.reviews.models import ReplyPhoto, ReviewReply
-from apps.reviews.serializers.review_serializers import MAX_REVIEW_PHOTO_SIZE, MAX_REVIEW_PHOTOS
 
 
 class ReviewReplyCreateSerializer(serializers.Serializer):

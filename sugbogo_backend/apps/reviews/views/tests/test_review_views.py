@@ -227,11 +227,11 @@ class ReviewViewTests(APITestCase):
 
         self.assertEqual(
             response.data["message"],
-            "Reviews retrieved successfully.",
+            "Review preview retrieved successfully.",
         )
 
         self.assertEqual(
-            len(response.data["data"]),
+            len(response.data["data"]["reviews"]),
             3,
         )
 
@@ -609,4 +609,193 @@ class ReviewViewTests(APITestCase):
 
         self.assertFalse(
             Review.objects.exists(),
+        )
+
+
+class ReviewDetailViewTests(APITestCase):
+    """Tests for the review update/delete endpoint."""
+
+    def setUp(self):
+        self.merchant = User.objects.create_user(
+            email="merchant-detail@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Merchant",
+            USER_LNAME="Owner",
+            USER_ROLE=User.UserRole.MERCHANT,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        self.explorer = User.objects.create_user(
+            email="explorer-detail@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Explorer",
+            USER_LNAME="User",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        self.other_explorer = User.objects.create_user(
+            email="other-explorer-detail@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Other",
+            USER_LNAME="Explorer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        self.client.force_authenticate(self.explorer)
+
+        self.cluster = Cluster.objects.create(
+            CLUS_NAME="Food & Dining",
+            CLUS_DESCRIPTION="Food businesses.",
+        )
+
+        self.category = Category.objects.create(
+            CTGRY_NAME="Restaurants",
+            CTGRY_DESCRIPTION="Restaurants and dining establishments.",
+            CLUS_ID=self.cluster,
+        )
+
+        self.location = Location.objects.create(
+            LOCT_POINT=Point(123.8854, 10.3157, srid=4326),
+            LOCT_ADDRESS="Gorordo Avenue",
+            LOCT_CITY="Cebu City",
+            LOCT_PROVINCE="Cebu",
+        )
+
+        self.business = Business.objects.create(
+            BUSN_NAME="Sugbo Bistro",
+            BUSN_DESCRIPTION="A Cebu-based local restaurant.",
+            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            USER_ID=self.merchant,
+            CTGRY_ID=self.category,
+            LOCT_ID=self.location,
+        )
+
+        self.review = ReviewService.create_review(
+            user=self.explorer,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        self.detail_url = f"/api/reviews/{self.review.REVW_ID}/"
+
+    def test_update_review_returns_200_not_500(self):
+        """Regression test for the bug where PATCH threw an unhandled
+        AttributeError because the object returned by update_review was
+        missing is_own_review and vouched_specialties, which
+        ReviewResponseSerializer requires."""
+
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "Updated review text."},
+            format="multipart",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+
+    def test_update_review_response_contains_all_required_fields(self):
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "Updated review text."},
+            format="multipart",
+        )
+
+        data = response.data["data"]
+
+        self.assertEqual(data["text"], "Updated review text.")
+        self.assertIn("is_own_review", data)
+        self.assertIn("is_liked", data)
+        self.assertIn("vouched_specialties", data)
+        self.assertTrue(data["is_own_review"])
+
+    def test_update_review_persists_change(self):
+        self.client.patch(
+            self.detail_url,
+            {"text": "Persisted update."},
+            format="multipart",
+        )
+
+        self.review.refresh_from_db()
+
+        self.assertEqual(
+            self.review.REVW_TEXT,
+            "Persisted update.",
+        )
+
+    def test_update_review_rejects_non_owner(self):
+        self.client.force_authenticate(self.other_explorer)
+
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "Should not be allowed."},
+            format="multipart",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.review.refresh_from_db()
+
+        self.assertEqual(
+            self.review.REVW_TEXT,
+            "Original review.",
+        )
+
+    def test_update_review_rejects_nonexistent_review(self):
+        response = self.client.patch(
+            "/api/reviews/999999/",
+            {"text": "Ghost review."},
+            format="multipart",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_delete_review_removes_review(self):
+        response = self.client.delete(self.detail_url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertFalse(
+            Review.objects.filter(REVW_ID=self.review.REVW_ID).exists(),
+        )
+
+    def test_delete_review_rejects_non_owner(self):
+        self.client.force_authenticate(self.other_explorer)
+
+        response = self.client.delete(self.detail_url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.assertTrue(
+            Review.objects.filter(REVW_ID=self.review.REVW_ID).exists(),
+        )
+
+    def test_update_review_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "Unauthorized."},
+            format="multipart",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
         )

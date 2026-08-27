@@ -1,32 +1,39 @@
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { View } from "react-native";
+
+import type { BusinessReview } from "../types/review.types";
+import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
+
 import { theme } from "@/constants/theme";
 
-import BusinessProfileSkeleton from "../components/business-profile/state/BusinessProfileSkeleton";
+import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 
+import BusinessProfileSkeleton from "../components/business-profile/state/BusinessProfileSkeleton";
+import BusinessProfileErrorState from "../components/business-profile/state/BusinessProfileErrorState";
 import ExploreBusinessHero from "../components/business-profile/ExploreBusinessHero";
 import BusinessProfileQuickInfo from "../components/business-profile/BusinessProfileQuickInfo";
 import BusinessProfileScrollView from "../components/business-profile/BusinessProfileScrollView";
 import BusinessSpecialtiesSection from "../components/business-profile/BusinessSpecialtiesSection";
 import BusinessAboutContent from "../components/business-profile/BusinessAboutContent";
-
 import BusinessPhotosSection from "../components/business-profile/BusinessPhotosSection";
-
 import BusinessReviewsSection from "../components/business-profile/BusinessReviewsSection";
+import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
+import BusinessVisitInfoContent from "../components/business-profile/BusinessVisitInfoContent";
+import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
+
+import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
+import { useBusinessReviewPreview } from "../hooks/useBusinessReviews";
 
 import {
   getBusinessHoursSummary,
   getQuickInfoStatus,
 } from "../utils/businessHours.utils";
-import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
+
 import { formatDistance } from "@/shared/utils/distance.utils";
-import { useBusinessReviews } from "../hooks/useBusinessReviews";
-import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
-import BusinessVisitInfoContent from "../components/business-profile/BusinessVisitInfoContent";
-import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
-import BusinessProfileErrorState from "../components/business-profile/state/BusinessProfileErrorState";
 
 type Props = {
   businessId: number;
@@ -37,9 +44,8 @@ type Props = {
 /**
  * Displays the public Explorer-facing profile of a business.
  *
- * The page presents the business as a discovery destination and coordinates
- * its profile sections while keeping loading, error, and refresh behavior
- * at the page level.
+ * Coordinates the profile sections, business review preview, refresh behavior,
+ * photo gallery, review composer, and contextual footer actions.
  */
 export default function ExploreBusinessProfileScreen({
   businessId,
@@ -49,12 +55,28 @@ export default function ExploreBusinessProfileScreen({
   const { business, isLoading, error, refetch } =
     useExploreBusinessProfile(businessId);
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { totalCount: reviewCount } = useBusinessReviewPreview(businessId);
 
-  const { totalCount } = useBusinessReviews(businessId);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+
+  const composerRef = useRef<BottomSheetModal | null>(null);
+
+  const [editingReview, setEditingReview] = useState<BusinessReview | null>(
+    null,
+  );
+
+  const handleCreateReview = () => {
+    setEditingReview(null);
+    composerRef.current?.present();
+  };
+
+  const handleEditReview = (review: BusinessReview) => {
+    setEditingReview(review);
+    composerRef.current?.present();
+  };
 
   const handlePhotoPress = (index: number) => {
     setGalleryIndex(index);
@@ -102,13 +124,17 @@ export default function ExploreBusinessProfileScreen({
         business={business}
         isRefreshing={isRefreshing}
         onRefresh={handleRefresh}
+        isOwnBusiness={business.is_own_business}
       >
         {/* Business hero */}
-        <ExploreBusinessHero business={business} />
+        <ExploreBusinessHero
+          business={business}
+          isOwnBusiness={business.is_own_business}
+        />
 
         {/* Quick info */}
         <BusinessProfileQuickInfo
-          reviewCount={totalCount}
+          reviewCount={reviewCount}
           statusLabel={quickInfoStatus.statusLabel}
           statusDetail={quickInfoStatus.statusDetail}
           isOpenNow={quickInfoStatus.isOpen}
@@ -118,10 +144,12 @@ export default function ExploreBusinessProfileScreen({
               : null
           }
         />
+
         {/* Business specialties */}
         <BusinessSpecialtiesSection
           businessId={business.id}
           specialtyTags={business.specialty_tags}
+          isOwnBusiness={business.is_own_business}
         />
 
         {/* Business about */}
@@ -156,6 +184,7 @@ export default function ExploreBusinessProfileScreen({
             email={business.email}
             website={business.website}
             onGetDirections={handleGetDirections}
+            isOwnBusiness={business.is_own_business}
           />
         </BusinessProfileSection>
 
@@ -191,9 +220,26 @@ export default function ExploreBusinessProfileScreen({
           <BusinessReviewsSection
             businessId={business.id}
             businessName={business.business_name}
+            isOwnBusiness={business.is_own_business}
+            onEditReview={handleEditReview}
           />
         </BusinessProfileSection>
       </BusinessProfileScrollView>
+
+      {/* Footer */}
+      <BusinessProfileFooter
+        isOwnBusiness={business.is_own_business}
+        hasOwnReview={business.has_own_review}
+        onGetDirections={handleGetDirections}
+        onWriteReview={handleCreateReview}
+      />
+
+      {/* Review composer */}
+      <ReviewComposerSheet
+        businessId={business.id}
+        sheetRef={composerRef}
+        review={editingReview}
+      />
     </SafeAreaView>
   );
 }

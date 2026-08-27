@@ -12,6 +12,7 @@ import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 
 type Props = {
   business: ExploreBusiness;
+  isOwnBusiness: boolean;
 };
 
 /**
@@ -22,7 +23,10 @@ type Props = {
  * the text stays readable. The top-right Pocket action allows the explorer
  * to save or remove the business from their Pocket.
  */
-export default function ExploreBusinessHero({ business }: Props) {
+export default function ExploreBusinessHero({
+  business,
+  isOwnBusiness,
+}: Props) {
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
   return (
@@ -90,6 +94,19 @@ export default function ExploreBusinessHero({ business }: Props) {
 
       {/* Business identity */}
       <View className="absolute bottom-5 left-4 right-4">
+        {isOwnBusiness && (
+          <View className="mb-2 flex-row items-center self-start rounded-full bg-brand px-2.5 py-1">
+            <MaterialCommunityIcons
+              name="store-check-outline"
+              size={12}
+              color="#FFFFFF"
+            />
+            <Text className="ml-1 text-[10px] font-bold uppercase tracking-wide text-white">
+              Your Business
+            </Text>
+          </View>
+        )}
+
         <Text className="text-2xl font-bold text-white" numberOfLines={2}>
           {business.business_name}
         </Text>

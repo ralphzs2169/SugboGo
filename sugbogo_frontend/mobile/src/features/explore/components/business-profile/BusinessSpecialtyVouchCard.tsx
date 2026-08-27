@@ -11,6 +11,7 @@ type Props = {
   vouchCount: number;
   isVouched: boolean;
   onPress: () => void;
+  disabled?: boolean;
 };
 
 /**
@@ -19,6 +20,11 @@ type Props = {
  * The specialty name represents the merchant's identity, while the heart and
  * count communicate community endorsement. Vouching triggers a brief heart
  * pop and pulse animation.
+ *
+ * When disabled (the business owner viewing their own listing), the tile
+ * is visually identical to the interactive state — it simply doesn't
+ * respond to taps, since a merchant vouching for their own specialty
+ * isn't a real action, not a state worth calling out visually.
  */
 export default function BusinessSpecialtyVouchCard({
   name,
@@ -26,6 +32,7 @@ export default function BusinessSpecialtyVouchCard({
   vouchCount,
   isVouched,
   onPress,
+  disabled = false,
 }: Props) {
   const styles = getSpecialtyTagColor(color);
 
@@ -77,7 +84,8 @@ export default function BusinessSpecialtyVouchCard({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
+      accessibilityState={{ disabled }}
       className={`flex-1 rounded-xl px-3 py-2.5 cursor-pointer active:opacity-80 ${styles.background}`}
     >
       {/* Specialty identity */}

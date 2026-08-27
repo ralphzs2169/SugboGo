@@ -1,21 +1,36 @@
 import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 
 export default function BusinessLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Stack.Screen name="index" />
-      <Stack.Screen
-        name="reviews"
-        options={{
-          headerShown: true,
-          title: "Reviews",
-          animation: "slide_from_right",
+    <>
+      <StatusBar style="dark" />
+
+      <Stack
+        screenOptions={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
         }}
-      />
-    </Stack>
+      >
+        <Stack.Screen
+          name="index"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="reviews"
+          options={{
+            title: "Reviews",
+          }}
+        />
+      </Stack>
+    </>
   );
 }

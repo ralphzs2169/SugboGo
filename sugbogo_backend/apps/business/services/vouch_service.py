@@ -25,6 +25,11 @@ class VouchService:
                 "The business could not be found.",
             )
 
+        if business.USER_ID_id == user.USER_ID:
+            raise ValidationError(
+                "You cannot vouch for your own business.",
+            )
+    
         try:
             tag = SpecialtyTag.objects.get(
                 TAG_ID=tag_id,

@@ -74,4 +74,6 @@ export type ExploreBusinessDetail = ExploreBusiness & {
   website: string | null;
   photos: ExploreBusinessPhoto[];
   operating_hours: ExploreOperatingHours[];
+  is_own_business: boolean;
+  has_own_review: boolean;
 };

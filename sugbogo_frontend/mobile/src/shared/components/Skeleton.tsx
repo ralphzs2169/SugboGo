@@ -1,16 +1,14 @@
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import { usePulse } from "./SkeletonPulseProvider";
+import { View } from "react-native";
 
-type Props = { className?: string };
+type Props = {
+  className?: string;
+};
 
+/**
+ * Displays a static placeholder block used while content is loading.
+ * Intentionally unanimated — see note in SkeletonPulseProvider removal
+ * for why (perf cost during screen transitions outweighed the polish).
+ */
 export default function Skeleton({ className = "" }: Props) {
-  const pulse = usePulse();
-  const style = useAnimatedStyle(() => ({ opacity: pulse.value }));
-
-  return (
-    <Animated.View
-      style={style}
-      className={`rounded-md bg-border-primary ${className}`}
-    />
-  );
+  return <View className={`bg-border-primary ${className}`} />;
 }

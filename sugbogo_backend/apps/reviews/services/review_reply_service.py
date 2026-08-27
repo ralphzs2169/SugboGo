@@ -5,6 +5,7 @@ from rest_framework.exceptions import (
     ValidationError,
 )
 
+from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
     ReplyPhoto,
     Review,
@@ -159,9 +160,9 @@ class ReviewReplyService:
 
         new_photos = photos or []
 
-        if len(keep_ids) + len(new_photos) > 3:
+        if len(keep_ids) + len(new_photos) > MAX_REVIEW_PHOTOS:
             raise ValidationError(
-                "You can only upload a maximum of 3 photos.",
+                f"You can only upload a maximum of {MAX_REVIEW_PHOTOS} photos.",
             )
 
         uploaded_public_ids = []

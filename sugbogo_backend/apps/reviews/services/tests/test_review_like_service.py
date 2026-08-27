@@ -37,6 +37,15 @@ class ReviewLikeServiceTests(TestCase):
             USER_STATUS=User.UserStatus.ACTIVE,
         )
 
+        cls.business_owner = User.objects.create_user(
+            email="business-owner@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Business",
+            USER_LNAME="Owner",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
         cls.cluster = Cluster.objects.create(
             CLUS_NAME="Food and Dining",
             CLUS_DESCRIPTION="Food businesses",
@@ -63,7 +72,7 @@ class ReviewLikeServiceTests(TestCase):
             BUSN_NAME="Sugbo Bistro",
             BUSN_DESCRIPTION="A Cebu-based local restaurant.",
             BUSN_STATUS=Business.BusinessStatus.ACTIVE,
-            USER_ID=cls.user,
+            USER_ID=cls.business_owner,
             CTGRY_ID=cls.category,
             LOCT_ID=cls.location,
         )
@@ -102,6 +111,44 @@ class ReviewLikeServiceTests(TestCase):
             review.REVW_LIKE_COUNT,
             1,
         )
+
+    def test_merchant_cannot_like_review_on_own_business(self):
+        self.business.USER_ID = self.user
+        self.business.save(
+            update_fields=["USER_ID"],
+        )
+
+        review_user = User.objects.create_user(
+            email="reviewer@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Review",
+            USER_LNAME="User",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
+        review = ReviewService.create_review(
+            user=review_user,
+            business_id=self.business.BUSN_ID,
+            text="A review of the business.",
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "You cannot like reviews for your own business.",
+        ):
+            ReviewLikeService.create_like(
+                user=self.user,
+                review_id=review.REVW_ID,
+            )
+
+        self.assertFalse(
+            ReviewLike.objects.filter(
+                USER_ID=self.user,
+                REVW_ID=review,
+            ).exists(),
+        )
+
 
     def test_create_like_rejects_duplicate(self):
         review = ReviewService.create_review(
