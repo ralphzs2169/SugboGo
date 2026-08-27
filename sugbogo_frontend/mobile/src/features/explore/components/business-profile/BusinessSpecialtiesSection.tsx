@@ -1,16 +1,17 @@
 import { Text, View } from "react-native";
 import Toast from "react-native-toast-message";
 
-import { handleSystemError } from "@/shared/utils/apiErrors";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
+import BusinessSpecialtyVouchCard from "./BusinessSpecialtyVouchCard";
 import useBusinessVouch from "../../hooks/useBusinessVouch";
 import type { ExploreBusinessSpecialtyTag } from "../../types/exploreBusiness.types";
 
 type Props = {
   businessId: number;
   specialtyTags: ExploreBusinessSpecialtyTag[];
+  isOwnBusiness: boolean;
 };
 
 /**
@@ -23,6 +24,7 @@ type Props = {
 export default function BusinessSpecialtiesSection({
   businessId,
   specialtyTags,
+  isOwnBusiness,
 }: Props) {
   const { vouch, pendingTagId } = useBusinessVouch({
     businessId,
@@ -66,23 +68,25 @@ export default function BusinessSpecialtiesSection({
   };
 
   return (
-    <View className="px-4 pt-6">
-      {/* Section heading */}
-      <Text className="text-md font-bold text-text-primary">Specialties</Text>
+    <View className="px-4 py-6 bg-surface">
+      <Text className="text-base font-bold tracking-wide text-text-primary">
+        Specialties
+      </Text>
+      <Text className="mt-1 text-sm text-text-secondary">
+        {isOwnBusiness
+          ? "What Explorers vouch for at your business"
+          : "Vouch for what this place gets right"}
+      </Text>
 
-      {/* Specialty vouch chips */}
-      <View className="mt-3 flex-row flex-wrap">
+      <View className="mt-3 flex-row flex-wrap gap-2">
         {specialtyTags.map((tag) => (
-          <SpecialtyTagChip
+          <BusinessSpecialtyVouchCard
             key={tag.id}
-            tag={tag}
-            scaleOnPress
-            showVouchCount
-            count={tag.vouch_count}
-            isSelected={tag.is_vouched}
-            showCheckIcon
-            showDisabledStyle={false}
-            isDisabled={pendingTagId === tag.id}
+            name={tag.name}
+            color={tag.color}
+            vouchCount={tag.vouch_count}
+            isVouched={tag.is_vouched}
+            disabled={isOwnBusiness}
             onPress={() => handleVouch(tag)}
           />
         ))}

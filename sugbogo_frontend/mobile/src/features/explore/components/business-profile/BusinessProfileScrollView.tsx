@@ -1,5 +1,6 @@
 import { ReactNode, useRef } from "react";
 import { Animated, RefreshControl } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
@@ -11,27 +12,26 @@ type Props = {
   isRefreshing: boolean;
   onRefresh: () => void;
   children: ReactNode;
+  isOwnBusiness: boolean;
 };
 
-// Calibrated against the hero's fixed h-80 (320px) height: the nav row sits
-// near the top (top-4) and scrolls out almost immediately, while the
-// identity block sits near the bottom (bottom-5) and scrolls out much
-// later. If business_name ever wraps to 2 lines, IDENTITY_THRESHOLD may
-// fire a little early/late for that business — switch to onLayout-measured
-// offsets if that becomes noticeable.
+// Calibrated against the hero's fixed h-80 (320px) height.
 const NAV_THRESHOLD = 40;
 const IDENTITY_THRESHOLD = 260;
 
 /**
- * BusinessProfileScrollView handles the scrolling behavior and the
- * two-stage sticky header reveal for the business profile screen.
+ * Handles the business profile's scroll behavior and two-stage sticky header
+ * reveal while keeping the final content clear of the device safe area.
  */
 export default function BusinessProfileScrollView({
   business,
   isRefreshing,
   onRefresh,
   children,
+  isOwnBusiness,
 }: Props) {
+  const { bottom } = useSafeAreaInsets();
+
   const navOpacity = useRef(new Animated.Value(0)).current;
   const identityOpacity = useRef(new Animated.Value(0)).current;
   const stickyHeaderTranslateY = useRef(new Animated.Value(-20)).current;
@@ -96,10 +96,13 @@ export default function BusinessProfileScrollView({
         navOpacity={navOpacity}
         identityOpacity={identityOpacity}
         translateY={stickyHeaderTranslateY}
+        isOwnBusiness={isOwnBusiness}
       />
 
       <Animated.ScrollView
-        contentContainerClassName="pb-8"
+        contentContainerStyle={{
+          paddingBottom: 100,
+        }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}

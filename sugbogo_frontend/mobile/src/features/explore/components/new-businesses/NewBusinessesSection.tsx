@@ -9,7 +9,11 @@ import useNewBusinesses from "../../hooks/useNewBusinesses";
 import NewBusinessCard from "./newBusinessCard";
 
 type Props = {
-  onBusinessPress: (businessId: number) => void;
+  onBusinessPress: (
+    businessId: number,
+    distance: number | null,
+    distanceAccuracy: number | null,
+  ) => void;
 };
 
 /**
@@ -35,12 +39,6 @@ export default function NewBusinessesSection({ onBusinessPress }: Props) {
 
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
-      });
-
-      console.log("LOCATION", {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        accuracy: location.coords.accuracy,
       });
 
       setUserLocation(location);
@@ -132,7 +130,13 @@ export default function NewBusinessesSection({ onBusinessPress }: Props) {
               business={business}
               distance={distance}
               distanceAccuracy={userLocation?.coords.accuracy ?? null}
-              onPress={() => onBusinessPress(business.id)}
+              onPress={() =>
+                onBusinessPress(
+                  business.id,
+                  distance,
+                  userLocation?.coords.accuracy ?? null,
+                )
+              }
             />
           );
         })}

@@ -12,6 +12,7 @@ import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 
 type Props = {
   business: ExploreBusiness;
+  isOwnBusiness: boolean;
 };
 
 /**
@@ -22,11 +23,14 @@ type Props = {
  * the text stays readable. The top-right Pocket action allows the explorer
  * to save or remove the business from their Pocket.
  */
-export default function ExploreBusinessHero({ business }: Props) {
+export default function ExploreBusinessHero({
+  business,
+  isOwnBusiness,
+}: Props) {
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
   return (
-    <View className="relative h-80 w-full bg-surface-secondary">
+    <View className="relative h-72 w-full bg-surface-secondary">
       {/* Cover photo */}
       {business.cover_photo_url ? (
         <Image
@@ -76,8 +80,8 @@ export default function ExploreBusinessHero({ business }: Props) {
           android_ripple={{ color: "rgba(0,0,0,0.08)" }}
         >
           <MaterialCommunityIcons
-            name="arrow-left"
-            size={22}
+            name="chevron-left"
+            size={26}
             color={theme.extends.colors.text.primary}
           />
         </Pressable>
@@ -90,6 +94,19 @@ export default function ExploreBusinessHero({ business }: Props) {
 
       {/* Business identity */}
       <View className="absolute bottom-5 left-4 right-4">
+        {isOwnBusiness && (
+          <View className="mb-2 flex-row items-center self-start rounded-full bg-brand px-2.5 py-1">
+            <MaterialCommunityIcons
+              name="store-check-outline"
+              size={12}
+              color="#FFFFFF"
+            />
+            <Text className="ml-1 text-[10px] font-bold uppercase tracking-wide text-white">
+              Your Business
+            </Text>
+          </View>
+        )}
+
         <Text className="text-2xl font-bold text-white" numberOfLines={2}>
           {business.business_name}
         </Text>

@@ -16,7 +16,7 @@ export type SelectionOption = {
 
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
-  title: string;
+  title?: string;
   description?: string;
   options: SelectionOption[];
   selectedValue?: string;
@@ -26,8 +26,9 @@ type Props = {
 /**
  * Provides a reusable bottom-sheet selection interface.
  *
- * Supports optional icons and colors for individual options while keeping
- * the component flexible for different selection fields across the app.
+ * Supports optional titles, descriptions, icons, and colors for individual
+ * options while keeping the component flexible for different selection
+ * fields across the app.
  */
 export default function SelectionBottomSheet({
   sheetRef,
@@ -70,30 +71,34 @@ export default function SelectionBottomSheet({
     >
       <BottomSheetView className="px-6 pb-8">
         {/* Header */}
-        <View className="border-b border-gray-100 pb-4">
-          <View className="flex-row items-center justify-between">
-            <Text className="flex-1 pr-4 text-lg font-bold text-gray-900">
-              {title}
-            </Text>
+        {(title || description) && (
+          <View className="border-b border-gray-100 pb-4">
+            <View className="flex-row items-center justify-between">
+              {title && (
+                <Text className="flex-1 pr-4 text-lg font-bold text-gray-900">
+                  {title}
+                </Text>
+              )}
 
-            <Pressable
-              onPress={handleClose}
-              className="rounded-full p-1 active:bg-gray-100"
-            >
-              <MaterialCommunityIcons
-                name="close"
-                size={24}
-                color={theme.extends.colors.text.secondary}
-              />
-            </Pressable>
+              <Pressable
+                onPress={handleClose}
+                className="cursor-pointer rounded-full p-1 active:bg-gray-100"
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={24}
+                  color={theme.extends.colors.text.secondary}
+                />
+              </Pressable>
+            </View>
+
+            {description && (
+              <Text className="mt-1.5 pr-10 text-sm leading-5 text-text-secondary">
+                {description}
+              </Text>
+            )}
           </View>
-
-          {description && (
-            <Text className="mt-1.5 pr-10 text-sm leading-5 text-text-secondary">
-              {description}
-            </Text>
-          )}
-        </View>
+        )}
 
         {/* Options */}
         <View className="pt-1">
@@ -101,7 +106,7 @@ export default function SelectionBottomSheet({
             <Pressable
               key={option.value}
               onPress={() => handleSelect(option.value)}
-              className="flex-row items-center py-4"
+              className="cursor-pointer flex-row items-center py-4"
             >
               {option.icon && (
                 <MaterialCommunityIcons

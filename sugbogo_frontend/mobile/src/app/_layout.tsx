@@ -47,14 +47,25 @@ export default function RootLayout() {
           <ActionSheetProvider>
             <SafeAreaProvider>
               <BottomSheetModalProvider>
-                <Stack
-                  screenOptions={{ headerShown: false, animation: "none" }}
-                >
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(explorer)" />
-                  <Stack.Screen name="(setup)" />
-                  <Stack.Screen name="(merchant)" />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" options={{ animation: "none" }} />
+
+                  <Stack.Screen name="(auth)" options={{ animation: "none" }} />
+
+                  <Stack.Screen
+                    name="(explorer)"
+                    options={{ animation: "none" }}
+                  />
+
+                  <Stack.Screen
+                    name="(setup)"
+                    options={{ animation: "none" }}
+                  />
+
+                  <Stack.Screen
+                    name="(merchant)"
+                    options={{ animation: "none" }}
+                  />
                 </Stack>
                 <Toast config={toastConfig} />
               </BottomSheetModalProvider>

@@ -32,6 +32,7 @@ class BusinessDetailView(APIView):
 
         serializer = ExploreBusinessDetailSerializer(
             business,
+            context={"request": request},
         )
 
         return success_response(

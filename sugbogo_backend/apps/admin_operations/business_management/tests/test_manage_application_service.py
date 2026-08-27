@@ -1003,6 +1003,21 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
         )
 
         self.assertEqual(
+            business.BUSN_CONTACT_NUMBER,
+            application.identity.MIDN_CONTACT_NUMBER,
+        )
+
+        self.assertEqual(
+            business.BUSN_EMAIL,
+            application.identity.MIDN_BUSINESS_EMAIL,
+        )
+
+        self.assertEqual(
+            business.BUSN_WEBSITE,
+            application.identity.MIDN_WEBSITE,
+        )
+
+        self.assertEqual(
             business.USER_ID_id,
             application.USER_ID_id,
         )

@@ -409,6 +409,9 @@ class ApplicationService:
         business = Business.objects.create(
             BUSN_NAME=identity.MIDN_BUSINESS_NAME,
             BUSN_DESCRIPTION=identity.MIDN_BUSINESS_DESCRIPTION,
+            BUSN_CONTACT_NUMBER=identity.MIDN_CONTACT_NUMBER,
+            BUSN_EMAIL=identity.MIDN_BUSINESS_EMAIL,
+            BUSN_WEBSITE=identity.MIDN_WEBSITE,
             BUSN_STATUS=Business.BusinessStatus.ACTIVE,
             USER_ID=application.USER_ID,
             CTGRY_ID=identity.CTGRY_ID,

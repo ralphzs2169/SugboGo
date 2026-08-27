@@ -8,6 +8,7 @@ import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { formatDistance } from "@/shared/utils/distance.utils";
+import SafePressable from "@/shared/components/SafePressable";
 
 type Props = {
   business: ExploreBusiness;
@@ -35,7 +36,7 @@ export default function NewBusinessCard({
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
   return (
-    <Pressable
+    <SafePressable
       onPress={onPress}
       style={{
         width: CARD_WIDTH,
@@ -73,7 +74,6 @@ export default function NewBusinessCard({
             />
           </View>
         )}
-
         {/* Pocket indicator */}
         {business.is_pocketed && (
           <View className="absolute right-2.5 top-2.5 h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-sm">
@@ -85,7 +85,6 @@ export default function NewBusinessCard({
           </View>
         )}
       </View>
-
       {/* Business identity */}
       <View className="px-3.5 pb-3.5 pt-2.5">
         {/* Business name */}
@@ -95,7 +94,6 @@ export default function NewBusinessCard({
         >
           {business.business_name}
         </Text>
-
         {/* Cluster + category */}
         <View className="mt-1 flex-row items-center">
           <MaterialCommunityIcons
@@ -103,7 +101,6 @@ export default function NewBusinessCard({
             size={13}
             color={theme.extends.colors.brand}
           />
-
           <Text
             className="ml-1 flex-1 text-[12px] font-medium text-text-secondary"
             numberOfLines={1}
@@ -111,7 +108,6 @@ export default function NewBusinessCard({
             {business.category.name}
           </Text>
         </View>
-
         {/* Specialty tags */}
         {business.specialty_tags.length > 0 && (
           <View className="mt-2 flex-row flex-wrap items-center">
@@ -126,7 +122,6 @@ export default function NewBusinessCard({
             ))}
           </View>
         )}
-
         {/* Distance */}
         {distance !== null && (
           <View className="mt-2 flex-row items-center">
@@ -135,16 +130,16 @@ export default function NewBusinessCard({
               size={12}
               color={theme.extends.colors.text.tertiary}
             />
-
             <Text
               className="ml-1 flex-1 text-[11px] text-text-tertiary"
               numberOfLines={1}
             >
-              {formatDistance(distance, distanceAccuracy)}
+              {formatDistance(distance, distanceAccuracy)}{" "}
+              <Text className="text-[11px] text-text-tertiary">away</Text>
             </Text>
           </View>
         )}
       </View>
-    </Pressable>
+    </SafePressable>
   );
 }

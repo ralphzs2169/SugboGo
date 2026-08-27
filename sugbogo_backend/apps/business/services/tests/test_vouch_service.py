@@ -10,6 +10,7 @@ from apps.business.models import (
     Location,
     SpecialtyTag,
 )
+from apps.business.models.business_vouch_models import BusinessVouch
 from apps.business.services.vouch_service import VouchService
 from apps.users.models import User
 
@@ -31,6 +32,14 @@ class BusinessVouchServiceTests(TestCase):
             password="StrongPassword123!",
             USER_FNAME="Second",
             USER_LNAME="Explorer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        cls.business_owner = User.objects.create_user(
+            email="business-owner@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Business",
+            USER_LNAME="Owner",
             USER_ROLE=User.UserRole.EXPLORER,
             USER_STATUS=User.UserStatus.ACTIVE,
         )
@@ -61,7 +70,7 @@ class BusinessVouchServiceTests(TestCase):
             BUSN_NAME="Sugbo Bistro",
             BUSN_DESCRIPTION="A Cebu-based local restaurant.",
             BUSN_STATUS=Business.BusinessStatus.ACTIVE,
-            USER_ID=cls.user,
+            USER_ID=cls.business_owner,
             CTGRY_ID=cls.category,
             LOCT_ID=cls.location,
         )
@@ -137,6 +146,33 @@ class BusinessVouchServiceTests(TestCase):
                 tag_id=self.spicy_tag.TAG_ID,
                 device_id="test-device-001",
             )
+
+
+    def test_merchant_cannot_vouch_for_own_business(self):
+        self.business.USER_ID = self.user
+        self.business.save(
+            update_fields=["USER_ID"],
+        )
+
+        tag = self.business.SPECIALTY_TAGS.first()
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "You cannot vouch for your own business.",
+        ):
+            VouchService.create_vouch(
+                user=self.user,
+                business_id=self.business.BUSN_ID,
+                tag_id=tag.TAG_ID,
+            )
+
+        self.assertFalse(
+            BusinessVouch.objects.filter(
+                BUSN_ID=self.business,
+                USER_ID=self.user,
+                TAG_ID=tag,
+            ).exists(),
+        )
 
     def test_create_vouch_rejects_specialty_not_associated_with_business(self):
         with self.assertRaisesMessage(

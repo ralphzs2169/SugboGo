@@ -8,7 +8,7 @@ module.exports = {
       colors: {
         brand: "#F27F0D", // SugboGo orange
         background: "#F3F4F6", // screen bg
-        surface: "#F7F8F7", // card/top bar bg
+        surface: "#FFFFFF", // card/top bar bg
 
         error: "#fef2f2", // error container bg
         placeholder: "#999999", // skip button, disabled text

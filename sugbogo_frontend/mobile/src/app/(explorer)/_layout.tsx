@@ -12,14 +12,17 @@ export default function ExplorerLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
 
+      {/* Business profile */}
       <Stack.Screen
         name="business/[businessId]"
         options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
           headerShown: false,
-          animation: "slide_from_right",
         }}
       />
 
+      {/* Explorer profile */}
       <Stack.Screen
         name="profile"
         options={{
@@ -29,26 +32,15 @@ export default function ExplorerLayout() {
         }}
       />
 
+      {/* Merchant registration */}
       <Stack.Screen
         name="merchant-registration"
         options={{
           headerShown: false,
           animation: "slide_from_right",
-          // Native-stack defaults `replace()` navigations to a "pop"-style
-          // animation (fade, on Android) even when moving forward. This
-          // forces replace() to animate like push() instead, so the
-          // transition into this group is consistent no matter whether
-          // it's entered via push or replace.
           animationTypeForReplace: "push",
         }}
       />
-      {/* 
-      <Stack.Screen
-        name="submission-success"
-        options={{
-          headerShown: false,
-        }}
-      /> */}
     </Stack>
   );
 }
