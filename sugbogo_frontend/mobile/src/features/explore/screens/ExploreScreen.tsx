@@ -60,7 +60,19 @@ export default function ExploreScreen() {
 
         <TrendingSection selectedCategory={selectedCategory} />
 
-        <NewBusinessesSection onBusinessPress={handleBusinessPress} />
+        <NewBusinessesSection
+          onBusinessPress={(businessId, distance, distanceAccuracy) => {
+            router.push({
+              pathname: "/(explorer)/business/[businessId]",
+              params: {
+                businessId: String(businessId),
+                distance: distance !== null ? String(distance) : "",
+                distanceAccuracy:
+                  distanceAccuracy !== null ? String(distanceAccuracy) : "",
+              },
+            });
+          }}
+        />
 
         <DiscoverNearYouButton onPress={() => {}} />
       </ScrollView>

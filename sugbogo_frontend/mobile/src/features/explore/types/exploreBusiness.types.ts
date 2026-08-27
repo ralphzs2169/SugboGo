@@ -69,6 +69,9 @@ export type ExploreOperatingHours = {
 
 export type ExploreBusinessDetail = ExploreBusiness & {
   description: string | null;
+  contact_number: string;
+  email: string | null;
+  website: string | null;
   photos: ExploreBusinessPhoto[];
   operating_hours: ExploreOperatingHours[];
 };

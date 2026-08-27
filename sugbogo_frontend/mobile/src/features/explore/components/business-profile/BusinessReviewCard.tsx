@@ -6,20 +6,22 @@ import Toast from "react-native-toast-message";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 
 import Avatar from "@/shared/components/Avatar";
-import ImagePreviewModal from "@/shared/components/modals/ImagePreviewModal";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { theme } from "@/constants/theme";
+
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
-
+import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
 import {
   useDeleteReview,
   useReportReview,
   useReviewLike,
 } from "../../hooks/useBusinessReviews";
 import type { BusinessReview } from "../../types/review.types";
-import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 
 type Props = {
   businessId: number;
@@ -27,6 +29,8 @@ type Props = {
   businessName: string;
   onEdit?: (review: BusinessReview) => void;
 };
+
+const MAX_PHOTOS = 3;
 
 function relativeDate(value: string) {
   const days = Math.max(
@@ -38,9 +42,11 @@ function relativeDate(value: string) {
 }
 
 /**
- * Renders a business review with author identity, photos, engagement,
- * merchant response, and ownership-specific actions for the authenticated
- * user's own review.
+ * Renders a flat business review with author identity, review content,
+ * compact photo previews, specialty vouches, engagement, and merchant
+ * responses.
+ *
+ * Review photos open in the reusable fullscreen viewer with review context.
  */
 export default function BusinessReviewCard({
   businessId,
@@ -53,14 +59,22 @@ export default function BusinessReviewCard({
 
   const { mutateAsync: deleteReview, isPending: isDeletePending } =
     useDeleteReview(businessId);
+
   const { mutateAsync: reportReview } = useReportReview(businessId);
 
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [isDeleteVisible, setIsDeleteVisible] = useState(false);
+
   const actionSheetRef = useRef<BottomSheetModal | null>(null);
   const reportSheetRef = useRef<BottomSheetModal | null>(null);
 
   const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePhotoPress = (index: number) => {
+    setSelectedPhotoIndex(index);
+    setIsPhotoViewerVisible(true);
+  };
 
   const toggleLike = async () => {
     try {
@@ -105,6 +119,7 @@ export default function BusinessReviewCard({
         text1: "Review deleted",
         visibilityTime: 1500,
       });
+
       setIsDeleteVisible(false);
     } catch (error) {
       const response = error as ApiResponse<unknown>;
@@ -125,6 +140,7 @@ export default function BusinessReviewCard({
         reviewId: review.id,
         reportType: value as "spam" | "abuse" | "misinformation" | "other",
       });
+
       Toast.show({
         type: "info",
         text1: "Review reported",
@@ -132,17 +148,19 @@ export default function BusinessReviewCard({
       });
     } catch (error) {
       const response = error as ApiResponse<unknown>;
-      if (!response.success && !handleSystemError(response))
+
+      if (!response.success && !handleSystemError(response)) {
         Toast.show({
           type: "error",
           text1: "Unable to report review",
           text2: response.message || "Please try again.",
         });
+      }
     }
   };
 
   return (
-    <View className="rounded-card border border-border-primary bg-white p-4">
+    <View className="border-b border-border-primary bg-surface px-4 py-4">
       {/* Review author */}
       <View className="flex-row items-center">
         <Avatar imageUrl={review.author.avatar_url} size={38} />
@@ -173,8 +191,8 @@ export default function BusinessReviewCard({
         >
           <MaterialCommunityIcons
             name="dots-vertical"
-            size={22}
-            color="#64748B"
+            size={18}
+            color={theme.extends.colors.text.tertiary}
           />
         </Pressable>
       </View>
@@ -186,12 +204,12 @@ export default function BusinessReviewCard({
 
       {/* Review photos */}
       {review.photos.length > 0 && (
-        <View className="mt-3 flex-row gap-2">
-          {review.photos.map((photo) => (
+        <View className="mt-3 flex-row flex-wrap gap-2">
+          {review.photos.slice(0, MAX_PHOTOS).map((photo, index) => (
             <Pressable
               key={photo.id}
-              onPress={() => setPreviewUri(photo.photo_url)}
-              className="aspect-square flex-1 cursor-pointer overflow-hidden rounded-lg active:opacity-80"
+              onPress={() => handlePhotoPress(index)}
+              className="aspect-square w-[31%] cursor-pointer overflow-hidden rounded-lg bg-surface-secondary active:opacity-90"
             >
               <Image
                 source={{ uri: photo.photo_url }}
@@ -200,31 +218,55 @@ export default function BusinessReviewCard({
                   height: "100%",
                 }}
                 contentFit="cover"
+                transition={150}
               />
+
+              {/* Additional photo count */}
+              {index === MAX_PHOTOS - 1 &&
+                review.photos.length > MAX_PHOTOS && (
+                  <View className="absolute inset-0 items-center justify-center bg-black/45">
+                    <Text className="text-lg font-bold text-white">
+                      +{review.photos.length - MAX_PHOTOS}
+                    </Text>
+                  </View>
+                )}
             </Pressable>
           ))}
         </View>
       )}
 
-      {/* Reviewer-vouched specialties */}
+      {/* Specialty vouches */}
       {review.vouched_specialties.length > 0 && (
-        <View className="mt-3 flex-row flex-wrap">
-          {review.vouched_specialties.map((tag) => (
-            <SpecialtyTagChip
-              key={tag.id}
-              tag={{
-                name: tag.name,
-                color: tag.color,
-              }}
-              size="small"
-
-              showVouchIndicator
+        <View className="mt-4">
+          <View className="mb-2 flex-row items-center">
+            <MaterialCommunityIcons
+              name="check-decagram-outline"
+              size={16}
+              color={theme.extends.colors.brand}
             />
-          ))}
+
+            <Text className="ml-1.5 text-xs font-semibold text-text-secondary">
+              Vouched for
+            </Text>
+          </View>
+
+          <View className="flex-row flex-wrap gap-2">
+            {review.vouched_specialties.map((tag) => (
+              <SpecialtyTagChip
+                key={tag.id}
+                tag={{
+                  name: tag.name,
+                  color: tag.color,
+                }}
+                size="small"
+                showVouchIndicator
+              />
+            ))}
+          </View>
         </View>
       )}
 
-      {/* Review actions */}
+      {/* Review like action */}
       <Pressable
         onPress={toggleLike}
         disabled={isLikePending}
@@ -236,9 +278,13 @@ export default function BusinessReviewCard({
           }}
         >
           <MaterialCommunityIcons
-            name={review.is_liked ? "heart" : "heart-outline"}
-            size={22}
-            color={review.is_liked ? "#E11D48" : "#64748B"}
+            name={review.is_liked ? "thumb-up" : "thumb-up-outline"}
+            size={21}
+            color={
+              review.is_liked
+                ? theme.extends.colors.brand
+                : theme.extends.colors.text.secondary
+            }
           />
         </Animated.View>
 
@@ -261,10 +307,9 @@ export default function BusinessReviewCard({
           {review.reply.photos.length > 0 && (
             <View className="mt-2 flex-row gap-2">
               {review.reply.photos.map((photo) => (
-                <Pressable
+                <View
                   key={photo.id}
-                  onPress={() => setPreviewUri(photo.photo_url)}
-                  className="h-20 w-20 cursor-pointer overflow-hidden rounded-lg active:opacity-80"
+                  className="h-20 w-20 overflow-hidden rounded-lg"
                 >
                   <Image
                     source={{ uri: photo.photo_url }}
@@ -274,30 +319,54 @@ export default function BusinessReviewCard({
                     }}
                     contentFit="cover"
                   />
-                </Pressable>
+                </View>
               ))}
             </View>
           )}
         </View>
       )}
 
-      {/* Full-screen photo preview */}
-      <ImagePreviewModal
-        uri={previewUri}
-        visible={Boolean(previewUri)}
-        onClose={() => setPreviewUri(null)}
-      />
-      <SelectionBottomSheet
-        sheetRef={actionSheetRef}
+      {/* Fullscreen review photo gallery */}
+      <FullScreenPhotoViewer
+        photos={review.photos.map((photo) => ({
+          uri: photo.photo_url,
+        }))}
+        visible={isPhotoViewerVisible}
+        initialIndex={selectedPhotoIndex}
+        onClose={() => setIsPhotoViewerVisible(false)}
+        headerContent={
+          <View className="ml-3 flex-1 flex-row items-center">
+            <Avatar imageUrl={review.author.avatar_url} size={34} />
 
+            <View className="ml-2.5 flex-1">
+              <Text
+                className="text-sm font-semibold text-white"
+                numberOfLines={1}
+              >
+                {review.author.first_name} {review.author.last_name}
+              </Text>
+
+              <Text className="mt-0.5 text-xs text-white/65">
+                {relativeDate(review.created_at)}
+              </Text>
+            </View>
+          </View>
+        }
+      />
+
+      {/* Review actions */}
+      <ActionBottomSheet
+        sheetRef={actionSheetRef}
         options={
           review.is_own_review
             ? [
-                { label: "Edit review", value: "edit", icon: "pencil" },
                 {
-                  label: "Delete review",
+                  label: "Edit my review",
+                  value: "edit",
+                },
+                {
+                  label: "Delete my review",
                   value: "delete",
-                  icon: "delete-outline",
                   color: "#DC2626",
                 },
               ]
@@ -305,29 +374,52 @@ export default function BusinessReviewCard({
                 {
                   label: "Report review",
                   value: "report",
-                  icon: "flag-outline",
                   color: "#DC2626",
                 },
               ]
         }
         onSelect={(value) => {
-          if (value === "edit") onEdit?.(review);
-          if (value === "delete") setIsDeleteVisible(true);
-          if (value === "report") presentBottomSheet(reportSheetRef);
+          if (value === "edit") {
+            onEdit?.(review);
+          }
+
+          if (value === "delete") {
+            setIsDeleteVisible(true);
+          }
+
+          if (value === "report") {
+            presentBottomSheet(reportSheetRef);
+          }
         }}
       />
+
+      {/* Report review */}
       <SelectionBottomSheet
         sheetRef={reportSheetRef}
         title="Report review"
         description="Why are you reporting this review?"
         options={[
-          { label: "Spam", value: "spam" },
-          { label: "Abuse", value: "abuse" },
-          { label: "Misinformation", value: "misinformation" },
-          { label: "Other", value: "other" },
+          {
+            label: "Spam",
+            value: "spam",
+          },
+          {
+            label: "Abuse",
+            value: "abuse",
+          },
+          {
+            label: "Misinformation",
+            value: "misinformation",
+          },
+          {
+            label: "Other",
+            value: "other",
+          },
         ]}
         onSelect={handleReport}
       />
+
+      {/* Delete confirmation */}
       <ConfirmModal
         visible={isDeleteVisible}
         title="Delete review?"

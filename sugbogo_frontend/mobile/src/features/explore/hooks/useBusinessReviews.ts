@@ -38,15 +38,23 @@ export function useBusinessReviews(businessId: number) {
     refetch: query.refetch,
   };
 }
-
 /** Retrieves the complete collection for the dedicated reviews screen. */
 export function useAllBusinessReviews(businessId: number) {
   const query = useQuery({
     queryKey: [...businessReviewsKey(businessId), "all"],
-    queryFn: async () => throwOnApiError(await reviewService.getAllBusinessReviews(businessId)),
+    queryFn: async () =>
+      throwOnApiError(await reviewService.getAllBusinessReviews(businessId)),
     enabled: Boolean(businessId),
   });
-  return { reviews: query.data ?? [], totalCount: query.data?.length ?? 0, isLoading: query.isLoading, error: query.error, refetch: query.refetch };
+
+  return {
+    reviews: query.data ?? [],
+    totalCount: query.data?.length ?? 0,
+    isLoading: query.isLoading,
+    isRefetching: query.isRefetching,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 export function useCreateReview(businessId: number) {

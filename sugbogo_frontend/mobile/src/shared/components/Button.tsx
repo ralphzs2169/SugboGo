@@ -1,9 +1,4 @@
-import {
-  ActivityIndicator,
-  Text,
-  TouchableOpacity,
-  type GestureResponderEvent,
-} from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import type { ReactNode } from "react";
 
 type ButtonProps = {
@@ -15,10 +10,12 @@ type ButtonProps = {
   className?: string;
   fontClassName?: string;
   variant?: "primary" | "secondary" | "outline" | "soft" | "danger" | "success";
+  rounded?: "none" | "sm" | "md" | "lg" | "full";
 };
 
 /**
- * Button component provides a customizable button for various actions.
+ * Button component provides a customizable button for common actions.
+ * Supports variants, loading states, icons, and configurable corner radius.
  */
 export default function Button({
   title,
@@ -29,6 +26,7 @@ export default function Button({
   className = "",
   variant = "primary",
   fontClassName = "text-base font-semibold",
+  rounded = "lg",
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
@@ -50,13 +48,21 @@ export default function Button({
     success: "text-white",
   }[variant];
 
+  const roundedClass = {
+    none: "rounded-none",
+    sm: "rounded-sm",
+    md: "rounded-md",
+    lg: "rounded-lg",
+    full: "rounded-full",
+  }[rounded];
+
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
-      className={`flex-row items-center justify-center rounded-lg px-4 py-4 ${
+      className={`flex-row items-center justify-center px-4 py-4 ${
         isDisabled ? "opacity-50" : ""
-      } ${variantClass} ${className}`}
+      } ${roundedClass} ${variantClass} ${className}`}
     >
       {loading ? (
         <ActivityIndicator color="white" />
@@ -66,7 +72,9 @@ export default function Button({
 
           <Text
             numberOfLines={1}
-            className={`${fontClassName} ${textColorClass} ${icon ? "ml-2" : ""}`}
+            className={`${fontClassName} ${textColorClass} ${
+              icon ? "ml-2" : ""
+            }`}
           >
             {title}
           </Text>

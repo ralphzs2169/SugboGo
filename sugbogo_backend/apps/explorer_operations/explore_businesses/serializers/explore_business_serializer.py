@@ -358,6 +358,23 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
         allow_null=True,
     )
 
+    contact_number = serializers.CharField(
+        source="BUSN_CONTACT_NUMBER",
+        read_only=True,
+    )
+
+    email = serializers.EmailField(
+        source="BUSN_EMAIL",
+        read_only=True,
+        allow_null=True,
+    )
+
+    website = serializers.URLField(
+        source="BUSN_WEBSITE",
+        read_only=True,
+        allow_null=True,
+    )
+
     photos = ExploreBusinessPhotoSerializer(
         many=True,
         read_only=True,
@@ -376,6 +393,9 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
     class Meta(ExploreBusinessSerializer.Meta):
         fields = ExploreBusinessSerializer.Meta.fields + (
             "description",
+            "contact_number",
+            "email",
+            "website",
             "photos",
             "operating_hours",
             "reviews",

@@ -98,7 +98,7 @@ export default function BusinessProfileScrollView({
 
       <Animated.ScrollView
         contentContainerStyle={{
-          paddingBottom: bottom + 32,
+          paddingBottom: bottom,
         }}
         onScroll={handleScroll}
         scrollEventThrottle={16}

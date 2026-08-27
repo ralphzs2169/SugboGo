@@ -31,13 +31,24 @@ function timeToMinutes(time: string): number {
   return hours * 60 + minutes;
 }
 
-function formatTime(time: string): string {
+export function formatTime(time: string): string {
   const [hours, minutes] = time.split(":").map(Number);
 
   const period = hours >= 12 ? "PM" : "AM";
   const displayHour = hours % 12 || 12;
 
   return `${displayHour}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
+export function formatCompactTime(time: string): string {
+  const [hours, minutes] = time.split(":").map(Number);
+
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 || 12;
+
+  return minutes === 0
+    ? `${displayHour}${period}`
+    : `${displayHour}:${minutes.toString().padStart(2, "0")}${period}`;
 }
 
 function getCurrentDayIndex(date: Date): number {
@@ -137,6 +148,50 @@ export function getBusinessHoursSummary(
 
   return {
     label: "Closed",
+    isOpen: false,
+  };
+}
+
+type BusinessQuickInfoStatus = {
+  statusLabel: string;
+  statusDetail: string;
+  isOpen: boolean;
+};
+
+export function getQuickInfoStatus(
+  summary: BusinessHoursSummary,
+): BusinessQuickInfoStatus {
+  if (summary.isOpen) {
+    if (summary.label === "Open 24 hours") {
+      return {
+        statusLabel: "Open",
+        statusDetail: "24 hours",
+        isOpen: true,
+      };
+    }
+
+    const closingTime = summary.label.match(/Closes (\d{1,2}):(\d{2}) (AM|PM)/);
+
+    return {
+      statusLabel: "Open",
+      statusDetail: closingTime
+        ? `Closes ${closingTime[1]}${closingTime[3]}`
+        : "Open now",
+      isOpen: true,
+    };
+  }
+
+  const openingTime = summary.label.match(
+    /Opens (?:today at |tomorrow at |Monday at |Tuesday at |Wednesday at |Thursday at |Friday at |Saturday at |Sunday at )?(\d{1,2}):(\d{2}) (AM|PM)/,
+  );
+
+  return {
+    statusLabel: "Closed",
+    statusDetail: openingTime
+      ? `Opens ${openingTime[1]}${openingTime[3]}`
+      : summary.label === "Hours unavailable"
+        ? "Hours unavailable"
+        : "Closed",
     isOpen: false,
   };
 }

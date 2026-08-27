@@ -21,6 +21,20 @@ class Business(models.Model):
         null=True,
     )
 
+    BUSN_CONTACT_NUMBER = models.CharField(
+        max_length=20,
+    )
+
+    BUSN_EMAIL = models.EmailField(
+        blank=True,
+        null=True,
+    )
+
+    BUSN_WEBSITE = models.URLField(
+        blank=True,
+        null=True,
+    )
+
     BUSN_STATUS = models.CharField(
         max_length=20,
         choices=BusinessStatus.choices,

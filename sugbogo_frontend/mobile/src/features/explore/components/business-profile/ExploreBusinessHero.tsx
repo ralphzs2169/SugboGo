@@ -26,7 +26,7 @@ export default function ExploreBusinessHero({ business }: Props) {
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
   return (
-    <View className="relative h-80 w-full bg-surface-secondary">
+    <View className="relative h-72 w-full bg-surface-secondary">
       {/* Cover photo */}
       {business.cover_photo_url ? (
         <Image
@@ -76,8 +76,8 @@ export default function ExploreBusinessHero({ business }: Props) {
           android_ripple={{ color: "rgba(0,0,0,0.08)" }}
         >
           <MaterialCommunityIcons
-            name="arrow-left"
-            size={22}
+            name="chevron-left"
+            size={26}
             color={theme.extends.colors.text.primary}
           />
         </Pressable>

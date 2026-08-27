@@ -75,8 +75,8 @@ export default function BusinessProfileStickyHeader({
             className="h-10 w-10 cursor-pointer items-center justify-center rounded-full active:opacity-80"
           >
             <MaterialCommunityIcons
-              name="arrow-left"
-              size={22}
+              name="chevron-left"
+              size={26}
               color={theme.extends.colors.text.primary}
             />
           </Pressable>

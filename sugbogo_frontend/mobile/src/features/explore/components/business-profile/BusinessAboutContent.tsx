@@ -11,7 +11,7 @@ const DESCRIPTION_LIMIT = 180;
  * Displays the business description with a compact preview and optional
  * expansion for longer descriptions.
  */
-export default function BusinessAboutSection({ description }: Props) {
+export default function BusinessAboutContent({ description }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!description) {
@@ -26,14 +26,9 @@ export default function BusinessAboutSection({ description }: Props) {
       : description;
 
   return (
-    <View className="mt-6 border-t border-border-primary px-4 pt-5">
-      {/* Section heading */}
-      <Text className="text-md font-bold text-text-primary">
-        About this place
-      </Text>
-
+    <View className="  bg-surface ">
       {/* Business description */}
-      <Text className="mt-2 text-sm leading-6 text-text-secondary">
+      <Text className="text-sm leading-6 text-text-secondary">
         {displayedDescription}
       </Text>
 

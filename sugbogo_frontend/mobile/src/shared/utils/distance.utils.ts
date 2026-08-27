@@ -37,31 +37,18 @@ export function formatDistance(
   distanceInKm: number,
   accuracyInMeters?: number | null,
 ): string {
-  const distanceInMeters = distanceInKm * 1000;
-
   if (
     accuracyInMeters !== null &&
     accuracyInMeters !== undefined &&
-    accuracyInMeters > 100
+    accuracyInMeters > 100 &&
+    distanceInKm * 1000 < accuracyInMeters
   ) {
-    if (distanceInMeters < accuracyInMeters) {
-      return "Nearby";
-    }
-
-    if (distanceInKm < 10) {
-      return `~${Math.round(distanceInKm)} km away`;
-    }
-
-    return `~${Math.round(distanceInKm)} km away`;
-  }
-
-  if (distanceInKm < 1) {
-    return `${Math.round(distanceInMeters)} m away`;
+    return "Nearby";
   }
 
   if (distanceInKm < 10) {
-    return `${distanceInKm.toFixed(1)} km away`;
+    return `${distanceInKm.toFixed(1)} km`;
   }
 
-  return `${Math.round(distanceInKm)} km away`;
+  return `${Math.round(distanceInKm)} km`;
 }
