@@ -1,6 +1,6 @@
 import { ScrollView } from "react-native";
 import HiddenGemCard from "./HiddenGemCard";
-import { MOCK_HIDDEN_GEMS } from "../../constants/mockExploreData";
+import { MOCK_HIDDEN_GEMS } from "@/shared/constants/mockExploreData";
 
 type Props ={
     selectedCategory: string;

@@ -2,7 +2,7 @@ import { View, Text, ScrollView, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import TrendingCard from "./TrendingCard";
-import { MOCK_HIDDEN_GEMS } from "../../constants/mockExploreData";
+import { MOCK_HIDDEN_GEMS } from "@/shared/constants/mockExploreData";
 
 type Props = {
   selectedCategory: string;
