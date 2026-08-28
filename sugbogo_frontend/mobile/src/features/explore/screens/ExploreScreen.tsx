@@ -10,12 +10,14 @@ import DiscoverMoreSection from "../components/discover-more/DiscoverMoreSection
 import TrendingSection from "../components/trending/TrendingSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
 import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
+import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
 export default function ExploreScreen() {
   const queryClient = useQueryClient();
 
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const bottomSpacing = useTabBarSpacing();
 
   const handleBusinessPress = (businessId: number) => {
     router.push({
@@ -48,6 +50,7 @@ export default function ExploreScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pt-4 pb-8"
+        contentContainerStyle={{ paddingBottom: bottomSpacing }}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
