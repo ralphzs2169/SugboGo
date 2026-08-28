@@ -10,10 +10,14 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import ReplyPhoto, Review, ReviewReply
+from apps.reviews.models import ReplyPhoto, ReviewReply
 from apps.reviews.services.review_reply_service import ReviewReplyService
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
+from io import BytesIO
+
+from PIL import Image
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 
 class ReviewReplyServiceTests(TestCase):
@@ -91,6 +95,28 @@ class ReviewReplyServiceTests(TestCase):
             USER_ID=cls.other_merchant,
             CTGRY_ID=cls.category,
             LOCT_ID=cls.other_location,
+        )
+
+    def create_test_image(self, filename):
+        image = Image.new(
+            "RGB",
+            (100, 100),
+            "white",
+        )
+
+        image_data = BytesIO()
+
+        image.save(
+            image_data,
+            format="JPEG",
+        )
+
+        image_data.seek(0)
+
+        return SimpleUploadedFile(
+            filename,
+            image_data.read(),
+            content_type="image/jpeg",
         )
 
     def test_create_reply(self):

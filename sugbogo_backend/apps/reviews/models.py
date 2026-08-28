@@ -297,7 +297,7 @@ class ReviewReply(models.Model):
     def __str__(self):
         return f"Reply {self.RPLY_ID}"
 
-# MIGRATEEEEEEEE
+
 class ReplyPhoto(models.Model):
     RPHO_ID = models.AutoField(primary_key=True)
 
@@ -315,3 +315,41 @@ class ReplyPhoto(models.Model):
 
     class Meta:
         db_table = "REVIEW_REPLY_PHOTO"
+
+
+class ReplyTemplate(models.Model):
+    """A reusable reply template saved by a business owner."""
+
+    RTPL_ID = models.AutoField(
+        primary_key=True,
+    )
+
+    BUSN_ID = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        db_column="BUSN_ID",
+        related_name="reply_templates",
+    )
+
+    RTPL_TITLE = models.CharField(
+        max_length=100,
+    )
+
+    RTPL_TEXT = models.TextField(
+        max_length=1000,
+    )
+
+    RTPL_CREATED_AT = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    RTPL_UPDATED_AT = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        db_table = "REVIEW_REPLY_TEMPLATE"
+        ordering = ["-RTPL_CREATED_AT"]  # noqa: RUF012
+
+    def __str__(self):
+        return self.RTPL_TITLE
