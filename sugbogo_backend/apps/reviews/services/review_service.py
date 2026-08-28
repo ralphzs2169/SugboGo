@@ -368,7 +368,9 @@ class ReviewService:
                     photo.RPHO_PHOTO_PUBLIC_ID,
                 )
 
-                photo.delete()
+            ReviewPhoto.objects.filter(
+                RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
+            ).delete()
 
         except Exception:
             for public_id in uploaded_public_ids:
