@@ -1,21 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+
 import * as reviewService from "../api/reviewBusiness.service";
 import type {
   BusinessReview,
   BusinessReviewPreview,
   LocalReviewPhoto,
 } from "../types/review.types";
-import { throwOnApiError } from "@/shared/utils/throwOnApiError";
-
-export const businessReviewPreviewKey = (businessId: number) =>
-  ["business-review-preview", businessId] as const;
-
-export const businessReviewsKey = (businessId: number) =>
-  ["business-reviews", businessId] as const;
-
-export const exploreBusinessDetailKey = (businessId: number) =>
-  ["explore-business-detail", businessId] as const;
+import {
+  businessReviewPreviewKey,
+  businessReviewsKey,
+  exploreBusinessDetailKey,
+} from "./reviewQueryKeys";
 
 /**
  * Handles review-related mutations and refreshes the affected
@@ -135,49 +132,5 @@ export function useReportReview(businessId: number) {
       reviewId: number;
       reportType: "spam" | "abuse" | "misinformation" | "other";
     }) => reviewService.reportReview(reviewId, reportType),
-  );
-}
-
-export function useCreateReviewReply(businessId: number) {
-  return useReviewMutation(
-    businessId,
-    ({
-      reviewId,
-      text,
-      photos,
-    }: {
-      reviewId: number;
-      text: string;
-      photos: LocalReviewPhoto[];
-    }) => reviewService.createReviewReply(reviewId, text, photos),
-  );
-}
-
-export function useUpdateReviewReply(businessId: number) {
-  return useReviewMutation(
-    businessId,
-    ({
-      replyId,
-      text,
-      photos,
-      keepPhotoIds,
-    }: {
-      replyId: number;
-      text: string;
-      photos: LocalReviewPhoto[];
-      keepPhotoIds: number[];
-    }) => reviewService.updateReviewReply(replyId, text, photos, keepPhotoIds),
-  );
-}
-
-export function useDeleteReviewReply(businessId: number) {
-  return useReviewMutation(businessId, ({ replyId }: { replyId: number }) =>
-    reviewService.deleteReviewReply(replyId),
-  );
-}
-
-export function useDeleteReplyPhoto(businessId: number) {
-  return useReviewMutation(businessId, ({ photoId }: { photoId: number }) =>
-    reviewService.deleteReplyPhoto(photoId),
   );
 }

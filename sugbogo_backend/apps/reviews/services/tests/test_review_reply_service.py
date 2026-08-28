@@ -1,7 +1,10 @@
+from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.business.models import (
@@ -14,10 +17,6 @@ from apps.reviews.models import ReplyPhoto, ReviewReply
 from apps.reviews.services.review_reply_service import ReviewReplyService
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
-from io import BytesIO
-
-from PIL import Image
-from django.core.files.uploadedfile import SimpleUploadedFile
 
 
 class ReviewReplyServiceTests(TestCase):

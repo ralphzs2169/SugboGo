@@ -1,4 +1,3 @@
-// src/app/(merchant)/(tabs)/_layout.tsx
 import CustomTabBar, { TabBarConfig } from "@/shared/components/CustomTabBar";
 import { Tabs } from "expo-router";
 
