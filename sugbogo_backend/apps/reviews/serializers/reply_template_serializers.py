@@ -7,11 +7,23 @@ class ReplyTemplateCreateSerializer(serializers.Serializer):
     """Validates a merchant's saved reply template."""
 
     title = serializers.CharField(
+        min_length=2,
         max_length=100,
+        error_messages={
+            "blank": "Template title is required.",
+            "min_length": "Template title must be at least 2 characters.",
+            "max_length": "Template title cannot exceed 100 characters.",
+        },
     )
 
     text = serializers.CharField(
+        min_length=10,
         max_length=1000,
+        error_messages={
+            "blank": "Template response is required.",
+            "min_length": "Template response must be at least 10 characters.",
+            "max_length": "Template response cannot exceed 1000 characters.",
+        },
     )
 
 
@@ -19,13 +31,25 @@ class ReplyTemplateUpdateSerializer(serializers.Serializer):
     """Validates updates to a merchant's saved reply template."""
 
     title = serializers.CharField(
+        min_length=2,
         max_length=100,
         required=False,
+        error_messages={
+            "blank": "Template title cannot be empty.",
+            "min_length": "Template title must be at least 2 characters.",
+            "max_length": "Template title cannot exceed 100 characters.",
+        },
     )
 
     text = serializers.CharField(
+        min_length=10,
         max_length=1000,
         required=False,
+        error_messages={
+            "blank": "Template response cannot be empty.",
+            "min_length": "Template response must be at least 10 characters.",
+            "max_length": "Template response cannot exceed 1000 characters.",
+        },
     )
 
     def validate(self, attrs):

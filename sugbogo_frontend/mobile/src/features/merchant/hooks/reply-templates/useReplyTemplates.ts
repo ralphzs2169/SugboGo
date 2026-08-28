@@ -77,14 +77,17 @@ export function useReplyTemplates() {
     refetch: query.refetch,
 
     createTemplate: createMutation.mutate,
+    createTemplateAsync: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
     createError: createMutation.error,
 
     updateTemplate: updateMutation.mutate,
+    updateTemplateAsync: updateMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
     updateError: updateMutation.error,
 
     deleteTemplate: deleteMutation.mutate,
+    deleteTemplateAsync: deleteMutation.mutateAsync,
     isDeleting: deleteMutation.isPending,
     deleteError: deleteMutation.error,
   };

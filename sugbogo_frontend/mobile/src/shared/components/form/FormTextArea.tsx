@@ -12,13 +12,15 @@ interface FormTextAreaProps extends TextInputProps {
   helperText?: string;
   minLength?: number;
   showCharacterCount?: boolean;
+  InputComponent?: React.ComponentType<TextInputProps>;
 }
 
 /**
  * FormTextArea renders a multiline text input within an InputContainer.
  *
- * Supports optional live minimum-length feedback while keeping
- * form validation errors controlled by the form validation layer.
+ * Supports optional live minimum-length feedback and allows screens with
+ * specialized input behavior, such as bottom sheets, to provide their own
+ * compatible text input component.
  */
 export default function FormTextArea({
   label,
@@ -29,6 +31,7 @@ export default function FormTextArea({
   minLength,
   showCharacterCount = false,
   value,
+  InputComponent = TextInput,
   ...props
 }: FormTextAreaProps) {
   const characterCount = value?.trim().length ?? 0;
@@ -82,13 +85,13 @@ export default function FormTextArea({
       required={required}
       bottomElement={feedback}
     >
-      <TextInput
+      <InputComponent
+        {...props}
         multiline
         textAlignVertical="top"
         className="min-h-[120px] flex-1 py-[14px] text-body text-text-primary"
         placeholderTextColor={theme.extends.colors.text.tertiary}
         value={value}
-        {...props}
       />
     </InputContainer>
   );

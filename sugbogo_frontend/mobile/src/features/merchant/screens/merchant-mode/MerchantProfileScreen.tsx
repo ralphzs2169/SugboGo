@@ -11,9 +11,9 @@ import ProfileMenuSection from "@/features/profile/components/ProfileMenuSection
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 
-import MerchantProfileHeader from "../components/business-profile/MerchantProfileHeader";
-import useMerchantBusinessProfile from "../hooks/business-profile/useMerchantBusinessProfile";
-import useUpdateBusinessCoverPhoto from "../hooks/business-profile/useUpdateBusinessCoverPhoto";
+import MerchantProfileHeader from "../../components/business-profile/MerchantProfileHeader";
+import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
+import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
 import { formatRetryTime } from "@/shared/utils/date.utils";

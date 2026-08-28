@@ -6,7 +6,7 @@ import { Pressable, Text, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import type { BusinessReview } from "@/features/explore/types/review.types";
-import { useDeleteReviewReply } from "@/features/explore/hooks/useBusinessReviews";
+import { useDeleteReviewReply } from "../../hooks/review-reply/useReviewReplies";
 import { theme } from "@/constants/theme";
 import Avatar from "@/shared/components/Avatar";
 import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
