@@ -67,8 +67,8 @@ export default function RootLayout() {
                     options={{ animation: "none" }}
                   />
                 </Stack>
-                <Toast config={toastConfig} />
               </BottomSheetModalProvider>
+              <Toast config={toastConfig} />
             </SafeAreaProvider>
           </ActionSheetProvider>
         </GestureHandlerRootView>

@@ -53,6 +53,11 @@ class BusinessCoverPhotoResponseSerializer(serializers.ModelSerializer):
 class BusinessProfileResponseSerializer(serializers.ModelSerializer):
     """Serializes the merchant's business profile information."""
 
+    id = serializers.IntegerField(
+        source="BUSN_ID",
+        read_only=True,
+    )
+
     business_name = serializers.CharField(
         source="BUSN_NAME",
         read_only=True,
@@ -69,6 +74,7 @@ class BusinessProfileResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Business
         fields = (
+            "id",
             "business_name",
             "cover_photo_url",
             "cover_photo_retry_after",

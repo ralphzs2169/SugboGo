@@ -6,7 +6,7 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 
 import ErrorState from "@/shared/components/ErrorState";
 import { useBusinessReviews } from "../hooks/useBusinessReviews";
-import BusinessReviewCard from "../components/business-profile/BusinessReviewCard";
+import BusinessReviewCard from "../components/business-profile/review-section/BusinessReviewCard";
 import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import type { BusinessReview } from "../types/review.types";

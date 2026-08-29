@@ -24,11 +24,6 @@ class ReviewLikeService:
                 "The review could not be found.",
             )
 
-        if review.BUSN_ID.USER_ID_id == user.USER_ID:
-            raise ValidationError(
-                "You cannot like reviews for your own business.",
-            )
-
         try:
             like = ReviewLike.objects.create(
                 REVW_ID=review,

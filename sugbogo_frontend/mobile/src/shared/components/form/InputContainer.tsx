@@ -42,7 +42,7 @@ export default function InputContainer({
 
       {/* Input */}
       <View
-        className={`flex-row items-center rounded-input border px-[14px] ${
+        className={`flex-row  rounded-input border px-[14px] ${
           error
             ? "border-text-error bg-surface"
             : editable

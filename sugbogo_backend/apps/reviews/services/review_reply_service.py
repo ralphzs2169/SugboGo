@@ -44,14 +44,19 @@ class ReviewReplyService:
                 "You do not have permission to reply to this review.",
             )
 
-        uploaded_public_ids = []
-
         try:
             reply = ReviewReply.objects.create(
                 REVW_ID=review,
                 RPLY_TEXT=text,
             )
+        except IntegrityError:
+            raise ValidationError(
+                "This review already has a reply.",
+            ) from None
 
+        uploaded_public_ids = []
+
+        try:
             for photo in photos or []:
                 upload_result = CloudinaryService.upload_image(
                     photo,
@@ -71,11 +76,6 @@ class ReviewReplyService:
                 )
 
             return reply
-
-        except IntegrityError:
-            raise ValidationError(
-                "This review already has a reply.",
-            ) from None
 
         except Exception:
             for public_id in uploaded_public_ids:
@@ -207,7 +207,9 @@ class ReviewReplyService:
                     photo.RPHO_PHOTO_PUBLIC_ID,
                 )
 
-                photo.delete()
+            ReplyPhoto.objects.filter(
+                RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
+            ).delete()
 
         except Exception:
             for public_id in uploaded_public_ids:

@@ -33,6 +33,7 @@ export type BusinessReview = {
   like_count: number;
   report_count: number;
   is_liked: boolean;
+  is_liked_by_owner: boolean;
   is_own_review: boolean;
   created_at: string;
   updated_at: string;

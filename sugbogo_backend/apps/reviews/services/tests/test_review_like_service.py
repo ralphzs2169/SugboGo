@@ -112,43 +112,6 @@ class ReviewLikeServiceTests(TestCase):
             1,
         )
 
-    def test_merchant_cannot_like_review_on_own_business(self):
-        self.business.USER_ID = self.user
-        self.business.save(
-            update_fields=["USER_ID"],
-        )
-
-        review_user = User.objects.create_user(
-            email="reviewer@example.com",
-            password="StrongPassword123!",
-            USER_FNAME="Review",
-            USER_LNAME="User",
-            USER_ROLE=User.UserRole.EXPLORER,
-            USER_STATUS=User.UserStatus.ACTIVE,
-        )
-
-        review = ReviewService.create_review(
-            user=review_user,
-            business_id=self.business.BUSN_ID,
-            text="A review of the business.",
-        )
-
-        with self.assertRaisesMessage(
-            ValidationError,
-            "You cannot like reviews for your own business.",
-        ):
-            ReviewLikeService.create_like(
-                user=self.user,
-                review_id=review.REVW_ID,
-            )
-
-        self.assertFalse(
-            ReviewLike.objects.filter(
-                USER_ID=self.user,
-                REVW_ID=review,
-            ).exists(),
-        )
-
 
     def test_create_like_rejects_duplicate(self):
         review = ReviewService.create_review(

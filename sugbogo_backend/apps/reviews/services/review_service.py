@@ -117,11 +117,16 @@ class ReviewService:
 
     @staticmethod
     def _annotated_review_queryset(user: User):
-        """Base queryset with is_liked/is_own_review annotations, unfiltered by business."""
+        """Base queryset with review interaction annotations, unfiltered by business."""
 
         likes = ReviewLike.objects.filter(
             REVW_ID=OuterRef("REVW_ID"),
             USER_ID=user,
+        )
+
+        owner_likes = ReviewLike.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            USER_ID=OuterRef("BUSN_ID__USER_ID"),
         )
 
         own_reviews = Review.objects.filter(
@@ -134,6 +139,7 @@ class ReviewService:
             .select_related("USER_ID")
             .annotate(
                 is_liked=Exists(likes),
+                is_liked_by_owner=Exists(owner_likes),
                 is_own_review=Exists(own_reviews),
             )
             .prefetch_related(
@@ -141,6 +147,7 @@ class ReviewService:
                 "reply__photos",
             )
         )
+
 
     @staticmethod
     def _get_review_queryset(business_id: int, user: User):
@@ -368,7 +375,9 @@ class ReviewService:
                     photo.RPHO_PHOTO_PUBLIC_ID,
                 )
 
-                photo.delete()
+            ReviewPhoto.objects.filter(
+                RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
+            ).delete()
 
         except Exception:
             for public_id in uploaded_public_ids:

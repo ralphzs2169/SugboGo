@@ -6,7 +6,7 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
-} from "./useBusinessReviews";
+} from "./reviewQueryKeys";
 
 import type {
   BusinessReview,
@@ -28,6 +28,7 @@ export function useReviewLike(businessId: number) {
     }: {
       reviewId: number;
       isLiked: boolean;
+      isOwner?: boolean;
     }) =>
       throwOnApiError(
         isLiked
@@ -35,7 +36,7 @@ export function useReviewLike(businessId: number) {
           : await reviewService.likeReview(reviewId),
       ),
 
-    onMutate: async ({ reviewId, isLiked }) => {
+    onMutate: async ({ reviewId, isLiked, isOwner }) => {
       await Promise.all([
         queryClient.cancelQueries({
           queryKey: businessReviewPreviewKey(businessId),
@@ -59,6 +60,7 @@ export function useReviewLike(businessId: number) {
               ...review,
               is_liked: !isLiked,
               like_count: review.like_count + (isLiked ? -1 : 1),
+              is_liked_by_owner: isOwner ? !isLiked : review.is_liked_by_owner,
             }
           : review;
 

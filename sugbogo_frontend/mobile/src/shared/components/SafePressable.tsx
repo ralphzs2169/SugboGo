@@ -8,6 +8,7 @@ export default function SafePressable({ onPress, ...props }: PressableProps) {
     if (!navigation.isFocused()) {
       return;
     }
+
     onPress?.(event);
   };
 

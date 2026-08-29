@@ -101,35 +101,3 @@ export function reportReview(
     }),
   );
 }
-
-export function createReviewReply(
-  reviewId: number,
-  text: string,
-  photos: LocalReviewPhoto[],
-) {
-  return request(
-    apiClient.post(`/reviews/${reviewId}/reply/`, reviewForm(text, photos)),
-  );
-}
-
-export function updateReviewReply(
-  replyId: number,
-  text: string,
-  photos: LocalReviewPhoto[],
-  keepPhotoIds: number[],
-) {
-  return request(
-    apiClient.patch(
-      `/reviews/replies/${replyId}/`,
-      reviewForm(text, photos, keepPhotoIds),
-    ),
-  );
-}
-
-export function deleteReviewReply(replyId: number) {
-  return request(apiClient.delete(`/reviews/replies/${replyId}/`));
-}
-
-export function deleteReplyPhoto(photoId: number) {
-  return request(apiClient.delete(`/reviews/reply-photos/${photoId}/`));
-}
