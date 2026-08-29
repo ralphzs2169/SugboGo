@@ -35,6 +35,8 @@ import type {
 } from "../../types/review-reply/reviewReply.types";
 import { BusinessReview } from "@/features/explore/types/review.types";
 import QuickResponses from "./QuickResponses";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
 
 type Props = {
   businessId: number;
@@ -42,8 +44,6 @@ type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
   onDismiss: () => void;
 };
-
-const MAX_PHOTOS = 3;
 
 /**
  * Creates and updates the merchant's single reply to a customer review.
@@ -78,12 +78,15 @@ export default function MerchantReviewReplyComposerSheet({
   const [isPicking, setIsPicking] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState<ReplyTemplate | null>(
+    null,
+  );
 
   const isEditing = Boolean(review?.reply);
   const isPending = isCreatePending || isUpdatePending;
 
   const photoCount = photos.length + existingPhotos.length;
-  const canAddMore = photoCount < MAX_PHOTOS;
+  const canAddMore = photoCount < MAX_REVIEW_PHOTOS;
 
   useEffect(() => {
     const reply = review?.reply;
@@ -108,7 +111,7 @@ export default function MerchantReviewReplyComposerSheet({
     try {
       const selectedPhotos = await pickBusinessPhotos({
         currentCount: photoCount,
-        maxPhotos: MAX_PHOTOS,
+        maxPhotos: MAX_REVIEW_PHOTOS,
       });
 
       if (selectedPhotos.length === 0) {
@@ -191,14 +194,24 @@ export default function MerchantReviewReplyComposerSheet({
     }
   };
 
-  const handleSelectTemplate = (template: ReplyTemplate) => {
+  const applyTemplate = (template: ReplyTemplate) => {
     setText(template.text);
     setShowTemplates(false);
+    setPendingTemplate(null);
 
     Toast.show({
       type: "info",
       text1: "Template applied",
     });
+  };
+
+  const handleSelectTemplate = (template: ReplyTemplate) => {
+    if (text.trim().length > 0) {
+      setPendingTemplate(template);
+      return;
+    }
+
+    applyTemplate(template);
   };
 
   const openTemplatePicker = () => {
@@ -469,7 +482,7 @@ export default function MerchantReviewReplyComposerSheet({
             </View>
 
             <Text className="mt-3 text-xs text-text-secondary">
-              Optional · Up to {MAX_PHOTOS} photos · {photoCount} added
+              Optional · Up to {MAX_REVIEW_PHOTOS} photos · {photoCount} added
             </Text>
           </View>
 
@@ -484,6 +497,16 @@ export default function MerchantReviewReplyComposerSheet({
           />
         </BottomSheetScrollView>
       )}
+
+      <ConfirmModal
+        visible={Boolean(pendingTemplate)}
+        title="Replace your draft?"
+        message="Applying this template will replace what you've already written."
+        confirmText="Replace"
+        destructive
+        onCancel={() => setPendingTemplate(null)}
+        onConfirm={() => pendingTemplate && applyTemplate(pendingTemplate)}
+      />
     </BottomSheetModal>
   );
 }

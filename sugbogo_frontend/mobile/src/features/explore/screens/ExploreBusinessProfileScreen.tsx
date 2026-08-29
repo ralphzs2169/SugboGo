@@ -20,7 +20,7 @@ import BusinessProfileScrollView from "../components/business-profile/BusinessPr
 import BusinessSpecialtiesSection from "../components/business-profile/BusinessSpecialtiesSection";
 import BusinessAboutContent from "../components/business-profile/BusinessAboutContent";
 import BusinessPhotosSection from "../components/business-profile/BusinessPhotosSection";
-import BusinessReviewsSection from "../components/business-profile/BusinessReviewsSection";
+import BusinessReviewsSection from "../components/business-profile/review-section/BusinessReviewsSection";
 import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
 import BusinessVisitInfoContent from "../components/business-profile/BusinessVisitInfoContent";
 import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";

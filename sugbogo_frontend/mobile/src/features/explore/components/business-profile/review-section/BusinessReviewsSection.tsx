@@ -5,8 +5,8 @@ import { Pressable, Text, View } from "react-native";
 import { theme } from "@/constants/theme";
 import ErrorState from "@/shared/components/ErrorState";
 
-import { useBusinessReviewPreview } from "../../hooks/useBusinessReviews";
-import type { BusinessReview } from "../../types/review.types";
+import { useBusinessReviewPreview } from "../../../hooks/useBusinessReviews";
+import type { BusinessReview } from "../../../types/review.types";
 import BusinessReviewCard from "./BusinessReviewCard";
 
 type Props = {
@@ -60,7 +60,7 @@ export default function BusinessReviewsSection({
                 className="cursor-pointer flex-row items-center active:opacity-70"
               >
                 <Text className="text-sm font-semibold text-brand">
-                  See all
+                  See more
                 </Text>
 
                 <MaterialCommunityIcons
@@ -99,14 +99,14 @@ export default function BusinessReviewsSection({
 
       {/* Existing review notice */}
       {!isLoading && !error && hasOwnReview && (
-        <View className="mb-4 flex-row items-center bg-info rounded-md bg-surface-secondary px-3 py-2.5">
+        <View className="mb-4 flex-row items-center bg-info rounded-md  px-3 py-2.5">
           <MaterialCommunityIcons
             name="information-outline"
             size={16}
             color={theme.extends.colors.text.info}
           />
 
-          <Text className="ml-2 flex-1 text-xs text-text-info">
+          <Text className="ml-2 flex-1 text-xs text-text-secondary">
             You've already reviewed this business. You can edit your review
             anytime.
           </Text>
@@ -138,7 +138,7 @@ export default function BusinessReviewsSection({
 
       {/* Review preview */}
       {!isLoading && !error && reviews.length > 0 && (
-        <View className="border-t border-border-primary">
+        <View className="pb-4 gap-2">
           {reviews.map((review) => (
             <BusinessReviewCard
               key={review.id}

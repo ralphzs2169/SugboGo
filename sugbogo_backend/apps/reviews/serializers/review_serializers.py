@@ -19,8 +19,15 @@ class ReviewCreateSerializer(serializers.Serializer):
     """Validates a business review creation request and its uploaded photos."""
 
     text = serializers.CharField(
+        min_length=25,
         max_length=1000,
+        error_messages={
+            "blank": "Review text is required.",
+            "min_length": "Review must be at least 25 characters long.",
+            "max_length": "Review must be 1000 characters or fewer.",
+        },
     )
+
     device_id = serializers.CharField(
         max_length=255,
         required=False,
@@ -168,6 +175,10 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
     is_own_review = serializers.BooleanField(
         read_only=True,
     )
+
+    is_liked_by_owner = serializers.BooleanField(
+        read_only=True,
+    )
     
     class Meta:
         model = Review
@@ -180,6 +191,7 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "is_liked",
+            "is_liked_by_owner",
             "photos",
             "vouched_specialties",
             "author",

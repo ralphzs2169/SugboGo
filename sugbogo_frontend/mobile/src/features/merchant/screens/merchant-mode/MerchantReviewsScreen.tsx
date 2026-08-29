@@ -106,9 +106,7 @@ export default function MerchantReviewsScreen() {
   const openReplyComposer = (review: BusinessReview) => {
     setSelectedReview(review);
 
-    requestAnimationFrame(() => {
-      presentBottomSheet(replySheetRef);
-    });
+    presentBottomSheet(replySheetRef);
   };
 
   if (isLoading) {

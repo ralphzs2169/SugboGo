@@ -2,23 +2,25 @@ import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
+  BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
   Pressable,
   Text,
-  TextInput,
   View,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 
+import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
+import PhotoPreview from "@/features/merchant/components/registration/business-photos/PhotoPreview";
 import Button from "@/shared/components/Button";
+import FormTextArea from "@/shared/components/form/FormTextArea";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
-import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
 import { theme } from "@/constants/theme";
 
 import {
@@ -30,7 +32,7 @@ import type {
   LocalReviewPhoto,
   ReviewPhoto,
 } from "../../types/review.types";
-import PhotoPreview from "@/features/merchant/components/registration/business-photos/PhotoPreview";
+import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
 
 type Props = {
   businessId: number;
@@ -38,25 +40,33 @@ type Props = {
   review?: BusinessReview | null;
 };
 
-const MAX_PHOTOS = 3;
+type ReviewErrors = {
+  text?: string;
+};
 
 /**
  * Provides a keyboard-friendly bottom sheet for creating or editing a review.
  *
  * Supports review text and up to three photos while reusing the application's
- * standard photo preview and selection interaction. Edit mode disables saving
- * until the review content or attached photos have changed.
+ * standard form textarea and photo preview components. Validation errors are
+ * shown after submission attempts and cleared when the field is focused.
  */
 export default function ReviewComposerSheet({
   businessId,
   sheetRef,
   review,
 }: Props) {
-  const { mutateAsync: createReview, isPending: isCreatePending } =
-    useCreateReview(businessId);
+  const {
+    mutateAsync: createReview,
+    isPending: isCreatePending,
+    error: createError,
+  } = useCreateReview(businessId);
 
-  const { mutateAsync: updateReview, isPending: isUpdatePending } =
-    useUpdateReview(businessId);
+  const {
+    mutateAsync: updateReview,
+    isPending: isUpdatePending,
+    error: updateError,
+  } = useUpdateReview(businessId);
 
   const [text, setText] = useState("");
   const [photos, setPhotos] = useState<LocalReviewPhoto[]>([]);
@@ -65,20 +75,40 @@ export default function ReviewComposerSheet({
   const [originalText, setOriginalText] = useState("");
   const [originalPhotoIds, setOriginalPhotoIds] = useState<number[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [errors, setErrors] = useState<ReviewErrors>({});
 
   const isEditing = Boolean(review);
   const isPending = isCreatePending || isUpdatePending;
-  const photoCount = photos.length + existingPhotos.length;
-  const canAddMore = photoCount < MAX_PHOTOS;
 
-  useEffect(() => {
-    if (!isSheetOpen) {
-      return;
+  const photoCount = photos.length + existingPhotos.length;
+  const canAddMore = photoCount < MAX_REVIEW_PHOTOS;
+
+  const trimmedText = text.trim();
+
+  const hasReviewChanges = () => {
+    if (!isEditing) {
+      return true;
     }
 
+    const textChanged = trimmedText !== originalText.trim();
+
+    const existingPhotosChanged =
+      existingPhotos.length !== originalPhotoIds.length ||
+      existingPhotos.some((photo) => !originalPhotoIds.includes(photo.id));
+
+    const newPhotosAdded = photos.length > 0;
+
+    return textChanged || existingPhotosChanged || newPhotosAdded;
+  };
+
+  useEffect(() => {
     const subscription = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
+        if (!isSheetOpen) {
+          return false;
+        }
+
         sheetRef.current?.dismiss();
         return true;
       },
@@ -88,24 +118,60 @@ export default function ReviewComposerSheet({
   }, [isSheetOpen, sheetRef]);
 
   const resetForm = () => {
-    setText(review?.text ?? "");
-    setPhotos([]);
-    setExistingPhotos(review?.photos ?? []);
-  };
-
-  useEffect(() => {
     const initialText = review?.text ?? "";
-    const initialPhotoIds = review?.photos.map((photo) => photo.id) ?? [];
+    const initialPhotos = review?.photos ?? [];
 
     setText(initialText);
     setPhotos([]);
-    setExistingPhotos(review?.photos ?? []);
+    setExistingPhotos(initialPhotos);
     setOriginalText(initialText);
-    setOriginalPhotoIds(initialPhotoIds);
+    setOriginalPhotoIds(initialPhotos.map((photo) => photo.id));
+    setErrors({});
+  };
+
+  useEffect(() => {
+    resetForm();
   }, [review]);
 
+  useEffect(() => {
+    const error = createError || updateError;
+
+    if (!error) {
+      return;
+    }
+
+    const response = error as unknown as ApiResponse<unknown>;
+
+    if (!response.success && !handleSystemError(response)) {
+      Toast.show({
+        type: "error",
+        text1: isEditing ? "Unable to update review" : "Unable to add review",
+        text2: response.message || "Please try again.",
+      });
+    }
+  }, [createError, updateError, isEditing]);
+
+  const clearFieldError = (field: keyof ReviewErrors) => {
+    setErrors((previous) => ({
+      ...previous,
+      [field]: undefined,
+    }));
+  };
+
+  const validate = (): ReviewErrors => {
+    const validationErrors: ReviewErrors = {};
+
+    if (!trimmedText) {
+      validationErrors.text = "Review is required.";
+    } else if (trimmedText.length < 25) {
+      validationErrors.text = "Review must be at least 25 characters.";
+    }
+
+    return validationErrors;
+  };
+
   const addPhotos = async () => {
-    if (!canAddMore || isPicking) {
+    if (!canAddMore || isPicking || isPending) {
       return;
     }
 
@@ -114,7 +180,7 @@ export default function ReviewComposerSheet({
     try {
       const selectedPhotos = await pickBusinessPhotos({
         currentCount: photoCount,
-        maxPhotos: MAX_PHOTOS,
+        maxPhotos: MAX_REVIEW_PHOTOS,
       });
 
       if (selectedPhotos.length === 0) {
@@ -128,79 +194,76 @@ export default function ReviewComposerSheet({
   };
 
   const removeExistingPhoto = (photoId: number) => {
+    if (isPending) {
+      return;
+    }
+
     setExistingPhotos((current) =>
       current.filter((photo) => photo.id !== photoId),
     );
   };
 
   const removePhoto = (index: number) => {
+    if (isPending) {
+      return;
+    }
+
     setPhotos((current) =>
       current.filter((_, photoIndex) => photoIndex !== index),
     );
   };
 
-  const hasReviewChanges = () => {
-    if (!isEditing) {
-      return true;
-    }
-
-    const textChanged = text.trim() !== originalText.trim();
-
-    const photoIdsChanged =
-      existingPhotos.length !== originalPhotoIds.length ||
-      existingPhotos.some((photo) => !originalPhotoIds.includes(photo.id));
-
-    const newPhotosAdded = photos.length > 0;
-
-    return textChanged || photoIdsChanged || newPhotosAdded;
-  };
-
-  const canSubmit = Boolean(text.trim()) && (!isEditing || hasReviewChanges());
+  const canSubmit = !isPending && (!isEditing || hasReviewChanges());
 
   const submit = async () => {
+    if (isPending) {
+      return;
+    }
+
+    if (!canSubmit) {
+      return;
+    }
+
+    const validationErrors = validate();
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     try {
       if (review) {
         await updateReview({
           reviewId: review.id,
-          text: text.trim(),
+          text: trimmedText,
           photos,
           keepPhotoIds: existingPhotos.map((photo) => photo.id),
         });
       } else {
         await createReview({
-          text: text.trim(),
+          text: trimmedText,
           photos,
         });
       }
 
       Toast.show({
-        type: "info",
+        type: "success",
         text1: review ? "Review updated" : "Review added",
       });
 
-      setText("");
-      setPhotos([]);
       sheetRef.current?.dismiss();
-    } catch (error) {
-      const response = error as ApiResponse<unknown>;
-
-      if (!response.success && !handleSystemError(response)) {
-        Toast.show({
-          type: "error",
-          text1: review ? "Unable to update review" : "Unable to add review",
-          text2: response.message || "Please try again.",
-        });
-      }
+    } catch {
+      // API errors are handled through the mutation error state.
     }
   };
 
   return (
     <BottomSheetModal
       ref={sheetRef}
-      snapPoints={["80%"]}
+      snapPoints={["90%"]}
       enableDynamicSizing={false}
-      enablePanDownToClose
-      keyboardBehavior="interactive"
+      enablePanDownToClose={!isPending}
+      keyboardBehavior="fillParent"
       keyboardBlurBehavior="restore"
       onChange={(index) => {
         const isOpen = index >= 0;
@@ -224,7 +287,7 @@ export default function ReviewComposerSheet({
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="px-5 pb-32 pt-3"
       >
-        {/* Review content */}
+        {/* Sheet header */}
         <Text className="text-xl font-bold text-text-primary">
           {isEditing ? "Edit review" : "Write a review"}
         </Text>
@@ -242,20 +305,28 @@ export default function ReviewComposerSheet({
           </Text>
         </View>
 
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          multiline
-          maxLength={1000}
-          placeholder="Share your experience"
-          className="mt-4 min-h-32 rounded-card border border-border-primary bg-surface p-3 text-text-primary"
-          textAlignVertical="top"
-        />
+        {/* Review text */}
+        <View className="mt-4">
+          <FormTextArea
+            label="Your review"
+            value={text}
+            onChangeText={setText}
+            onFocus={() => clearFieldError("text")}
+            placeholder="Share your experience"
+            maxLength={1000}
+            showCharacterCount
+            minLength={25}
+            required
+            error={errors.text}
+            editable={!isPending}
+            InputComponent={BottomSheetTextInput}
+          />
+        </View>
 
-        {/* Photo selection */}
+        {/* Review photos */}
         <View className="mt-5">
-          <Text className="mb-3 text-sm font-semibold text-text-primary">
-            Photos
+          <Text className="mb-3 text-sm font-bold text-text-primary">
+            Include Photos (optional)
           </Text>
 
           <View className="flex-row flex-wrap">
@@ -263,7 +334,9 @@ export default function ReviewComposerSheet({
               <View key={photo.id} className="mr-3">
                 <PhotoPreview
                   uri={photo.photo_url}
-                  onRemove={() => removeExistingPhoto(photo.id)}
+                  onRemove={
+                    isPending ? undefined : () => removeExistingPhoto(photo.id)
+                  }
                 />
               </View>
             ))}
@@ -272,7 +345,7 @@ export default function ReviewComposerSheet({
               <View key={`${photo.uri}-${index}`} className="mr-3">
                 <PhotoPreview
                   uri={photo.uri}
-                  onRemove={() => removePhoto(index)}
+                  onRemove={isPending ? undefined : () => removePhoto(index)}
                 />
               </View>
             ))}
@@ -280,7 +353,9 @@ export default function ReviewComposerSheet({
             {canAddMore && (
               <Pressable
                 onPress={addPhotos}
-                disabled={isPicking}
+                disabled={isPicking || isPending}
+                accessibilityRole="button"
+                accessibilityLabel="Add review photo"
                 className="h-24 w-24 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border-secondary active:opacity-70"
               >
                 {isPicking ? (
@@ -294,7 +369,7 @@ export default function ReviewComposerSheet({
                     />
 
                     <Text className="mt-1 text-xs font-medium text-text-secondary">
-                      Add Photo
+                      Add photo
                     </Text>
                   </>
                 )}
@@ -303,7 +378,7 @@ export default function ReviewComposerSheet({
           </View>
 
           <Text className="mt-3 text-xs text-text-secondary">
-            Optional · Up to {MAX_PHOTOS} photos · {photoCount} added
+            Optional · Up to {MAX_REVIEW_PHOTOS} photos · {photoCount} added
           </Text>
         </View>
 

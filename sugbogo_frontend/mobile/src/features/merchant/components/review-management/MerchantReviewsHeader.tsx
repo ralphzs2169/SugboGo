@@ -112,7 +112,7 @@ export default function MerchantReviewsHeader({
 
         <View className="ml-3 flex-1">
           <Text className="text-sm font-bold text-text-primary">
-            Quick response templates
+            Quick responses
           </Text>
 
           <Text className="mt-0.5 text-xs text-text-secondary">
