@@ -245,7 +245,7 @@ export default function BusinessVisitInfoContent({
               color={theme.extends.colors.text.secondary}
             />
 
-            <Text className="ml-3 flex-1 text-sm text-text-primary">
+            <Text className="ml-3 flex-1 text-sm text-text-primary font-medium">
               {email}
             </Text>
           </View>
@@ -261,7 +261,7 @@ export default function BusinessVisitInfoContent({
             />
 
             <Text
-              className="ml-3 flex-1 text-sm text-text-primary"
+              className="ml-3 flex-1 text-sm text-text-primary font-medium underline"
               numberOfLines={1}
             >
               {website}

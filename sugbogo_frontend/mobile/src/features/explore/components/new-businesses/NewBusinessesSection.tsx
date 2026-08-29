@@ -95,7 +95,7 @@ export default function NewBusinessesSection({ onBusinessPress }: Props) {
   }
 
   return (
-    <View className="mt-6">
+    <View className="mt-6 py-6 bg-surface">
       {/* Section heading */}
       <View className="mb-3 px-4">
         <Text className="text-lg font-bold text-text-primary">

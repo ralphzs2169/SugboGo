@@ -324,7 +324,7 @@ export default function ReviewComposerSheet({
         </View>
 
         {/* Review photos */}
-        <View className="mt-5">
+        <View>
           <Text className="mb-3 text-sm font-bold text-text-primary">
             Include Photos (optional)
           </Text>

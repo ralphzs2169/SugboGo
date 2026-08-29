@@ -103,7 +103,6 @@ export default function ExploreBusinessReviewsScreen({
 
             <BusinessReviewCard
               businessId={businessId}
-              businessName={businessName}
               review={myReview}
               onEdit={editReview}
             />
@@ -122,7 +121,6 @@ export default function ExploreBusinessReviewsScreen({
                 <BusinessReviewCard
                   key={review.id}
                   businessId={businessId}
-                  businessName={businessName}
                   review={review}
                   onEdit={editReview}
                 />

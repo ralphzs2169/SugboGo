@@ -218,7 +218,7 @@ export default function LoginScreen() {
         rightElement={
           <TouchableOpacity
             onPress={() => router.push("/(auth)/forgot-password")}
-            className="cursor-pointer"
+            className="cursor-pointer "
           >
             <Text className="text-xs font-bold tracking-[0.5px] text-brand">
               FORGOT?

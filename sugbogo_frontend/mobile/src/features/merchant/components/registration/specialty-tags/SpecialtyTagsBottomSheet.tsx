@@ -3,7 +3,8 @@ import {
   BottomSheetModal,
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
-import { View } from "react-native";
+import { useEffect, useState } from "react";
+import { BackHandler, View } from "react-native";
 
 import type { SpecialtyTagOption } from "@/features/merchant/types/registration/registrationOption.types";
 import SpecialtyTagsSheetHeader from "./SpecialtyTagsSheetHeader";
@@ -23,6 +24,7 @@ const MAX_SPECIALTY_TAGS = 3;
  * Displays the full specialty-tag selection interface in a bottom sheet.
  *
  * Selection state and update logic are owned by the parent component.
+ * The Android hardware back button dismisses the sheet when it is open.
  */
 export default function SpecialtyTagsBottomSheet({
   sheetRef,
@@ -31,6 +33,24 @@ export default function SpecialtyTagsBottomSheet({
   onToggleTag,
   onClose,
 }: SpecialtyTagsBottomSheetProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        sheetRef.current?.dismiss();
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [isOpen, sheetRef]);
+
   function renderBackdrop(props: any) {
     return (
       <BottomSheetBackdrop
@@ -48,7 +68,13 @@ export default function SpecialtyTagsBottomSheet({
       snapPoints={["70%", "85%"]}
       index={1}
       enablePanDownToClose
-      onDismiss={onClose}
+      onChange={(index) => {
+        setIsOpen(index >= 0);
+      }}
+      onDismiss={() => {
+        setIsOpen(false);
+        onClose();
+      }}
       backdropComponent={renderBackdrop}
     >
       <SpecialtyTagsSheetHeader
@@ -60,7 +86,7 @@ export default function SpecialtyTagsBottomSheet({
         contentContainerClassName="px-6 pb-8"
         showsVerticalScrollIndicator={false}
       >
-        <View className="flex-row flex-wrap justify-center">
+        <View className="flex-row flex-wrap justify-center gap-2">
           {tags.map((tag) => {
             const isSelected = selectedTags.includes(tag.id);
             const isDisabled =
@@ -73,7 +99,7 @@ export default function SpecialtyTagsBottomSheet({
                 isSelected={isSelected}
                 isDisabled={isDisabled}
                 onPress={() => onToggleTag(tag.id)}
-                showCheckIcon
+                mode="registration"
               />
             );
           })}

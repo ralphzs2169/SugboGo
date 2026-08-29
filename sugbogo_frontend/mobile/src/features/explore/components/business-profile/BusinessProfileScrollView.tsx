@@ -8,7 +8,7 @@ import BusinessProfileStickyHeader from "./BusinessProfileStickyHeader";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 
 type Props = {
-  business: ExploreBusiness;
+  business: ExploreBusiness | null;
   isRefreshing: boolean;
   onRefresh: () => void;
   children: ReactNode;
@@ -38,8 +38,6 @@ export default function BusinessProfileScrollView({
 
   const wasPastNavThreshold = useRef(false);
   const wasPastIdentityThreshold = useRef(false);
-
-  const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
   function handleScroll(event: any) {
     const offsetY = event.nativeEvent.contentOffset.y;
@@ -83,21 +81,27 @@ export default function BusinessProfileScrollView({
     }
   }
 
+  const clusterIconName = business
+    ? (CLUSTER_ICONS[business.cluster.icon] ?? "store")
+    : "store";
+
   return (
     <>
-      <BusinessProfileStickyHeader
-        businessId={business.id}
-        isPocketed={business.is_pocketed}
-        businessName={business.business_name}
-        coverPhotoUrl={business.cover_photo_url}
-        clusterIconName={clusterIconName}
-        clusterName={business.cluster.name}
-        categoryName={business.category.name}
-        navOpacity={navOpacity}
-        identityOpacity={identityOpacity}
-        translateY={stickyHeaderTranslateY}
-        isOwnBusiness={isOwnBusiness}
-      />
+      {business && (
+        <BusinessProfileStickyHeader
+          businessId={business.id}
+          isPocketed={business.is_pocketed}
+          businessName={business.business_name}
+          coverPhotoUrl={business.cover_photo_url}
+          clusterIconName={clusterIconName}
+          clusterName={business.cluster.name}
+          categoryName={business.category.name}
+          navOpacity={navOpacity}
+          identityOpacity={identityOpacity}
+          translateY={stickyHeaderTranslateY}
+          isOwnBusiness={isOwnBusiness}
+        />
+      )}
 
       <Animated.ScrollView
         contentContainerStyle={{

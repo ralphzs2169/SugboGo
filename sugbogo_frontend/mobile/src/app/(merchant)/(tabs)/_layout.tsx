@@ -3,9 +3,9 @@ import { Tabs } from "expo-router";
 
 const MERCHANT_TAB_CONFIG: TabBarConfig = {
   dashboard: { icon: "grid", label: "Dashboard" },
-  analytics: { icon: "analytics", label: "Analytics" },
-  reviews: { icon: "chatbubble-ellipses", label: "Reviews" },
-  profile: { icon: "person", label: "Profile" },
+  analytics: { icon: "bar-chart-2", label: "Analytics" },
+  reviews: { icon: "message-circle", label: "Reviews" },
+  profile: { icon: "user", label: "Profile" },
 };
 
 export default function MerchantTabLayout() {

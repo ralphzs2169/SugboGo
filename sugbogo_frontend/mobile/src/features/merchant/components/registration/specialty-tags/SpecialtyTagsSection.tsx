@@ -164,7 +164,7 @@ export default function SpecialtyTagsSection() {
       ) : (
         <>
           {/* Visible specialty tags */}
-          <View className="mb-2 flex-row flex-wrap border-b border-border-primary pb-4">
+          <View className="mb-2 flex-row flex-wrap border-b border-border-primary pb-4 gap-1">
             {visibleTagIds.map((tagId) => {
               const tag = specialtyTags.find(
                 (specialtyTag) => specialtyTag.id === tagId,
@@ -181,10 +181,10 @@ export default function SpecialtyTagsSection() {
                 <SpecialtyTagChip
                   key={tag.id}
                   tag={tag}
+                  mode="registration"
                   isSelected={isSelected}
                   isDisabled={isDisabled}
                   onPress={() => handleVisibleTagPress(tag.id)}
-                  showCheckIcon
                 />
               );
             })}

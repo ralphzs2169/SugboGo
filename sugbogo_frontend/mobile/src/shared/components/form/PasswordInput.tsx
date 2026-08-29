@@ -32,7 +32,10 @@ export default function PasswordInput({
         {...props}
       />
 
-      <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+      <TouchableOpacity
+        onPress={() => setShowPassword(!showPassword)}
+        className="cursor-pointer justify-center"
+      >
         <Ionicons
           name={showPassword ? "eye-outline" : "eye-off-outline"}
           size={18}
