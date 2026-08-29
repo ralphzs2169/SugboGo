@@ -248,6 +248,7 @@ export default function ReplyTemplateComposerSheet({
             showCharacterCount
             minLength={2}
             maxLength={100}
+            InputComponent={BottomSheetTextInput}
           />
         </View>
 

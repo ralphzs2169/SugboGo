@@ -17,14 +17,11 @@ type Props = {
 /**
  * Displays a merchant-defined specialty as an Explorer-vouchable tile.
  *
- * The specialty name represents the merchant's identity, while the heart and
- * count communicate community endorsement. Vouching triggers a brief heart
- * pop and pulse animation.
+ * Unvouched specialties use a white background with a colored outline,
+ * colored heart, and colored vouch count. Vouched specialties use the
+ * specialty color as the background with white foreground content.
  *
- * When disabled (the business owner viewing their own listing), the tile
- * is visually identical to the interactive state — it simply doesn't
- * respond to taps, since a merchant vouching for their own specialty
- * isn't a real action, not a state worth calling out visually.
+ * Vouching triggers a brief heart pop and pulse animation.
  */
 export default function BusinessSpecialtyVouchCard({
   name,
@@ -82,15 +79,29 @@ export default function BusinessSpecialtyVouchCard({
     ]).start();
   }, [isVouched]);
 
+  const foregroundColor = isVouched ? styles.icon : styles.borderColor;
+
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
       accessibilityState={{ disabled }}
-      className={`flex-1 rounded-xl px-3 py-2.5 cursor-pointer active:opacity-80 ${styles.background}`}
+      className={`flex-1 cursor-pointer rounded-xl px-3 py-2.5 active:opacity-80 ${
+        isVouched ? styles.background : "bg-white"
+      }`}
+      style={
+        !isVouched
+          ? {
+              borderWidth: 1.5,
+              borderColor: styles.borderColor,
+            }
+          : undefined
+      }
     >
       {/* Specialty identity */}
       <Text
-        className={`text-center text-xs font-bold ${styles.text}`}
+        className={`text-center text-xs ${
+          isVouched ? styles.text : styles.accentText
+        } ${isVouched ? "font-bold" : ""}`}
         numberOfLines={2}
       >
         {name}
@@ -104,7 +115,7 @@ export default function BusinessSpecialtyVouchCard({
             pointerEvents="none"
             className="absolute h-5 w-5 rounded-full"
             style={{
-              backgroundColor: styles.icon,
+              backgroundColor: foregroundColor,
               opacity: pulseOpacity,
               transform: [{ scale: pulseScale }],
             }}
@@ -119,12 +130,17 @@ export default function BusinessSpecialtyVouchCard({
             <MaterialCommunityIcons
               name={isVouched ? "heart" : "heart-outline"}
               size={19}
-              color={styles.icon}
+              color={foregroundColor}
             />
           </Animated.View>
         </View>
 
-        <Text className={`ml-1 text-xs font-bold ${styles.text}`}>
+        {/* Vouch count */}
+        <Text
+          className={`ml-1 text-xs font-bold ${
+            isVouched ? styles.text : styles.accentText
+          }`}
+        >
           {vouchCount}
         </Text>
       </View>

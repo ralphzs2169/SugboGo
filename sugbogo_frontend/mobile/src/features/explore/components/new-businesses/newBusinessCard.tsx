@@ -1,6 +1,7 @@
-import { Text, View, Pressable } from "react-native";
-import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { Text, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
@@ -17,128 +18,174 @@ type Props = {
   onPress: () => void;
 };
 
-const CARD_WIDTH = 248;
+const CARD_WIDTH = 226;
+const HERO_HEIGHT = 276;
 
 /**
- * Displays a newly added business as a discovery card.
+ * Displays a newly added business as a photo-led discovery card.
  *
- * Uses the cover photo as the primary visual element, with business identity,
- * specialty information, and distance presented below. The Pocket state is
- * surfaced directly on the cover so saved businesses are recognizable while
- * browsing the discovery feed.
+ * Uses a tall cover-photo hero with a gradient scrim to keep business
+ * identity and specialty tags readable. The outer card provides the
+ * elevation and shadow while the inner container clips the visual content.
  */
 export default function NewBusinessCard({
   business,
-  onPress,
   distance,
   distanceAccuracy,
+  onPress,
 }: Props) {
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
+
+  const arrangedSpecialtyTags = [...business.specialty_tags]
+    .slice(0, 3)
+    .sort((a, b) => b.name.length - a.name.length);
+
+  const longestTag = arrangedSpecialtyTags[0];
+  const shortestTag = arrangedSpecialtyTags[arrangedSpecialtyTags.length - 1];
+  const middleTags = arrangedSpecialtyTags.slice(1, -1);
+
+  const displayTags =
+    arrangedSpecialtyTags.length > 1
+      ? [longestTag, shortestTag, ...middleTags]
+      : arrangedSpecialtyTags;
 
   return (
     <SafePressable
       onPress={onPress}
       style={{
         width: CARD_WIDTH,
-        shadowColor: "#000",
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-        elevation: 3,
       }}
-      className="my-1 overflow-hidden rounded-xl bg-surface active:opacity-90"
+      className="mr-3 rounded-card bg-surface active:opacity-90 mb-2 border border-border-primary"
       android_ripple={{ color: "rgba(0,0,0,0.06)" }}
     >
-      {/* Cover photo */}
-      <View
-        style={{ aspectRatio: 4 / 3 }}
-        className="relative w-full overflow-hidden bg-surface-secondary"
-      >
-        {business.cover_photo_url ? (
-          <Image
-            source={{ uri: business.cover_photo_url }}
-            style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-            transition={150}
+      <View className="overflow-hidden rounded-card">
+        {/* Hero photo */}
+        <View
+          style={{
+            height: HERO_HEIGHT,
+            width: "100%",
+          }}
+          className="relative overflow-hidden bg-surface-secondary"
+        >
+          {business.cover_photo_url ? (
+            <Image
+              source={{ uri: business.cover_photo_url }}
+              style={{
+                width: "100%",
+                height: "100%",
+              }}
+              contentFit="cover"
+              transition={150}
+            />
+          ) : (
+            <View className="h-full w-full items-center justify-center bg-brand/8">
+              <MaterialCommunityIcons
+                name={clusterIconName}
+                size={56}
+                color={theme.extends.colors.brand}
+                style={{ opacity: 0.45 }}
+              />
+            </View>
+          )}
+
+          {/* Photo readability gradient */}
+          <LinearGradient
+            colors={[
+              "transparent",
+              "rgba(0,0,0,0.05)",
+              "rgba(0,0,0,0.3)",
+              "rgba(0,0,0,0.78)",
+            ]}
+            locations={[0, 0.4, 0.7, 1]}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 250,
+            }}
+            pointerEvents="none"
           />
-        ) : (
-          <View className="h-full w-full items-center justify-center bg-brand/8">
+
+          {/* Hero controls */}
+          <View className="absolute right-2 top-2 flex-row items-center gap-1">
+            {business.is_pocketed && (
+              <View className="h-8 w-8 items-center justify-center rounded-full bg-white">
+                <MaterialCommunityIcons
+                  name="bookmark"
+                  size={17}
+                  color={theme.extends.colors.brand}
+                />
+              </View>
+            )}
+
+            <View className="h-8 w-8 items-center justify-center rounded-full bg-white">
+              <MaterialCommunityIcons
+                name={clusterIconName}
+                size={16}
+                color={theme.extends.colors.brand}
+              />
+            </View>
+          </View>
+
+          {/* Business identity */}
+          <View className="absolute bottom-2 left-3 right-3">
+            <Text className="text-md font-bold text-white" numberOfLines={2}>
+              {business.business_name}
+            </Text>
+
+            {displayTags.length > 0 && (
+              <View className="mt-1.5 flex-row flex-wrap gap-1">
+                {displayTags.map((tag) => (
+                  <SpecialtyTagChip
+                    key={tag.id}
+                    tag={tag}
+                    size="small"
+                    isSelected={tag.is_vouched}
+                    showVouchIndicator={tag.is_vouched}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Card footer */}
+        <View className="flex-row items-center bg-surface px-3 py-2.5">
+          {/* Category */}
+          <View className="flex-1 flex-row items-center">
             <MaterialCommunityIcons
               name={clusterIconName}
-              size={40}
-              color={theme.extends.colors.brand}
-              style={{ opacity: 0.45 }}
-            />
-          </View>
-        )}
-        {/* Pocket indicator */}
-        {business.is_pocketed && (
-          <View className="absolute right-2.5 top-2.5 h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-sm">
-            <MaterialCommunityIcons
-              name="bookmark"
-              size={19}
+              size={14}
               color={theme.extends.colors.brand}
             />
-          </View>
-        )}
-      </View>
-      {/* Business identity */}
-      <View className="px-3.5 pb-3.5 pt-2.5">
-        {/* Business name */}
-        <Text
-          className="text-[15px] font-bold leading-[19px] text-text-primary"
-          numberOfLines={1}
-        >
-          {business.business_name}
-        </Text>
-        {/* Cluster + category */}
-        <View className="mt-1 flex-row items-center">
-          <MaterialCommunityIcons
-            name={clusterIconName}
-            size={13}
-            color={theme.extends.colors.brand}
-          />
-          <Text
-            className="ml-1 flex-1 text-[12px] font-medium text-text-secondary"
-            numberOfLines={1}
-          >
-            {business.category.name}
-          </Text>
-        </View>
-        {/* Specialty tags */}
-        {business.specialty_tags.length > 0 && (
-          <View className="mt-2 flex-row flex-wrap items-center">
-            {business.specialty_tags.map((tag) => (
-              <SpecialtyTagChip
-                key={tag.id}
-                tag={tag}
-                size="small"
-                isSelected={tag.is_vouched}
-                showVouchIndicator={tag.is_vouched}
-              />
-            ))}
-          </View>
-        )}
-        {/* Distance */}
-        {distance !== null && (
-          <View className="mt-2 flex-row items-center">
-            <MaterialCommunityIcons
-              name="map-marker-outline"
-              size={12}
-              color={theme.extends.colors.text.tertiary}
-            />
+
             <Text
-              className="ml-1 flex-1 text-[11px] text-text-tertiary"
+              className="ml-1.5 text-xs font-medium text-text-secondary"
               numberOfLines={1}
             >
-              {formatDistance(distance, distanceAccuracy)}{" "}
-              <Text className="text-[11px] text-text-tertiary">away</Text>
+              {business.category.name}
             </Text>
           </View>
-        )}
+
+          {/* Distance */}
+          {distance !== null && (
+            <View className="ml-2 flex-row items-center">
+              <MaterialCommunityIcons
+                name="map-marker-outline"
+                size={12}
+                color={theme.extends.colors.text.tertiary}
+              />
+
+              <Text
+                className="ml-1 text-xs text-text-tertiary"
+                numberOfLines={1}
+              >
+                {formatDistance(distance, distanceAccuracy)} away
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
     </SafePressable>
   );

@@ -12,13 +12,14 @@ interface FormInputProps extends TextInputProps {
   helperText?: string;
   minLength?: number;
   showCharacterCount?: boolean;
+  InputComponent?: React.ComponentType<TextInputProps>;
 }
 
 /**
  * FormInput renders a standard text input within an InputContainer.
  *
- * Supports optional live minimum-length feedback while keeping
- * form validation errors controlled by the form validation layer.
+ * Supports optional live minimum-length feedback and allows specialized
+ * input components, such as BottomSheetTextInput, when needed.
  */
 export default function FormInput({
   label,
@@ -30,6 +31,7 @@ export default function FormInput({
   minLength,
   showCharacterCount = false,
   value,
+  InputComponent = TextInput,
   ...props
 }: FormInputProps) {
   const characterCount = value?.trim().length ?? 0;
@@ -84,7 +86,10 @@ export default function FormInput({
       editable={editable}
       bottomElement={feedback}
     >
-      <TextInput
+      <InputComponent
+        {...props}
+        editable={editable}
+        value={value}
         className={`flex-1 py-[14px] text-body ${
           editable ? "text-text-primary" : "text-text-secondary"
         }`}
@@ -93,9 +98,6 @@ export default function FormInput({
             ? theme.extends.colors.text.tertiary
             : theme.extends.colors.text.disabled
         }
-        editable={editable}
-        value={value}
-        {...props}
       />
     </InputContainer>
   );

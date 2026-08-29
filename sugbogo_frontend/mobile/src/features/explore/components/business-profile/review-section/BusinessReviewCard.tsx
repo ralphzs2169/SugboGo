@@ -24,7 +24,6 @@ import ReviewContent from "./ReviewContent";
 type Props = {
   businessId: number;
   review: BusinessReview;
-  businessName: string;
   onEdit?: (review: BusinessReview) => void;
 };
 
@@ -38,7 +37,6 @@ type Props = {
 export default function BusinessReviewCard({
   businessId,
   review,
-  businessName,
   onEdit,
 }: Props) {
   const { mutateAsync: like, isPending: isLikePending } =

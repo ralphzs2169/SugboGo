@@ -20,6 +20,7 @@ export const theme = {
 
       brandLight: "#F27F0D33",
       brandDark: "#F27F0D99",
+      brandMuted: "#F27F0D24",
 
       background: "#ffffff",
       surface: "#f3f4f6",

@@ -9,10 +9,12 @@ import type { BusinessReview } from "../types/review.types";
 import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
 
 import { theme } from "@/constants/theme";
+import Skeleton from "@/shared/components/Skeleton";
+import FixedFooter from "@/shared/components/FixedFooter";
 
 import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 
-import BusinessProfileSkeleton from "../components/business-profile/state/BusinessProfileSkeleton";
+import BusinessProfileSkeletonContent from "../components/business-profile/state/BusinessProfileSkeletonContent";
 import BusinessProfileErrorState from "../components/business-profile/state/BusinessProfileErrorState";
 import ExploreBusinessHero from "../components/business-profile/ExploreBusinessHero";
 import BusinessProfileQuickInfo from "../components/business-profile/BusinessProfileQuickInfo";
@@ -46,6 +48,13 @@ type Props = {
  *
  * Coordinates the profile sections, business review preview, refresh behavior,
  * photo gallery, review composer, and contextual footer actions.
+ *
+ * The SafeAreaView/BusinessProfileScrollView shell stays mounted across the
+ * loading -> loaded transition; only the scroll view's children (and the
+ * footer) swap between skeleton placeholders and real content. This keeps
+ * scroll position and the sticky header's animation state intact instead
+ * of resetting when `business` finishes loading, which is what happened
+ * when the skeleton was rendered as a fully separate screen.
  */
 export default function ExploreBusinessProfileScreen({
   businessId,
@@ -97,11 +106,9 @@ export default function ExploreBusinessProfileScreen({
     // Navigation integration will be added here.
   };
 
-  if (isLoading && !business) {
-    return <BusinessProfileSkeleton />;
-  }
-
-  if (!business) {
+  // A hard fetch failure (no cached business to fall back on) still gets
+  // its own screen — there's nothing to keep the scroll shell mounted for.
+  if (error && !business) {
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
@@ -115,8 +122,12 @@ export default function ExploreBusinessProfileScreen({
     );
   }
 
-  const hoursSummary = getBusinessHoursSummary(business.operating_hours);
-  const quickInfoStatus = getQuickInfoStatus(hoursSummary);
+  const hoursSummary = business
+    ? getBusinessHoursSummary(business.operating_hours)
+    : null;
+  const quickInfoStatus = hoursSummary
+    ? getQuickInfoStatus(hoursSummary)
+    : null;
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -124,122 +135,144 @@ export default function ExploreBusinessProfileScreen({
         business={business}
         isRefreshing={isRefreshing}
         onRefresh={handleRefresh}
-        isOwnBusiness={business.is_own_business}
+        isOwnBusiness={business?.is_own_business ?? false}
       >
-        {/* Business hero */}
-        <ExploreBusinessHero
-          business={business}
-          isOwnBusiness={business.is_own_business}
-        />
-
-        {/* Quick info */}
-        <BusinessProfileQuickInfo
-          reviewCount={reviewCount}
-          statusLabel={quickInfoStatus.statusLabel}
-          statusDetail={quickInfoStatus.statusDetail}
-          isOpenNow={quickInfoStatus.isOpen}
-          distance={
-            distance !== null
-              ? formatDistance(distance, distanceAccuracy)
-              : null
-          }
-        />
-
-        {/* Business specialties */}
-        <BusinessSpecialtiesSection
-          businessId={business.id}
-          specialtyTags={business.specialty_tags}
-          isOwnBusiness={business.is_own_business}
-        />
-
-        {/* Business about */}
-        <BusinessProfileSection
-          title="About this place"
-          icon={
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={18}
-              color={theme.extends.colors.text.secondary}
+        {business && quickInfoStatus ? (
+          <>
+            {/* Business hero */}
+            <ExploreBusinessHero
+              business={business}
+              isOwnBusiness={business.is_own_business}
             />
-          }
-        >
-          <BusinessAboutContent description={business.description} />
-        </BusinessProfileSection>
 
-        {/* Visit & contact */}
-        <BusinessProfileSection
-          title="Plan Your Visit"
-          icon={
-            <MaterialCommunityIcons
-              name="calendar-clock-outline"
-              size={18}
-              color={theme.extends.colors.text.secondary}
+            {/* Quick info */}
+            <BusinessProfileQuickInfo
+              reviewCount={reviewCount}
+              statusLabel={quickInfoStatus.statusLabel}
+              statusDetail={quickInfoStatus.statusDetail}
+              isOpenNow={quickInfoStatus.isOpen}
+              distance={
+                distance !== null
+                  ? formatDistance(distance, distanceAccuracy)
+                  : null
+              }
             />
-          }
-        >
-          <BusinessVisitInfoContent
-            location={business.location}
-            operatingHours={business.operating_hours}
-            contactNumber={business.contact_number}
-            email={business.email}
-            website={business.website}
-            onGetDirections={handleGetDirections}
-            isOwnBusiness={business.is_own_business}
-          />
-        </BusinessProfileSection>
 
-        {/* Business photos */}
-        <BusinessProfileSection
-          title="See What’s Here"
-          icon={
-            <MaterialCommunityIcons
-              name="image-multiple-outline"
-              size={18}
-              color={theme.extends.colors.text.secondary}
+            {/* Business specialties */}
+            <BusinessSpecialtiesSection
+              businessId={business.id}
+              specialtyTags={business.specialty_tags}
+              isOwnBusiness={business.is_own_business}
             />
-          }
-        >
-          <BusinessPhotosSection
-            photos={business.photos}
-            onPhotoPress={handlePhotoPress}
-          />
 
-          <FullscreenPhotoViewer
-            photos={business.photos.map((photo) => ({
-              uri: photo.photo_url,
-              category: photo.category,
-            }))}
-            visible={galleryVisible}
-            initialIndex={galleryIndex}
-            onClose={() => setGalleryVisible(false)}
-          />
-        </BusinessProfileSection>
+            {/* Business about */}
+            <BusinessProfileSection
+              title="About this place"
+              icon={
+                <MaterialCommunityIcons
+                  name="information-outline"
+                  size={18}
+                  color={theme.extends.colors.text.secondary}
+                />
+              }
+            >
+              <BusinessAboutContent description={business.description} />
+            </BusinessProfileSection>
 
-        {/* Business reviews */}
-        <BusinessProfileSection>
-          <BusinessReviewsSection
-            businessId={business.id}
-            businessName={business.business_name}
-            isOwnBusiness={business.is_own_business}
-            onEditReview={handleEditReview}
-          />
-        </BusinessProfileSection>
+            {/* Visit & contact */}
+            <BusinessProfileSection
+              title="Plan Your Visit"
+              icon={
+                <MaterialCommunityIcons
+                  name="calendar-clock-outline"
+                  size={18}
+                  color={theme.extends.colors.text.secondary}
+                />
+              }
+            >
+              <BusinessVisitInfoContent
+                location={business.location}
+                operatingHours={business.operating_hours}
+                contactNumber={business.contact_number}
+                email={business.email}
+                website={business.website}
+                onGetDirections={handleGetDirections}
+                isOwnBusiness={business.is_own_business}
+              />
+            </BusinessProfileSection>
+
+            {/* Business photos */}
+            <BusinessProfileSection
+              title="See What’s Here"
+              icon={
+                <MaterialCommunityIcons
+                  name="image-multiple-outline"
+                  size={18}
+                  color={theme.extends.colors.text.secondary}
+                />
+              }
+            >
+              <BusinessPhotosSection
+                photos={business.photos}
+                onPhotoPress={handlePhotoPress}
+              />
+
+              <FullscreenPhotoViewer
+                photos={business.photos.map((photo) => ({
+                  uri: photo.photo_url,
+                  category: photo.category,
+                }))}
+                visible={galleryVisible}
+                initialIndex={galleryIndex}
+                onClose={() => setGalleryVisible(false)}
+              />
+            </BusinessProfileSection>
+
+            {/* Business reviews */}
+            <BusinessProfileSection>
+              <BusinessReviewsSection
+                businessId={business.id}
+                businessName={business.business_name}
+                isOwnBusiness={business.is_own_business}
+                onEditReview={handleEditReview}
+              />
+            </BusinessProfileSection>
+          </>
+        ) : (
+          <BusinessProfileSkeletonContent />
+        )}
       </BusinessProfileScrollView>
 
       {/* Footer */}
-      <BusinessProfileFooter
-        isOwnBusiness={business.is_own_business}
-        hasOwnReview={business.has_own_review}
-        onGetDirections={handleGetDirections}
-        onWriteReview={handleCreateReview}
-      />
+      {business ? (
+        <BusinessProfileFooter
+          isOwnBusiness={business.is_own_business}
+          hasOwnReview={business.has_own_review}
+          onGetDirections={handleGetDirections}
+          onWriteReview={handleCreateReview}
+        />
+      ) : (
+        <FixedFooter>
+          <View className="flex-row gap-3">
+            {/* Secondary CTA */}
+            <Skeleton className="h-12 flex-1 rounded-full" />
+
+            {/* Primary CTA */}
+            <View className="flex-1 overflow-hidden rounded-full">
+              <View className="h-12 bg-brand/30" />
+            </View>
+          </View>
+        </FixedFooter>
+      )}
 
       {/* Review composer */}
-      <ReviewComposerSheet
-        businessId={business.id}
-        sheetRef={composerRef}
-        review={editingReview}
-      />
+      {business && (
+        <ReviewComposerSheet
+          businessId={business.id}
+          sheetRef={composerRef}
+          review={editingReview}
+        />
+      )}
     </SafeAreaView>
   );
 }

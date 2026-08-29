@@ -143,7 +143,7 @@ export default function BusinessReviewsSection({
             <BusinessReviewCard
               key={review.id}
               businessId={businessId}
-              businessName={businessName}
+
               review={review}
               onEdit={onEditReview}
             />

@@ -4,6 +4,7 @@ import MerchantIllustration from "../../merchant/assets/illustrations/merchant-p
 
 import { theme } from "@/constants/theme";
 import type { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
+import SafePressable from "@/shared/components/SafePressable";
 
 type MerchantPortalCardProps = {
   status: MerchantApplicationStatus | null;
@@ -112,7 +113,7 @@ export default function MerchantPortalCard({
             {content.description}
           </Text>
 
-          <TouchableOpacity
+          <SafePressable
             className="mt-3 flex-row items-center justify-center bg-white px-3 py-2 rounded-full active:opacity-70 "
             onPress={onPress}
           >
@@ -124,7 +125,7 @@ export default function MerchantPortalCard({
               size={16}
               color={theme.extends.colors.brand}
             />
-          </TouchableOpacity>
+          </SafePressable>
         </View>
       </View>
     </View>

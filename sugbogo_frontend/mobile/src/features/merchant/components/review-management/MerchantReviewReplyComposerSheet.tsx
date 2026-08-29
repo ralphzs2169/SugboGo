@@ -279,18 +279,36 @@ export default function MerchantReviewReplyComposerSheet({
         >
           {/* Template picker header */}
           <View className="flex-row items-start">
+            <Pressable
+              onPress={closeTemplatePicker}
+              accessibilityRole="button"
+              accessibilityLabel="Back to reply composer"
+              hitSlop={8}
+              className="mr-2 cursor-pointer rounded-full p-1 active:opacity-60"
+            >
+              <MaterialCommunityIcons
+                name="chevron-left"
+                size={24}
+                color={theme.extends.colors.text.secondary}
+              />
+            </Pressable>
+
             <View className="flex-1 pr-3">
-              <Text className="text-xl font-bold text-text-primary">
-                Response templates
+              <Text
+                className="text-xl font-bold text-text-primary"
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                Quick Responses
               </Text>
 
-              <Text className="mt-2 text-xs leading-5 text-text-secondary">
-                Choose a saved response to get started.
+              <Text className="text-xs leading-5 text-text-secondary">
+                Choose a saved response to quickly reply.
               </Text>
             </View>
 
             <Pressable
-              onPress={closeTemplatePicker}
+              onPress={() => sheetRef.current?.dismiss()}
               accessibilityRole="button"
               accessibilityLabel="Close response templates"
               hitSlop={8}
@@ -401,8 +419,14 @@ export default function MerchantReviewReplyComposerSheet({
           contentContainerClassName="px-5 pb-32 pt-3"
         >
           {/* Sheet header */}
-          <Text className="text-xl font-bold text-text-primary">
-            {isEditing ? "Edit reply" : "Reply to review"}
+          <Text
+            className="text-xl font-bold text-text-primary"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {isEditing
+              ? `Edit reply to ${review?.author.first_name} ${review?.author.last_name}`
+              : `Reply to ${review?.author.first_name} ${review?.author.last_name}`}
           </Text>
 
           <Text className="mt-2 text-xs leading-5 text-text-secondary">

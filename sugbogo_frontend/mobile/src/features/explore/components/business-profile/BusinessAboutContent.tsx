@@ -45,7 +45,7 @@ export default function BusinessAboutContent({ description }: Props) {
   return (
     <View className="bg-surface">
       {/* Business description */}
-      <Text className="text-sm leading-6 text-text-secondary">
+      <Text className="text-sm leading-6 text-text-secondary font-medium">
         {displayedDescription}
       </Text>
 

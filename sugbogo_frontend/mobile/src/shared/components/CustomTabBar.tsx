@@ -1,15 +1,19 @@
 // src/shared/components/CustomTabBar.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { theme } from "@/constants/theme";
+import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { ComponentProps, useEffect, useRef } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type TabBarProps = NonNullable<ComponentProps<typeof Tabs>["tabBar"]>;
 type TabBarPropsArg = Parameters<TabBarProps>[0];
 
 export type TabBarConfig = {
-  [routeName: string]: { icon: keyof typeof Ionicons.glyphMap; label: string };
+  [routeName: string]: {
+    icon: keyof typeof Feather.glyphMap;
+    label: string;
+  };
 };
 
 function TabItem({
@@ -29,51 +33,70 @@ function TabItem({
     Animated.spring(progress, {
       toValue: isFocused ? 1 : 0,
       useNativeDriver: true,
-      speed: 18,
+      speed: 16,
       bounciness: 8,
     }).start();
-  }, [isFocused]);
+  }, [isFocused, progress]);
 
-  const circleScale = progress.interpolate({
+  const activeBackgroundOpacity = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.5, 1],
-  });
-  const circleOpacity = progress;
-  const iconColor = isFocused ? "#F27F0D" : "#666666";
-  const labelOpacity = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.6, 1],
+    outputRange: [0, 1],
   });
 
-  const iconName = config[routeName]?.icon ?? "ellipse-outline";
+  const activeScale = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.94, 1],
+  });
+
+  const activeTranslateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
+  const iconName = config[routeName]?.icon ?? "circle";
   const label = config[routeName]?.label ?? routeName;
 
+  const activeColor = isFocused
+    ? theme.extends.colors.brand
+    : theme.extends.colors.text.tertiary;
+
   return (
-    <Pressable onPress={onPress} className="flex-1 items-center justify-center">
-      <View className="w-9 h-9 items-center justify-center">
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      className="flex-1 cursor-pointer items-center justify-center"
+    >
+      <Animated.View
+        className="relative w-full items-center justify-center rounded-full px-1 py-1.5"
+        style={{
+          transform: [{ scale: activeScale }, { translateY: activeTranslateY }],
+        }}
+      >
+        {/* Active muted background */}
         <Animated.View
-          className="absolute w-9 h-9 rounded-full bg-brand"
+          pointerEvents="none"
+          className="absolute inset-0 rounded-full bg-background"
           style={{
-            opacity: circleOpacity,
-            transform: [{ scale: circleScale }],
+            opacity: activeBackgroundOpacity,
           }}
         />
-        <Ionicons
-          name={iconName}
-          size={20}
-          color={isFocused ? "#fff" : iconColor}
-        />
-      </View>
-      <Animated.Text
-        className="text-xs"
-        style={{
-          color: isFocused ? "#F27F0D" : "#666666",
-          opacity: labelOpacity,
-        }}
-        numberOfLines={1}
-      >
-        {label}
-      </Animated.Text>
+
+        {/* Icon */}
+        <Feather name={iconName} size={20} color={activeColor} />
+
+        {/* Label */}
+        <Animated.Text
+          className="mt-0.5 text-[10px] font-medium"
+          style={{
+            color: activeColor,
+          }}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
+          {label}
+        </Animated.Text>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -87,13 +110,13 @@ export default function CustomTabBar({
 
   return (
     <View
-      className="absolute left-0 right-0 bottom-0 items-center bg-transparent"
+      className="absolute bottom-0 left-0 right-0 items-center bg-transparent"
       style={{ paddingBottom: insets.bottom + 10 }}
     >
       <View
-        className="flex-row items-center justify-between bg-white rounded-tag px-md w-[95%]"
+        className="w-[95%] flex-row items-center justify-between rounded-full bg-white px-sm"
         style={{
-          height: 66,
+          height: 60,
           shadowColor: "#000",
           shadowOpacity: 0.12,
           shadowRadius: 12,
@@ -110,6 +133,7 @@ export default function CustomTabBar({
               target: route.key,
               canPreventDefault: true,
             });
+
             if (!isFocused && !event.defaultPrevented) {
               navigation.navigate(route.name);
             }
