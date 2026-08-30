@@ -60,12 +60,12 @@ export default function BusinessesPage() {
 
         {/* Business locations */}
         <div className="mt-6">
-          <BusinessLocationsSection
+          {/* <BusinessLocationsSection
             businesses={businesses}
             isLoading={isMapLoading}
             error={mapError}
             onRetry={refetchMap}
-          />
+          /> */}
         </div>
       </section>
 

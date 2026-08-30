@@ -73,20 +73,6 @@ export default function BusinessPhotosReview({
     };
   }, [hasSelectedPhoto, selectedIndex]);
 
-  // Prevent background page scrolling while the preview is open.
-  useEffect(() => {
-    if (!hasSelectedPhoto) {
-      return;
-    }
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [hasSelectedPhoto]);
-
   return (
     <>
       {/* Business photos section */}

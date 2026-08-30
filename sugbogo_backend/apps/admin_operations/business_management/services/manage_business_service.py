@@ -1,6 +1,8 @@
+from django.db.models import Prefetch
 from rest_framework.exceptions import NotFound
 
 from apps.business.models import Business
+from apps.reviews.models import Review
 
 
 class BusinessService:
@@ -87,6 +89,21 @@ class BusinessService:
 
     @staticmethod
     def get_business_detail(business_id):
+        latest_reviews = (
+            Review.objects
+            .filter(
+                REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+            )
+            .select_related(
+                "USER_ID",
+            )
+            .prefetch_related(
+                "photos",
+                "reply__photos",
+            )
+            .order_by("-REVW_CREATED_AT")[:3]
+        )
+
         try:
             return (
                 Business.objects
@@ -98,9 +115,14 @@ class BusinessService:
                     "merchant_application",
                 )
                 .prefetch_related(
-                    "SPECIALTY_TAGS",
+                    "specialty_tag_links__TAG_ID",
                     "photos",
                     "operating_hours",
+                    Prefetch(
+                        "reviews",
+                        queryset=latest_reviews,
+                        to_attr="latest_reviews",
+                    ),
                 )
                 .get(
                     BUSN_ID=business_id,

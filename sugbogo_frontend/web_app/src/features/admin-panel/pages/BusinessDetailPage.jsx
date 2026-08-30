@@ -8,8 +8,10 @@ import useBusinessDetail from "../businesses/hooks/useBusinessDetail";
 
 import BusinessDetailHero from "../businesses/components/business-detail/BusinessDetailHero";
 import BusinessDetailMetrics from "../businesses/components/business-detail/BusinessDetailMetrics";
-import BusinessDetailPhotoGallery from "../businesses/components/business-detail/BusinessDetailPhotoGallery";
+import BusinessReviewsPreview from "../businesses/components/business-detail/BusinessReviewsPreview";
+import BusinessPhotosPreview from "../businesses/components/business-detail/BusinessPhotosPreview";
 import BusinessLocationModal from "../businesses/components/business-detail/BusinessLocationModal";
+import BusinessApplicationSummary from "../businesses/components/business-detail/BusinessApplicationSummary";
 
 export default function BusinessDetailPage() {
   const { businessId } = useParams();
@@ -108,11 +110,40 @@ export default function BusinessDetailPage() {
           vouchCount={business.vouch_count}
           reviewCount={business.review_count}
           pocketCount={business.pocket_count}
+          specialtyTags={business.specialty_tags}
         />
       </section>
 
-      {/* Business photo gallery */}
-      <BusinessDetailPhotoGallery photos={business.photos} />
+      {/* Recent reviews & photos */}
+      <section>
+        <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
+          Reviews & Photos
+        </h2>
+        <div className="mt-4 grid grid-cols-1 items-stretch gap-6 lg:grid-cols-5">
+          <div className="flex lg:col-span-3">
+            <BusinessReviewsPreview
+              reviews={business.latest_reviews}
+              reviewCount={business.review_count}
+              businessId={business.id}
+            />
+          </div>
+          <div className="flex lg:col-span-2">
+            <BusinessPhotosPreview
+              photos={business.photos}
+              businessName={business.business_name}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Application summary */}
+      <section>
+        <h2 className="text-xs mb-4 font-bold uppercase tracking-widest text-text-secondary">
+          Business Application
+        </h2>
+
+        <BusinessApplicationSummary application={business.application} />
+      </section>
 
       {/* Location modal */}
       <BusinessLocationModal

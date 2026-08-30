@@ -11,8 +11,8 @@ const TREND_ICONS = {
 };
 
 /**
- * Displays one KPI value with optional historical or distribution
- * visualization and either a historical trend or contextual footer.
+ * Displays one KPI value with optional historical, distribution, or
+ * contextual visualization and either a historical trend or footer.
  */
 function MetricCard({
   title,
@@ -21,6 +21,7 @@ function MetricCard({
   trend,
   sparklineData = [],
   distribution,
+  visualization,
   footerLabel = "vs last week",
   footerValue,
   sparklineValueFormatter,
@@ -37,13 +38,13 @@ function MetricCard({
   return (
     <div className="flex min-h-[165px] flex-col overflow-hidden rounded-xl border border-stroke bg-background shadow-sm transition-shadow hover:shadow-md">
       {/* Metric header */}
-
-      <div className="flex items-center  border-b justify-between border-stroke bg-metric-header px-4 py-3">
-        <h3 className="min-w-0 truncate text-xs font-medium  text-text-primary">
+      <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-4 py-3">
+        <h3 className="min-w-0 truncate text-xs font-medium text-text-primary">
           {title}
         </h3>
+
         {Icon && (
-          <div className=" text-text-primary">
+          <div className="text-text-primary">
             <Icon size={20} strokeWidth={2} />
           </div>
         )}
@@ -80,7 +81,9 @@ function MetricCard({
         </div>
 
         {/* KPI visualization */}
-        {distribution ? (
+        {visualization ? (
+          visualization
+        ) : distribution ? (
           <MetricDonut data={distribution.data} />
         ) : (
           hasSparkline && (

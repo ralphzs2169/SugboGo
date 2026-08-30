@@ -76,13 +76,13 @@ export default function BusinessLocationPreview({ location, onClick }) {
 
       {/* Map preview */}
       <div className="relative h-24 w-40 shrink-0 overflow-hidden rounded-lg border border-stroke bg-surface-muted">
-        <img
+        {/* <img
           src={staticMapUrl}
           alt=""
           aria-hidden="true"
           className="h-full w-full object-cover"
           loading="lazy"
-        />
+        /> */}
 
         {/* Preview overlay */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/10">

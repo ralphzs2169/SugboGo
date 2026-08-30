@@ -37,7 +37,8 @@ export default function SugboGoText({
         />
       ) : (
         <span>
-          <span className="text-lg font-bold text-primary">Sugbo</span>
+          {/* hardcode the brandcolor because the 'text-brand' class switches based on theme */}
+          <span className="text-lg font-bold text-[#F27F0D]">Sugbo</span>
           <span className="text-lg font-bold text-text-primary">Go</span>
         </span>
       )}

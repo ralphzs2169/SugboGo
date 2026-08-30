@@ -1,12 +1,20 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { Eye, FileText, Ban, CheckCircle, MapPin, Image } from "lucide-react";
+import {
+  Eye,
+  FileText,
+  Ban,
+  CheckCircle,
+  MapPin,
+  Image,
+  Heart,
+  MessageCircle,
+} from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import StatusBadge from "@/shared/components/StatusBadge";
 import { formatDate } from "@/shared/utils/dateUtils";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "../../cluster-category/constants/clusterIcons";
-import ActionMenu from "@/features/admin-panel/components/ActionMenu";
 
 const columnHelper = createColumnHelper();
 
@@ -24,15 +32,19 @@ const STATUS_CONFIG = {
 /**
  * Creates the TanStack Table column definitions for business management.
  *
- * Displays business identity, account ownership, classification,
- * specialty tags, location, status, creation date, and the detail action.
+ * Displays business identity, location, specialty tags, classification,
+ * community activity, status, creation date, and management actions.
  */
-export default function getBusinessColumns(onViewBusiness) {
+export default function getBusinessColumns(
+  onViewBusiness,
+  onViewApplication,
+  onToggleStatus,
+) {
   return [
     columnHelper.display({
       id: "rowNumber",
       header: "No.",
-      size: 40,
+      size: 60,
       meta: {
         skeleton: "number",
       },
@@ -47,14 +59,16 @@ export default function getBusinessColumns(onViewBusiness) {
     columnHelper.accessor((business) => business.business_name, {
       id: "business_name",
       header: "Business",
-      size: 300,
-      minSize: 250,
+      size: 320,
+      minSize: 280,
+
       meta: {
         skeleton: "longText",
       },
       cell: (info) => {
         const business = info.row.original;
         const photoUrl = business.cover_photo_url;
+        const tags = business.specialty_tags ?? [];
 
         return (
           <div className="flex items-center gap-3">
@@ -74,13 +88,27 @@ export default function getBusinessColumns(onViewBusiness) {
               </div>
             )}
 
-            {/* Business identity */}
+            {/* Business identity and specialty tags */}
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-text-primary">
                 {business.business_name || "—"}
               </p>
 
-              <div className="mt-1 flex items-center gap-1.5">
+              {tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1">
+                  {tags.slice(0, 3).map((tag) => (
+                    <SpecialtyTagChip key={tag.id} tag={tag} size="small" />
+                  ))}
+
+                  {tags.length > 3 && (
+                    <span className="ml-0.5 text-[10px] font-medium text-text-secondary">
+                      +{tags.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* <div className="mt-1 flex items-center gap-1.5">
                 <MapPin className="h-3 w-3 shrink-0 text-text-secondary" />
 
                 <p
@@ -89,7 +117,7 @@ export default function getBusinessColumns(onViewBusiness) {
                 >
                   {business.location || "No location"}
                 </p>
-              </div>
+              </div> */}
             </div>
           </div>
         );
@@ -135,38 +163,33 @@ export default function getBusinessColumns(onViewBusiness) {
       },
     }),
 
+    // Community activity will be populated once the backend
+    // starts returning the corresponding business-level metrics.
     columnHelper.display({
-      id: "specialty_tags",
-      header: "Specialty Tags",
+      id: "community_activity",
+      header: "Community Activity",
       size: 180,
-      minSize: 140,
+      minSize: 160,
       meta: {
         skeleton: "longText",
       },
       enableSorting: false,
-      cell: ({ row }) => {
-        const tags = row.original.specialty_tags ?? [];
-
-        if (tags.length === 0) {
-          return <span className="text-sm text-text-secondary">—</span>;
-        }
-
-        return (
-          <div className="flex flex-col items-start gap-1.5">
-            {tags.slice(0, 3).map((tag) => (
-              <SpecialtyTagChip key={tag.id} tag={tag} />
-            ))}
-
-            {tags.length > 3 && (
-              <span className="text-xs font-medium text-text-secondary">
-                +{tags.length - 3} more
-              </span>
-            )}
+      cell: () => (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Heart className="h-3.5 w-3.5 text-text-secondary" />
+            <span className="text-xs font-medium text-text-secondary">
+              — total vouches
+            </span>
           </div>
-        );
-      },
-    }),
 
+          <div className="flex items-center gap-1.5">
+            <MessageCircle className="h-3.5 w-3.5 text-text-secondary" />
+            <span className="text-xs text-text-secondary">— reviews</span>
+          </div>
+        </div>
+      ),
+    }),
     columnHelper.accessor((business) => business.status, {
       id: "status",
       header: "Status",
@@ -213,7 +236,7 @@ export default function getBusinessColumns(onViewBusiness) {
         const isActive = business.status === "active";
 
         return (
-          <div className="flex items-center justify-center ">
+          <div className="flex items-center justify-center">
             <Button
               variant="action"
               size="md"
