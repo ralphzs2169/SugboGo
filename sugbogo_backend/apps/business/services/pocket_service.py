@@ -1,4 +1,5 @@
 from django.db import IntegrityError, transaction
+from django.db.models import F
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.business.models import Business, BusinessPocket
@@ -24,7 +25,7 @@ class PocketService:
             )
 
         try:
-            return BusinessPocket.objects.create(
+            pocket = BusinessPocket.objects.create(
                 BUSN_ID=business,
                 USER_ID=user,
             )
@@ -32,6 +33,14 @@ class PocketService:
             raise ValidationError(
                 "You have already added this business to your pocket.",
             )
+
+        Business.objects.filter(
+            BUSN_ID=business.BUSN_ID,
+        ).update(
+            BUSN_POCKET_COUNT=F("BUSN_POCKET_COUNT") + 1,
+        )
+
+        return pocket
 
     @staticmethod
     @transaction.atomic
@@ -49,7 +58,15 @@ class PocketService:
                 "This business is not in your pocket.",
             )
 
+        business_id = pocket.BUSN_ID_id
+
         pocket.delete()
+
+        Business.objects.filter(
+            BUSN_ID=business_id,
+        ).update(
+            BUSN_POCKET_COUNT=F("BUSN_POCKET_COUNT") - 1,
+        )
 
     @staticmethod
     def has_pocketed(
