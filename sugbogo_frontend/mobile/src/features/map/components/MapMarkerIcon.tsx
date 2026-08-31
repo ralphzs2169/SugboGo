@@ -1,21 +1,23 @@
 import { View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { theme } from "@/constants/theme";
 import { CATEGORY_ICONS } from "@/shared/constants/categoryIcons";
 
 type Props = {
   category: "Culinary" | "Leisure" | "Creative";
+  isSelected?: boolean;
 };
 
-export default function MapMarkerIcon({ category }: Props) {
+export default function MapMarkerIcon({ category, isSelected = false }: Props) {
   return (
     <View
-      className="h-9 w-9 items-center justify-center rounded-full bg-brand"
+      className={`items-center justify-center rounded-full ${
+        isSelected ? "h-11 w-11 bg-brand" : "h-9 w-9 bg-brand"
+      }`}
       style={{ borderWidth: 2, borderColor: "#FFFFFF", elevation: 4 }}
     >
       <MaterialCommunityIcons
         name={CATEGORY_ICONS[category]}
-        size={18}
+        size={isSelected ? 22 : 18}
         color="#FFFFFF"
       />
     </View>

@@ -18,7 +18,7 @@ export default function MapSearchOverlay({ activeFilters, onToggleFilter }: Prop
     <View className="absolute left-0 right-0 top-0 px-screen-x pt-md">
       <View
         className="flex-row items-center rounded-input bg-surface px-md py-sm"
-        style={{ elevation: 3 }}
+        style={{ elevation: 4 }}
       >
         <MaterialCommunityIcons
           name="magnify"
@@ -52,18 +52,19 @@ export default function MapSearchOverlay({ activeFilters, onToggleFilter }: Prop
               key={filter.label}
               onPress={() => onToggleFilter(filter.label)}
               className={`flex-row items-center rounded-tag px-md py-sm ${
-                isActive ? "bg-brand" : "bg-surface"
+                isActive
+                  ? "bg-brand"
+                  : "bg-surface border border-text-primary"
               }`}
-              style={{ elevation: 3 }}
             >
               <MaterialCommunityIcons
                 name={filter.icon}
-                size={14}
-                color={isActive ? "#FFFFFF" : theme.extends.colors.brand}
+                size={16}
+                color={isActive ? "#FFFFFF" : theme.extends.colors.text.primary}
               />
               <Text
                 className={`ml-xs text-small font-medium ${
-                  isActive ? "text-white" : "text-text-secondary"
+                  isActive ? "text-white" : "text-text-primary"
                 }`}
               >
                 {filter.label}
