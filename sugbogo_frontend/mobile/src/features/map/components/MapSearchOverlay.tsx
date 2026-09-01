@@ -1,6 +1,7 @@
 import { View, TextInput, Pressable, Text, ScrollView } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const FILTERS = [
   { label: "Near Me", icon: "crosshairs-gps" as const },
@@ -13,9 +14,14 @@ type Props = {
   onToggleFilter: (label: string) => void;
 };
 
+
 export default function MapSearchOverlay({ activeFilters, onToggleFilter }: Props) {
+  const insets = useSafeAreaInsets();
   return (
-    <View className="absolute left-0 right-0 top-0 px-screen-x pt-md">
+    <View 
+    className="absolute left-0 right-0 top-0 px-screen-x"
+    style={{ paddingTop: insets.top + 12 }}
+>
       <View
         className="flex-row items-center rounded-input bg-surface px-md py-sm"
         style={{ elevation: 4 }}

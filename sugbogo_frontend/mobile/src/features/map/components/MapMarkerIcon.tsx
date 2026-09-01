@@ -10,14 +10,18 @@ type Props = {
 export default function MapMarkerIcon({ category, isSelected = false }: Props) {
   return (
     <View
-      className={`items-center justify-center rounded-full ${
-        isSelected ? "h-11 w-11 bg-brand" : "h-9 w-9 bg-brand"
-      }`}
-      style={{ borderWidth: 2, borderColor: "#FFFFFF", elevation: 4 }}
+      className="items-center justify-center rounded-full bg-brand"
+      style={{
+        height: isSelected ? 42 : 36,
+        width: isSelected ? 42 : 36,
+        borderWidth: 2,
+        borderColor: "#FFFFFF",
+        elevation: 4,
+      }}
     >
       <MaterialCommunityIcons
         name={CATEGORY_ICONS[category]}
-        size={isSelected ? 22 : 18}
+        size={isSelected ? 20 : 18}
         color="#FFFFFF"
       />
     </View>

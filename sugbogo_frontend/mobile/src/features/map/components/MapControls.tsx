@@ -11,7 +11,7 @@ type Props = {
 
 export default function MapControls({ onZoomIn, onZoomOut, onLocateMe, isPreviewCardOpen }: Props) {
   return (
-    <View className="absolute right-md" style={{ bottom: isPreviewCardOpen ? 220 : 100 }}>
+    <View className="absolute right-md" style={{ bottom: isPreviewCardOpen ? 200 : 100 }}>
       <View className="overflow-hidden rounded-input bg-surface" style={{ elevation: 4 }}>
         <Pressable onPress={onZoomIn} className="h-10 w-10 items-center justify-center">
           <MaterialCommunityIcons name="plus" size={20} color={theme.extends.colors.text.primary} />
