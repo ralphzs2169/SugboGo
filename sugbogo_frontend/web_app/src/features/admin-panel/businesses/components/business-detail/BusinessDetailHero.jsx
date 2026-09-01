@@ -1,62 +1,43 @@
-import { ArrowLeft, Image, MoreVertical } from "lucide-react";
+import { Image, MoreVertical } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import StatusBadge from "@/shared/components/StatusBadge";
+import { getBusinessStatusConfig } from "@/shared/constants/businessStatus";
 import BusinessLocationPreview from "./BusinessLocationPreview";
 import BusinessHoursPreview from "./BusinessHoursPreview";
-import { formatOperatingHours } from "../../../business-applications/utils/operatingHours.utils";
-
-const STATUS_CONFIG = {
-  active: {
-    label: "Active",
-    className: "bg-success/10 text-success",
-  },
-  suspended: {
-    label: "Suspended",
-    className: "bg-warning/10 text-warning",
-  },
-};
+import BusinessContactPreview from "./BusinessContactPreview";
+import UserAvatar from "@/shared/components/UserAvatar";
 
 /**
  * Displays the primary identity of a permanent business.
  *
- * Combines the cover photo, classification, specialty tags, description,
- * compact location preview, operating hours, and business status.
+ * Combines the cover photo, linked owner account, classification,
+ * specialty tags, description, compact location preview, operating
+ * hours, contact info, and business status.
  */
 export default function BusinessDetailHero({
   business,
-  onBack,
   onOpenLocation,
   onOpenHours,
 }) {
   const photos = business.photos ?? [];
-
-  const status = STATUS_CONFIG[business.status] ?? {
-    label: business.status ?? "Unknown",
-    className: "bg-surface text-text-secondary",
-  };
+  const owner = business.owner;
+  const status = getBusinessStatusConfig(business.status);
 
   const hasLocation =
     business.location?.latitude != null && business.location?.longitude != null;
 
+  const hasContact =
+    business.contact_number || business.email || business.website;
+
   return (
     <section>
-      {/* Back navigation */}
-      <Button
-        variant="ghost"
-        size="sm"
-        icon={ArrowLeft}
-        onClick={onBack}
-        className="mb-4"
-      >
-        Back to Businesses
-      </Button>
-
       {/* Business profile */}
       <div className="overflow-hidden rounded-xl border border-stroke bg-background">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,420px)_1fr]">
-          {/* Business photos */}
+          {/* Business photos and owner */}
           <div className="p-4 sm:p-5">
             {/* Cover photo */}
             <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-surface-muted">
@@ -80,36 +61,41 @@ export default function BusinessDetailHero({
               )}
             </div>
 
-            {/* Additional business photos */}
-            {photos.length > 0 && (
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {photos.slice(0, 4).map((photo, index) => {
-                  const isLastVisible = index === 3;
-                  const remainingCount = photos.length - 4;
-
-                  return (
-                    <div
-                      key={photo.id ?? photo.photo_url}
-                      className="relative aspect-square overflow-hidden rounded-lg border border-stroke bg-surface-muted"
-                    >
-                      <img
-                        src={photo.photo_url}
-                        alt={`${business.business_name} photo`}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-
-                      {isLastVisible && remainingCount > 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                          <span className="text-xs font-semibold text-white">
-                            +{remainingCount}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            {/* Linked SugboGo account */}
+            <div className="mt-4 rounded-xl border border-stroke bg-surface-muted/40 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">
+                  Linked Account
+                </p>
               </div>
-            )}
+
+              <div className="mt-3 flex items-center gap-3">
+                <UserAvatar avatarUrl={owner?.avatar_url} size="lg" />
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-text-primary">
+                    {owner?.name || "Unknown account"}
+                  </p>
+
+                  {owner?.email && (
+                    <p
+                      className="mt-1 truncate text-xs text-text-secondary"
+                      title={owner.email}
+                    >
+                      {owner.email}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="mt-3 flex w-full cursor-pointer items-center justify-between rounded-lg border border-stroke bg-background px-3 py-2 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary"
+              >
+                <span>View account</span>
+                <span className="text-sm">→</span>
+              </button>
+            </div>
           </div>
 
           {/* Business identity */}
@@ -121,11 +107,9 @@ export default function BusinessDetailHero({
                     {business.business_name}
                   </h1>
 
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${status.className}`}
-                  >
+                  <StatusBadge variant={status.variant}>
                     {status.label}
-                  </span>
+                  </StatusBadge>
                 </div>
 
                 <p className="mt-1 text-xs text-text-secondary">
@@ -179,19 +163,27 @@ export default function BusinessDetailHero({
               </div>
             )}
 
-            {/* Location and availability */}
-            {hasLocation && (
+            {/* Location, hours & contact */}
+            {(hasLocation || hasContact) && (
               <div className="mt-5 border-t border-stroke pt-5">
-                <BusinessLocationPreview
-                  location={business.location}
-                  onClick={onOpenLocation}
-                />
+                {hasLocation && (
+                  <BusinessLocationPreview
+                    location={business.location}
+                    onClick={onOpenLocation}
+                  />
+                )}
 
                 {business.operating_hours?.length > 0 && (
                   <BusinessHoursPreview
                     operatingHours={business.operating_hours}
                   />
                 )}
+
+                <BusinessContactPreview
+                  contactNumber={business.contact_number}
+                  email={business.email}
+                  website={business.website}
+                />
               </div>
             )}
           </div>

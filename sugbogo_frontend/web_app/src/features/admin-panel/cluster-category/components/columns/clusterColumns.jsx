@@ -1,6 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import Button from "@/shared/components/Button";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, CalendarDays } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
 const columnHelper = createColumnHelper();
 import { formatDate } from "@/shared/utils/dateUtils";
@@ -68,11 +68,19 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
       meta: {
         skeleton: "number",
       },
-      cell: (info) => (
-        <span className="text-sm text-text-primary">
-          {info.getValue() ?? 0}
-        </span>
-      ),
+      cell: (info) => {
+        const count = info.getValue() ?? 0;
+
+        return (
+          <span
+            className={`text-sm ${
+              count === 0 ? "text-text-secondary" : "text-text-primary"
+            }`}
+          >
+            {count}
+          </span>
+        );
+      },
     }),
 
     columnHelper.accessor("msme_count", {
@@ -80,11 +88,19 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
       meta: {
         skeleton: "number",
       },
-      cell: (info) => (
-        <span className="text-sm text-text-primary">
-          {info.getValue() ?? 0}
-        </span>
-      ),
+      cell: (info) => {
+        const count = info.getValue() ?? 0;
+
+        return (
+          <span
+            className={`text-sm ${
+              count === 0 ? "text-text-secondary" : "text-text-primary"
+            }`}
+          >
+            {count}
+          </span>
+        );
+      },
     }),
 
     columnHelper.accessor("created_at", {
@@ -93,9 +109,16 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
         skeleton: "text",
       },
       cell: (info) => (
-        <span className="text-sm text-text-secondary">
-          {formatDate(info.getValue())}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <CalendarDays
+            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
+            strokeWidth={1.75}
+          />
+
+          <span className="text-sm text-text-secondary">
+            {formatDate(info.getValue())}
+          </span>
+        </div>
       ),
     }),
 
@@ -105,9 +128,16 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
         skeleton: "text",
       },
       cell: (info) => (
-        <span className="text-sm text-text-secondary">
-          {formatDate(info.getValue())}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <CalendarDays
+            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
+            strokeWidth={1.75}
+          />
+
+          <span className="text-sm text-text-secondary">
+            {formatDate(info.getValue())}
+          </span>
+        </div>
       ),
     }),
 

@@ -2,8 +2,8 @@ import clsx from "clsx";
 import { CLUSTER_ICONS } from "../constants/clusterIcons";
 
 /**
- * Displays a cluster using either a standard label presentation
- * or a compact badge suitable for overlays and previews.
+ * Displays a cluster using either a standard label presentation,
+ * a compact badge, or a smaller inline presentation.
  */
 export default function ClusterDisplay({
   clusterName,
@@ -28,6 +28,20 @@ export default function ClusterDisplay({
 
         <span>{clusterName || "—"}</span>
       </span>
+    );
+  }
+
+  if (variant === "small") {
+    return (
+      <div className={clsx("flex items-center gap-1.5", className)}>
+        <div className="flex shrink-0 items-center justify-center text-text-secondary">
+          {Icon && <Icon className="h-3.5 w-3.5" strokeWidth={2} />}
+        </div>
+
+        <span className="text-xs text-text-secondary">
+          {clusterName || "—"}
+        </span>
+      </div>
     );
   }
 

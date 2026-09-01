@@ -8,8 +8,10 @@ export async function fetchBusinesses(params = {}) {
   return response.data.data;
 }
 
-export async function fetchBusinessLocations() {
-  const response = await apiClient.get("/admin/businesses/map/");
+export async function fetchBusinessLocations(params = {}) {
+  const response = await apiClient.get("/admin/businesses/map/", {
+    params,
+  });
 
   return response.data.data;
 }

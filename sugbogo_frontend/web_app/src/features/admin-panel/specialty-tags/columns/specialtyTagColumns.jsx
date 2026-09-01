@@ -1,5 +1,5 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, CalendarDays } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
 import Button from "@/shared/components/Button";
 import { formatDate } from "@/shared/utils/dateUtils";
@@ -54,7 +54,7 @@ export default function getSpecialtyTagColumns(
       cell: (info) => {
         const tag = info.row.original;
 
-        return <SpecialtyTagChip tag={tag} />;
+        return <SpecialtyTagChip tag={tag} chipStyle={false} />;
       },
     }),
 
@@ -93,9 +93,16 @@ export default function getSpecialtyTagColumns(
         skeleton: "text",
       },
       cell: (info) => (
-        <span className="text-sm text-text-secondary">
-          {formatDate(info.getValue())}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <CalendarDays
+            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
+            strokeWidth={1.75}
+          />
+
+          <span className="text-sm text-text-secondary">
+            {formatDate(info.getValue())}
+          </span>
+        </div>
       ),
     }),
 
@@ -106,9 +113,16 @@ export default function getSpecialtyTagColumns(
         skeleton: "text",
       },
       cell: (info) => (
-        <span className="text-sm text-text-secondary">
-          {formatDate(info.getValue())}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <CalendarDays
+            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
+            strokeWidth={1.75}
+          />
+
+          <span className="text-sm text-text-secondary">
+            {formatDate(info.getValue())}
+          </span>
+        </div>
       ),
     }),
 

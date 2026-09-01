@@ -1,4 +1,4 @@
-import { Image, MapPin, Tag } from "lucide-react";
+import { ArrowRight, Image, MapPin, Tag } from "lucide-react";
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 
 /**
@@ -8,7 +8,7 @@ import ClusterDisplay from "@/shared/components/ClusterDisplay";
  * status, and an explicit action for opening the business management page.
  */
 export default function BusinessMapInfoWindow({ business, onView }) {
-  const photoUrl = business.storefront_photo?.url;
+  const photoUrl = business.cover_photo_url;
 
   return (
     <div className="w-[240px] overflow-hidden">
@@ -90,9 +90,10 @@ export default function BusinessMapInfoWindow({ business, onView }) {
           <button
             type="button"
             onClick={() => onView(business)}
-            className="mt-3 flex w-full cursor-pointer items-center justify-center rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary/90"
+            className="mt-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[#F27F0D] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary/90"
           >
-            View business
+            <span>View business</span>
+            <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
           </button>
         )}
       </div>

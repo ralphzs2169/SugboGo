@@ -52,7 +52,7 @@ export default function AdminPanelLayout() {
           <section className="sticky top-0 z-20 border-b border-stroke bg-background">
             <NavigationHeader onMenuClick={() => setIsSidebarOpen(true)} />
           </section>
-          <main className=" p-6 sm:p-4 ">
+          <main className="overflow-x-clip p-6 sm:p-4 ">
             <Outlet />
           </main>
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchBusinessApplications } from "../services/businessApplicationService";
 
 /**
@@ -19,16 +19,16 @@ export default function useBusinessApplications(
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState(null);
 
+  const hasLoadedOnce = useRef(false);
+
   /**
    * Fetches business applications using the current query parameters.
    *
-   * Uses the initial loading state when no data exists yet and the
+   * Uses the initial loading state on the very first load and the
    * fetching state for subsequent requests.
    */
   async function loadBusinessApplications() {
-    const initialLoad = applications.length === 0;
-
-    if (initialLoad) {
+    if (!hasLoadedOnce.current) {
       setIsLoading(true);
     } else {
       setIsFetching(true);
@@ -50,6 +50,7 @@ export default function useBusinessApplications(
       setTotalItems(0);
       setPageCount(0);
     } finally {
+      hasLoadedOnce.current = true;
       setIsLoading(false);
       setIsFetching(false);
     }
@@ -61,15 +62,8 @@ export default function useBusinessApplications(
     }
 
     loadBusinessApplications();
-  }, [
-    enabled,
-    params.search,
-    params.status,
-    params.queue_status,
-    params.page,
-    params.page_size,
-    params.ordering,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, JSON.stringify(params)]);
 
   return {
     applications,

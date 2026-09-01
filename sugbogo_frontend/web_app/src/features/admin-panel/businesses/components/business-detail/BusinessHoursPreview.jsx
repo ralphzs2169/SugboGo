@@ -300,11 +300,11 @@ export default function BusinessOperatingHoursPreview({ operatingHours = [] }) {
               return (
                 <div
                   key={day}
-                  className={`flex items-start justify-between gap-4 px-4 py-3 ${
+                  className={`flex items-start justify-between gap-6 px-4 py-3 ${
                     isToday ? "bg-surface-muted" : ""
                   }`}
                 >
-                  {/* Day and schedule */}
+                  {/* Day */}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p
@@ -324,14 +324,6 @@ export default function BusinessOperatingHoursPreview({ operatingHours = [] }) {
                       )}
                     </div>
 
-                    <p className="mt-0.5 text-xs text-text-secondary">
-                      {!schedule || !isOpen
-                        ? "Closed"
-                        : schedule.is_24_hours
-                          ? "Open 24 hours"
-                          : formatOperatingHours(schedule)}
-                    </p>
-
                     {isOpen && overnight && (
                       <p className="mt-0.5 text-[11px] text-text-secondary">
                         Overnight · closes the following day
@@ -339,20 +331,16 @@ export default function BusinessOperatingHoursPreview({ operatingHours = [] }) {
                     )}
                   </div>
 
-                  {/* Open/closed status */}
-                  <span
-                    className={`inline-flex shrink-0 items-center gap-1.5 pt-0.5 text-xs font-medium ${
-                      isOpen ? "text-success" : "text-text-secondary"
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        isOpen ? "bg-success" : "bg-text-secondary"
-                      }`}
-                    />
-
-                    {isOpen ? "Open" : "Closed"}
-                  </span>
+                  {/* Operating time */}
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-medium text-text-primary">
+                      {!schedule || !isOpen
+                        ? "Closed"
+                        : schedule.is_24_hours
+                          ? "Open 24 hours"
+                          : formatOperatingHours(schedule)}
+                    </p>
+                  </div>
                 </div>
               );
             })}

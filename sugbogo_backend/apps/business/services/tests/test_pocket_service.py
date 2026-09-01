@@ -86,6 +86,13 @@ class BusinessPocketServiceTests(TestCase):
             ).exists()
         )
 
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_POCKET_COUNT,
+            1,
+        )
+
     def test_create_pocket_rejects_duplicate(self):
         PocketService.create_pocket(
             user=self.user,
@@ -101,6 +108,13 @@ class BusinessPocketServiceTests(TestCase):
                 business_id=self.business.BUSN_ID,
             )
 
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_POCKET_COUNT,
+            1,
+        )
+
     def test_create_pocket_rejects_nonexistent_business(self):
         with self.assertRaisesMessage(
             NotFound,
@@ -111,10 +125,24 @@ class BusinessPocketServiceTests(TestCase):
                 business_id=999999,
             )
 
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_POCKET_COUNT,
+            0,
+        )
+
     def test_remove_pocket(self):
         pocket = PocketService.create_pocket(
             user=self.user,
             business_id=self.business.BUSN_ID,
+        )
+
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_POCKET_COUNT,
+            1,
         )
 
         PocketService.remove_pocket(
@@ -128,6 +156,13 @@ class BusinessPocketServiceTests(TestCase):
             ).exists()
         )
 
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_POCKET_COUNT,
+            0,
+        )
+
     def test_remove_pocket_rejects_nonexistent_pocket(self):
         with self.assertRaisesMessage(
             NotFound,
@@ -137,6 +172,13 @@ class BusinessPocketServiceTests(TestCase):
                 user=self.user,
                 business_id=self.business.BUSN_ID,
             )
+
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_POCKET_COUNT,
+            0,
+        )
 
     def test_has_pocketed_returns_true_when_pocket_exists(self):
         PocketService.create_pocket(
@@ -182,6 +224,13 @@ class BusinessPocketServiceTests(TestCase):
             2,
         )
 
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_POCKET_COUNT,
+            2,
+        )
+
     def test_user_can_pocket_multiple_businesses(self):
         second_location = Location.objects.create(
             LOCT_POINT=Point(
@@ -223,4 +272,16 @@ class BusinessPocketServiceTests(TestCase):
                 USER_ID=self.user,
             ).count(),
             2,
+        )
+
+        self.business.refresh_from_db()
+        second_business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_POCKET_COUNT,
+            1,
+        )
+        self.assertEqual(
+            second_business.BUSN_POCKET_COUNT,
+            1,
         )

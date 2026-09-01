@@ -35,6 +35,7 @@ class BusinessVouchServiceTests(TestCase):
             USER_ROLE=User.UserRole.EXPLORER,
             USER_STATUS=User.UserStatus.ACTIVE,
         )
+
         cls.business_owner = User.objects.create_user(
             email="business-owner@example.com",
             password="StrongPassword123!",
@@ -90,12 +91,12 @@ class BusinessVouchServiceTests(TestCase):
             TAG_COLOR="green",
         )
 
-        BusinessSpecialtyTag.objects.create(
+        cls.spicy_business_tag = BusinessSpecialtyTag.objects.create(
             BUSN_ID=cls.business,
             TAG_ID=cls.spicy_tag,
         )
 
-        BusinessSpecialtyTag.objects.create(
+        cls.traditional_business_tag = BusinessSpecialtyTag.objects.create(
             BUSN_ID=cls.business,
             TAG_ID=cls.traditional_tag,
         )
@@ -128,12 +129,49 @@ class BusinessVouchServiceTests(TestCase):
             vouch.VOUCH_FLAG_SUSPICIOUS,
         )
 
-    def test_create_vouch_rejects_duplicate(self):
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            1,
+        )
+
+        self.spicy_business_tag.refresh_from_db()
+
+        self.assertEqual(
+            self.spicy_business_tag.BST_VOUCH_COUNT,
+            1,
+        )
+
+    def test_create_vouch_increments_business_and_specialty_counts(self):
         VouchService.create_vouch(
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-001",
+        )
+
+        self.business.refresh_from_db()
+        self.spicy_business_tag.refresh_from_db()
+        self.traditional_business_tag.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            1,
+        )
+        self.assertEqual(
+            self.spicy_business_tag.BST_VOUCH_COUNT,
+            1,
+        )
+        self.assertEqual(
+            self.traditional_business_tag.BST_VOUCH_COUNT,
+            0,
+        )
+
+    def test_create_vouch_rejects_duplicate_without_changing_counts(self):
+        VouchService.create_vouch(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            tag_id=self.spicy_tag.TAG_ID,
         )
 
         with self.assertRaisesMessage(
@@ -144,9 +182,19 @@ class BusinessVouchServiceTests(TestCase):
                 user=self.user,
                 business_id=self.business.BUSN_ID,
                 tag_id=self.spicy_tag.TAG_ID,
-                device_id="test-device-001",
             )
 
+        self.business.refresh_from_db()
+        self.spicy_business_tag.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            1,
+        )
+        self.assertEqual(
+            self.spicy_business_tag.BST_VOUCH_COUNT,
+            1,
+        )
 
     def test_merchant_cannot_vouch_for_own_business(self):
         self.business.USER_ID = self.user
@@ -174,7 +222,23 @@ class BusinessVouchServiceTests(TestCase):
             ).exists(),
         )
 
-    def test_create_vouch_rejects_specialty_not_associated_with_business(self):
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            0,
+        )
+
+        self.spicy_business_tag.refresh_from_db()
+
+        self.assertEqual(
+            self.spicy_business_tag.BST_VOUCH_COUNT,
+            0,
+        )
+
+    def test_create_vouch_rejects_specialty_not_associated_with_business(
+        self,
+    ):
         with self.assertRaisesMessage(
             ValidationError,
             "This specialty is not associated with the business.",
@@ -183,8 +247,14 @@ class BusinessVouchServiceTests(TestCase):
                 user=self.user,
                 business_id=self.business.BUSN_ID,
                 tag_id=self.unrelated_tag.TAG_ID,
-                device_id="test-device-001",
             )
+
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            0,
+        )
 
     def test_create_vouch_rejects_nonexistent_business(self):
         with self.assertRaisesMessage(
@@ -195,8 +265,14 @@ class BusinessVouchServiceTests(TestCase):
                 user=self.user,
                 business_id=999999,
                 tag_id=self.spicy_tag.TAG_ID,
-                device_id="test-device-001",
             )
+
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            0,
+        )
 
     def test_create_vouch_rejects_nonexistent_specialty_tag(self):
         with self.assertRaisesMessage(
@@ -207,15 +283,20 @@ class BusinessVouchServiceTests(TestCase):
                 user=self.user,
                 business_id=self.business.BUSN_ID,
                 tag_id=999999,
-                device_id="test-device-001",
             )
+
+        self.business.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            0,
+        )
 
     def test_remove_vouch(self):
         vouch = VouchService.create_vouch(
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-001",
         )
 
         VouchService.remove_vouch(
@@ -225,13 +306,21 @@ class BusinessVouchServiceTests(TestCase):
         )
 
         self.assertFalse(
-            Business.objects.get(
-                BUSN_ID=self.business.BUSN_ID,
-            )
-            .vouches.filter(
+            BusinessVouch.objects.filter(
                 VOUCH_ID=vouch.VOUCH_ID,
-            )
-            .exists()
+            ).exists(),
+        )
+
+        self.business.refresh_from_db()
+        self.spicy_business_tag.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            0,
+        )
+        self.assertEqual(
+            self.spicy_business_tag.BST_VOUCH_COUNT,
+            0,
         )
 
     def test_remove_vouch_rejects_nonexistent_vouch(self):
@@ -245,12 +334,23 @@ class BusinessVouchServiceTests(TestCase):
                 tag_id=self.spicy_tag.TAG_ID,
             )
 
+        self.business.refresh_from_db()
+        self.spicy_business_tag.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            0,
+        )
+        self.assertEqual(
+            self.spicy_business_tag.BST_VOUCH_COUNT,
+            0,
+        )
+
     def test_has_vouched_returns_true_when_vouch_exists(self):
         VouchService.create_vouch(
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-001",
         )
 
         self.assertTrue(
@@ -271,23 +371,16 @@ class BusinessVouchServiceTests(TestCase):
         )
 
     def test_different_users_can_vouch_for_same_business_and_tag(self):
-        first_vouch = VouchService.create_vouch(
+        VouchService.create_vouch(
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-001",
         )
 
-        second_vouch = VouchService.create_vouch(
+        VouchService.create_vouch(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-002",
-        )
-
-        self.assertNotEqual(
-            first_vouch.VOUCH_ID,
-            second_vouch.VOUCH_ID,
         )
 
         self.assertEqual(
@@ -297,24 +390,29 @@ class BusinessVouchServiceTests(TestCase):
             2,
         )
 
+        self.business.refresh_from_db()
+        self.spicy_business_tag.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            2,
+        )
+        self.assertEqual(
+            self.spicy_business_tag.BST_VOUCH_COUNT,
+            2,
+        )
+
     def test_user_can_vouch_for_multiple_specialties_of_same_business(self):
-        spicy_vouch = VouchService.create_vouch(
+        VouchService.create_vouch(
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-001",
         )
 
-        traditional_vouch = VouchService.create_vouch(
+        VouchService.create_vouch(
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.traditional_tag.TAG_ID,
-            device_id="test-device-001",
-        )
-
-        self.assertNotEqual(
-            spicy_vouch.VOUCH_ID,
-            traditional_vouch.VOUCH_ID,
         )
 
         self.assertEqual(
@@ -322,4 +420,21 @@ class BusinessVouchServiceTests(TestCase):
                 USER_ID=self.user,
             ).count(),
             2,
+        )
+
+        self.business.refresh_from_db()
+        self.spicy_business_tag.refresh_from_db()
+        self.traditional_business_tag.refresh_from_db()
+
+        self.assertEqual(
+            self.business.BUSN_VOUCH_COUNT,
+            2,
+        )
+        self.assertEqual(
+            self.spicy_business_tag.BST_VOUCH_COUNT,
+            1,
+        )
+        self.assertEqual(
+            self.traditional_business_tag.BST_VOUCH_COUNT,
+            1,
         )

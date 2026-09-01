@@ -65,11 +65,11 @@ export default function BusinessLocationPreview({ location, onClick }) {
           </p>
         </div>
 
-        <p className="mt-1 truncate text-sm font-medium text-text-primary">
+        <p className="mt-1 ml-5 truncate text-sm font-medium text-text-primary">
           {location.address || "No address"}
         </p>
 
-        <p className="mt-1 text-xs text-text-secondary">
+        <p className="mt-1 ml-5 text-xs text-text-secondary">
           {location.city}, {location.province}
         </p>
       </div>

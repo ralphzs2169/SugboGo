@@ -28,9 +28,12 @@ const GOOGLE_MAP_ID = import.meta.env.VITE_GOOGLE_MAP_ID;
 export default function BusinessManagementMap({
   businesses = [],
   isLoading = false,
+  isFetching = false,
   error = null,
   onRetry,
   onViewBusiness,
+  hasActiveFilters = false,
+  onResetFilters,
   className = "h-[480px]",
 }) {
   const map = useMap();
@@ -65,6 +68,7 @@ export default function BusinessManagementMap({
     });
 
     map.fitBounds(bounds, 60);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, businessesWithCoordinates]);
 
   function handleMarkerClick(business) {
@@ -135,7 +139,17 @@ export default function BusinessManagementMap({
               title={business.business_name}
               onClick={() => handleMarkerClick(business)}
             >
-              <BusinessMapMarker variant="business" />
+              <div
+                style={{
+                  opacity: isFetching ? 0.5 : 1,
+                  transition: "opacity 150ms",
+                }}
+              >
+                <BusinessMapMarker
+                  variant="business"
+                  clusterIcon={business.cluster_icon}
+                />
+              </div>
             </AdvancedMarker>
           );
         })}
@@ -160,18 +174,20 @@ export default function BusinessManagementMap({
         {/* Map status */}
         <MapControl position={ControlPosition.TOP_LEFT}>
           <div className="m-3 rounded-lg border border-stroke bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
-            <p className="text-xs font-semibold text-text-primary">
+            {/* <p className="text-xs font-semibold text-text-primary">
               Business Locations
-            </p>
+            </p> */}
 
-            <p className="mt-0.5 text-xs text-text-secondary">
+            <p className="mt-0.5 text-xs text-text-primary">
               {isLoading
                 ? "Loading businesses..."
-                : `${businessesWithCoordinates.length} ${
-                    businessesWithCoordinates.length === 1
-                      ? "business"
-                      : "businesses"
-                  }`}
+                : isFetching
+                  ? "Updating..."
+                  : `${businessesWithCoordinates.length} ${
+                      businessesWithCoordinates.length === 1
+                        ? "business"
+                        : "businesses"
+                    }`}
             </p>
           </div>
         </MapControl>
@@ -181,12 +197,26 @@ export default function BusinessManagementMap({
           <MapControl position={ControlPosition.CENTER}>
             <div className="rounded-lg border border-stroke bg-background/95 px-5 py-4 text-center shadow-md backdrop-blur-sm">
               <p className="text-sm font-medium text-text-primary">
-                No business locations available
+                {hasActiveFilters
+                  ? "No businesses match your search"
+                  : "No business locations available"}
               </p>
 
               <p className="mt-1 text-xs text-text-secondary">
-                Businesses with valid coordinates will appear here.
+                {hasActiveFilters
+                  ? "Try adjusting your search or status filter."
+                  : "Businesses with valid coordinates will appear here."}
               </p>
+
+              {hasActiveFilters && onResetFilters && (
+                <button
+                  type="button"
+                  onClick={onResetFilters}
+                  className="mt-3 cursor-pointer text-sm font-semibold text-primary hover:underline"
+                >
+                  Reset filters
+                </button>
+              )}
             </div>
           </MapControl>
         )}

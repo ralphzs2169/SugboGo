@@ -41,13 +41,16 @@ class ApplicationService:
         ordering=None,
         status=None,
         queue_status=None,
+        cluster=None,
+        category=None,
     ):
         """
         Retrieve merchant applications for the admin applications table.
 
-        Supports optional business-name search, status filtering, and
-        ordering while eagerly loading the relationships required
-        by the list serializer.
+        Supports optional business-name search, status filtering, queue-status
+        filtering, classification filtering (cluster/category), and specialty
+        tag filtering, while eagerly loading the relationships required by the
+        list serializer.
         """
 
         queryset = (
@@ -77,6 +80,16 @@ class ApplicationService:
             queryset = ApplicationService._filter_by_queue_status(
                 queryset,
                 queue_status,
+            )
+
+        if cluster:
+            queryset = queryset.filter(
+                identity__CLUS_ID=cluster,
+            )
+
+        if category:
+            queryset = queryset.filter(
+                identity__CTGRY_ID=category,
             )
 
         ordering_map = {

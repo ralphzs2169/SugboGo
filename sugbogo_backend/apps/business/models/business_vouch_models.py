@@ -8,9 +8,15 @@ from .business_taxonomy_models import SpecialtyTag
 
 
 class BusinessSpecialtyTag(models.Model):
+    """A specialty tag associated with a business."""
+    
     BST_ID = models.AutoField(primary_key=True)
     BST_CREATED_AT = models.DateTimeField(auto_now_add=True)
     BST_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    BST_VOUCH_COUNT = models.PositiveIntegerField(
+        default=0,
+    )
 
     BUSN_ID = models.ForeignKey(
         Business,
@@ -34,6 +40,7 @@ class BusinessSpecialtyTag(models.Model):
                 name='unique_business_specialty_tag',
             ),
         ]
+
 
 class BusinessVouch(models.Model):
     """A user's endorsement of a specialty associated with a business."""

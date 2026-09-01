@@ -1,14 +1,14 @@
 import { useNavigate } from "react-router-dom";
-import { Clock, FileText, Tag } from "lucide-react";
+import { Clock, FileText, Tag, Layers, Tags } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import getBusinessApplicationColumns from "../columns/businessApplicationColumns";
 import useBusinessApplications from "../hooks/useBusinessApplications";
 import useBusinessApplicationTableState from "../hooks/useBusinessApplicationTableState";
-import FilterPill from "../../components/FilterPill";
+import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-import { useEffect } from "react";
-import toast from "react-hot-toast";
+import useClusters from "../../cluster-category/hooks/useClusters";
+import useCategories from "../../cluster-category/hooks/useCategories";
 
 const STATUS_OPTIONS = [
   { value: "submitted", label: "Pending Review" },
@@ -27,7 +27,8 @@ const QUEUE_STATUS_OPTIONS = [
  * Management panel for merchant business applications.
  *
  * Handles server-side search, status filtering, queue-status filtering,
- * sorting, pagination, and navigation to the dedicated application review page.
+ * classification filtering, sorting, pagination, and navigation to the
+ * dedicated application review page.
  */
 export default function BusinessApplicationManagementTable() {
   const navigate = useNavigate();
@@ -39,6 +40,10 @@ export default function BusinessApplicationManagementTable() {
     setStatusFilter,
     queueStatusFilter,
     setQueueStatusFilter,
+    clusterFilter,
+    setClusterFilter,
+    categoryFilter,
+    setCategoryFilter,
     sorting,
     setSorting,
     pagination,
@@ -46,6 +51,7 @@ export default function BusinessApplicationManagementTable() {
     params,
     hasActiveFilters,
     handleResetFilters,
+    isSearching,
   } = useBusinessApplicationTableState();
 
   const {
@@ -58,6 +64,10 @@ export default function BusinessApplicationManagementTable() {
     refetch,
   } = useBusinessApplications(params);
 
+  // Filter option sources — fetched once, not paginated/searched.
+  const { clusters } = useClusters({ page_size: 100 });
+  const { categories } = useCategories({ page_size: 100 });
+
   function handleReviewApplication(application) {
     navigate(`/admin-panel/business/application/${application.id}`);
   }
@@ -66,25 +76,48 @@ export default function BusinessApplicationManagementTable() {
 
   function renderFilters() {
     return (
-      <>
-        {/* Application status filter */}
-        <FilterPill
-          icon={Tag}
-          placeholder="All statuses"
-          options={STATUS_OPTIONS}
-          value={statusFilter}
-          onChange={setStatusFilter}
-        />
-
-        {/* Queue status filter */}
-        <FilterPill
-          icon={Clock}
-          placeholder="All queue statuses"
-          options={QUEUE_STATUS_OPTIONS}
-          value={queueStatusFilter}
-          onChange={setQueueStatusFilter}
-        />
-      </>
+      <FilterMenu
+        filters={[
+          {
+            key: "status",
+            label: "Status",
+            icon: Tag,
+            options: STATUS_OPTIONS,
+            value: statusFilter,
+            onChange: setStatusFilter,
+          },
+          {
+            key: "queue_status",
+            label: "Queue Status",
+            icon: Clock,
+            options: QUEUE_STATUS_OPTIONS,
+            value: queueStatusFilter,
+            onChange: setQueueStatusFilter,
+          },
+          {
+            key: "cluster",
+            label: "Cluster",
+            icon: Layers,
+            options: clusters.map((cluster) => ({
+              value: String(cluster.id),
+              label: cluster.name,
+            })),
+            value: clusterFilter,
+            onChange: setClusterFilter,
+          },
+          {
+            key: "category",
+            label: "Category",
+            icon: Tag,
+            options: categories.map((category) => ({
+              value: String(category.id),
+              label: category.name,
+            })),
+            value: categoryFilter,
+            onChange: setCategoryFilter,
+          },
+        ]}
+      />
     );
   }
 
@@ -92,6 +125,7 @@ export default function BusinessApplicationManagementTable() {
     toastId: "business-applications-load-error",
     fallbackMessage: "Unable to load business applications. Please try again.",
   });
+
   return (
     <DataTable
       data={applications}
@@ -112,6 +146,7 @@ export default function BusinessApplicationManagementTable() {
       onSortingChange={setSorting}
       hasActiveFilters={hasActiveFilters}
       onResetFilters={handleResetFilters}
+      isSearching={isSearching}
       slots={{
         renderFilters,
       }}

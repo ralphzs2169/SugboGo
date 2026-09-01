@@ -4,6 +4,7 @@ import {
   InfoWindow,
 } from "@vis.gl/react-google-maps";
 import BusinessMapMarker from "./BusinessMapMarker";
+
 export default function BusinessLocationMarker({
   position,
   variant,

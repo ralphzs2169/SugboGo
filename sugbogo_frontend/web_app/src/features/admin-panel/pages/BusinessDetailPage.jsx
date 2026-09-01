@@ -1,21 +1,27 @@
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
-import PageHeader from "../components/PageHeader";
+import DetailPageLayout from "@/shared/components/layout/DetailPageLayout";
 import useBusinessDetail from "../businesses/hooks/useBusinessDetail";
-
+import BusinessDetailSkeleton from "../businesses/components/business-detail/BusinessDetailSkeleton";
 import BusinessDetailHero from "../businesses/components/business-detail/BusinessDetailHero";
 import BusinessDetailMetrics from "../businesses/components/business-detail/BusinessDetailMetrics";
-import BusinessDetailPhotoGallery from "../businesses/components/business-detail/BusinessDetailPhotoGallery";
+import BusinessReviewsPreview from "../businesses/components/business-detail/review-preview-section/BusinessReviewsPreview";
+import BusinessPhotosPreview from "../businesses/components/business-detail/BusinessPhotosPreview";
 import BusinessLocationModal from "../businesses/components/business-detail/BusinessLocationModal";
+import BusinessApplicationSummary from "../businesses/components/business-detail/BusinessApplicationSummary";
+import BusinessDetailContextBar from "../businesses/components/business-detail/BusinessDetailContextBar";
+import useNavigateBack from "@/shared/hooks/useNavigateBack";
 
 export default function BusinessDetailPage() {
   const { businessId } = useParams();
-  const navigate = useNavigate();
 
   const [isLocationOpen, setIsLocationOpen] = useState(false);
+  const [showContextBar, setShowContextBar] = useState(false);
+
+  const businessDetailHeaderRef = useRef(null);
 
   const { business, isLoading, error, refetch } = useBusinessDetail(businessId);
 
@@ -24,103 +30,129 @@ export default function BusinessDetailPage() {
     fallbackMessage: "Unable to load business details. Please try again.",
   });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          breadcrumbs={[
-            { label: "SugboGo Admin", href: "/admin" },
-            { label: "Management", href: "/admin/businesses" },
-            { label: "Businesses", href: "/admin/businesses" },
-            { label: "Business" },
-          ]}
-          title="Business"
-        />
+  useEffect(() => {
+    if (!business) {
+      return;
+    }
 
-        <div className="h-72 animate-pulse rounded-xl border border-stroke bg-surface" />
-      </div>
+    const header = businessDetailHeaderRef.current;
+
+    if (!header) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShowContextBar(!entry.isIntersecting);
+      },
+      {
+        threshold: 0,
+      },
     );
-  }
 
-  if (error || !business) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          breadcrumbs={[
-            { label: "SugboGo Admin", href: "/admin" },
-            { label: "Management", href: "/admin/businesses" },
-            { label: "Businesses", href: "/admin/businesses" },
-            { label: "Business" },
-          ]}
-          title="Business"
-        />
+    observer.observe(header);
 
-        <div className="flex min-h-72 items-center justify-center rounded-xl border border-stroke bg-surface-muted">
-          <div className="text-center">
-            <p className="text-sm font-semibold text-text-primary">
-              Unable to load business
-            </p>
+    return () => observer.disconnect();
+  }, [business]);
 
-            <p className="mt-1 text-sm text-text-secondary">
-              The requested business could not be loaded.
-            </p>
+  const handleBack = useNavigateBack("/admin-panel/businesses");
 
-            <button
-              type="button"
-              onClick={refetch}
-              className="mt-4 cursor-pointer text-sm font-semibold text-primary hover:underline"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  const breadcrumbs = [
+    { label: "SugboGo Admin", href: "/admin-panel/dashboard" },
+    { label: "Management", href: "/admin-panel/businesses" },
+    { label: "Businesses", href: "/admin-panel/businesses" },
+    {
+      label: business?.business_name || "Business",
+    },
+  ];
   return (
-    <div className="space-y-8">
-      {/* Page header */}
-      <PageHeader
-        breadcrumbs={[
-          { label: "SugboGo Admin", href: "/admin" },
-          { label: "Management", href: "/admin/businesses" },
-          { label: "Businesses", href: "/admin/businesses" },
-          { label: business.business_name },
-        ]}
-        title={business.business_name}
-      />
+    <>
+      {/* Compact context bar */}
+      {showContextBar && business && (
+        <BusinessDetailContextBar business={business} />
+      )}
 
-      {/* Business identity */}
-      <BusinessDetailHero
-        business={business}
-        onBack={() => navigate("/admin-panel/businesses")}
-        onOpenLocation={() => setIsLocationOpen(true)}
-      />
+      <DetailPageLayout
+        breadcrumbs={breadcrumbs}
+        title="Business Details"
+        backLabel="Back to Businesses"
+        onBack={handleBack}
+        isLoading={isLoading}
+        error={error}
+        hasData={!!business}
+        onRetry={refetch}
+        headerRef={businessDetailHeaderRef}
+        loadingContent={<BusinessDetailSkeleton />}
+        errorTitle="Business unavailable"
+        errorMessage="The business details could not be loaded. Please try again."
+      >
+        {business && (
+          <div className="space-y-8">
+            {/* Business identity */}
+            <BusinessDetailHero
+              business={business}
+              onOpenLocation={() => setIsLocationOpen(true)}
+            />
 
-      {/* Business engagement */}
-      <section>
-        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
-          Business Engagement
-        </h2>
+            {/* Business engagement */}
+            <section>
+              <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
+                Business Engagement
+              </h2>
 
-        <BusinessDetailMetrics
-          vouchCount={business.vouch_count}
-          reviewCount={business.review_count}
-          pocketCount={business.pocket_count}
-        />
-      </section>
+              <BusinessDetailMetrics
+                vouchCount={business.vouch_count}
+                reviewCount={business.review_count}
+                pocketCount={business.pocket_count}
+                specialtyTags={business.specialty_tags}
+              />
+            </section>
 
-      {/* Business photo gallery */}
-      <BusinessDetailPhotoGallery photos={business.photos} />
+            {/* Recent reviews & photos */}
+            <section>
+              <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
+                Reviews & Photos
+              </h2>
+
+              <div className="mt-4 grid grid-cols-1 items-stretch gap-6 lg:grid-cols-5">
+                <div className="flex lg:col-span-3">
+                  <BusinessReviewsPreview
+                    reviews={business.latest_reviews}
+                    reviewCount={business.review_count}
+                    businessId={business.id}
+                  />
+                </div>
+
+                <div className="flex lg:col-span-2">
+                  <BusinessPhotosPreview
+                    photos={business.photos}
+                    businessName={business.business_name}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Application summary */}
+            <section>
+              <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
+                Business Application
+              </h2>
+
+              <BusinessApplicationSummary application={business.application} />
+            </section>
+          </div>
+        )}
+      </DetailPageLayout>
 
       {/* Location modal */}
-      <BusinessLocationModal
-        isOpen={isLocationOpen}
-        location={business.location}
-        landmarks={business.landmarks}
-        onClose={() => setIsLocationOpen(false)}
-      />
-    </div>
+      {business && (
+        <BusinessLocationModal
+          isOpen={isLocationOpen}
+          location={business.location}
+          landmarks={business.landmarks}
+          onClose={() => setIsLocationOpen(false)}
+        />
+      )}
+    </>
   );
 }

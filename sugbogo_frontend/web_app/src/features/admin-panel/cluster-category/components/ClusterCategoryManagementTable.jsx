@@ -6,7 +6,7 @@ import { FiLayers, FiTag } from "react-icons/fi";
 
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import toast from "react-hot-toast";
-import { getOrdering } from "@/features/admin-panel/components/data-table/tableUtils";
+import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
 import Button from "@/shared/components/Button";
 
 import ClusterColumns from "./columns/clusterColumns";
@@ -300,13 +300,22 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
           ),
           renderFilters: () =>
             !isClusterTab && (
-              <CategoryFilters
-                clusters={filterClusters}
-                selectedCluster={
-                  columnFilters.find((filter) => filter.id === "cluster_id")
-                    ?.value ?? ""
-                }
-                onChange={handleClusterFilter}
+              <FilterMenu
+                filters={[
+                  {
+                    key: "cluster_id",
+                    label: "Cluster",
+                    icon: FaLayerGroup,
+                    options: filterClusters.map((cluster) => ({
+                      value: cluster.id,
+                      label: cluster.name,
+                    })),
+                    value:
+                      columnFilters.find((filter) => filter.id === "cluster_id")
+                        ?.value ?? "",
+                    onChange: handleClusterFilter,
+                  },
+                ]}
               />
             ),
         }}

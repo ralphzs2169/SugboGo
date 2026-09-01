@@ -1,7 +1,12 @@
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, models, transaction
 from rest_framework.exceptions import NotFound, ValidationError
 
-from apps.business.models import Business, BusinessVouch, SpecialtyTag
+from apps.business.models import (
+    Business,
+    BusinessSpecialtyTag,
+    BusinessVouch,
+    SpecialtyTag,
+)
 from apps.users.models import User
 
 
@@ -29,7 +34,7 @@ class VouchService:
             raise ValidationError(
                 "You cannot vouch for your own business.",
             )
-    
+
         try:
             tag = SpecialtyTag.objects.get(
                 TAG_ID=tag_id,
@@ -39,15 +44,18 @@ class VouchService:
                 "The specialty tag could not be found.",
             )
 
-        if not business.SPECIALTY_TAGS.filter(
-            TAG_ID=tag.TAG_ID,
-        ).exists():
+        try:
+            business_tag = BusinessSpecialtyTag.objects.get(
+                BUSN_ID=business_id,
+                TAG_ID=tag_id,
+            )
+        except BusinessSpecialtyTag.DoesNotExist:
             raise ValidationError(
                 "This specialty is not associated with the business.",
             )
 
         try:
-            return BusinessVouch.objects.create(
+            vouch = BusinessVouch.objects.create(
                 BUSN_ID=business,
                 USER_ID=user,
                 TAG_ID=tag,
@@ -57,6 +65,24 @@ class VouchService:
             raise ValidationError(
                 "You have already vouched for this specialty.",
             )
+
+        Business.objects.filter(
+            BUSN_ID=business_id,
+        ).update(
+            BUSN_VOUCH_COUNT=models.F(
+                "BUSN_VOUCH_COUNT",
+            ) + 1,
+        )
+
+        BusinessSpecialtyTag.objects.filter(
+            BST_ID=business_tag.BST_ID,
+        ).update(
+            BST_VOUCH_COUNT=models.F(
+                "BST_VOUCH_COUNT",
+            ) + 1,
+        )
+
+        return vouch
 
     @staticmethod
     @transaction.atomic
@@ -77,6 +103,23 @@ class VouchService:
             )
 
         vouch.delete()
+
+        Business.objects.filter(
+            BUSN_ID=business_id,
+        ).update(
+            BUSN_VOUCH_COUNT=models.F(
+                "BUSN_VOUCH_COUNT",
+            ) - 1,
+        )
+
+        BusinessSpecialtyTag.objects.filter(
+            BUSN_ID=business_id,
+            TAG_ID=tag_id,
+        ).update(
+            BST_VOUCH_COUNT=models.F(
+                "BST_VOUCH_COUNT",
+            ) - 1,
+        )
 
     @staticmethod
     def has_vouched(
