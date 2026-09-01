@@ -1,9 +1,5 @@
-import { Text, View } from "react-native";
+import MapScreen from "@/features/map/screens/MapScreen";
 
 export default function Map() {
-  return (
-    <View className="flex-1 items-center justify-center bg-white">
-      <Text className="text-5xl font-bold text-gray-900">Map</Text>
-    </View>
-  );
+  return <MapScreen />;
 }
