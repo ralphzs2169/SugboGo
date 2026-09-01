@@ -1,17 +1,19 @@
 import { MapPin, Star, Store } from "lucide-react";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
 /**
- * Renders the custom marker used by the business review map.
+ * Renders the custom marker used by business and landmark maps.
  *
- * Uses the same visual variants as the mobile map marker so business
- * locations, Google landmarks, and custom landmarks remain visually
- * consistent across the SugboGo experience.
+ * Business markers can display their assigned cluster icon, while
+ * landmark markers retain their dedicated visual variants.
  */
-export default function BusinessMapMarker({ variant = "custom" }) {
+export default function BusinessMapMarker({ variant = "custom", clusterIcon }) {
+  const cluster = CLUSTER_ICONS.find((item) => item.value === clusterIcon);
+
   const markerConfig = {
     business: {
       color: "#F27F0D",
-      icon: Store,
+      icon: cluster?.icon ?? Store,
       label: "Business location",
     },
     google: {

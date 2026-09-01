@@ -1,35 +1,37 @@
 import { useState } from "react";
-import { getOrdering } from "@/features/admin-panel/components/data-table/tableUtils";
+import useTableState from "@/shared/hooks/useTableState";
 
-/**
- * Manages table state and API query parameters for business management.
- *
- * Handles global search, status filtering, sorting, pagination,
- * and resetting the table to its default state.
- */
 export default function useBusinessTableState() {
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [statusFilter, setStatusFilterState] = useState("");
-  const [sorting, setSorting] = useState([]);
+  const {
+    currentTab,
+    setCurrentTab,
+    globalFilter,
+    setGlobalFilter,
+    debouncedGlobalFilter,
+    isSearching,
+    sorting,
+    setSorting,
+    ordering,
+    pagination,
+    setPagination,
+    resetPageIndex,
+    updateSearchParams,
+  } = useTableState({ defaultTab: "businesses" });
 
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  const [statusFilter, setStatusFilterState] = useState(
+    () => new URLSearchParams(window.location.search).get("status") || "",
+  );
 
   function setStatusFilter(status) {
     setStatusFilterState(status);
-
-    setPagination((previous) => ({
-      ...previous,
-      pageIndex: 0,
-    }));
+    updateSearchParams({ status: status || null, page: null });
+    resetPageIndex();
   }
 
   const params = {
-    search: globalFilter || undefined,
+    search: debouncedGlobalFilter || undefined,
     status: statusFilter || undefined,
-    ordering: getOrdering(sorting),
+    ordering,
     page: pagination.pageIndex + 1,
     page_size: pagination.pageSize,
   };
@@ -42,29 +44,24 @@ export default function useBusinessTableState() {
     setGlobalFilter("");
     setStatusFilterState("");
     setSorting([]);
-
-    setPagination((previous) => ({
-      ...previous,
-      pageIndex: 0,
-    }));
+    resetPageIndex();
+    updateSearchParams({ search: null, status: null, sort: null, page: null });
   }
 
   return {
+    currentTab,
+    setCurrentTab,
     globalFilter,
     setGlobalFilter,
-
     statusFilter,
     setStatusFilter,
-
     sorting,
     setSorting,
-
     pagination,
     setPagination,
-
     params,
-
     hasActiveFilters,
     handleResetFilters,
+    isSearching,
   };
 }

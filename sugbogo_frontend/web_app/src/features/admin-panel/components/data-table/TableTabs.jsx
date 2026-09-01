@@ -3,10 +3,6 @@ import TableTabItem from "./TableTabItem";
 /**
  * Segmented horizontal navigation layout used to view subsets of data.
  *
- * @component
- * @param {Array<Object>} [tabs=[]] - List of tab configurations.
- * @param {string} activeTab - Currently selected tab ID.
- * @param {Function} onTabChange - Updates active tab.
  */
 function TableTabs({ tabs = [], activeTab, onTabChange }) {
   if (tabs.length === 0) return null;

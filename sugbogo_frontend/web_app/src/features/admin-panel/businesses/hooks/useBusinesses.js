@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchBusinesses } from "../services/businessService";
 
 /**
- * Fetches and manages paginated business data for the admin management table.
- *
- * Handles loading states, fetching states, API errors, pagination metadata,
- * and refetching businesses when query parameters change.
+ * Fetches businesses for the administrator business management table.
+ * Mirrors the search/status filters, sorting, and pagination applied to the table,
+ * so the table reflects the same filtered subset. Exposes loading, error, and retry
+ * states to the page.
  */
 export default function useBusinesses(params = {}, { enabled = true } = {}) {
   const [businesses, setBusinesses] = useState([]);
@@ -16,16 +16,10 @@ export default function useBusinesses(params = {}, { enabled = true } = {}) {
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * Fetches businesses using the current query parameters.
-   *
-   * Uses the initial loading state when no data exists yet and the
-   * fetching state for subsequent requests.
-   */
-  async function loadBusinesses() {
-    const initialLoad = businesses.length === 0;
+  const hasLoadedOnce = useRef(false);
 
-    if (initialLoad) {
+  async function loadBusinesses() {
+    if (!hasLoadedOnce.current) {
       setIsLoading(true);
     } else {
       setIsFetching(true);
@@ -47,6 +41,7 @@ export default function useBusinesses(params = {}, { enabled = true } = {}) {
       setTotalItems(0);
       setPageCount(0);
     } finally {
+      hasLoadedOnce.current = true;
       setIsLoading(false);
       setIsFetching(false);
     }
@@ -58,6 +53,7 @@ export default function useBusinesses(params = {}, { enabled = true } = {}) {
     }
 
     loadBusinesses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     enabled,
     params.search,

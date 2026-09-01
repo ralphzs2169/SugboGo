@@ -67,12 +67,16 @@ class BusinessService:
         )
 
     @staticmethod
-    def list_business_locations():
+    def list_business_locations(search=None, status=None):
         """
         Retrieve businesses with valid coordinates for the administrator map.
+
+        Supports the same optional business-name search and status
+        filtering as list_businesses, so the map reflects the same
+        filtered subset as the table.
         """
 
-        return (
+        queryset = (
             Business.objects
             .select_related(
                 "CTGRY_ID",
@@ -82,9 +86,20 @@ class BusinessService:
             .filter(
                 LOCT_ID__LOCT_POINT__isnull=False,
             )
-            .order_by(
-                "BUSN_NAME",
+        )
+
+        if search:
+            queryset = queryset.filter(
+                BUSN_NAME__icontains=search,
             )
+
+        if status:
+            queryset = queryset.filter(
+                BUSN_STATUS=status,
+            )
+
+        return queryset.order_by(
+            "BUSN_NAME",
         )
 
     @staticmethod

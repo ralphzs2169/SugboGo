@@ -8,26 +8,18 @@ import {
   Image,
   Heart,
   MessageCircle,
+  Bookmark,
+  CalendarDays,
 } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import StatusBadge from "@/shared/components/StatusBadge";
 import { formatDate } from "@/shared/utils/dateUtils";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { getBusinessStatusConfig } from "@/shared/constants/businessStatus";
 import { CLUSTER_ICONS } from "../../cluster-category/constants/clusterIcons";
 
 const columnHelper = createColumnHelper();
-
-const STATUS_CONFIG = {
-  active: {
-    label: "Active",
-    variant: "success",
-  },
-  suspended: {
-    label: "Suspended",
-    variant: "warning",
-  },
-};
 
 /**
  * Creates the TanStack Table column definitions for business management.
@@ -108,7 +100,7 @@ export default function getBusinessColumns(
                 </div>
               )}
 
-              {/* <div className="mt-1 flex items-center gap-1.5">
+              <div className="mt-1 flex items-center gap-1.5">
                 <MapPin className="h-3 w-3 shrink-0 text-text-secondary" />
 
                 <p
@@ -117,7 +109,7 @@ export default function getBusinessColumns(
                 >
                   {business.location || "No location"}
                 </p>
-              </div> */}
+              </div>
             </div>
           </div>
         );
@@ -174,22 +166,39 @@ export default function getBusinessColumns(
         skeleton: "longText",
       },
       enableSorting: false,
-      cell: () => (
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <Heart className="h-3.5 w-3.5 text-text-secondary" />
-            <span className="text-xs font-medium text-text-secondary">
-              — total vouches
-            </span>
-          </div>
+      cell: ({ row }) => {
+        const business = row.original;
 
-          <div className="flex items-center gap-1.5">
-            <MessageCircle className="h-3.5 w-3.5 text-text-secondary" />
-            <span className="text-xs text-text-secondary">— reviews</span>
+        return (
+          <div className="space-y-1.5">
+            {/* Vouches */}
+            <div className="flex items-center gap-1.5">
+              <Heart className="h-3.5 w-3.5 text-text-secondary" />
+              <span className="text-xs font-medium text-text-secondary">
+                {business.vouch_count ?? 0} vouches
+              </span>
+            </div>
+
+            {/* Reviews */}
+            <div className="flex items-center gap-1.5">
+              <MessageCircle className="h-3.5 w-3.5 text-text-secondary" />
+              <span className="text-xs text-text-secondary">
+                {business.review_count ?? 0} reviews
+              </span>
+            </div>
+
+            {/* Pockets */}
+            <div className="flex items-center gap-1.5">
+              <Bookmark className="h-3.5 w-3.5 text-text-secondary" />
+              <span className="text-xs text-text-secondary">
+                {business.pocket_count ?? 0} pockets
+              </span>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     }),
+
     columnHelper.accessor((business) => business.status, {
       id: "status",
       header: "Status",
@@ -199,11 +208,11 @@ export default function getBusinessColumns(
       },
       cell: (info) => {
         const status = info.getValue();
-        const statusInfo = STATUS_CONFIG[status];
+        const statusInfo = getBusinessStatusConfig(status);
 
         return (
-          <StatusBadge variant={statusInfo?.variant ?? "neutral"}>
-            {statusInfo?.label ?? status ?? "—"}
+          <StatusBadge variant={statusInfo.variant}>
+            {statusInfo.label}
           </StatusBadge>
         );
       },
@@ -211,15 +220,22 @@ export default function getBusinessColumns(
 
     columnHelper.accessor((business) => business.created_at, {
       id: "created_at",
-      header: "Created",
-      size: 120,
+      header: "Approved",
+      size: 130,
       meta: {
         skeleton: "text",
       },
       cell: (info) => (
-        <span className="text-sm text-text-secondary">
-          {formatDate(info.getValue())}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <CalendarDays
+            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
+            strokeWidth={1.75}
+          />
+
+          <span className="text-sm text-text-secondary">
+            {formatDate(info.getValue())}
+          </span>
+        </div>
       ),
     }),
 

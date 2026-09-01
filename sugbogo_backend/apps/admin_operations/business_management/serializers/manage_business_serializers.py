@@ -75,6 +75,21 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    vouch_count = serializers.IntegerField(
+        source="BUSN_VOUCH_COUNT",
+        read_only=True,
+    )
+
+    review_count = serializers.IntegerField(
+        source="BUSN_REVIEW_COUNT",
+        read_only=True,
+    )
+
+    pocket_count = serializers.IntegerField(
+        source="BUSN_POCKET_COUNT",
+        read_only=True,
+    )
+    
     status = serializers.CharField(
         source="BUSN_STATUS",
         read_only=True,
@@ -97,6 +112,9 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
             "category_name",
             "specialty_tags",
             "location",
+            "vouch_count",
+            "review_count",
+            "pocket_count",
             "status",
             "created_at",
         )
@@ -108,6 +126,10 @@ class AdminBusinessMapSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="BUSN_ID", read_only=True)
     business_name = serializers.CharField(source="BUSN_NAME", read_only=True)
 
+    cover_photo_url = serializers.CharField(
+        source="BUSN_COVER_PHOTO_URL",
+        read_only=True,
+    )
     category_name = serializers.CharField(
         source="CTGRY_ID.CTGRY_NAME",
         read_only=True,
@@ -115,6 +137,11 @@ class AdminBusinessMapSerializer(serializers.ModelSerializer):
 
     cluster_name = serializers.CharField(
         source="CTGRY_ID.CLUS_ID.CLUS_NAME",
+        read_only=True,
+    )
+
+    cluster_icon = serializers.CharField(
+        source="CTGRY_ID.CLUS_ID.CLUS_ICON",
         read_only=True,
     )
 
@@ -142,8 +169,10 @@ class AdminBusinessMapSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "business_name",
+            "cover_photo_url",
             "category_name",
             "cluster_name",
+            "cluster_icon",
             "location",
             "status",
             "latitude",

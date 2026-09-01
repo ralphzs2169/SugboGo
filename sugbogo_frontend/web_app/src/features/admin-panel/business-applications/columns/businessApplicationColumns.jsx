@@ -1,4 +1,4 @@
-import { Eye } from "lucide-react";
+import { Eye, CalendarDays } from "lucide-react";
 import { createColumnHelper } from "@tanstack/react-table";
 import UserAvatar from "@/shared/components/UserAvatar";
 import Button from "@/shared/components/Button";
@@ -142,9 +142,16 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
         skeleton: "text",
       },
       cell: (info) => (
-        <span className="text-sm text-text-secondary">
-          {formatDate(info.getValue())}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <CalendarDays
+            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
+            strokeWidth={1.75}
+          />
+
+          <span className="text-sm text-text-secondary">
+            {formatDate(info.getValue())}
+          </span>
+        </div>
       ),
     }),
     columnHelper.accessor(

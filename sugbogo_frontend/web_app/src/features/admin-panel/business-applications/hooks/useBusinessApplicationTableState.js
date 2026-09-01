@@ -1,46 +1,54 @@
 import { useState } from "react";
-import { getOrdering } from "@/features/admin-panel/components/data-table/tableUtils";
+import useTableState from "@/shared/hooks/useTableState";
 
 /**
  * Manages table state and API query parameters for business application management.
  *
- * Handles global search, status filtering, queue-status filtering, sorting,
- * pagination, and resetting the table to its default state.
+ * Adds status and queue-status filtering on top of the shared URL-synced
+ * search, sorting, and pagination logic.
  */
 export default function useBusinessApplicationTableState() {
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [statusFilter, setStatusFilterState] = useState("");
-  const [queueStatusFilter, setQueueStatusFilterState] = useState("");
-  const [sorting, setSorting] = useState([]);
+  const {
+    currentTab,
+    setCurrentTab,
+    globalFilter,
+    setGlobalFilter,
+    debouncedGlobalFilter,
+    isSearching,
+    sorting,
+    setSorting,
+    ordering,
+    pagination,
+    setPagination,
+    resetPageIndex,
+    updateSearchParams,
+  } = useTableState({ defaultTab: "applications" });
 
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  const [statusFilter, setStatusFilterState] = useState(
+    () => new URLSearchParams(window.location.search).get("status") || "",
+  );
+
+  const [queueStatusFilter, setQueueStatusFilterState] = useState(
+    () => new URLSearchParams(window.location.search).get("queue_status") || "",
+  );
 
   function setStatusFilter(status) {
     setStatusFilterState(status);
-
-    setPagination((previous) => ({
-      ...previous,
-      pageIndex: 0,
-    }));
+    updateSearchParams({ status: status || null, page: null });
+    resetPageIndex();
   }
 
   function setQueueStatusFilter(queueStatus) {
     setQueueStatusFilterState(queueStatus);
-
-    setPagination((previous) => ({
-      ...previous,
-      pageIndex: 0,
-    }));
+    updateSearchParams({ queue_status: queueStatus || null, page: null });
+    resetPageIndex();
   }
 
   const params = {
-    search: globalFilter || undefined,
+    search: debouncedGlobalFilter || undefined,
     status: statusFilter || undefined,
     queue_status: queueStatusFilter || undefined,
-    ordering: getOrdering(sorting),
+    ordering,
     page: pagination.pageIndex + 1,
     page_size: pagination.pageSize,
   };
@@ -54,14 +62,21 @@ export default function useBusinessApplicationTableState() {
     setStatusFilterState("");
     setQueueStatusFilterState("");
     setSorting([]);
+    resetPageIndex();
 
-    setPagination((previous) => ({
-      ...previous,
-      pageIndex: 0,
-    }));
+    updateSearchParams({
+      search: null,
+      status: null,
+      queue_status: null,
+      sort: null,
+      page: null,
+    });
   }
 
   return {
+    currentTab,
+    setCurrentTab,
+
     globalFilter,
     setGlobalFilter,
 
@@ -81,5 +96,7 @@ export default function useBusinessApplicationTableState() {
 
     hasActiveFilters,
     handleResetFilters,
+
+    isSearching,
   };
 }

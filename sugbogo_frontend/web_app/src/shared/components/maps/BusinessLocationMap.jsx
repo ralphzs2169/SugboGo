@@ -198,7 +198,6 @@ export default function BusinessLocationMap({
         <BusinessLocationMarker
           position={businessPosition}
           variant="business"
-          title="Business location"
           markerData={{
             id: "business",
             type: "business",

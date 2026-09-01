@@ -6,7 +6,7 @@ import {
   ThumbsUp,
 } from "lucide-react";
 
-import ReviewContentPreview from "./review-preview-section/ReviewContentPreview";
+import ReviewContentPreview from "./ReviewContentPreview";
 import UserAvatar from "@/shared/components/UserAvatar";
 
 function relativeDate(value) {

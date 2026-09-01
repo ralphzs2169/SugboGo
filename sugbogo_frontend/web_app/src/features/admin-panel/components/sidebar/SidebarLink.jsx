@@ -5,6 +5,25 @@ import Tooltip from "@/shared/components/actions/Tooltip";
 export const linkBase =
   "flex rounded-sm items-center text-[11px] font-medium transition";
 
+function isDynamicSegmentValue(value) {
+  return /^\d+$/.test(value);
+}
+
+function matchesPath(pathname, path) {
+  const pathnameSegments = pathname.split("/").filter(Boolean);
+  const pathSegments = path.split("/").filter(Boolean);
+
+  if (pathnameSegments.length !== pathSegments.length) {
+    return false;
+  }
+
+  return pathSegments.every((segment, index) =>
+    segment.startsWith("[") && segment.endsWith("]")
+      ? isDynamicSegmentValue(pathnameSegments[index])
+      : segment === pathnameSegments[index],
+  );
+}
+
 /**
  * Renders a single navigation link within the admin sidebar.
  *
@@ -23,24 +42,26 @@ export default function SidebarLink({
 }) {
   const location = useLocation();
 
-  const isCustomActive =
-    activePaths.length > 0
-      ? activePaths.some((path) => location.pathname.startsWith(path))
-      : location.pathname === to;
+  const paths = activePaths.length > 0 ? activePaths : [to];
+
+  const isCustomActive = paths.some((path) =>
+    matchesPath(location.pathname, path),
+  );
+
   const link = (
     <NavLink
       to={to}
       onClick={onClick}
       className={`
-    ${linkBase}
-    relative
-    ${isCollapsed ? "h-10 w-10 justify-center" : "w-full gap-3 px-2 py-3"}
-    ${
-      isCustomActive
-        ? "bg-sidebar-active text-text-primary"
-        : "text-text-primary hover:bg-interaction-hover"
-    }
-  `}
+        ${linkBase}
+        relative
+        ${isCollapsed ? "h-10 w-10 justify-center" : "w-full gap-3 px-2 py-3"}
+        ${
+          isCustomActive
+            ? "bg-sidebar-active text-text-primary"
+            : "text-text-primary hover:bg-interaction-hover"
+        }
+      `}
     >
       {isCustomActive && (
         <span className="absolute inset-y-0 left-0 w-1 rounded-l-full bg-primary" />

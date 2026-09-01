@@ -1,23 +1,14 @@
-import { ArrowLeft, Image, Mail, MoreVertical, UserRound } from "lucide-react";
+import { Image, MoreVertical } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import StatusBadge from "@/shared/components/StatusBadge";
+import { getBusinessStatusConfig } from "@/shared/constants/businessStatus";
 import BusinessLocationPreview from "./BusinessLocationPreview";
 import BusinessHoursPreview from "./BusinessHoursPreview";
 import BusinessContactPreview from "./BusinessContactPreview";
 import UserAvatar from "@/shared/components/UserAvatar";
-
-const STATUS_CONFIG = {
-  active: {
-    label: "Active",
-    className: "bg-success/10 text-success",
-  },
-  suspended: {
-    label: "Suspended",
-    className: "bg-warning/10 text-warning",
-  },
-};
 
 /**
  * Displays the primary identity of a permanent business.
@@ -28,17 +19,12 @@ const STATUS_CONFIG = {
  */
 export default function BusinessDetailHero({
   business,
-  onBack,
   onOpenLocation,
   onOpenHours,
 }) {
   const photos = business.photos ?? [];
   const owner = business.owner;
-
-  const status = STATUS_CONFIG[business.status] ?? {
-    label: business.status ?? "Unknown",
-    className: "bg-surface text-text-secondary",
-  };
+  const status = getBusinessStatusConfig(business.status);
 
   const hasLocation =
     business.location?.latitude != null && business.location?.longitude != null;
@@ -48,17 +34,6 @@ export default function BusinessDetailHero({
 
   return (
     <section>
-      {/* Back navigation */}
-      <Button
-        variant="ghost"
-        size="sm"
-        icon={ArrowLeft}
-        onClick={onBack}
-        className="mb-4"
-      >
-        Back to Businesses
-      </Button>
-
       {/* Business profile */}
       <div className="overflow-hidden rounded-xl border border-stroke bg-background">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,420px)_1fr]">
@@ -85,6 +60,7 @@ export default function BusinessDetailHero({
                 </div>
               )}
             </div>
+
             {/* Linked SugboGo account */}
             <div className="mt-4 rounded-xl border border-stroke bg-surface-muted/40 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -131,11 +107,9 @@ export default function BusinessDetailHero({
                     {business.business_name}
                   </h1>
 
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${status.className}`}
-                  >
+                  <StatusBadge variant={status.variant}>
                     {status.label}
-                  </span>
+                  </StatusBadge>
                 </div>
 
                 <p className="mt-1 text-xs text-text-secondary">

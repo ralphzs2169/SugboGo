@@ -132,6 +132,10 @@ const navigation = [
         label: "Businesses",
         Icon: MdStorefront,
         roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/businesses",
+          "/admin-panel/businesses/[businessId]",
+        ],
       },
       {
         type: "link",
@@ -141,7 +145,7 @@ const navigation = [
         roles: ["admin", "super_admin"],
         activePaths: [
           "/admin-panel/businesses/applications",
-          "/admin-panel/business/application",
+          "/admin-panel/business/application/[applicationId]",
         ],
       },
       {

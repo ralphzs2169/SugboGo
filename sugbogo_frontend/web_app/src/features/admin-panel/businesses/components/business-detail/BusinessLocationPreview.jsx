@@ -65,24 +65,24 @@ export default function BusinessLocationPreview({ location, onClick }) {
           </p>
         </div>
 
-        <p className="mt-1 truncate text-sm font-medium text-text-primary">
+        <p className="mt-1 ml-5 truncate text-sm font-medium text-text-primary">
           {location.address || "No address"}
         </p>
 
-        <p className="mt-1 text-xs text-text-secondary">
+        <p className="mt-1 ml-5 text-xs text-text-secondary">
           {location.city}, {location.province}
         </p>
       </div>
 
       {/* Map preview */}
       <div className="relative h-24 w-40 shrink-0 overflow-hidden rounded-lg border border-stroke bg-surface-muted">
-        {/* <img
+        <img
           src={staticMapUrl}
           alt=""
           aria-hidden="true"
           className="h-full w-full object-cover"
           loading="lazy"
-        /> */}
+        />
 
         {/* Preview overlay */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/10">

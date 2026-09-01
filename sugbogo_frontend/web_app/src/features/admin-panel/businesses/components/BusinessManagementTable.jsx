@@ -1,6 +1,5 @@
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Tag } from "lucide-react";
+import { Building2, Map, Tag } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import FilterPill from "../../components/FilterPill";
@@ -8,7 +7,9 @@ import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 import BusinessColumns from "../columns/businessColumns";
 import useBusinesses from "../hooks/useBusinesses";
+import useBusinessMap from "../hooks/useBusinessMap";
 import useBusinessTableState from "../hooks/useBusinessTableState";
+import BusinessManagementMap from "./business-location/BusinessManagementMap";
 
 const STATUS_OPTIONS = [
   {
@@ -22,15 +23,18 @@ const STATUS_OPTIONS = [
 ];
 
 /**
- * Management panel for permanent merchant businesses.
+ * Provides tabbed management views for permanent merchant businesses.
  *
- * Handles server-side search, status filtering, sorting, pagination,
- * and navigation to the business detail page.
+ * The Businesses tab provides the paginated management table, while the
+ * Map tab provides a geographic view of businesses. Map data is loaded
+ * only when the Map tab is active.
  */
 export default function BusinessManagementTable() {
   const navigate = useNavigate();
 
   const {
+    currentTab,
+    setCurrentTab,
     globalFilter,
     setGlobalFilter,
     statusFilter,
@@ -42,6 +46,7 @@ export default function BusinessManagementTable() {
     params,
     hasActiveFilters,
     handleResetFilters,
+    isSearching,
   } = useBusinessTableState();
 
   const {
@@ -54,6 +59,18 @@ export default function BusinessManagementTable() {
     refetch,
   } = useBusinesses(params);
 
+  const {
+    businesses: mapBusinesses,
+    isLoading: isMapLoading,
+    isFetching: isMapFetching,
+    error: mapError,
+    refetch: refetchMap,
+  } = useBusinessMap({
+    enabled: currentTab === "map",
+    search: params.search,
+    status: statusFilter,
+  });
+
   function handleViewBusiness(business) {
     navigate(`/admin-panel/businesses/${business.id}`);
   }
@@ -62,22 +79,24 @@ export default function BusinessManagementTable() {
 
   function renderFilters() {
     return (
-      <>
-        {/* Business status filter */}
-        <FilterPill
-          icon={Tag}
-          placeholder="All statuses"
-          options={STATUS_OPTIONS}
-          value={statusFilter}
-          onChange={setStatusFilter}
-        />
-      </>
+      <FilterPill
+        icon={Tag}
+        placeholder="All statuses"
+        options={STATUS_OPTIONS}
+        value={statusFilter}
+        onChange={setStatusFilter}
+      />
     );
   }
 
   useApiErrorNotification(error, {
     toastId: "businesses-load-error",
     fallbackMessage: "Unable to load businesses. Please try again.",
+  });
+
+  useApiErrorNotification(mapError, {
+    toastId: "business-map-load-error",
+    fallbackMessage: "Unable to load business locations. Please try again.",
   });
 
   return (
@@ -100,10 +119,24 @@ export default function BusinessManagementTable() {
       onSortingChange={setSorting}
       hasActiveFilters={hasActiveFilters}
       onResetFilters={handleResetFilters}
-      slots={{
-        renderFilters,
-      }}
+      isSearching={isSearching}
       config={{
+        tabs: [
+          {
+            id: "businesses",
+            label: "Businesses",
+            icon: Building2,
+          },
+          {
+            id: "map",
+            label: "Map View",
+            icon: Map,
+          },
+        ],
+
+        activeTab: currentTab,
+        onTabChange: setCurrentTab,
+
         searchPlaceholder: "Search businesses...",
 
         emptyState: {
@@ -121,6 +154,28 @@ export default function BusinessManagementTable() {
           title: "Unable to load businesses",
           message: "The requested businesses could not be loaded.",
         },
+      }}
+      slots={{
+        renderFilters,
+
+        renderContent:
+          currentTab === "map"
+            ? () => (
+                <div className="overflow-hidden rounded-lg border border-stroke bg-background">
+                  <BusinessManagementMap
+                    businesses={mapBusinesses}
+                    isLoading={isMapLoading}
+                    isFetching={isMapFetching}
+                    error={mapError}
+                    onRetry={refetchMap}
+                    hasActiveFilters={hasActiveFilters}
+                    onResetFilters={handleResetFilters}
+                    onViewBusiness={handleViewBusiness}
+                    className="h-[600px] rounded-none border-0"
+                  />
+                </div>
+              )
+            : undefined,
       }}
     />
   );

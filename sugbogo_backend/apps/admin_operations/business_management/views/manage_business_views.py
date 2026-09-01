@@ -64,7 +64,13 @@ class BusinessMapView(APIView):
     def get(self, request):
         """Retrieve business locations for the management map."""
 
-        businesses = BusinessService.list_business_locations()
+        search = request.query_params.get("search")
+        status_filter = request.query_params.get("status")
+
+        businesses = BusinessService.list_business_locations(
+            search=search,
+            status=status_filter,
+        )
 
         serializer = AdminBusinessMapSerializer(
             businesses,
