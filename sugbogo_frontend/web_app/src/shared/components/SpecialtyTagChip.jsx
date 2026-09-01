@@ -11,6 +11,15 @@ export const colorClasses = {
   teal: "bg-teal-700 text-white",
 };
 
+export const ringClasses = {
+  blue: "ring-blue-600",
+  green: "ring-green-700",
+  purple: "ring-purple-700",
+  yellow: "ring-yellow-600",
+  red: "ring-rose-700",
+  teal: "ring-teal-800",
+};
+
 /**
  * Displays a specialty tag using its configured color.
  *
@@ -21,13 +30,14 @@ export default function SpecialtyTagChip({
   tag,
   size = "default",
   vouchCount,
+  chipStyle = true,
 }) {
   const isSmall = size === "small";
   const hasVouchCount = vouchCount !== undefined;
 
   return (
     <span
-      className={`inline-flex items-center rounded-full font-medium ${
+      className={`inline-flex items-center ${chipStyle ? "rounded-full" : "rounded-md"} font-medium ${
         isSmall ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs"
       } ${colorClasses[tag.color] ?? colorClasses.blue}`}
     >

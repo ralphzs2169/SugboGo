@@ -36,7 +36,7 @@ function MetricCard({
     ).length >= 2;
 
   return (
-    <div className="flex min-h-[165px] flex-col overflow-hidden rounded-xl border border-stroke bg-background shadow-sm transition-shadow hover:shadow-md">
+    <div className="flex min-h-[165px] flex-col overflow-hidden rounded-xl border border-stroke bg-background transition-shadow hover:shadow-md">
       {/* Metric header */}
       <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-4 py-3">
         <h3 className="min-w-0 truncate text-xs font-medium text-text-primary">

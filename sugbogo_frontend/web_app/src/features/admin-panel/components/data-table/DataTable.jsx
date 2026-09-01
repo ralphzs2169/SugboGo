@@ -6,7 +6,6 @@ import TableBody from "./TableBody";
 import TablePagination from "./TablePagination";
 import { useReactTable, getCoreRowModel } from "@tanstack/react-table";
 import TableSkeletonBody from "./TableSkeletonBody";
-import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import { SearchX } from "lucide-react";
 /**
@@ -109,7 +108,7 @@ function DataTable({
   });
 
   return (
-    <div className="w-full rounded-sm border border-stroke bg-background pb-6 px-6 pt-2 relative">
+    <div className="w-full rounded-2xl border border-stroke bg-background pb-6 px-6 pt-2 relative">
       <div className="mb-6">
         <TableTabs
           tabs={tabs}

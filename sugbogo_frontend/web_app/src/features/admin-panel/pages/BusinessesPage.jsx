@@ -39,7 +39,7 @@ export default function BusinessesPage() {
       {/* Business management */}
       <section>
         <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
-          All Businesses
+          Business Management
         </h2>
 
         <BusinessManagementTable />

@@ -13,13 +13,16 @@ class BusinessService:
         search=None,
         ordering=None,
         status=None,
+        cluster=None,
+        category=None,
+        specialty_tag=None,
     ):
         """
         Retrieve businesses for the admin business management table.
 
-        Supports optional business-name search, status filtering, and
-        ordering while eagerly loading the relationships required
-        by the list serializer.
+        Supports optional business-name search, status filtering, classification
+        filtering, specialty-tag filtering, and ordering while eagerly loading
+        the relationships required by the list serializer.
         """
 
         queryset = (
@@ -30,20 +33,23 @@ class BusinessService:
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
             )
-            .prefetch_related(
-                "SPECIALTY_TAGS",
-            )
+            .prefetch_related("SPECIALTY_TAGS")
         )
 
         if search:
-            queryset = queryset.filter(
-                BUSN_NAME__icontains=search,
-            )
+            queryset = queryset.filter(BUSN_NAME__icontains=search)
 
         if status:
-            queryset = queryset.filter(
-                BUSN_STATUS=status,
-            )
+            queryset = queryset.filter(BUSN_STATUS=status)
+
+        if cluster:
+            queryset = queryset.filter(CTGRY_ID__CLUS_ID=cluster)
+
+        if category:
+            queryset = queryset.filter(CTGRY_ID=category)
+
+        if specialty_tag:
+            queryset = queryset.filter(SPECIALTY_TAGS=specialty_tag)
 
         ordering_map = {
             "business_name": "BUSN_NAME",
@@ -54,26 +60,26 @@ class BusinessService:
             "-created_at": "-BUSN_CREATED_AT",
         }
 
-        if ordering:
-            return queryset.order_by(
-                ordering_map.get(
-                    ordering,
-                    "-BUSN_CREATED_AT",
-                )
-            )
-
         return queryset.order_by(
-            "-BUSN_CREATED_AT",
+            ordering_map.get(
+                ordering,
+                "-BUSN_CREATED_AT",
+            )
         )
 
     @staticmethod
-    def list_business_locations(search=None, status=None):
+    def list_business_locations(
+        search=None,
+        status=None,
+        cluster=None,
+        category=None,
+        specialty_tag=None,
+    ):
         """
         Retrieve businesses with valid coordinates for the administrator map.
 
-        Supports the same optional business-name search and status
-        filtering as list_businesses, so the map reflects the same
-        filtered subset as the table.
+        Supports the same filtering criteria as list_businesses so the map
+        reflects the same filtered business subset as the table.
         """
 
         queryset = (
@@ -83,6 +89,7 @@ class BusinessService:
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
             )
+            .prefetch_related("SPECIALTY_TAGS")
             .filter(
                 LOCT_ID__LOCT_POINT__isnull=False,
             )
@@ -98,9 +105,22 @@ class BusinessService:
                 BUSN_STATUS=status,
             )
 
-        return queryset.order_by(
-            "BUSN_NAME",
-        )
+        if cluster:
+            queryset = queryset.filter(
+                CTGRY_ID__CLUS_ID=cluster,
+            )
+
+        if category:
+            queryset = queryset.filter(
+                CTGRY_ID=category,
+            )
+
+        if specialty_tag:
+            queryset = queryset.filter(
+                SPECIALTY_TAGS=specialty_tag,
+            )
+
+        return queryset.order_by("BUSN_NAME")
 
     @staticmethod
     def get_business_detail(business_id):

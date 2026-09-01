@@ -1,14 +1,18 @@
 import TableTabItem from "./TableTabItem";
 
 /**
- * Segmented horizontal navigation layout used to view subsets of data.
+ * Renders a compact animated segmented control for switching between data views.
  *
+ * The active background smoothly slides between tabs while inactive tabs
+ * transition their text styling.
  */
 function TableTabs({ tabs = [], activeTab, onTabChange }) {
-  if (tabs.length === 0) return null;
+  if (tabs.length === 0) {
+    return null;
+  }
 
   return (
-    <div className="flex items-center border-b border-stroke">
+    <div className="mt-2 inline-flex items-center rounded-lg bg-sidebar-active p-1">
       {tabs.map((tab) => (
         <TableTabItem
           key={tab.id}

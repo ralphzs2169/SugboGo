@@ -34,6 +34,9 @@ class BusinessListView(APIView):
             search=search,
             ordering=ordering,
             status=status_filter,
+            cluster=request.query_params.get("cluster"),
+            category=request.query_params.get("category"),
+            specialty_tag=request.query_params.get("specialty_tag")
         )
 
         paginator = StandardPagination()
@@ -70,6 +73,9 @@ class BusinessMapView(APIView):
         businesses = BusinessService.list_business_locations(
             search=search,
             status=status_filter,
+            cluster=request.query_params.get("cluster"),
+            category=request.query_params.get("category"),
+            specialty_tag=request.query_params.get("specialty_tag")
         )
 
         serializer = AdminBusinessMapSerializer(

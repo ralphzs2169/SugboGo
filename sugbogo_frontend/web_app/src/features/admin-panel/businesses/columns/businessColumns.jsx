@@ -191,7 +191,7 @@ export default function getBusinessColumns(
             <div className="flex items-center gap-1.5">
               <Bookmark className="h-3.5 w-3.5 text-text-secondary" />
               <span className="text-xs text-text-secondary">
-                {business.pocket_count ?? 0} pockets
+                {business.pocket_count ?? 0} saves
               </span>
             </div>
           </div>

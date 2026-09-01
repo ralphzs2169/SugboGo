@@ -1,11 +1,10 @@
-import { TAG_COLORS, colorClasses } from "@/shared/components/SpecialtyTagChip";
+import { Check } from "lucide-react";
+import {
+  TAG_COLORS,
+  colorClasses,
+  ringClasses,
+} from "@/shared/components/SpecialtyTagChip";
 
-/**
- * Specialty tag color picker.
- *
- * Displays the available fixed colors using the current
- * specialty tag name as a live preview.
- */
 export default function SpecialtyTagColorPicker({
   value,
   name,
@@ -31,14 +30,15 @@ export default function SpecialtyTagColorPicker({
               key={color}
               type="button"
               onClick={() => onChange(color)}
-              className={`cursor-pointer min-w-28 rounded-full px-4 py-2 text-sm font-medium transition-all ${
+              className={`inline-flex cursor-pointer min-w-28 items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-all ${
                 colorClasses[color]
               } ${
                 isSelected
-                  ? "ring-2 ring-offset-2"
+                  ? `ring-2 ${ringClasses[color]}`
                   : "opacity-70 hover:opacity-100"
               }`}
             >
+              {isSelected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
               {previewName}
             </button>
           );

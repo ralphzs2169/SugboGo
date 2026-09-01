@@ -1,4 +1,4 @@
-import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { PanelLeft } from "lucide-react";
 
 import Tooltip from "@/shared/components/actions/Tooltip";
 
@@ -11,13 +11,6 @@ import Tooltip from "@/shared/components/actions/Tooltip";
  *
  * Hidden on mobile, where the sidebar is presented as a drawer.
  *
- * @component
- *
- * @param {Object} props
- * @param {boolean} props.isCollapsed - Whether the sidebar is currently collapsed.
- * @param {function} props.onToggle - Toggles the sidebar collapsed state.
- *
- * @returns {JSX.Element}
  */
 export default function SidebarCollapseButton({ isCollapsed, onToggle }) {
   const button = (
@@ -43,11 +36,7 @@ export default function SidebarCollapseButton({ isCollapsed, onToggle }) {
         lg:flex
       "
     >
-      {isCollapsed ? (
-        <FiChevronRight className="h-4 w-4" />
-      ) : (
-        <FiChevronLeft className="h-4 w-4" />
-      )}
+      <PanelLeft className="h-4 w-4" />
     </button>
   );
 

@@ -1,34 +1,24 @@
 import { useNavigate } from "react-router-dom";
-import { Building2, Map, Tag } from "lucide-react";
+import { Building2, Map, Tag, Layers, Tags, Download } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
-import FilterPill from "../../components/FilterPill";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-
+import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
 import BusinessColumns from "../columns/businessColumns";
 import useBusinesses from "../hooks/useBusinesses";
 import useBusinessMap from "../hooks/useBusinessMap";
 import useBusinessTableState from "../hooks/useBusinessTableState";
 import BusinessManagementMap from "./business-location/BusinessManagementMap";
+import useClusters from "../../cluster-category/hooks/useClusters";
+import useCategories from "../../cluster-category/hooks/useCategories";
+import useSpecialtyTags from "../../specialty-tags/hooks/useSpecialtyTags";
+import Button from "@/shared/components/Button";
 
 const STATUS_OPTIONS = [
-  {
-    value: "active",
-    label: "Active",
-  },
-  {
-    value: "suspended",
-    label: "Suspended",
-  },
+  { value: "active", label: "Active" },
+  { value: "suspended", label: "Suspended" },
 ];
 
-/**
- * Provides tabbed management views for permanent merchant businesses.
- *
- * The Businesses tab provides the paginated management table, while the
- * Map tab provides a geographic view of businesses. Map data is loaded
- * only when the Map tab is active.
- */
 export default function BusinessManagementTable() {
   const navigate = useNavigate();
 
@@ -47,6 +37,13 @@ export default function BusinessManagementTable() {
     hasActiveFilters,
     handleResetFilters,
     isSearching,
+    // new filters — see useBusinessTableState update below
+    clusterFilter,
+    setClusterFilter,
+    categoryFilter,
+    setCategoryFilter,
+    specialtyTagFilter,
+    setSpecialtyTagFilter,
   } = useBusinessTableState();
 
   const {
@@ -69,7 +66,15 @@ export default function BusinessManagementTable() {
     enabled: currentTab === "map",
     search: params.search,
     status: statusFilter,
+    cluster: clusterFilter,
+    category: categoryFilter,
+    specialtyTag: specialtyTagFilter,
   });
+
+  // Filter option sources — fetched once, not paginated/searched.
+  const { clusters } = useClusters({ page_size: 100 });
+  const { categories } = useCategories({ page_size: 100 });
+  const { specialtyTags } = useSpecialtyTags({ page_size: 100 });
 
   function handleViewBusiness(business) {
     navigate(`/admin-panel/businesses/${business.id}`);
@@ -79,12 +84,50 @@ export default function BusinessManagementTable() {
 
   function renderFilters() {
     return (
-      <FilterPill
-        icon={Tag}
-        placeholder="All statuses"
-        options={STATUS_OPTIONS}
-        value={statusFilter}
-        onChange={setStatusFilter}
+      <FilterMenu
+        filters={[
+          {
+            key: "status",
+            label: "Status",
+            icon: Tag,
+            options: STATUS_OPTIONS,
+            value: statusFilter,
+            onChange: setStatusFilter,
+          },
+          {
+            key: "cluster",
+            label: "Cluster",
+            icon: Layers,
+            options: clusters.map((cluster) => ({
+              value: String(cluster.id),
+              label: cluster.name,
+            })),
+            value: clusterFilter,
+            onChange: setClusterFilter,
+          },
+          {
+            key: "category",
+            label: "Category",
+            icon: Tag,
+            options: categories.map((category) => ({
+              value: String(category.id),
+              label: category.name,
+            })),
+            value: categoryFilter,
+            onChange: setCategoryFilter,
+          },
+          {
+            key: "specialty_tag",
+            label: "Specialty Tag",
+            icon: Tags,
+            options: specialtyTags.map((tag) => ({
+              value: String(tag.id),
+              label: tag.name,
+            })),
+            value: specialtyTagFilter,
+            onChange: setSpecialtyTagFilter,
+          },
+        ]}
       />
     );
   }
@@ -108,10 +151,7 @@ export default function BusinessManagementTable() {
       error={error}
       onRetry={refetch}
       pagination={pagination}
-      state={{
-        globalFilter,
-        sorting,
-      }}
+      state={{ globalFilter, sorting }}
       pageCount={pageCount}
       totalItems={totalItems}
       onPaginationChange={setPagination}
@@ -122,34 +162,19 @@ export default function BusinessManagementTable() {
       isSearching={isSearching}
       config={{
         tabs: [
-          {
-            id: "businesses",
-            label: "Businesses",
-            icon: Building2,
-          },
-          {
-            id: "map",
-            label: "Map View",
-            icon: Map,
-          },
+          { id: "businesses", label: "Businesses", icon: Building2 },
+          { id: "map", label: "Map View", icon: Map },
         ],
-
         activeTab: currentTab,
         onTabChange: setCurrentTab,
-
         searchPlaceholder: "Search businesses...",
-
         emptyState: {
           title: "No businesses yet",
           description:
             "Approved merchant businesses will appear here once they are created.",
           icon: <Building2 className="h-10 w-10 text-text-secondary" />,
         },
-
-        noResultsState: {
-          title: "No businesses found",
-        },
-
+        noResultsState: { title: "No businesses found" },
         errorState: {
           title: "Unable to load businesses",
           message: "The requested businesses could not be loaded.",
@@ -157,7 +182,16 @@ export default function BusinessManagementTable() {
       }}
       slots={{
         renderFilters,
-
+        renderHeaderActions: () => (
+          <Button
+            variant="secondary"
+            size="md"
+            icon={Download}
+            onClick={() => {}}
+          >
+            Export
+          </Button>
+        ),
         renderContent:
           currentTab === "map"
             ? () => (
