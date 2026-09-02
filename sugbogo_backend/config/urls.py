@@ -41,10 +41,12 @@ urlpatterns = [
     path('api/admin/roles-permissions/', include('apps.admin_operations.role_management.urls')),
     path('api/admin/suspicious-activities/', include('apps.admin_operations.suspicious_activity.urls')),
     path('api/admin/analytics/', include('apps.admin_operations.analytics.urls')),
+    path('api/admin/review-disputes/', include('apps.admin_operations.moderation.urls')),
 
 
     path('api/admin/settings/', include('apps.admin_operations.system_configuration.urls')),
     path('api/business/', include('apps.business.urls')),
     path("api/reviews/", include("apps.reviews.urls"), ),
+    path("api/merchant/review-disputes/", include("apps.review_disputes.urls")),
 
 ]

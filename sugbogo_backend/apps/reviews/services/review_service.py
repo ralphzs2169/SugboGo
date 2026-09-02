@@ -244,6 +244,7 @@ class ReviewService:
 
         total_count = Review.objects.filter(
             BUSN_ID=business_id,
+            REVW_STATUS=Review.ReviewStatus.PUBLISHED,
         ).count()
 
         # Get the first 3 reviews for the business, ordered by creation date (most recent first).
