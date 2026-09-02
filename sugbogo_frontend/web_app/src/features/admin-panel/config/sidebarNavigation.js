@@ -5,6 +5,7 @@ import {
   FiUser,
   FiUsers,
   FiBriefcase,
+  FiMessageSquare,
   FiTag,
   FiMapPin,
   FiFileText,
@@ -182,6 +183,13 @@ const navigation = [
   {
     section: "Moderation",
     items: [
+      {
+        type: "link",
+        to: "/admin-panel/review-disputes",
+        label: "Review Disputes",
+        Icon: FiMessageSquare,
+        roles: ["admin", "super_admin"],
+      },
       {
         type: "link",
         to: "/admin-panel/flags-suspicious",
