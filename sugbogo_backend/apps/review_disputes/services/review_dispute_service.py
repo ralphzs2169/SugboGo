@@ -123,7 +123,7 @@ class ReviewDisputeService:
 
         if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.PENDING:
             raise ValidationError(
-                "Evidence can only be added to an active review dispute.",
+                "Evidence can only be added to a pending review dispute.",
             )
 
         resource_type = "image"
@@ -191,7 +191,7 @@ class ReviewDisputeService:
 
         if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.PENDING:
             raise ValidationError(
-                "Only an active review dispute can be withdrawn.",
+                "Only a pending review dispute can be withdrawn.",
             )
 
         dispute.MRDSP_STATUS = MerchantReviewDispute.DisputeStatus.WITHDRAWN

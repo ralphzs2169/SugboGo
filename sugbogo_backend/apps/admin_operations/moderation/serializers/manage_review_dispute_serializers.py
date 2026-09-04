@@ -1,13 +1,14 @@
 from rest_framework import serializers
 
 from apps.business.serializers.business_serializers import (
+    BusinessContextSerializer,
     BusinessOwnerSerializer,
 )
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.review_disputes.serializers import (
     DisputeEvidenceResponseSerializer,
 )
-from apps.reviews.models import Review
+from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import (
     ReviewAuthorResponseSerializer,
     ReviewPhotoResponseSerializer,
@@ -69,6 +70,26 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
         )
 
 
+class AdminReviewReplySerializer(serializers.ModelSerializer):
+    """Serialize the merchant's response to the disputed review."""
+
+    text = serializers.CharField(
+        source="RPLY_TEXT",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="RPLY_CREATED_AT",
+        read_only=True,
+    )
+
+    class Meta:
+        model = ReviewReply
+        fields = (
+            "text",
+            "created_at",
+        )
+
+
 class AdminDisputedReviewSerializer(serializers.ModelSerializer):
     """Serialize the disputed review for administrator review."""
 
@@ -92,6 +113,14 @@ class AdminDisputedReviewSerializer(serializers.ModelSerializer):
         source="REVW_CREATED_AT",
         read_only=True,
     )
+    like_count = serializers.IntegerField(
+        source="REVW_LIKE_COUNT",
+        read_only=True,
+    )
+    report_count = serializers.IntegerField(
+        source="REVW_REPORT_COUNT",
+        read_only=True,
+    )
     author = ReviewAuthorResponseSerializer(
         source="USER_ID",
         read_only=True,
@@ -100,16 +129,8 @@ class AdminDisputedReviewSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
-    is_spam_flagged = serializers.BooleanField(
-        source="REVW_IS_SPAM_FLAGGED",
-        read_only=True,
-    )
-    is_outlier_sentiment = serializers.BooleanField(
-        source="REVW_IS_OUTLIER_SENTIMENT",
-        read_only=True,
-    )
-    is_device_abuse_flagged = serializers.BooleanField(
-        source="REVW_IS_DEVICE_ABUSE_FLAGGED",
+    report_summary = serializers.SerializerMethodField()
+    reply = AdminReviewReplySerializer(
         read_only=True,
     )
 
@@ -121,12 +142,28 @@ class AdminDisputedReviewSerializer(serializers.ModelSerializer):
             "status",
             "moderation_notes",
             "created_at",
+            "like_count",
+            "report_count",
             "author",
             "photos",
-            "is_spam_flagged",
-            "is_outlier_sentiment",
-            "is_device_abuse_flagged",
+            "report_summary",
+            "reply",
         )
+
+    def get_report_summary(self, obj):
+        summary = {}
+
+        for report in obj.reports.all():
+            reason = report.RREP_TYPE
+            summary[reason] = summary.get(reason, 0) + 1
+
+        return [
+            {
+                "reason": reason,
+                "count": count,
+            }
+            for reason, count in summary.items()
+        ]
 
 
 class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
@@ -164,12 +201,8 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
         source="MRDSP_UPDATED_AT",
         read_only=True,
     )
-    business_id = serializers.IntegerField(
-        source="BUSN_ID_id",
-        read_only=True,
-    )
-    business_name = serializers.CharField(
-        source="BUSN_ID.BUSN_NAME",
+    business = BusinessContextSerializer(
+        source="BUSN_ID",
         read_only=True,
     )
     merchant = BusinessOwnerSerializer(
@@ -196,8 +229,7 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
             "resolved_at",
             "created_at",
             "updated_at",
-            "business_id",
-            "business_name",
+            "business",
             "merchant",
             "review",
             "evidence",

@@ -7,7 +7,7 @@ import {
   X,
 } from "lucide-react";
 
-import ReviewPhotoViewerModal from "./ReviewPhotoViewerModal";
+import ReviewPhotoViewerModal from "@/shared/components/modals/ReviewPhotoViewerModal";
 
 function relativeDate(value) {
   const days = Math.max(

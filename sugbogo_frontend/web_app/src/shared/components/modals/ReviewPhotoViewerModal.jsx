@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-
+import { createPortal } from "react-dom";
 /**
  * Provides a fullscreen, focused viewer for review photos.
  *
@@ -68,7 +68,7 @@ export default function ReviewPhotoViewerModal({
     setCurrentIndex((currentIndex + 1) % photos.length);
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex flex-col bg-black"
       role="dialog"
@@ -184,7 +184,8 @@ export default function ReviewPhotoViewerModal({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

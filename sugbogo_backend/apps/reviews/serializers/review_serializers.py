@@ -90,6 +90,7 @@ class ReviewAuthorResponseSerializer(serializers.Serializer):
     id = serializers.IntegerField(source="USER_ID", read_only=True)
     first_name = serializers.CharField(source="USER_FNAME", read_only=True)
     last_name = serializers.CharField(source="USER_LNAME", read_only=True)
+    role = serializers.CharField(source="USER_ROLE", read_only=True)
     avatar_url = serializers.ReadOnlyField()
 
 

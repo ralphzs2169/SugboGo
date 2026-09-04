@@ -24,6 +24,7 @@ class ManageReviewDisputeService:
                 "evidence",
                 "REVW_ID__photos",
                 "REVW_ID__reports",
+                "REVW_ID__reply",
             )
         )
 
