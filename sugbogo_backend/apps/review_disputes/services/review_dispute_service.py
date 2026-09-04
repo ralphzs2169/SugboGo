@@ -15,11 +15,6 @@ from apps.users.models import User
 class ReviewDisputeService:
     """Handles merchant-facing review dispute operations."""
 
-    ACTIVE_STATUSES = (
-        MerchantReviewDispute.DisputeStatus.PENDING,
-        MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
-    )
-
     @staticmethod
     def _get_owned_dispute(
         user: User,
@@ -126,7 +121,7 @@ class ReviewDisputeService:
             dispute_id,
         )
 
-        if dispute.MRDSP_STATUS not in ReviewDisputeService.ACTIVE_STATUSES:
+        if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.PENDING:
             raise ValidationError(
                 "Evidence can only be added to an active review dispute.",
             )
@@ -194,7 +189,7 @@ class ReviewDisputeService:
             dispute_id,
         )
 
-        if dispute.MRDSP_STATUS not in ReviewDisputeService.ACTIVE_STATUSES:
+        if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.PENDING:
             raise ValidationError(
                 "Only an active review dispute can be withdrawn.",
             )

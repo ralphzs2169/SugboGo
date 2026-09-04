@@ -38,16 +38,24 @@ class ManageReviewDisputeService:
         queryset = ManageReviewDisputeService._detail_queryset()
 
         if status:
-            queryset = queryset.filter(MRDSP_STATUS=status)
+            queryset = queryset.filter(
+                MRDSP_STATUS=status,
+            )
 
         if reason:
-            queryset = queryset.filter(MRDSP_REASON=reason)
+            queryset = queryset.filter(
+                MRDSP_REASON=reason,
+            )
 
         if business_id:
-            queryset = queryset.filter(BUSN_ID=business_id)
+            queryset = queryset.filter(
+                BUSN_ID=business_id,
+            )
 
         if review_id:
-            queryset = queryset.filter(REVW_ID=review_id)
+            queryset = queryset.filter(
+                REVW_ID=review_id,
+            )
 
         ordering_map = {
             "created_at": "MRDSP_CREATED_AT",
@@ -56,31 +64,29 @@ class ManageReviewDisputeService:
             "-status": "-MRDSP_STATUS",
         }
 
-        return queryset.order_by(ordering_map.get(ordering, "-MRDSP_CREATED_AT"))
+        return queryset.order_by(
+            ordering_map.get(
+                ordering,
+                "-MRDSP_CREATED_AT",
+            ),
+        )
 
     @staticmethod
-    def get_dispute(dispute_id: int) -> MerchantReviewDispute:
+    def get_dispute(
+        dispute_id: int,
+    ) -> MerchantReviewDispute:
         try:
-            return ManageReviewDisputeService._detail_queryset().get(
-                MRDSP_ID=dispute_id,
+            return (
+                ManageReviewDisputeService
+                ._detail_queryset()
+                .get(
+                    MRDSP_ID=dispute_id,
+                )
             )
         except MerchantReviewDispute.DoesNotExist:
-            raise NotFound("The review dispute could not be found.")
-
-    @staticmethod
-    @transaction.atomic
-    def start_review(dispute_id: int) -> MerchantReviewDispute:
-        dispute = ManageReviewDisputeService.get_dispute(dispute_id)
-
-        if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.PENDING:
-            raise ValidationError(
-                "Only pending review disputes can be started.",
+            raise NotFound(
+                "The review dispute could not be found.",
             )
-
-        dispute.MRDSP_STATUS = MerchantReviewDispute.DisputeStatus.UNDER_REVIEW
-        dispute.save(update_fields=["MRDSP_STATUS", "MRDSP_UPDATED_AT"])
-
-        return dispute
 
     @staticmethod
     @transaction.atomic
@@ -88,16 +94,24 @@ class ManageReviewDisputeService:
         dispute_id: int,
         admin_notes: str | None = None,
     ) -> MerchantReviewDispute:
-        dispute = ManageReviewDisputeService.get_dispute(dispute_id)
+        dispute = ManageReviewDisputeService.get_dispute(
+            dispute_id,
+        )
 
-        if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.UNDER_REVIEW:
+        if (
+            dispute.MRDSP_STATUS
+            != MerchantReviewDispute.DisputeStatus.PENDING
+        ):
             raise ValidationError(
-                "Only disputes under review can be upheld.",
+                "Only pending review disputes can be upheld.",
             )
 
-        dispute.MRDSP_STATUS = MerchantReviewDispute.DisputeStatus.UPHELD
+        dispute.MRDSP_STATUS = (
+            MerchantReviewDispute.DisputeStatus.UPHELD
+        )
         dispute.MRDSP_ADMIN_NOTES = admin_notes
         dispute.MRDSP_RESOLVED_AT = timezone.now()
+
         dispute.save(
             update_fields=[
                 "MRDSP_STATUS",
@@ -107,11 +121,11 @@ class ManageReviewDisputeService:
             ],
         )
 
-        Review.objects.filter(REVW_ID=dispute.REVW_ID_id).update(
+        Review.objects.filter(
+            REVW_ID=dispute.REVW_ID_id,
+        ).update(
             REVW_STATUS=Review.ReviewStatus.REJECTED,
         )
-
-        dispute.REVW_ID.REVW_STATUS = Review.ReviewStatus.REJECTED
 
         return dispute
 
@@ -121,16 +135,24 @@ class ManageReviewDisputeService:
         dispute_id: int,
         admin_notes: str | None = None,
     ) -> MerchantReviewDispute:
-        dispute = ManageReviewDisputeService.get_dispute(dispute_id)
+        dispute = ManageReviewDisputeService.get_dispute(
+            dispute_id,
+        )
 
-        if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.UNDER_REVIEW:
+        if (
+            dispute.MRDSP_STATUS
+            != MerchantReviewDispute.DisputeStatus.PENDING
+        ):
             raise ValidationError(
-                "Only disputes under review can be dismissed.",
+                "Only pending review disputes can be dismissed.",
             )
 
-        dispute.MRDSP_STATUS = MerchantReviewDispute.DisputeStatus.DISMISSED
+        dispute.MRDSP_STATUS = (
+            MerchantReviewDispute.DisputeStatus.DISMISSED
+        )
         dispute.MRDSP_ADMIN_NOTES = admin_notes
         dispute.MRDSP_RESOLVED_AT = timezone.now()
+
         dispute.save(
             update_fields=[
                 "MRDSP_STATUS",

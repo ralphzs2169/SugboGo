@@ -10,7 +10,6 @@ class MerchantReviewDispute(models.Model):
 
     class DisputeStatus(models.TextChoices):
         PENDING = "pending", "Pending"
-        UNDER_REVIEW = "under_review", "Under Review"
         UPHELD = "upheld", "Upheld"
         DISMISSED = "dismissed", "Dismissed"
         WITHDRAWN = "withdrawn", "Withdrawn"
@@ -94,10 +93,7 @@ class MerchantReviewDispute(models.Model):
             models.UniqueConstraint(
                 fields=["REVW_ID"],
                 condition=models.Q(
-                    MRDSP_STATUS__in=[
-                        "pending",
-                        "under_review",
-                    ],
+                    MRDSP_STATUS="pending",
                 ),
                 name="unique_active_dispute_per_review",
             ),

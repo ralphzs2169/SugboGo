@@ -174,7 +174,7 @@ class ReviewDisputeServiceTests(TestCase):
             "The reviewer did not visit our business.",
         )
 
-    def test_create_dispute_rejects_duplicate_active_dispute(self):
+    def test_create_dispute_rejects_duplicate_pending_dispute(self):
         self.create_dispute()
 
         with self.assertRaises(ValidationError):
@@ -673,26 +673,6 @@ class ReviewDisputeServiceTests(TestCase):
 
     def test_withdraw_pending_dispute(self):
         dispute = self.create_dispute()
-
-        withdrawn = ReviewDisputeService.withdraw_dispute(
-            self.merchant,
-            dispute.MRDSP_ID,
-        )
-
-        self.assertEqual(
-            withdrawn.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.WITHDRAWN,
-        )
-
-    def test_withdraw_under_review_dispute(self):
-        dispute = self.create_dispute()
-
-        dispute.MRDSP_STATUS = (
-            MerchantReviewDispute.DisputeStatus.UNDER_REVIEW
-        )
-        dispute.save(
-            update_fields=["MRDSP_STATUS"],
-        )
 
         withdrawn = ReviewDisputeService.withdraw_dispute(
             self.merchant,

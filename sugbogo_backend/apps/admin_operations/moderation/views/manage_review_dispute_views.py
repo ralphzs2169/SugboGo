@@ -16,12 +16,16 @@ from apps.users.models import User
 
 
 class AdminReviewDisputeListView(APIView):
+    """Handle review dispute listing for administrators."""
+
     permission_classes = (
         IsAuthenticated,
         HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
     )
 
     def get(self, request):
+        """Retrieve a paginated list of review disputes."""
+
         disputes = ManageReviewDisputeService.list_disputes(
             status=request.query_params.get("status"),
             reason=request.query_params.get("reason"),
@@ -29,61 +33,99 @@ class AdminReviewDisputeListView(APIView):
             review_id=request.query_params.get("review"),
             ordering=request.query_params.get("ordering"),
         )
+
         paginator = StandardPagination()
-        page = paginator.paginate_queryset(disputes, request)
-        serializer = AdminReviewDisputeListSerializer(page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+
+        page = paginator.paginate_queryset(
+            disputes,
+            request,
+        )
+
+        serializer = AdminReviewDisputeListSerializer(
+            page,
+            many=True,
+        )
+
+        return paginator.get_paginated_response(
+            serializer.data,
+        )
 
 
 class AdminReviewDisputeDetailView(APIView):
+    """Handle administrator viewing of a review dispute."""
+
     permission_classes = AdminReviewDisputeListView.permission_classes
 
     def get(self, request, dispute_id):
-        dispute = ManageReviewDisputeService.get_dispute(dispute_id)
+        """Retrieve a review dispute and its details."""
+
+        dispute = ManageReviewDisputeService.get_dispute(
+            dispute_id,
+        )
+
+        serializer = AdminReviewDisputeDetailSerializer(
+            dispute,
+        )
+
         return success_response(
-            data=AdminReviewDisputeDetailSerializer(dispute).data,
+            data=serializer.data,
             message="Review dispute retrieved successfully.",
         )
 
 
-class AdminReviewDisputeStartReviewView(APIView):
+class AdminReviewDisputeUpholdView(APIView):
+    """Handle administrators upholding review disputes."""
+
     permission_classes = AdminReviewDisputeListView.permission_classes
 
     def post(self, request, dispute_id):
-        dispute = ManageReviewDisputeService.start_review(dispute_id)
-        return success_response(
-            data=AdminReviewDisputeDetailSerializer(dispute).data,
-            message="Review dispute is now under review.",
+        """Uphold a pending review dispute."""
+
+        serializer = AdminReviewDisputeResolutionSerializer(
+            data=request.data,
         )
 
+        serializer.is_valid(
+            raise_exception=True,
+        )
 
-class AdminReviewDisputeUpholdView(APIView):
-    permission_classes = AdminReviewDisputeListView.permission_classes
-
-    def post(self, request, dispute_id):
-        serializer = AdminReviewDisputeResolutionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
         dispute = ManageReviewDisputeService.uphold_dispute(
             dispute_id,
             **serializer.validated_data,
         )
+
         return success_response(
-            data=AdminReviewDisputeDetailSerializer(dispute).data,
+            data=AdminReviewDisputeDetailSerializer(
+                dispute,
+            ).data,
             message="Review dispute upheld successfully.",
         )
 
 
 class AdminReviewDisputeDismissView(APIView):
+    """Handle administrators dismissing review disputes."""
+
     permission_classes = AdminReviewDisputeListView.permission_classes
 
     def post(self, request, dispute_id):
-        serializer = AdminReviewDisputeResolutionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        """Dismiss a pending review dispute."""
+
+        serializer = AdminReviewDisputeResolutionSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
         dispute = ManageReviewDisputeService.dismiss_dispute(
             dispute_id,
             **serializer.validated_data,
         )
+
         return success_response(
-            data=AdminReviewDisputeDetailSerializer(dispute).data,
+            data=AdminReviewDisputeDetailSerializer(
+                dispute,
+            ).data,
             message="Review dispute dismissed successfully.",
         )

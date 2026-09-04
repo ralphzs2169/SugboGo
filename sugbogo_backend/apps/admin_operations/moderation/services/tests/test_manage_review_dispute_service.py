@@ -171,27 +171,32 @@ class ManageReviewDisputeServiceTests(TestCase):
     def test_list_disputes_filters_by_status(self):
         pending_dispute = self.create_dispute()
 
-        under_review_dispute = self.create_dispute(
+        dismissed_dispute = self.create_dispute(
             review=self.second_review,
             business=self.second_business,
             merchant=self.second_merchant,
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            status=MerchantReviewDispute.DisputeStatus.DISMISSED,
         )
 
         disputes = list(
             ManageReviewDisputeService.list_disputes(
-                status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+                status=MerchantReviewDispute.DisputeStatus.PENDING,
             ),
         )
 
+        returned_ids = [
+            dispute.MRDSP_ID
+            for dispute in disputes
+        ]
+
         self.assertEqual(
-            [dispute.MRDSP_ID for dispute in disputes],
-            [under_review_dispute.MRDSP_ID],
+            returned_ids,
+            [pending_dispute.MRDSP_ID],
         )
 
         self.assertNotIn(
-            pending_dispute.MRDSP_ID,
-            [dispute.MRDSP_ID for dispute in disputes],
+            dismissed_dispute.MRDSP_ID,
+            returned_ids,
         )
 
     def test_list_disputes_filters_by_reason(self):
@@ -328,29 +333,6 @@ class ManageReviewDisputeServiceTests(TestCase):
             ],
         )
 
-    def test_list_disputes_supports_status_ordering(self):
-        pending_dispute = self.create_dispute()
-
-        under_review_dispute = self.create_dispute(
-            review=self.second_review,
-            business=self.second_business,
-            merchant=self.second_merchant,
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
-        )
-
-        disputes = list(
-            ManageReviewDisputeService.list_disputes(
-                ordering="status",
-            ),
-        )
-
-        self.assertEqual(
-            [dispute.MRDSP_ID for dispute in disputes],
-            [
-                pending_dispute.MRDSP_ID,
-                under_review_dispute.MRDSP_ID,
-            ],
-        )
 
     # get_dispute
 
@@ -373,52 +355,12 @@ class ManageReviewDisputeServiceTests(TestCase):
         ):
             ManageReviewDisputeService.get_dispute(999999)
 
-    # start_review
-
-    def test_start_review_changes_pending_dispute_to_under_review(self):
-        dispute = self.create_dispute()
-
-        result = ManageReviewDisputeService.start_review(
-            dispute.MRDSP_ID,
-        )
-
-        self.assertEqual(
-            result.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
-        )
-
-        dispute.refresh_from_db()
-
-        self.assertEqual(
-            dispute.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
-        )
-
-    def test_start_review_rejects_non_pending_dispute(self):
-        dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
-        )
-
-        with self.assertRaisesMessage(
-            ValidationError,
-            "Only pending review disputes can be started.",
-        ):
-            ManageReviewDisputeService.start_review(
-                dispute.MRDSP_ID,
-            )
-
-    def test_start_review_rejects_missing_dispute(self):
-        with self.assertRaisesMessage(
-            NotFound,
-            "The review dispute could not be found.",
-        ):
-            ManageReviewDisputeService.start_review(999999)
 
     # uphold_dispute
 
     def test_uphold_dispute_rejects_review(self):
         dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         ManageReviewDisputeService.uphold_dispute(
@@ -450,7 +392,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
     def test_uphold_dispute_allows_empty_admin_notes(self):
         dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         ManageReviewDisputeService.uphold_dispute(
@@ -470,7 +412,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
     def test_uphold_dispute_sets_resolution_timestamp(self):
         dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         before = timezone.now()
@@ -497,26 +439,7 @@ class ManageReviewDisputeServiceTests(TestCase):
             after,
         )
 
-    def test_uphold_dispute_rejects_pending_dispute(self):
-        dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.PENDING,
-        )
-
-        with self.assertRaisesMessage(
-            ValidationError,
-            "Only disputes under review can be upheld.",
-        ):
-            ManageReviewDisputeService.uphold_dispute(
-                dispute.MRDSP_ID,
-            )
-
-        self.review.refresh_from_db()
-
-        self.assertEqual(
-            self.review.REVW_STATUS,
-            Review.ReviewStatus.PUBLISHED,
-        )
-
+  
     def test_uphold_dispute_rejects_already_resolved_dispute(self):
         dispute = self.create_dispute(
             status=MerchantReviewDispute.DisputeStatus.DISMISSED,
@@ -524,7 +447,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
         with self.assertRaisesMessage(
             ValidationError,
-            "Only disputes under review can be upheld.",
+            "Only pending review disputes can be upheld."
         ):
             ManageReviewDisputeService.uphold_dispute(
                 dispute.MRDSP_ID,
@@ -550,7 +473,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
     def test_dismiss_dispute_changes_status(self):
         dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         result = ManageReviewDisputeService.dismiss_dispute(
@@ -571,7 +494,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
     def test_dismiss_dispute_stores_admin_notes(self):
         dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         ManageReviewDisputeService.dismiss_dispute(
@@ -588,7 +511,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
     def test_dismiss_dispute_sets_resolution_timestamp(self):
         dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         before = timezone.now()
@@ -617,7 +540,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
     def test_dismiss_dispute_does_not_modify_review_status(self):
         dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         ManageReviewDisputeService.dismiss_dispute(
@@ -631,19 +554,7 @@ class ManageReviewDisputeServiceTests(TestCase):
             Review.ReviewStatus.PUBLISHED,
         )
 
-    def test_dismiss_dispute_rejects_pending_dispute(self):
-        dispute = self.create_dispute(
-            status=MerchantReviewDispute.DisputeStatus.PENDING,
-        )
-
-        with self.assertRaisesMessage(
-            ValidationError,
-            "Only disputes under review can be dismissed.",
-        ):
-            ManageReviewDisputeService.dismiss_dispute(
-                dispute.MRDSP_ID,
-            )
-
+  
     def test_dismiss_dispute_rejects_already_upheld_dispute(self):
         dispute = self.create_dispute(
             status=MerchantReviewDispute.DisputeStatus.UPHELD,
@@ -651,7 +562,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
         with self.assertRaisesMessage(
             ValidationError,
-            "Only disputes under review can be dismissed.",
+            "Only pending review disputes can be dismissed.",
         ):
             ManageReviewDisputeService.dismiss_dispute(
                 dispute.MRDSP_ID,

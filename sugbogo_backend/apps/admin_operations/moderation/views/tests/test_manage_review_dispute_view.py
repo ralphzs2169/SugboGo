@@ -190,12 +190,6 @@ class ManageReviewDisputeViewTestBase(TestCase):
             kwargs={"dispute_id": dispute_id},
         )
 
-    def start_review_url(self, dispute_id):
-        return reverse(
-            "admin-review-dispute-start-review",
-            kwargs={"dispute_id": dispute_id},
-        )
-
     def uphold_url(self, dispute_id):
         return reverse(
             "admin-review-dispute-uphold",
@@ -268,9 +262,9 @@ class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
             dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
-        under_review_dispute = self.create_dispute(
+        dismissed_dispute = self.create_dispute(
             review=self.create_review(),
-            dispute_status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            dispute_status=MerchantReviewDispute.DisputeStatus.DISMISSED,
         )
 
         response = self.client.get(
@@ -295,7 +289,7 @@ class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
         )
 
         self.assertNotIn(
-            under_review_dispute.MRDSP_ID,
+            dismissed_dispute.MRDSP_ID,
             returned_ids,
         )
 
@@ -607,108 +601,10 @@ class AdminReviewDisputeDetailViewTests(ManageReviewDisputeViewTestBase):
         )
 
 
-class AdminReviewDisputeStartReviewViewTests(ManageReviewDisputeViewTestBase):
-    def test_start_review_successfully(self):
-        dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
-        )
-
-        response = self.client.post(
-            self.start_review_url(dispute.MRDSP_ID),
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-            response.data,
-        )
-
-        self.assertTrue(
-            response.data["success"],
-        )
-
-        self.assertEqual(
-            response.data["message"],
-            "Review dispute is now under review.",
-        )
-
-        dispute.refresh_from_db()
-
-        self.assertEqual(
-            dispute.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
-        )
-
-    def test_start_review_rejects_non_pending_dispute(self):
-        dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
-        )
-
-        response = self.client.post(
-            self.start_review_url(dispute.MRDSP_ID),
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-            response.data,
-        )
-
-        dispute.refresh_from_db()
-
-        self.assertEqual(
-            dispute.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
-        )
-
-    def test_start_review_rejects_nonexistent_dispute(self):
-        response = self.client.post(
-            self.start_review_url(999999),
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_404_NOT_FOUND,
-            response.data,
-        )
-
-    def test_start_review_requires_authentication(self):
-        self.client.force_authenticate(
-            user=None,
-        )
-
-        response = self.client.post(
-            self.start_review_url(1),
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_401_UNAUTHORIZED,
-            response.data,
-        )
-
-    def test_start_review_rejects_merchant_role(self):
-        self.client.force_authenticate(
-            user=self.merchant,
-        )
-
-        dispute = self.create_dispute()
-
-        response = self.client.post(
-            self.start_review_url(dispute.MRDSP_ID),
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_403_FORBIDDEN,
-            response.data,
-        )
-
-
 class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
     def test_uphold_dispute_successfully(self):
         dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         response = self.client.post(
@@ -757,7 +653,7 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
 
     def test_uphold_dispute_without_admin_notes(self):
         dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         response = self.client.post(
@@ -782,34 +678,6 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
             dispute.MRDSP_ADMIN_NOTES,
         )
 
-    def test_uphold_rejects_pending_dispute(self):
-        dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
-        )
-
-        response = self.client.post(
-            self.uphold_url(dispute.MRDSP_ID),
-            {},
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-            response.data,
-        )
-
-        dispute.refresh_from_db()
-        self.review.refresh_from_db()
-
-        self.assertEqual(
-            dispute.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.PENDING,
-        )
-
-        self.assertEqual(
-            self.review.REVW_STATUS,
-            Review.ReviewStatus.PUBLISHED,
-        )
 
     def test_uphold_rejects_already_resolved_dispute(self):
         dispute = self.create_dispute(
@@ -861,7 +729,7 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
         )
 
         dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         response = self.client.post(
@@ -879,7 +747,7 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
 class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
     def test_dismiss_dispute_successfully(self):
         dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         response = self.client.post(
@@ -928,7 +796,7 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
 
     def test_dismiss_dispute_without_admin_notes(self):
         dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         response = self.client.post(
@@ -953,28 +821,6 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
             dispute.MRDSP_ADMIN_NOTES,
         )
 
-    def test_dismiss_rejects_pending_dispute(self):
-        dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
-        )
-
-        response = self.client.post(
-            self.dismiss_url(dispute.MRDSP_ID),
-            {},
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-            response.data,
-        )
-
-        dispute.refresh_from_db()
-
-        self.assertEqual(
-            dispute.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.PENDING,
-        )
 
     def test_dismiss_rejects_already_resolved_dispute(self):
         dispute = self.create_dispute(
@@ -1026,7 +872,7 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
         )
 
         dispute = self.create_dispute(
-            dispute_status=MerchantReviewDispute.DisputeStatus.UNDER_REVIEW,
+            dispute_status=MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         response = self.client.post(
