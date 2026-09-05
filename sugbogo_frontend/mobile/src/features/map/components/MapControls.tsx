@@ -1,6 +1,9 @@
 import { View, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
+
+const TAB_BAR_HEIGHT = 75;
 
 type Props = {
   onZoomIn: () => void;
@@ -10,8 +13,11 @@ type Props = {
 };
 
 export default function MapControls({ onZoomIn, onZoomOut, onLocateMe, isPreviewCardOpen }: Props) {
+  const insets = useSafeAreaInsets();
+  const baseOffset = insets.bottom + TAB_BAR_HEIGHT + 16;
+
   return (
-    <View className="absolute right-md" style={{ bottom: isPreviewCardOpen ? 200 : 100 }}>
+    <View className="absolute right-md" style={{ bottom: isPreviewCardOpen ? baseOffset + 180 : baseOffset }}>
       <View className="overflow-hidden rounded-input bg-surface" style={{ elevation: 4 }}>
         <Pressable onPress={onZoomIn} className="h-10 w-10 items-center justify-center">
           <MaterialCommunityIcons name="plus" size={20} color={theme.extends.colors.text.primary} />
