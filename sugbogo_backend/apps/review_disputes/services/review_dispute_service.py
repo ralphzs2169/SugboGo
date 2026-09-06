@@ -76,6 +76,11 @@ class ReviewDisputeService:
                 "You do not have permission to dispute this review.",
             )
 
+        if review.REVW_STATUS == Review.ReviewStatus.REJECTED:
+            raise ValidationError(
+                "This review can no longer be disputed.",
+            )
+
         try:
             return MerchantReviewDispute.objects.create(
                 REVW_ID=review,
@@ -99,6 +104,33 @@ class ReviewDisputeService:
             user,
             dispute_id,
         )
+
+    @staticmethod
+    def get_dispute_detail(
+        user: User,
+        dispute_id: int,
+    ) -> MerchantReviewDispute:
+        dispute = ReviewDisputeService._get_owned_dispute(
+            user,
+            dispute_id,
+        )
+
+        previous_disputes = list(
+            MerchantReviewDispute.objects
+            .filter(
+                REVW_ID_id=dispute.REVW_ID_id,
+                USER_ID_id=user.USER_ID,
+                MRDSP_CREATED_AT__lt=dispute.MRDSP_CREATED_AT,
+            )
+            .prefetch_related("evidence")
+            .order_by("-MRDSP_CREATED_AT")
+        )
+
+        dispute.previous_disputes = previous_disputes
+        dispute.previous_dispute_count = len(previous_disputes)
+        dispute.attempt_number = dispute.previous_dispute_count + 1
+
+        return dispute
 
     @staticmethod
     def list_merchant_disputes(user: User):
@@ -171,6 +203,14 @@ class ReviewDisputeService:
         if evidence.MRDSP_ID.USER_ID_id != user.USER_ID:
             raise PermissionDenied(
                 "You do not have permission to delete this dispute evidence.",
+            )
+
+        if (
+            evidence.MRDSP_ID.MRDSP_STATUS
+            != MerchantReviewDispute.DisputeStatus.PENDING
+        ):
+            raise ValidationError(
+                "Evidence can only be deleted from a pending review dispute.",
             )
 
         public_id = evidence.MRDSE_PUBLIC_ID

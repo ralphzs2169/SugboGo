@@ -168,3 +168,87 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
             "updated_at",
             "evidence",
         )
+
+
+class MerchantReviewDisputeHistorySerializer(serializers.ModelSerializer):
+    """Serializer for a previous dispute attempt on the same review."""
+
+    id = serializers.IntegerField(
+        source="MRDSP_ID",
+        read_only=True,
+    )
+
+    reason = serializers.CharField(
+        source="MRDSP_REASON",
+        read_only=True,
+    )
+
+    description = serializers.CharField(
+        source="MRDSP_DESCRIPTION",
+        read_only=True,
+    )
+
+    status = serializers.CharField(
+        source="MRDSP_STATUS",
+        read_only=True,
+    )
+
+    admin_notes = serializers.CharField(
+        source="MRDSP_ADMIN_NOTES",
+        read_only=True,
+    )
+
+    resolved_at = serializers.DateTimeField(
+        source="MRDSP_RESOLVED_AT",
+        read_only=True,
+    )
+
+    created_at = serializers.DateTimeField(
+        source="MRDSP_CREATED_AT",
+        read_only=True,
+    )
+
+    evidence = DisputeEvidenceResponseSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantReviewDispute
+        fields = (
+            "id",
+            "reason",
+            "description",
+            "status",
+            "admin_notes",
+            "resolved_at",
+            "created_at",
+            "evidence",
+        )
+
+
+class MerchantReviewDisputeDetailSerializer(
+    MerchantReviewDisputeResponseSerializer,
+):
+    """Serializer for a dispute with its previous attempt history."""
+
+    attempt_number = serializers.IntegerField(
+        read_only=True,
+    )
+
+    previous_dispute_count = serializers.IntegerField(
+        read_only=True,
+    )
+
+    previous_disputes = MerchantReviewDisputeHistorySerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta(MerchantReviewDisputeResponseSerializer.Meta):
+        fields = (
+            *MerchantReviewDisputeResponseSerializer.Meta.fields,
+            "attempt_number",
+            "previous_dispute_count",
+            "previous_disputes",
+        )

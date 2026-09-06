@@ -716,7 +716,7 @@ class MerchantReviewDisputeEvidenceViewTests(
         )
 
     @patch(
-        "apps.review_disputes.views.review_dispute_view."
+        "apps.review_disputes.views.review_dispute_views."
         "ReviewDisputeService.add_evidence",
     )
     def test_add_image_evidence_successfully(
@@ -872,7 +872,7 @@ class MerchantReviewDisputeEvidenceViewTests(
         )
 
     @patch(
-        "apps.review_disputes.views.review_dispute_view."
+        "apps.review_disputes.views.review_dispute_views."
         "ReviewDisputeService.add_evidence",
     )
     def test_add_document_evidence_passes_document_type_to_service(
@@ -1176,7 +1176,7 @@ class MerchantReviewDisputeWithdrawViewTests(
 
         self.assertEqual(
             response.data["message"],
-            "Only an active review dispute can be withdrawn.",
+            "Only a pending review dispute can be withdrawn.",
         )
 
 

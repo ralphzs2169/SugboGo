@@ -59,7 +59,7 @@ class AdminReviewDisputeDetailView(APIView):
     def get(self, request, dispute_id):
         """Retrieve a review dispute and its details."""
 
-        dispute = ManageReviewDisputeService.get_dispute(
+        dispute = ManageReviewDisputeService.get_dispute_detail(
             dispute_id,
         )
 

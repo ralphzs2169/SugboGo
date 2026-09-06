@@ -8,6 +8,7 @@ from apps.authentication.permissions import HasRole
 from apps.review_disputes.serializers.review_dispute_serializers import (
     DisputeEvidenceResponseSerializer,
     MerchantReviewDisputeCreateSerializer,
+    MerchantReviewDisputeDetailSerializer,
     MerchantReviewDisputeEvidenceCreateSerializer,
     MerchantReviewDisputeResponseSerializer,
 )
@@ -86,14 +87,14 @@ class MerchantReviewDisputeDetailView(APIView):
     permission_classes = MerchantReviewDisputeListView.permission_classes
 
     def get(self, request, dispute_id):
-        """Retrieve a review dispute and its details."""
+        """Retrieve a review dispute with its previous attempt history."""
 
-        dispute = ReviewDisputeService.get_dispute(
+        dispute = ReviewDisputeService.get_dispute_detail(
             request.user,
             dispute_id,
         )
 
-        serializer = MerchantReviewDisputeResponseSerializer(
+        serializer = MerchantReviewDisputeDetailSerializer(
             dispute,
         )
 
@@ -101,7 +102,6 @@ class MerchantReviewDisputeDetailView(APIView):
             data=serializer.data,
             message="Review dispute retrieved successfully.",
         )
-
 
 class MerchantReviewDisputeEvidenceView(APIView):
     """Handle evidence submission for merchant review disputes."""

@@ -89,6 +89,53 @@ class ManageReviewDisputeService:
                 "The review dispute could not be found.",
             )
 
+
+    @staticmethod
+    def get_dispute_detail(
+        dispute_id: int,
+    ) -> MerchantReviewDispute:
+        dispute = ManageReviewDisputeService.get_dispute(
+            dispute_id,
+        )
+
+        review_disputes = list(
+            MerchantReviewDispute.objects
+            .filter(
+                REVW_ID_id=dispute.REVW_ID_id,
+            )
+            .prefetch_related("evidence")
+            .order_by(
+                "MRDSP_CREATED_AT",
+                "MRDSP_ID",
+            )
+        )
+
+        attempt_number = next(
+            (
+                index
+                for index, attempt in enumerate(
+                    review_disputes,
+                    start=1,
+                )
+                if attempt.MRDSP_ID == dispute.MRDSP_ID
+            ),
+            1,
+        )
+
+        previous_disputes = [
+            attempt
+            for attempt in review_disputes[:attempt_number - 1]
+        ]
+
+        dispute.attempt_number = attempt_number
+        dispute.previous_dispute_count = len(previous_disputes)
+        dispute.previous_disputes = list(
+            reversed(previous_disputes),
+        )
+
+        return dispute
+
+    
     @staticmethod
     @transaction.atomic
     def uphold_dispute(

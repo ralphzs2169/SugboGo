@@ -1,12 +1,13 @@
-from apps.business.models import Business, Category, Cluster, Location
-from apps.review_disputes.models import MerchantReviewDispute
-from apps.reviews.models import Review
-from apps.users.models import User
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+
+from apps.business.models import Business, Category, Cluster, Location
+from apps.review_disputes.models import MerchantReviewDispute
+from apps.reviews.models import Review
+from apps.users.models import User
 
 
 class ManageReviewDisputeViewTestBase(TestCase):

@@ -7,6 +7,9 @@ from django.test import TestCase
 from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.admin_operations.moderation.services.manage_review_dispute_service import (
+    ManageReviewDisputeService,
+)
 from apps.business.models import Business, Category, Cluster, Location
 from apps.review_disputes.models import (
     MerchantReviewDispute,
@@ -222,6 +225,79 @@ class ReviewDisputeServiceTests(TestCase):
             MerchantReviewDispute.objects.filter(
                 USER_ID=self.other_merchant,
             ).exists(),
+        )
+
+    def test_create_dispute_rejects_review_after_upheld_dispute(self):
+        previous_dispute = self.create_dispute()
+
+        ManageReviewDisputeService.uphold_dispute(
+            previous_dispute.MRDSP_ID,
+            admin_notes="The review violates policy.",
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "This review can no longer be disputed.",
+        ):
+            self.create_dispute()
+
+        self.assertFalse(
+            MerchantReviewDispute.objects.filter(
+                REVW_ID=self.review,
+            ).exclude(
+                MRDSP_ID=previous_dispute.MRDSP_ID,
+            ).exists(),
+        )
+
+    def test_create_dispute_allows_resubmission_after_dismissal(self):
+        previous_dispute = self.create_dispute()
+        previous_dispute.MRDSP_STATUS = (
+            MerchantReviewDispute.DisputeStatus.DISMISSED
+        )
+        previous_dispute.save(
+            update_fields=["MRDSP_STATUS"],
+        )
+
+        resubmitted_dispute = self.create_dispute()
+
+        self.assertNotEqual(
+            previous_dispute.MRDSP_ID,
+            resubmitted_dispute.MRDSP_ID,
+        )
+        self.assertEqual(
+            resubmitted_dispute.MRDSP_STATUS,
+            MerchantReviewDispute.DisputeStatus.PENDING,
+        )
+        self.assertEqual(
+            MerchantReviewDispute.objects.filter(
+                REVW_ID=self.review,
+            ).count(),
+            2,
+        )
+
+    def test_create_dispute_allows_resubmission_after_withdrawal(self):
+        previous_dispute = self.create_dispute()
+
+        ReviewDisputeService.withdraw_dispute(
+            self.merchant,
+            previous_dispute.MRDSP_ID,
+        )
+
+        resubmitted_dispute = self.create_dispute()
+
+        self.assertNotEqual(
+            previous_dispute.MRDSP_ID,
+            resubmitted_dispute.MRDSP_ID,
+        )
+        self.assertEqual(
+            resubmitted_dispute.MRDSP_STATUS,
+            MerchantReviewDispute.DisputeStatus.PENDING,
+        )
+        self.assertEqual(
+            MerchantReviewDispute.objects.filter(
+                REVW_ID=self.review,
+            ).count(),
+            2,
         )
 
     # Get Dispute
@@ -667,6 +743,78 @@ class ReviewDisputeServiceTests(TestCase):
             ).exists(),
         )
 
+        mock_delete.assert_not_called()
+
+    @patch(
+        "apps.review_disputes.services.review_dispute_service.CloudinaryService.delete_image",
+    )
+    def test_delete_evidence_rejects_upheld_dispute(
+        self,
+        mock_delete,
+    ):
+        self._assert_delete_evidence_rejected_for_status(
+            MerchantReviewDispute.DisputeStatus.UPHELD,
+            mock_delete,
+        )
+
+    @patch(
+        "apps.review_disputes.services.review_dispute_service.CloudinaryService.delete_image",
+    )
+    def test_delete_evidence_rejects_dismissed_dispute(
+        self,
+        mock_delete,
+    ):
+        self._assert_delete_evidence_rejected_for_status(
+            MerchantReviewDispute.DisputeStatus.DISMISSED,
+            mock_delete,
+        )
+
+    @patch(
+        "apps.review_disputes.services.review_dispute_service.CloudinaryService.delete_image",
+    )
+    def test_delete_evidence_rejects_withdrawn_dispute(
+        self,
+        mock_delete,
+    ):
+        self._assert_delete_evidence_rejected_for_status(
+            MerchantReviewDispute.DisputeStatus.WITHDRAWN,
+            mock_delete,
+        )
+
+    def _assert_delete_evidence_rejected_for_status(
+        self,
+        dispute_status,
+        mock_delete,
+    ):
+        dispute = self.create_dispute()
+        evidence = MerchantReviewDisputeEvidence.objects.create(
+            MRDSP_ID=dispute,
+            MRDSE_TYPE=(
+                MerchantReviewDisputeEvidence.EvidenceType.IMAGE
+            ),
+            MRDSE_URL="https://example.com/evidence.jpg",
+            MRDSE_PUBLIC_ID="historical-evidence",
+        )
+
+        dispute.MRDSP_STATUS = dispute_status
+        dispute.save(
+            update_fields=["MRDSP_STATUS"],
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Evidence can only be deleted from a pending review dispute.",
+        ):
+            ReviewDisputeService.delete_evidence(
+                user=self.merchant,
+                evidence_id=evidence.MRDSE_ID,
+            )
+
+        self.assertTrue(
+            MerchantReviewDisputeEvidence.objects.filter(
+                MRDSE_ID=evidence.MRDSE_ID,
+            ).exists(),
+        )
         mock_delete.assert_not_called()
 
     # Withdraw Dispute

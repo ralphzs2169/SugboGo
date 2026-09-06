@@ -166,6 +166,56 @@ class AdminDisputedReviewSerializer(serializers.ModelSerializer):
         ]
 
 
+class AdminReviewDisputeHistorySerializer(serializers.ModelSerializer):
+    """Serialize a previous dispute attempt for administrator review."""
+
+    id = serializers.IntegerField(
+        source="MRDSP_ID",
+        read_only=True,
+    )
+    reason = serializers.CharField(
+        source="MRDSP_REASON",
+        read_only=True,
+    )
+    description = serializers.CharField(
+        source="MRDSP_DESCRIPTION",
+        read_only=True,
+    )
+    status = serializers.CharField(
+        source="MRDSP_STATUS",
+        read_only=True,
+    )
+    admin_notes = serializers.CharField(
+        source="MRDSP_ADMIN_NOTES",
+        read_only=True,
+    )
+    resolved_at = serializers.DateTimeField(
+        source="MRDSP_RESOLVED_AT",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="MRDSP_CREATED_AT",
+        read_only=True,
+    )
+    evidence = DisputeEvidenceResponseSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantReviewDispute
+        fields = (
+            "id",
+            "reason",
+            "description",
+            "status",
+            "admin_notes",
+            "resolved_at",
+            "created_at",
+            "evidence",
+        )
+
+
 class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
     """Serialize complete review dispute details for administrators."""
 
@@ -218,6 +268,17 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    attempt_number = serializers.IntegerField(
+        read_only=True,
+    )
+    previous_dispute_count = serializers.IntegerField(
+        read_only=True,
+    )
+    previous_disputes = AdminReviewDisputeHistorySerializer(
+        many=True,
+        read_only=True,
+    )
+
     class Meta:
         model = MerchantReviewDispute
         fields = (
@@ -233,6 +294,9 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
             "merchant",
             "review",
             "evidence",
+            "attempt_number",
+            "previous_dispute_count",
+            "previous_disputes",
         )
 
 
