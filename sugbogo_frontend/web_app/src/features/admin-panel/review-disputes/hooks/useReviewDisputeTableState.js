@@ -1,10 +1,19 @@
 import { useState } from "react";
+
 import useTableState from "@/shared/hooks/useTableState";
 
+/**
+ * Manages URL-synced table state for the review dispute moderation queue.
+ *
+ * Extends the shared table state with dispute-specific status and reason
+ * filters while providing API-ready search, sorting, and pagination params.
+ */
 export default function useReviewDisputeTableState() {
   const {
     globalFilter,
     setGlobalFilter,
+    debouncedGlobalFilter,
+    isSearching,
     sorting,
     setSorting,
     ordering,
@@ -24,23 +33,28 @@ export default function useReviewDisputeTableState() {
 
   function setStatusFilter(status) {
     setStatusFilterState(status);
+
     updateSearchParams({
       status: status || null,
       page: null,
     });
+
     resetPageIndex();
   }
 
   function setReasonFilter(reason) {
     setReasonFilterState(reason);
+
     updateSearchParams({
       reason: reason || null,
       page: null,
     });
+
     resetPageIndex();
   }
 
   const params = {
+    search: debouncedGlobalFilter || undefined,
     status: statusFilter || undefined,
     reason: reasonFilter || undefined,
     ordering,
@@ -49,7 +63,7 @@ export default function useReviewDisputeTableState() {
   };
 
   const hasActiveFilters = Boolean(
-    statusFilter || reasonFilter || sorting.length,
+    globalFilter || statusFilter || reasonFilter || sorting.length,
   );
 
   function handleResetFilters() {
@@ -71,6 +85,7 @@ export default function useReviewDisputeTableState() {
   return {
     globalFilter,
     setGlobalFilter,
+    isSearching,
 
     statusFilter,
     setStatusFilter,

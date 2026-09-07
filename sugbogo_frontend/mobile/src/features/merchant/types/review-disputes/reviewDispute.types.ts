@@ -9,10 +9,10 @@ export type ReviewDisputeStatus =
 
 export type ReviewDisputeReason =
   | "fake_review"
-  | "did_not_visit"
   | "abusive_content"
   | "misleading_information"
   | "conflict_of_interest"
+  | "wrong_business"
   | "other";
 
 export type ReviewDisputeEvidenceType = "image" | "document";

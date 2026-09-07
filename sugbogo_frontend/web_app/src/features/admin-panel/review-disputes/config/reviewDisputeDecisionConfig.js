@@ -13,24 +13,34 @@ const REVIEW_DISPUTE_DECISION_CONFIG = {
     successMessage: "Review dispute upheld successfully.",
     templates: [
       {
-        value: "confirmed_fake",
-        label: "Confirmed fake",
-        text: "The review was determined to be inauthentic based on the available evidence.",
+        value: "fake_or_non_genuine",
+        label: "Fake or non-genuine review",
+        text: "The available evidence indicates that the review is fake, fabricated, or not based on a genuine customer experience.",
       },
       {
-        value: "no_purchase_record",
-        label: "No purchase record",
-        text: "No matching purchase or visit record was found, which supports the dispute.",
+        value: "abusive_or_inappropriate",
+        label: "Abusive or inappropriate content",
+        text: "The review contains abusive, inappropriate, or otherwise unacceptable content that violates platform guidelines.",
+      },
+      {
+        value: "false_or_misleading",
+        label: "False or misleading information",
+        text: "The review contains false or materially misleading information, and the submitted evidence sufficiently supports the merchant's claim.",
+      },
+      {
+        value: "conflict_of_interest",
+        label: "Conflict of interest",
+        text: "The available information indicates a conflict of interest that affects the credibility or impartiality of the review.",
+      },
+      {
+        value: "wrong_business_or_unrelated",
+        label: "Wrong business or unrelated experience",
+        text: "The review appears to describe another business or an experience that is not relevant to the disputed business.",
       },
       {
         value: "evidence_supports_removal",
         label: "Evidence supports removal",
-        text: "The submitted evidence sufficiently supports the dispute and review removal.",
-      },
-      {
-        value: "policy_violation",
-        label: "Review violates policy",
-        text: "The review was found to violate platform guidelines and will be removed.",
+        text: "The submitted evidence sufficiently supports the dispute and justifies removing the review from the platform.",
       },
     ],
   },
@@ -51,17 +61,27 @@ const REVIEW_DISPUTE_DECISION_CONFIG = {
       {
         value: "insufficient_evidence",
         label: "Insufficient evidence",
-        text: "The submitted evidence was not sufficient to support the dispute.",
+        text: "The submitted evidence is not sufficient to support the merchant's dispute.",
       },
       {
         value: "no_policy_violation",
         label: "No policy violation",
-        text: "The review was evaluated against platform guidelines and no policy violation was found.",
+        text: "The review was evaluated against platform guidelines and no violation requiring removal was found.",
       },
       {
-        value: "claim_could_not_be_verified",
+        value: "claim_not_verified",
         label: "Claim could not be verified",
-        text: "The dispute claim could not be sufficiently verified based on the available information.",
+        text: "The merchant's claim could not be sufficiently verified based on the available information and evidence.",
+      },
+      {
+        value: "subjective_customer_opinion",
+        label: "Subjective customer opinion",
+        text: "The disputed content reflects a subjective customer opinion and does not, by itself, justify review removal.",
+      },
+      {
+        value: "review_relevant_to_business",
+        label: "Review is relevant to the business",
+        text: "The review appears to relate to the correct business and customer experience, and there is insufficient basis for removal.",
       },
     ],
   },

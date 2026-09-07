@@ -3,8 +3,8 @@ import { User } from "lucide-react";
 /**
  * Displays a user's profile avatar.
  *
- * Uses the provided profile image when available and falls back
- * to a neutral user icon when no avatar exists.
+ * Uses the provided profile image when available and falls back to a polished
+ * neutral avatar treatment when no profile image exists.
  */
 export default function UserAvatar({ avatarUrl, size = "md", className = "" }) {
   const sizeClasses = {
@@ -29,16 +29,17 @@ export default function UserAvatar({ avatarUrl, size = "md", className = "" }) {
       <img
         src={avatarUrl}
         alt=""
-        className={`${sizeClass} border border-stroke shrink-0 rounded-full object-cover  ${className}`}
+        className={`${sizeClass} shrink-0 rounded-full border border-stroke object-cover ${className}`}
       />
     );
   }
 
   return (
     <div
-      className={`flex ${sizeClass} border border-text-secondary shrink-0 items-center justify-center rounded-full bg-surface text-text-secondary ${className}`}
+      aria-hidden="true"
+      className={`flex ${sizeClass} shrink-0 items-center justify-center rounded-full bg-surface-secondary text-text-secondary ring-1 ring-inset ring-stroke ${className}`}
     >
-      <User size={iconSize} />
+      <User size={iconSize} strokeWidth={1.8} />
     </div>
   );
 }

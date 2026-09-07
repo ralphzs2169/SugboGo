@@ -15,18 +15,35 @@ class MerchantReviewDispute(models.Model):
         WITHDRAWN = "withdrawn", "Withdrawn"
 
     class DisputeReason(models.TextChoices):
-        FAKE_REVIEW = "fake_review", "Fake or fabricated review"
-        DID_NOT_VISIT = "did_not_visit", "Reviewer did not visit the business"
-        ABUSIVE_CONTENT = "abusive_content", "Abusive or inappropriate content"
+        FAKE_REVIEW = (
+            "fake_review",
+            "Fake or non-genuine review",
+        )
+
+        ABUSIVE_CONTENT = (
+            "abusive_content",
+            "Abusive or inappropriate content",
+        )
+
         MISLEADING_INFORMATION = (
             "misleading_information",
-            "Misleading information",
+            "False or materially misleading information",
         )
+
         CONFLICT_OF_INTEREST = (
             "conflict_of_interest",
             "Conflict of interest",
         )
-        OTHER = "other", "Other"
+
+        WRONG_BUSINESS = (
+            "wrong_business",
+            "Review is about another business or unrelated experience",
+        )
+
+        OTHER = (
+            "other",
+            "Other",
+        )
 
     MRDSP_ID = models.AutoField(
         primary_key=True,

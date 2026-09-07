@@ -4,18 +4,37 @@ import type {
 } from "../types/review-disputes/reviewDispute.types";
 
 export const MAX_REVIEW_DISPUTE_EVIDENCE = 5;
+
 export const MAX_REVIEW_DISPUTE_EVIDENCE_BYTES = 10 * 1024 * 1024;
 
 export const REVIEW_DISPUTE_REASON_OPTIONS: {
   label: string;
   value: ReviewDisputeReason;
 }[] = [
-  { label: "Fake or fabricated review", value: "fake_review" },
-  { label: "Reviewer did not visit the business", value: "did_not_visit" },
-  { label: "Abusive or inappropriate content", value: "abusive_content" },
-  { label: "Misleading information", value: "misleading_information" },
-  { label: "Conflict of interest", value: "conflict_of_interest" },
-  { label: "Other", value: "other" },
+  {
+    label: "Fake or non-genuine review",
+    value: "fake_review",
+  },
+  {
+    label: "Abusive or inappropriate content",
+    value: "abusive_content",
+  },
+  {
+    label: "False or materially misleading information",
+    value: "misleading_information",
+  },
+  {
+    label: "Conflict of interest",
+    value: "conflict_of_interest",
+  },
+  {
+    label: "Wrong business or unrelated experience",
+    value: "wrong_business",
+  },
+  {
+    label: "Other",
+    value: "other",
+  },
 ];
 
 export const REVIEW_DISPUTE_REASON_LABELS = Object.fromEntries(
