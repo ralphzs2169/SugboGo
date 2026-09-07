@@ -1,18 +1,10 @@
 import { MessageSquareText, Tag } from "lucide-react";
-
+import { formatLabel } from "@/shared/utils/stringUtils";
 /**
  * Displays the merchant's submitted dispute reason and explanation
  * as a concise moderation case submission.
  */
 export default function ReviewDisputeRequest({ dispute }) {
-  const formatLabel = (value) => {
-    if (!value) {
-      return "—";
-    }
-
-    return value.replaceAll("_", " ");
-  };
-
   return (
     <div>
       {/* Section heading */}
@@ -46,7 +38,7 @@ export default function ReviewDisputeRequest({ dispute }) {
         <div>
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-semibold text-text-secondary">
-              Explanation
+              Merchant Explanation
             </p>
           </div>
 

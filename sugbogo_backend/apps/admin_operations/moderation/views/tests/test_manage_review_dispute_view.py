@@ -5,7 +5,10 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.business.models import Business, Category, Cluster, Location
-from apps.review_disputes.models import MerchantReviewDispute
+from apps.review_disputes.models import (
+    MerchantReviewDispute,
+    MerchantReviewDisputeEvidence,
+)
 from apps.reviews.models import Review
 from apps.users.models import User
 
@@ -552,6 +555,32 @@ class AdminReviewDisputeDetailViewTests(ManageReviewDisputeViewTestBase):
         self.assertEqual(
             response.data["data"]["id"],
             dispute.MRDSP_ID,
+        )
+
+    def test_get_dispute_includes_evidence_file_name(self):
+        dispute = self.create_dispute()
+        evidence = MerchantReviewDisputeEvidence.objects.create(
+            MRDSP_ID=dispute,
+            MRDSE_TYPE=(
+                MerchantReviewDisputeEvidence.EvidenceType.DOCUMENT
+            ),
+            MRDSE_FILE_NAME="sales_record.pdf",
+            MRDSE_URL="https://example.com/sales-record.pdf",
+            MRDSE_PUBLIC_ID="sales-record",
+        )
+
+        response = self.client.get(
+            self.detail_url(dispute.MRDSP_ID),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+        self.assertEqual(
+            response.data["data"]["evidence"][0]["file_name"],
+            evidence.MRDSE_FILE_NAME,
         )
 
     def test_get_dispute_rejects_nonexistent_dispute(self):

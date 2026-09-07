@@ -8,32 +8,28 @@ import {
 export default function useReviewDisputeMutations() {
   const queryClient = useQueryClient();
 
-  const upholdMutation = useMutation({
-    mutationFn: ({ disputeId, data }) => upholdReviewDispute(disputeId, data),
-
-    onSuccess: (_, { disputeId }) => {
+  async function invalidateReviewDisputeQueries(disputeId) {
+    await Promise.all([
       queryClient.invalidateQueries({
-        queryKey: ["admin", "review-dispute", disputeId],
-      });
-
+        queryKey: ["admin", "review-dispute", String(disputeId)],
+      }),
       queryClient.invalidateQueries({
         queryKey: ["admin", "review-disputes"],
-      });
-    },
+      }),
+    ]);
+  }
+
+  const upholdMutation = useMutation({
+    mutationFn: ({ disputeId, data }) => upholdReviewDispute(disputeId, data),
+    onSuccess: (_, { disputeId }) =>
+      invalidateReviewDisputeQueries(disputeId),
   });
 
   const dismissMutation = useMutation({
     mutationFn: ({ disputeId, data }) => dismissReviewDispute(disputeId, data),
 
-    onSuccess: (_, { disputeId }) => {
-      queryClient.invalidateQueries({
-        queryKey: ["admin", "review-dispute", disputeId],
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["admin", "review-disputes"],
-      });
-    },
+    onSuccess: (_, { disputeId }) =>
+      invalidateReviewDisputeQueries(disputeId),
   });
 
   return {

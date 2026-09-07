@@ -1,23 +1,11 @@
 import { useState } from "react";
-import { Flag, Image as ImageIcon, ThumbsUp } from "lucide-react";
+import { Flag, Quote, ThumbsUp } from "lucide-react";
 
 import UserAvatar from "@/shared/components/UserAvatar";
 import ReviewPhotoViewerModal from "@/shared/components/modals/ReviewPhotoViewerModal";
+import { formatRelativeDate } from "@/shared/utils/dateUtils";
 
 const MAX_REVIEW_PHOTO_PREVIEW = 4;
-
-function relativeDate(value) {
-  if (!value) {
-    return "Unknown date";
-  }
-
-  const days = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(value).getTime()) / 86400000),
-  );
-
-  return days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
-}
 
 /**
  * Displays the complete disputed review and its merchant response,
@@ -45,11 +33,14 @@ export default function ReviewDisputeReview({ review }) {
   return (
     <>
       <div>
-        {/* Original review */}
-        <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
-          Original Review
-        </h2>
+        {/* Original review heading */}
+        <div className="flex items-center gap-2">
+          <Quote className="h-3.5 w-3.5 text-text-secondary" strokeWidth={2} />
 
+          <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
+            Original Review
+          </h2>
+        </div>
         <div className="mt-4">
           {/* Reviewer identity */}
           <div className="flex items-center gap-3">
@@ -61,7 +52,7 @@ export default function ReviewDisputeReview({ review }) {
               </p>
 
               <p className="text-xs text-text-secondary">
-                {relativeDate(review?.created_at)}
+                {formatRelativeDate(review?.created_at)}
               </p>
             </div>
           </div>
@@ -140,7 +131,7 @@ export default function ReviewDisputeReview({ review }) {
                 </span>
 
                 <span className="shrink-0 text-xs text-text-secondary">
-                  {relativeDate(merchantReply.created_at)}
+                  {formatRelativeDate(merchantReply.created_at)}
                 </span>
               </div>
 

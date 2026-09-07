@@ -77,7 +77,7 @@ body {
 
 /* Dark Theme */
 html.dark {
-  --color-primary: #F59E0B;
+  /* --color-primary: #F59E0B; */
 
   --color-background: #1f1f1f; 
   --color-surface: #121212;

@@ -14,6 +14,8 @@ from apps.reviews.serializers.review_serializers import (
     ReviewPhotoResponseSerializer,
 )
 
+MIN_MODERATION_NOTES_LENGTH = 20
+
 
 class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
     """Serialize review disputes for the administrator list."""
@@ -304,7 +306,18 @@ class AdminReviewDisputeResolutionSerializer(serializers.Serializer):
     """Validate administrator notes when resolving a review dispute."""
 
     admin_notes = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
+        required=True,
+        allow_blank=False,
+        allow_null=False,
+        min_length=MIN_MODERATION_NOTES_LENGTH,
+        trim_whitespace=True,
+        error_messages={
+            "required": "Please provide moderation notes before resolving the dispute.",
+            "blank": "Please provide moderation notes before resolving the dispute.",
+            "null": "Please provide moderation notes before resolving the dispute.",
+            "min_length": (
+                f"Please provide at least {MIN_MODERATION_NOTES_LENGTH} characters "
+                "so the decision has enough context."
+            ),
+        },
     )

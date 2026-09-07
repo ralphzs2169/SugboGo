@@ -452,11 +452,99 @@ class ReviewDisputeServiceTests(TestCase):
     @patch(
         "apps.review_disputes.services.review_dispute_service.CloudinaryService.upload_image",
     )
+    def test_add_evidence_allows_up_to_maximum_limit(
+        self,
+        mock_upload,
+    ):
+        dispute = self.create_dispute()
+
+        for index in range(ReviewDisputeService.MAX_EVIDENCE_FILES - 1):
+            MerchantReviewDisputeEvidence.objects.create(
+                MRDSP_ID=dispute,
+                MRDSE_TYPE=(
+                    MerchantReviewDisputeEvidence.EvidenceType.IMAGE
+                ),
+                MRDSE_URL=f"https://example.com/evidence-{index}.jpg",
+                MRDSE_PUBLIC_ID=f"evidence-{index}",
+            )
+
+        mock_upload.return_value = {
+            "public_id": "evidence-final",
+            "secure_url": "https://example.com/evidence-final.jpg",
+        }
+
+        evidence = ReviewDisputeService.add_evidence(
+            user=self.merchant,
+            dispute_id=dispute.MRDSP_ID,
+            evidence_type=(
+                MerchantReviewDisputeEvidence.EvidenceType.IMAGE
+            ),
+            file=self.create_image(),
+        )
+
+        self.assertIsNotNone(evidence)
+
+        self.assertEqual(
+            MerchantReviewDisputeEvidence.objects.filter(
+                MRDSP_ID=dispute,
+            ).count(),
+            ReviewDisputeService.MAX_EVIDENCE_FILES,
+        )
+
+        mock_upload.assert_called_once()
+
+    @patch(
+        "apps.review_disputes.services.review_dispute_service.CloudinaryService.upload_image",
+    )
+    def test_add_evidence_rejects_when_maximum_limit_reached(
+        self,
+        mock_upload,
+    ):
+        dispute = self.create_dispute()
+
+        for index in range(ReviewDisputeService.MAX_EVIDENCE_FILES):
+            MerchantReviewDisputeEvidence.objects.create(
+                MRDSP_ID=dispute,
+                MRDSE_TYPE=(
+                    MerchantReviewDisputeEvidence.EvidenceType.IMAGE
+                ),
+                MRDSE_URL=f"https://example.com/evidence-{index}.jpg",
+                MRDSE_PUBLIC_ID=f"evidence-{index}",
+            )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "A review dispute can only have up to 5 evidence files.",
+        ):
+            ReviewDisputeService.add_evidence(
+                user=self.merchant,
+                dispute_id=dispute.MRDSP_ID,
+                evidence_type=(
+                    MerchantReviewDisputeEvidence.EvidenceType.IMAGE
+                ),
+                file=self.create_image(),
+            )
+
+        self.assertEqual(
+            MerchantReviewDisputeEvidence.objects.filter(
+                MRDSP_ID=dispute,
+            ).count(),
+            ReviewDisputeService.MAX_EVIDENCE_FILES,
+        )
+
+        mock_upload.assert_not_called()
+
+    @patch(
+        "apps.review_disputes.services.review_dispute_service.CloudinaryService.upload_image",
+    )
     def test_add_image_evidence_stores_cloudinary_data(
         self,
         mock_upload,
     ):
         dispute = self.create_dispute()
+        evidence_file = self.create_image(
+            filename="receipt_august.jpg",
+        )
 
         mock_upload.return_value = {
             "public_id": "evidence-1",
@@ -471,7 +559,7 @@ class ReviewDisputeServiceTests(TestCase):
             evidence_type=(
                 MerchantReviewDisputeEvidence.EvidenceType.IMAGE
             ),
-            file=self.create_image(),
+            file=evidence_file,
         )
 
         self.assertEqual(
@@ -483,6 +571,10 @@ class ReviewDisputeServiceTests(TestCase):
             MerchantReviewDisputeEvidence.EvidenceType.IMAGE,
         )
         self.assertEqual(
+            evidence.MRDSE_FILE_NAME,
+            "receipt_august.jpg",
+        )
+        self.assertEqual(
             evidence.MRDSE_PUBLIC_ID,
             "evidence-1",
         )
@@ -492,8 +584,7 @@ class ReviewDisputeServiceTests(TestCase):
         )
 
         mock_upload.assert_called_once_with(
-            evidence.MRDSE_TYPE
-            and mock_upload.call_args.args[0],
+            evidence_file,
             folder="sugbogo/review-disputes",
             resource_type="image",
         )

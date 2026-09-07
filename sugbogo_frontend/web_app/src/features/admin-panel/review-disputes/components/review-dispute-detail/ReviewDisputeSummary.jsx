@@ -3,21 +3,8 @@ import ReviewDisputeReview from "./ReviewDisputeReview";
 import ReviewDisputeCaseInfo from "./ReviewDisputeCaseInfo";
 import ReviewDisputeReports from "./ReviewDisputeReports";
 import ReviewDisputeRequest from "./ReviewDisputeRequest";
-
-const STATUS_BADGE_VARIANT = {
-  pending: "warning",
-  upheld: "success",
-  dismissed: "neutral",
-  withdrawn: "muted",
-};
-
-function formatLabel(value) {
-  if (!value) {
-    return "—";
-  }
-
-  return value.replaceAll("_", " ");
-}
+import { REVIEW_DISPUTE_STATUS_BADGE_VARIANT } from "../../constants/reviewDisputeStatus";
+import { formatLabel } from "@/shared/utils/stringUtils";
 
 /**
  * Presents the disputed review and merchant dispute request,
@@ -28,19 +15,21 @@ export default function ReviewDisputeSummary({ dispute }) {
 
   return (
     <section>
-      {/* Dispute status */}
-      <div className="mb-4 flex justify-end">
-        <StatusBadge
-          variant={STATUS_BADGE_VARIANT[dispute.status] || "neutral"}
-        >
-          {formatLabel(dispute.status)}
-        </StatusBadge>
-      </div>
-
       {/* Case summary */}
       <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-stroke bg-background lg:grid-cols-5">
         {/* Review and dispute context */}
-        <div className="p-6 lg:col-span-3 lg:border-r lg:border-stroke">
+        <div className="relative p-6 lg:col-span-3 lg:border-r lg:border-stroke">
+          {/* Dispute status */}
+          <div className="absolute right-6 top-6">
+            <StatusBadge
+              variant={
+                REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "neutral"
+              }
+            >
+              {formatLabel(dispute.status)}
+            </StatusBadge>
+          </div>
+
           {/* Original review and merchant response */}
           <ReviewDisputeReview review={review} />
 

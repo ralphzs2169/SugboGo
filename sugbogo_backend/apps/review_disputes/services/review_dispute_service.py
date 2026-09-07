@@ -15,6 +15,8 @@ from apps.users.models import User
 class ReviewDisputeService:
     """Handles merchant-facing review dispute operations."""
 
+    MAX_EVIDENCE_FILES = 5
+
     @staticmethod
     def _get_owned_dispute(
         user: User,
@@ -158,6 +160,13 @@ class ReviewDisputeService:
                 "Evidence can only be added to a pending review dispute.",
             )
 
+        if dispute.evidence.count() >= ReviewDisputeService.MAX_EVIDENCE_FILES:
+            raise ValidationError(
+                "A review dispute can only have up to 5 evidence files.",
+            )
+
+        file_name = file.name
+
         resource_type = "image"
 
         if evidence_type == MerchantReviewDisputeEvidence.EvidenceType.DOCUMENT:
@@ -176,6 +185,7 @@ class ReviewDisputeService:
                 return MerchantReviewDisputeEvidence.objects.create(
                     MRDSP_ID=dispute,
                     MRDSE_TYPE=evidence_type,
+                    MRDSE_FILE_NAME=file_name,
                     MRDSE_URL=upload_result["secure_url"],
                     MRDSE_PUBLIC_ID=public_id,
                 )

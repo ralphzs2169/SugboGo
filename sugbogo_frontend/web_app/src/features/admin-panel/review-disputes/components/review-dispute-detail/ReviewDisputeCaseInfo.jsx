@@ -1,38 +1,18 @@
-import { Image } from "lucide-react";
+import { Image, Info } from "lucide-react";
 
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "@/features/admin-panel/cluster-category/constants/clusterIcons";
-import { Info } from "lucide-react";
-
-function relativeDate(value) {
-  if (!value) {
-    return "Unknown date";
-  }
-
-  const days = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(value).getTime()) / 86400000),
-  );
-
-  return days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
-}
-
-function formatLabel(value) {
-  if (!value) {
-    return "—";
-  }
-
-  return value.replaceAll("_", " ");
-}
+import { formatRelativeDate } from "@/shared/utils/dateUtils";
 
 /**
- * Displays the business context and key dispute metadata
- * needed to understand the case at a glance.
+ * Displays business context and concise moderation metadata
+ * for the current review dispute attempt.
  */
 export default function ReviewDisputeCaseInfo({ dispute }) {
   const business = dispute?.business;
   const merchantName = dispute?.merchant?.name || "Merchant";
   const specialtyTags = business?.specialty_tags ?? [];
+  const evidenceCount = dispute?.evidence?.length ?? 0;
 
   const clusterIcon = CLUSTER_ICONS.find(
     (icon) => icon.value === business?.cluster_icon,
@@ -51,7 +31,7 @@ export default function ReviewDisputeCaseInfo({ dispute }) {
         </h2>
       </div>
 
-      {/* Business identity and classification */}
+      {/* Business identity */}
       <div className="mt-5 flex items-start gap-3">
         {business?.cover_photo_url ? (
           <img
@@ -66,12 +46,11 @@ export default function ReviewDisputeCaseInfo({ dispute }) {
         )}
 
         <div className="min-w-0 flex-1">
-          {/* Business name */}
           <p className="truncate text-sm font-bold text-text-primary">
             {business?.name || "—"}
           </p>
 
-          {/* Classification */}
+          {/* Business classification */}
           <div className="mt-1.5 flex items-center gap-1.5">
             {ClusterIcon && (
               <ClusterIcon
@@ -87,6 +66,7 @@ export default function ReviewDisputeCaseInfo({ dispute }) {
           </div>
         </div>
       </div>
+
       {/* Specialty tags */}
       {specialtyTags.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -103,35 +83,42 @@ export default function ReviewDisputeCaseInfo({ dispute }) {
       )}
 
       {/* Case metadata */}
-      <dl className="mt-6 space-y-4">
-        {/* Merchant */}
+      <dl className="mt-6 space-y-3.5">
         <div className="flex gap-4 text-sm">
           <dt className="w-20 shrink-0 font-semibold text-text-secondary">
             Merchant
           </dt>
 
-          <dd className="text-text-primary">{merchantName}</dd>
+          <dd className="min-w-0 truncate text-text-primary">{merchantName}</dd>
         </div>
 
-        {/* Filed */}
         <div className="flex gap-4 text-sm">
           <dt className="w-20 shrink-0 font-semibold text-text-secondary">
             Filed
           </dt>
 
           <dd className="text-text-primary">
-            {relativeDate(dispute.created_at)}
+            {formatRelativeDate(dispute.created_at)}
           </dd>
         </div>
 
-        {/* Reason */}
         <div className="flex gap-4 text-sm">
           <dt className="w-20 shrink-0 font-semibold text-text-secondary">
-            Reason
+            Attempt
           </dt>
 
-          <dd className="capitalize text-text-primary">
-            {formatLabel(dispute.reason)}
+          <dd className="font-medium text-text-primary">
+            #{dispute.attempt_number ?? 1}
+          </dd>
+        </div>
+
+        <div className="flex gap-4 text-sm">
+          <dt className="w-20 shrink-0 font-semibold text-text-secondary">
+            Evidence
+          </dt>
+
+          <dd className="text-text-primary">
+            {evidenceCount} {evidenceCount === 1 ? "file" : "files"}
           </dd>
         </div>
       </dl>

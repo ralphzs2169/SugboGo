@@ -126,6 +126,12 @@ class MerchantReviewDisputeEvidence(models.Model):
         choices=EvidenceType.choices,
     )
 
+    MRDSE_FILE_NAME = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+
     MRDSE_URL = models.URLField(
         max_length=1000,
     )

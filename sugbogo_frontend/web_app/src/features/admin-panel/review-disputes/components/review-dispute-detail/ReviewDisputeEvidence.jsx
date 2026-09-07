@@ -1,86 +1,102 @@
-import { useState } from "react";
+import { ExternalLink, FileSearch } from "lucide-react";
+
+import { formatLabel } from "@/shared/utils/stringUtils";
 
 /**
- * Displays dispute evidence as accessible external links and allows
- * administrators to expand the list when more evidence is available.
+ * Displays dispute evidence with image thumbnails and document indicators,
+ * opening each evidence file in a new browser tab.
  */
 export default function ReviewDisputeEvidence({ evidence = [] }) {
-  const [showAllEvidence, setShowAllEvidence] = useState(false);
-
-  const formatLabel = (value) => {
-    if (!value) {
-      return "—";
-    }
-
-    return value.replaceAll("_", " ");
-  };
-
-  const visibleEvidence = showAllEvidence ? evidence : evidence.slice(0, 3);
-
   return (
     <section>
-      {/* Evidence heading */}
-      <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
-        Evidence
-      </h2>
+      {/* Section heading */}
+      <div className="mb-4 flex items-center gap-2">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
+          Evidence
+        </h2>
 
-      {/* Evidence list */}
-      <div className="rounded-xl border border-stroke bg-background p-5">
-        {evidence.length > 0 ? (
-          <div className="flex flex-wrap gap-3">
-            {visibleEvidence.map((item, index) => (
-              <a
-                key={item.id}
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex min-w-40 cursor-pointer items-center gap-3 rounded-lg border border-stroke px-4 py-3 transition-colors hover:bg-surface-muted"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-muted text-[10px] font-bold uppercase text-text-secondary">
-                  {item.type === "document" ? "DOC" : "IMG"}
-                </div>
-
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-text-primary">
-                    {item.type === "document"
-                      ? `Document ${index + 1}`
-                      : `Image ${index + 1}`}
-                  </p>
-
-                  <p className="mt-0.5 text-xs capitalize text-text-secondary">
-                    {formatLabel(item.type)}
-                  </p>
-                </div>
-              </a>
-            ))}
-
-            {/* Evidence expansion controls */}
-            {!showAllEvidence && evidence.length > 3 && (
-              <button
-                type="button"
-                onClick={() => setShowAllEvidence(true)}
-                className="cursor-pointer px-2 text-sm font-semibold text-text-secondary hover:text-text-primary hover:underline"
-              >
-                + view {evidence.length - 3} more
-              </button>
-            )}
-
-            {showAllEvidence && evidence.length > 3 && (
-              <button
-                type="button"
-                onClick={() => setShowAllEvidence(false)}
-                className="cursor-pointer px-2 text-sm font-semibold text-text-secondary hover:text-text-primary hover:underline"
-              >
-                Show less
-              </button>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-text-secondary">
-            No evidence was submitted.
-          </p>
-        )}
+        <span className="text-xs text-text-secondary">· {evidence.length}</span>
       </div>
+
+      {evidence.length === 0 ? (
+        /* Empty evidence state */
+        <div className="flex items-center gap-3 rounded-xl border border-stroke bg-background px-5 py-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-text-secondary">
+            <FileSearch className="h-4 w-4" aria-hidden="true" />
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-text-primary">
+              No evidence submitted.
+            </p>
+
+            <p className="mt-0.5 text-xs text-text-secondary">
+              The merchant did not attach supporting files to this dispute.
+            </p>
+          </div>
+        </div>
+      ) : (
+        /* Evidence list */
+        <div className="rounded-xl border border-stroke bg-background p-5">
+          <div className="flex flex-wrap gap-3">
+            {evidence.map((item, index) => {
+              const isDocument = item.type === "document";
+              const hasFileName = Boolean(item.file_name);
+              const fileName = item.file_name || "Unnamed evidence";
+
+              return (
+                <a
+                  key={item.id}
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open ${fileName}`}
+                  className="group flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-stroke px-3 py-3 transition-colors hover:bg-surface-muted sm:w-64"
+                >
+                  {/* Evidence preview */}
+                  {isDocument ? (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-surface-muted text-[10px] font-bold uppercase text-text-secondary">
+                      DOC
+                    </div>
+                  ) : (
+                    <img
+                      src={item.url}
+                      alt={fileName || `Evidence image ${index + 1}`}
+                      className="h-12 w-12 shrink-0 rounded-md object-cover"
+                      loading="lazy"
+                    />
+                  )}
+
+                  {/* Evidence information */}
+                  <div className="min-w-0 flex-1">
+                    <p
+                      title={fileName}
+                      className={`truncate text-sm font-semibold ${
+                        hasFileName
+                          ? "text-text-primary"
+                          : "text-text-secondary"
+                      }`}
+                    >
+                      {fileName}
+                    </p>
+
+                    <p className="mt-0.5 text-xs text-text-secondary">
+                      {formatLabel(item.type)}
+                    </p>
+                  </div>
+
+                  {/* External navigation indicator */}
+                  <ExternalLink
+                    size={14}
+                    aria-hidden="true"
+                    className="shrink-0 text-text-secondary transition-colors group-hover:text-text-primary"
+                  />
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

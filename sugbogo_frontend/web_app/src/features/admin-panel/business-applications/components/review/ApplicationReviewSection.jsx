@@ -22,7 +22,7 @@ export default function ApplicationReviewSection({
         )}
 
         <div>
-          <h2 className="text-2xl font-bold leading-8 text-text-primary">
+          <h2 className="text-xl font-bold leading-8 text-text-primary">
             {title}
           </h2>
 

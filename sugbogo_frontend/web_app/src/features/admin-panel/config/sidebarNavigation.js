@@ -189,6 +189,10 @@ const navigation = [
         label: "Review Disputes",
         Icon: FiMessageSquare,
         roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/review-disputes",
+          "/admin-panel/review-disputes/[disputeId]",
+        ],
       },
       {
         type: "link",
@@ -196,6 +200,10 @@ const navigation = [
         label: "Flags & Suspicious",
         Icon: FiShield,
         roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/flags-suspicious",
+          "/admin-panel/flags-suspicious/[flagId]",
+        ],
       },
     ],
   },

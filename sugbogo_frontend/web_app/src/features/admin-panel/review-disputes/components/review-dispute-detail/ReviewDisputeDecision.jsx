@@ -1,17 +1,19 @@
 import { useState } from "react";
+import toast from "react-hot-toast";
 
 import Button from "@/shared/components/Button";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 import useReviewDisputeMutations from "../../hooks/useReviewDisputeMutations";
+import REVIEW_DISPUTE_DECISION_CONFIG from "../../config/reviewDisputeDecisionConfig";
 import ResolveDisputeDrawer from "./ResolveDisputeDrawer";
 
 /**
  * Provides the fixed moderation actions for a pending review dispute.
- * Both resolution paths use the same focused drawer so administrators
- * provide an auditable reason before resolving the dispute.
+ * Both resolution paths use the same drawer and confirmation modal so the
+ * parent mutation is reached only after a final review of the decision.
  */
-export default function ReviewDisputeDecision({ dispute }) {
+export default function ReviewDisputeDecision({ dispute, onResolved }) {
   const [activeDecision, setActiveDecision] = useState(null);
 
   const {
@@ -37,23 +39,34 @@ export default function ReviewDisputeDecision({ dispute }) {
   });
 
   async function handleConfirm(notes) {
+    const decision = activeDecision;
+
+    if (!decision) {
+      return;
+    }
+
     const data = {
       admin_notes: notes,
     };
 
-    if (activeDecision === "uphold") {
+    if (decision === "uphold") {
       await uphold({
         disputeId: dispute.id,
         data,
       });
-
-      return;
+    } else {
+      await dismiss({
+        disputeId: dispute.id,
+        data,
+      });
     }
 
-    await dismiss({
-      disputeId: dispute.id,
-      data,
-    });
+    toast.success(
+      REVIEW_DISPUTE_DECISION_CONFIG[decision].successMessage,
+    );
+
+    setActiveDecision(null);
+    onResolved?.();
   }
 
   function handleCloseDrawer() {

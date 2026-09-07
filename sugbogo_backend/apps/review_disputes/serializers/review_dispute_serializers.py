@@ -29,6 +29,12 @@ class DisputeEvidenceResponseSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    file_name = serializers.CharField(
+        source="MRDSE_FILE_NAME",
+        read_only=True,
+        allow_null=True,
+    )
+
     url = serializers.URLField(
         source="MRDSE_URL",
         read_only=True,
@@ -44,6 +50,7 @@ class DisputeEvidenceResponseSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "type",
+            "file_name",
             "url",
             "created_at",
         )

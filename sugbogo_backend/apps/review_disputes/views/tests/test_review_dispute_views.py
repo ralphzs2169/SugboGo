@@ -154,10 +154,12 @@ class MerchantReviewDisputeViewTestBase(APITestCase):
             MerchantReviewDisputeEvidence.EvidenceType.IMAGE
         ),
         public_id="evidence-existing",
+        file_name="receipt_august.jpg",
     ):
         return MerchantReviewDisputeEvidence.objects.create(
             MRDSP_ID=dispute,
             MRDSE_TYPE=evidence_type,
+            MRDSE_FILE_NAME=file_name,
             MRDSE_URL=(
                 "https://res.cloudinary.com/example/"
                 "evidence.jpg"
@@ -635,6 +637,66 @@ class MerchantReviewDisputeDetailViewTests(
             self.dispute.MRDSP_ID,
         )
 
+    def test_get_dispute_history_includes_evidence_file_name(self):
+        historical_evidence = self.create_evidence(
+            self.dispute,
+            file_name="historical_receipt.jpg",
+        )
+        legacy_evidence = MerchantReviewDisputeEvidence.objects.create(
+            MRDSP_ID=self.dispute,
+            MRDSE_TYPE=(
+                MerchantReviewDisputeEvidence.EvidenceType.DOCUMENT
+            ),
+            MRDSE_URL="https://example.com/legacy-document.pdf",
+            MRDSE_PUBLIC_ID="legacy-document",
+        )
+
+        self.dispute.MRDSP_STATUS = (
+            MerchantReviewDispute.DisputeStatus.DISMISSED
+        )
+        self.dispute.save(
+            update_fields=["MRDSP_STATUS"],
+        )
+
+        current_dispute = self.create_dispute()
+        detail_url = (
+            f"/api/merchant/review-disputes/"
+            f"{current_dispute.MRDSP_ID}/"
+        )
+
+        response = self.client.get(detail_url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+
+        history_evidence = (
+            response.data["data"]
+            ["previous_disputes"][0]
+            ["evidence"][0]
+        )
+
+        self.assertEqual(
+            history_evidence["file_name"],
+            historical_evidence.MRDSE_FILE_NAME,
+        )
+
+        legacy_history_evidence = (
+            response.data["data"]
+            ["previous_disputes"][0]
+            ["evidence"][1]
+        )
+
+        self.assertIsNone(
+            legacy_history_evidence["file_name"],
+        )
+        self.assertEqual(
+            legacy_history_evidence["id"],
+            legacy_evidence.MRDSE_ID,
+        )
+
     def test_get_dispute_rejects_non_owner(self):
         self.client.force_authenticate(
             self.other_merchant,
@@ -729,6 +791,7 @@ class MerchantReviewDisputeEvidenceViewTests(
             MRDSE_TYPE=(
                 MerchantReviewDisputeEvidence.EvidenceType.IMAGE
             ),
+            MRDSE_FILE_NAME="evidence.jpg",
             MRDSE_URL="https://example.com/evidence.jpg",
             MRDSE_PUBLIC_ID="evidence-1",
         )
@@ -763,6 +826,11 @@ class MerchantReviewDisputeEvidenceViewTests(
         self.assertEqual(
             response.data["message"],
             "Dispute evidence added successfully.",
+        )
+
+        self.assertEqual(
+            response.data["data"]["file_name"],
+            "evidence.jpg",
         )
 
         mock_add_evidence.assert_called_once()
@@ -885,6 +953,7 @@ class MerchantReviewDisputeEvidenceViewTests(
             MRDSE_TYPE=(
                 MerchantReviewDisputeEvidence.EvidenceType.DOCUMENT
             ),
+            MRDSE_FILE_NAME="evidence.pdf",
             MRDSE_URL="https://example.com/document.pdf",
             MRDSE_PUBLIC_ID="document-1",
         )
@@ -1357,6 +1426,11 @@ class MerchantReviewDisputeEvidenceResponseTests(
         self.assertEqual(
             evidence["type"],
             self.evidence.MRDSE_TYPE,
+        )
+
+        self.assertEqual(
+            evidence["file_name"],
+            self.evidence.MRDSE_FILE_NAME,
         )
 
         self.assertEqual(
