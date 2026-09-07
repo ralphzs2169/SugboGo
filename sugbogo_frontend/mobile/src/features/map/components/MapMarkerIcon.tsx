@@ -37,7 +37,7 @@ export default function MapMarkerIcon({ category, isSelected = false }: Props) {
           justifyContent: "center",
         }}
       >
-        <View
+        <View  
           style={{
             height: circleSize,
             width: circleSize,
