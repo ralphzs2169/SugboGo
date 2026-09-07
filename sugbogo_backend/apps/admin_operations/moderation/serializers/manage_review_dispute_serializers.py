@@ -18,7 +18,7 @@ MIN_MODERATION_NOTES_LENGTH = 20
 
 
 class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
-    """Serialize review disputes for the administrator list."""
+    """Serialize review disputes for the administrator moderation queue."""
 
     id = serializers.IntegerField(
         source="MRDSP_ID",
@@ -44,16 +44,17 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
         source="BUSN_ID.BUSN_NAME",
         read_only=True,
     )
+    business_cover_photo_url = serializers.CharField(
+        source="BUSN_ID.BUSN_COVER_PHOTO_URL",
+        read_only=True,
+        allow_null=True,
+    )
     review_id = serializers.IntegerField(
         source="REVW_ID_id",
         read_only=True,
     )
     merchant = BusinessOwnerSerializer(
         source="USER_ID",
-        read_only=True,
-    )
-    review_author = ReviewAuthorResponseSerializer(
-        source="REVW_ID.USER_ID",
         read_only=True,
     )
 
@@ -66,11 +67,10 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
             "created_at",
             "business_id",
             "business_name",
+            "business_cover_photo_url",
             "review_id",
             "merchant",
-            "review_author",
         )
-
 
 class AdminReviewReplySerializer(serializers.ModelSerializer):
     """Serialize the merchant's response to the disputed review."""

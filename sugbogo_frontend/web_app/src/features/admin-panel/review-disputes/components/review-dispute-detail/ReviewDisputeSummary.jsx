@@ -1,36 +1,42 @@
 import StatusBadge from "@/shared/components/StatusBadge";
+
 import ReviewDisputeReview from "./ReviewDisputeReview";
 import ReviewDisputeCaseInfo from "./ReviewDisputeCaseInfo";
 import ReviewDisputeReports from "./ReviewDisputeReports";
 import ReviewDisputeRequest from "./ReviewDisputeRequest";
+
 import { REVIEW_DISPUTE_STATUS_BADGE_VARIANT } from "../../constants/reviewDisputeStatus";
 import { formatLabel } from "@/shared/utils/stringUtils";
 
 /**
- * Presents the disputed review and merchant dispute request,
- * alongside supporting case information and explorer reports.
+ * Presents the core dispute case, including the original review, merchant
+ * dispute request, supporting case information, and explorer report activity.
  */
 export default function ReviewDisputeSummary({ dispute }) {
   const review = dispute.review;
 
   return (
-    <section>
-      {/* Case summary */}
-      <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-stroke bg-background lg:grid-cols-5">
-        {/* Review and dispute context */}
-        <div className="relative p-6 lg:col-span-3 lg:border-r lg:border-stroke">
-          {/* Dispute status */}
-          <div className="absolute right-6 top-6">
-            <StatusBadge
-              variant={
-                REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "neutral"
-              }
-            >
-              {formatLabel(dispute.status)}
-            </StatusBadge>
-          </div>
+    <section className="overflow-hidden rounded-xl border border-stroke bg-background">
+      {/* Section header */}
+      <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
+        <h2 className="text-sm font-semibold text-text-primary">
+          Dispute Case
+        </h2>
 
-          {/* Original review and merchant response */}
+        <StatusBadge
+          variant={
+            REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "neutral"
+          }
+        >
+          {formatLabel(dispute.status)}
+        </StatusBadge>
+      </div>
+
+      {/* Case summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-5">
+        {/* Review and dispute context */}
+        <div className="p-6 lg:col-span-3 lg:border-r lg:border-stroke">
+          {/* Original review */}
           <ReviewDisputeReview review={review} />
 
           {/* Dispute relationship */}
@@ -46,7 +52,7 @@ export default function ReviewDisputeSummary({ dispute }) {
           <ReviewDisputeRequest dispute={dispute} />
         </div>
 
-        {/* Case information and explorer reports */}
+        {/* Supporting case context */}
         <div className="lg:col-span-2">
           {/* Case information */}
           <ReviewDisputeCaseInfo dispute={dispute} />

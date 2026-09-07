@@ -2,34 +2,36 @@ import { ArrowRight, History } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import StatusBadge from "@/shared/components/StatusBadge";
-import { REVIEW_DISPUTE_STATUS_BADGE_VARIANT } from "../../constants/reviewDisputeStatus";
-import { formatLabel } from "@/shared/utils/stringUtils";
 import { formatDateTime } from "@/shared/utils/dateUtils";
+import { formatLabel } from "@/shared/utils/stringUtils";
+
+import { REVIEW_DISPUTE_STATUS_BADGE_VARIANT } from "../../constants/reviewDisputeStatus";
 
 /**
- * Keeps the previous-disputes section visible for every case, showing either
- * compact historical records or a small first-attempt empty state.
+ * Displays previous dispute attempts in a structured history card, with
+ * status context and navigation to each historical dispute record.
  */
 export default function ReviewDisputeHistory({
   previousDisputes = [],
   currentAttempt = 1,
 }) {
   return (
-    <section>
-      {/* Section heading */}
-      <div className="mb-4 flex items-center gap-2">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
+    <section className="overflow-hidden rounded-xl border border-stroke bg-background">
+      {/* Section header */}
+      <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
+        <h2 className="text-sm font-semibold text-text-primary">
           Previous Disputes
         </h2>
 
-        <span className="text-xs text-text-secondary">
-          · {previousDisputes.length}
+        <span className="text-xs font-medium text-text-secondary">
+          {previousDisputes.length}{" "}
+          {previousDisputes.length === 1 ? "attempt" : "attempts"}
         </span>
       </div>
 
       {previousDisputes.length === 0 ? (
-        /* Empty state */
-        <div className="flex items-center gap-3 rounded-xl border border-stroke bg-background px-5 py-4">
+        /* Empty history state */
+        <div className="flex items-center gap-3 p-5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-text-secondary">
             <History className="h-4 w-4" aria-hidden="true" />
           </div>
@@ -46,7 +48,7 @@ export default function ReviewDisputeHistory({
         </div>
       ) : (
         /* Previous dispute attempts */
-        <div className="overflow-hidden rounded-xl border border-stroke bg-background">
+        <div>
           {previousDisputes.map((attempt, index) => {
             const attemptNumber = currentAttempt - index - 1;
 
@@ -72,7 +74,7 @@ export default function ReviewDisputeHistory({
                     </StatusBadge>
                   </div>
 
-                  <p className="mt-1.5 truncate text-sm font-medium capitalize text-text-primary">
+                  <p className="mt-1.5 truncate text-sm font-medium text-text-primary">
                     {formatLabel(attempt.reason)}
                   </p>
 

@@ -1,17 +1,18 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { Eye, FileText, CalendarDays, Store, User } from "lucide-react";
+import { CalendarDays, Eye, Store } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import StatusBadge from "@/shared/components/StatusBadge";
 import { formatDate } from "@/shared/utils/dateUtils";
+import { formatLabel } from "@/shared/utils/stringUtils";
+import UserAvatar from "@/shared/components/UserAvatar";
+import { REVIEW_DISPUTE_STATUS_BADGE_VARIANT } from "../constants/reviewDisputeStatus";
 
 const columnHelper = createColumnHelper();
 
 /**
- * Creates the TanStack Table column definitions for review dispute management.
- *
- * Displays dispute reason, affected business, review author, status,
- * submission date, and the action used to inspect the dispute.
+ * Creates the TanStack Table columns for the review dispute moderation queue,
+ * surfacing case identity, business context, submitter, status, and queue state.
  */
 export default function getReviewDisputeColumns(onViewDispute) {
   return [
@@ -33,7 +34,7 @@ export default function getReviewDisputeColumns(onViewDispute) {
     columnHelper.accessor((dispute) => dispute.reason, {
       id: "reason",
       header: "Dispute",
-      size: 240,
+      size: 250,
       minSize: 220,
       meta: {
         skeleton: "longText",
@@ -43,17 +44,13 @@ export default function getReviewDisputeColumns(onViewDispute) {
 
         return (
           <div className="min-w-0">
-            <p className="text-sm font-bold capitalize text-text-primary">
-              {dispute.reason?.replaceAll("_", " ") || "—"}
+            <p className="truncate text-sm font-semibold text-text-primary">
+              {formatLabel(dispute.reason) || "—"}
             </p>
 
-            <div className="mt-1 flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5 shrink-0 text-text-secondary" />
-
-              <span className="text-xs text-text-secondary">
-                Review #{dispute.review_id}
-              </span>
-            </div>
+            <p className="mt-1 text-xs text-text-secondary">
+              Dispute #{dispute.id} · Review #{dispute.review_id}
+            </p>
           </div>
         );
       },
@@ -62,8 +59,8 @@ export default function getReviewDisputeColumns(onViewDispute) {
     columnHelper.display({
       id: "business",
       header: "Business",
-      size: 230,
-      minSize: 200,
+      size: 240,
+      minSize: 210,
       meta: {
         skeleton: "longText",
       },
@@ -71,14 +68,26 @@ export default function getReviewDisputeColumns(onViewDispute) {
         const dispute = row.original;
 
         return (
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-stroke bg-surface-secondary">
-              <Store
-                className="h-4 w-4 text-text-secondary"
-                strokeWidth={1.75}
-              />
+          <div className="flex min-w-0 items-center gap-2.5">
+            {/* Business thumbnail */}
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-stroke bg-surface-secondary">
+              {dispute.business_cover_photo_url ? (
+                <img
+                  src={dispute.business_cover_photo_url}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <Store
+                  className="h-4 w-4 text-text-secondary"
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+              )}
             </div>
 
+            {/* Business identity */}
             <div className="min-w-0">
               <p
                 className="truncate text-sm font-medium text-text-primary"
@@ -97,34 +106,31 @@ export default function getReviewDisputeColumns(onViewDispute) {
     }),
 
     columnHelper.display({
-      id: "parties",
+      id: "submittedBy",
       header: "Submitted By",
       size: 220,
-      minSize: 200,
+      minSize: 190,
       meta: {
         skeleton: "longText",
       },
       cell: ({ row }) => {
-        const dispute = row.original;
-        const merchant = dispute.merchant;
-        const author = dispute.review_author;
+        const merchant = row.original.merchant;
 
         return (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Store className="h-3.5 w-3.5 text-text-secondary" />
+          <div className="flex min-w-0 items-center gap-2.5">
+            {/* Merchant avatar */}
+            <UserAvatar avatarUrl={merchant?.avatar_url} size="lg" />
 
-              <span className="truncate text-xs text-text-secondary">
-                {merchant?.name || merchant?.email || "Merchant"}
-              </span>
-            </div>
+            {/* Merchant identity */}
+            <div className="min-w-0">
+              <p
+                className="truncate text-sm font-medium text-text-primary"
+                title={merchant?.name || merchant?.email || undefined}
+              >
+                {merchant?.name || merchant?.email || "—"}
+              </p>
 
-            <div className="flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5 text-text-secondary" />
-
-              <span className="truncate text-xs text-text-secondary">
-                {author?.name || author?.email || "Reviewer"}
-              </span>
+              <p className="mt-0.5 text-xs text-text-secondary">Merchant</p>
             </div>
           </div>
         );
@@ -134,39 +140,19 @@ export default function getReviewDisputeColumns(onViewDispute) {
     columnHelper.accessor((dispute) => dispute.status, {
       id: "status",
       header: "Status",
-      size: 140,
+      size: 130,
       meta: {
         skeleton: "text",
       },
       cell: (info) => {
         const status = info.getValue();
 
-        const statusConfig = {
-          pending: {
-            label: "Pending",
-            variant: "warning",
-          },
-          under_review: {
-            label: "Under Review",
-            variant: "info",
-          },
-          upheld: {
-            label: "Upheld",
-            variant: "success",
-          },
-          dismissed: {
-            label: "Dismissed",
-            variant: "danger",
-          },
-        };
-
-        const config = statusConfig[status] ?? {
-          label: status || "Unknown",
-          variant: "default",
-        };
-
         return (
-          <StatusBadge variant={config.variant}>{config.label}</StatusBadge>
+          <StatusBadge
+            variant={REVIEW_DISPUTE_STATUS_BADGE_VARIANT[status] || "neutral"}
+          >
+            {formatLabel(status)}
+          </StatusBadge>
         );
       },
     }),
@@ -174,7 +160,7 @@ export default function getReviewDisputeColumns(onViewDispute) {
     columnHelper.accessor((dispute) => dispute.created_at, {
       id: "created_at",
       header: "Submitted",
-      size: 140,
+      size: 150,
       meta: {
         skeleton: "text",
       },
@@ -183,6 +169,7 @@ export default function getReviewDisputeColumns(onViewDispute) {
           <CalendarDays
             className="h-3.5 w-3.5 shrink-0 text-text-secondary"
             strokeWidth={1.75}
+            aria-hidden="true"
           />
 
           <span className="text-sm text-text-secondary">
@@ -193,12 +180,23 @@ export default function getReviewDisputeColumns(onViewDispute) {
     }),
 
     columnHelper.display({
+      id: "queue",
+      header: "Queue",
+      size: 120,
+      meta: {
+        skeleton: "text",
+      },
+      enableSorting: false,
+      cell: () => <span className="text-sm text-text-secondary">—</span>,
+    }),
+
+    columnHelper.display({
       id: "actions",
       header: "Actions",
+      size: 90,
       meta: {
         skeleton: "actions",
       },
-      size: 90,
       enableSorting: false,
       cell: ({ row }) => {
         const dispute = row.original;

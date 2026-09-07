@@ -8,16 +8,7 @@ import {
 
 import ReviewContentPreview from "./ReviewContentPreview";
 import UserAvatar from "@/shared/components/UserAvatar";
-
-function relativeDate(value) {
-  const days = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(value).getTime()) / 86400000),
-  );
-
-  return days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
-}
-
+import { formatRelativeDate } from "@/shared/utils/dateUtils";
 /**
  * Displays a compact, read-only preview of a business's most recent reviews.
  *
@@ -88,7 +79,7 @@ export default function BusinessReviewsPreview({
                     </p>
 
                     <span className="shrink-0 text-xs text-text-secondary">
-                      {relativeDate(review.created_at)}
+                      {formatRelativeDate(review.created_at)}
                     </span>
                   </div>
 
