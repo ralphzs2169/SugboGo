@@ -1,5 +1,5 @@
 from django.db import IntegrityError, models, transaction
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Subquery
 from django.db.models.functions import Greatest
 from rest_framework.exceptions import (
     NotFound,
@@ -8,6 +8,7 @@ from rest_framework.exceptions import (
 )
 
 from apps.business.models import Business, BusinessVouch
+from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
     Review,
@@ -134,6 +135,16 @@ class ReviewService:
             USER_ID=user,
         )
 
+        active_disputes = (
+            MerchantReviewDispute.objects
+            .filter(
+                REVW_ID=OuterRef("REVW_ID"),
+                USER_ID=user,
+                MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+            )
+            .values("MRDSP_ID")[:1]
+        )
+
         return (
             Review.objects
             .select_related("USER_ID")
@@ -141,6 +152,7 @@ class ReviewService:
                 is_liked=Exists(likes),
                 is_liked_by_owner=Exists(owner_likes),
                 is_own_review=Exists(own_reviews),
+                active_dispute_id=Subquery(active_disputes),
             )
             .prefetch_related(
                 "photos",

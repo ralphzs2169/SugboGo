@@ -210,6 +210,23 @@ class MerchantReviewDisputeListViewTests(
             first_dispute.MRDSP_ID,
         )
 
+        review_data = response.data["data"]["items"][0]["review"]
+
+        self.assertEqual(
+            review_data["id"],
+            self.review.REVW_ID,
+        )
+
+        self.assertEqual(
+            review_data["text"],
+            self.review.REVW_TEXT,
+        )
+
+        self.assertEqual(
+            review_data["author"]["id"],
+            self.explorer.USER_ID,
+        )
+
     def test_list_does_not_return_other_merchants_disputes(self):
         first_dispute = self.create_dispute()
 

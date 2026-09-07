@@ -28,9 +28,13 @@ class ReviewDisputeService:
                 .select_related(
                     "BUSN_ID",
                     "REVW_ID",
+                    "REVW_ID__USER_ID",
                     "USER_ID",
                 )
-                .prefetch_related("evidence")
+                .prefetch_related(
+                    "evidence",
+                    "REVW_ID__photos",
+                )
                 .get(MRDSP_ID=dispute_id)
             )
         except MerchantReviewDispute.DoesNotExist:
@@ -56,7 +60,11 @@ class ReviewDisputeService:
         try:
             review = (
                 Review.objects
-                .select_related("BUSN_ID")
+                .select_related(
+                    "BUSN_ID",
+                    "USER_ID",
+                )
+                .prefetch_related("photos")
                 .get(REVW_ID=review_id)
             )
         except Review.DoesNotExist:
@@ -139,8 +147,15 @@ class ReviewDisputeService:
         return (
             MerchantReviewDispute.objects
             .filter(USER_ID=user)
-            .select_related("BUSN_ID", "REVW_ID")
-            .prefetch_related("evidence")
+            .select_related(
+                "BUSN_ID",
+                "REVW_ID",
+                "REVW_ID__USER_ID",
+            )
+            .prefetch_related(
+                "evidence",
+                "REVW_ID__photos",
+            )
         )
 
     @staticmethod

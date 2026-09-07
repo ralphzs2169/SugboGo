@@ -13,6 +13,7 @@ from apps.business.models import (
     Cluster,
     Location,
 )
+from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import Review
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
@@ -297,6 +298,109 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(
             returned_ids,
             expected_ids,
+        )
+
+    def test_get_all_reviews_exposes_pending_dispute_id_for_merchant(self):
+        review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review with a pending merchant dispute.",
+        )
+
+        dispute = MerchantReviewDispute.objects.create(
+            REVW_ID=review,
+            BUSN_ID=self.business,
+            USER_ID=self.merchant,
+            MRDSP_REASON=MerchantReviewDispute.DisputeReason.FAKE_REVIEW,
+            MRDSP_DESCRIPTION="This review appears to be fabricated.",
+        )
+
+        self.client.force_authenticate(
+            self.merchant,
+        )
+
+        response = self.client.get(
+            self.list_url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+
+        returned_review = next(
+            item
+            for item in response.data["data"]
+            if item["id"] == review.REVW_ID
+        )
+
+        self.assertEqual(
+            returned_review["active_dispute_id"],
+            dispute.MRDSP_ID,
+        )
+
+    def test_get_all_reviews_returns_null_for_resolved_dispute(self):
+        review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review with a resolved merchant dispute.",
+        )
+
+        MerchantReviewDispute.objects.create(
+            REVW_ID=review,
+            BUSN_ID=self.business,
+            USER_ID=self.merchant,
+            MRDSP_REASON=MerchantReviewDispute.DisputeReason.OTHER,
+            MRDSP_DESCRIPTION="This dispute was already dismissed.",
+            MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.DISMISSED,
+        )
+
+        self.client.force_authenticate(
+            self.merchant,
+        )
+
+        response = self.client.get(
+            self.list_url,
+        )
+
+        returned_review = next(
+            item
+            for item in response.data["data"]
+            if item["id"] == review.REVW_ID
+        )
+
+        self.assertIsNone(
+            returned_review["active_dispute_id"],
+        )
+
+    def test_get_all_reviews_hides_active_dispute_id_from_explorer(self):
+        review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="A disputed review viewed by an explorer.",
+        )
+
+        MerchantReviewDispute.objects.create(
+            REVW_ID=review,
+            BUSN_ID=self.business,
+            USER_ID=self.merchant,
+            MRDSP_REASON=MerchantReviewDispute.DisputeReason.FAKE_REVIEW,
+            MRDSP_DESCRIPTION="This review appears to be fabricated.",
+        )
+
+        response = self.client.get(
+            self.list_url,
+        )
+
+        returned_review = next(
+            item
+            for item in response.data["data"]
+            if item["id"] == review.REVW_ID
+        )
+
+        self.assertIsNone(
+            returned_review["active_dispute_id"],
         )
 
     @patch(

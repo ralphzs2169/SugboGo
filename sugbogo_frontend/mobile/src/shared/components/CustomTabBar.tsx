@@ -3,7 +3,7 @@ import { theme } from "@/constants/theme";
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { ComponentProps, useEffect, useRef } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { Animated, Pressable, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type TabBarProps = NonNullable<ComponentProps<typeof Tabs>["tabBar"]>;
@@ -38,14 +38,9 @@ function TabItem({
     }).start();
   }, [isFocused, progress]);
 
-  const activeBackgroundOpacity = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-
   const activeScale = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.94, 1],
+    outputRange: [0.96, 1],
   });
 
   const activeTranslateY = progress.interpolate({
@@ -64,29 +59,23 @@ function TabItem({
     <Pressable
       onPress={onPress}
       hitSlop={8}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isFocused }}
       className="flex-1 cursor-pointer items-center justify-center"
     >
+      {/* Tab content */}
       <Animated.View
-        className="relative w-full items-center justify-center rounded-full px-1 py-1.5"
+        className="items-center justify-center"
         style={{
           transform: [{ scale: activeScale }, { translateY: activeTranslateY }],
         }}
       >
-        {/* Active muted background */}
-        <Animated.View
-          pointerEvents="none"
-          className="absolute inset-0 rounded-full bg-background"
-          style={{
-            opacity: activeBackgroundOpacity,
-          }}
-        />
-
         {/* Icon */}
-        <Feather name={iconName} size={20} color={activeColor} />
+        <Feather name={iconName} size={21} color={activeColor} />
 
         {/* Label */}
         <Animated.Text
-          className="mt-0.5 text-[10px] font-medium"
+          className="mt-1 text-[10px] font-medium"
           style={{
             color: activeColor,
           }}
@@ -101,27 +90,57 @@ function TabItem({
   );
 }
 
+/**
+ * Renders the application's standard bottom navigation bar.
+ *
+ * The bar spans the full screen width, respects the device safe area, and
+ * displays a sliding top indicator aligned with the currently active tab.
+ */
 export default function CustomTabBar({
   state,
   navigation,
   config,
 }: TabBarPropsArg & { config: TabBarConfig }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+
+  const indicatorPosition = useRef(new Animated.Value(state.index)).current;
+
+  const tabWidth = width / state.routes.length;
+
+  useEffect(() => {
+    Animated.spring(indicatorPosition, {
+      toValue: state.index,
+      useNativeDriver: true,
+      speed: 18,
+      bounciness: 6,
+    }).start();
+  }, [state.index, indicatorPosition]);
+
+  const indicatorTranslateX = Animated.multiply(indicatorPosition, tabWidth);
 
   return (
     <View
-      className="absolute bottom-0 left-0 right-0 items-center bg-transparent"
-      style={{ paddingBottom: insets.bottom + 10 }}
+      className="absolute bottom-0 left-0 right-0 border-t border-border-primary bg-white"
+      style={{
+        paddingBottom: insets.bottom,
+      }}
     >
-      <View
-        className="w-[95%] flex-row items-center justify-between rounded-full bg-white px-sm"
+      {/* Active tab indicator */}
+      <Animated.View
+        pointerEvents="none"
+        className="absolute left-0 top-0 h-[3px] bg-brand"
         style={{
-          height: 60,
-          shadowColor: "#000",
-          shadowOpacity: 0.12,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 6,
+          width: tabWidth,
+          transform: [{ translateX: indicatorTranslateX }],
+        }}
+      />
+
+      {/* Navigation items */}
+      <View
+        className="flex-row items-center"
+        style={{
+          height: 64,
         }}
       >
         {state.routes.map((route, index) => {

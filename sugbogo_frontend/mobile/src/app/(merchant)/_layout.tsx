@@ -22,6 +22,35 @@ export default function MerchantLayout() {
           title: "Quick Response Templates",
         }}
       />
+
+      {/* Review disputes */}
+      <Stack.Screen
+        name="review-disputes/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Review Disputes",
+        }}
+      />
+      <Stack.Screen
+        name="review-disputes/create/[reviewId]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Dispute Review",
+        }}
+      />
+      <Stack.Screen
+        name="review-disputes/[disputeId]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Dispute Details",
+        }}
+      />
     </Stack>
   );
 }

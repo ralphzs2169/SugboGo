@@ -6,6 +6,11 @@ from apps.review_disputes.models import (
     MerchantReviewDispute,
     MerchantReviewDisputeEvidence,
 )
+from apps.reviews.models import Review
+from apps.reviews.serializers.review_serializers import (
+    ReviewAuthorResponseSerializer,
+    ReviewPhotoResponseSerializer,
+)
 
 
 MAX_EVIDENCE_FILE_SIZE = 10 * 1024 * 1024
@@ -102,6 +107,51 @@ class MerchantReviewDisputeEvidenceCreateSerializer(serializers.Serializer):
         return attrs
 
 
+class DisputedReviewResponseSerializer(serializers.ModelSerializer):
+    """Serializer for the review context shown with a merchant dispute."""
+
+    id = serializers.IntegerField(
+        source="REVW_ID",
+        read_only=True,
+    )
+
+    text = serializers.CharField(
+        source="REVW_TEXT",
+        read_only=True,
+    )
+
+    status = serializers.CharField(
+        source="REVW_STATUS",
+        read_only=True,
+    )
+
+    created_at = serializers.DateTimeField(
+        source="REVW_CREATED_AT",
+        read_only=True,
+    )
+
+    author = ReviewAuthorResponseSerializer(
+        source="USER_ID",
+        read_only=True,
+    )
+
+    photos = ReviewPhotoResponseSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = Review
+        fields = (
+            "id",
+            "text",
+            "status",
+            "created_at",
+            "author",
+            "photos",
+        )
+
+
 class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
     """Serializer for merchant review dispute responses."""
 
@@ -160,6 +210,11 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    review = DisputedReviewResponseSerializer(
+        source="REVW_ID",
+        read_only=True,
+    )
+
     class Meta:
         model = MerchantReviewDispute
         fields = (
@@ -174,6 +229,7 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "evidence",
+            "review",
         )
 
 
