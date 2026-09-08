@@ -53,7 +53,7 @@ function TabItem({
 
   const activeColor = isFocused
     ? theme.extends.colors.brand
-    : theme.extends.colors.text.tertiary;
+    : theme.extends.colors.text.secondary;
 
   return (
     <Pressable
