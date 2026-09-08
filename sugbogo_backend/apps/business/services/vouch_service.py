@@ -45,9 +45,14 @@ class VouchService:
             )
 
         try:
-            business_tag = BusinessSpecialtyTag.objects.get(
-                BUSN_ID=business_id,
-                TAG_ID=tag_id,
+            business_tag = (
+                BusinessSpecialtyTag.objects
+                .select_for_update()
+                .get(
+                    BUSN_ID=business_id,
+                    TAG_ID=tag_id,
+                    BST_IS_ACTIVE=True,
+                )
             )
         except BusinessSpecialtyTag.DoesNotExist:
             raise ValidationError(

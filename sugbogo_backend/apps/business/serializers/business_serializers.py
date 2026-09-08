@@ -95,7 +95,7 @@ class BusinessContextSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     specialty_tags = BusinessSpecialtyTagSerializer(
-        source="specialty_tag_links",
+        source="active_specialty_tag_links",
         many=True,
         read_only=True,
     )

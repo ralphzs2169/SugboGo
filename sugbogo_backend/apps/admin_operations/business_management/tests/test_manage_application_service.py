@@ -1337,6 +1337,19 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             application_tag_ids,
         )
 
+        business_specialties = BusinessSpecialtyTag.objects.filter(
+            BUSN_ID=business,
+        )
+
+        self.assertEqual(
+            business_specialties.filter(
+                BST_IS_ACTIVE=True,
+                BST_ACTIVATED_AT__isnull=False,
+                BST_DEACTIVATED_AT__isnull=True,
+            ).count(),
+            3,
+        )
+
     def test_approve_application_links_business_to_application(self):
         application = self._build_complete_application()
         reviewer = self._create_admin(

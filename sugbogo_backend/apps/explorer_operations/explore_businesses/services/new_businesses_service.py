@@ -5,7 +5,6 @@ from apps.business.models import (
     BusinessPocket,
     BusinessSpecialtyTag,
     BusinessVouch,
-    SpecialtyTag,
 )
 
 
@@ -22,13 +21,19 @@ class NewBusinessesService:
         )
 
         user_vouch_exists = BusinessVouch.objects.filter(
-            BUSN_ID=OuterRef("business_links__BUSN_ID"),
+            BUSN_ID=OuterRef("BUSN_ID"),
             USER_ID=user,
             TAG_ID=OuterRef("TAG_ID"),
         )
 
         specialty_tags = (
-            SpecialtyTag.objects
+            BusinessSpecialtyTag.objects
+            .filter(
+                BST_IS_ACTIVE=True,
+            )
+            .select_related(
+                "TAG_ID",
+            )
             .annotate(
                 is_vouched=Exists(
                     user_vouch_exists,
@@ -50,8 +55,9 @@ class NewBusinessesService:
             )
             .prefetch_related(
                 Prefetch(
-                    "SPECIALTY_TAGS",
+                    "specialty_tag_links",
                     queryset=specialty_tags,
+                    to_attr="active_specialty_tag_links",
                 ),
             )
             .filter(

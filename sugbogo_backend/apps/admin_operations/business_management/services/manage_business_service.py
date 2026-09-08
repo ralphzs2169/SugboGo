@@ -1,7 +1,7 @@
 from django.db.models import Prefetch
 from rest_framework.exceptions import NotFound
 
-from apps.business.models import Business
+from apps.business.models import Business, BusinessSpecialtyTag
 from apps.reviews.models import Review
 
 
@@ -25,6 +25,16 @@ class BusinessService:
         the relationships required by the list serializer.
         """
 
+        active_specialty_tags = (
+            BusinessSpecialtyTag.objects
+            .filter(
+                BST_IS_ACTIVE=True,
+            )
+            .select_related(
+                "TAG_ID",
+            )
+        )
+
         queryset = (
             Business.objects
             .select_related(
@@ -33,7 +43,13 @@ class BusinessService:
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
             )
-            .prefetch_related("SPECIALTY_TAGS")
+            .prefetch_related(
+                Prefetch(
+                    "specialty_tag_links",
+                    queryset=active_specialty_tags,
+                    to_attr="active_specialty_tag_links",
+                ),
+            )
         )
 
         if search:
@@ -49,7 +65,10 @@ class BusinessService:
             queryset = queryset.filter(CTGRY_ID=category)
 
         if specialty_tag:
-            queryset = queryset.filter(SPECIALTY_TAGS=specialty_tag)
+            queryset = queryset.filter(
+                specialty_tag_links__TAG_ID=specialty_tag,
+                specialty_tag_links__BST_IS_ACTIVE=True,
+            )
 
         ordering_map = {
             "business_name": "BUSN_NAME",
@@ -89,7 +108,6 @@ class BusinessService:
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
             )
-            .prefetch_related("SPECIALTY_TAGS")
             .filter(
                 LOCT_ID__LOCT_POINT__isnull=False,
             )
@@ -117,13 +135,24 @@ class BusinessService:
 
         if specialty_tag:
             queryset = queryset.filter(
-                SPECIALTY_TAGS=specialty_tag,
+                specialty_tag_links__TAG_ID=specialty_tag,
+                specialty_tag_links__BST_IS_ACTIVE=True,
             )
 
         return queryset.order_by("BUSN_NAME")
 
     @staticmethod
     def get_business_detail(business_id):
+        active_specialty_tags = (
+            BusinessSpecialtyTag.objects
+            .filter(
+                BST_IS_ACTIVE=True,
+            )
+            .select_related(
+                "TAG_ID",
+            )
+        )
+
         latest_reviews = (
             Review.objects
             .filter(
@@ -150,7 +179,11 @@ class BusinessService:
                     "merchant_application",
                 )
                 .prefetch_related(
-                    "specialty_tag_links__TAG_ID",
+                    Prefetch(
+                        "specialty_tag_links",
+                        queryset=active_specialty_tags,
+                        to_attr="active_specialty_tag_links",
+                    ),
                     "photos",
                     "operating_hours",
                     Prefetch(

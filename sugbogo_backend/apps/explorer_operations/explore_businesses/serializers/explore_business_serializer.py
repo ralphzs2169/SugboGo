@@ -45,18 +45,19 @@ class ExploreSpecialtyTagSerializer(serializers.Serializer):
     """Serializes a specialty tag with its Explorer vouch information."""
 
     id = serializers.IntegerField(
-        source="TAG_ID",
+        source="TAG_ID.TAG_ID",
         read_only=True,
     )
     name = serializers.CharField(
-        source="TAG_NAME",
+        source="TAG_ID.TAG_NAME",
         read_only=True,
     )
     color = serializers.CharField(
-        source="TAG_COLOR",
+        source="TAG_ID.TAG_COLOR",
         read_only=True,
     )
     vouch_count = serializers.IntegerField(
+        source="BST_VOUCH_COUNT",
         read_only=True,
     )
     is_vouched = serializers.BooleanField(
@@ -118,7 +119,7 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     specialty_tags = ExploreSpecialtyTagSerializer(
-        source="SPECIALTY_TAGS",
+        source="active_specialty_tag_links",
         many=True,
         read_only=True,
     )

@@ -64,11 +64,7 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    specialty_tags = SpecialtyTagSerializer(
-        source="SPECIALTY_TAGS",
-        many=True,
-        read_only=True,
-    )
+    specialty_tags = serializers.SerializerMethodField()
 
     location = serializers.CharField(
         source="LOCT_ID.LOCT_ADDRESS",
@@ -118,6 +114,17 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
             "status",
             "created_at",
         )
+
+    def get_specialty_tags(self, obj):
+        specialty_tags = [
+            business_specialty.TAG_ID
+            for business_specialty in obj.active_specialty_tag_links
+        ]
+
+        return SpecialtyTagSerializer(
+            specialty_tags,
+            many=True,
+        ).data
 
 
 class AdminBusinessMapSerializer(serializers.ModelSerializer):
@@ -480,7 +487,7 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     )
 
     specialty_tags = BusinessSpecialtyTagSerializer(
-        source="specialty_tag_links",
+        source="active_specialty_tag_links",
         many=True,
         read_only=True,
     )

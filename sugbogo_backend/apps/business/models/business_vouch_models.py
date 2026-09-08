@@ -1,5 +1,6 @@
 
 from django.db import models
+from django.utils import timezone
 
 from apps.users.models import User
 
@@ -16,6 +17,19 @@ class BusinessSpecialtyTag(models.Model):
 
     BST_VOUCH_COUNT = models.PositiveIntegerField(
         default=0,
+    )
+
+    BST_IS_ACTIVE = models.BooleanField(
+        default=True,
+    )
+
+    BST_ACTIVATED_AT = models.DateTimeField(
+        default=timezone.now,
+    )
+
+    BST_DEACTIVATED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
     )
 
     BUSN_ID = models.ForeignKey(

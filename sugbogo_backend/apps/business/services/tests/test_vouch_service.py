@@ -1,5 +1,6 @@
 from django.contrib.gis.geos import Point
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.business.models import (
@@ -254,6 +255,35 @@ class BusinessVouchServiceTests(TestCase):
         self.assertEqual(
             self.business.BUSN_VOUCH_COUNT,
             0,
+        )
+
+    def test_create_vouch_rejects_inactive_specialty(self):
+        self.spicy_business_tag.BST_IS_ACTIVE = False
+        self.spicy_business_tag.BST_DEACTIVATED_AT = timezone.now()
+        self.spicy_business_tag.save(
+            update_fields=[
+                "BST_IS_ACTIVE",
+                "BST_DEACTIVATED_AT",
+                "BST_UPDATED_AT",
+            ],
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "This specialty is not associated with the business.",
+        ):
+            VouchService.create_vouch(
+                user=self.user,
+                business_id=self.business.BUSN_ID,
+                tag_id=self.spicy_tag.TAG_ID,
+            )
+
+        self.assertFalse(
+            BusinessVouch.objects.filter(
+                BUSN_ID=self.business,
+                USER_ID=self.user,
+                TAG_ID=self.spicy_tag,
+            ).exists(),
         )
 
     def test_create_vouch_rejects_nonexistent_business(self):
