@@ -41,6 +41,7 @@ export type BusinessReview = {
   photos: ReviewPhoto[];
   vouched_specialties: ReviewVouchedSpecialty[];
   reply: ReviewReply | null;
+  active_dispute_id: number | null;
 };
 
 export type LocalReviewPhoto = {

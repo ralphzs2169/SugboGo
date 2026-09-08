@@ -90,6 +90,7 @@ class ReviewAuthorResponseSerializer(serializers.Serializer):
     id = serializers.IntegerField(source="USER_ID", read_only=True)
     first_name = serializers.CharField(source="USER_FNAME", read_only=True)
     last_name = serializers.CharField(source="USER_LNAME", read_only=True)
+    role = serializers.CharField(source="USER_ROLE", read_only=True)
     avatar_url = serializers.ReadOnlyField()
 
 
@@ -179,6 +180,11 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
     is_liked_by_owner = serializers.BooleanField(
         read_only=True,
     )
+
+    active_dispute_id = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+    )
     
     class Meta:
         model = Review
@@ -197,6 +203,7 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "author",
             "reply",
             "is_own_review",
+            "active_dispute_id",
         )
 
 class ReviewReportSerializer(serializers.Serializer):

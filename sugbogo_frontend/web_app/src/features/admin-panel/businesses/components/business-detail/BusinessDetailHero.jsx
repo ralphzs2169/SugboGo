@@ -65,7 +65,7 @@ export default function BusinessDetailHero({
             <div className="mt-4 rounded-xl border border-stroke bg-surface-muted/40 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">
-                  Linked Account
+                  Linked Merchant Account
                 </p>
               </div>
 

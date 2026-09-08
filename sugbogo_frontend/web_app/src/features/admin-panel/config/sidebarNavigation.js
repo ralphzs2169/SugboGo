@@ -5,6 +5,7 @@ import {
   FiUser,
   FiUsers,
   FiBriefcase,
+  FiMessageSquare,
   FiTag,
   FiMapPin,
   FiFileText,
@@ -184,10 +185,25 @@ const navigation = [
     items: [
       {
         type: "link",
+        to: "/admin-panel/review-disputes",
+        label: "Review Disputes",
+        Icon: FiMessageSquare,
+        roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/review-disputes",
+          "/admin-panel/review-disputes/[disputeId]",
+        ],
+      },
+      {
+        type: "link",
         to: "/admin-panel/flags-suspicious",
         label: "Flags & Suspicious",
         Icon: FiShield,
         roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/flags-suspicious",
+          "/admin-panel/flags-suspicious/[flagId]",
+        ],
       },
     ],
   },

@@ -4,8 +4,8 @@ import { useEffect } from "react";
 /**
  * Reusable modal dialog.
  *
- * Supports optional scrollable content for forms or dialogs that may exceed
- * the available viewport height.
+ * Supports optional scrollable content and lets an enclosing overlay retain
+ * body-scroll ownership when dialogs are nested inside drawers.
  */
 export default function Modal({
   isOpen,
@@ -16,6 +16,7 @@ export default function Modal({
   showCloseButton = true,
   maxWidth = "max-w-lg",
   scrollable = false,
+  lockBodyScroll = true,
 }) {
   useEffect(() => {
     if (!isOpen) return;
@@ -27,13 +28,19 @@ export default function Modal({
     }
 
     document.addEventListener("keydown", handleEscape);
-    document.body.style.overflow = "hidden";
+
+    if (lockBodyScroll) {
+      document.body.style.overflow = "hidden";
+    }
 
     return () => {
       document.removeEventListener("keydown", handleEscape);
-      document.body.style.overflow = "";
+
+      if (lockBodyScroll) {
+        document.body.style.overflow = "";
+      }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, lockBodyScroll]);
 
   if (!isOpen) {
     return null;

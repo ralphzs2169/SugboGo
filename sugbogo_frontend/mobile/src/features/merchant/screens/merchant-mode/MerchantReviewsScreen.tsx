@@ -1,7 +1,10 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import type { BusinessReview } from "@/features/explore/types/review.types";
@@ -20,6 +23,8 @@ import MerchantReviewsSkeleton from "../../components/review-management/Merchant
 
 type ReviewFilter = "all" | "needs-reply" | "replied";
 
+const TAB_BAR_HEIGHT = 64;
+
 /**
  * Gives merchants a focused inbox for customer feedback and public replies.
  *
@@ -27,6 +32,8 @@ type ReviewFilter = "all" | "needs-reply" | "replied";
  * current review API does not expose server-side filtering parameters.
  */
 export default function MerchantReviewsScreen() {
+  const insets = useSafeAreaInsets();
+
   const {
     business,
     isLoading: isBusinessLoading,
@@ -105,7 +112,6 @@ export default function MerchantReviewsScreen() {
 
   const openReplyComposer = (review: BusinessReview) => {
     setSelectedReview(review);
-
     presentBottomSheet(replySheetRef);
   };
 
@@ -154,7 +160,10 @@ export default function MerchantReviewsScreen() {
             onReply={openReplyComposer}
           />
         )}
-        contentContainerClassName="px-4 pb-8"
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24,
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

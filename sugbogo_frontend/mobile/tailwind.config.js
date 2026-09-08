@@ -7,7 +7,7 @@ module.exports = {
       // ── COLORS ──────────────────────────────
       colors: {
         brand: "#F27F0D", // SugboGo orange
-        background: "#F3F4F6", // screen bg
+        background: "#F8F9FA", // screen bg
         surface: "#FFFFFF", // card/top bar bg
 
         error: "#fef2f2", // error container bg
@@ -22,9 +22,11 @@ module.exports = {
         border: {
           primary: "#E5E7EB",
           secondary: "#AEB4BC",
+
           disabled: "#E5E7EB",
           error: "#ef4444",
           success: "#16A34A",
+          info: "#DBEAFE",
         },
 
         text: {

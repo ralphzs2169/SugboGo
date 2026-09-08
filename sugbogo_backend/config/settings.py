@@ -105,7 +105,7 @@ INSTALLED_APPS = [
     # 'apps.merchant_operations.apps.MerchantOperationsConfig',
 
     'apps.reviews.apps.ReviewsConfig',
-
+    'apps.review_disputes.apps.ReviewDisputesConfig',
     # Explorer Operations
     'apps.explorer_operations.explore_businesses.apps.ExploreBusinessesConfig',
 
@@ -119,6 +119,7 @@ INSTALLED_APPS = [
     'apps.admin_operations.role_management.apps.RoleManagementConfig',
     'apps.admin_operations.suspicious_activity.apps.SuspiciousActivityConfig',
     'apps.admin_operations.analytics.apps.AnalyticsConfig',
+    'apps.admin_operations.moderation.apps.ModerationConfig',
     'apps.admin_operations.system_configuration.apps.SystemConfigurationConfig',
 
     'apps.business.apps.BusinessConfig',

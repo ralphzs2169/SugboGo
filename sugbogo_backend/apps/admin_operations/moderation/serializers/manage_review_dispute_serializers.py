@@ -1,0 +1,323 @@
+from rest_framework import serializers
+
+from apps.business.serializers.business_serializers import (
+    BusinessContextSerializer,
+    BusinessOwnerSerializer,
+)
+from apps.review_disputes.models import MerchantReviewDispute
+from apps.review_disputes.serializers import (
+    DisputeEvidenceResponseSerializer,
+)
+from apps.reviews.models import Review, ReviewReply
+from apps.reviews.serializers.review_serializers import (
+    ReviewAuthorResponseSerializer,
+    ReviewPhotoResponseSerializer,
+)
+
+MIN_MODERATION_NOTES_LENGTH = 20
+
+
+class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
+    """Serialize review disputes for the administrator moderation queue."""
+
+    id = serializers.IntegerField(
+        source="MRDSP_ID",
+        read_only=True,
+    )
+    reason = serializers.CharField(
+        source="MRDSP_REASON",
+        read_only=True,
+    )
+    status = serializers.CharField(
+        source="MRDSP_STATUS",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="MRDSP_CREATED_AT",
+        read_only=True,
+    )
+    business_id = serializers.IntegerField(
+        source="BUSN_ID_id",
+        read_only=True,
+    )
+    business_name = serializers.CharField(
+        source="BUSN_ID.BUSN_NAME",
+        read_only=True,
+    )
+    business_cover_photo_url = serializers.CharField(
+        source="BUSN_ID.BUSN_COVER_PHOTO_URL",
+        read_only=True,
+        allow_null=True,
+    )
+    review_id = serializers.IntegerField(
+        source="REVW_ID_id",
+        read_only=True,
+    )
+    merchant = BusinessOwnerSerializer(
+        source="USER_ID",
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantReviewDispute
+        fields = (
+            "id",
+            "reason",
+            "status",
+            "created_at",
+            "business_id",
+            "business_name",
+            "business_cover_photo_url",
+            "review_id",
+            "merchant",
+        )
+
+class AdminReviewReplySerializer(serializers.ModelSerializer):
+    """Serialize the merchant's response to the disputed review."""
+
+    text = serializers.CharField(
+        source="RPLY_TEXT",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="RPLY_CREATED_AT",
+        read_only=True,
+    )
+
+    class Meta:
+        model = ReviewReply
+        fields = (
+            "text",
+            "created_at",
+        )
+
+
+class AdminDisputedReviewSerializer(serializers.ModelSerializer):
+    """Serialize the disputed review for administrator review."""
+
+    id = serializers.IntegerField(
+        source="REVW_ID",
+        read_only=True,
+    )
+    text = serializers.CharField(
+        source="REVW_TEXT",
+        read_only=True,
+    )
+    status = serializers.CharField(
+        source="REVW_STATUS",
+        read_only=True,
+    )
+    moderation_notes = serializers.CharField(
+        source="REVW_MODERATION_NOTES",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="REVW_CREATED_AT",
+        read_only=True,
+    )
+    like_count = serializers.IntegerField(
+        source="REVW_LIKE_COUNT",
+        read_only=True,
+    )
+    report_count = serializers.IntegerField(
+        source="REVW_REPORT_COUNT",
+        read_only=True,
+    )
+    author = ReviewAuthorResponseSerializer(
+        source="USER_ID",
+        read_only=True,
+    )
+    photos = ReviewPhotoResponseSerializer(
+        many=True,
+        read_only=True,
+    )
+    report_summary = serializers.SerializerMethodField()
+    reply = AdminReviewReplySerializer(
+        read_only=True,
+    )
+
+    class Meta:
+        model = Review
+        fields = (
+            "id",
+            "text",
+            "status",
+            "moderation_notes",
+            "created_at",
+            "like_count",
+            "report_count",
+            "author",
+            "photos",
+            "report_summary",
+            "reply",
+        )
+
+    def get_report_summary(self, obj):
+        summary = {}
+
+        for report in obj.reports.all():
+            reason = report.RREP_TYPE
+            summary[reason] = summary.get(reason, 0) + 1
+
+        return [
+            {
+                "reason": reason,
+                "count": count,
+            }
+            for reason, count in summary.items()
+        ]
+
+
+class AdminReviewDisputeHistorySerializer(serializers.ModelSerializer):
+    """Serialize a previous dispute attempt for administrator review."""
+
+    id = serializers.IntegerField(
+        source="MRDSP_ID",
+        read_only=True,
+    )
+    reason = serializers.CharField(
+        source="MRDSP_REASON",
+        read_only=True,
+    )
+    description = serializers.CharField(
+        source="MRDSP_DESCRIPTION",
+        read_only=True,
+    )
+    status = serializers.CharField(
+        source="MRDSP_STATUS",
+        read_only=True,
+    )
+    admin_notes = serializers.CharField(
+        source="MRDSP_ADMIN_NOTES",
+        read_only=True,
+    )
+    resolved_at = serializers.DateTimeField(
+        source="MRDSP_RESOLVED_AT",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="MRDSP_CREATED_AT",
+        read_only=True,
+    )
+    evidence = DisputeEvidenceResponseSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantReviewDispute
+        fields = (
+            "id",
+            "reason",
+            "description",
+            "status",
+            "admin_notes",
+            "resolved_at",
+            "created_at",
+            "evidence",
+        )
+
+
+class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
+    """Serialize complete review dispute details for administrators."""
+
+    id = serializers.IntegerField(
+        source="MRDSP_ID",
+        read_only=True,
+    )
+    reason = serializers.CharField(
+        source="MRDSP_REASON",
+        read_only=True,
+    )
+    description = serializers.CharField(
+        source="MRDSP_DESCRIPTION",
+        read_only=True,
+    )
+    status = serializers.CharField(
+        source="MRDSP_STATUS",
+        read_only=True,
+    )
+    admin_notes = serializers.CharField(
+        source="MRDSP_ADMIN_NOTES",
+        read_only=True,
+    )
+    resolved_at = serializers.DateTimeField(
+        source="MRDSP_RESOLVED_AT",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(
+        source="MRDSP_CREATED_AT",
+        read_only=True,
+    )
+    updated_at = serializers.DateTimeField(
+        source="MRDSP_UPDATED_AT",
+        read_only=True,
+    )
+    business = BusinessContextSerializer(
+        source="BUSN_ID",
+        read_only=True,
+    )
+    merchant = BusinessOwnerSerializer(
+        source="USER_ID",
+        read_only=True,
+    )
+    review = AdminDisputedReviewSerializer(
+        source="REVW_ID",
+        read_only=True,
+    )
+    evidence = DisputeEvidenceResponseSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    attempt_number = serializers.IntegerField(
+        read_only=True,
+    )
+    previous_dispute_count = serializers.IntegerField(
+        read_only=True,
+    )
+    previous_disputes = AdminReviewDisputeHistorySerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = MerchantReviewDispute
+        fields = (
+            "id",
+            "reason",
+            "description",
+            "status",
+            "admin_notes",
+            "resolved_at",
+            "created_at",
+            "updated_at",
+            "business",
+            "merchant",
+            "review",
+            "evidence",
+            "attempt_number",
+            "previous_dispute_count",
+            "previous_disputes",
+        )
+
+
+class AdminReviewDisputeResolutionSerializer(serializers.Serializer):
+    """Validate administrator notes when resolving a review dispute."""
+
+    admin_notes = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        allow_null=False,
+        min_length=MIN_MODERATION_NOTES_LENGTH,
+        trim_whitespace=True,
+        error_messages={
+            "required": "Please provide moderation notes before resolving the dispute.",
+            "blank": "Please provide moderation notes before resolving the dispute.",
+            "null": "Please provide moderation notes before resolving the dispute.",
+            "min_length": (
+                f"Please provide at least {MIN_MODERATION_NOTES_LENGTH} characters "
+                "so the decision has enough context."
+            ),
+        },
+    )

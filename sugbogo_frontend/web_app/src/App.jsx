@@ -19,6 +19,8 @@ import ClusterCategoryPage from "@/features/admin-panel/pages/ClusterCategoryPag
 import BusinessApplications from "@/features/admin-panel/pages/BusinessApplicationsPage";
 import BusinessApplicationReviewPage from "@/features/admin-panel/pages/BusinessApplicationReviewPage";
 import BusinessDetailPage from "@/features/admin-panel/pages/BusinessDetailPage";
+import ReviewDisputesPage from "@/features/admin-panel/pages/ReviewDisputesPage";
+import ReviewDisputeDetailPage from "@/features/admin-panel/pages/ReviewDisputeDetailPage";
 
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -79,6 +81,11 @@ function App() {
             <Route path="explorer-activity" element={<ExplorerActivities />} />
             <Route path="specialty-tags" element={<SpecialtyTagsPage />} />
             <Route path="flags-suspicious" element={<SuspiciousActivities />} />
+            <Route path="review-disputes" element={<ReviewDisputesPage />} />
+            <Route
+              path="review-disputes/:disputeId"
+              element={<ReviewDisputeDetailPage />}
+            />
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<Settings />} />
           </Route>

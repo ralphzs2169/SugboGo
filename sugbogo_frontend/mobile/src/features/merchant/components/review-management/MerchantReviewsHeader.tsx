@@ -31,7 +31,7 @@ const FILTERS: { label: string; value: ReviewFilter }[] = [
 
 /**
  * Displays the merchant review-page header, including review summary,
- * reply filters, and navigation to reusable reply templates.
+ * reply filters, and secondary review-management destinations.
  */
 export default function MerchantReviewsHeader({
   totalCount,
@@ -77,7 +77,7 @@ export default function MerchantReviewsHeader({
               onPress={() => onFilterChange(item.value)}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
-              className={`min-h-11 justify-center rounded-full px-4 ${
+              className={`min-h-11 cursor-pointer justify-center rounded-full px-4 ${
                 isSelected
                   ? "bg-brand"
                   : "border border-border-primary bg-surface"
@@ -95,12 +95,43 @@ export default function MerchantReviewsHeader({
         })}
       </View>
 
+      {/* Secondary review navigation */}
+      <SafePressable
+        onPress={() => router.push("../review-disputes")}
+        accessibilityRole="button"
+        accessibilityLabel="Open review disputes"
+        className="mt-4 flex-row cursor-pointer items-center rounded-card border border-border-primary bg-surface px-4 py-4 active:opacity-80"
+      >
+        <View className="h-10 w-10 items-center justify-center rounded-full bg-brand/10">
+          <MaterialCommunityIcons
+            name="file-document-alert-outline"
+            size={21}
+            color={theme.extends.colors.brand}
+          />
+        </View>
+
+        <View className="ml-3 flex-1">
+          <Text className="text-sm font-bold text-text-primary">
+            Review disputes
+          </Text>
+          <Text className="mt-0.5 text-xs text-text-secondary">
+            Track review policy concerns and decisions.
+          </Text>
+        </View>
+
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={22}
+          color={theme.extends.colors.text.tertiary}
+        />
+      </SafePressable>
+
       {/* Reply templates navigation */}
       <SafePressable
         onPress={() => router.push("../reply-templates")}
         accessibilityRole="button"
         accessibilityLabel="Open reply templates"
-        className="mt-4 flex-row items-center rounded-card border border-border-primary bg-surface px-4 py-4 active:opacity-80"
+        className="mt-4 flex-row cursor-pointer items-center rounded-card border border-border-primary bg-surface px-4 py-4 active:opacity-80"
       >
         <View className="h-10 w-10 items-center justify-center rounded-full bg-brand/10">
           <MaterialCommunityIcons

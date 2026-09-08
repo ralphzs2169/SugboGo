@@ -57,7 +57,7 @@ export default function MerchantReviewResponse({
   };
 
   const responseLabel =
-    perspective === "merchant" ? "Your response" : "From owner";
+    perspective === "merchant" ? "Your response" : "From merchant";
 
   return (
     <>
@@ -184,7 +184,7 @@ export default function MerchantReviewResponse({
                 className="text-sm font-semibold text-white"
                 numberOfLines={1}
               >
-                Owner response
+                Merchant response
               </Text>
 
               {reply.created_at && (

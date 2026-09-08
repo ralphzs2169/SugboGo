@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 
 import ApplicationQueueStatus from "../../../business-applications/components/ApplicationQueueStatus";
 import { formatApplicationDate } from "../../../business-applications/utils/applicationReview.utils";
-
+import { formatLabel } from "@/shared/utils/stringUtils";
 /**
  * Displays a compact summary of the application associated with an
  * already-registered business.
@@ -74,7 +74,7 @@ export default function BusinessApplicationSummary({ application }) {
                   className="mt-0.5 truncate text-xs text-text-secondary"
                   title={identity.representative_role}
                 >
-                  {identity.representative_role}
+                  {formatLabel(identity.representative_role)}
                 </p>
               )}
             </div>
