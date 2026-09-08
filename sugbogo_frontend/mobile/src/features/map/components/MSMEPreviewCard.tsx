@@ -1,8 +1,11 @@
 import { View, Text, Image, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import { TAG_COLORS, DEFAULT_TAG_COLOR } from "@/shared/constants/tagColors";
 import { HiddenGem } from "@/shared/constants/mockExploreData";
+
+const TAB_BAR_HEIGHT = 80;
 
 type Props = {
   gem: HiddenGem;
@@ -11,10 +14,12 @@ type Props = {
 };
 
 export default function MSMEPreviewCard({ gem, onClose, onVisitProfile }: Props) {
+  const insets = useSafeAreaInsets();
+
   return (
     <View
-      className="absolute bottom-0 left-0 right-0 rounded-t-card bg-surface p-md"
-      style={{ elevation: 8 }}
+      className="absolute left-0 right-0 rounded-t-card bg-surface p-md"
+      style={{ bottom: insets.bottom + TAB_BAR_HEIGHT, elevation: 8 }}
     >
       <Pressable onPress={onClose} className="absolute right-md top-md z-10" hitSlop={12}>
         <MaterialCommunityIcons
