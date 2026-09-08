@@ -258,6 +258,10 @@ DB_HOST=localhost
 DB_PORT=5432
 ```
 
+```env
+MONGODB_URI=
+MONGODB_DATABASE=sugbogo
+```
 
 ---
 
