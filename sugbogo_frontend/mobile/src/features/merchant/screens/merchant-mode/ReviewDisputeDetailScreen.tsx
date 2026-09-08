@@ -24,6 +24,7 @@ import { formatDate } from "@/shared/utils/date.utils";
 
 import DisputedReviewContext from "../../components/review-disputes/DisputedReviewContext";
 import EvidencePickerActions from "../../components/review-disputes/EvidencePickerActions";
+import ReviewDisputeSection from "../../components/review-disputes/ReviewDisputeSection";
 import ReviewDisputeStatusBadge from "../../components/review-disputes/ReviewDisputeStatusBadge";
 import {
   MAX_REVIEW_DISPUTE_EVIDENCE,
@@ -50,10 +51,11 @@ type Props = {
 };
 
 /**
- * Shows one canonical merchant dispute record with history and evidence.
+ * Displays a merchant review dispute with its review context, evidence,
+ * moderation outcome, and previous dispute attempts.
  *
- * Evidence editing and withdrawal are exposed only while the backend record is
- * pending, with mutations refreshing both detail and list caches.
+ * Pending disputes allow evidence management and withdrawal while resolved
+ * disputes remain available as read-only history.
  */
 export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   const [evidenceToDelete, setEvidenceToDelete] =
@@ -62,11 +64,13 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
 
   const { dispute, isLoading, isRefetching, error, refetch } =
     useReviewDisputeDetail(disputeId);
+
   const addEvidence = useAddReviewDisputeEvidence();
   const deleteEvidence = useDeleteReviewDisputeEvidence();
   const withdrawDispute = useWithdrawReviewDispute(dispute?.business_id ?? 0);
 
   const isPending = dispute?.status === "pending";
+
   const remainingSlots = dispute
     ? MAX_REVIEW_DISPUTE_EVIDENCE - dispute.evidence.length
     : 0;
@@ -119,7 +123,10 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
 
     for (const item of validEvidence) {
       try {
-        await addEvidence.mutateAsync({ disputeId, evidence: item });
+        await addEvidence.mutateAsync({
+          disputeId,
+          evidence: item,
+        });
       } catch (caughtError) {
         failedUploads += 1;
         firstUploadError ??= caughtError;
@@ -136,6 +143,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
           text2: response.message || "Try adding the failed files again.",
         });
       }
+
       return;
     }
 
@@ -165,8 +173,13 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
         disputeId,
         evidenceId: evidenceToDelete.id,
       });
+
       setEvidenceToDelete(null);
-      Toast.show({ type: "success", text1: "Evidence deleted" });
+
+      Toast.show({
+        type: "success",
+        text1: "Evidence deleted",
+      });
     } catch (caughtError) {
       showMutationError(caughtError, "Unable to delete evidence");
     }
@@ -175,7 +188,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   const confirmWithdraw = async () => {
     try {
       await withdrawDispute.mutateAsync({ disputeId });
+
       setIsWithdrawVisible(false);
+
       Toast.show({
         type: "success",
         text1: "Dispute withdrawn",
@@ -212,7 +227,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="px-4 pb-8 pt-4"
+        contentContainerClassName="pb-8"
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -222,83 +237,91 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
         }
       >
         {/* Dispute summary */}
-        <View className="rounded-card border border-border-primary bg-surface p-4">
+        <ReviewDisputeSection>
           <View className="flex-row items-start justify-between gap-3">
             <View className="flex-1">
               <Text className="text-lg font-bold text-text-primary">
                 Dispute attempt {dispute.attempt_number}
               </Text>
+
               <Text className="mt-1 text-xs text-text-secondary">
                 Submitted {formatDate(dispute.created_at)}
               </Text>
+
+              {dispute.resolved_at && (
+                <Text className="mt-1 text-xs text-text-secondary">
+                  Resolved {formatDate(dispute.resolved_at)}
+                </Text>
+              )}
             </View>
+
             <ReviewDisputeStatusBadge status={dispute.status} />
           </View>
-
-          {dispute.resolved_at && (
-            <Text className="mt-3 text-xs text-text-secondary">
-              Resolved {formatDate(dispute.resolved_at)}
-            </Text>
-          )}
-        </View>
+        </ReviewDisputeSection>
 
         {/* Disputed review */}
-        <View className="mt-6">
-          <Text className="mb-2 text-base font-bold text-text-primary">
-            Disputed review
-          </Text>
+        <ReviewDisputeSection title="Disputed review">
           <DisputedReviewContext review={dispute.review} />
-        </View>
+        </ReviewDisputeSection>
 
-        {/* Merchant explanation */}
-        <View className="mt-6 rounded-card border border-border-primary bg-surface p-4">
-          <Text className="text-base font-bold text-text-primary">
-            Your dispute
-          </Text>
-          <Text className="mt-3 text-xs font-semibold uppercase tracking-wide text-text-secondary">
-            Reason
-          </Text>
-          <Text className="mt-1 text-sm text-text-primary">
-            {REVIEW_DISPUTE_REASON_LABELS[dispute.reason]}
-          </Text>
-          <Text className="mt-4 text-xs font-semibold uppercase tracking-wide text-text-secondary">
-            Description
-          </Text>
-          <Text className="mt-1 text-sm leading-6 text-text-primary">
-            {dispute.description}
-          </Text>
-        </View>
-
-        {/* Resolution information */}
-        {dispute.admin_notes && (
-          <View className="mt-6 rounded-card border border-border-primary bg-surface p-4">
-            <Text className="text-base font-bold text-text-primary">
-              Administrator notes
+        {/* Merchant dispute */}
+        <ReviewDisputeSection title="Your dispute">
+          <View>
+            <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+              Reason
             </Text>
-            <Text className="mt-2 text-sm leading-6 text-text-secondary">
-              {dispute.admin_notes}
+
+            <Text className="mt-1 text-sm font-medium text-text-primary">
+              {REVIEW_DISPUTE_REASON_LABELS[dispute.reason]}
             </Text>
           </View>
+
+          <View className="mt-5">
+            <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+              Details
+            </Text>
+
+            <Text className="mt-1 text-sm leading-6 text-text-primary">
+              {dispute.description}
+            </Text>
+          </View>
+        </ReviewDisputeSection>
+
+        {/* Administrator resolution */}
+        {dispute.admin_notes && (
+          <ReviewDisputeSection
+            title="Administrator notes"
+            description="This is the administrator's explanation for the dispute decision."
+          >
+            <Text className="text-sm leading-6 text-text-primary">
+              {dispute.admin_notes}
+            </Text>
+          </ReviewDisputeSection>
         )}
 
         {/* Supporting evidence */}
-        <View className="mt-6">
-          <Text className="text-base font-bold text-text-primary">
-            Supporting evidence
-          </Text>
+        <ReviewDisputeSection
+          title="Supporting evidence"
+          description={
+            isPending
+              ? "Evidence can be added or removed while this dispute is pending."
+              : "Evidence submitted with this dispute."
+          }
+        >
           {dispute.evidence.length === 0 ? (
-            <View className="mt-2 rounded-card border border-border-primary bg-surface px-4 py-6">
+            <View className="rounded-xl bg-surface-secondary px-4 py-5">
               <Text className="text-center text-sm text-text-secondary">
                 No evidence has been added.
               </Text>
             </View>
           ) : (
-            <View className="mt-2 gap-2">
+            <View className="gap-2">
               {dispute.evidence.map((item) => (
                 <View
                   key={item.id}
-                  className="flex-row items-center rounded-xl border border-border-primary bg-surface p-2"
+                  className="flex-row items-center rounded-xl border border-border-primary bg-surface px-2 py-2"
                 >
+                  {/* Evidence file */}
                   <Pressable
                     onPress={() => void Linking.openURL(item.url)}
                     accessibilityRole="link"
@@ -308,8 +331,13 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
                     {item.type === "image" ? (
                       <Image
                         source={{ uri: item.url }}
-                        className="h-14 w-14 rounded-lg bg-surface-secondary"
                         contentFit="cover"
+                        transition={150}
+                        style={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: 8,
+                        }}
                       />
                     ) : (
                       <View className="h-14 w-14 items-center justify-center rounded-lg bg-brand/10">
@@ -320,6 +348,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
                         />
                       </View>
                     )}
+
                     <View className="ml-3 min-w-0 flex-1">
                       <Text
                         className="text-sm font-semibold text-text-primary"
@@ -327,28 +356,33 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
                       >
                         {item.file_name ?? "Evidence file"}
                       </Text>
+
                       <Text className="mt-0.5 text-xs capitalize text-text-secondary">
                         {item.type}
                       </Text>
                     </View>
+
                     <MaterialCommunityIcons
                       name="open-in-new"
-                      size={19}
+                      size={18}
                       color={theme.extends.colors.text.tertiary}
                     />
                   </Pressable>
 
+                  {/* Delete evidence */}
                   {isPending && (
                     <Pressable
                       onPress={() => setEvidenceToDelete(item)}
                       disabled={deleteEvidence.isPending}
                       accessibilityRole="button"
-                      accessibilityLabel={`Delete ${item.file_name ?? "evidence"}`}
-                      className="ml-2 min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full active:bg-red-50"
+                      accessibilityLabel={`Delete ${
+                        item.file_name ?? "evidence"
+                      }`}
+                      className="ml-2 min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-full active:bg-red-50"
                     >
                       <MaterialCommunityIcons
                         name="delete-outline"
-                        size={21}
+                        size={20}
                         color={theme.extends.colors.error}
                       />
                     </Pressable>
@@ -358,6 +392,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
             </View>
           )}
 
+          {/* Add evidence */}
           {isPending && (
             <View className="mt-4">
               <EvidencePickerActions
@@ -368,69 +403,84 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
               />
             </View>
           )}
-        </View>
+        </ReviewDisputeSection>
 
         {/* Previous attempts */}
-        <View className="mt-6">
-          <Text className="text-base font-bold text-text-primary">
-            Previous disputes
-          </Text>
+        <ReviewDisputeSection
+          title="Previous disputes"
+          description={
+            dispute.previous_disputes.length > 0
+              ? "Earlier dispute attempts for this review."
+              : undefined
+          }
+        >
           {dispute.previous_disputes.length === 0 ? (
-            <View className="mt-2 rounded-card border border-border-primary bg-surface px-4 py-6">
+            <View className="rounded-xl bg-surface-secondary px-4 py-5">
               <Text className="text-center text-sm text-text-secondary">
                 This is the first dispute attempt for this review.
               </Text>
             </View>
           ) : (
-            <View className="mt-2 gap-2">
-              {dispute.previous_disputes.map((attempt, index) => (
-                <View
-                  key={attempt.id}
-                  className="rounded-xl border border-border-primary bg-surface p-4"
-                >
-                  <View className="flex-row items-start justify-between gap-3">
-                    <View className="flex-1">
-                      <Text className="font-semibold text-text-primary">
-                        Attempt {dispute.attempt_number - index - 1}
-                      </Text>
-                      <Text className="mt-1 text-xs text-text-secondary">
-                        {formatDate(attempt.created_at)}
-                      </Text>
-                    </View>
-                    <ReviewDisputeStatusBadge status={attempt.status} />
-                  </View>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: "/(merchant)/review-disputes/[disputeId]",
-                        params: { disputeId: String(attempt.id) },
-                      })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={`View dispute attempt ${
-                      dispute.attempt_number - index - 1
-                    }`}
-                    className="mt-3 min-h-11 cursor-pointer self-start justify-center active:opacity-70"
+            <View className="gap-2">
+              {dispute.previous_disputes.map((attempt, index) => {
+                const attemptNumber = dispute.attempt_number - index - 1;
+
+                return (
+                  <View
+                    key={attempt.id}
+                    className="rounded-xl border border-border-primary bg-surface-secondary p-4"
                   >
-                    <Text className="text-sm font-bold text-brand">
-                      View dispute →
-                    </Text>
-                  </Pressable>
-                </View>
-              ))}
+                    {/* Attempt summary */}
+                    <View className="flex-row items-start justify-between gap-3">
+                      <View className="flex-1">
+                        <Text className="font-semibold text-text-primary">
+                          Attempt {attemptNumber}
+                        </Text>
+
+                        <Text className="mt-1 text-xs text-text-secondary">
+                          {formatDate(attempt.created_at)}
+                        </Text>
+                      </View>
+
+                      <ReviewDisputeStatusBadge status={attempt.status} />
+                    </View>
+
+                    {/* View attempt */}
+                    <Pressable
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(merchant)/review-disputes/[disputeId]",
+                          params: {
+                            disputeId: String(attempt.id),
+                          },
+                        })
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`View dispute attempt ${attemptNumber}`}
+                      className="mt-3 min-h-10 cursor-pointer self-start justify-center active:opacity-70"
+                    >
+                      <Text className="text-sm font-bold text-brand">
+                        View dispute →
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
             </View>
           )}
-        </View>
+        </ReviewDisputeSection>
 
         {/* Pending dispute action */}
         {isPending && (
-          <Button
-            title="Withdraw dispute"
-            variant="danger"
-            onPress={() => setIsWithdrawVisible(true)}
-            className="mt-6 rounded-full"
-            fontClassName="font-bold"
-          />
+          <View className="px-4 pt-3">
+            <Button
+              title="Withdraw dispute"
+              variant="danger"
+              onPress={() => setIsWithdrawVisible(true)}
+              className="rounded-full"
+              fontClassName="font-bold"
+            />
+          </View>
         )}
       </ScrollView>
 

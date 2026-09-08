@@ -195,7 +195,7 @@ export default function ReviewContent({
         <View className="mt-4">
           <View className="mb-2 flex-row items-center">
             <MaterialCommunityIcons
-              name="check-decagram-outline"
+              name="heart"
               size={16}
               color={theme.extends.colors.brand}
             />
@@ -205,7 +205,7 @@ export default function ReviewContent({
             </Text>
           </View>
 
-          <View className="flex-row flex-wrap gap-2">
+          <View className="flex-row flex-wrap gap-0.5">
             {review.vouched_specialties.map((tag) => (
               <SpecialtyTagChip
                 key={tag.id}
@@ -240,7 +240,7 @@ export default function ReviewContent({
           >
             <MaterialCommunityIcons
               name={review.is_liked ? "thumb-up" : "thumb-up-outline"}
-              size={21}
+              size={20}
               color={
                 review.is_liked
                   ? theme.extends.colors.brand
@@ -249,12 +249,12 @@ export default function ReviewContent({
             />
           </Animated.View>
 
-          <Text className="ml-1.5 text-sm font-medium text-text-secondary">
-            {review.like_count}
+          <Text className="ml-1.5 text-xs font-medium text-text-secondary">
+            {review.like_count} found this helpful
           </Text>
         </Pressable>
 
-        {/* Liked by owner */}
+        {/* Liked by merchant */}
         {perspective === "explorer" && review.is_liked_by_owner && (
           <View className="ml-4 flex-row items-center">
             <MaterialCommunityIcons
@@ -264,7 +264,7 @@ export default function ReviewContent({
             />
 
             <Text className="ml-1 text-xs font-medium text-text-secondary">
-              Liked by owner
+              Liked by merchant
             </Text>
           </View>
         )}

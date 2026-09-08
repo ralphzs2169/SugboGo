@@ -22,9 +22,11 @@ module.exports = {
         border: {
           primary: "#E5E7EB",
           secondary: "#AEB4BC",
+
           disabled: "#E5E7EB",
           error: "#ef4444",
           success: "#16A34A",
+          info: "#DBEAFE",
         },
 
         text: {

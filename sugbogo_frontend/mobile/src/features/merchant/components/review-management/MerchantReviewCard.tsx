@@ -2,7 +2,7 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
@@ -106,21 +106,52 @@ export default function MerchantReviewCard({
         onActions={() => presentBottomSheet(actionSheetRef)}
       />
 
-      {/* Merchant response */}
-      {review.reply ? (
-        <MerchantReviewResponse reply={review.reply} perspective="merchant" />
-      ) : (
-        <View className="mt-4 flex-row items-center rounded-lg bg-brand/10 px-3 py-2.5">
-          <MaterialCommunityIcons
-            name="reply-outline"
-            size={16}
-            color={theme.extends.colors.brand}
-          />
+      {/* Active dispute status */}
+      {review.active_dispute_id && (
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: "/(merchant)/review-disputes/[disputeId]",
+              params: {
+                disputeId: String(review.active_dispute_id),
+              },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="View pending review dispute"
+          className="mt-4 cursor-pointer flex-row items-center rounded-xl border border-info bg-info-muted px-3 py-2.5 active:opacity-70"
+        >
+          {/* Status icon */}
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-info">
+            <MaterialCommunityIcons
+              name="clock-outline"
+              size={17}
+              color={theme.extends.colors.text.info}
+            />
+          </View>
 
-          <Text className="ml-2 flex-1 text-xs font-medium text-text-primary">
-            This review needs your response.
-          </Text>
-        </View>
+          {/* Status details */}
+          <View className="ml-2.5 min-w-0 flex-1">
+            <Text className="text-xs font-semibold text-info-text">
+              Dispute pending
+            </Text>
+
+            <Text className="mt-0.5 text-[11px] text-text-secondary">
+              Awaiting administrator review
+            </Text>
+          </View>
+
+          {/* Navigation */}
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={19}
+            color={theme.extends.colors.text.tertiary}
+          />
+        </Pressable>
+      )}
+
+      {review.reply && (
+        <MerchantReviewResponse reply={review.reply} perspective="merchant" />
       )}
 
       {/* Review and reply actions */}

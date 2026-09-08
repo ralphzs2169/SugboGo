@@ -25,6 +25,7 @@ import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import EvidencePickerActions from "../../components/review-disputes/EvidencePickerActions";
+import ReviewDisputeSection from "../../components/review-disputes/ReviewDisputeSection";
 import SelectedEvidenceList from "../../components/review-disputes/SelectedEvidenceList";
 import {
   MAX_REVIEW_DISPUTE_EVIDENCE,
@@ -45,6 +46,7 @@ import {
   pickReviewDisputeDocuments,
   pickReviewDisputeImages,
 } from "../../utils/review-disputes/pickReviewDisputeEvidence.utils";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Props = {
   reviewId: number;
@@ -56,17 +58,21 @@ type FormErrors = {
 };
 
 /**
- * Collects a merchant dispute and optional evidence as one guided experience.
+ * Collects and submits a merchant review dispute with optional evidence.
  *
- * The dispute is created first, then evidence is uploaded sequentially so the
- * backend's separate upload contract and five-file limit remain authoritative.
+ * Organizes the disputed review, dispute details, and supporting evidence into
+ * clear sections while preserving the backend's separate evidence upload flow.
  */
 export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   const reasonSheetRef = useRef<BottomSheetModal | null>(null);
+
   const [reason, setReason] = useState<ReviewDisputeReason | null>(null);
   const [description, setDescription] = useState("");
   const [evidence, setEvidence] = useState<LocalReviewDisputeEvidence[]>([]);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  const [isPickingImages, setIsPickingImages] = useState(false);
+  const [isPickingDocuments, setIsPickingDocuments] = useState(false);
 
   const {
     business,
@@ -76,6 +82,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   } = useMerchantBusinessProfile();
 
   const businessId = business?.id ?? 0;
+
   const {
     reviews,
     isLoading: isReviewsLoading,
@@ -85,6 +92,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
 
   const createDispute = useCreateReviewDispute(businessId);
   const addEvidence = useAddReviewDisputeEvidence();
+
   const review = reviews.find((item) => item.id === reviewId);
   const isSubmitting = createDispute.isPending || addEvidence.isPending;
   const remainingSlots = MAX_REVIEW_DISPUTE_EVIDENCE - evidence.length;
@@ -128,11 +136,47 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   };
 
   const pickImages = async () => {
-    addPickedEvidence(await pickReviewDisputeImages(remainingSlots));
+    if (isPickingImages || remainingSlots <= 0) {
+      return;
+    }
+
+    setIsPickingImages(true);
+
+    try {
+      const picked = await pickReviewDisputeImages(remainingSlots);
+      addPickedEvidence(picked);
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to attach image",
+        text2:
+          "The selected image could not be accessed. Try choosing it again.",
+      });
+    } finally {
+      setIsPickingImages(false);
+    }
   };
 
   const pickDocuments = async () => {
-    addPickedEvidence(await pickReviewDisputeDocuments(remainingSlots));
+    if (isPickingDocuments || remainingSlots <= 0) {
+      return;
+    }
+
+    setIsPickingDocuments(true);
+
+    try {
+      const picked = await pickReviewDisputeDocuments(remainingSlots);
+      addPickedEvidence(picked);
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to attach document",
+        text2:
+          "The selected file could not be accessed. Try choosing it again.",
+      });
+    } finally {
+      setIsPickingDocuments(false);
+    }
   };
 
   const validate = () => {
@@ -148,6 +192,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
     }
 
     setErrors(nextErrors);
+
     return Object.keys(nextErrors).length === 0;
   };
 
@@ -180,7 +225,9 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
         Toast.show({
           type: "info",
           text1: "Dispute submitted",
-          text2: `${failedUploads} evidence file${failedUploads === 1 ? "" : "s"} could not be uploaded. You can retry from the dispute page.`,
+          text2: `${failedUploads} evidence file${
+            failedUploads === 1 ? "" : "s"
+          } could not be uploaded. You can retry from the dispute page.`,
         });
       } else {
         Toast.show({
@@ -192,7 +239,9 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
 
       router.replace({
         pathname: "/(merchant)/review-disputes/[disputeId]",
-        params: { disputeId: String(dispute.id) },
+        params: {
+          disputeId: String(dispute.id),
+        },
       });
     } catch (caughtError) {
       const response = caughtError as ApiResponse<unknown>;
@@ -249,66 +298,81 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         className="flex-1"
       >
+        {/* Scrollable content */}
         <ScrollView
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerClassName="px-4 pb-8 pt-4"
+          contentContainerClassName="pb-6"
         >
-          {/* Screen introduction */}
-          <Text className="text-sm leading-5 text-text-secondary">
-            Tell us why this customer review may violate SugboGo&apos;s review
-            policies. An administrator will evaluate your request.
-          </Text>
+          {/* Introduction */}
+
+          <View className="px-4 py-5 bg-surface">
+            <Text className="text-sm leading-5 text-text-secondary">
+              Tell us why this review may violate SugboGo&apos;s review
+              policies. An administrator will review your request.
+            </Text>
+          </View>
 
           {/* Review context */}
-          <View className="mt-5">
-            <Text className="mb-2 text-base font-bold text-text-primary">
-              Review being disputed
-            </Text>
+          <ReviewDisputeSection
+            title="Review being disputed"
+            description="This is the review you are disputing."
+          >
+            <ReviewContent review={review} perspective="merchant" />
+          </ReviewDisputeSection>
 
-            <View className="rounded-card border border-border-primary bg-surface p-4">
-              <ReviewContent review={review} perspective="merchant" />
+          {/* Dispute details */}
+          <ReviewDisputeSection
+            title="Tell us what happened"
+            description="Choose the reason that best matches your concern and provide enough context for the administrator to investigate."
+          >
+            <View className="gap-5">
+              <FormSelect
+                label="Reason"
+                value={
+                  reason ? REVIEW_DISPUTE_REASON_LABELS[reason] : undefined
+                }
+                placeholder="Select a reason"
+                required
+                error={errors.reason}
+                onPress={() => presentBottomSheet(reasonSheetRef)}
+              />
+
+              <FormTextArea
+                label="Details"
+                value={description}
+                onChangeText={(value) => {
+                  setDescription(value);
+
+                  setErrors((current) => ({
+                    ...current,
+                    description: undefined,
+                  }));
+                }}
+                placeholder="Explain why this review should be investigated."
+                required
+                maxLength={2000}
+                error={errors.description}
+                helperText="Include specific facts, dates, or context that can help the administrator verify your claim."
+              />
             </View>
-          </View>
+          </ReviewDisputeSection>
 
-          {/* Dispute explanation */}
-          <View className="mt-6 gap-4">
-            <FormSelect
-              label="Dispute reason"
-              value={reason ? REVIEW_DISPUTE_REASON_LABELS[reason] : undefined}
-              placeholder="Select a reason"
-              required
-              error={errors.reason}
-              onPress={() => presentBottomSheet(reasonSheetRef)}
-            />
+          {/* Supporting evidence */}
+          <ReviewDisputeSection
+            title="Supporting evidence"
+            description="Optional. Attach images or documents that support your claim."
+          >
+            {/* Evidence count */}
+            <View className="flex-row items-center justify-end">
+              <View className="rounded-full bg-surface-secondary px-2.5 py-1">
+                <Text className="text-xs font-semibold text-text-secondary">
+                  {evidence.length}/{MAX_REVIEW_DISPUTE_EVIDENCE}
+                </Text>
+              </View>
+            </View>
 
-            <FormTextArea
-              label="Description"
-              value={description}
-              onChangeText={(value) => {
-                setDescription(value);
-                setErrors((current) => ({
-                  ...current,
-                  description: undefined,
-                }));
-              }}
-              placeholder="Explain what is inaccurate or violates the review policy."
-              required
-              maxLength={2000}
-              error={errors.description}
-              helperText="Include specific details that will help the administrator investigate."
-            />
-          </View>
-
-          {/* Optional evidence */}
-          <View className="mt-6 rounded-card border border-border-primary bg-background p-4">
-            <Text className="text-base font-bold text-text-primary">
-              Supporting evidence
-            </Text>
-            <Text className="mt-1 text-sm leading-5 text-text-secondary">
-              Optional. Add images, PDF, DOC, or DOCX files up to 10 MB each.
-            </Text>
-
+            {/* Selected evidence */}
             <SelectedEvidenceList
               evidence={evidence}
               disabled={isSubmitting}
@@ -319,41 +383,64 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
               }}
             />
 
+            {/* Add evidence */}
             <View className="mt-4">
               <EvidencePickerActions
                 remainingSlots={remainingSlots}
                 disabled={isSubmitting}
+                isPickingImages={isPickingImages}
+                isPickingDocuments={isPickingDocuments}
                 onPickImages={() => void pickImages()}
                 onPickDocuments={() => void pickDocuments()}
               />
             </View>
-          </View>
 
-          {/* Submit action */}
+            {/* File requirements */}
+            <View className="mt-3 flex-row items-center gap-1.5">
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={14}
+                color={theme.extends.colors.text.secondary}
+              />
+
+              <Text className="flex-1 text-xs leading-4 text-text-secondary">
+                Up to 5 files · Images, PDF, DOC, or DOCX · 10 MB max each
+              </Text>
+            </View>
+          </ReviewDisputeSection>
+        </ScrollView>
+
+        {/* Submit action */}
+        <View className="border-t border-border-primary bg-surface px-4 pb-3 pt-3">
           <Button
-            title={
-              evidence.length > 0
-                ? "Submit dispute and evidence"
-                : "Submit dispute"
-            }
+            title="Submit dispute"
             onPress={submit}
             loading={isSubmitting}
-            className="mt-6 rounded-full"
+            disabled={isSubmitting}
+            className="rounded-full"
             fontClassName="font-bold"
           />
-        </ScrollView>
+
+          <Text className="mt-2 text-center text-xs leading-4 text-text-secondary">
+            Your dispute will be reviewed by a SugboGo administrator.
+          </Text>
+        </View>
       </KeyboardAvoidingView>
 
       {/* Reason picker */}
       <SelectionBottomSheet
         sheetRef={reasonSheetRef}
         title="Dispute reason"
-        description="Choose the reason that best describes the policy concern."
+        description="Choose the reason that best describes your concern."
         options={REVIEW_DISPUTE_REASON_OPTIONS}
         selectedValue={reason ?? undefined}
         onSelect={(value) => {
           setReason(value as ReviewDisputeReason);
-          setErrors((current) => ({ ...current, reason: undefined }));
+
+          setErrors((current) => ({
+            ...current,
+            reason: undefined,
+          }));
         }}
       />
     </SafeAreaView>

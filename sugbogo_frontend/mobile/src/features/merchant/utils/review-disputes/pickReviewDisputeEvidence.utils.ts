@@ -3,6 +3,36 @@ import * as ImagePicker from "expo-image-picker";
 
 import type { LocalReviewDisputeEvidence } from "../../types/review-disputes/reviewDispute.types";
 
+function getDocumentMimeType(
+  fileName: string,
+  mimeType?: string | null,
+): string {
+  if (mimeType) {
+    return mimeType;
+  }
+
+  const extension = fileName.toLowerCase().split(".").pop();
+
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+
+    case "doc":
+      return "application/msword";
+
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    default:
+      return "application/octet-stream";
+  }
+}
+
+/**
+ * Picks image evidence from the device media library.
+ *
+ * Returns locally accessible image files shaped for dispute evidence uploads.
+ */
 export async function pickReviewDisputeImages(
   remainingSlots: number,
 ): Promise<LocalReviewDisputeEvidence[]> {
@@ -36,6 +66,12 @@ export async function pickReviewDisputeImages(
   }));
 }
 
+/**
+ * Picks document evidence from the device file picker.
+ *
+ * Copies selected files into the app cache so they remain accessible during
+ * multipart uploads and normalizes document MIME types when necessary.
+ */
 export async function pickReviewDisputeDocuments(
   remainingSlots: number,
 ): Promise<LocalReviewDisputeEvidence[]> {
@@ -60,7 +96,7 @@ export async function pickReviewDisputeDocuments(
   return result.assets.slice(0, remainingSlots).map((asset) => ({
     uri: asset.uri,
     fileName: asset.name,
-    mimeType: asset.mimeType ?? "application/pdf",
+    mimeType: getDocumentMimeType(asset.name, asset.mimeType),
     type: "document",
     fileSize: asset.size,
   }));
