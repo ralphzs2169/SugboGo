@@ -42,6 +42,11 @@ ALLOWED_HOSTS = ["*"]
 
 AUTH_USER_MODEL = "users.User"
 
+# MongoDB Configuration
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "sugbogo")
+
+# Application URLs
 WEB_APP_URL = os.getenv("WEB_APP_URL", "http://localhost:5173")
 MOBILE_SCHEME = os.getenv("MOBILE_SCHEME", "com.sugbogo.app://")
 
