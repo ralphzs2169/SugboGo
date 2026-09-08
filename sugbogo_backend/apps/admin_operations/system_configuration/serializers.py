@@ -43,43 +43,31 @@ class DiscoveryAlgorithmConfigurationSerializer(serializers.ModelSerializer):
         source="DAC_REPUTATION_BASELINE",
         max_digits=6,
         decimal_places=5,
-        allow_null=True,
-        required=False,
     )
     vouch_reputation_reward = serializers.DecimalField(
         source="DAC_VOUCH_REPUTATION_REWARD",
         max_digits=6,
         decimal_places=5,
-        allow_null=True,
-        required=False,
     )
     review_reputation_reward = serializers.DecimalField(
         source="DAC_REVIEW_REPUTATION_REWARD",
         max_digits=6,
         decimal_places=5,
-        allow_null=True,
-        required=False,
     )
     review_photo_reputation_reward = serializers.DecimalField(
         source="DAC_REVIEW_PHOTO_REPUTATION_REWARD",
         max_digits=6,
         decimal_places=5,
-        allow_null=True,
-        required=False,
     )
     approved_report_reputation_reward = serializers.DecimalField(
         source="DAC_APPROVED_REPORT_REPUTATION_REWARD",
         max_digits=6,
         decimal_places=5,
-        allow_null=True,
-        required=False,
     )
     confirmed_violation_reputation_penalty = serializers.DecimalField(
         source="DAC_CONFIRMED_VIOLATION_REPUTATION_PENALTY",
         max_digits=6,
         decimal_places=5,
-        allow_null=True,
-        required=False,
     )
     vouch_only_reputation_cap = serializers.DecimalField(
         source="DAC_VOUCH_ONLY_REPUTATION_CAP",

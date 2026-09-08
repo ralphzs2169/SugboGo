@@ -2,7 +2,6 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.test import TestCase
-from rest_framework.exceptions import ValidationError
 
 from apps.admin_operations.system_configuration.models import (
     DiscoveryAlgorithmConfiguration,
@@ -74,35 +73,37 @@ class DiscoveryAlgorithmConfigurationTests(TestCase):
             Decimal("0.20"),
         )
 
-    def test_vouch_only_reputation_cap_defaults_to_point_four(self):
+    def test_reputation_configuration_uses_finalized_defaults(self):
         self.assertEqual(
-            self.configuration.DAC_VOUCH_ONLY_REPUTATION_CAP,
-            Decimal("0.40"),
-        )
-
-    def test_undecided_reputation_values_remain_unset(self):
-        unresolved_values = (
             self.configuration.DAC_REPUTATION_BASELINE,
+            Decimal("0.20"),
+        )
+        self.assertEqual(
             self.configuration.DAC_VOUCH_REPUTATION_REWARD,
+            Decimal("0.01"),
+        )
+        self.assertEqual(
             self.configuration.DAC_REVIEW_REPUTATION_REWARD,
+            Decimal("0.03"),
+        )
+        self.assertEqual(
             self.configuration.DAC_REVIEW_PHOTO_REPUTATION_REWARD,
+            Decimal("0.05"),
+        )
+        self.assertEqual(
             self.configuration.DAC_APPROVED_REPORT_REPUTATION_REWARD,
+            Decimal("0.02"),
+        )
+        self.assertEqual(
             (
                 self.configuration
                 .DAC_CONFIRMED_VIOLATION_REPUTATION_PENALTY
             ),
+            Decimal("0.10"),
         )
-
         self.assertEqual(
-            unresolved_values,
-            (
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            ),
+            self.configuration.DAC_VOUCH_ONLY_REPUTATION_CAP,
+            Decimal("0.40"),
         )
 
     def test_discovery_weights_must_sum_to_one(self):
@@ -242,7 +243,7 @@ class DiscoveryAlgorithmConfigurationTests(TestCase):
             1,
         )
 
-    def test_service_reports_incomplete_reputation_configuration(self):
+    def test_service_reports_complete_reputation_configuration(self):
         status = (
             DiscoveryAlgorithmConfigurationService
             .get_reputation_configuration_status(
@@ -250,26 +251,20 @@ class DiscoveryAlgorithmConfigurationTests(TestCase):
             )
         )
 
-        self.assertFalse(
+        self.assertTrue(
             status["is_complete"],
         )
         self.assertEqual(
-            set(status["missing_fields"]),
-            {
-                "baseline_reputation",
-                "vouch_reputation_reward",
-                "review_reputation_reward",
-                "review_with_photo_reputation_reward",
-                "approved_report_reputation_reward",
-                "confirmed_violation_reputation_penalty",
-            },
+            status["missing_fields"],
+            [],
         )
 
-        with self.assertRaisesMessage(
-            ValidationError,
-            "Reputation configuration is incomplete.",
-        ):
-            (
-                DiscoveryAlgorithmConfigurationService
-                .require_complete_reputation_configuration()
-            )
+        required_configuration = (
+            DiscoveryAlgorithmConfigurationService
+            .require_complete_reputation_configuration()
+        )
+
+        self.assertEqual(
+            required_configuration.DAC_ID,
+            self.configuration.DAC_ID,
+        )

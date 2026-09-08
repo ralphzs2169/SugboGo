@@ -82,8 +82,7 @@ class DiscoveryAlgorithmConfiguration(models.Model):
     DAC_REPUTATION_BASELINE = models.DecimalField(
         max_digits=6,
         decimal_places=5,
-        blank=True,
-        null=True,
+        default=Decimal("0.20"),
         validators=[
             MinValueValidator(ZERO),
             MaxValueValidator(ONE),
@@ -93,8 +92,7 @@ class DiscoveryAlgorithmConfiguration(models.Model):
     DAC_VOUCH_REPUTATION_REWARD = models.DecimalField(
         max_digits=6,
         decimal_places=5,
-        blank=True,
-        null=True,
+        default=Decimal("0.01"),
         validators=[
             MinValueValidator(ZERO),
             MaxValueValidator(ONE),
@@ -104,8 +102,7 @@ class DiscoveryAlgorithmConfiguration(models.Model):
     DAC_REVIEW_REPUTATION_REWARD = models.DecimalField(
         max_digits=6,
         decimal_places=5,
-        blank=True,
-        null=True,
+        default=Decimal("0.03"),
         validators=[
             MinValueValidator(ZERO),
             MaxValueValidator(ONE),
@@ -115,8 +112,7 @@ class DiscoveryAlgorithmConfiguration(models.Model):
     DAC_REVIEW_PHOTO_REPUTATION_REWARD = models.DecimalField(
         max_digits=6,
         decimal_places=5,
-        blank=True,
-        null=True,
+        default=Decimal("0.05"),
         validators=[
             MinValueValidator(ZERO),
             MaxValueValidator(ONE),
@@ -126,8 +122,7 @@ class DiscoveryAlgorithmConfiguration(models.Model):
     DAC_APPROVED_REPORT_REPUTATION_REWARD = models.DecimalField(
         max_digits=6,
         decimal_places=5,
-        blank=True,
-        null=True,
+        default=Decimal("0.02"),
         validators=[
             MinValueValidator(ZERO),
             MaxValueValidator(ONE),
@@ -137,8 +132,7 @@ class DiscoveryAlgorithmConfiguration(models.Model):
     DAC_CONFIRMED_VIOLATION_REPUTATION_PENALTY = models.DecimalField(
         max_digits=6,
         decimal_places=5,
-        blank=True,
-        null=True,
+        default=Decimal("0.10"),
         validators=[
             MinValueValidator(ZERO),
             MaxValueValidator(ONE),

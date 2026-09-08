@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -9,6 +11,21 @@ class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError("Users must have an email address")
+
+        if "USER_REPUTATION" not in extra_fields:
+            from apps.admin_operations.system_configuration.services import (
+                DiscoveryAlgorithmConfigurationService,
+            )
+
+            configuration = (
+                DiscoveryAlgorithmConfigurationService
+                .require_complete_reputation_configuration()
+            )
+
+            extra_fields["USER_REPUTATION"] = (
+                configuration.DAC_REPUTATION_BASELINE
+            )
+
         email = self.normalize_email(email)
         user = self.model(USER_EMAIL=email, **extra_fields)
         user.set_password(password)
@@ -82,9 +99,18 @@ class User(AbstractBaseUser, PermissionsMixin):
     USER_IS_VERIFIED = models.BooleanField(default=False)
     HAS_COMPLETED_INTEREST_SELECTION = models.BooleanField(default=False)
     USER_REPUTATION = models.DecimalField(
-        max_digits=3, decimal_places=2, blank=True, null=True,
-        validators=[MinValueValidator(0.01), MaxValueValidator(1.00)],
-    )   
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("0.20"),
+        validators=[
+            MinValueValidator(
+                Decimal("0.00"),
+            ),
+            MaxValueValidator(
+                Decimal("1.00"),
+            ),
+        ],
+    )
 
     
     last_login = models.DateTimeField(
@@ -102,6 +128,21 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = "USER_EMAIL"
     REQUIRED_FIELDS = ("USER_FNAME", "USER_LNAME")
+
+    class Meta:
+        constraints = [  # noqa: RUF012
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        USER_REPUTATION__gte=Decimal("0.00"),
+                    )
+                    & models.Q(
+                        USER_REPUTATION__lte=Decimal("1.00"),
+                    )
+                ),
+                name="user_reputation_between_zero_and_one",
+            ),
+        ]
 
     @property
     def full_name(self):
@@ -165,3 +206,133 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.USER_EMAIL
+
+
+class ReputationEvent(models.Model):
+    """An immutable-by-convention audit entry for a reputation change."""
+
+    class EventType(models.TextChoices):
+        VOUCH_REWARD = "vouch_reward", "Vouch reward"
+        REVIEW_REWARD = "review_reward", "Review reward"
+        REVIEW_WITH_PHOTO_REWARD = (
+            "review_with_photo_reward",
+            "Review with photo reward",
+        )
+        APPROVED_REPORT_REWARD = (
+            "approved_report_reward",
+            "Approved report reward",
+        )
+        CONFIRMED_VIOLATION_PENALTY = (
+            "confirmed_violation_penalty",
+            "Confirmed violation penalty",
+        )
+
+    class SourceType(models.TextChoices):
+        BUSINESS_VOUCH = "business_vouch", "Business vouch"
+        BUSINESS_REVIEW = "business_review", "Business review"
+        REVIEW_REPORT = "review_report", "Review report"
+        CONFIRMED_REVIEW_VIOLATION = (
+            "confirmed_review_violation",
+            "Confirmed review violation",
+        )
+
+    REVT_ID = models.AutoField(
+        primary_key=True,
+    )
+
+    USER_ID = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        db_column="USER_ID",
+        related_name="reputation_events",
+    )
+
+    REVT_EVENT_TYPE = models.CharField(
+        max_length=40,
+        choices=EventType.choices,
+    )
+
+    REVT_APPLIED_CHANGE = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        validators=[
+            MinValueValidator(
+                Decimal("-1.00"),
+            ),
+            MaxValueValidator(
+                Decimal("1.00"),
+            ),
+        ],
+    )
+
+    REVT_RESULTING_REPUTATION = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        validators=[
+            MinValueValidator(
+                Decimal("0.00"),
+            ),
+            MaxValueValidator(
+                Decimal("1.00"),
+            ),
+        ],
+    )
+
+    REVT_SOURCE_TYPE = models.CharField(
+        max_length=40,
+        choices=SourceType.choices,
+    )
+
+    REVT_SOURCE_ID = models.PositiveBigIntegerField(
+        validators=[
+            MinValueValidator(1),
+        ],
+    )
+
+    REVT_CREATED_AT = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        db_table = "REPUTATION_EVENT"
+        ordering = ["-REVT_CREATED_AT"]
+        constraints = [  # noqa: RUF012
+            models.UniqueConstraint(
+                fields=[
+                    "REVT_SOURCE_TYPE",
+                    "REVT_SOURCE_ID",
+                ],
+                name="unique_reputation_event_source",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        REVT_APPLIED_CHANGE__gte=Decimal("-1.00"),
+                    )
+                    & models.Q(
+                        REVT_APPLIED_CHANGE__lte=Decimal("1.00"),
+                    )
+                ),
+                name="reputation_event_change_in_range",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        REVT_RESULTING_REPUTATION__gte=Decimal("0.00"),
+                    )
+                    & models.Q(
+                        REVT_RESULTING_REPUTATION__lte=Decimal("1.00"),
+                    )
+                ),
+                name="reputation_event_result_in_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    REVT_SOURCE_ID__gte=1,
+                ),
+                name="reputation_event_source_id_positive",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Reputation event {self.REVT_ID}"
