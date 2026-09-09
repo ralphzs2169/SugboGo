@@ -354,6 +354,7 @@ class ReviewServiceTests(TestCase):
             BUSN_ID=self.business,
             USER_ID=self.user,
             TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT=self.user.USER_REPUTATION,
         )
 
         preview = ReviewService.get_review_preview(
@@ -567,12 +568,14 @@ class ReviewServiceTests(TestCase):
             BUSN_ID=self.business,
             USER_ID=self.user,
             TAG_ID=first_tag,
+            VOUCH_REPUTATION_SNAPSHOT=self.user.USER_REPUTATION,
         )
 
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=self.user,
             TAG_ID=second_tag,
+            VOUCH_REPUTATION_SNAPSHOT=self.user.USER_REPUTATION,
         )
 
         reviews = ReviewService.list_reviews(
@@ -666,6 +669,7 @@ class ReviewServiceTests(TestCase):
             BUSN_ID=other_business,
             USER_ID=self.user,
             TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT=self.user.USER_REPUTATION,
         )
 
         reviews = ReviewService.list_reviews(
@@ -1242,6 +1246,7 @@ class ReviewServiceTests(TestCase):
             BUSN_ID=self.business,
             USER_ID=self.user,
             TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT=self.user.USER_REPUTATION,
         )
 
         result = ReviewService.get_review_detail(

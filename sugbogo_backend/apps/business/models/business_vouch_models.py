@@ -1,4 +1,7 @@
 
+from decimal import Decimal
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -82,6 +85,29 @@ class BusinessVouch(models.Model):
         db_column="TAG_ID",
     )
 
+    VOUCH_REPUTATION_SNAPSHOT = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        editable=False,
+        validators=[
+            MinValueValidator(
+                Decimal("0.00"),
+            ),
+            MaxValueValidator(
+                Decimal("1.00"),
+            ),
+        ],
+    )
+
+    VOUCH_EVIDENCE_IS_VALID = models.BooleanField(
+        default=True,
+    )
+
+    VOUCH_EVIDENCE_INVALIDATED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
     VOUCH_FLAG_SUSPICIOUS = models.BooleanField(
         default=False,
     )
@@ -106,5 +132,16 @@ class BusinessVouch(models.Model):
             models.UniqueConstraint(
                 fields=["BUSN_ID", "USER_ID", "TAG_ID"],
                 name="unique_business_user_tag_vouch",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        VOUCH_REPUTATION_SNAPSHOT__gte=Decimal("0.00"),
+                    )
+                    & models.Q(
+                        VOUCH_REPUTATION_SNAPSHOT__lte=Decimal("1.00"),
+                    )
+                ),
+                name="vouch_reputation_snapshot_in_range",
             ),
         ]

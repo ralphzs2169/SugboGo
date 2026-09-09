@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from django.utils import timezone
@@ -128,6 +130,13 @@ class BusinessVouchServiceTests(TestCase):
         )
         self.assertFalse(
             vouch.VOUCH_FLAG_SUSPICIOUS,
+        )
+        self.assertEqual(
+            vouch.VOUCH_REPUTATION_SNAPSHOT,
+            Decimal("0.20"),
+        )
+        self.assertTrue(
+            vouch.VOUCH_EVIDENCE_IS_VALID,
         )
 
         self.business.refresh_from_db()

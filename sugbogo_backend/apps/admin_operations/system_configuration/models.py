@@ -49,36 +49,6 @@ class DiscoveryAlgorithmConfiguration(models.Model):
         ],
     )
 
-    DAC_VOUCH_ONLY_CONFIDENCE = models.DecimalField(
-        max_digits=6,
-        decimal_places=5,
-        default=Decimal("0.70"),
-        validators=[
-            MinValueValidator(ZERO),
-            MaxValueValidator(ONE),
-        ],
-    )
-
-    DAC_VOUCH_REVIEW_CONFIDENCE = models.DecimalField(
-        max_digits=6,
-        decimal_places=5,
-        default=Decimal("0.85"),
-        validators=[
-            MinValueValidator(ZERO),
-            MaxValueValidator(ONE),
-        ],
-    )
-
-    DAC_VOUCH_REVIEW_PHOTO_CONFIDENCE = models.DecimalField(
-        max_digits=6,
-        decimal_places=5,
-        default=Decimal("1.00"),
-        validators=[
-            MinValueValidator(ZERO),
-            MaxValueValidator(ONE),
-        ],
-    )
-
     DAC_REPUTATION_BASELINE = models.DecimalField(
         max_digits=6,
         decimal_places=5,

@@ -37,18 +37,6 @@ class DiscoveryAlgorithmConfigurationTests(TestCase):
             Decimal("0.10"),
         )
         self.assertEqual(
-            self.configuration.DAC_VOUCH_ONLY_CONFIDENCE,
-            Decimal("0.70"),
-        )
-        self.assertEqual(
-            self.configuration.DAC_VOUCH_REVIEW_CONFIDENCE,
-            Decimal("0.85"),
-        )
-        self.assertEqual(
-            self.configuration.DAC_VOUCH_REVIEW_PHOTO_CONFIDENCE,
-            Decimal("1.00"),
-        )
-        self.assertEqual(
             self.configuration.DAC_MIN_CATEGORY_COMPARISON_SIZE,
             5,
         )
@@ -131,9 +119,6 @@ class DiscoveryAlgorithmConfigurationTests(TestCase):
         bounded_fields = (
             "DAC_SPECIALTY_SCORE_WEIGHT",
             "DAC_VISIBILITY_GAP_WEIGHT",
-            "DAC_VOUCH_ONLY_CONFIDENCE",
-            "DAC_VOUCH_REVIEW_CONFIDENCE",
-            "DAC_VOUCH_REVIEW_PHOTO_CONFIDENCE",
             "DAC_REPUTATION_BASELINE",
             "DAC_VOUCH_REPUTATION_REWARD",
             "DAC_REVIEW_REPUTATION_REWARD",
@@ -165,6 +150,42 @@ class DiscoveryAlgorithmConfigurationTests(TestCase):
 
                     with self.assertRaises(DjangoValidationError):
                         self.configuration.full_clean()
+
+    def test_configuration_has_no_specialty_confidence_fields(self):
+        model_field_names = {
+            field.name
+            for field in DiscoveryAlgorithmConfiguration._meta.fields
+        }
+
+        self.assertNotIn(
+            "DAC_VOUCH_ONLY_CONFIDENCE",
+            model_field_names,
+        )
+        self.assertNotIn(
+            "DAC_VOUCH_REVIEW_CONFIDENCE",
+            model_field_names,
+        )
+        self.assertNotIn(
+            "DAC_VOUCH_REVIEW_PHOTO_CONFIDENCE",
+            model_field_names,
+        )
+
+        serializer_field_names = set(
+            DiscoveryAlgorithmConfigurationSerializer().fields,
+        )
+
+        self.assertNotIn(
+            "vouch_only_confidence",
+            serializer_field_names,
+        )
+        self.assertNotIn(
+            "vouch_review_confidence",
+            serializer_field_names,
+        )
+        self.assertNotIn(
+            "vouch_review_photo_confidence",
+            serializer_field_names,
+        )
 
     def test_decay_rate_must_be_positive(self):
         for invalid_value in (

@@ -8,7 +8,6 @@ from apps.admin_operations.system_configuration.services import (
 )
 from apps.users.models import ReputationEvent, User
 
-
 ZERO = Decimal("0.00")
 ONE = Decimal("1.00")
 

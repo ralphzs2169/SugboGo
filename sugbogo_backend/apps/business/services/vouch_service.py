@@ -22,6 +22,19 @@ class VouchService:
         device_id: str | None = None,
     ) -> BusinessVouch:
         try:
+            locked_user = (
+                User.objects
+                .select_for_update()
+                .get(
+                    USER_ID=user.USER_ID,
+                )
+            )
+        except User.DoesNotExist:
+            raise NotFound(
+                "The user could not be found.",
+            )
+
+        try:
             business = Business.objects.get(
                 BUSN_ID=business_id,
             )
@@ -30,7 +43,7 @@ class VouchService:
                 "The business could not be found.",
             )
 
-        if business.USER_ID_id == user.USER_ID:
+        if business.USER_ID_id == locked_user.USER_ID:
             raise ValidationError(
                 "You cannot vouch for your own business.",
             )
@@ -62,9 +75,13 @@ class VouchService:
         try:
             vouch = BusinessVouch.objects.create(
                 BUSN_ID=business,
-                USER_ID=user,
+                USER_ID=locked_user,
                 TAG_ID=tag,
                 VOUCH_DEVICE_ID=device_id,
+                VOUCH_REPUTATION_SNAPSHOT=(
+                    locked_user.USER_REPUTATION
+                ),
+                VOUCH_EVIDENCE_IS_VALID=True,
             )
         except IntegrityError:
             raise ValidationError(

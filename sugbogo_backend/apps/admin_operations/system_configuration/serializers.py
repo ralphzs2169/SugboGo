@@ -24,21 +24,6 @@ class DiscoveryAlgorithmConfigurationSerializer(serializers.ModelSerializer):
         max_digits=6,
         decimal_places=5,
     )
-    vouch_only_confidence = serializers.DecimalField(
-        source="DAC_VOUCH_ONLY_CONFIDENCE",
-        max_digits=6,
-        decimal_places=5,
-    )
-    vouch_review_confidence = serializers.DecimalField(
-        source="DAC_VOUCH_REVIEW_CONFIDENCE",
-        max_digits=6,
-        decimal_places=5,
-    )
-    vouch_review_photo_confidence = serializers.DecimalField(
-        source="DAC_VOUCH_REVIEW_PHOTO_CONFIDENCE",
-        max_digits=6,
-        decimal_places=5,
-    )
     reputation_baseline = serializers.DecimalField(
         source="DAC_REPUTATION_BASELINE",
         max_digits=6,
@@ -105,9 +90,6 @@ class DiscoveryAlgorithmConfigurationSerializer(serializers.ModelSerializer):
             "specialty_score_weight",
             "visibility_gap_weight",
             "decay_rate",
-            "vouch_only_confidence",
-            "vouch_review_confidence",
-            "vouch_review_photo_confidence",
             "reputation_baseline",
             "vouch_reputation_reward",
             "review_reputation_reward",
