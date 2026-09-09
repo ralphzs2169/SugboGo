@@ -147,8 +147,13 @@ class SpecialtyEvidenceContextTests(TestCase):
         self.assertIsNone(
             vouch.VOUCH_EVIDENCE_INVALIDATED_AT,
         )
-        self.assertFalse(
-            ReputationEvent.objects.exists(),
+        self.assertEqual(
+            ReputationEvent.objects.filter(
+                REVT_EVENT_TYPE=(
+                    ReputationEvent.EventType.VOUCH_REWARD
+                ),
+            ).count(),
+            1,
         )
 
     def test_suspicious_vouch_is_not_automatically_invalid(self):

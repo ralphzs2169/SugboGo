@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound
 
 from apps.admin_operations.system_configuration.services import (
     DiscoveryAlgorithmConfigurationService,
@@ -103,8 +103,42 @@ class ReputationServiceTests(TestCase):
             ],
         )
 
+    def _apply_vouch_reward(
+        self,
+        user_id: int,
+        source_id: int,
+    ):
+        return ReputationService.apply_vouch_reward(
+            user_id=user_id,
+            source_id=source_id,
+            business_id=1,
+            specialty_tag_id=source_id,
+        )
+
+    def _apply_review_reward(
+        self,
+        user_id: int,
+        source_id: int,
+    ):
+        return ReputationService.apply_review_reward(
+            user_id=user_id,
+            source_id=source_id,
+            business_id=source_id,
+        )
+
+    def _apply_review_with_photo_reward(
+        self,
+        user_id: int,
+        source_id: int,
+    ):
+        return ReputationService.apply_review_with_photo_reward(
+            user_id=user_id,
+            source_id=source_id,
+            business_id=source_id,
+        )
+
     def test_vouch_reward_applies_configured_change(self):
-        event = ReputationService.apply_vouch_reward(
+        event = self._apply_vouch_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
@@ -123,7 +157,7 @@ class ReputationServiceTests(TestCase):
     def test_vouch_reward_cannot_exceed_vouch_only_cap(self):
         self._set_reputation("0.39500")
 
-        event = ReputationService.apply_vouch_reward(
+        event = self._apply_vouch_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
@@ -142,7 +176,7 @@ class ReputationServiceTests(TestCase):
     def test_vouch_reward_does_not_lower_user_above_cap(self):
         self._set_reputation("0.70")
 
-        event = ReputationService.apply_vouch_reward(
+        event = self._apply_vouch_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
@@ -162,7 +196,7 @@ class ReputationServiceTests(TestCase):
         self._set_reputation("0.35")
 
         for source_id in range(1, 7):
-            ReputationService.apply_vouch_reward(
+            self._apply_vouch_reward(
                 user_id=self.user.USER_ID,
                 source_id=source_id,
             )
@@ -175,7 +209,7 @@ class ReputationServiceTests(TestCase):
         )
 
     def test_review_reward_applies_review_tier_only(self):
-        event = ReputationService.apply_review_reward(
+        event = self._apply_review_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
@@ -192,7 +226,7 @@ class ReputationServiceTests(TestCase):
         )
 
     def test_review_with_photo_reward_applies_alternative_photo_tier(self):
-        event = ReputationService.apply_review_with_photo_reward(
+        event = self._apply_review_with_photo_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
@@ -208,27 +242,30 @@ class ReputationServiceTests(TestCase):
             Decimal("0.05"),
         )
 
-    def test_review_reward_tiers_cannot_stack_for_same_review(self):
-        ReputationService.apply_review_reward(
+    def test_review_photo_tier_applies_only_missing_difference(self):
+        self._apply_review_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
 
-        with self.assertRaises(ValidationError):
-            ReputationService.apply_review_with_photo_reward(
-                user_id=self.user.USER_ID,
-                source_id=1,
-            )
+        event = self._apply_review_with_photo_reward(
+            user_id=self.user.USER_ID,
+            source_id=1,
+        )
 
         self.user.refresh_from_db()
 
         self.assertEqual(
             self.user.USER_REPUTATION,
-            Decimal("0.23"),
+            Decimal("0.25"),
         )
         self.assertEqual(
             ReputationEvent.objects.count(),
-            1,
+            2,
+        )
+        self.assertEqual(
+            event.REVT_APPLIED_CHANGE,
+            Decimal("0.02"),
         )
 
     def test_approved_report_reward_applies_configured_change(self):
@@ -268,7 +305,7 @@ class ReputationServiceTests(TestCase):
     def test_positive_reward_clamps_at_one_and_records_actual_change(self):
         self._set_reputation("0.98")
 
-        event = ReputationService.apply_review_reward(
+        event = self._apply_review_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
@@ -312,11 +349,11 @@ class ReputationServiceTests(TestCase):
         )
 
     def test_duplicate_logical_event_does_not_change_reputation_twice(self):
-        first_event = ReputationService.apply_review_reward(
+        first_event = self._apply_review_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
-        duplicate_event = ReputationService.apply_review_reward(
+        duplicate_event = self._apply_review_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
@@ -368,11 +405,11 @@ class ReputationServiceTests(TestCase):
         )
 
     def test_separate_sources_each_affect_reputation(self):
-        ReputationService.apply_review_reward(
+        self._apply_review_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
-        ReputationService.apply_review_reward(
+        self._apply_review_reward(
             user_id=self.user.USER_ID,
             source_id=2,
         )
@@ -389,7 +426,7 @@ class ReputationServiceTests(TestCase):
         )
 
     def test_database_rejects_duplicate_source_identity(self):
-        event = ReputationService.apply_vouch_reward(
+        event = self._apply_vouch_reward(
             user_id=self.user.USER_ID,
             source_id=1,
         )
@@ -405,6 +442,7 @@ class ReputationServiceTests(TestCase):
                     ),
                     REVT_SOURCE_TYPE=event.REVT_SOURCE_TYPE,
                     REVT_SOURCE_ID=event.REVT_SOURCE_ID,
+                    REVT_SOURCE_KEY=event.REVT_SOURCE_KEY,
                 )
 
     def test_event_and_user_update_are_atomic(self):
@@ -414,7 +452,7 @@ class ReputationServiceTests(TestCase):
             side_effect=RuntimeError("User update failed."),
         ):
             with self.assertRaises(RuntimeError):
-                ReputationService.apply_review_reward(
+                self._apply_review_reward(
                     user_id=self.user.USER_ID,
                     source_id=1,
                 )
@@ -431,7 +469,7 @@ class ReputationServiceTests(TestCase):
 
     def test_missing_user_uses_service_not_found_exception(self):
         with self.assertRaises(NotFound):
-            ReputationService.apply_vouch_reward(
+            self._apply_vouch_reward(
                 user_id=999999,
                 source_id=1,
             )

@@ -289,6 +289,10 @@ class ReputationEvent(models.Model):
         ],
     )
 
+    REVT_SOURCE_KEY = models.CharField(
+        max_length=255,
+    )
+
     REVT_CREATED_AT = models.DateTimeField(
         auto_now_add=True,
     )
@@ -300,9 +304,10 @@ class ReputationEvent(models.Model):
             models.UniqueConstraint(
                 fields=[
                     "REVT_SOURCE_TYPE",
-                    "REVT_SOURCE_ID",
+                    "REVT_EVENT_TYPE",
+                    "REVT_SOURCE_KEY",
                 ],
-                name="unique_reputation_event_source",
+                name="unique_reputation_event_logical_source",
             ),
             models.CheckConstraint(
                 condition=(

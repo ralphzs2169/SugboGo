@@ -17,6 +17,7 @@ from apps.reviews.models import (
 )
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
+from apps.users.services.reputation_service import ReputationService
 
 
 class ReviewService:
@@ -86,6 +87,19 @@ class ReviewService:
                     "BUSN_REVIEW_COUNT",
                 ) + 1,
             )
+
+            if review.photos.exists():
+                ReputationService.apply_review_with_photo_reward(
+                    user_id=user.USER_ID,
+                    source_id=review.REVW_ID,
+                    business_id=business.BUSN_ID,
+                )
+            else:
+                ReputationService.apply_review_reward(
+                    user_id=user.USER_ID,
+                    source_id=review.REVW_ID,
+                    business_id=business.BUSN_ID,
+                )
 
         except Exception:
             for public_id in uploaded_public_ids:
@@ -317,6 +331,10 @@ class ReviewService:
             review.photos.all(),
         )
 
+        had_photo_before_update = bool(
+            existing_photos,
+        )
+
         if keep_photo_ids is not None:
             keep_ids = set(
                 keep_photo_ids,
@@ -391,6 +409,17 @@ class ReviewService:
             ReviewPhoto.objects.filter(
                 RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
             ).delete()
+
+            if (
+                new_photos
+                and not had_photo_before_update
+                and review.photos.exists()
+            ):
+                ReputationService.apply_review_photo_upgrade_reward(
+                    user_id=user.USER_ID,
+                    source_id=review.REVW_ID,
+                    business_id=review.BUSN_ID_id,
+                )
 
         except Exception:
             for public_id in uploaded_public_ids:

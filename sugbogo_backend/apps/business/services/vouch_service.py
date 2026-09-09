@@ -8,6 +8,7 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.users.models import User
+from apps.users.services.reputation_service import ReputationService
 
 
 class VouchService:
@@ -102,6 +103,13 @@ class VouchService:
             BST_VOUCH_COUNT=models.F(
                 "BST_VOUCH_COUNT",
             ) + 1,
+        )
+
+        ReputationService.apply_vouch_reward(
+            user_id=locked_user.USER_ID,
+            source_id=vouch.VOUCH_ID,
+            business_id=business.BUSN_ID,
+            specialty_tag_id=tag.TAG_ID,
         )
 
         return vouch
