@@ -11,7 +11,6 @@ from apps.business.services.visibility_event_service import (
 )
 from apps.users.models import User
 
-
 logger = logging.getLogger(__name__)
 
 

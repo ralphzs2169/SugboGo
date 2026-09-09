@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from .business_location_models import Location
@@ -112,20 +115,94 @@ class Business(models.Model):
 
 
 class DiscoveryScore(models.Model):
-    DSC_ID = models.AutoField(primary_key=True)
-    DSC_S_SCORE = models.DecimalField(max_digits=5, decimal_places=2)
-    DSC_V_SCORE = models.DecimalField(max_digits=5, decimal_places=2)
-    DSC_D_SCORE = models.DecimalField(max_digits=5, decimal_places=2)
-    DSC_IS_CURRENT = models.BooleanField(default=True)
-    DSC_COMPUTED_AT = models.DateTimeField()
-    DSC_CREATED_AT = models.DateTimeField(auto_now_add=True)
-    DSC_UPDATED_AT = models.DateTimeField(auto_now=True)
+    """Stores the authoritative current discovery scores for one business."""
 
-    BUSN_ID = models.ForeignKey(
-        Business, on_delete=models.CASCADE, db_column='BUSN_ID',
-        related_name='discovery_scores'
+    DSC_ID = models.AutoField(primary_key=True)
+    DSC_S_SCORE = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        validators=[
+            MinValueValidator(
+                Decimal("0.00"),
+            ),
+            MaxValueValidator(
+                Decimal("1.00"),
+            ),
+        ],
+    )
+    DSC_V_SCORE = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        validators=[
+            MinValueValidator(
+                Decimal("0.00"),
+            ),
+            MaxValueValidator(
+                Decimal("1.00"),
+            ),
+        ],
+    )
+    DSC_D_SCORE = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        validators=[
+            MinValueValidator(
+                Decimal("0.00"),
+            ),
+            MaxValueValidator(
+                Decimal("1.00"),
+            ),
+        ],
+    )
+    DSC_COMPUTED_AT = models.DateTimeField()
+    DSC_CREATED_AT = models.DateTimeField(
+        auto_now_add=True,
+    )
+    DSC_UPDATED_AT = models.DateTimeField(
+        auto_now=True,
+    )
+
+    BUSN_ID = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        db_column="BUSN_ID",
+        related_name="discovery_score",
     )
 
     class Meta:
-        db_table = 'DISCOVERY_SCORE'
-        ordering = ['-DSC_COMPUTED_AT']  # noqa: RUF012
+        db_table = "DISCOVERY_SCORE"
+        constraints = [  # noqa: RUF012
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        DSC_S_SCORE__gte=Decimal("0.00"),
+                    )
+                    & models.Q(
+                        DSC_S_SCORE__lte=Decimal("1.00"),
+                    )
+                ),
+                name="discovery_specialty_score_in_range",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        DSC_V_SCORE__gte=Decimal("0.00"),
+                    )
+                    & models.Q(
+                        DSC_V_SCORE__lte=Decimal("1.00"),
+                    )
+                ),
+                name="discovery_visibility_gap_in_range",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        DSC_D_SCORE__gte=Decimal("0.00"),
+                    )
+                    & models.Q(
+                        DSC_D_SCORE__lte=Decimal("1.00"),
+                    )
+                ),
+                name="discovery_score_in_range",
+            ),
+        ]

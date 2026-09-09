@@ -1,12 +1,15 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP, localcontext
-from typing import Iterable
 
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
+from apps.admin_operations.system_configuration.models import (
+    DiscoveryAlgorithmConfiguration,
+)
 from apps.admin_operations.system_configuration.services.discovery_algorithm_configuration_service import (
     DiscoveryAlgorithmConfigurationService,
 )
@@ -351,7 +354,10 @@ class SpecialtyScoreService:
     def recompute_tag_score(
         business_specialty_id: int,
         reference_time: datetime | None = None,
+        configuration: DiscoveryAlgorithmConfiguration | None = None,
     ) -> PersistedTagScore:
+        """Recomputes and stores one current business-specialty TagScore."""
+
         if reference_time is None:
             reference_time = timezone.now()
 
@@ -368,10 +374,11 @@ class SpecialtyScoreService:
                 "The business specialty could not be found.",
             )
 
-        configuration = (
-            DiscoveryAlgorithmConfigurationService
-            .get_current_configuration()
-        )
+        if configuration is None:
+            configuration = (
+                DiscoveryAlgorithmConfigurationService
+                .get_current_configuration()
+            )
         vouches = list(
             BusinessVouch.objects.filter(
                 BUSN_ID=business_specialty.BUSN_ID_id,
@@ -404,7 +411,10 @@ class SpecialtyScoreService:
     def recompute_business_specialty_score(
         business_id: int,
         reference_time: datetime | None = None,
+        configuration: DiscoveryAlgorithmConfiguration | None = None,
     ) -> BusinessSpecialtyScore:
+        """Recomputes active TagScores and returns one business SC result."""
+
         if reference_time is None:
             reference_time = timezone.now()
 
@@ -421,10 +431,11 @@ class SpecialtyScoreService:
                 "The business could not be found.",
             )
 
-        configuration = (
-            DiscoveryAlgorithmConfigurationService
-            .get_current_configuration()
-        )
+        if configuration is None:
+            configuration = (
+                DiscoveryAlgorithmConfigurationService
+                .get_current_configuration()
+            )
         business_specialties = list(
             BusinessSpecialtyTag.objects
             .select_for_update()

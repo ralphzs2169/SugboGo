@@ -7,6 +7,9 @@ from enum import StrEnum
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
+from apps.admin_operations.system_configuration.models import (
+    DiscoveryAlgorithmConfiguration,
+)
 from apps.admin_operations.system_configuration.services.discovery_algorithm_configuration_service import (
     DiscoveryAlgorithmConfigurationService,
 )
@@ -428,16 +431,18 @@ class VisibilityGapService:
         cls,
         business_ids: Iterable[int] | None = None,
         reference_time: datetime | None = None,
+        configuration: DiscoveryAlgorithmConfiguration | None = None,
     ) -> tuple[VisibilityGapResult, ...]:
         """Calculates Visibility Gap results for active businesses."""
 
         if reference_time is None:
             reference_time = timezone.now()
 
-        configuration = (
-            DiscoveryAlgorithmConfigurationService
-            .get_current_configuration()
-        )
+        if configuration is None:
+            configuration = (
+                DiscoveryAlgorithmConfigurationService
+                .get_current_configuration()
+            )
         window_end = reference_time
         window_start = window_end - timedelta(
             days=configuration.DAC_VISIBILITY_WINDOW_DAYS,
@@ -548,6 +553,7 @@ class VisibilityGapService:
         cls,
         business_id: int,
         reference_time: datetime | None = None,
+        configuration: DiscoveryAlgorithmConfiguration | None = None,
     ) -> VisibilityGapResult:
         """Calculates Visibility Gap for one active business."""
 
@@ -556,6 +562,7 @@ class VisibilityGapService:
                 business_id,
             ],
             reference_time=reference_time,
+            configuration=configuration,
         )
 
         return results[0]
