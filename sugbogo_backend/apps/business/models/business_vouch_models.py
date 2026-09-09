@@ -22,6 +22,25 @@ class BusinessSpecialtyTag(models.Model):
         default=0,
     )
 
+    BST_TAG_SCORE = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("0.00000"),
+        validators=[
+            MinValueValidator(
+                Decimal("0.00"),
+            ),
+            MaxValueValidator(
+                Decimal("1.00"),
+            ),
+        ],
+    )
+
+    BST_SCORE_UPDATED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
     BST_IS_ACTIVE = models.BooleanField(
         default=True,
     )
@@ -55,6 +74,17 @@ class BusinessSpecialtyTag(models.Model):
             models.UniqueConstraint(
                 fields=['BUSN_ID', 'TAG_ID'],
                 name='unique_business_specialty_tag',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        BST_TAG_SCORE__gte=Decimal("0.00"),
+                    )
+                    & models.Q(
+                        BST_TAG_SCORE__lte=Decimal("1.00"),
+                    )
+                ),
+                name="business_specialty_tag_score_in_range",
             ),
         ]
 
