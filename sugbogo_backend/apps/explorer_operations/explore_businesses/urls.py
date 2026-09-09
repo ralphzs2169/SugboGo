@@ -10,6 +10,10 @@ from apps.explorer_operations.explore_businesses.views.business_vouch_views impo
 from apps.explorer_operations.explore_businesses.views.new_businesses_views import (
     NewBusinessesView,
 )
+from apps.explorer_operations.explore_businesses.views.visibility_event_views import (
+    BusinessImpressionBatchView,
+    BusinessProfileVisitView,
+)
 from django.urls import path
 
 urlpatterns = [
@@ -20,4 +24,7 @@ urlpatterns = [
 
     path("businesses/<int:business_id>/vouch/", BusinessVouchView.as_view(), name="business-vouch", ),
     path("businesses/<int:business_id>/pocket/", BusinessPocketView.as_view(), name="business-pocket" ),
+
+    path("visibility/impressions/",BusinessImpressionBatchView.as_view(),name="business-impressions",),
+    path("businesses/<int:business_id>/profile-visit/", BusinessProfileVisitView.as_view(), name="business-profile-visit", ),
 ]
