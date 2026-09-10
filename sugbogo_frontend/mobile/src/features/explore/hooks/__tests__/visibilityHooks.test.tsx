@@ -1,6 +1,10 @@
 import React, { type PropsWithChildren } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
-import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  notifyManager,
+} from "@tanstack/react-query";
 import { AppState, type LayoutChangeEvent } from "react-native";
 
 import {
@@ -44,7 +48,9 @@ function setupClient() {
 
   /** Supplies a real query client to the hook under test. */
   function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
   }
 
   return { client, wrapper: Wrapper };
@@ -80,10 +86,14 @@ describe("real React Query visibility mutations", () => {
     const { client, wrapper } = setupClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
     client.setQueryData(["explore-new-businesses"], { items: [1] });
-    const { result } = await renderHook(() => ({
-      impressions: useRecordBusinessImpressions(),
-      visit: useRecordBusinessProfileVisit(),
-    }), { wrapper });
+    client.setQueryData(["explore-discovery"], { items: [2] });
+    const { result } = await renderHook(
+      () => ({
+        impressions: useRecordBusinessImpressions(),
+        visit: useRecordBusinessProfileVisit(),
+      }),
+      { wrapper },
+    );
 
     await act(async () => {
       await result.current.impressions.mutateAsync([1, 2]);
@@ -94,15 +104,22 @@ describe("real React Query visibility mutations", () => {
     expect(recordBusinessProfileVisit).toHaveBeenCalledWith(1);
     expect(client.getMutationCache().getAll()).toHaveLength(2);
     expect(invalidate).not.toHaveBeenCalled();
-    expect(client.getQueryData(["explore-new-businesses"])).toEqual({ items: [1] });
+    expect(client.getQueryData(["explore-new-businesses"])).toEqual({
+      items: [1],
+    });
+    expect(client.getQueryData(["explore-discovery"])).toEqual({ items: [2] });
   });
 
   it("retries a transient failure once and settles silently after the final failure", async () => {
     (recordBusinessImpressions as jest.Mock).mockResolvedValue(unavailable);
     const { wrapper } = setupClient();
-    const { result } = await renderHook(useRecordBusinessImpressions, { wrapper });
+    const { result } = await renderHook(useRecordBusinessImpressions, {
+      wrapper,
+    });
     await act(async () => result.current.mutate([1]));
-    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 3000 });
+    await waitFor(() => expect(result.current.isError).toBe(true), {
+      timeout: 3000,
+    });
     expect(recordBusinessImpressions).toHaveBeenCalledTimes(2);
   });
 
@@ -112,7 +129,9 @@ describe("real React Query visibility mutations", () => {
       code: "SESSION_EXPIRED",
     });
     const { wrapper } = setupClient();
-    const { result } = await renderHook(useRecordBusinessProfileVisit, { wrapper });
+    const { result } = await renderHook(useRecordBusinessProfileVisit, {
+      wrapper,
+    });
     await act(async () => result.current.mutate(1));
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1);
@@ -121,7 +140,10 @@ describe("real React Query visibility mutations", () => {
   it("preserves the existing optimistic Pocket mutation without producing visibility writes", async () => {
     (service.pocketBusiness as jest.Mock).mockResolvedValue(success);
     const { client, wrapper } = setupClient();
-    client.setQueryData(["explore-business-detail", 1], { id: 1, is_pocketed: false });
+    client.setQueryData(["explore-business-detail", 1], {
+      id: 1,
+      is_pocketed: false,
+    });
     const { result } = await renderHook(
       () => useBusinessPocket({ businessId: 1 }),
       { wrapper },
@@ -148,18 +170,24 @@ describe("displayed profile lifecycle", () => {
     );
     expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
     await rerender({ id: 1, displayed: 1 });
-    await waitFor(() => expect(recordBusinessProfileVisit).toHaveBeenCalledWith(1));
+    await waitFor(() =>
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(1),
+    );
     await rerender({ id: 1, displayed: 1 });
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1);
     mockFocused = false;
     await rerender({ id: 1, displayed: 1 });
     mockFocused = true;
     await rerender({ id: 1, displayed: 1 });
-    await waitFor(() => expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(2),
+    );
     await rerender({ id: 2, displayed: 1 });
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(2);
     await rerender({ id: 2, displayed: 2 });
-    await waitFor(() => expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2));
+    await waitFor(() =>
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2),
+    );
   });
 
   it("does not record failed/absent data, an invalid route, or an unfocused profile", async () => {
@@ -181,24 +209,22 @@ describe("displayed profile lifecycle", () => {
       code: "VALIDATION_ERROR",
     });
     const { wrapper } = setupClient();
-    const { rerender } = await renderHook(
-      () => useBusinessProfileVisit(1, 1),
-      { wrapper },
+    const { rerender } = await renderHook(() => useBusinessProfileVisit(1, 1), {
+      wrapper,
+    });
+    await waitFor(() =>
+      expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1),
     );
-    await waitFor(() => expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1));
     await rerender(undefined);
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("nested ScrollView observation", () => {
-  function layout(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-  ) {
-    return { nativeEvent: { layout: { x, y, width, height } } } as LayoutChangeEvent;
+  function layout(x: number, y: number, width: number, height: number) {
+    return {
+      nativeEvent: { layout: { x, y, width, height } },
+    } as LayoutChangeEvent;
   }
 
   it("requires visible layout in both axes, preserves callbacks, and clears timers", async () => {

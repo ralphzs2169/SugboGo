@@ -13,6 +13,12 @@ export async function getNewBusinesses(): Promise<
   return request(apiClient.get("/explorer/explore/new-businesses/"));
 }
 
+export async function getDiscoveryFeed(): Promise<
+  ApiResponse<ExploreBusinessListResponse>
+> {
+  return request(apiClient.get("/explorer/explore/discovery/"));
+}
+
 export async function getExploreBusinessDetail(
   businessId: number,
 ): Promise<ApiResponse<ExploreBusinessDetail>> {
@@ -81,13 +87,13 @@ export async function removeBusinessFromPocket(businessId: number): Promise<
   );
 }
 
-export async function recordBusinessImpressions(
-  businessIds: number[],
-): Promise<ApiResponse<{
-  business_ids: number[];
-  recorded_count: number;
-  duplicate_count: number;
-}>> {
+export async function recordBusinessImpressions(businessIds: number[]): Promise<
+  ApiResponse<{
+    business_ids: number[];
+    recorded_count: number;
+    duplicate_count: number;
+  }>
+> {
   return request(
     apiClient.post("/explorer/explore/visibility/impressions/", {
       business_ids: businessIds,
@@ -95,13 +101,13 @@ export async function recordBusinessImpressions(
   );
 }
 
-export async function recordBusinessProfileVisit(
-  businessId: number,
-): Promise<ApiResponse<{
-  business_id: number;
-  recorded: boolean;
-  duplicate: boolean;
-}>> {
+export async function recordBusinessProfileVisit(businessId: number): Promise<
+  ApiResponse<{
+    business_id: number;
+    recorded: boolean;
+    duplicate: boolean;
+  }>
+> {
   return request(
     apiClient.post(`/explorer/explore/businesses/${businessId}/profile-visit/`),
   );

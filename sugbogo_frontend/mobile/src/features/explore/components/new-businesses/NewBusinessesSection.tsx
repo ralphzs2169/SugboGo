@@ -1,6 +1,6 @@
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
-import * as Location from "expo-location";
-import { useEffect, useState } from "react";
+import type { LocationObject } from "expo-location";
+import { useEffect } from "react";
 
 import ErrorState from "@/shared/components/ErrorState";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
@@ -11,6 +11,7 @@ import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpre
 
 type Props = {
   impressions: BusinessImpressionObservation;
+  userLocation: LocationObject | null;
   onBusinessPress: (
     businessId: number,
     distance: number | null,
@@ -29,15 +30,15 @@ type Props = {
 export default function NewBusinessesSection({
   onBusinessPress,
   impressions,
+  userLocation,
 }: Props) {
   const { businesses, isLoading, error, refetch } = useNewBusinesses();
 
   const { retainBusinesses } = impressions;
 
   useEffect(() => {
-    const displayedIds = error || isLoading
-      ? []
-      : businesses.map((business) => business.id);
+    const displayedIds =
+      error || isLoading ? [] : businesses.map((business) => business.id);
 
     retainBusinesses(displayedIds);
   }, [businesses, error, isLoading, retainBusinesses]);
@@ -45,27 +46,6 @@ export default function NewBusinessesSection({
   useEffect(() => {
     return () => retainBusinesses([]);
   }, [retainBusinesses]);
-
-  const [userLocation, setUserLocation] =
-    useState<Location.LocationObject | null>(null);
-
-  useEffect(() => {
-    const loadLocation = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-
-      if (status !== Location.PermissionStatus.GRANTED) {
-        return;
-      }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      setUserLocation(location);
-    };
-
-    loadLocation();
-  }, []);
 
   if (isLoading) {
     return (

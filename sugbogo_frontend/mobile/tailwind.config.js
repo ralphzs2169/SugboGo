@@ -45,6 +45,7 @@ module.exports = {
         "nunito-medium": ["NunitoSans_500Medium"],
         "nunito-semibold": ["NunitoSans_600SemiBold"],
         "nunito-bold": ["NunitoSans_700Bold"],
+        "nunito-extrabold": ["NunitoSans_800ExtraBold"],
       },
 
       // ── FONT SIZES ───────────────────────────

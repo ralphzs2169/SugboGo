@@ -1,5 +1,6 @@
 import apiClient from "@/shared/api/apiClient.service";
 import {
+  getDiscoveryFeed,
   getExploreBusinessDetail,
   pocketBusiness,
   removeBusinessFromPocket,
@@ -32,6 +33,12 @@ describe("visibility transport", () => {
     );
   });
 
+  it("loads the ranked Discovery feed from its exact endpoint", async () => {
+    await getDiscoveryFeed();
+
+    expect(apiClient.get).toHaveBeenCalledWith("/explorer/explore/discovery/");
+  });
+
   it("uses the profile ID endpoint without any identity or timestamp body", async () => {
     await recordBusinessProfileVisit(34);
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -40,7 +47,13 @@ describe("visibility transport", () => {
   });
 
   it("keeps data fetching and prefetching free of telemetry", async () => {
+    await getDiscoveryFeed();
     await getExploreBusinessDetail(34);
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      1,
+      "/explorer/explore/discovery/",
+    );
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 

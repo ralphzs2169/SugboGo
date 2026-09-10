@@ -1,7 +1,10 @@
-import { View, TextInput, Pressable, ScrollView, Text } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+
 type CategoryIconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
 type Category = {
@@ -21,38 +24,84 @@ type Props = {
   onSelectCategory: (category: string) => void;
 };
 
-export default function ExploreTopBar({ selectedCategory, onSelectCategory }: Props) {
+/**
+ * Displays the primary Explore navigation and discovery controls.
+ *
+ * Establishes Cebu as the current exploration context and provides search
+ * and category controls without competing with the discovery content below.
+ */
+export default function ExploreTopBar({
+  selectedCategory,
+  onSelectCategory,
+}: Props) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View className="bg-surface px-4 pb-3" style={{ paddingTop: insets.top + 8 }}>
-      <View className="flex-row items-center justify-between mb-3">
-        <Text className="text-lg font-bold tracking-[0.5px]">
-        <Text className="text-brand">Sugbo</Text>
-        <Text className="text-text-primary">Go</Text>
-        </Text>
-        <Pressable hitSlop={12}>
+    <View
+      className="bg-surface px-4 pb-3"
+      style={{ paddingTop: insets.top + 8 }}
+    >
+      {/* Explore context */}
+      <View className="mb-4 flex-row items-start justify-between">
+        <View>
+          <AppText weight="extrabold" className="text-2xl text-text-primary">
+            Explore{" "}
+            <AppText weight="extrabold" className="text-2xl text-brand">
+              Cebu
+            </AppText>
+          </AppText>
+
+          <View className="mt-1 flex-row items-center">
+            <MaterialCommunityIcons
+              name="map-marker-outline"
+              size={15}
+              color={theme.extends.colors.text.secondary}
+            />
+
+            <AppText
+              weight="medium"
+              className="ml-1 text-sm  text-text-secondary"
+            >
+              Cebu City, Cebu
+            </AppText>
+          </View>
+        </View>
+
+        <Pressable
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
+          className="cursor-pointer items-center justify-center rounded-full bg-background p-2.5 active:opacity-70"
+        >
           <MaterialCommunityIcons
             name="bell-outline"
-            size={22}
+            size={21}
             color={theme.extends.colors.text.secondary}
           />
         </Pressable>
       </View>
 
-      <View className="flex-row items-center rounded-input bg-background px-3 py-2 mb-3">
+      {/* Business search */}
+      <View className="mb-3 flex-row items-center rounded-input border border-border-primary bg-background px-3.5 py-1">
         <MaterialCommunityIcons
           name="magnify"
-          size={18}
+          size={26}
           color={theme.extends.colors.text.tertiary}
         />
+
         <TextInput
           className="ml-2 flex-1 text-sm text-text-primary"
-          placeholder="Find the best of Cebu..."
+          style={{
+            fontFamily: "NunitoSans_400Regular",
+          }}
+          placeholder="Search businesses or places..."
           placeholderTextColor={theme.extends.colors.text.tertiary}
+          returnKeyType="search"
+          accessibilityLabel="Search businesses or places"
         />
       </View>
 
+      {/* Discovery categories */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -61,31 +110,38 @@ export default function ExploreTopBar({ selectedCategory, onSelectCategory }: Pr
       >
         {CATEGORIES.map((category) => {
           const isActive = category.label === selectedCategory;
+
           return (
             <Pressable
-  key={category.label}
-  onPress={() => onSelectCategory(category.label)}
-  className={`flex-row items-center rounded-full px-4 py-2 ${
-    isActive ? "bg-brand" : "bg-background border border-border"
-  }`}
->
-  {category.icon && (
-    <MaterialCommunityIcons
-      name={category.icon}
-      size={14}
-      color={isActive ? "#FFFFFF" : theme.extends.colors.text.secondary}
-      style={{ marginRight: 4 }}s
-    />
-  )}
-  <Text
-    className={`text-sm font-medium ${
-      isActive ? "text-white" : "text-text-secondary"
-    }`}
-  >
-    {category.label}
-  </Text>
-</Pressable>
-            
+              key={category.label}
+              onPress={() => onSelectCategory(category.label)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isActive }}
+              className={`cursor-pointer flex-row items-center rounded-full  px-4 py-2 ${
+                isActive
+                  ? "border-brand bg-brand"
+                  : "border-border bg-background"
+              }`}
+            >
+              {category.icon && (
+                <MaterialCommunityIcons
+                  name={category.icon}
+                  size={14}
+                  color={
+                    isActive ? "#FFFFFF" : theme.extends.colors.text.secondary
+                  }
+                  style={{ marginRight: 5 }}
+                />
+              )}
+
+              <AppText
+                className={`text-sm font-medium ${
+                  isActive ? "text-white" : "text-text-secondary"
+                }`}
+              >
+                {category.label}
+              </AppText>
+            </Pressable>
           );
         })}
       </ScrollView>

@@ -5,6 +5,7 @@ import {
   removeBusinessFromPocket,
 } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
 
 import type {
   ExploreBusinessDetail,
@@ -40,22 +41,32 @@ export default function useBusinessPocket({ businessId }: Props) {
 
     onMutate: async ({ isPocketed }) => {
       const detailQueryKey = ["explore-business-detail", businessId];
-      const feedQueryKey = ["explore-new-businesses"];
+      const newBusinessesQueryKey = ["explore-new-businesses"];
 
       await Promise.all([
         queryClient.cancelQueries({
           queryKey: detailQueryKey,
         }),
         queryClient.cancelQueries({
-          queryKey: feedQueryKey,
+          queryKey: newBusinessesQueryKey,
+        }),
+        queryClient.cancelQueries({
+          queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
       ]);
 
       const previousBusiness =
         queryClient.getQueryData<ExploreBusinessDetail>(detailQueryKey);
 
-      const previousFeed =
-        queryClient.getQueryData<ExploreBusinessListResponse>(feedQueryKey);
+      const previousNewBusinesses =
+        queryClient.getQueryData<ExploreBusinessListResponse>(
+          newBusinessesQueryKey,
+        );
+
+      const previousDiscoveryFeed =
+        queryClient.getQueryData<ExploreBusinessListResponse>(
+          DISCOVERY_FEED_QUERY_KEY,
+        );
 
       // Update business detail optimistically.
       queryClient.setQueryData<ExploreBusinessDetail>(
@@ -72,33 +83,42 @@ export default function useBusinessPocket({ businessId }: Props) {
         },
       );
 
-      // Update discovery feed optimistically.
+      const updatePocketState = (
+        currentFeed: ExploreBusinessListResponse | undefined,
+      ) => {
+        if (!currentFeed) {
+          return currentFeed;
+        }
+
+        return {
+          ...currentFeed,
+          items: currentFeed.items.map((business) => {
+            if (business.id !== businessId) {
+              return business;
+            }
+
+            return {
+              ...business,
+              is_pocketed: !isPocketed,
+            };
+          }),
+        };
+      };
+
+      // Update both Explorer carousels optimistically.
       queryClient.setQueryData<ExploreBusinessListResponse>(
-        feedQueryKey,
-        (currentFeed) => {
-          if (!currentFeed) {
-            return currentFeed;
-          }
-
-          return {
-            ...currentFeed,
-            items: currentFeed.items.map((business) => {
-              if (business.id !== businessId) {
-                return business;
-              }
-
-              return {
-                ...business,
-                is_pocketed: !isPocketed,
-              };
-            }),
-          };
-        },
+        newBusinessesQueryKey,
+        updatePocketState,
+      );
+      queryClient.setQueryData<ExploreBusinessListResponse>(
+        DISCOVERY_FEED_QUERY_KEY,
+        updatePocketState,
       );
 
       return {
         previousBusiness,
-        previousFeed,
+        previousNewBusinesses,
+        previousDiscoveryFeed,
       };
     },
 
@@ -110,10 +130,17 @@ export default function useBusinessPocket({ businessId }: Props) {
         );
       }
 
-      if (context?.previousFeed) {
+      if (context?.previousNewBusinesses) {
         queryClient.setQueryData(
           ["explore-new-businesses"],
-          context.previousFeed,
+          context.previousNewBusinesses,
+        );
+      }
+
+      if (context?.previousDiscoveryFeed) {
+        queryClient.setQueryData(
+          DISCOVERY_FEED_QUERY_KEY,
+          context.previousDiscoveryFeed,
         );
       }
     },
@@ -125,6 +152,9 @@ export default function useBusinessPocket({ businessId }: Props) {
         }),
         queryClient.invalidateQueries({
           queryKey: ["explore-new-businesses"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
       ]);
     },
