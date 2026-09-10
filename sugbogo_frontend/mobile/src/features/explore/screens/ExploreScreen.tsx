@@ -94,6 +94,7 @@ export default function ExploreScreen() {
       <ExploreTopBar
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
+        onPressFilters={() => {}}
       />
 
       {/* Discovery viewport excludes the fixed navigation controls. */}

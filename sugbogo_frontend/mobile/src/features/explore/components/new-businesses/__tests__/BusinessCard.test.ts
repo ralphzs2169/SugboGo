@@ -1,4 +1,4 @@
-import { getBusinessCardWidth } from "../newBusinessCard";
+import { getBusinessCardWidth } from "../BusinessCard";
 
 describe("business card presentation width", () => {
   it("uses 84 percent of a phone screen for the featured variant", () => {

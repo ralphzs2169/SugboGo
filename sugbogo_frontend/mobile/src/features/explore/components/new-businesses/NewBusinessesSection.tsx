@@ -6,7 +6,7 @@ import ErrorState from "@/shared/components/ErrorState";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
 import useNewBusinesses from "../../hooks/useNewBusinesses";
-import NewBusinessCard from "./newBusinessCard";
+import BusinessCard from "./BusinessCard";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 
 type Props = {
@@ -139,7 +139,7 @@ export default function NewBusinessesSection({
               collapsable={false}
               onLayout={(event) => impressions.onCardLayout(business.id, event)}
             >
-              <NewBusinessCard
+              <BusinessCard
                 business={business}
                 distance={distance}
                 distanceAccuracy={userLocation?.coords.accuracy ?? null}

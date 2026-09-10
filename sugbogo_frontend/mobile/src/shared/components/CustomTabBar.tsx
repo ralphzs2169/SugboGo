@@ -75,9 +75,10 @@ function TabItem({
 
         {/* Label */}
         <Animated.Text
-          className="mt-1 text-[10px] font-medium"
+          className="mt-1 text-[10px]"
           style={{
             color: activeColor,
+            fontFamily: "NunitoSans_600SemiBold",
           }}
           numberOfLines={1}
           adjustsFontSizeToFit

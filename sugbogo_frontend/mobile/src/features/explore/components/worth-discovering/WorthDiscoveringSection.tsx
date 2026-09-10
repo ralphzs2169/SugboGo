@@ -6,7 +6,7 @@ import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
-import NewBusinessCard from "../new-businesses/newBusinessCard";
+import BusinessCard from "../new-businesses/BusinessCard";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import AppText from "@/shared/components/AppText";
@@ -55,7 +55,7 @@ export default function WorthDiscoveringSection({
 
   if (isLoading) {
     return (
-      <View className="mt-4 py-6">
+      <View className=" py-6">
         {/* Section heading */}
         <View className="mb-4 px-4">
           <AppText weight="bold" className="text-xl text-text-primary">
@@ -77,7 +77,7 @@ export default function WorthDiscoveringSection({
 
   if (error) {
     return (
-      <View className="mt-4 py-6" testID="worth-discovering-error">
+      <View className="py-6" testID="worth-discovering-error">
         {/* Section heading */}
         <View className="mb-2 px-4">
           <AppText weight="bold" className="text-xl text-text-primary">
@@ -105,10 +105,7 @@ export default function WorthDiscoveringSection({
 
   if (businesses.length === 0) {
     return (
-      <View
-        testID="worth-discovering-empty"
-        className="mt-4 py-6"
-      >
+      <View testID="worth-discovering-empty" className="mt-4 py-6">
         {/* Section heading */}
         <View className="mb-3 px-4">
           <AppText weight="bold" className="text-xl text-text-primary">
@@ -137,7 +134,7 @@ export default function WorthDiscoveringSection({
   return (
     <View
       testID="worth-discovering-section"
-      className="mt-4 py-6"
+      className="py-6"
       onLayout={impressions.onSectionLayout}
     >
       {/* Section heading */}
@@ -179,7 +176,7 @@ export default function WorthDiscoveringSection({
               collapsable={false}
               onLayout={(event) => impressions.onCardLayout(business.id, event)}
             >
-              <NewBusinessCard
+              <BusinessCard
                 business={business}
                 distance={distance}
                 distanceAccuracy={userLocation?.coords.accuracy ?? null}

@@ -63,7 +63,7 @@ jest.mock("../../hooks/useNewBusinesses", () => ({
     refetch: jest.fn(),
   }),
 }));
-jest.mock("../../components/new-businesses/newBusinessCard", () => {
+jest.mock("../../components/new-businesses/BusinessCard", () => {
   const { Text } = require("react-native");
   return {
     __esModule: true,

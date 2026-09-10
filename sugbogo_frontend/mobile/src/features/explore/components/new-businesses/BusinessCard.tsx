@@ -22,7 +22,9 @@ type Props = {
 const CARD_WIDTH = 226;
 const FEATURED_CARD_WIDTH_RATIO = 0.74;
 const FEATURED_CARD_MAX_WIDTH = 360;
+const CARD_HEIGHT = 356;
 const HERO_HEIGHT = 190;
+const TAG_SECTION_HEIGHT = 38;
 
 /** Returns the card width for the selected presentation. */
 export function getBusinessCardWidth(
@@ -42,10 +44,10 @@ export function getBusinessCardWidth(
 /**
  * Displays a business as a reusable discovery card with inset imagery.
  *
- * Keeps business identity and specialty tags outside the photo for cleaner
- * readability while preserving category, distance, and saved-state context.
+ * Uses a fixed card height and reserved specialty-tag area so horizontally
+ * arranged cards remain visually aligned despite different tag lengths.
  */
-export default function NewBusinessCard({
+export default function BusinessCard({
   business,
   distance,
   distanceAccuracy,
@@ -75,6 +77,7 @@ export default function NewBusinessCard({
       onPress={onPress}
       style={{
         width: cardWidth,
+        height: CARD_HEIGHT,
       }}
       accessibilityRole="button"
       accessibilityLabel={`Open ${business.business_name} business profile`}
@@ -134,7 +137,7 @@ export default function NewBusinessCard({
       </View>
 
       {/* Business identity */}
-      <View className="px-1 pt-3">
+      <View className="flex-1 px-1 pt-3">
         <AppText
           weight="bold"
           className="text-base leading-5 text-text-primary"
@@ -143,23 +146,27 @@ export default function NewBusinessCard({
           {business.business_name}
         </AppText>
 
-        {displayTags.length > 0 && (
-          <View className="mt-2 flex-row flex-wrap ">
-            {displayTags.map((tag) => (
-              <SpecialtyTagChip
-                key={tag.id}
-                tag={tag}
-                size="small"
-                isSelected={tag.is_vouched}
-                showVouchIndicator={tag.is_vouched}
-              />
-            ))}
-          </View>
-        )}
+        {/* Specialty tags */}
+        <View
+          className="mt-2 flex-row flex-wrap content-start"
+          style={{
+            height: TAG_SECTION_HEIGHT,
+          }}
+        >
+          {displayTags.map((tag) => (
+            <SpecialtyTagChip
+              key={tag.id}
+              tag={tag}
+              size="small"
+              isSelected={tag.is_vouched}
+              showVouchIndicator={tag.is_vouched}
+            />
+          ))}
+        </View>
       </View>
 
       {/* Business metadata */}
-      <View className="mt-3 flex-row items-center justify-between gap-3 px-1 pb-1">
+      <View className="flex-row items-center justify-between gap-3 px-1 pb-1">
         <View className="min-w-0 flex-1 flex-row items-center">
           <MaterialCommunityIcons
             name={clusterIconName}

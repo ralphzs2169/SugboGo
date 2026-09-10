@@ -18,7 +18,7 @@ const mockBusinessCard = jest.fn(
   ),
 );
 
-jest.mock("../../new-businesses/newBusinessCard", () => ({
+jest.mock("../../new-businesses/BusinessCard", () => ({
   __esModule: true,
   default: (props: unknown) => mockBusinessCard(props as never),
 }));
