@@ -170,6 +170,10 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    attempt_number = serializers.IntegerField(
+        read_only=True,
+    )
+    
     reason = serializers.CharField(
         source="MRDSP_REASON",
         read_only=True,
@@ -221,6 +225,7 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
             "id",
             "review_id",
             "business_id",
+            "attempt_number",
             "reason",
             "description",
             "status",

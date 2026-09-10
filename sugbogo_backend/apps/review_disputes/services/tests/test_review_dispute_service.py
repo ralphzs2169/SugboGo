@@ -1017,3 +1017,34 @@ class ReviewDisputeServiceTests(TestCase):
                 self.merchant,
                 dispute.MRDSP_ID,
             )
+
+
+    def test_create_dispute_sets_first_attempt_number(self):
+        dispute = self.create_dispute()
+
+        self.assertEqual(
+            dispute.attempt_number,
+            1,
+        )
+
+
+    def test_create_dispute_increments_attempt_number_after_resubmission(self):
+        first_dispute = self.create_dispute()
+
+        first_dispute.MRDSP_STATUS = (
+            MerchantReviewDispute.DisputeStatus.DISMISSED
+        )
+        first_dispute.save(
+            update_fields=["MRDSP_STATUS"],
+        )
+
+        second_dispute = self.create_dispute()
+
+        self.assertEqual(
+            first_dispute.attempt_number,
+            1,
+        )
+        self.assertEqual(
+            second_dispute.attempt_number,
+            2,
+        )
