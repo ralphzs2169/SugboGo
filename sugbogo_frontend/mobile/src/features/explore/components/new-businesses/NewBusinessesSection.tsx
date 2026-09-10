@@ -7,8 +7,10 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
 import useNewBusinesses from "../../hooks/useNewBusinesses";
 import NewBusinessCard from "./newBusinessCard";
+import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 
 type Props = {
+  impressions: BusinessImpressionObservation;
   onBusinessPress: (
     businessId: number,
     distance: number | null,
@@ -20,11 +22,29 @@ type Props = {
  * Displays newly added active businesses from the Explorer API.
  *
  * Business distances are calculated locally from the explorer's current
- * location. Location access is optional, so businesses remain visible when
+ * location. Card container layouts feed screen-level visibility observation.
+ * Location access is optional, so businesses remain visible when
  * permission is denied or the device location is unavailable.
  */
-export default function NewBusinessesSection({ onBusinessPress }: Props) {
+export default function NewBusinessesSection({
+  onBusinessPress,
+  impressions,
+}: Props) {
   const { businesses, isLoading, error, refetch } = useNewBusinesses();
+
+  const { retainBusinesses } = impressions;
+
+  useEffect(() => {
+    const displayedIds = error || isLoading
+      ? []
+      : businesses.map((business) => business.id);
+
+    retainBusinesses(displayedIds);
+  }, [businesses, error, isLoading, retainBusinesses]);
+
+  useEffect(() => {
+    return () => retainBusinesses([]);
+  }, [retainBusinesses]);
 
   const [userLocation, setUserLocation] =
     useState<Location.LocationObject | null>(null);
@@ -95,7 +115,11 @@ export default function NewBusinessesSection({ onBusinessPress }: Props) {
   }
 
   return (
-    <View className="mt-6 py-6 bg-surface">
+    <View
+      testID="new-businesses-section"
+      className="mt-6 py-6 bg-surface"
+      onLayout={impressions.onSectionLayout}
+    >
       {/* Section heading */}
       <View className="mb-3 px-4">
         <Text className="text-lg font-bold text-text-primary">
@@ -109,6 +133,10 @@ export default function NewBusinessesSection({ onBusinessPress }: Props) {
 
       {/* Business cards */}
       <ScrollView
+        testID="new-businesses-scroll"
+        onLayout={impressions.onListLayout}
+        onScroll={impressions.onHorizontalScroll}
+        scrollEventThrottle={16}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerClassName="gap-3 px-4"
@@ -125,19 +153,25 @@ export default function NewBusinessesSection({ onBusinessPress }: Props) {
               : null;
 
           return (
-            <NewBusinessCard
+            <View
               key={business.id}
-              business={business}
-              distance={distance}
-              distanceAccuracy={userLocation?.coords.accuracy ?? null}
-              onPress={() =>
-                onBusinessPress(
-                  business.id,
-                  distance,
-                  userLocation?.coords.accuracy ?? null,
-                )
-              }
-            />
+              testID={`business-impression-${business.id}`}
+              collapsable={false}
+              onLayout={(event) => impressions.onCardLayout(business.id, event)}
+            >
+              <NewBusinessCard
+                business={business}
+                distance={distance}
+                distanceAccuracy={userLocation?.coords.accuracy ?? null}
+                onPress={() =>
+                  onBusinessPress(
+                    business.id,
+                    distance,
+                    userLocation?.coords.accuracy ?? null,
+                  )
+                }
+              />
+            </View>
           );
         })}
       </ScrollView>

@@ -80,3 +80,29 @@ export async function removeBusinessFromPocket(businessId: number): Promise<
     apiClient.delete(`/explorer/explore/businesses/${businessId}/pocket/`),
   );
 }
+
+export async function recordBusinessImpressions(
+  businessIds: number[],
+): Promise<ApiResponse<{
+  business_ids: number[];
+  recorded_count: number;
+  duplicate_count: number;
+}>> {
+  return request(
+    apiClient.post("/explorer/explore/visibility/impressions/", {
+      business_ids: businessIds,
+    }),
+  );
+}
+
+export async function recordBusinessProfileVisit(
+  businessId: number,
+): Promise<ApiResponse<{
+  business_id: number;
+  recorded: boolean;
+  duplicate: boolean;
+}>> {
+  return request(
+    apiClient.post(`/explorer/explore/businesses/${businessId}/profile-visit/`),
+  );
+}

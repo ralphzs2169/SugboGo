@@ -28,6 +28,7 @@ import BusinessVisitInfoContent from "../components/business-profile/BusinessVis
 import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
 
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
+import useBusinessProfileVisit from "../hooks/useBusinessProfileVisit";
 import { useBusinessReviewPreview } from "../hooks/useBusinessReviews";
 
 import {
@@ -63,6 +64,8 @@ export default function ExploreBusinessProfileScreen({
 }: Props) {
   const { business, isLoading, error, refetch } =
     useExploreBusinessProfile(businessId);
+
+  useBusinessProfileVisit(businessId, business?.id);
 
   const { totalCount: reviewCount } = useBusinessReviewPreview(businessId);
 

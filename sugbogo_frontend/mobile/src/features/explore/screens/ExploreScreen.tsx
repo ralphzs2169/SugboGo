@@ -10,14 +10,17 @@ import DiscoverMoreSection from "../components/discover-more/DiscoverMoreSection
 import TrendingSection from "../components/trending/TrendingSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
 import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
+import useBusinessImpressions from "../hooks/useBusinessImpressions";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
+/** Displays discovery sections and observes real business cards within both scroll axes. */
 export default function ExploreScreen() {
   const queryClient = useQueryClient();
 
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const bottomSpacing = useTabBarSpacing();
+  const impressions = useBusinessImpressions(bottomSpacing);
 
   const handleBusinessPress = (businessId: number) => {
     router.push({
@@ -47,7 +50,12 @@ export default function ExploreScreen() {
         onSelectCategory={setSelectedCategory}
       />
 
+      {/* Discovery viewport excludes the fixed navigation controls. */}
       <ScrollView
+        testID="explore-discovery-scroll"
+        onLayout={impressions.onViewportLayout}
+        onScroll={impressions.onVerticalScroll}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pt-4 pb-8"
         contentContainerStyle={{ paddingBottom: bottomSpacing }}
@@ -64,6 +72,7 @@ export default function ExploreScreen() {
         <TrendingSection selectedCategory={selectedCategory} />
 
         <NewBusinessesSection
+          impressions={impressions}
           onBusinessPress={(businessId, distance, distanceAccuracy) => {
             router.push({
               pathname: "/(explorer)/business/[businessId]",
