@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -22,7 +22,9 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.business.services.discovery_score_service import (
+    DiscoveryScoreRecomputeStatus,
     DiscoveryScoreService,
+    StaleDiscoveryScoreResult,
 )
 from apps.business.services.specialty_score_service import (
     BusinessSpecialtyScore,
@@ -905,7 +907,7 @@ class DiscoveryScoreServiceTests(TestCase):
             "recompute_business_specialty_score",
             side_effect=specialty_results,
         ) as specialty_mock:
-            results = DiscoveryScoreService.recompute_business_scores(
+            batch_result = DiscoveryScoreService.recompute_business_scores(
                 business_ids=[
                     self.business.BUSN_ID,
                     second_business.BUSN_ID,
@@ -934,10 +936,20 @@ class DiscoveryScoreServiceTests(TestCase):
             ),
         )
         self.assertEqual(
-            len(
-                results,
-            ),
+            batch_result.considered_count,
             2,
+        )
+        self.assertEqual(
+            batch_result.updated_count,
+            2,
+        )
+        self.assertEqual(
+            batch_result.stale_count,
+            0,
+        )
+        self.assertEqual(
+            batch_result.failed_count,
+            0,
         )
         self.assertEqual(
             DiscoveryScore.objects.filter(
@@ -947,6 +959,270 @@ class DiscoveryScoreServiceTests(TestCase):
                 ],
             ).count(),
             2,
+        )
+
+    def test_older_recompute_skips_aggregate_and_tag_score_writes(self):
+        """Keeps newer aggregate and TagScores when an older run arrives."""
+
+        newer_reference_time = self.REFERENCE_TIME
+        older_reference_time = (
+            newer_reference_time
+            - timedelta(
+                minutes=5,
+            )
+        )
+        score_record = DiscoveryScore.objects.create(
+            BUSN_ID=self.business,
+            DSC_S_SCORE=Decimal("0.70000"),
+            DSC_V_SCORE=Decimal("0.20000"),
+            DSC_D_SCORE=Decimal("0.60000"),
+            DSC_COMPUTED_AT=newer_reference_time,
+        )
+        BusinessSpecialtyTag.objects.filter(
+            BUSN_ID=self.business,
+        ).update(
+            BST_TAG_SCORE=Decimal("0.45678"),
+            BST_SCORE_UPDATED_AT=newer_reference_time,
+        )
+
+        with patch.object(
+            VisibilityGapService,
+            "calculate_business_visibility_gap",
+            return_value=self._visibility_result(
+                Decimal("1.00000"),
+            ),
+        ), patch.object(
+            SpecialtyScoreService,
+            "recompute_business_specialty_score",
+        ) as specialty_mock:
+            result = DiscoveryScoreService.recompute_business_score(
+                business_id=self.business.BUSN_ID,
+                reference_time=older_reference_time,
+            )
+
+        score_record.refresh_from_db()
+        specialty_mock.assert_not_called()
+        self.assertIsInstance(
+            result,
+            StaleDiscoveryScoreResult,
+        )
+        self.assertEqual(
+            result.status,
+            DiscoveryScoreRecomputeStatus.SKIPPED_STALE,
+        )
+        self.assertEqual(
+            result.requested_reference_time,
+            older_reference_time,
+        )
+        self.assertEqual(
+            result.current_reference_time,
+            newer_reference_time,
+        )
+        self.assertEqual(
+            score_record.DSC_S_SCORE,
+            Decimal("0.70000"),
+        )
+        self.assertEqual(
+            score_record.DSC_V_SCORE,
+            Decimal("0.20000"),
+        )
+        self.assertEqual(
+            score_record.DSC_D_SCORE,
+            Decimal("0.60000"),
+        )
+        self.assertFalse(
+            BusinessSpecialtyTag.objects.filter(
+                BUSN_ID=self.business,
+            ).exclude(
+                BST_TAG_SCORE=Decimal("0.45678"),
+                BST_SCORE_UPDATED_AT=newer_reference_time,
+            ).exists(),
+        )
+
+    def test_same_reference_time_recomputes_same_current_row(self):
+        """Allows an equal reference time to update the existing current row."""
+
+        score_record = DiscoveryScore.objects.create(
+            BUSN_ID=self.business,
+            DSC_S_SCORE=Decimal("0.10000"),
+            DSC_V_SCORE=Decimal("0.10000"),
+            DSC_D_SCORE=Decimal("0.10000"),
+            DSC_COMPUTED_AT=self.REFERENCE_TIME,
+        )
+
+        result = self._recompute_with_results(
+            specialty_score=Decimal("0.70000"),
+            visibility_gap=Decimal("0.20000"),
+        )
+        score_record.refresh_from_db()
+
+        self.assertEqual(
+            result.status,
+            DiscoveryScoreRecomputeStatus.UPDATED,
+        )
+        self.assertEqual(
+            result.discovery_score_id,
+            score_record.DSC_ID,
+        )
+        self.assertEqual(
+            score_record.DSC_D_SCORE,
+            Decimal("0.60000"),
+        )
+        self.assertEqual(
+            DiscoveryScore.objects.filter(
+                BUSN_ID=self.business,
+            ).count(),
+            1,
+        )
+
+    def test_newer_reference_time_updates_existing_current_row(self):
+        """Lets a newer scoring run replace the current aggregate values."""
+
+        older_reference_time = (
+            self.REFERENCE_TIME
+            - timedelta(
+                minutes=5,
+            )
+        )
+        score_record = DiscoveryScore.objects.create(
+            BUSN_ID=self.business,
+            DSC_S_SCORE=Decimal("0.10000"),
+            DSC_V_SCORE=Decimal("0.10000"),
+            DSC_D_SCORE=Decimal("0.10000"),
+            DSC_COMPUTED_AT=older_reference_time,
+        )
+
+        result = self._recompute_with_results(
+            specialty_score=Decimal("0.70000"),
+            visibility_gap=Decimal("0.20000"),
+        )
+        score_record.refresh_from_db()
+
+        self.assertEqual(
+            result.status,
+            DiscoveryScoreRecomputeStatus.UPDATED,
+        )
+        self.assertEqual(
+            score_record.DSC_COMPUTED_AT,
+            self.REFERENCE_TIME,
+        )
+        self.assertEqual(
+            score_record.DSC_D_SCORE,
+            Decimal("0.60000"),
+        )
+
+    def test_batch_surfaces_a_stale_business_skip(self):
+        """Counts an older business result as stale in the batch summary."""
+
+        older_reference_time = (
+            self.REFERENCE_TIME
+            - timedelta(
+                minutes=5,
+            )
+        )
+        DiscoveryScore.objects.create(
+            BUSN_ID=self.business,
+            DSC_S_SCORE=Decimal("0.70000"),
+            DSC_V_SCORE=Decimal("0.20000"),
+            DSC_D_SCORE=Decimal("0.60000"),
+            DSC_COMPUTED_AT=self.REFERENCE_TIME,
+        )
+
+        with patch.object(
+            VisibilityGapService,
+            "calculate_visibility_gaps",
+            return_value=(
+                self._visibility_result(
+                    Decimal("1.00000"),
+                ),
+            ),
+        ), patch.object(
+            SpecialtyScoreService,
+            "recompute_business_specialty_score",
+        ) as specialty_mock:
+            batch_result = (
+                DiscoveryScoreService.recompute_business_scores(
+                    business_ids=[
+                        self.business.BUSN_ID,
+                    ],
+                    reference_time=older_reference_time,
+                )
+            )
+
+        specialty_mock.assert_not_called()
+        self.assertEqual(
+            batch_result.considered_count,
+            1,
+        )
+        self.assertEqual(
+            batch_result.updated_count,
+            0,
+        )
+        self.assertEqual(
+            batch_result.stale_count,
+            1,
+        )
+        self.assertEqual(
+            batch_result.failed_count,
+            0,
+        )
+
+    def test_batch_isolates_known_business_domain_failures(self):
+        """Continues after one business has a known service-layer failure."""
+
+        visibility_results = (
+            self._visibility_result(
+                Decimal("1.00000"),
+            ),
+            self._visibility_result(
+                Decimal("0.50000"),
+                business_id=999,
+            ),
+        )
+
+        with patch.object(
+            VisibilityGapService,
+            "calculate_visibility_gaps",
+            return_value=visibility_results,
+        ), patch.object(
+            DiscoveryScoreService,
+            "_persist_business_score",
+            side_effect=(
+                NotFound(
+                    "The active business could not be found.",
+                ),
+                object(),
+            ),
+        ):
+            batch_result = (
+                DiscoveryScoreService.recompute_business_scores(
+                    business_ids=[
+                        self.business.BUSN_ID,
+                        999,
+                    ],
+                    reference_time=self.REFERENCE_TIME,
+                )
+            )
+
+        self.assertEqual(
+            batch_result.considered_count,
+            2,
+        )
+        self.assertEqual(
+            batch_result.updated_count,
+            1,
+        )
+        self.assertEqual(
+            batch_result.failed_count,
+            1,
+        )
+        self.assertEqual(
+            batch_result.failures[0].business_id,
+            self.business.BUSN_ID,
+        )
+        self.assertEqual(
+            batch_result.failures[0].error_type,
+            "NotFound",
         )
 
     def test_scoring_does_not_change_visibility_pocket_or_reputation_data(self):

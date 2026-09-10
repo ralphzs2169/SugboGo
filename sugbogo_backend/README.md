@@ -349,3 +349,53 @@ For normal backend development using only your computer, continue using:
 ```bash
 python manage.py runserver
 ```
+
+---
+## 9.) Run Daily Discovery Score Recalculation Locally
+
+Celery uses the Redis broker configured in `.env`:
+
+```env
+CELERY_BROKER_URL=redis://127.0.0.1:6379/0
+```
+
+Start the existing local Redis container:
+
+```powershell
+docker start sugbogo-redis
+docker ps
+docker exec -it sugbogo-redis redis-cli ping
+```
+
+Run Django, the Celery worker, and Celery Beat in separate terminals. On
+Windows, use Celery's solo pool for the local worker only:
+
+```powershell
+# Terminal 1
+python manage.py runserver
+
+# Terminal 2
+celery -A config worker -l info --pool=solo
+
+# Terminal 3
+celery -A config beat -l info
+```
+
+The built-in Beat schedule sends the Discovery Score task once daily at
+02:00 in Django's configured timezone. Worker pool selection remains a
+deployment concern; production is not configured to use the Windows-only
+solo development pool.
+
+To send the task immediately without waiting for the daily schedule:
+
+```powershell
+python manage.py shell
+```
+
+```python
+from apps.business.tasks import recompute_discovery_scores
+
+recompute_discovery_scores.delay()
+```
+
+Celery and Django do not start or manage the Redis Docker container.

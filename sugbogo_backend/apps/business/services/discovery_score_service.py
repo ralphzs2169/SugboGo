@@ -2,10 +2,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP, localcontext
+from enum import StrEnum
 
 from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import APIException, NotFound
 
 from apps.admin_operations.system_configuration.models import (
     DiscoveryAlgorithmConfiguration,
@@ -26,6 +27,11 @@ from apps.business.services.visibility_gap_service import (
 )
 
 
+class DiscoveryScoreRecomputeStatus(StrEnum):
+    UPDATED = "UPDATED"
+    SKIPPED_STALE = "SKIPPED_STALE"
+
+
 @dataclass(frozen=True)
 class DiscoveryScoreResult:
     """Stores the explainable current discovery result for one business."""
@@ -44,6 +50,75 @@ class DiscoveryScoreResult:
     specialty_result: BusinessSpecialtyScore
     visibility_result: VisibilityGapResult
     discovery_score_id: int
+    status: DiscoveryScoreRecomputeStatus = (
+        DiscoveryScoreRecomputeStatus.UPDATED
+    )
+
+
+@dataclass(frozen=True)
+class StaleDiscoveryScoreResult:
+    """Describes a score run skipped because a newer score already exists."""
+
+    business_id: int
+    requested_reference_time: datetime
+    current_reference_time: datetime
+    specialty_score: Decimal
+    visibility_gap: Decimal
+    discovery_score: Decimal
+    discovery_score_id: int
+    status: DiscoveryScoreRecomputeStatus = (
+        DiscoveryScoreRecomputeStatus.SKIPPED_STALE
+    )
+
+
+@dataclass(frozen=True)
+class DiscoveryScoreBusinessFailure:
+    """Describes one business-level domain failure in a batch run."""
+
+    business_id: int
+    error_type: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class DiscoveryScoreBatchResult:
+    """Summarizes updated, stale, and failed businesses in one batch."""
+
+    reference_time: datetime
+    considered_count: int
+    updated_results: tuple[DiscoveryScoreResult, ...]
+    stale_results: tuple[StaleDiscoveryScoreResult, ...]
+    failures: tuple[DiscoveryScoreBusinessFailure, ...]
+
+    @property
+    def updated_count(self) -> int:
+        """Returns how many businesses received a current score update."""
+
+        return len(
+            self.updated_results,
+        )
+
+    @property
+    def stale_count(self) -> int:
+        """Returns how many businesses were skipped as stale."""
+
+        return len(
+            self.stale_results,
+        )
+
+    @property
+    def failed_count(self) -> int:
+        """Returns how many businesses had an isolated domain failure."""
+
+        return len(
+            self.failures,
+        )
+
+
+DiscoveryScoreBusinessResult = (
+    DiscoveryScoreResult
+    | StaleDiscoveryScoreResult
+)
 
 
 class DiscoveryScoreService:
@@ -169,6 +244,24 @@ class DiscoveryScoreService:
             discovery_score_id=score_record.DSC_ID,
         )
 
+    @staticmethod
+    def _build_stale_result(
+        business_id: int,
+        reference_time: datetime,
+        score_record: DiscoveryScore,
+    ) -> StaleDiscoveryScoreResult:
+        """Builds a result showing that an older score run was skipped."""
+
+        return StaleDiscoveryScoreResult(
+            business_id=business_id,
+            requested_reference_time=reference_time,
+            current_reference_time=score_record.DSC_COMPUTED_AT,
+            specialty_score=score_record.DSC_S_SCORE,
+            visibility_gap=score_record.DSC_V_SCORE,
+            discovery_score=score_record.DSC_D_SCORE,
+            discovery_score_id=score_record.DSC_ID,
+        )
+
     @classmethod
     @transaction.atomic
     def _persist_business_score(
@@ -177,12 +270,31 @@ class DiscoveryScoreService:
         visibility_result: VisibilityGapResult,
         reference_time: datetime,
         configuration: DiscoveryAlgorithmConfiguration,
-    ) -> DiscoveryScoreResult:
+    ) -> DiscoveryScoreBusinessResult:
         """Stores TagScores and one aggregate score in one transaction."""
 
         cls._lock_active_business(
             business_id=business_id,
         )
+        score_record = (
+            DiscoveryScore.objects
+            .select_for_update()
+            .filter(
+                BUSN_ID_id=business_id,
+            )
+            .first()
+        )
+
+        if (
+            score_record is not None
+            and reference_time < score_record.DSC_COMPUTED_AT
+        ):
+            return cls._build_stale_result(
+                business_id=business_id,
+                reference_time=reference_time,
+                score_record=score_record,
+            )
+
         specialty_result = (
             SpecialtyScoreService
             .recompute_business_specialty_score(
@@ -210,15 +322,6 @@ class DiscoveryScoreService:
         persisted_discovery_score = cls._quantize_score(
             discovery_score,
         )
-        score_record = (
-            DiscoveryScore.objects
-            .select_for_update()
-            .filter(
-                BUSN_ID_id=business_id,
-            )
-            .first()
-        )
-
         if score_record is None:
             score_record = DiscoveryScore.objects.create(
                 BUSN_ID_id=business_id,
@@ -256,7 +359,7 @@ class DiscoveryScoreService:
         business_id: int,
         reference_time: datetime | None = None,
         configuration: DiscoveryAlgorithmConfiguration | None = None,
-    ) -> DiscoveryScoreResult:
+    ) -> DiscoveryScoreBusinessResult:
         """Recomputes and stores the current score for one active business."""
 
         if reference_time is None:
@@ -289,7 +392,7 @@ class DiscoveryScoreService:
         cls,
         business_ids: Iterable[int] | None = None,
         reference_time: datetime | None = None,
-    ) -> tuple[DiscoveryScoreResult, ...]:
+    ) -> DiscoveryScoreBatchResult:
         """Recomputes active businesses with one time and configuration snapshot."""
 
         if reference_time is None:
@@ -308,12 +411,56 @@ class DiscoveryScoreService:
             )
         )
 
-        return tuple(
-            cls._persist_business_score(
-                business_id=visibility_result.business_id,
-                visibility_result=visibility_result,
-                reference_time=reference_time,
-                configuration=configuration,
-            )
-            for visibility_result in visibility_results
+        updated_results = []
+        stale_results = []
+        failures = []
+
+        for visibility_result in visibility_results:
+            try:
+                result = cls._persist_business_score(
+                    business_id=visibility_result.business_id,
+                    visibility_result=visibility_result,
+                    reference_time=reference_time,
+                    configuration=configuration,
+                )
+            except APIException as exc:
+                failures.append(
+                    DiscoveryScoreBusinessFailure(
+                        business_id=visibility_result.business_id,
+                        error_type=type(
+                            exc,
+                        ).__name__,
+                        detail=str(
+                            exc.detail,
+                        ),
+                    ),
+                )
+                continue
+
+            if isinstance(
+                result,
+                StaleDiscoveryScoreResult,
+            ):
+                stale_results.append(
+                    result,
+                )
+            else:
+                updated_results.append(
+                    result,
+                )
+
+        return DiscoveryScoreBatchResult(
+            reference_time=reference_time,
+            considered_count=len(
+                visibility_results,
+            ),
+            updated_results=tuple(
+                updated_results,
+            ),
+            stale_results=tuple(
+                stale_results,
+            ),
+            failures=tuple(
+                failures,
+            ),
         )
