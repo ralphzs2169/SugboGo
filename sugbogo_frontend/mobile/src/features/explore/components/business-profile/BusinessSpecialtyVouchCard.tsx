@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Animated, Pressable, Text, View } from "react-native";
 import { useEffect, useRef } from "react";
+import { Animated, Pressable, View } from "react-native";
 
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
+import AppText from "@/shared/components/AppText";
 import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
 
 type Props = {
@@ -17,9 +18,9 @@ type Props = {
 /**
  * Displays a merchant-defined specialty as an Explorer-vouchable tile.
  *
- * Unvouched specialties use a white background with a colored outline,
- * colored heart, and colored vouch count. Vouched specialties use the
- * specialty color as the background with white foreground content.
+ * Unvouched specialties use a white background with a colored outline and
+ * accent content, while vouched specialties use the specialty color as the
+ * background with white foreground content.
  *
  * Vouching triggers a brief heart pop and pulse animation.
  */
@@ -77,7 +78,7 @@ export default function BusinessSpecialtyVouchCard({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [isVouched]);
+  }, [heartScale, isVouched, pulseOpacity, pulseScale]);
 
   const foregroundColor = isVouched ? styles.icon : styles.borderColor;
 
@@ -98,14 +99,15 @@ export default function BusinessSpecialtyVouchCard({
       }
     >
       {/* Specialty identity */}
-      <Text
+      <AppText
+        weight={isVouched ? "bold" : "regular"}
         className={`text-center text-xs ${
           isVouched ? styles.text : styles.accentText
-        } ${isVouched ? "font-bold" : ""}`}
+        }`}
         numberOfLines={2}
       >
         {name}
-      </Text>
+      </AppText>
 
       {/* Vouch interaction */}
       <View className="mt-1.5 flex-row items-center justify-center">
@@ -136,13 +138,14 @@ export default function BusinessSpecialtyVouchCard({
         </View>
 
         {/* Vouch count */}
-        <Text
-          className={`ml-1 text-xs font-bold ${
+        <AppText
+          weight="bold"
+          className={`ml-1 text-xs ${
             isVouched ? styles.text : styles.accentText
           }`}
         >
           {vouchCount}
-        </Text>
+        </AppText>
       </View>
     </Pressable>
   );

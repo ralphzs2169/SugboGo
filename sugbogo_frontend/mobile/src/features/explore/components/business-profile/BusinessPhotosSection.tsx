@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 
+import AppText from "@/shared/components/AppText";
 import type { ExploreBusinessPhoto } from "../../types/exploreBusiness.types";
 
 type Props = {
@@ -67,9 +68,9 @@ export default function BusinessPhotosSection({ photos, onPhotoPress }: Props) {
                 {/* More photos overlay */}
                 {isLastPreview && hasMorePhotos && (
                   <View className="absolute inset-0 items-center justify-center bg-black/45">
-                    <Text className="text-xl font-bold text-white">
+                    <AppText weight="bold" className="text-xl text-white">
                       +{additionalPhotoCount}
-                    </Text>
+                    </AppText>
                   </View>
                 )}
               </Pressable>

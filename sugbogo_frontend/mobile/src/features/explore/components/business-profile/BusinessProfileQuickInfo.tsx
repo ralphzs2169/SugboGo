@@ -1,6 +1,7 @@
 import { theme } from "@/constants/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   reviewCount: number | null;
@@ -33,45 +34,50 @@ export default function BusinessProfileQuickInfo({
           color={theme.extends.colors.text.secondary}
         />
 
-        <Text className="mt-0.5 text-sm text-text-secondary">
+        <AppText className="mt-0.5 text-sm text-text-secondary">
           {reviewCount === null
             ? "—"
             : `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}`}
-        </Text>
+        </AppText>
       </View>
 
       {/* Operating status */}
       <View className="flex-1 items-center justify-center border-x border-border-primary py-3">
-        <Text
-          className={`text-[13px] font-bold ${
+        <AppText
+          weight="bold"
+          className={`text-[13px] ${
             isOpenNow ? "text-success" : "text-text-error"
           }`}
         >
           {statusLabel}
-        </Text>
+        </AppText>
 
-        <Text className="mt-0.5 text-[12px] text-text-secondary">
+        <AppText className="mt-0.5 text-[12px] text-text-secondary">
           {statusDetail}
-        </Text>
+        </AppText>
       </View>
 
       {/* Distance */}
       <View className="flex-1 items-center justify-center py-3">
         {distance !== null ? (
           <>
-            <Text className="text-[13px] font-bold text-text-primary">
+            <AppText weight="bold" className="text-[13px] text-text-primary">
               {distance}
-            </Text>
+            </AppText>
 
-            <Text className="mt-0.5 text-sm text-text-secondary">away</Text>
+            <AppText className="mt-0.5 text-sm text-text-secondary">
+              away
+            </AppText>
           </>
         ) : (
           <>
-            <Text className="text-[13px] font-bold text-text-primary">
+            <AppText weight="bold" className="text-[13px] text-text-primary">
               Unavailable
-            </Text>
+            </AppText>
 
-            <Text className="mt-0.5 text-sm text-text-secondary">distance</Text>
+            <AppText className="mt-0.5 text-sm text-text-secondary">
+              distance
+            </AppText>
           </>
         )}
       </View>

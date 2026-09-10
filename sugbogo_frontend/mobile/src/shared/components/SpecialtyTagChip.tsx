@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
+import AppText from "@/shared/components/AppText";
 
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
@@ -86,8 +87,9 @@ export default function SpecialtyTagChip({
       }`}
     >
       {/* Specialty name */}
-      <Text
-        className={`font-semibold ${isSmall ? "text-[10px]" : "text-sm"} ${
+      <AppText
+        weight="semibold"
+        className={` ${isSmall ? "text-[10px]" : "text-sm"} ${
           useDisabledStyle
             ? "text-gray-400"
             : isRegistration && !isSelected
@@ -97,7 +99,7 @@ export default function SpecialtyTagChip({
         numberOfLines={2}
       >
         {tag.name}
-      </Text>
+      </AppText>
 
       {/* Vouch indicator */}
       {showVouchIndicator && isSelected && (
@@ -124,13 +126,14 @@ export default function SpecialtyTagChip({
             color={useDisabledStyle ? "#9CA3AF" : iconColor}
           />
 
-          <Text
-            className={`ml-1 font-bold ${isSmall ? "text-[10px]" : "text-xs"} ${
+          <AppText
+            weight="bold"
+            className={`ml-1  ${isSmall ? "text-[10px]" : "text-xs"} ${
               useDisabledStyle ? "text-gray-400" : textColor
             }`}
           >
             {count}
-          </Text>
+          </AppText>
         </View>
       )}
     </Pressable>

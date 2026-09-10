@@ -22,6 +22,11 @@ frontend/.env
 db.sqlite3
 *.sqlite3
 
+# Celery Beat runtime files
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
 media/
 staticfiles/
 

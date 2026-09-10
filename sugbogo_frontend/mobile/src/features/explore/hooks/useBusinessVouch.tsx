@@ -6,9 +6,9 @@ import {
 } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getInstallationId } from "@/shared/api/storage.service";
+import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
 
 import type {
-  ExploreBusiness,
   ExploreBusinessDetail,
   ExploreBusinessListResponse,
 } from "../types/exploreBusiness.types";
@@ -47,22 +47,32 @@ export default function useBusinessVouch({ businessId }: Props) {
 
     onMutate: async ({ tagId, isVouched }) => {
       const detailQueryKey = ["explore-business-detail", businessId];
-      const feedQueryKey = ["explore-new-businesses"];
+      const newBusinessesQueryKey = ["explore-new-businesses"];
 
       await Promise.all([
         queryClient.cancelQueries({
           queryKey: detailQueryKey,
         }),
         queryClient.cancelQueries({
-          queryKey: feedQueryKey,
+          queryKey: newBusinessesQueryKey,
+        }),
+        queryClient.cancelQueries({
+          queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
       ]);
 
       const previousBusiness =
         queryClient.getQueryData<ExploreBusinessDetail>(detailQueryKey);
 
-      const previousFeed =
-        queryClient.getQueryData<ExploreBusinessListResponse>(feedQueryKey);
+      const previousNewBusinesses =
+        queryClient.getQueryData<ExploreBusinessListResponse>(
+          newBusinessesQueryKey,
+        );
+
+      const previousDiscoveryFeed =
+        queryClient.getQueryData<ExploreBusinessListResponse>(
+          DISCOVERY_FEED_QUERY_KEY,
+        );
 
       // Update business detail optimistically.
       queryClient.setQueryData<ExploreBusinessDetail>(
@@ -92,42 +102,51 @@ export default function useBusinessVouch({ businessId }: Props) {
         },
       );
 
-      // Update discovery feed optimistically.
+      const updateVouchState = (
+        currentFeed: ExploreBusinessListResponse | undefined,
+      ) => {
+        if (!currentFeed) {
+          return currentFeed;
+        }
+
+        return {
+          ...currentFeed,
+          items: currentFeed.items.map((business) => {
+            if (business.id !== businessId) {
+              return business;
+            }
+
+            return {
+              ...business,
+              specialty_tags: business.specialty_tags.map((tag) => {
+                if (tag.id !== tagId) {
+                  return tag;
+                }
+
+                return {
+                  ...tag,
+                  is_vouched: !isVouched,
+                };
+              }),
+            };
+          }),
+        };
+      };
+
+      // Update both Explorer carousels optimistically.
       queryClient.setQueryData<ExploreBusinessListResponse>(
-        feedQueryKey,
-        (currentFeed) => {
-          if (!currentFeed) {
-            return currentFeed;
-          }
-
-          return {
-            ...currentFeed,
-            items: currentFeed.items.map((business) => {
-              if (business.id !== businessId) {
-                return business;
-              }
-
-              return {
-                ...business,
-                specialty_tags: business.specialty_tags.map((tag) => {
-                  if (tag.id !== tagId) {
-                    return tag;
-                  }
-
-                  return {
-                    ...tag,
-                    is_vouched: !isVouched,
-                  };
-                }),
-              };
-            }),
-          };
-        },
+        newBusinessesQueryKey,
+        updateVouchState,
+      );
+      queryClient.setQueryData<ExploreBusinessListResponse>(
+        DISCOVERY_FEED_QUERY_KEY,
+        updateVouchState,
       );
 
       return {
         previousBusiness,
-        previousFeed,
+        previousNewBusinesses,
+        previousDiscoveryFeed,
       };
     },
 
@@ -139,10 +158,17 @@ export default function useBusinessVouch({ businessId }: Props) {
         );
       }
 
-      if (context?.previousFeed) {
+      if (context?.previousNewBusinesses) {
         queryClient.setQueryData(
           ["explore-new-businesses"],
-          context.previousFeed,
+          context.previousNewBusinesses,
+        );
+      }
+
+      if (context?.previousDiscoveryFeed) {
+        queryClient.setQueryData(
+          DISCOVERY_FEED_QUERY_KEY,
+          context.previousDiscoveryFeed,
         );
       }
     },
@@ -154,6 +180,9 @@ export default function useBusinessVouch({ businessId }: Props) {
         }),
         queryClient.invalidateQueries({
           queryKey: ["explore-new-businesses"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
       ]);
     },

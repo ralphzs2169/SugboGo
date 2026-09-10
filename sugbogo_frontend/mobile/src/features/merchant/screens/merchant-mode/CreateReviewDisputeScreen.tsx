@@ -1,36 +1,24 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import Toast from "react-native-toast-message";
 
-import { theme } from "@/constants/theme";
-import ReviewContent from "@/features/explore/components/business-profile/review-section/ReviewContent";
 import { useBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
-import Button from "@/shared/components/Button";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import ErrorState from "@/shared/components/ErrorState";
-import FormSelect from "@/shared/components/form/FormSelect";
-import FormTextArea from "@/shared/components/form/FormTextArea";
+import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
-import EvidencePickerActions from "../../components/review-disputes/EvidencePickerActions";
-import ReviewDisputeSection from "../../components/review-disputes/ReviewDisputeSection";
-import SelectedEvidenceList from "../../components/review-disputes/SelectedEvidenceList";
+import CreateReviewDisputeFooter from "../../components/review-disputes/create-dispute-screen/CreateReviewDisputeFooter";
+import CreateReviewDisputeFooterSkeleton from "../../components/review-disputes/create-dispute-screen/CreateReviewDisputeFooterSkeleton";
+import CreateReviewDisputeFormContent from "../../components/review-disputes/create-dispute-screen/CreateReviewDisputeFormContent";
+import CreateReviewDisputeSkeleton from "../../components/review-disputes/create-dispute-screen/CreateReviewDisputeSkeleton";
 import {
   MAX_REVIEW_DISPUTE_EVIDENCE,
   MAX_REVIEW_DISPUTE_EVIDENCE_BYTES,
-  REVIEW_DISPUTE_REASON_LABELS,
   REVIEW_DISPUTE_REASON_OPTIONS,
 } from "../../constants/reviewDispute.constants";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
@@ -46,7 +34,6 @@ import {
   pickReviewDisputeDocuments,
   pickReviewDisputeImages,
 } from "../../utils/review-disputes/pickReviewDisputeEvidence.utils";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Props = {
   reviewId: number;
@@ -58,10 +45,11 @@ type FormErrors = {
 };
 
 /**
- * Collects and submits a merchant review dispute with optional evidence.
+ * Coordinates creation of a merchant review dispute and optional evidence.
  *
- * Organizes the disputed review, dispute details, and supporting evidence into
- * clear sections while preserving the backend's separate evidence upload flow.
+ * Owns dispute form state, validation, loading, submission, evidence uploads,
+ * navigation, and tab-bar-aware footer positioning while delegating form
+ * presentation to child components.
  */
 export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   const reasonSheetRef = useRef<BottomSheetModal | null>(null);
@@ -74,6 +62,8 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   const [isPickingImages, setIsPickingImages] = useState(false);
   const [isPickingDocuments, setIsPickingDocuments] = useState(false);
 
+  const tabBarSpacing = useTabBarSpacing(8);
+
   const {
     business,
     isLoading: isBusinessLoading,
@@ -85,7 +75,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
 
   const {
     reviews,
-    isLoading: isReviewsLoading,
+    isInitialLoading: isReviewsLoading,
     error: reviewsError,
     refetch: refetchReviews,
   } = useBusinessReviews(businessId);
@@ -94,6 +84,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   const addEvidence = useAddReviewDisputeEvidence();
 
   const review = reviews.find((item) => item.id === reviewId);
+
   const isSubmitting = createDispute.isPending || addEvidence.isPending;
   const remainingSlots = MAX_REVIEW_DISPUTE_EVIDENCE - evidence.length;
   const error = businessError || reviewsError;
@@ -193,7 +184,17 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
 
     setErrors(nextErrors);
 
-    return Object.keys(nextErrors).length === 0;
+    const isValid = Object.keys(nextErrors).length === 0;
+
+    if (!isValid) {
+      Toast.show({
+        type: "error",
+        text1: "Complete the required fields",
+        text2: "Select a dispute reason and provide your explanation.",
+      });
+    }
+
+    return isValid;
   };
 
   const submit = async () => {
@@ -247,6 +248,11 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
       const response = caughtError as ApiResponse<unknown>;
 
       if (!response.success) {
+        Toast.show({
+          type: "error",
+          text1: "Unable to submit dispute",
+          text2: response.message || "Review your information and try again.",
+        });
         const descriptionError = getFieldError(response, "description");
 
         if (descriptionError) {
@@ -269,161 +275,94 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
 
   if (isBusinessLoading || (business && isReviewsLoading)) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator color={theme.extends.colors.brand} />
+      <View className="flex-1 bg-background">
+        {/* Loading form content */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName="pb-6"
+        >
+          <CreateReviewDisputeSkeleton />
+        </ScrollView>
+
+        {/* Loading submit footer */}
+        <View
+          className="bg-surface"
+          style={{
+            paddingBottom: tabBarSpacing,
+          }}
+        >
+          <CreateReviewDisputeFooterSkeleton />
+        </View>
       </View>
     );
   }
 
   if (error || !business || !review) {
     return (
-      <View className="flex-1 bg-background">
+      <View className="flex-1 bg-surface">
         <ErrorState
           size="small"
           icon="comment-alert-outline"
           title="Unable to open this review"
           description="The review may no longer be available. Refresh your reviews and try again."
           primaryActionTitle="Retry"
+          secondaryActionTitle="Go back"
           onPrimaryAction={() => {
             void Promise.all([refetchBusiness(), refetchReviews()]);
           }}
+          onSecondaryAction={() => router.back()}
         />
       </View>
     );
   }
 
   return (
-    <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
+    <View className="flex-1 bg-background">
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         className="flex-1"
       >
-        {/* Scrollable content */}
+        {/* Dispute form */}
         <ScrollView
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           contentContainerClassName="pb-6"
         >
-          {/* Introduction */}
+          <CreateReviewDisputeFormContent
+            review={review}
+            reason={reason}
+            description={description}
+            evidence={evidence}
+            errors={errors}
+            remainingSlots={remainingSlots}
+            isSubmitting={isSubmitting}
+            isPickingImages={isPickingImages}
+            isPickingDocuments={isPickingDocuments}
+            onReasonPress={() => presentBottomSheet(reasonSheetRef)}
+            onDescriptionChange={(value) => {
+              setDescription(value);
 
-          <View className="px-4 py-5 bg-surface">
-            <Text className="text-sm leading-5 text-text-secondary">
-              Tell us why this review may violate SugboGo&apos;s review
-              policies. An administrator will review your request.
-            </Text>
-          </View>
-
-          {/* Review context */}
-          <ReviewDisputeSection
-            title="Review being disputed"
-            description="This is the review you are disputing."
-          >
-            <ReviewContent review={review} perspective="merchant" />
-          </ReviewDisputeSection>
-
-          {/* Dispute details */}
-          <ReviewDisputeSection
-            title="Tell us what happened"
-            description="Choose the reason that best matches your concern and provide enough context for the administrator to investigate."
-          >
-            <View className="gap-5">
-              <FormSelect
-                label="Reason"
-                value={
-                  reason ? REVIEW_DISPUTE_REASON_LABELS[reason] : undefined
-                }
-                placeholder="Select a reason"
-                required
-                error={errors.reason}
-                onPress={() => presentBottomSheet(reasonSheetRef)}
-              />
-
-              <FormTextArea
-                label="Details"
-                value={description}
-                onChangeText={(value) => {
-                  setDescription(value);
-
-                  setErrors((current) => ({
-                    ...current,
-                    description: undefined,
-                  }));
-                }}
-                placeholder="Explain why this review should be investigated."
-                required
-                maxLength={2000}
-                error={errors.description}
-                helperText="Include specific facts, dates, or context that can help the administrator verify your claim."
-              />
-            </View>
-          </ReviewDisputeSection>
-
-          {/* Supporting evidence */}
-          <ReviewDisputeSection
-            title="Supporting evidence"
-            description="Optional. Attach images or documents that support your claim."
-          >
-            {/* Evidence count */}
-            <View className="flex-row items-center justify-end">
-              <View className="rounded-full bg-surface-secondary px-2.5 py-1">
-                <Text className="text-xs font-semibold text-text-secondary">
-                  {evidence.length}/{MAX_REVIEW_DISPUTE_EVIDENCE}
-                </Text>
-              </View>
-            </View>
-
-            {/* Selected evidence */}
-            <SelectedEvidenceList
-              evidence={evidence}
-              disabled={isSubmitting}
-              onRemove={(index) => {
-                setEvidence((current) =>
-                  current.filter((_, itemIndex) => itemIndex !== index),
-                );
-              }}
-            />
-
-            {/* Add evidence */}
-            <View className="mt-4">
-              <EvidencePickerActions
-                remainingSlots={remainingSlots}
-                disabled={isSubmitting}
-                isPickingImages={isPickingImages}
-                isPickingDocuments={isPickingDocuments}
-                onPickImages={() => void pickImages()}
-                onPickDocuments={() => void pickDocuments()}
-              />
-            </View>
-
-            {/* File requirements */}
-            <View className="mt-3 flex-row items-center gap-1.5">
-              <MaterialCommunityIcons
-                name="information-outline"
-                size={14}
-                color={theme.extends.colors.text.secondary}
-              />
-
-              <Text className="flex-1 text-xs leading-4 text-text-secondary">
-                Up to 5 files · Images, PDF, DOC, or DOCX · 10 MB max each
-              </Text>
-            </View>
-          </ReviewDisputeSection>
+              setErrors((current) => ({
+                ...current,
+                description: undefined,
+              }));
+            }}
+            onPickImages={() => void pickImages()}
+            onPickDocuments={() => void pickDocuments()}
+            onRemoveEvidence={(index) => {
+              setEvidence((current) =>
+                current.filter((_, itemIndex) => itemIndex !== index),
+              );
+            }}
+          />
         </ScrollView>
 
         {/* Submit action */}
-        <View className="border-t border-border-primary bg-surface px-4 pb-3 pt-3">
-          <Button
-            title="Submit dispute"
-            onPress={submit}
-            loading={isSubmitting}
-            disabled={isSubmitting}
-            className="rounded-full"
-            fontClassName="font-bold"
+        <View className="bg-surface">
+          <CreateReviewDisputeFooter
+            isSubmitting={isSubmitting}
+            onSubmit={() => void submit()}
           />
-
-          <Text className="mt-2 text-center text-xs leading-4 text-text-secondary">
-            Your dispute will be reviewed by a SugboGo administrator.
-          </Text>
         </View>
       </KeyboardAvoidingView>
 
@@ -443,6 +382,6 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
           }));
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 }

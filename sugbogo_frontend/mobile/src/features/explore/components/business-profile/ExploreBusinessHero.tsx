@@ -2,10 +2,11 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
+import AppText from "@/shared/components/AppText";
 
 import BusinessPocketButton from "./BusinessPocketButton";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
@@ -101,15 +102,22 @@ export default function ExploreBusinessHero({
               size={12}
               color="#FFFFFF"
             />
-            <Text className="ml-1 text-[10px] font-bold uppercase tracking-wide text-white">
+            <AppText
+              weight="bold"
+              className="ml-1 text-[10px] uppercase tracking-wide text-white"
+            >
               Your Business
-            </Text>
+            </AppText>
           </View>
         )}
 
-        <Text className="text-2xl font-bold text-white" numberOfLines={2}>
+        <AppText
+          weight="bold"
+          className="text-2xl text-white"
+          numberOfLines={2}
+        >
           {business.business_name}
-        </Text>
+        </AppText>
 
         <View className="mt-1.5 flex-row items-center">
           <MaterialCommunityIcons
@@ -118,12 +126,13 @@ export default function ExploreBusinessHero({
             color="#FFFFFF"
           />
 
-          <Text
-            className="ml-1.5 flex-1 text-sm font-medium text-white/90"
+          <AppText
+            weight="medium"
+            className="ml-1.5 flex-1 text-sm text-white/90"
             numberOfLines={1}
           >
             {business.cluster.name} · {business.category.name}
-          </Text>
+          </AppText>
         </View>
       </View>
     </View>

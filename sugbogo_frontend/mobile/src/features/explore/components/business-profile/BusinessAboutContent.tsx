@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   description: string | null;
@@ -45,9 +46,12 @@ export default function BusinessAboutContent({ description }: Props) {
   return (
     <View className="bg-surface">
       {/* Business description */}
-      <Text className="text-sm leading-6 text-text-secondary font-medium">
+      <AppText
+        weight="medium"
+        className="text-sm leading-6 text-text-secondary"
+      >
         {displayedDescription}
-      </Text>
+      </AppText>
 
       {/* Description expansion */}
       {shouldTruncate && (
@@ -55,9 +59,9 @@ export default function BusinessAboutContent({ description }: Props) {
           onPress={() => setIsExpanded((current) => !current)}
           className="mt-2 flex-row items-center self-start cursor-pointer active:opacity-70"
         >
-          <Text className="text-sm font-semibold text-brand">
+          <AppText weight="semibold" className="text-sm text-brand">
             {isExpanded ? "Show less" : "Read more"}
-          </Text>
+          </AppText>
 
           <Animated.View
             className="ml-1"

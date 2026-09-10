@@ -2,6 +2,7 @@ import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import InputContainer from "./InputContainer";
 import { theme } from "@/constants/theme";
+import AppText from "../AppText";
 
 type FormSelectProps = {
   label: string;
@@ -55,7 +56,7 @@ export default function FormSelect({
             />
           )}
 
-          <Text
+          <AppText
             className={`text-body ${
               disabled
                 ? "text-text-secondary"
@@ -65,7 +66,7 @@ export default function FormSelect({
             }`}
           >
             {value || placeholder}
-          </Text>
+          </AppText>
         </View>
 
         <MaterialCommunityIcons

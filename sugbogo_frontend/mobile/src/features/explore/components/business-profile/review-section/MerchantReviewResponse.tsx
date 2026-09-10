@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
-import { LayoutAnimation, Platform, Pressable, Text, View } from "react-native";
+import { LayoutAnimation, Platform, Pressable, View } from "react-native";
 import { useState } from "react";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 import type { BusinessReview } from "../../../types/review.types";
 
@@ -73,16 +74,17 @@ export default function MerchantReviewResponse({
           {!expanded ? (
             /* Collapsed response preview */
             <View className="flex-row items-center py-3">
-              <Text
-                className="ml-1.5 flex-1 text-xs font-semibold text-text-secondary"
+              <AppText
+                weight="semibold"
+                className="ml-1.5 flex-1 text-xs text-text-secondary"
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                <Text className="font-bold text-text-primary">
+                <AppText weight="bold" className="text-text-primary">
                   {responseLabel}:
-                </Text>{" "}
+                </AppText>{" "}
                 {reply.text}
-              </Text>
+              </AppText>
 
               <MaterialCommunityIcons
                 name="chevron-down"
@@ -94,19 +96,19 @@ export default function MerchantReviewResponse({
             /* Expanded response */
             <View className="px-2 py-3">
               <View className="flex-row items-center">
-                <Text className="text-xs font-bold text-text-primary">
+                <AppText weight="bold" className="text-xs text-text-primary">
                   {responseLabel}
-                </Text>
+                </AppText>
 
                 {reply.created_at && (
                   <>
-                    <Text className="mx-1.5 text-[11px] text-text-secondary">
+                    <AppText className="mx-1.5 text-[11px] text-text-secondary">
                       ·
-                    </Text>
+                    </AppText>
 
-                    <Text className="text-[11px] text-text-secondary">
+                    <AppText className="text-[11px] text-text-secondary">
                       {formatRelativeDate(reply.created_at)}
-                    </Text>
+                    </AppText>
                   </>
                 )}
 
@@ -120,7 +122,7 @@ export default function MerchantReviewResponse({
               </View>
 
               {/* Response text */}
-              <Text
+              <AppText
                 className="mt-2 text-sm leading-5 text-text-secondary"
                 numberOfLines={isTruncated ? MAX_LINES : undefined}
                 onTextLayout={(event) => {
@@ -128,7 +130,7 @@ export default function MerchantReviewResponse({
                 }}
               >
                 {reply.text}
-              </Text>
+              </AppText>
 
               {/* Response photos */}
               {reply.photos.length > 0 && (
@@ -180,17 +182,18 @@ export default function MerchantReviewResponse({
             </View>
 
             <View className="ml-2.5 flex-1">
-              <Text
-                className="text-sm font-semibold text-white"
+              <AppText
+                weight="semibold"
+                className="text-sm text-white"
                 numberOfLines={1}
               >
                 Merchant response
-              </Text>
+              </AppText>
 
               {reply.created_at && (
-                <Text className="mt-0.5 text-xs text-white/65">
+                <AppText className="mt-0.5 text-xs text-white/65">
                   {formatRelativeDate(reply.created_at)}
-                </Text>
+                </AppText>
               )}
             </View>
           </View>

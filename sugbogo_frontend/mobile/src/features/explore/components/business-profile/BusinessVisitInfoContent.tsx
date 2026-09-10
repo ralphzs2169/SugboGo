@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Animated, LayoutAnimation, Pressable, Text, View } from "react-native";
 import { useRef, useState } from "react";
+import { Animated, LayoutAnimation, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 import type {
   ExploreBusinessLocation,
@@ -12,7 +13,6 @@ import {
   formatTime,
   getBusinessHoursSummary,
 } from "../../utils/businessHours.utils";
-import Button from "@/shared/components/Button";
 
 type Props = {
   location: ExploreBusinessLocation;
@@ -27,6 +27,7 @@ type Props = {
 /**
  * Displays the practical information an Explorer needs before visiting
  * a business, including its location, operating hours, and contact details.
+ *
  * The weekly schedule can be expanded inline while contact details remain
  * compact and easy to scan.
  */
@@ -86,18 +87,19 @@ export default function BusinessVisitInfoContent({
 
         <View className="ml-3 flex-1">
           {address && (
-            <Text
-              className="text-sm font-medium leading-5 text-text-primary"
+            <AppText
+              weight="medium"
+              className="text-sm leading-5 text-text-primary"
               numberOfLines={2}
             >
               {address}
-            </Text>
+            </AppText>
           )}
 
           {cityLine && (
-            <Text className="text-sm leading-5 text-text-secondary">
+            <AppText className="text-sm leading-5 text-text-secondary">
               {cityLine}
-            </Text>
+            </AppText>
           )}
         </View>
       </View>
@@ -108,41 +110,41 @@ export default function BusinessVisitInfoContent({
           <MaterialCommunityIcons
             name="clock-outline"
             size={18}
-            color={
-              summary.isOpen
-                ? theme.extends.colors.success
-                : theme.extends.colors.error
-            }
+            color={theme.extends.colors.text.secondary}
           />
 
           <View className="ml-3 flex-1 flex-row flex-wrap items-center">
-            <Text
-              className={`text-sm font-semibold ${
+            <AppText
+              weight="semibold"
+              className={`text-sm ${
                 summary.isOpen ? "text-success" : "text-text-error"
               }`}
             >
               {summary.isOpen ? "Open" : "Closed"}
-            </Text>
+            </AppText>
 
-            <Text className="mx-1 text-sm font-medium text-text-secondary">
+            <AppText
+              weight="medium"
+              className="mx-1 text-sm text-text-secondary"
+            >
               ·
-            </Text>
+            </AppText>
 
-            <Text className="text-sm font-medium text-text-secondary">
+            <AppText weight="medium" className="text-sm text-text-secondary">
               {summary.label.replace(
                 summary.isOpen ? "Open now · " : "Closed · ",
                 "",
               )}
-            </Text>
+            </AppText>
           </View>
 
           <Pressable
             onPress={toggleHours}
-            className="ml-3 flex-row items-center cursor-pointer active:opacity-70"
+            className="ml-3 cursor-pointer flex-row items-center active:opacity-70"
           >
-            <Text className="text-xs font-semibold text-brand">
+            <AppText weight="semibold" className="text-xs text-brand">
               {isExpanded ? "Hide hours" : "Full hours"}
-            </Text>
+            </AppText>
 
             <Animated.View
               style={{
@@ -191,29 +193,34 @@ export default function BusinessVisitInfoContent({
                   >
                     {/* Day */}
                     <View className="flex-row items-center">
-                      <Text
+                      <AppText
+                        weight={isToday ? "bold" : "medium"}
                         className={`text-sm ${
-                          isToday
-                            ? "font-bold text-text-primary"
-                            : "font-medium text-text-secondary"
+                          isToday ? "text-text-primary" : "text-text-secondary"
                         }`}
                       >
                         {dayLabel}
-                      </Text>
+                      </AppText>
 
                       {isToday && (
                         <View className="ml-2 rounded-full bg-brand/10 px-2 py-0.5">
-                          <Text className="text-[9px] font-bold uppercase text-brand">
+                          <AppText
+                            weight="bold"
+                            className="text-[9px] uppercase text-brand"
+                          >
                             Today
-                          </Text>
+                          </AppText>
                         </View>
                       )}
                     </View>
 
                     {/* Hours */}
-                    <Text className={`text-sm font-medium ${scheduleClass}`}>
+                    <AppText
+                      weight="medium"
+                      className={`text-sm ${scheduleClass}`}
+                    >
                       {scheduleLabel}
-                    </Text>
+                    </AppText>
                   </View>
                 );
               })}
@@ -221,6 +228,7 @@ export default function BusinessVisitInfoContent({
           </View>
         )}
       </View>
+
       {/* Contact */}
       <View className="mt-4 border-t border-border-primary/60">
         {/* Phone */}
@@ -231,9 +239,9 @@ export default function BusinessVisitInfoContent({
             color={theme.extends.colors.text.secondary}
           />
 
-          <Text className="ml-3 flex-1 text-sm text-text-primary">
+          <AppText className="ml-3 flex-1 text-sm text-text-primary">
             {contactNumber}
-          </Text>
+          </AppText>
         </View>
 
         {/* Email */}
@@ -245,9 +253,12 @@ export default function BusinessVisitInfoContent({
               color={theme.extends.colors.text.secondary}
             />
 
-            <Text className="ml-3 flex-1 text-sm text-text-primary font-medium">
+            <AppText
+              weight="medium"
+              className="ml-3 flex-1 text-sm text-text-primary"
+            >
               {email}
-            </Text>
+            </AppText>
           </View>
         )}
 
@@ -260,12 +271,13 @@ export default function BusinessVisitInfoContent({
               color={theme.extends.colors.text.secondary}
             />
 
-            <Text
-              className="ml-3 flex-1 text-sm text-text-primary font-medium underline"
+            <AppText
+              weight="medium"
+              className="ml-3 flex-1 text-sm text-text-primary underline"
               numberOfLines={1}
             >
               {website}
-            </Text>
+            </AppText>
           </View>
         )}
       </View>

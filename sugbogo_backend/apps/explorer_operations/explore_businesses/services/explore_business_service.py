@@ -1,14 +1,14 @@
 from apps.business.models import (
     Business,
     BusinessPocket,
+    BusinessSpecialtyTag,
     BusinessVouch,
-    SpecialtyTag,
 )
 from apps.reviews.models import (
     ReviewLike,
     Review,
 )
-from django.db.models import Count, Exists, OuterRef, Prefetch, Q
+from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework.exceptions import NotFound
 
 
@@ -20,7 +20,7 @@ class ExploreBusinessService:
         """Retrieve an active business and its public Explorer details."""
 
         user_vouch_exists = BusinessVouch.objects.filter(
-            BUSN_ID=business_id,
+            BUSN_ID=OuterRef("BUSN_ID"),
             USER_ID=user,
             TAG_ID=OuterRef("TAG_ID"),
         )
@@ -36,15 +36,14 @@ class ExploreBusinessService:
         )
 
         specialty_tags = (
-            SpecialtyTag.objects
+            BusinessSpecialtyTag.objects
+            .filter(
+                BST_IS_ACTIVE=True,
+            )
+            .select_related(
+                "TAG_ID",
+            )
             .annotate(
-                vouch_count=Count(
-                    "vouches",
-                    filter=Q(
-                        vouches__BUSN_ID=business_id,
-                    ),
-                    distinct=True,
-                ),
                 is_vouched=Exists(
                     user_vouch_exists,
                 ),
@@ -85,8 +84,9 @@ class ExploreBusinessService:
                 )
                 .prefetch_related(
                     Prefetch(
-                        "SPECIALTY_TAGS",
+                        "specialty_tag_links",
                         queryset=specialty_tags,
+                        to_attr="active_specialty_tag_links",
                     ),
                     "photos",
                     "operating_hours",

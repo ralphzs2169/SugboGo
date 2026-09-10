@@ -36,6 +36,15 @@ class BusinessVouchViewTests(APITestCase):
             USER_STATUS=User.UserStatus.ACTIVE,
         )
 
+        self.business_owner = User.objects.create_user(
+            email="merchant-vouch-owner@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Merchant",
+            USER_LNAME="Owner",
+            USER_ROLE=User.UserRole.MERCHANT,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+
         self.client.force_authenticate(self.user)
 
         self.cluster = Cluster.objects.create(
@@ -64,7 +73,7 @@ class BusinessVouchViewTests(APITestCase):
             BUSN_NAME="Sugbo Bistro",
             BUSN_DESCRIPTION="A Cebu-based local restaurant.",
             BUSN_STATUS=Business.BusinessStatus.ACTIVE,
-            USER_ID=self.user,
+            USER_ID=self.business_owner,
             CTGRY_ID=self.category,
             LOCT_ID=self.location,
         )

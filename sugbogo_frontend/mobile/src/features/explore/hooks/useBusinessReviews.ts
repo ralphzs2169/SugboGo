@@ -78,8 +78,11 @@ export function useBusinessReviews(businessId: number) {
   return {
     reviews: query.data ?? [],
     totalCount: query.data?.length ?? 0,
-    isLoading: query.isLoading,
+
+    isInitialLoading: query.isLoading && !query.isFetched,
+    isFetching: query.isFetching,
     isRefetching: query.isRefetching,
+
     error: query.error,
     refetch: query.refetch,
   };

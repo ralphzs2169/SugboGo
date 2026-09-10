@@ -1,6 +1,6 @@
-import { TextInput, TextInputProps, Text, View } from "react-native";
+import { TextInput, TextInputProps, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
+import AppText from "../AppText";
 import { theme } from "@/constants/theme";
 import InputContainer from "./InputContainer";
 
@@ -11,6 +11,7 @@ interface FormTextAreaProps extends TextInputProps {
   required?: boolean;
   helperText?: string;
   minLength?: number;
+  showLabel?: boolean;
   showCharacterCount?: boolean;
   InputComponent?: React.ComponentType<TextInputProps>;
 }
@@ -29,6 +30,7 @@ export default function FormTextArea({
   required = false,
   helperText,
   minLength,
+  showLabel = true,
   showCharacterCount = false,
   value,
   InputComponent = TextInput,
@@ -46,9 +48,13 @@ export default function FormTextArea({
       {/* Error or helper message */}
       <View className="min-w-0 flex-1">
         {error ? (
-          <Text className="text-xs font-medium text-text-error">{error}</Text>
+          <AppText className="text-xs font-medium text-text-error">
+            {error}
+          </AppText>
         ) : helperText ? (
-          <Text className="text-xs text-text-secondary">{helperText}</Text>
+          <AppText className="text-xs text-text-secondary">
+            {helperText}
+          </AppText>
         ) : null}
       </View>
 
@@ -65,13 +71,13 @@ export default function FormTextArea({
             </View>
           )}
 
-          <Text
+          <AppText
             className={`text-xs ${
               isValid ? "text-success" : "text-text-secondary"
             }`}
           >
             {characterCount}/{minLength}
-          </Text>
+          </AppText>
         </View>
       )}
     </View>
@@ -84,6 +90,7 @@ export default function FormTextArea({
       rightElement={rightElement}
       required={required}
       bottomElement={feedback}
+      showLabel={showLabel}
     >
       <InputComponent
         {...props}

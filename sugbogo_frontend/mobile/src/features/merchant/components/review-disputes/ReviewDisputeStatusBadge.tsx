@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
-import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 import { REVIEW_DISPUTE_STATUS_LABELS } from "../../constants/reviewDispute.constants";
 import type { ReviewDisputeStatus } from "../../types/review-disputes/reviewDispute.types";
@@ -14,38 +14,33 @@ const STATUS_STYLES: Record<
   ReviewDisputeStatus,
   {
     container: string;
-    text: string;
     icon: keyof typeof MaterialCommunityIcons.glyphMap;
-    iconColor: string;
   }
 > = {
   pending: {
-    container: "bg-brand/10",
-    text: "text-brand",
+    container: "bg-blue-500",
     icon: "clock-outline",
-    iconColor: theme.extends.colors.brand,
   },
   upheld: {
-    container: "bg-red-50",
-    text: "text-text-error",
-    icon: "close-circle-outline",
-    iconColor: theme.extends.colors.error,
+    container: "bg-emerald-500",
+    icon: "check-circle-outline",
   },
   dismissed: {
-    container: "bg-green-50",
-    text: "text-green-700",
-    icon: "check-circle-outline",
-    iconColor: theme.extends.colors.success,
+    container: "bg-red-500",
+    icon: "close-circle-outline",
   },
   withdrawn: {
-    container: "bg-surface-secondary",
-    text: "text-text-secondary",
+    container: "bg-gray-500",
     icon: "undo-variant",
-    iconColor: theme.extends.colors.text.secondary,
   },
 };
 
-/** Displays a text-and-icon dispute status without relying on color alone. */
+/**
+ * Displays a dispute status badge using solid status colors, icons, and text.
+ *
+ * Each moderation state remains visually distinct while keeping foreground
+ * content consistently readable against the status background.
+ */
 export default function ReviewDisputeStatusBadge({ status }: Props) {
   const style = STATUS_STYLES[status];
 
@@ -54,15 +49,11 @@ export default function ReviewDisputeStatusBadge({ status }: Props) {
       className={`self-start flex-row items-center rounded-full px-3 py-1.5 ${style.container}`}
       accessibilityLabel={`Dispute status: ${REVIEW_DISPUTE_STATUS_LABELS[status]}`}
     >
-      <MaterialCommunityIcons
-        name={style.icon}
-        size={15}
-        color={style.iconColor}
-      />
+      <MaterialCommunityIcons name={style.icon} size={15} color="#FFFFFF" />
 
-      <Text className={`ml-1.5 text-xs font-bold ${style.text}`}>
+      <AppText weight="bold" className="ml-1.5 text-xs text-white">
         {REVIEW_DISPUTE_STATUS_LABELS[status]}
-      </Text>
+      </AppText>
     </View>
   );
 }

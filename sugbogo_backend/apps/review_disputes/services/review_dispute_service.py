@@ -1,4 +1,6 @@
 from django.db import IntegrityError, transaction
+from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
@@ -16,6 +18,54 @@ class ReviewDisputeService:
     """Handles merchant-facing review dispute operations."""
 
     MAX_EVIDENCE_FILES = 5
+
+    @staticmethod
+    def _with_attempt_number(queryset, user: User):
+        """Annotate disputes with their attempt number for the same review."""
+
+        previous_attempt_count = (
+            MerchantReviewDispute.objects
+            .filter(
+                REVW_ID_id=OuterRef("REVW_ID_id"),
+                USER_ID_id=user.USER_ID,
+                MRDSP_CREATED_AT__lt=OuterRef("MRDSP_CREATED_AT"),
+            )
+            .values("REVW_ID_id")
+            .annotate(count=Count("MRDSP_ID"))
+            .values("count")[:1]
+        )
+
+        return queryset.annotate(
+            attempt_number=(
+                Coalesce(
+                    Subquery(
+                        previous_attempt_count,
+                        output_field=IntegerField(),
+                    ),
+                    Value(0),
+                )
+                + Value(1)
+            ),
+        )
+
+    @staticmethod
+    def _set_attempt_number(
+        dispute: MerchantReviewDispute,
+        user: User,
+    ) -> None:
+        """Attach the dispute attempt number to a single dispute instance."""
+
+        previous_dispute_count = (
+            MerchantReviewDispute.objects
+            .filter(
+                REVW_ID_id=dispute.REVW_ID_id,
+                USER_ID_id=user.USER_ID,
+                MRDSP_CREATED_AT__lt=dispute.MRDSP_CREATED_AT,
+            )
+            .count()
+        )
+
+        dispute.attempt_number = previous_dispute_count + 1
 
     @staticmethod
     def _get_owned_dispute(
@@ -92,7 +142,7 @@ class ReviewDisputeService:
             )
 
         try:
-            return MerchantReviewDispute.objects.create(
+            dispute = MerchantReviewDispute.objects.create(
                 REVW_ID=review,
                 BUSN_ID=business,
                 USER_ID=user,
@@ -105,15 +155,29 @@ class ReviewDisputeService:
                 "An active dispute already exists for this review.",
             ) from None
 
+        ReviewDisputeService._set_attempt_number(
+            dispute,
+            user,
+        )
+
+        return dispute
+
     @staticmethod
     def get_dispute(
         user: User,
         dispute_id: int,
     ) -> MerchantReviewDispute:
-        return ReviewDisputeService._get_owned_dispute(
+        dispute = ReviewDisputeService._get_owned_dispute(
             user,
             dispute_id,
         )
+
+        ReviewDisputeService._set_attempt_number(
+            dispute,
+            user,
+        )
+
+        return dispute
 
     @staticmethod
     def get_dispute_detail(
@@ -144,7 +208,7 @@ class ReviewDisputeService:
 
     @staticmethod
     def list_merchant_disputes(user: User):
-        return (
+        queryset = (
             MerchantReviewDispute.objects
             .filter(USER_ID=user)
             .select_related(
@@ -156,6 +220,11 @@ class ReviewDisputeService:
                 "evidence",
                 "REVW_ID__photos",
             )
+        )
+
+        return ReviewDisputeService._with_attempt_number(
+            queryset,
+            user,
         )
 
     @staticmethod
@@ -261,12 +330,18 @@ class ReviewDisputeService:
 
         dispute.MRDSP_STATUS = MerchantReviewDispute.DisputeStatus.WITHDRAWN
         dispute.MRDSP_RESOLVED_AT = timezone.now()
+
         dispute.save(
             update_fields=[
                 "MRDSP_STATUS",
                 "MRDSP_RESOLVED_AT",
                 "MRDSP_UPDATED_AT",
             ],
+        )
+
+        ReviewDisputeService._set_attempt_number(
+            dispute,
+            user,
         )
 
         return dispute

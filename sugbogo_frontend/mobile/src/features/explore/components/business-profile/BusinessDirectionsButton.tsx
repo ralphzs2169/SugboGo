@@ -1,5 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text } from "react-native";
+import { Pressable } from "react-native";
+
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   onPress: () => void;
@@ -16,9 +18,9 @@ export default function BusinessDirectionsButton({ onPress }: Props) {
     >
       <MaterialCommunityIcons name="directions" size={18} color="#FFFFFF" />
 
-      <Text className="ml-2 text-sm font-semibold text-white">
+      <AppText weight="semibold" className="ml-2 text-sm text-white">
         Get Directions
-      </Text>
+      </AppText>
     </Pressable>
   );
 }

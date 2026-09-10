@@ -1,23 +1,42 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRef, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
+import AppText from "@/shared/components/AppText";
 import Avatar from "@/shared/components/Avatar";
 import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 
 import type { BusinessReview } from "../../../types/review.types";
-import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
+
+type ReviewContentReview = Pick<
+  BusinessReview,
+  "author" | "created_at" | "text" | "photos"
+> &
+  Partial<
+    Pick<
+      BusinessReview,
+      | "is_own_review"
+      | "vouched_specialties"
+      | "like_count"
+      | "is_liked"
+      | "is_liked_by_owner"
+      | "reply"
+    >
+  >;
 
 type Props = {
-  review: BusinessReview;
+  review: ReviewContentReview;
   onLike?: () => void;
   isLikePending?: boolean;
   onActions?: () => void;
   onReply?: () => void;
   perspective?: "explorer" | "merchant";
+  showEngagement?: boolean;
+  showSpecialtyVouches?: boolean;
 };
 
 const MAX_REVIEW_LINES = 5;
@@ -32,11 +51,11 @@ function relativeDate(value: string) {
 }
 
 /**
- * Renders the shared content of a business review, including reviewer
- * identity, review text, photos, specialty vouches, engagement, and actions.
+ * Renders the shared visual content of a business review.
  *
- * Review photos open in a fullscreen swipeable gallery, while like, reply,
- * and review-action interactions can be connected to the owning card.
+ * Supports reduced review snapshots by keeping engagement and specialty
+ * metadata optional, while interactive review features can be hidden when
+ * the component is used in read-only contexts such as dispute history.
  */
 export default function ReviewContent({
   review,
@@ -45,6 +64,8 @@ export default function ReviewContent({
   onActions,
   onReply,
   perspective = "explorer",
+  showEngagement = true,
+  showSpecialtyVouches = true,
 }: Props) {
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
@@ -52,6 +73,11 @@ export default function ReviewContent({
   const [isTruncated, setIsTruncated] = useState(false);
 
   const scale = useRef(new Animated.Value(1)).current;
+
+  const vouchedSpecialties = review.vouched_specialties ?? [];
+  const likeCount = review.like_count ?? 0;
+  const isLiked = review.is_liked ?? false;
+  const isLikedByOwner = review.is_liked_by_owner ?? false;
 
   const handlePhotoPress = (index: number) => {
     setSelectedPhotoIndex(index);
@@ -87,25 +113,26 @@ export default function ReviewContent({
 
         <View className="ml-3 flex-1">
           <View className="flex-row items-center">
-            <Text
-              className="flex-shrink font-semibold text-text-primary"
+            <AppText
+              weight="semibold"
+              className="flex-shrink text-text-primary"
               numberOfLines={1}
             >
               {review.author.first_name} {review.author.last_name}
-            </Text>
+            </AppText>
 
             {review.is_own_review && (
               <View className="ml-2 rounded-full bg-brand/10 px-2 py-0.5">
-                <Text className="text-[10px] font-semibold text-brand">
+                <AppText weight="semibold" className="text-[10px] text-brand">
                   Your review
-                </Text>
+                </AppText>
               </View>
             )}
           </View>
 
-          <Text className="mt-0.5 text-xs text-text-secondary">
+          <AppText className="mt-0.5 text-xs text-text-secondary">
             {relativeDate(review.created_at)}
-          </Text>
+          </AppText>
         </View>
 
         {onActions && (
@@ -126,7 +153,7 @@ export default function ReviewContent({
 
       {/* Review text */}
       <View className="mt-4">
-        <Text
+        <AppText
           className="text-sm leading-6 text-text-primary"
           numberOfLines={
             isExpanded ? undefined : isTruncated ? MAX_REVIEW_LINES : undefined
@@ -138,7 +165,7 @@ export default function ReviewContent({
           }}
         >
           {review.text}
-        </Text>
+        </AppText>
 
         {isTruncated && (
           <Pressable
@@ -149,9 +176,9 @@ export default function ReviewContent({
             }
             className="mt-1 cursor-pointer self-start active:opacity-70"
           >
-            <Text className="text-sm font-semibold text-brand">
+            <AppText weight="semibold" className="text-sm text-brand">
               {isExpanded ? "Show less" : "Read more"}
-            </Text>
+            </AppText>
           </Pressable>
         )}
       </View>
@@ -180,9 +207,9 @@ export default function ReviewContent({
               {index === MAX_REVIEW_PHOTOS - 1 &&
                 review.photos.length > MAX_REVIEW_PHOTOS && (
                   <View className="absolute inset-0 items-center justify-center bg-black/45">
-                    <Text className="text-lg font-bold text-white">
+                    <AppText weight="bold" className="text-lg text-white">
                       +{review.photos.length - MAX_REVIEW_PHOTOS}
-                    </Text>
+                    </AppText>
                   </View>
                 )}
             </Pressable>
@@ -191,22 +218,25 @@ export default function ReviewContent({
       )}
 
       {/* Specialty vouches */}
-      {review.vouched_specialties.length > 0 && (
+      {showSpecialtyVouches && vouchedSpecialties.length > 0 && (
         <View className="mt-4">
           <View className="mb-2 flex-row items-center">
             <MaterialCommunityIcons
-              name="heart"
+              name="heart-outline"
               size={16}
               color={theme.extends.colors.brand}
             />
 
-            <Text className="ml-1.5 text-xs font-semibold text-text-secondary">
+            <AppText
+              weight="semibold"
+              className="ml-1.5 text-xs text-text-secondary"
+            >
               Vouched for
-            </Text>
+            </AppText>
           </View>
 
           <View className="flex-row flex-wrap gap-0.5">
-            {review.vouched_specialties.map((tag) => (
+            {vouchedSpecialties.map((tag) => (
               <SpecialtyTagChip
                 key={tag.id}
                 tag={{
@@ -222,65 +252,75 @@ export default function ReviewContent({
       )}
 
       {/* Review engagement and merchant reply */}
-      <View className="mt-4 flex-row items-center justify-between">
-        {/* Like button */}
-        <Pressable
-          onPress={handleLike}
-          disabled={!onLike || isLikePending}
-          accessibilityRole="button"
-          accessibilityLabel={
-            review.is_liked ? "Unlike this review" : "Like this review"
-          }
-          className="flex-row cursor-pointer items-center active:opacity-70"
-        >
-          <Animated.View
-            style={{
-              transform: [{ scale }],
-            }}
-          >
-            <MaterialCommunityIcons
-              name={review.is_liked ? "thumb-up" : "thumb-up-outline"}
-              size={20}
-              color={
-                review.is_liked
-                  ? theme.extends.colors.brand
-                  : theme.extends.colors.text.secondary
-              }
-            />
-          </Animated.View>
-
-          <Text className="ml-1.5 text-xs font-medium text-text-secondary">
-            {review.like_count} found this helpful
-          </Text>
-        </Pressable>
-
-        {/* Liked by merchant */}
-        {perspective === "explorer" && review.is_liked_by_owner && (
-          <View className="ml-4 flex-row items-center">
-            <MaterialCommunityIcons
-              name="heart"
-              size={15}
-              color={theme.extends.colors.brand}
-            />
-
-            <Text className="ml-1 text-xs font-medium text-text-secondary">
-              Liked by merchant
-            </Text>
-          </View>
-        )}
-
-        {/* Reply button */}
-        {onReply && !review.reply && (
+      {showEngagement && (
+        <View className="mt-4 flex-row items-center justify-between">
+          {/* Like action */}
           <Pressable
-            onPress={onReply}
+            onPress={handleLike}
+            disabled={!onLike || isLikePending}
             accessibilityRole="button"
-            accessibilityLabel={`Reply to ${review.author.first_name} ${review.author.last_name}'s review`}
-            className="min-h-11 cursor-pointer justify-center rounded-full bg-brand px-4 active:opacity-80"
+            accessibilityLabel={
+              isLiked ? "Unlike this review" : "Like this review"
+            }
+            className="flex-row cursor-pointer items-center active:opacity-70"
           >
-            <Text className="text-sm font-semibold text-white">Reply</Text>
+            <Animated.View
+              style={{
+                transform: [{ scale }],
+              }}
+            >
+              <MaterialCommunityIcons
+                name={isLiked ? "thumb-up" : "thumb-up-outline"}
+                size={20}
+                color={
+                  isLiked
+                    ? theme.extends.colors.brand
+                    : theme.extends.colors.text.secondary
+                }
+              />
+            </Animated.View>
+
+            <AppText
+              weight="medium"
+              className="ml-1.5 text-xs text-text-secondary"
+            >
+              {likeCount} found this helpful
+            </AppText>
           </Pressable>
-        )}
-      </View>
+
+          {/* Merchant endorsement */}
+          {perspective === "explorer" && isLikedByOwner && (
+            <View className="ml-4 flex-row items-center">
+              <MaterialCommunityIcons
+                name="heart"
+                size={15}
+                color={theme.extends.colors.brand}
+              />
+
+              <AppText
+                weight="medium"
+                className="ml-1 text-xs text-text-secondary"
+              >
+                Liked by merchant
+              </AppText>
+            </View>
+          )}
+
+          {/* Merchant reply action */}
+          {onReply && !review.reply && (
+            <Pressable
+              onPress={onReply}
+              accessibilityRole="button"
+              accessibilityLabel={`Reply to ${review.author.first_name} ${review.author.last_name}'s review`}
+              className="min-h-11 cursor-pointer justify-center rounded-full bg-brand px-4 active:opacity-80"
+            >
+              <AppText weight="semibold" className="text-sm text-white">
+                Reply
+              </AppText>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {/* Fullscreen review photo gallery */}
       <FullScreenPhotoViewer
@@ -295,16 +335,17 @@ export default function ReviewContent({
             <Avatar imageUrl={review.author.avatar_url} size={34} />
 
             <View className="ml-2.5 flex-1">
-              <Text
-                className="text-sm font-semibold text-white"
+              <AppText
+                weight="semibold"
+                className="text-sm text-white"
                 numberOfLines={1}
               >
                 {review.author.first_name} {review.author.last_name}
-              </Text>
+              </AppText>
 
-              <Text className="mt-0.5 text-xs text-white/65">
+              <AppText className="mt-0.5 text-xs text-white/65">
                 {relativeDate(review.created_at)}
-              </Text>
+              </AppText>
             </View>
           </View>
         }

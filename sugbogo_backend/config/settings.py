@@ -17,6 +17,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import cloudinary
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -265,6 +266,25 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
+
+
+# Celery uses Redis for task delivery and Django's timezone for scheduling.
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+CELERY_BEAT_SCHEDULE = {
+    "daily-discovery-score-recomputation": {
+        "task": "apps.business.tasks.recompute_discovery_scores",
+        "schedule": crontab(
+            minute=0,
+            hour=2,
+        ),
+    },
+}
 
 
 # Static files (CSS, JavaScript, Images)

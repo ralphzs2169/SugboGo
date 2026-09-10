@@ -18,6 +18,7 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import { useReplyTemplates } from "../../../hooks/reply-templates/useReplyTemplates";
 import type { ReplyTemplate } from "../../../types/reply-templates/replyTemplate.types";
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
@@ -208,15 +209,15 @@ export default function ReplyTemplateComposerSheet({
         {/* Sheet header */}
         <View className="flex-row items-start">
           <View className="flex-1 pr-3">
-            <Text className="text-xl font-bold text-text-primary">
+            <AppText weight="bold" className="text-xl text-text-primary">
               {isEditing ? "Edit reply template" : "Add reply template"}
-            </Text>
+            </AppText>
 
-            <Text className="mt-2 text-xs leading-5 text-text-secondary">
+            <AppText className="mt-2 text-xs leading-5 text-text-secondary">
               {isEditing
                 ? "Update this reusable response for customer reviews."
                 : "Save a response you can reuse when replying to customer reviews."}
-            </Text>
+            </AppText>
           </View>
 
           <Pressable
@@ -277,6 +278,7 @@ export default function ReplyTemplateComposerSheet({
           disabled={!canSubmit}
           className="mt-5"
           fontClassName="text-sm font-bold"
+          rounded="full"
         />
       </BottomSheetScrollView>
     </BottomSheetModal>

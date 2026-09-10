@@ -429,7 +429,7 @@ class ReviewViewTests(APITestCase):
         response = self.client.post(
             self.preview_url,
             {
-                "text": "Great food.",
+                "text": "Great food and excellent service.",
                 "photos": [
                     first_photo,
                     second_photo,
@@ -460,7 +460,7 @@ class ReviewViewTests(APITestCase):
 
         self.assertEqual(
             call_kwargs["text"],
-            "Great food.",
+            "Great food and excellent service.",
         )
 
         self.assertEqual(
@@ -605,7 +605,7 @@ class ReviewViewTests(APITestCase):
         response = self.client.post(
             self.preview_url,
             {
-                "text": "Second review.",
+                "text": "Second review with enough detail.",
             },
             format="multipart",
         )
@@ -678,7 +678,7 @@ class ReviewViewTests(APITestCase):
         response = self.client.post(
             "/api/reviews/business/999999/",
             {
-                "text": "Great food.",
+                "text": "Great food and excellent service.",
             },
             format="multipart",
         )

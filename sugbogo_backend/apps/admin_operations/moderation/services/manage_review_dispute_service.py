@@ -1,7 +1,9 @@
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
+from apps.business.models import BusinessSpecialtyTag
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import Review
 
@@ -11,6 +13,16 @@ class ManageReviewDisputeService:
 
     @staticmethod
     def _detail_queryset():
+        active_specialty_tags = (
+            BusinessSpecialtyTag.objects
+            .filter(
+                BST_IS_ACTIVE=True,
+            )
+            .select_related(
+                "TAG_ID",
+            )
+        )
+
         return (
             MerchantReviewDispute.objects
             .select_related(
@@ -21,6 +33,11 @@ class ManageReviewDisputeService:
                 "USER_ID",
             )
             .prefetch_related(
+                Prefetch(
+                    "BUSN_ID__specialty_tag_links",
+                    queryset=active_specialty_tags,
+                    to_attr="active_specialty_tag_links",
+                ),
                 "evidence",
                 "REVW_ID__photos",
                 "REVW_ID__reports",

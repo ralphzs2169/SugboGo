@@ -53,7 +53,7 @@ function TabItem({
 
   const activeColor = isFocused
     ? theme.extends.colors.brand
-    : theme.extends.colors.text.tertiary;
+    : theme.extends.colors.text.secondary;
 
   return (
     <Pressable
@@ -75,9 +75,10 @@ function TabItem({
 
         {/* Label */}
         <Animated.Text
-          className="mt-1 text-[10px] font-medium"
+          className="mt-1 text-[10px]"
           style={{
             color: activeColor,
+            fontFamily: "NunitoSans_600SemiBold",
           }}
           numberOfLines={1}
           adjustsFontSizeToFit
