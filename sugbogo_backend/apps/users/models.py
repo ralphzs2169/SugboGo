@@ -341,3 +341,55 @@ class ReputationEvent(models.Model):
 
     def __str__(self):
         return f"Reputation event {self.REVT_ID}"
+
+
+class UserCategoryInterest(models.Model):
+    UCIN_ID = models.AutoField(primary_key=True)
+    USER_ID = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        db_column="USER_ID",
+        related_name="category_interests",
+    )
+    CTGRY_ID = models.ForeignKey(
+        "business.Category",
+        on_delete=models.CASCADE,
+        db_column="CTGRY_ID",
+        related_name="user_interests",
+    )
+    UCIN_CREATED_AT = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "USER_CATEGORY_INTEREST"
+        constraints = [  # noqa: RUF012
+            models.UniqueConstraint(
+                fields=["USER_ID", "CTGRY_ID"],
+                name="unique_user_category_interest",
+            ),
+        ]
+
+
+class UserSpecialtyTagInterest(models.Model):
+    UTIN_ID = models.AutoField(primary_key=True)
+    USER_ID = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        db_column="USER_ID",
+        related_name="specialty_tag_interests",
+    )
+    TAG_ID = models.ForeignKey(
+        "business.SpecialtyTag",
+        on_delete=models.CASCADE,
+        db_column="TAG_ID",
+        related_name="user_interests",
+    )
+    UTIN_CREATED_AT = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "USER_SPECIALTY_TAG_INTEREST"
+        constraints = [  # noqa: RUF012
+            models.UniqueConstraint(
+                fields=["USER_ID", "TAG_ID"],
+                name="unique_user_specialty_tag_interest",
+            ),
+        ]

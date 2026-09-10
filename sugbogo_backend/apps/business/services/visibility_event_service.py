@@ -445,3 +445,36 @@ class VisibilityEventService:
             raise VisibilityTrackingUnavailable() from exc
 
         return metrics
+
+    @classmethod
+    def get_profile_visit_business_ids(
+        cls,
+        explorer_id: int,
+    ) -> list[int]:
+        """Returns one business ID for each stored deduplicated profile visit."""
+
+        cls.ensure_indexes()
+
+        try:
+            collection = cls._get_collection()
+            rows = collection.find(
+                {
+                    "explorer_id": explorer_id,
+                    "event_type": VisibilityEventType.PROFILE_VISIT.value,
+                },
+                {
+                    "_id": 0,
+                    "business_id": 1,
+                },
+            )
+
+            return [
+                row["business_id"]
+                for row in rows
+                if isinstance(row.get("business_id"), int)
+            ]
+        except PyMongoError as exc:
+            logger.exception(
+                "Failed to read Explorer profile-visit events.",
+            )
+            raise VisibilityTrackingUnavailable() from exc

@@ -6,8 +6,10 @@ from apps.users.serializers.profile import (
     AvatarPreferencesSerializer,
     ProfilePictureSerializer,
     UserSerializer,
+    UserInterestsUpdateSerializer,
     UserUpdateSerializer,
 )
+from apps.users.services.interest_service import UserInterestService
 from apps.users.services.profile_picture_service import ProfilePictureService
 from apps.users.services.profile_service import ProfileService
 
@@ -95,15 +97,43 @@ def update_avatar_preferences(request):
     )
 
 
-@api_view(["PATCH"])
+@api_view(["GET", "PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
 def complete_interest_selection(request):
+    if request.method == "GET":
+        return success_response(
+            message="Interests retrieved successfully.",
+            data=UserInterestService.get_interests(request.user),
+        )
 
-    user = request.user
+    onboarding = request.method == "PATCH"
+    serializer = UserInterestsUpdateSerializer(
+        data=request.data,
+        context={
+            "onboarding": onboarding,
+        },
+    )
+    serializer.is_valid(raise_exception=True)
 
-    user.HAS_COMPLETED_INTEREST_SELECTION = True
-    user.save(update_fields=["HAS_COMPLETED_INTEREST_SELECTION"])
+    specialty_tag_ids = serializer.validated_data.get(
+        "specialty_tag_ids",
+    )
+    if onboarding and specialty_tag_ids is None:
+        specialty_tag_ids = []
+
+    interests = UserInterestService.update_interests(
+        user=request.user,
+        category_ids=serializer.validated_data.get("category_ids"),
+        specialty_tag_ids=specialty_tag_ids,
+        complete_onboarding=onboarding,
+    )
+
+    if onboarding:
+        message = "Interest selection completed successfully."
+    else:
+        message = "Interests updated successfully."
 
     return success_response(
-        message="Interest selection completed successfully."
+        message=message,
+        data=interests,
     )

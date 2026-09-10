@@ -225,3 +225,112 @@ class DiscoveryAlgorithmConfiguration(models.Model):
 
     def __str__(self):
         return "Discovery Algorithm Configuration"
+
+
+class RecommendationAlgorithmConfiguration(models.Model):
+    """The authoritative singleton configuration for recommendations."""
+
+    RAC_ID = models.PositiveSmallIntegerField(
+        primary_key=True,
+        default=1,
+        editable=False,
+    )
+    RAC_CLUSTER_WEIGHT = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("1.00000"),
+        validators=[
+            MinValueValidator(
+                Decimal("0.00001"),
+            ),
+        ],
+    )
+    RAC_CATEGORY_WEIGHT = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("2.00000"),
+        validators=[
+            MinValueValidator(
+                Decimal("0.00001"),
+            ),
+        ],
+    )
+    RAC_SPECIALTY_TAG_WEIGHT = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("3.00000"),
+        validators=[
+            MinValueValidator(
+                Decimal("0.00001"),
+            ),
+        ],
+    )
+    RAC_PROFILE_VISIT_STRENGTH = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("1.00000"),
+        validators=[
+            MinValueValidator(ZERO),
+        ],
+    )
+    RAC_POCKET_STRENGTH = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("3.00000"),
+        validators=[
+            MinValueValidator(ZERO),
+        ],
+    )
+    RAC_SPECIALTY_VOUCH_STRENGTH = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("3.00000"),
+        validators=[
+            MinValueValidator(ZERO),
+        ],
+    )
+    RAC_HIGH_MATCH_THRESHOLD = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("0.70000"),
+        validators=[
+            MinValueValidator(ZERO),
+            MaxValueValidator(ONE),
+        ],
+    )
+    RAC_MODERATE_MATCH_THRESHOLD = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("0.40000"),
+        validators=[
+            MinValueValidator(Decimal("0.00001")),
+            MaxValueValidator(ONE),
+        ],
+    )
+    RAC_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    RAC_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "RECOMMENDATION_ALGORITHM_CONFIGURATION"
+        constraints = [  # noqa: RUF012
+            models.CheckConstraint(
+                condition=models.Q(RAC_ID=1),
+                name="recommendation_algorithm_configuration_singleton",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+
+        if self.RAC_HIGH_MATCH_THRESHOLD <= self.RAC_MODERATE_MATCH_THRESHOLD:
+            raise ValidationError(
+                {
+                    "RAC_HIGH_MATCH_THRESHOLD": (
+                        "High match threshold must be greater than "
+                        "moderate match threshold."
+                    ),
+                },
+            )
+
+    def __str__(self):
+        return "Recommendation Algorithm Configuration"

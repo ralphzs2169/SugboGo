@@ -78,3 +78,44 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
 class AvatarPreferencesSerializer(serializers.Serializer):
     use_oauth_avatar = serializers.BooleanField()
+
+
+class UserInterestsUpdateSerializer(serializers.Serializer):
+    category_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+    )
+    specialty_tag_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+    )
+
+    def validate(self, attrs):
+        for field_name in (
+            "category_ids",
+            "specialty_tag_ids",
+        ):
+            if field_name in attrs:
+                attrs[field_name] = list(
+                    dict.fromkeys(
+                        attrs[field_name],
+                    ),
+                )
+
+        if self.context.get("onboarding"):
+            specialty_tag_ids = attrs.get(
+                "specialty_tag_ids",
+                [],
+            )
+
+            if len(specialty_tag_ids) > 3:
+                raise serializers.ValidationError(
+                    {
+                        "specialty_tag_ids": (
+                            "Select no more than 3 specialty tags during "
+                            "onboarding."
+                        ),
+                    },
+                )
+
+        return attrs

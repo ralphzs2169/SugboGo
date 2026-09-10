@@ -13,6 +13,9 @@ from apps.explorer_operations.explore_businesses.views.discovery_feed_views impo
 from apps.explorer_operations.explore_businesses.views.new_businesses_views import (
     NewBusinessesView,
 )
+from apps.explorer_operations.explore_businesses.views.recommendation_views import (
+    RecommendationView,
+)
 from apps.explorer_operations.explore_businesses.views.visibility_event_views import (
     BusinessImpressionBatchView,
     BusinessProfileVisitView,
@@ -25,6 +28,11 @@ urlpatterns = [
     
     path("new-businesses/", NewBusinessesView.as_view(), name="new-businesses", ),
     path("discovery/", DiscoveryFeedView.as_view(), name="discovery-feed", ),
+    path(
+        "recommendations/",
+        RecommendationView.as_view(),
+        name="recommendations",
+    ),
 
     path("businesses/<int:business_id>/vouch/", BusinessVouchView.as_view(), name="business-vouch", ),
     path("businesses/<int:business_id>/pocket/", BusinessPocketView.as_view(), name="business-pocket" ),
