@@ -1,5 +1,7 @@
-import { ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import type { ReactNode } from "react";
+import { ActivityIndicator, TouchableOpacity } from "react-native";
+
+import AppText, { type AppTextWeight } from "@/shared/components/AppText";
 
 type ButtonProps = {
   title: string;
@@ -9,13 +11,16 @@ type ButtonProps = {
   icon?: ReactNode;
   className?: string;
   fontClassName?: string;
+  textWeight?: AppTextWeight;
   variant?: "primary" | "secondary" | "outline" | "soft" | "danger" | "success";
   rounded?: "none" | "sm" | "md" | "lg" | "full";
 };
 
 /**
- * Button component provides a customizable button for common actions.
- * Supports variants, loading states, icons, and configurable corner radius.
+ * Provides a reusable application button for common user actions.
+ *
+ * Supports visual variants, Nunito Sans text weights, loading states,
+ * optional icons, disabled states, and configurable corner radius.
  */
 export default function Button({
   title,
@@ -25,7 +30,8 @@ export default function Button({
   icon,
   className = "",
   variant = "primary",
-  fontClassName = "text-base font-semibold",
+  fontClassName = "text-base",
+  textWeight = "semibold",
   rounded = "lg",
 }: ButtonProps) {
   const isDisabled = disabled || loading;
@@ -56,28 +62,44 @@ export default function Button({
     full: "rounded-full",
   }[rounded];
 
+  const loadingIndicatorColor = {
+    primary: "#FFFFFF",
+    secondary: "#1A1A1A",
+    outline: "#1A1A1A",
+    soft: "#F27F0D",
+    danger: "#FFFFFF",
+    success: "#FFFFFF",
+  }[variant];
+
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
-      className={`flex-row items-center justify-center px-4 py-4 ${
+      accessibilityRole="button"
+      accessibilityState={{
+        disabled: isDisabled,
+        busy: loading,
+      }}
+      className={`cursor-pointer flex-row items-center justify-center px-4 py-4 ${
         isDisabled ? "opacity-50" : ""
       } ${roundedClass} ${variantClass} ${className}`}
     >
+      {/* Button content */}
       {loading ? (
-        <ActivityIndicator color="white" />
+        <ActivityIndicator color={loadingIndicatorColor} />
       ) : (
         <>
           {icon}
 
-          <Text
+          <AppText
+            weight={textWeight}
             numberOfLines={1}
             className={`${fontClassName} ${textColorClass} ${
               icon ? "ml-2" : ""
             }`}
           >
             {title}
-          </Text>
+          </AppText>
         </>
       )}
     </TouchableOpacity>

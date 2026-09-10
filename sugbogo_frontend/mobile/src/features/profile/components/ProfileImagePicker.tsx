@@ -1,6 +1,6 @@
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef } from "react";
 import { Pressable, View } from "react-native";
-import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 import Avatar from "@/shared/components/Avatar";
@@ -12,24 +12,22 @@ type Props = {
   imageUrl?: string | null;
   isShowingCustomProfilePicture: boolean;
   hasSelectedImage: boolean;
+  isUploading: boolean;
   onImageSelected?: (imageUri: string) => void;
   onRemovePicture?: () => void;
 };
 
 /**
- * ProfileImagePicker handles profile picture interactions.
+ * Handles profile picture selection and related user interactions.
  *
- * This component displays the user's avatar and provides actions for
- * selecting a new image from the gallery, taking a photo, or removing
- * the current profile picture.
- *
- * Image processing and uploading are handled by the parent component.
- * This component only manages image selection and user interactions.
+ * Prevents additional picture actions while an existing profile-picture
+ * upload is in progress.
  */
 export function ProfileImagePicker({
   imageUrl,
   isShowingCustomProfilePicture,
   hasSelectedImage,
+  isUploading,
   onImageSelected,
   onRemovePicture,
 }: Props) {
@@ -37,12 +35,16 @@ export function ProfileImagePicker({
 
   const sheetRef = useRef<BottomSheetModal | null>(null);
 
-  // Opens the profile picture action bottom sheet.
+  // Open picture actions
   function handlePickImage() {
+    if (isUploading) {
+      return;
+    }
+
     sheetRef.current?.present();
   }
 
-  // Opens the device gallery and returns the selected image URI.
+  // Choose from gallery
   async function handleChoosePhoto() {
     try {
       const imageUri = await pickFromGallery();
@@ -63,7 +65,7 @@ export function ProfileImagePicker({
     }
   }
 
-  //  Opens the device camera and returns the captured image URI.
+  // Capture from camera
   async function handleTakePhoto() {
     try {
       const imageUri = await takePhoto();
@@ -84,23 +86,31 @@ export function ProfileImagePicker({
     }
   }
 
-  //Removes the current profile picture after dismissing the bottom sheet.
+  // Remove current picture
   function handleRemovePicture() {
     sheetRef.current?.dismiss();
-
     onRemovePicture?.();
   }
 
   return (
     <>
-      <Pressable onPress={handlePickImage} className="active:opacity-80">
+      {/* Avatar trigger */}
+      <Pressable
+        onPress={handlePickImage}
+        disabled={isUploading}
+        accessibilityRole="button"
+        accessibilityLabel="Change profile picture"
+        accessibilityState={{ disabled: isUploading }}
+        className="cursor-pointer active:opacity-80 disabled:opacity-100"
+      >
         <View className="relative">
-          <View className="rounded-full border-1 border-white">
+          <View className="rounded-full border border-white">
             <Avatar imageUrl={imageUrl} size={120} />
           </View>
         </View>
       </Pressable>
 
+      {/* Picture actions */}
       <ProfilePictureBottomSheet
         sheetRef={sheetRef}
         isShowingCustomProfilePicture={isShowingCustomProfilePicture}

@@ -1,5 +1,7 @@
-import { ReactNode, Children } from "react";
-import { View, Text } from "react-native";
+import { Children, type ReactNode } from "react";
+import { View } from "react-native";
+
+import AppText from "@/shared/components/AppText";
 
 type ProfileMenuSectionProps = {
   title?: string;
@@ -7,8 +9,10 @@ type ProfileMenuSectionProps = {
 };
 
 /**
- * ProfileMenuSection component represents a section in the profile menu.
- * It displays a title and a list of ProfileMenuItem components.
+ * Groups related profile menu items inside a shared surface.
+ *
+ * Keeps section spacing compact while preserving clear separation between
+ * titled groups and their navigation items.
  */
 export default function ProfileMenuSection({
   title,
@@ -17,21 +21,21 @@ export default function ProfileMenuSection({
   const items = Children.toArray(children);
 
   return (
-    <View className="mt-3">
-      <View className="overflow-hidden pt-6 pb-4 rounded-md bg-surface">
-        {title ? (
-          <Text className="mb-3 px-5 text-sm font-semibold  text-text-secondary">
+    <View className="mt-1.5">
+      <View className="overflow-hidden rounded-md bg-surface py-2">
+        {/* Section heading */}
+        {title && (
+          <AppText
+            weight="semibold"
+            className="mb-1.5 px-5 pt-2 text-sm text-text-secondary"
+          >
             {title}
-          </Text>
-        ) : null}
-        {items.map((child, index) => (
-          <View key={index}>
-            {child}
+          </AppText>
+        )}
 
-            {/* {index < items.length - 1 && (
-              <View className="ml-16 h-px bg-border-primary mr-6" />
-            )} */}
-          </View>
+        {/* Section items */}
+        {items.map((child, index) => (
+          <View key={index}>{child}</View>
         ))}
       </View>
     </View>

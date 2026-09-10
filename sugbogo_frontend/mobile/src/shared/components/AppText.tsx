@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Text, type TextProps } from "react-native";
 
-type AppTextWeight = "regular" | "medium" | "semibold" | "bold" | "extrabold";
+export type AppTextWeight =
+  "regular" | "medium" | "semibold" | "bold" | "extrabold";
 
 type AppTextProps = TextProps & {
   children?: ReactNode;

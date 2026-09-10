@@ -1,9 +1,8 @@
-import { Text, TouchableOpacity, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { TouchableOpacity, View } from "react-native";
 import { theme } from "@/constants/theme";
 import Avatar from "@/shared/components/Avatar";
 import RoleBadge from "@/shared/components/RoleBadge";
-import { Ionicons } from "@expo/vector-icons";
+import AppText from "@/shared/components/AppText";
 import { Feather } from "@expo/vector-icons";
 type ProfileHeaderProps = {
   firstname: string;
@@ -45,16 +44,20 @@ export default function ProfileHeader({
         <Avatar imageUrl={avatarUrl} size={100} />
 
         <View className="ml-3 flex-1 pr-12">
-          <Text
-            className="text-md font-bold text-text-primary truncate"
+          <AppText
+            weight="bold"
+            className="text-md  text-text-primary truncate"
             numberOfLines={1}
           >
             {firstname} {lastname}
-          </Text>
+          </AppText>
 
-          <Text className="mt-1 text-xs text-text-secondary" numberOfLines={1}>
+          <AppText
+            className="mt-1 text-xs text-text-secondary"
+            numberOfLines={1}
+          >
             {email}
-          </Text>
+          </AppText>
 
           <RoleBadge role={role} />
         </View>

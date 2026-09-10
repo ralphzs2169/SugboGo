@@ -9,11 +9,10 @@ import { GENDER_OPTIONS } from "../constants/genderOptions";
 import { Gender } from "../types/profile.types";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { handleSystemError } from "@/shared/utils/apiErrors";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 import { useRemoveProfilePicture } from "../hooks/useRemoveProfilePicture";
@@ -25,6 +24,7 @@ import {
   UpdateProfileErrors,
   validateProfileForm,
 } from "../utils/updateProfileValidator";
+import AppText from "@/shared/components/AppText";
 
 /**
  * EditProfileScreen component allows users to edit their profile information,
@@ -211,13 +211,14 @@ export default function EditProfileScreen() {
           isShowingCustomProfilePicture={
             (user?.has_custom_profile_picture ?? false) && !removeProfilePicture
           }
+          hasSelectedImage={selectedImage !== null}
+          isUploading={isUploading}
           onImageSelected={(image) => {
             setSelectedImage(image);
             setPreviewImage(image);
             setRemoveProfilePicture(false);
           }}
           onRemovePicture={handleRemovePicture}
-          hasSelectedImage={selectedImage !== null}
         />
 
         {/* Form content */}
@@ -259,9 +260,9 @@ export default function EditProfileScreen() {
           />
 
           {formError ? (
-            <Text className="mt-4 text-center text-sm text-text-error">
+            <AppText className="mt-4 text-center text-sm text-text-error">
               {formError}
-            </Text>
+            </AppText>
           ) : null}
 
           <ConfirmModal
@@ -280,13 +281,7 @@ export default function EditProfileScreen() {
             loading={isSaving}
             disabled={!hasChanges || isSaving}
             className="mt-6 mb-10"
-            icon={
-              <MaterialCommunityIcons
-                name="content-save-outline"
-                size={20}
-                color="white"
-              />
-            }
+            rounded="full"
           />
           <ConfirmModal
             visible={showConfirm}
