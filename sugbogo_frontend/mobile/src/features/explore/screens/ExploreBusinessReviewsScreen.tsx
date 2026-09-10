@@ -33,8 +33,14 @@ export default function ExploreBusinessReviewsScreen({
   businessName = "Business",
   isOwnBusiness = false,
 }: Props) {
-  const { reviews, isLoading, isRefetching, error, refetch, totalCount } =
-    useBusinessReviews(businessId);
+  const {
+    reviews,
+    isInitialLoading,
+    isRefetching,
+    error,
+    refetch,
+    totalCount,
+  } = useBusinessReviews(businessId);
 
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -60,7 +66,7 @@ export default function ExploreBusinessReviewsScreen({
   const communityReviews = reviews.filter((review) => !review.is_own_review);
   const hasOwnReview = Boolean(myReview);
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return <BusinessReviewsSkeleton bottomInset={insets.bottom} />;
   }
 

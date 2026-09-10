@@ -11,6 +11,7 @@ interface FormTextAreaProps extends TextInputProps {
   required?: boolean;
   helperText?: string;
   minLength?: number;
+  showLabel?: boolean;
   showCharacterCount?: boolean;
   InputComponent?: React.ComponentType<TextInputProps>;
 }
@@ -29,6 +30,7 @@ export default function FormTextArea({
   required = false,
   helperText,
   minLength,
+  showLabel = true,
   showCharacterCount = false,
   value,
   InputComponent = TextInput,
@@ -84,6 +86,7 @@ export default function FormTextArea({
       rightElement={rightElement}
       required={required}
       bottomElement={feedback}
+      showLabel={showLabel}
     >
       <InputComponent
         {...props}

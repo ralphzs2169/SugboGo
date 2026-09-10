@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   title?: string;
@@ -21,9 +23,9 @@ export default function BusinessProfileSection({
       {/* Section title */}
       {title && (
         <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
-          <Text className="mb-3 text-base font-bold text-text-primary">
+          <AppText weight="bold" className="mb-3 text-base text-text-primary">
             {title}
-          </Text>
+          </AppText>
 
           {icon && <View className="mb-3">{icon}</View>}
         </View>

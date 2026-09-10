@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 import BusinessPocketButton from "./BusinessPocketButton";
 
@@ -128,12 +129,13 @@ export default function BusinessProfileStickyHeader({
 
           <View className="ml-2 flex-1">
             <View className="flex-row items-center">
-              <Text
-                className="flex-shrink text-base font-bold text-text-primary"
+              <AppText
+                weight="bold"
+                className="flex-shrink text-base text-text-primary"
                 numberOfLines={1}
               >
                 {businessName}
-              </Text>
+              </AppText>
 
               {isOwnBusiness && (
                 <View className="ml-1.5 flex-row items-center rounded-full bg-brand px-1.5 py-0.5">
@@ -153,12 +155,13 @@ export default function BusinessProfileStickyHeader({
                 color={theme.extends.colors.text.secondary}
               />
 
-              <Text
-                className="ml-1 flex-1 text-xs font-medium text-text-secondary"
+              <AppText
+                weight="medium"
+                className="ml-1 flex-1 text-xs text-text-secondary"
                 numberOfLines={1}
               >
                 {clusterName} · {categoryName}
-              </Text>
+              </AppText>
             </View>
           </View>
         </View>

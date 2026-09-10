@@ -1,35 +1,45 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { Image } from "expo-image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, RefreshControl, View, Text } from "react-native";
+import { FlatList, RefreshControl, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
-import type { BusinessReview } from "@/features/explore/types/review.types";
-import { useBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
 import { theme } from "@/constants/theme";
+import { useBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
+import type { BusinessReview } from "@/features/explore/types/review.types";
+import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
-import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import MerchantReviewCard from "../../components/review-management/MerchantReviewCard";
+import MerchantReviewFilters, {
+  type ReviewFilter,
+} from "../../components/review-management/MerchantReviewFilters";
+import MerchantReviewManagement from "../../components/review-management/MerchantReviewManagement";
 import MerchantReviewReplyComposerSheet from "../../components/review-management/MerchantReviewReplyComposerSheet";
-import MerchantReviewsHeader from "../../components/review-management/MerchantReviewsHeader";
+import MerchantReviewsOverview from "../../components/review-management/MerchantReviewsOverview";
+import MerchantReviewsSectionSkeleton from "../../components/review-management/MerchantReviewsSectionSkeleton";
 import MerchantReviewsSkeleton from "../../components/review-management/MerchantReviewsSkeleton";
-
-type ReviewFilter = "all" | "needs-reply" | "replied";
+import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 
 const TAB_BAR_HEIGHT = 64;
 
+const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
+
+const MASCOT_ALL_CAUGHT_UP = require("@/shared/assets/mascot/mascot-all-caught-up.webp");
+
 /**
- * Gives merchants a focused inbox for customer feedback and public replies.
+ * Gives merchants a focused workspace for explorer reviews and public replies.
  *
- * Reply filters are derived from the complete loaded review set because the
- * current review API does not expose server-side filtering parameters.
+ * Keeps page-level management available during review-feed failures and uses
+ * localized loading and recovery states when only the review data is affected.
+ * Uses lightweight WebP mascot assets for meaningful empty review experiences.
  */
 export default function MerchantReviewsScreen() {
   const insets = useSafeAreaInsets();
@@ -46,7 +56,7 @@ export default function MerchantReviewsScreen() {
   const {
     reviews,
     totalCount,
-    isLoading: isReviewsLoading,
+    isInitialLoading: isReviewsInitialLoading,
     isRefetching,
     error: reviewsError,
     refetch: refetchReviews,
@@ -58,11 +68,10 @@ export default function MerchantReviewsScreen() {
     null,
   );
   const [filter, setFilter] = useState<ReviewFilter>("all");
+  const [isRetryingReviews, setIsRetryingReviews] = useState(false);
 
-  const isLoading =
-    isBusinessLoading || (Boolean(business) && isReviewsLoading);
-
-  const error = businessError || reviewsError;
+  const isInitialLoading =
+    isBusinessLoading || (Boolean(business) && isReviewsInitialLoading);
 
   const filteredReviews = useMemo(() => {
     if (filter === "needs-reply") {
@@ -82,6 +91,8 @@ export default function MerchantReviewsScreen() {
   );
 
   useEffect(() => {
+    const error = businessError || reviewsError;
+
     if (!error) {
       return;
     }
@@ -91,11 +102,13 @@ export default function MerchantReviewsScreen() {
     if (!response.success && !handleSystemError(response)) {
       Toast.show({
         type: "error",
-        text1: "Unable to load reviews",
+        text1: reviewsError
+          ? "Unable to load reviews"
+          : "Unable to load business",
         text2: response.message || "Please try again.",
       });
     }
-  }, [error]);
+  }, [businessError, reviewsError]);
 
   const refresh = async () => {
     if (business) {
@@ -106,8 +119,18 @@ export default function MerchantReviewsScreen() {
     await refetchBusiness();
   };
 
-  const retry = () => {
-    void refresh();
+  const retryBusiness = () => {
+    void refetchBusiness();
+  };
+
+  const retryReviews = async () => {
+    setIsRetryingReviews(true);
+
+    try {
+      await refetchReviews();
+    } finally {
+      setIsRetryingReviews(false);
+    }
   };
 
   const openReplyComposer = (review: BusinessReview) => {
@@ -115,7 +138,7 @@ export default function MerchantReviewsScreen() {
     presentBottomSheet(replySheetRef);
   };
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
@@ -126,19 +149,19 @@ export default function MerchantReviewsScreen() {
     );
   }
 
-  if (error || !business) {
+  if (businessError || !business) {
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
-        className="flex-1 bg-background"
+        className="flex-1 bg-surface"
       >
+        {/* Business-context error */}
         <ErrorState
-          size="small"
-          icon="comment-off-outline"
+          icon="store-alert-outline"
           title="Unable to load reviews"
-          description="We couldn't load your customer reviews right now. Please try again."
+          description="We couldn't load your business information right now. Please try again."
           primaryActionTitle="Retry"
-          onPrimaryAction={retry}
+          onPrimaryAction={retryBusiness}
         />
       </SafeAreaView>
     );
@@ -147,11 +170,11 @@ export default function MerchantReviewsScreen() {
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
-      className="flex-1 bg-background"
+      className="flex-1 bg-surface"
     >
-      {/* Review list */}
+      {/* Review feed */}
       <FlatList
-        data={filteredReviews}
+        data={reviewsError || isRetryingReviews ? [] : filteredReviews}
         keyExtractor={(review) => String(review.id)}
         renderItem={({ item }) => (
           <MerchantReviewCard
@@ -173,27 +196,137 @@ export default function MerchantReviewsScreen() {
           />
         }
         ListHeaderComponent={
-          <MerchantReviewsHeader
-            totalCount={totalCount}
-            needsReplyCount={needsReplyCount}
-            filter={filter}
-            onFilterChange={setFilter}
-          />
+          <View>
+            {/* Review overview */}
+            <MerchantReviewsOverview
+              totalCount={
+                reviewsError || isRetryingReviews ? undefined : totalCount
+              }
+              needsReplyCount={
+                reviewsError || isRetryingReviews ? undefined : needsReplyCount
+              }
+            />
+
+            {/* Review management */}
+            <MerchantReviewManagement />
+
+            {/* Review feed controls */}
+            {!reviewsError && !isRetryingReviews && (
+              <MerchantReviewFilters
+                needsReplyCount={needsReplyCount}
+                filter={filter}
+                onFilterChange={setFilter}
+              />
+            )}
+
+            {/* Review retry loading */}
+            {isRetryingReviews && (
+              <View className="-mx-4 mt-6 border-t border-border-primary bg-surface px-4 pb-4 pt-6">
+                <View className="mb-4">
+                  <AppText weight="bold" className="text-lg text-text-primary">
+                    Reviews
+                  </AppText>
+
+                  <AppText className="mt-0.5 text-xs text-text-secondary">
+                    Feedback shared by explorers
+                  </AppText>
+                </View>
+
+                <MerchantReviewsSectionSkeleton />
+              </View>
+            )}
+
+            {/* Review feed error */}
+            {reviewsError && !isRetryingReviews && (
+              <View className="-mx-4 mt-6 border-t border-border-primary bg-surface px-4 pb-4 pt-6">
+                <View className="mb-4">
+                  <AppText weight="bold" className="text-lg text-text-primary">
+                    Reviews
+                  </AppText>
+
+                  <AppText className="mt-0.5 text-xs text-text-secondary">
+                    Feedback shared by explorers
+                  </AppText>
+                </View>
+
+                <ErrorState
+                  size="section"
+                  icon="comment-off-outline"
+                  title="Unable to load reviews"
+                  description="We couldn't load your reviews right now."
+                  primaryActionTitle="Retry"
+                  onPrimaryAction={() => void retryReviews()}
+                />
+              </View>
+            )}
+          </View>
         }
         ItemSeparatorComponent={() => <View className="h-3" />}
         ListEmptyComponent={
-          <View className="items-center rounded-card border border-border-primary bg-surface px-6 py-10">
-            {/* Empty-state content */}
-            <Text className="text-base font-bold text-text-primary">
-              {filter === "all" ? "No reviews yet" : "Nothing here"}
-            </Text>
+          reviewsError || isRetryingReviews ? null : (
+            <>
+              {/* No reviews yet */}
+              {filter === "all" && (
+                <View className="items-center rounded-card border border-border-primary bg-surface px-6 py-10">
+                  <Image
+                    source={MASCOT_EMPTY_REVIEWS}
+                    style={{ width: 150, height: 150 }}
+                    contentFit="contain"
+                  />
 
-            <Text className="mt-1 text-center text-sm leading-5 text-text-secondary">
-              {filter === "all"
-                ? "Customer feedback will appear here when your business receives reviews."
-                : "No reviews match this reply status."}
-            </Text>
-          </View>
+                  <AppText
+                    weight="bold"
+                    className="mt-3 text-center text-base text-text-primary"
+                  >
+                    No reviews yet
+                  </AppText>
+
+                  <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
+                    Reviews shared by explorers will appear here.
+                  </AppText>
+                </View>
+              )}
+
+              {/* Needs-reply empty state */}
+              {filter === "needs-reply" && (
+                <View className="items-center bg-surface px-6 py-8">
+                  <Image
+                    source={MASCOT_ALL_CAUGHT_UP}
+                    style={{ width: 120, height: 120 }}
+                    contentFit="contain"
+                  />
+
+                  <AppText
+                    weight="bold"
+                    className="mt-2 text-center text-base text-text-primary"
+                  >
+                    All caught up
+                  </AppText>
+
+                  <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
+                    No reviews need your reply. Check back later for new
+                    feedback from explorers.
+                  </AppText>
+                </View>
+              )}
+
+              {/* Replied-filter empty state */}
+              {filter === "replied" && (
+                <View className="rounded-card border border-border-primary bg-surface px-6 py-10">
+                  <AppText
+                    weight="bold"
+                    className="text-center text-base text-text-primary"
+                  >
+                    No replied reviews
+                  </AppText>
+
+                  <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
+                    Reviews you reply to will appear here.
+                  </AppText>
+                </View>
+              )}
+            </>
+          )
         }
       />
 

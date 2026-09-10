@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 import Skeleton from "@/shared/components/Skeleton";
 
 /**
@@ -64,13 +65,13 @@ export default function BusinessProfileSkeletonContent() {
 
       {/* Specialties */}
       <View className="mt-2 bg-surface px-4 py-5">
-        <Text className="text-base font-bold text-text-primary">
+        <AppText weight="bold" className="text-base text-text-primary">
           Specialties
-        </Text>
+        </AppText>
 
-        <Text className="mt-1 text-sm text-text-secondary">
+        <AppText className="mt-1 text-sm text-text-secondary">
           Vouch for what this place gets right
-        </Text>
+        </AppText>
 
         <View className="mt-3 flex-row flex-wrap gap-2">
           <Skeleton className="h-16 flex-1 rounded-xl" />
@@ -82,9 +83,9 @@ export default function BusinessProfileSkeletonContent() {
       {/* About */}
       <View className="mt-2 bg-surface px-4 py-5">
         <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
-          <Text className="mb-3 text-base font-bold text-text-primary">
+          <AppText weight="bold" className="mb-3 text-base text-text-primary">
             About this place
-          </Text>
+          </AppText>
         </View>
 
         <View className="gap-2">
@@ -97,9 +98,9 @@ export default function BusinessProfileSkeletonContent() {
       {/* Plan your visit */}
       <View className="mt-2 bg-surface px-4 py-5">
         <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
-          <Text className="mb-3 text-base font-bold text-text-primary">
+          <AppText weight="bold" className="mb-3 text-base text-text-primary">
             Plan Your Visit
-          </Text>
+          </AppText>
         </View>
 
         {/* Location */}
@@ -146,9 +147,9 @@ export default function BusinessProfileSkeletonContent() {
       {/* Photos */}
       <View className="mt-2 bg-surface px-4 py-5">
         <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
-          <Text className="mb-3 text-base font-bold text-text-primary">
+          <AppText weight="bold" className="mb-3 text-base text-text-primary">
             See What's Here
-          </Text>
+          </AppText>
         </View>
 
         <View className="flex-row gap-3">
@@ -161,9 +162,13 @@ export default function BusinessProfileSkeletonContent() {
       {/* Reviews */}
       <View className="mt-2 bg-surface">
         <View className="mb-4 flex-row items-center justify-between px-4 pt-5">
-          <Text className="text-base font-bold text-text-primary">Reviews</Text>
+          <AppText weight="bold" className="text-base text-text-primary">
+            Reviews
+          </AppText>
 
-          <Text className="text-sm font-semibold text-brand">See all</Text>
+          <AppText weight="semibold" className="text-sm text-brand">
+            See all
+          </AppText>
         </View>
 
         {/* Review card */}

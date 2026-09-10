@@ -1,14 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { theme } from "@/constants/theme";
-import Button from "@/shared/components/Button";
 
 type ErrorStateProps = {
   title: string;
   description: string;
 
-  size?: "default" | "small";
+  size?: "default" | "small" | "section";
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 
   primaryActionTitle?: string;
@@ -19,10 +18,10 @@ type ErrorStateProps = {
 };
 
 /**
- * Displays a centered error state with configurable sizing and iconography.
+ * Displays a reusable error state for page-level and localized failures.
  *
- * The default variant is intended for full-page errors, while the small
- * variant is suited for localized errors within individual sections.
+ * The section variant stays compact and uses lightweight inline recovery
+ * controls so localized errors do not dominate the surrounding content.
  */
 export default function ErrorState({
   title,
@@ -34,61 +33,95 @@ export default function ErrorState({
   secondaryActionTitle,
   onSecondaryAction,
 }: ErrorStateProps) {
+  const isDefault = size === "default";
   const isSmall = size === "small";
+  const isSection = size === "section";
+
+  const containerClassName = isSection
+    ? "items-center px-4 py-4"
+    : `flex-1 items-center justify-center ${isSmall ? "px-5" : "px-8"}`;
+
+  const iconSize = isDefault ? 88 : isSmall ? 48 : 28;
+
+  const titleClassName = isDefault
+    ? "mt-6 text-2xl"
+    : isSmall
+      ? "mt-3 text-lg"
+      : "mt-2 text-sm";
+
+  const descriptionClassName = isDefault
+    ? "mt-2 text-base leading-6"
+    : isSmall
+      ? "mt-1 text-sm leading-5"
+      : "mt-1 text-xs leading-4";
 
   return (
-    <View
-      className={`flex-1 items-center justify-center ${
-        isSmall ? "px-5" : "px-8"
-      }`}
-    >
+    <View className={containerClassName}>
       {/* Error icon */}
       <MaterialCommunityIcons
         name={icon}
-        size={isSmall ? 48 : 88}
+        size={iconSize}
         color={theme.extends.colors.text.tertiary}
       />
 
       {/* Error message */}
       <Text
-        className={`text-center font-bold text-text-primary ${
-          isSmall ? "mt-3 text-lg" : "mt-6 text-2xl"
-        }`}
+        className={`text-center font-bold text-text-primary ${titleClassName}`}
       >
         {title}
       </Text>
 
       <Text
-        className={`text-center text-text-secondary ${
-          isSmall ? "mt-1 text-sm leading-5" : "mt-2 text-base leading-6"
-        }`}
+        className={`max-w-72 text-center text-text-secondary ${descriptionClassName}`}
       >
         {description}
       </Text>
 
       {/* Recovery actions */}
       {(primaryActionTitle || secondaryActionTitle) && (
-        <View className="mt-6 w-full flex-row gap-3">
+        <View className={`flex-row gap-2 ${isSection ? "mt-3" : "mt-6"}`}>
           {secondaryActionTitle && onSecondaryAction && (
-            <View className="flex-1">
-              <Button
-                title={secondaryActionTitle}
-                variant="outline"
-                onPress={onSecondaryAction}
-                className="rounded-full"
-              />
-            </View>
+            <Pressable
+              onPress={onSecondaryAction}
+              accessibilityRole="button"
+              className={`cursor-pointer flex-row items-center justify-center rounded-full border border-border-primary bg-surface active:opacity-70 ${
+                isSection ? "px-4 py-2" : "px-5 py-3"
+              }`}
+            >
+              <Text
+                className={`font-semibold text-text-primary ${
+                  isSection ? "text-xs" : "text-sm"
+                }`}
+              >
+                {secondaryActionTitle}
+              </Text>
+            </Pressable>
           )}
 
           {primaryActionTitle && onPrimaryAction && (
-            <View className="flex-1">
-              <Button
-                title={primaryActionTitle}
-                onPress={onPrimaryAction}
-                fontClassName="font-bold"
-                className="rounded-full"
-              />
-            </View>
+            <Pressable
+              onPress={onPrimaryAction}
+              accessibilityRole="button"
+              className={`cursor-pointer flex-row items-center justify-center rounded-full bg-brand active:opacity-70 ${
+                isSection ? "px-4 py-2" : "px-5 py-3"
+              }`}
+            >
+              {isSection && (
+                <MaterialCommunityIcons
+                  name="refresh"
+                  size={15}
+                  color="white"
+                />
+              )}
+
+              <Text
+                className={`font-semibold text-white ${
+                  isSection ? "ml-1.5 text-xs" : "text-sm"
+                }`}
+              >
+                {primaryActionTitle}
+              </Text>
+            </Pressable>
           )}
         </View>
       )}

@@ -1,6 +1,7 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
+import AppText from "@/shared/components/AppText";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
@@ -68,16 +69,22 @@ export default function BusinessSpecialtiesSection({
   };
 
   return (
-    <View className="px-4 py-6 bg-surface">
-      <Text className="text-base font-bold tracking-wide text-text-primary">
+    <View className="bg-surface px-4 py-6">
+      {/* Section heading */}
+      <AppText
+        weight="bold"
+        className="text-base tracking-wide text-text-primary"
+      >
         Specialties
-      </Text>
-      <Text className="mt-1 text-sm text-text-secondary">
+      </AppText>
+
+      <AppText className="mt-1 text-sm text-text-secondary">
         {isOwnBusiness
           ? "What Explorers vouch for at your business"
           : "Vouch for what this place gets right"}
-      </Text>
+      </AppText>
 
+      {/* Specialty vouch cards */}
       <View className="mt-3 flex-row flex-wrap gap-2">
         {specialtyTags.map((tag) => (
           <BusinessSpecialtyVouchCard

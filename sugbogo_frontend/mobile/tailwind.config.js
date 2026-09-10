@@ -39,6 +39,14 @@ module.exports = {
         },
       },
 
+      // ── FONT FAMILIES ───────────────────────
+      fontFamily: {
+        nunito: ["NunitoSans_400Regular"],
+        "nunito-medium": ["NunitoSans_500Medium"],
+        "nunito-semibold": ["NunitoSans_600SemiBold"],
+        "nunito-bold": ["NunitoSans_700Bold"],
+      },
+
       // ── FONT SIZES ───────────────────────────
       fontSize: {
         xs: "11px", // labels (EMAIL ADDRESS, PASSWORD)

@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRef, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 

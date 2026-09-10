@@ -1,13 +1,17 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 
 import { useBusinessReviewPreview } from "../../../hooks/useBusinessReviews";
 import type { BusinessReview } from "../../../types/review.types";
 import BusinessReviewCard from "./BusinessReviewCard";
+
+const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
 
 type Props = {
   businessId: number;
@@ -19,9 +23,9 @@ type Props = {
 /**
  * Displays a compact preview of the business's latest reviews.
  *
- * Uses the preview endpoint, which provides up to three reviews and the
- * total review count. The dedicated reviews screen handles the complete
- * review collection and review management workflow.
+ * Uses the preview endpoint, which provides up to three reviews and the total
+ * review count. Empty and failure states remain localized to this section.
+ * Uses a lightweight SugboGo WebP mascot for the true empty-review state.
  */
 export default function BusinessReviewsSection({
   businessId,
@@ -48,9 +52,9 @@ export default function BusinessReviewsSection({
     <View>
       {/* Reviews heading */}
       <View className="mb-4 flex-row items-center justify-between">
-        <Text className="text-base font-bold text-text-primary">
+        <AppText weight="bold" className="text-base text-text-primary">
           Reviews {reviewCount > 0 ? `(${reviewCount})` : ""}
-        </Text>
+        </AppText>
 
         {!isLoading && !error && (
           <>
@@ -59,9 +63,9 @@ export default function BusinessReviewsSection({
                 onPress={openReviews}
                 className="cursor-pointer flex-row items-center active:opacity-70"
               >
-                <Text className="text-sm font-semibold text-brand">
+                <AppText weight="semibold" className="text-sm text-brand">
                   See more
-                </Text>
+                </AppText>
 
                 <MaterialCommunityIcons
                   name="chevron-right"
@@ -82,7 +86,9 @@ export default function BusinessReviewsSection({
 
       {/* Loading state */}
       {isLoading && (
-        <Text className="text-sm text-text-secondary">Loading reviews…</Text>
+        <AppText className="text-sm text-text-secondary">
+          Loading reviews…
+        </AppText>
       )}
 
       {/* Error state */}
@@ -99,51 +105,48 @@ export default function BusinessReviewsSection({
 
       {/* Existing review notice */}
       {!isLoading && !error && hasOwnReview && (
-        <View className="mb-4 flex-row items-center bg-info rounded-md  px-3 py-2.5">
+        <View className="mb-4 flex-row items-center rounded-md bg-info px-3 py-2.5">
           <MaterialCommunityIcons
             name="information-outline"
             size={16}
             color={theme.extends.colors.text.info}
           />
 
-          <Text className="ml-2 flex-1 text-xs text-text-secondary">
+          <AppText className="ml-2 flex-1 text-xs text-text-secondary">
             You've already reviewed this business. You can edit your review
             anytime.
-          </Text>
+          </AppText>
         </View>
       )}
 
-      {/* Empty state */}
+      {/* Empty reviews state */}
       {!isLoading && !error && reviewCount === 0 && !hasOwnReview && (
-        <View className="items-center border-t border-border-primary px-4 py-8">
-          {isOwnBusiness && (
-            <MaterialCommunityIcons
-              name="comment-text-outline"
-              size={32}
-              color={theme.extends.colors.text.tertiary}
-            />
-          )}
+        <View className="items-center border-t border-border-primary px-4 py-6">
+          <Image
+            source={MASCOT_EMPTY_REVIEWS}
+            style={{ width: 120, height: 120 }}
+            contentFit="contain"
+          />
 
-          <Text className="mt-2 text-sm font-semibold text-text-primary">
+          <AppText weight="semibold" className="mt-2 text-sm text-text-primary">
             No reviews yet
-          </Text>
+          </AppText>
 
-          <Text className="mt-1 text-center text-xs text-text-secondary">
+          <AppText className="mt-1 max-w-64 text-center text-xs leading-5 text-text-secondary">
             {isOwnBusiness
               ? "Reviews from Explorers will show up here."
               : "Be the first to share your experience."}
-          </Text>
+          </AppText>
         </View>
       )}
 
       {/* Review preview */}
       {!isLoading && !error && reviews.length > 0 && (
-        <View className="pb-4 gap-2">
+        <View className="gap-2 pb-4">
           {reviews.map((review) => (
             <BusinessReviewCard
               key={review.id}
               businessId={businessId}
-
               review={review}
               onEdit={onEditReview}
             />

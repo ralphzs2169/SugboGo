@@ -6,18 +6,13 @@ import {
 } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  BackHandler,
-  Pressable,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
 import PhotoPreview from "@/features/merchant/components/registration/business-photos/PhotoPreview";
 import Button from "@/shared/components/Button";
+import AppText from "@/shared/components/AppText";
 import FormTextArea from "@/shared/components/form/FormTextArea";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -288,9 +283,9 @@ export default function ReviewComposerSheet({
         contentContainerClassName="px-5 pb-32 pt-3"
       >
         {/* Sheet header */}
-        <Text className="text-xl font-bold text-text-primary">
+        <AppText weight="bold" className="text-xl text-text-primary">
           {isEditing ? "Edit review" : "Write a review"}
-        </Text>
+        </AppText>
 
         {/* Informational note */}
         <View className="mt-2 flex-row items-center">
@@ -300,15 +295,16 @@ export default function ReviewComposerSheet({
             color={theme.extends.colors.text.secondary}
           />
 
-          <Text className="ml-1 text-xs text-text-secondary">
+          <AppText className="ml-1 text-xs text-text-secondary">
             You can submit one review per business.
-          </Text>
+          </AppText>
         </View>
 
         {/* Review text */}
         <View className="mt-4">
           <FormTextArea
             label="Your review"
+            showLabel={false}
             value={text}
             onChangeText={setText}
             onFocus={() => clearFieldError("text")}
@@ -325,9 +321,9 @@ export default function ReviewComposerSheet({
 
         {/* Review photos */}
         <View>
-          <Text className="mb-3 text-sm font-bold text-text-primary">
+          <AppText weight="bold" className="mb-3 text-sm text-text-primary">
             Include Photos (optional)
-          </Text>
+          </AppText>
 
           <View className="flex-row flex-wrap">
             {existingPhotos.map((photo) => (
@@ -368,18 +364,21 @@ export default function ReviewComposerSheet({
                       color={theme.extends.colors.text.primary}
                     />
 
-                    <Text className="mt-1 text-xs font-medium text-text-secondary">
+                    <AppText
+                      weight="medium"
+                      className="mt-1 text-xs text-text-secondary"
+                    >
                       Add photo
-                    </Text>
+                    </AppText>
                   </>
                 )}
               </Pressable>
             )}
           </View>
 
-          <Text className="mt-3 text-xs text-text-secondary">
+          <AppText className="mt-3 text-xs text-text-secondary">
             Optional · Up to {MAX_REVIEW_PHOTOS} photos · {photoCount} added
-          </Text>
+          </AppText>
         </View>
 
         {/* Submit action */}

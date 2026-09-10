@@ -6,7 +6,13 @@ import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { useFonts } from "expo-font";
+import {
+  NunitoSans_400Regular,
+  NunitoSans_500Medium,
+  NunitoSans_600SemiBold,
+  NunitoSans_700Bold,
+  useFonts,
+} from "@expo-google-fonts/nunito-sans";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -15,18 +21,18 @@ import Toast from "react-native-toast-message";
 
 import "../../global.css";
 
+/**
+ * Initializes the application's global providers, fonts, authentication
+ * restoration, navigation, and shared UI infrastructure.
+ */
 export default function RootLayout() {
   useRestoreSession();
 
   const [fontsLoaded] = useFonts({
-    Inter: require("@/assets/fonts/Inter_28pt-Regular.ttf"),
-    "Inter-Light": require("@/assets/fonts/Inter_28pt-Light.ttf"),
-    "Inter-ExtraLight": require("@/assets/fonts/Inter_28pt-ExtraLight.ttf"),
-    "Inter-Medium": require("@/assets/fonts/Inter_28pt-Medium.ttf"),
-    "Inter-SemiBold": require("@/assets/fonts/Inter_28pt-SemiBold.ttf"),
-    "Inter-Bold": require("@/assets/fonts/Inter_28pt-Bold.ttf"),
-    "Inter-ExtraBold": require("@/assets/fonts/Inter_28pt-ExtraBold.ttf"),
-    "Inter-Black": require("@/assets/fonts/Inter_28pt-Black.ttf"),
+    NunitoSans_400Regular,
+    NunitoSans_500Medium,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
   });
 
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -44,9 +50,11 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <StatusBar style="dark" />
+
           <ActionSheetProvider>
             <SafeAreaProvider>
               <BottomSheetModalProvider>
+                {/* App navigation */}
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="index" options={{ animation: "none" }} />
 
@@ -68,6 +76,8 @@ export default function RootLayout() {
                   />
                 </Stack>
               </BottomSheetModalProvider>
+
+              {/* Global toast notifications */}
               <Toast config={toastConfig} />
             </SafeAreaProvider>
           </ActionSheetProvider>

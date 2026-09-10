@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 
 interface InputContainerProps {
   label: string;
+  showLabel?: boolean;
   error?: string;
   rightElement?: ReactNode;
   children: ReactNode;
@@ -20,6 +21,7 @@ interface InputContainerProps {
  */
 export default function InputContainer({
   label,
+  showLabel = true,
   error,
   rightElement,
   children,
@@ -32,10 +34,12 @@ export default function InputContainer({
     <View className="mb-5">
       {/* Field label */}
       <View className="mb-1.5 flex-row items-center justify-between">
-        <Text className="text-xs font-bold tracking-[0.5px] text-text-secondary">
-          {label}
-          {required && <Text className="text-text-error"> *</Text>}
-        </Text>
+        {showLabel && (
+          <Text className="text-xs font-bold tracking-[0.5px] text-text-secondary">
+            {label}
+            {required && <Text className="text-text-error"> *</Text>}
+          </Text>
+        )}
 
         {rightElement}
       </View>

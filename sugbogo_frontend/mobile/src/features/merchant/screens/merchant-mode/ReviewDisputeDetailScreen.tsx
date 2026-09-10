@@ -1,16 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Animated, RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -20,16 +11,18 @@ import ErrorState from "@/shared/components/ErrorState";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
-import { formatDate } from "@/shared/utils/date.utils";
 
-import DisputedReviewContext from "../../components/review-disputes/DisputedReviewContext";
-import EvidencePickerActions from "../../components/review-disputes/EvidencePickerActions";
+import ReviewDisputeAdminNotesSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeAdminNotesSection";
+import ReviewDisputeDetailSkeleton from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeDetailSkeleton";
+import ReviewDisputeEvidenceSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeEvidenceSection";
+import ReviewDisputeHistorySection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeHistorySection";
+import ReviewDisputeOverviewSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeOverviewSection";
+import ReviewDisputeStickyHeader from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeStickyHeader";
+import ReviewDisputedReviewSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputedReviewSection";
 import ReviewDisputeSection from "../../components/review-disputes/ReviewDisputeSection";
-import ReviewDisputeStatusBadge from "../../components/review-disputes/ReviewDisputeStatusBadge";
 import {
   MAX_REVIEW_DISPUTE_EVIDENCE,
   MAX_REVIEW_DISPUTE_EVIDENCE_BYTES,
-  REVIEW_DISPUTE_REASON_LABELS,
 } from "../../constants/reviewDispute.constants";
 import {
   useAddReviewDisputeEvidence,
@@ -50,17 +43,23 @@ type Props = {
   disputeId: number;
 };
 
+type EvidenceAction = "images" | "documents" | null;
+
 /**
  * Displays a merchant review dispute with its review context, evidence,
  * moderation outcome, and previous dispute attempts.
  *
- * Pending disputes allow evidence management and withdrawal while resolved
- * disputes remain available as read-only history.
+ * Pending disputes allow evidence management and withdrawal, while a compact
+ * sticky context bar preserves dispute identity after the overview scrolls away.
  */
 export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   const [evidenceToDelete, setEvidenceToDelete] =
     useState<ReviewDisputeEvidence | null>(null);
   const [isWithdrawVisible, setIsWithdrawVisible] = useState(false);
+  const [evidenceAction, setEvidenceAction] = useState<EvidenceAction>(null);
+  const [overviewHeight, setOverviewHeight] = useState(0);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const { dispute, isLoading, isRefetching, error, refetch } =
     useReviewDisputeDetail(disputeId);
@@ -74,6 +73,15 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   const remainingSlots = dispute
     ? MAX_REVIEW_DISPUTE_EVIDENCE - dispute.evidence.length
     : 0;
+
+  const contextRevealStart = Math.max(overviewHeight - 48, 0);
+  const contextRevealEnd = Math.max(overviewHeight, 1);
+
+  const contextOpacity = scrollY.interpolate({
+    inputRange: [contextRevealStart, contextRevealEnd],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
 
   useEffect(() => {
     if (!error) {
@@ -156,11 +164,25 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const pickImages = async () => {
-    await uploadEvidence(await pickReviewDisputeImages(remainingSlots));
+    setEvidenceAction("images");
+
+    try {
+      const picked = await pickReviewDisputeImages(remainingSlots);
+      await uploadEvidence(picked);
+    } finally {
+      setEvidenceAction(null);
+    }
   };
 
   const pickDocuments = async () => {
-    await uploadEvidence(await pickReviewDisputeDocuments(remainingSlots));
+    setEvidenceAction("documents");
+
+    try {
+      const picked = await pickReviewDisputeDocuments(remainingSlots);
+      await uploadEvidence(picked);
+    } finally {
+      setEvidenceAction(null);
+    }
   };
 
   const confirmDeleteEvidence = async () => {
@@ -202,22 +224,26 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator color={theme.extends.colors.brand} />
-      </View>
+      <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <ReviewDisputeDetailSkeleton />
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
   if (error || !dispute) {
     return (
-      <View className="flex-1 bg-background">
+      <View className="flex-1 bg-surface">
         <ErrorState
           size="small"
           icon="file-alert-outline"
           title="Unable to load dispute"
           description="We couldn't load this review dispute right now."
           primaryActionTitle="Retry"
+          secondaryActionTitle="Go back"
           onPrimaryAction={() => void refetch()}
+          onSecondaryAction={() => router.back()}
         />
       </View>
     );
@@ -225,9 +251,16 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
 
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
-      <ScrollView
+      {/* Dispute content */}
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="pb-8"
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          {
+            useNativeDriver: true,
+          },
+        )}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -236,176 +269,84 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
           />
         }
       >
-        {/* Dispute summary */}
-        <ReviewDisputeSection>
-          <View className="flex-row items-start justify-between gap-3">
-            <View className="flex-1">
-              <Text className="text-lg font-bold text-text-primary">
-                Dispute attempt {dispute.attempt_number}
-              </Text>
+        {/* Dispute overview */}
+        <View
+          onLayout={(event) => {
+            setOverviewHeight(event.nativeEvent.layout.height);
+          }}
+        >
+          <ReviewDisputeOverviewSection
+            attemptNumber={dispute.attempt_number}
+            createdAt={dispute.created_at}
+            resolvedAt={dispute.resolved_at}
+            status={dispute.status}
+            reason={dispute.reason}
+          />
+        </View>
 
-              <Text className="mt-1 text-xs text-text-secondary">
-                Submitted {formatDate(dispute.created_at)}
-              </Text>
-
-              {dispute.resolved_at && (
-                <Text className="mt-1 text-xs text-text-secondary">
-                  Resolved {formatDate(dispute.resolved_at)}
-                </Text>
-              )}
-            </View>
-
-            <ReviewDisputeStatusBadge status={dispute.status} />
-          </View>
+        {/* Disputed review and merchant explanation */}
+        <ReviewDisputeSection
+          title="Disputed review"
+          showBorder={false}
+          icon={
+            <MaterialCommunityIcons
+              name="message-alert-outline"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
+          }
+        >
+          <ReviewDisputedReviewSection
+            review={dispute.review}
+            reason={dispute.reason}
+            description={dispute.description}
+          />
         </ReviewDisputeSection>
 
-        {/* Disputed review */}
-        <ReviewDisputeSection title="Disputed review">
-          <DisputedReviewContext review={dispute.review} />
-        </ReviewDisputeSection>
-
-        {/* Merchant dispute */}
-        <ReviewDisputeSection title="Your dispute">
-          <View>
-            <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              Reason
-            </Text>
-
-            <Text className="mt-1 text-sm font-medium text-text-primary">
-              {REVIEW_DISPUTE_REASON_LABELS[dispute.reason]}
-            </Text>
-          </View>
-
-          <View className="mt-5">
-            <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              Details
-            </Text>
-
-            <Text className="mt-1 text-sm leading-6 text-text-primary">
-              {dispute.description}
-            </Text>
-          </View>
-        </ReviewDisputeSection>
-
-        {/* Administrator resolution */}
+        {/* Administrator notes */}
         {dispute.admin_notes && (
           <ReviewDisputeSection
             title="Administrator notes"
-            description="This is the administrator's explanation for the dispute decision."
+            showBorder={false}
+            icon={
+              <MaterialCommunityIcons
+                name="shield-account-outline"
+                size={20}
+                color={theme.extends.colors.text.secondary}
+              />
+            }
           >
-            <Text className="text-sm leading-6 text-text-primary">
-              {dispute.admin_notes}
-            </Text>
+            <ReviewDisputeAdminNotesSection notes={dispute.admin_notes} />
           </ReviewDisputeSection>
         )}
 
         {/* Supporting evidence */}
         <ReviewDisputeSection
           title="Supporting evidence"
-          description={
-            isPending
-              ? "Evidence can be added or removed while this dispute is pending."
-              : "Evidence submitted with this dispute."
+          description={isPending ? "" : "Evidence submitted with this dispute."}
+          icon={
+            <MaterialCommunityIcons
+              name="paperclip"
+              size={21}
+              color={theme.extends.colors.text.secondary}
+            />
           }
         >
-          {dispute.evidence.length === 0 ? (
-            <View className="rounded-xl bg-surface-secondary px-4 py-5">
-              <Text className="text-center text-sm text-text-secondary">
-                No evidence has been added.
-              </Text>
-            </View>
-          ) : (
-            <View className="gap-2">
-              {dispute.evidence.map((item) => (
-                <View
-                  key={item.id}
-                  className="flex-row items-center rounded-xl border border-border-primary bg-surface px-2 py-2"
-                >
-                  {/* Evidence file */}
-                  <Pressable
-                    onPress={() => void Linking.openURL(item.url)}
-                    accessibilityRole="link"
-                    accessibilityLabel={`Open ${item.file_name ?? "evidence"}`}
-                    className="min-h-14 min-w-0 flex-1 cursor-pointer flex-row items-center active:opacity-70"
-                  >
-                    {item.type === "image" ? (
-                      <Image
-                        source={{ uri: item.url }}
-                        contentFit="cover"
-                        transition={150}
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 8,
-                        }}
-                      />
-                    ) : (
-                      <View className="h-14 w-14 items-center justify-center rounded-lg bg-brand/10">
-                        <MaterialCommunityIcons
-                          name="file-document-outline"
-                          size={27}
-                          color={theme.extends.colors.brand}
-                        />
-                      </View>
-                    )}
-
-                    <View className="ml-3 min-w-0 flex-1">
-                      <Text
-                        className="text-sm font-semibold text-text-primary"
-                        numberOfLines={1}
-                      >
-                        {item.file_name ?? "Evidence file"}
-                      </Text>
-
-                      <Text className="mt-0.5 text-xs capitalize text-text-secondary">
-                        {item.type}
-                      </Text>
-                    </View>
-
-                    <MaterialCommunityIcons
-                      name="open-in-new"
-                      size={18}
-                      color={theme.extends.colors.text.tertiary}
-                    />
-                  </Pressable>
-
-                  {/* Delete evidence */}
-                  {isPending && (
-                    <Pressable
-                      onPress={() => setEvidenceToDelete(item)}
-                      disabled={deleteEvidence.isPending}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Delete ${
-                        item.file_name ?? "evidence"
-                      }`}
-                      className="ml-2 min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-full active:bg-red-50"
-                    >
-                      <MaterialCommunityIcons
-                        name="delete-outline"
-                        size={20}
-                        color={theme.extends.colors.error}
-                      />
-                    </Pressable>
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Add evidence */}
-          {isPending && (
-            <View className="mt-4">
-              <EvidencePickerActions
-                remainingSlots={remainingSlots}
-                disabled={addEvidence.isPending}
-                onPickImages={() => void pickImages()}
-                onPickDocuments={() => void pickDocuments()}
-              />
-            </View>
-          )}
+          <ReviewDisputeEvidenceSection
+            evidence={dispute.evidence}
+            isPending={isPending}
+            remainingSlots={remainingSlots}
+            isAddingEvidence={addEvidence.isPending}
+            isDeletingEvidence={deleteEvidence.isPending}
+            isPickingImages={evidenceAction === "images"}
+            isPickingDocuments={evidenceAction === "documents"}
+            onPickImages={() => void pickImages()}
+            onPickDocuments={() => void pickDocuments()}
+            onRequestDelete={setEvidenceToDelete}
+          />
         </ReviewDisputeSection>
 
-        {/* Previous attempts */}
+        {/* Previous dispute attempts */}
         <ReviewDisputeSection
           title="Previous disputes"
           description={
@@ -413,76 +354,49 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
               ? "Earlier dispute attempts for this review."
               : undefined
           }
+          icon={
+            <MaterialCommunityIcons
+              name="history"
+              size={21}
+              color={theme.extends.colors.text.secondary}
+            />
+          }
         >
-          {dispute.previous_disputes.length === 0 ? (
-            <View className="rounded-xl bg-surface-secondary px-4 py-5">
-              <Text className="text-center text-sm text-text-secondary">
-                This is the first dispute attempt for this review.
-              </Text>
-            </View>
-          ) : (
-            <View className="gap-2">
-              {dispute.previous_disputes.map((attempt, index) => {
-                const attemptNumber = dispute.attempt_number - index - 1;
-
-                return (
-                  <View
-                    key={attempt.id}
-                    className="rounded-xl border border-border-primary bg-surface-secondary p-4"
-                  >
-                    {/* Attempt summary */}
-                    <View className="flex-row items-start justify-between gap-3">
-                      <View className="flex-1">
-                        <Text className="font-semibold text-text-primary">
-                          Attempt {attemptNumber}
-                        </Text>
-
-                        <Text className="mt-1 text-xs text-text-secondary">
-                          {formatDate(attempt.created_at)}
-                        </Text>
-                      </View>
-
-                      <ReviewDisputeStatusBadge status={attempt.status} />
-                    </View>
-
-                    {/* View attempt */}
-                    <Pressable
-                      onPress={() =>
-                        router.push({
-                          pathname: "/(merchant)/review-disputes/[disputeId]",
-                          params: {
-                            disputeId: String(attempt.id),
-                          },
-                        })
-                      }
-                      accessibilityRole="button"
-                      accessibilityLabel={`View dispute attempt ${attemptNumber}`}
-                      className="mt-3 min-h-10 cursor-pointer self-start justify-center active:opacity-70"
-                    >
-                      <Text className="text-sm font-bold text-brand">
-                        View dispute →
-                      </Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
-          )}
+          <ReviewDisputeHistorySection
+            currentAttemptNumber={dispute.attempt_number}
+            previousDisputes={dispute.previous_disputes}
+            onViewAttempt={(attemptId) =>
+              router.push({
+                pathname: "/(merchant)/review-disputes/[disputeId]",
+                params: {
+                  disputeId: String(attemptId),
+                },
+              })
+            }
+          />
         </ReviewDisputeSection>
 
         {/* Pending dispute action */}
         {isPending && (
-          <View className="px-4 pt-3">
+          <View className="bg-surface px-4 py-3">
             <Button
               title="Withdraw dispute"
               variant="danger"
               onPress={() => setIsWithdrawVisible(true)}
-              className="rounded-full"
+              rounded="full"
               fontClassName="font-bold"
             />
           </View>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
+
+      {/* Sticky dispute context */}
+      <ReviewDisputeStickyHeader
+        attemptNumber={dispute.attempt_number}
+        status={dispute.status}
+        reason={dispute.reason}
+        opacity={contextOpacity}
+      />
 
       {/* Evidence deletion confirmation */}
       <ConfirmModal
