@@ -16,20 +16,21 @@ type Props = {
   distance: number | null;
   distanceAccuracy: number | null;
   onPress: () => void;
-  variant?: "default" | "featured";
+  variant?: "default" | "featured" | "compact";
 };
 
 const CARD_WIDTH = 226;
 const FEATURED_CARD_WIDTH_RATIO = 0.74;
 const FEATURED_CARD_MAX_WIDTH = 360;
-const CARD_HEIGHT = 356;
-const HERO_HEIGHT = 190;
-const TAG_SECTION_HEIGHT = 38;
 
-/** Returns the card width for the selected presentation. */
+const HERO_HEIGHT = 190;
+const COMPACT_IMAGE_SIZE = 108;
+const TAG_SECTION_HEIGHT = 52;
+
+/** Returns the card width for horizontal card presentations. */
 export function getBusinessCardWidth(
   screenWidth: number,
-  variant: Props["variant"] = "default",
+  variant: Exclude<Props["variant"], "compact"> = "default",
 ) {
   if (variant === "featured") {
     return Math.min(
@@ -42,10 +43,10 @@ export function getBusinessCardWidth(
 }
 
 /**
- * Displays a business as a reusable discovery card with inset imagery.
+ * Displays a business using reusable discovery-card presentations.
  *
- * Uses a fixed card height and reserved specialty-tag area so horizontally
- * arranged cards remain visually aligned despite different tag lengths.
+ * Horizontal variants support carousel discovery while the compact variant
+ * provides a denser row for vertically stacked business recommendations.
  */
 export default function BusinessCard({
   business,
@@ -57,7 +58,6 @@ export default function BusinessCard({
   const { width: screenWidth } = useWindowDimensions();
 
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
-  const cardWidth = getBusinessCardWidth(screenWidth, variant);
 
   const arrangedSpecialtyTags = [...business.specialty_tags]
     .slice(0, 3)
@@ -72,16 +72,151 @@ export default function BusinessCard({
       ? [longestTag, shortestTag, ...middleTags]
       : arrangedSpecialtyTags;
 
+  if (variant === "compact") {
+    const compactTags = displayTags.slice(0, 2);
+    const remainingTagCount = Math.max(
+      displayTags.length - compactTags.length,
+      0,
+    );
+
+    return (
+      <SafePressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${business.business_name} business profile`}
+        className="w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
+        android_ripple={{
+          color: "rgba(0,0,0,0.05)",
+        }}
+      >
+        {/* Business image */}
+        <View
+          style={{
+            width: COMPACT_IMAGE_SIZE,
+            height: COMPACT_IMAGE_SIZE,
+          }}
+          className="relative shrink-0 overflow-hidden rounded-xl bg-surface-secondary"
+        >
+          {business.cover_photo_url ? (
+            <Image
+              source={{ uri: business.cover_photo_url }}
+              style={{
+                width: "100%",
+                height: "100%",
+              }}
+              contentFit="cover"
+              transition={150}
+            />
+          ) : (
+            <View className="h-full w-full items-center justify-center bg-brand/8">
+              <MaterialCommunityIcons
+                name={clusterIconName}
+                size={36}
+                color={theme.extends.colors.brand}
+                style={{ opacity: 0.4 }}
+              />
+            </View>
+          )}
+
+          {/* Pocket indicator */}
+          {business.is_pocketed && (
+            <View className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-full bg-white/95">
+              <MaterialCommunityIcons
+                name="bookmark"
+                size={14}
+                color={theme.extends.colors.brand}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Business details */}
+        <View className="min-w-0 flex-1 justify-between py-0.5 pl-3">
+          <View>
+            <AppText
+              weight="bold"
+              className="text-[15px] leading-5 text-text-primary"
+              numberOfLines={2}
+            >
+              {business.business_name}
+            </AppText>
+
+            {/* Category and distance */}
+            <View className="mt-1.5 flex-row items-center">
+              <MaterialCommunityIcons
+                name={clusterIconName}
+                size={13}
+                color={theme.extends.colors.brand}
+              />
+
+              <AppText
+                weight="medium"
+                className="ml-1.5 min-w-0 flex-1 text-xs text-text-secondary"
+                numberOfLines={1}
+              >
+                {business.category.name}
+              </AppText>
+
+              {distance !== null && (
+                <View className="ml-2 shrink-0 flex-row items-center">
+                  <MaterialCommunityIcons
+                    name="map-marker-outline"
+                    size={12}
+                    color={theme.extends.colors.text.tertiary}
+                  />
+
+                  <AppText
+                    className="ml-1 text-[11px] text-text-tertiary"
+                    numberOfLines={1}
+                  >
+                    {formatDistance(distance, distanceAccuracy)}
+                  </AppText>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Specialty tags */}
+          {compactTags.length > 0 && (
+            <View className="mt-2 flex-row flex-wrap items-center overflow-hidden">
+              {compactTags.map((tag) => (
+                <SpecialtyTagChip
+                  key={tag.id}
+                  tag={tag}
+                  size="small"
+                  isSelected={tag.is_vouched}
+                  showVouchIndicator={tag.is_vouched}
+                />
+              ))}
+
+              {remainingTagCount > 0 && (
+                <View className="mb-1 mr-1 h-6 items-center justify-center rounded-full border border-border-primary bg-background px-2">
+                  <AppText
+                    weight="semibold"
+                    className="text-[10px] text-text-secondary"
+                  >
+                    +{remainingTagCount}
+                  </AppText>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      </SafePressable>
+    );
+  }
+
+  const cardWidth = getBusinessCardWidth(screenWidth, variant);
+
   return (
     <SafePressable
       onPress={onPress}
       style={{
         width: cardWidth,
-        height: CARD_HEIGHT,
       }}
       accessibilityRole="button"
       accessibilityLabel={`Open ${business.business_name} business profile`}
-      className="mb-2 mr-3 cursor-pointer rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
+      className="mb-2 mr-3 cursor-pointer rounded-card border border-border-primary bg-surface active:opacity-90"
       android_ripple={{
         color: "rgba(0,0,0,0.05)",
       }}
@@ -91,7 +226,7 @@ export default function BusinessCard({
         style={{
           height: HERO_HEIGHT,
         }}
-        className="relative overflow-hidden rounded-t-2xl bg-surface-secondary"
+        className="relative overflow-hidden rounded-xl bg-surface-secondary"
       >
         {business.cover_photo_url ? (
           <Image
@@ -114,91 +249,84 @@ export default function BusinessCard({
           </View>
         )}
 
-        {/* Photo controls */}
-        <View className="absolute right-2 top-2 flex-row items-center gap-1.5">
-          {business.is_pocketed && (
-            <View className="h-8 w-8 items-center justify-center rounded-full bg-white/95">
-              <MaterialCommunityIcons
-                name="bookmark"
-                size={16}
-                color={theme.extends.colors.brand}
-              />
-            </View>
-          )}
-
-          <View className="h-8 w-8 items-center justify-center rounded-full bg-white/95">
+        {/* Pocket indicator */}
+        {business.is_pocketed && (
+          <View className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/95">
             <MaterialCommunityIcons
-              name={clusterIconName}
+              name="bookmark"
               size={16}
               color={theme.extends.colors.brand}
             />
           </View>
-        </View>
+        )}
       </View>
 
-      {/* Business identity */}
-      <View className="flex-1 px-1 pt-3">
-        <AppText
-          weight="bold"
-          className="text-base leading-5 text-text-primary"
-          numberOfLines={2}
-        >
-          {business.business_name}
-        </AppText>
-
-        {/* Specialty tags */}
-        <View
-          className="mt-2 flex-row flex-wrap content-start"
-          style={{
-            height: TAG_SECTION_HEIGHT,
-          }}
-        >
-          {displayTags.map((tag) => (
-            <SpecialtyTagChip
-              key={tag.id}
-              tag={tag}
-              size="small"
-              isSelected={tag.is_vouched}
-              showVouchIndicator={tag.is_vouched}
-            />
-          ))}
-        </View>
-      </View>
-
-      {/* Business metadata */}
-      <View className="flex-row items-center justify-between gap-3 px-1 pb-1">
-        <View className="min-w-0 flex-1 flex-row items-center">
-          <MaterialCommunityIcons
-            name={clusterIconName}
-            size={14}
-            color={theme.extends.colors.brand}
-          />
-
+      {/* Business content */}
+      <View className="px-3 pb-3 pt-3">
+        {/* Business identity */}
+        <View>
           <AppText
-            weight="medium"
-            className="ml-1.5 min-w-0 flex-1 text-xs text-text-secondary"
-            numberOfLines={1}
+            weight="bold"
+            className="text-base leading-5 text-text-primary"
+            numberOfLines={2}
           >
-            {business.category.name}
+            {business.business_name}
           </AppText>
+
+          {/* Specialty tags */}
+          <View
+            className="mt-2 flex-row flex-wrap content-start overflow-hidden"
+            style={{
+              height: TAG_SECTION_HEIGHT,
+            }}
+          >
+            {displayTags.map((tag) => (
+              <SpecialtyTagChip
+                key={tag.id}
+                tag={tag}
+                size="small"
+                isSelected={tag.is_vouched}
+                showVouchIndicator={tag.is_vouched}
+              />
+            ))}
+          </View>
         </View>
 
-        {distance !== null && (
-          <View className="shrink-0 flex-row items-center">
+        {/* Business metadata */}
+        <View className="mt-2 flex-row items-center justify-between gap-3 pb-1">
+          <View className="min-w-0 flex-1 flex-row items-center">
             <MaterialCommunityIcons
-              name="map-marker-outline"
-              size={13}
-              color={theme.extends.colors.text.tertiary}
+              name={clusterIconName}
+              size={14}
+              color={theme.extends.colors.brand}
             />
 
             <AppText
-              className="ml-1 text-xs text-text-tertiary"
+              weight="medium"
+              className="ml-1.5 min-w-0 flex-1 text-xs text-text-secondary"
               numberOfLines={1}
             >
-              {formatDistance(distance, distanceAccuracy)} away
+              {business.category.name}
             </AppText>
           </View>
-        )}
+
+          {distance !== null && (
+            <View className="shrink-0 flex-row items-center">
+              <MaterialCommunityIcons
+                name="map-marker-outline"
+                size={13}
+                color={theme.extends.colors.text.tertiary}
+              />
+
+              <AppText
+                className="ml-1 text-xs text-text-tertiary"
+                numberOfLines={1}
+              >
+                {formatDistance(distance, distanceAccuracy)} away
+              </AppText>
+            </View>
+          )}
+        </View>
       </View>
     </SafePressable>
   );

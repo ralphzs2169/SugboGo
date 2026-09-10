@@ -276,12 +276,23 @@ class RecommendationService:
                     explorer_id=user.USER_ID,
                 )
             )
-        except VisibilityTrackingUnavailable:
-            logger.warning(
-                "Recommendations continuing without profile visits for user %s.",
-                user.USER_ID,
-                exc_info=True,
-            )
+        except VisibilityTrackingUnavailable as exc:
+            if exc.cooldown_short_circuit:
+                logger.debug(
+                    (
+                        "Recommendations continuing without profile visits "
+                        "for user %s during the MongoDB cooldown."
+                    ),
+                    user.USER_ID,
+                )
+            else:
+                logger.warning(
+                    (
+                        "Recommendations continuing without profile visits "
+                        "for user %s after a MongoDB availability failure."
+                    ),
+                    user.USER_ID,
+                )
             profile_visit_business_ids = []
 
         profile_visit_counts = Counter(profile_visit_business_ids)

@@ -19,6 +19,12 @@ export async function getDiscoveryFeed(): Promise<
   return request(apiClient.get("/explorer/explore/discovery/"));
 }
 
+export async function getRecommendations(): Promise<
+  ApiResponse<ExploreBusinessListResponse>
+> {
+  return request(apiClient.get("/explorer/explore/recommendations/"));
+}
+
 export async function getExploreBusinessDetail(
   businessId: number,
 ): Promise<ApiResponse<ExploreBusinessDetail>> {

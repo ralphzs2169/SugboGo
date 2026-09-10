@@ -46,6 +46,24 @@ AUTH_USER_MODEL = "users.User"
 # MongoDB Configuration
 MONGODB_URI = os.getenv("MONGODB_URI")
 MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "sugbogo")
+MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
+    os.getenv(
+        "MONGODB_SERVER_SELECTION_TIMEOUT_MS",
+        "3000",
+    ),
+)
+MONGODB_CONNECT_TIMEOUT_MS = int(
+    os.getenv(
+        "MONGODB_CONNECT_TIMEOUT_MS",
+        "3000",
+    ),
+)
+MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS = int(
+    os.getenv(
+        "MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS",
+        "30",
+    ),
+)
 
 # Application URLs
 WEB_APP_URL = os.getenv("WEB_APP_URL", "http://localhost:5173")

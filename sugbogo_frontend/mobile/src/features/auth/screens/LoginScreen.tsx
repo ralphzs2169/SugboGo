@@ -250,7 +250,8 @@ export default function LoginScreen() {
         onPress={onLogin}
         icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
         className="mb-20 mt-2 shadow"
-        fontClassName="text-md font-bold"
+        textWeight="bold"
+        rounded="full"
       />
 
       {/* Social Login */}

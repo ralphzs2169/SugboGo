@@ -18,6 +18,7 @@ import {
 import useBusinessProfileVisit from "../useBusinessProfileVisit";
 import useBusinessImpressions from "../useBusinessImpressions";
 import useBusinessPocket from "../useBusinessPocket";
+import useBusinessVouch from "../useBusinessVouch";
 import * as service from "../../api/exploreBusiness.service";
 
 let mockFocused = true;
@@ -29,6 +30,11 @@ jest.mock("../../api/exploreBusiness.service", () => ({
   recordBusinessProfileVisit: jest.fn(),
   pocketBusiness: jest.fn(),
   removeBusinessFromPocket: jest.fn(),
+  vouchForBusinessSpecialty: jest.fn(),
+  removeBusinessSpecialtyVouch: jest.fn(),
+}));
+jest.mock("@/shared/api/storage.service", () => ({
+  getInstallationId: jest.fn().mockResolvedValue("test-installation"),
 }));
 
 const success = { success: true, data: {} };
@@ -144,6 +150,9 @@ describe("real React Query visibility mutations", () => {
       id: 1,
       is_pocketed: false,
     });
+    client.setQueryData(["explore-recommendations"], {
+      items: [{ id: 1, is_pocketed: false }],
+    });
     const { result } = await renderHook(
       () => useBusinessPocket({ businessId: 1 }),
       { wrapper },
@@ -155,8 +164,46 @@ describe("real React Query visibility mutations", () => {
     expect(client.getQueryData(["explore-business-detail", 1])).toMatchObject({
       is_pocketed: true,
     });
+    expect(client.getQueryData(["explore-recommendations"])).toMatchObject({
+      items: [{ id: 1, is_pocketed: true }],
+    });
     expect(recordBusinessImpressions).not.toHaveBeenCalled();
     expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
+  });
+
+  it("updates recommendation vouch state without reordering its items", async () => {
+    (service.vouchForBusinessSpecialty as jest.Mock).mockResolvedValue(success);
+    const { client, wrapper } = setupClient();
+    client.setQueryData(["explore-recommendations"], {
+      items: [
+        {
+          id: 1,
+          specialty_tags: [{ id: 14, is_vouched: false }],
+        },
+        {
+          id: 2,
+          specialty_tags: [],
+        },
+      ],
+    });
+    const { result } = await renderHook(
+      () => useBusinessVouch({ businessId: 1 }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      await result.current.vouch({ tagId: 14, isVouched: false });
+    });
+
+    expect(client.getQueryData(["explore-recommendations"])).toMatchObject({
+      items: [
+        {
+          id: 1,
+          specialty_tags: [{ id: 14, is_vouched: true }],
+        },
+        { id: 2 },
+      ],
+    });
   });
 });
 

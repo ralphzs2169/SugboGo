@@ -20,6 +20,7 @@ from apps.business.models import (
 from apps.business.services.visibility_event_service import (
     VisibilityEventService,
 )
+from apps.shared.services.mongodb_service import MongoDBService
 from apps.users.models import User, UserCategoryInterest
 
 
@@ -146,6 +147,50 @@ class RecommendationViewTests(TestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_mongo_cooldown_preserves_postgresql_recommendations(self):
+        business = self._create_business(
+            "Mongo Outage Recommendation",
+        )
+        self._create_score(
+            business,
+            Decimal("0.50000"),
+            Decimal("0.50000"),
+        )
+        UserCategoryInterest.objects.create(
+            USER_ID=self.explorer,
+            CTGRY_ID=self.category,
+        )
+
+        with (
+            patch.object(
+                VisibilityEventService,
+                "_unavailable_until",
+                200.0,
+            ),
+            patch.object(
+                VisibilityEventService,
+                "_get_monotonic_time",
+                return_value=100.0,
+            ),
+            patch.object(
+                MongoDBService,
+                "get_database",
+            ) as get_database,
+        ):
+            response = self.client.get(
+                self.url,
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["id"],
+            business.BUSN_ID,
+        )
+        get_database.assert_not_called()
 
     @patch.object(
         VisibilityEventService,

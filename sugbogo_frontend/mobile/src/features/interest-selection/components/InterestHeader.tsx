@@ -1,17 +1,17 @@
-import { Text } from "react-native";
+import AppText from "@/shared/components/AppText";
 
+/** Introduces the optional onboarding personalization step. */
 export default function InterestHeader() {
   return (
     <>
-      <Text className="mb-3 text-3xl font-bold  text-text-primary">
+      <AppText weight="bold" className="mb-3 text-3xl text-text-primary">
         What are you interested in?
-      </Text>
+      </AppText>
 
-      <Text className="mb-6 text-body leading-relaxed text-text-secondary">
-        Select at least <Text className="font-semibold">3 interests</Text>.
-        These help shape your personal feed. The rest of Cebu is still yours to
-        explore.
-      </Text>
+      <AppText className="mb-6 text-body leading-relaxed text-text-secondary">
+        Choose up to 3 specialties to personalize what you discover. You can
+        skip this and update your interests later.
+      </AppText>
     </>
   );
 }

@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from threading import Lock
+from time import monotonic
 
+from django.conf import settings
 from django.utils import timezone
 from pymongo import ASCENDING, UpdateOne
 from pymongo.errors import BulkWriteError, DuplicateKeyError, PyMongoError
@@ -21,6 +23,18 @@ class VisibilityTrackingUnavailable(APIException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     default_detail = "Visibility tracking is temporarily unavailable."
     default_code = "visibility_tracking_unavailable"
+
+    def __init__(
+        self,
+        *args,
+        cooldown_short_circuit=False,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+        self.cooldown_short_circuit = cooldown_short_circuit
 
 
 class VisibilityEventType(StrEnum):
@@ -46,6 +60,40 @@ class VisibilityEventService:
 
     _indexes_initialized = False
     _index_lock = Lock()
+    _availability_lock = Lock()
+    _unavailable_until = 0.0
+
+    @staticmethod
+    def _get_monotonic_time() -> float:
+        return monotonic()
+
+    @classmethod
+    def _raise_if_temporarily_unavailable(cls):
+        with cls._availability_lock:
+            unavailable_until = cls._unavailable_until
+
+        if cls._get_monotonic_time() < unavailable_until:
+            raise VisibilityTrackingUnavailable(
+                cooldown_short_circuit=True,
+            )
+
+    @classmethod
+    def _mark_temporarily_unavailable(cls):
+        cooldown_seconds = (
+            settings.MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS
+        )
+        unavailable_until = (
+            cls._get_monotonic_time()
+            + cooldown_seconds
+        )
+
+        with cls._availability_lock:
+            cls._unavailable_until = unavailable_until
+
+    @classmethod
+    def _clear_temporary_unavailability(cls):
+        with cls._availability_lock:
+            cls._unavailable_until = 0.0
 
     @classmethod
     def _get_collection(cls):
@@ -55,10 +103,14 @@ class VisibilityEventService:
 
     @classmethod
     def ensure_indexes(cls):
+        cls._raise_if_temporarily_unavailable()
+
         if cls._indexes_initialized:
             return
 
         with cls._index_lock:
+            cls._raise_if_temporarily_unavailable()
+
             if cls._indexes_initialized:
                 return
 
@@ -92,12 +144,14 @@ class VisibilityEventService:
                     name=cls.AGGREGATION_INDEX_NAME,
                 )
             except PyMongoError as exc:
+                cls._mark_temporarily_unavailable()
                 logger.exception(
                     "Failed to initialize visibility-event indexes.",
                 )
                 raise VisibilityTrackingUnavailable() from exc
 
             cls._indexes_initialized = True
+            cls._clear_temporary_unavailability()
 
     @staticmethod
     def _get_current_time() -> datetime:
@@ -258,6 +312,7 @@ class VisibilityEventService:
             recorded_count = result.upserted_count
         except DuplicateKeyError:
             recorded_count = 0
+            cls._clear_temporary_unavailability()
         except BulkWriteError as exc:
             error_details = exc.details or {}
             write_errors = error_details.get(
@@ -269,6 +324,7 @@ class VisibilityEventService:
                 error.get("code") != 11000
                 for error in write_errors
             ):
+                cls._mark_temporarily_unavailable()
                 logger.exception(
                     "Failed to record visibility events.",
                 )
@@ -278,11 +334,15 @@ class VisibilityEventService:
                 "nUpserted",
                 0,
             )
+            cls._clear_temporary_unavailability()
         except PyMongoError as exc:
+            cls._mark_temporarily_unavailable()
             logger.exception(
                 "Failed to record visibility events.",
             )
             raise VisibilityTrackingUnavailable() from exc
+        else:
+            cls._clear_temporary_unavailability()
 
         return VisibilityEventWriteResult(
             event_type=event_type,
@@ -439,10 +499,13 @@ class VisibilityEventService:
                         row["explorer_ids"],
                     )
         except PyMongoError as exc:
+            cls._mark_temporarily_unavailable()
             logger.exception(
                 "Failed to read recent visibility metrics.",
             )
             raise VisibilityTrackingUnavailable() from exc
+        else:
+            cls._clear_temporary_unavailability()
 
         return metrics
 
@@ -468,13 +531,18 @@ class VisibilityEventService:
                 },
             )
 
-            return [
+            business_ids = [
                 row["business_id"]
                 for row in rows
                 if isinstance(row.get("business_id"), int)
             ]
         except PyMongoError as exc:
+            cls._mark_temporarily_unavailable()
             logger.exception(
                 "Failed to read Explorer profile-visit events.",
             )
             raise VisibilityTrackingUnavailable() from exc
+
+        cls._clear_temporary_unavailability()
+
+        return business_ids

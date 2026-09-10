@@ -141,9 +141,9 @@ export default function ProfileScreen() {
             />
 
             <ProfileMenuItem
-              title="My Preferences"
+              title="Your Interests"
               icon="tune-variant"
-              onPress={() => {}}
+              onPress={() => router.push("/profile/your-interests")}
             />
           </ProfileMenuSection>
 

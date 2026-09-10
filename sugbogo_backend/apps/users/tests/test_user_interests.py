@@ -51,6 +51,25 @@ class UserInterestApiTests(TestCase):
             response.data["data"]["categories"][0]["id"],
             self.category.CTGRY_ID,
         )
+        self.assertEqual(
+            response.data["data"]["available_categories"][0]["cluster"],
+            {
+                "id": self.cluster.CLUS_ID,
+                "name": self.cluster.CLUS_NAME,
+            },
+        )
+        self.assertEqual(
+            {
+                specialty_tag["id"]
+                for specialty_tag in response.data["data"][
+                    "available_specialty_tags"
+                ]
+            },
+            {
+                specialty_tag.TAG_ID
+                for specialty_tag in self.tags
+            },
+        )
 
     def test_onboarding_accepts_skip_and_deduplicates_ids(self):
         response = self.client.patch(

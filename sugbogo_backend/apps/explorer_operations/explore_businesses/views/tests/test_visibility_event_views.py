@@ -16,6 +16,7 @@ from apps.business.services.visibility_event_service import (
     VisibilityEventType,
     VisibilityTrackingUnavailable,
 )
+from apps.shared.services.mongodb_service import MongoDBService
 from apps.users.models import User
 
 
@@ -244,6 +245,43 @@ class VisibilityEventViewTests(APITestCase):
             response.data["code"],
             "VISIBILITY_TRACKING_UNAVAILABLE",
         )
+
+    def test_tracking_endpoint_fails_fast_during_mongo_cooldown(self):
+        with (
+            patch.object(
+                VisibilityEventService,
+                "_unavailable_until",
+                200.0,
+            ),
+            patch.object(
+                VisibilityEventService,
+                "_get_monotonic_time",
+                return_value=100.0,
+            ),
+            patch.object(
+                MongoDBService,
+                "get_database",
+            ) as get_database,
+        ):
+            response = self.client.post(
+                self.impression_url,
+                {
+                    "business_ids": [
+                        self.business.BUSN_ID,
+                    ],
+                },
+                format="json",
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+        self.assertEqual(
+            response.data["code"],
+            "VISIBILITY_TRACKING_UNAVAILABLE",
+        )
+        get_database.assert_not_called()
 
     def test_tracking_endpoints_require_authentication(self):
         self.client.force_authenticate(

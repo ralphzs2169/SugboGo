@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { useState } from "react";
 import {
   RefreshControl,
   ScrollView,
@@ -7,42 +9,44 @@ import {
   type NativeSyntheticEvent,
   View,
 } from "react-native";
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
+import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+
+import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
+import ExploreBySpecialtySection from "../components/explore-by-specialty/ExploreBySpecialtySection";
 import ExploreTopBar from "../components/ExploreTopBar";
-import HiddenGemsSection from "../components/hidden-gems/HiddenGemsSection";
 import InterestsSection from "../components/interests/InterestsSection";
-import TrendingSection from "../components/trending/TrendingSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
 import WorthDiscoveringSection from "../components/worth-discovering/WorthDiscoveringSection";
-import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
 import useBusinessImpressions from "../hooks/useBusinessImpressions";
 import useDiscoveryFeed, {
   DISCOVERY_FEED_QUERY_KEY,
 } from "../hooks/useDiscoveryFeed";
 import useExploreLocation from "../hooks/useExploreLocation";
-import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import { RECOMMENDATIONS_QUERY_KEY } from "../hooks/useRecommendations";
+import ExplorePromptSection from "../components/explore-prompts/ExplorePromptSection";
+import ExploreMapSection from "../components/explore-map/ExploreMapSection";
 
-/** Displays discovery sections and observes real business cards within both scroll axes. */
+/**
+ * Displays the Explorer discovery experience and coordinates its business feeds.
+ *
+ * The screen combines curated, personalized, specialty, and newly added
+ * discovery surfaces while sharing refresh and impression observation.
+ */
 export default function ExploreScreen() {
   const queryClient = useQueryClient();
 
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isRefreshing, setIsRefreshing] = useState(false);
+
   const bottomSpacing = useTabBarSpacing();
+
   const discoveryImpressions = useBusinessImpressions(bottomSpacing);
   const newBusinessImpressions = useBusinessImpressions(bottomSpacing);
+  const recommendationImpressions = useBusinessImpressions(bottomSpacing);
+
   const userLocation = useExploreLocation();
   const discoveryFeed = useDiscoveryFeed();
-
-  useApiErrorNotification({
-    error: discoveryFeed.error,
-    toastId: "explore-discovery-feed-error",
-    title: "Unable to load Worth Discovering",
-    fallbackMessage: "Please try again.",
-  });
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -55,6 +59,9 @@ export default function ExploreScreen() {
         queryClient.refetchQueries({
           queryKey: ["explore-new-businesses"],
         }),
+        queryClient.refetchQueries({
+          queryKey: RECOMMENDATIONS_QUERY_KEY,
+        }),
       ]);
     } finally {
       setIsRefreshing(false);
@@ -64,6 +71,7 @@ export default function ExploreScreen() {
   const handleViewportLayout = (event: LayoutChangeEvent) => {
     discoveryImpressions.onViewportLayout(event);
     newBusinessImpressions.onViewportLayout(event);
+    recommendationImpressions.onViewportLayout(event);
   };
 
   const handleVerticalScroll = (
@@ -71,6 +79,7 @@ export default function ExploreScreen() {
   ) => {
     discoveryImpressions.onVerticalScroll(event);
     newBusinessImpressions.onVerticalScroll(event);
+    recommendationImpressions.onVerticalScroll(event);
   };
 
   const handleBusinessPress = (
@@ -91,13 +100,14 @@ export default function ExploreScreen() {
 
   return (
     <View className="flex-1 bg-surface">
+      {/* Discovery controls */}
       <ExploreTopBar
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
         onPressFilters={() => {}}
       />
 
-      {/* Discovery viewport excludes the fixed navigation controls. */}
+      {/* Discovery content */}
       <ScrollView
         testID="explore-discovery-scroll"
         onLayout={handleViewportLayout}
@@ -105,11 +115,14 @@ export default function ExploreScreen() {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pt-4 pb-8"
-        contentContainerStyle={{ paddingBottom: bottomSpacing }}
+        contentContainerStyle={{
+          paddingBottom: bottomSpacing,
+        }}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
+        {/* Curated discovery */}
         <WorthDiscoveringSection
           businesses={discoveryFeed.businesses}
           isLoading={discoveryFeed.isLoading}
@@ -120,19 +133,33 @@ export default function ExploreScreen() {
           onBusinessPress={handleBusinessPress}
         />
 
-        <HiddenGemsSection selectedCategory={selectedCategory} />
+        {/* Specialty discovery preview */}
+        <ExploreBySpecialtySection />
 
-        <InterestsSection selectedCategory={selectedCategory} />
+        {/* Personalized discovery */}
+        <InterestsSection
+          impressions={recommendationImpressions}
+          userLocation={userLocation}
+          onBusinessPress={handleBusinessPress}
+        />
 
-        <TrendingSection selectedCategory={selectedCategory} />
-
+        {/* Recently added businesses */}
         <NewBusinessesSection
           impressions={newBusinessImpressions}
           userLocation={userLocation}
           onBusinessPress={handleBusinessPress}
         />
 
-        <DiscoverNearYouButton onPress={() => {}} />
+        {/* Intent-based discovery shortcuts */}
+        <ExplorePromptSection />
+
+        {/* Map discovery preview */}
+        <ExploreMapSection
+          userLocation={userLocation}
+          onOpenMap={() => {
+            router.push("/(explorer)/(tabs)/map");
+          }}
+        />
       </ScrollView>
     </View>
   );

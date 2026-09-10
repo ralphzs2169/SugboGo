@@ -25,6 +25,15 @@ class UserInterestService:
             .select_related("TAG_ID")
             .order_by("TAG_ID_id")
         )
+        available_categories = (
+            Category.objects
+            .select_related("CLUS_ID")
+            .order_by("CLUS_ID__CLUS_NAME", "CTGRY_NAME", "CTGRY_ID")
+        )
+        available_specialty_tags = SpecialtyTag.objects.order_by(
+            "TAG_NAME",
+            "TAG_ID",
+        )
 
         return {
             "categories": [
@@ -45,6 +54,25 @@ class UserInterestService:
                     "color": interest.TAG_ID.TAG_COLOR,
                 }
                 for interest in specialty_interests
+            ],
+            "available_categories": [
+                {
+                    "id": category.CTGRY_ID,
+                    "name": category.CTGRY_NAME,
+                    "cluster": {
+                        "id": category.CLUS_ID.CLUS_ID,
+                        "name": category.CLUS_ID.CLUS_NAME,
+                    },
+                }
+                for category in available_categories
+            ],
+            "available_specialty_tags": [
+                {
+                    "id": specialty_tag.TAG_ID,
+                    "name": specialty_tag.TAG_NAME,
+                    "color": specialty_tag.TAG_COLOR,
+                }
+                for specialty_tag in available_specialty_tags
             ],
         }
 

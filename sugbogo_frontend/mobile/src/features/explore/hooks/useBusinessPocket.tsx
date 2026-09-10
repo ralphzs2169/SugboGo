@@ -6,6 +6,7 @@ import {
 } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
+import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
 
 import type {
   ExploreBusinessDetail,
@@ -24,8 +25,8 @@ type Variables = {
  * Manages business pocket mutations with optimistic UI updates.
  *
  * The pocket state updates immediately across both the business detail
- * and discovery feed. Failed mutations restore both cached states, while
- * settled mutations synchronize the caches with the server.
+ * and Explorer list caches. Failed mutations restore every cached state,
+ * while recommendation item order remains unchanged until a normal refresh.
  */
 export default function useBusinessPocket({ businessId }: Props) {
   const queryClient = useQueryClient();
@@ -53,6 +54,9 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.cancelQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
+        queryClient.cancelQueries({
+          queryKey: RECOMMENDATIONS_QUERY_KEY,
+        }),
       ]);
 
       const previousBusiness =
@@ -66,6 +70,11 @@ export default function useBusinessPocket({ businessId }: Props) {
       const previousDiscoveryFeed =
         queryClient.getQueryData<ExploreBusinessListResponse>(
           DISCOVERY_FEED_QUERY_KEY,
+        );
+
+      const previousRecommendations =
+        queryClient.getQueryData<ExploreBusinessListResponse>(
+          RECOMMENDATIONS_QUERY_KEY,
         );
 
       // Update business detail optimistically.
@@ -105,7 +114,7 @@ export default function useBusinessPocket({ businessId }: Props) {
         };
       };
 
-      // Update both Explorer carousels optimistically.
+      // Update Explorer carousels without changing their item order.
       queryClient.setQueryData<ExploreBusinessListResponse>(
         newBusinessesQueryKey,
         updatePocketState,
@@ -114,11 +123,16 @@ export default function useBusinessPocket({ businessId }: Props) {
         DISCOVERY_FEED_QUERY_KEY,
         updatePocketState,
       );
+      queryClient.setQueryData<ExploreBusinessListResponse>(
+        RECOMMENDATIONS_QUERY_KEY,
+        updatePocketState,
+      );
 
       return {
         previousBusiness,
         previousNewBusinesses,
         previousDiscoveryFeed,
+        previousRecommendations,
       };
     },
 
@@ -141,6 +155,13 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.setQueryData(
           DISCOVERY_FEED_QUERY_KEY,
           context.previousDiscoveryFeed,
+        );
+      }
+
+      if (context?.previousRecommendations) {
+        queryClient.setQueryData(
+          RECOMMENDATIONS_QUERY_KEY,
+          context.previousRecommendations,
         );
       }
     },

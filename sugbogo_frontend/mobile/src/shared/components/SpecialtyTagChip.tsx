@@ -20,6 +20,7 @@ type SpecialtyTagChipProps = {
   scaleOnPress?: boolean;
   showVouchCount?: boolean;
   showVouchIndicator?: boolean;
+  showSelectionIndicator?: boolean;
 };
 
 /**
@@ -42,6 +43,7 @@ export default function SpecialtyTagChip({
   scaleOnPress = false,
   showVouchCount = false,
   showVouchIndicator = false,
+  showSelectionIndicator = false,
 }: SpecialtyTagChipProps) {
   const styles = getSpecialtyTagColor(tag.color);
 
@@ -59,7 +61,12 @@ export default function SpecialtyTagChip({
     <Pressable
       onPress={onPress}
       disabled={!isInteractive || isDisabled}
-      accessibilityState={{ disabled: isDisabled }}
+      accessibilityRole={isInteractive ? "button" : undefined}
+      accessibilityLabel={isInteractive ? tag.name : undefined}
+      accessibilityState={{
+        disabled: isDisabled,
+        selected: isSelected,
+      }}
       style={({ pressed }) => ({
         transform: [
           {
@@ -74,8 +81,8 @@ export default function SpecialtyTagChip({
             }
           : {}),
       })}
-      className={`mb-2 mr-2 flex-row items-center rounded-full ${
-        isSmall ? "px-2.5 py-1" : "px-3.5 py-2"
+      className={`mb-2 mr-2 flex-row items-center justify-center rounded-full ${
+        isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-2"
       } ${
         useDisabledStyle
           ? "border border-border-primary bg-gray-200 opacity-40"
@@ -100,6 +107,16 @@ export default function SpecialtyTagChip({
       >
         {tag.name}
       </AppText>
+
+      {/* Generic selected-state indicator */}
+      {showSelectionIndicator && isSelected && (
+        <MaterialCommunityIcons
+          name="check-circle"
+          size={isSmall ? 13 : 16}
+          color={iconColor}
+          style={{ marginLeft: 5 }}
+        />
+      )}
 
       {/* Vouch indicator */}
       {showVouchIndicator && isSelected && (

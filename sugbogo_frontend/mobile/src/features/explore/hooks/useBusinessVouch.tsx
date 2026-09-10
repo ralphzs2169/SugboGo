@@ -7,6 +7,7 @@ import {
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getInstallationId } from "@/shared/api/storage.service";
 import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
+import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
 
 import type {
   ExploreBusinessDetail,
@@ -25,9 +26,9 @@ type Variables = {
 /**
  * Manages business specialty vouch mutations with optimistic UI updates.
  *
- * Updates both the business detail and discovery feed caches immediately,
- * then synchronizes both caches with the server after the mutation settles.
- * Failed mutations roll back both cached states.
+ * Updates business detail and Explorer list caches immediately. Failed
+ * mutations restore every cached state, while recommendation item order
+ * remains unchanged until a normal refresh.
  */
 export default function useBusinessVouch({ businessId }: Props) {
   const queryClient = useQueryClient();
@@ -59,6 +60,9 @@ export default function useBusinessVouch({ businessId }: Props) {
         queryClient.cancelQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
+        queryClient.cancelQueries({
+          queryKey: RECOMMENDATIONS_QUERY_KEY,
+        }),
       ]);
 
       const previousBusiness =
@@ -72,6 +76,11 @@ export default function useBusinessVouch({ businessId }: Props) {
       const previousDiscoveryFeed =
         queryClient.getQueryData<ExploreBusinessListResponse>(
           DISCOVERY_FEED_QUERY_KEY,
+        );
+
+      const previousRecommendations =
+        queryClient.getQueryData<ExploreBusinessListResponse>(
+          RECOMMENDATIONS_QUERY_KEY,
         );
 
       // Update business detail optimistically.
@@ -133,7 +142,7 @@ export default function useBusinessVouch({ businessId }: Props) {
         };
       };
 
-      // Update both Explorer carousels optimistically.
+      // Update Explorer carousels without changing their item order.
       queryClient.setQueryData<ExploreBusinessListResponse>(
         newBusinessesQueryKey,
         updateVouchState,
@@ -142,11 +151,16 @@ export default function useBusinessVouch({ businessId }: Props) {
         DISCOVERY_FEED_QUERY_KEY,
         updateVouchState,
       );
+      queryClient.setQueryData<ExploreBusinessListResponse>(
+        RECOMMENDATIONS_QUERY_KEY,
+        updateVouchState,
+      );
 
       return {
         previousBusiness,
         previousNewBusinesses,
         previousDiscoveryFeed,
+        previousRecommendations,
       };
     },
 
@@ -169,6 +183,13 @@ export default function useBusinessVouch({ businessId }: Props) {
         queryClient.setQueryData(
           DISCOVERY_FEED_QUERY_KEY,
           context.previousDiscoveryFeed,
+        );
+      }
+
+      if (context?.previousRecommendations) {
+        queryClient.setQueryData(
+          RECOMMENDATIONS_QUERY_KEY,
+          context.previousRecommendations,
         );
       }
     },
