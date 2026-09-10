@@ -38,6 +38,7 @@ import {
   pickReviewDisputeDocuments,
   pickReviewDisputeImages,
 } from "../../utils/review-disputes/pickReviewDisputeEvidence.utils";
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   disputeId: number;
@@ -386,6 +387,11 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
               rounded="full"
               fontClassName="font-bold"
             />
+
+            <AppText className="mt-2 text-center text-xs leading-4 text-text-secondary">
+              Withdrawing stops administrator review, but this dispute will
+              remain in your history.
+            </AppText>
           </View>
         )}
       </Animated.ScrollView>

@@ -1,8 +1,14 @@
-// src/shared/hooks/useTabBarSpacing.ts
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { TAB_BAR_HEIGHT } from "@/shared/constants/layout";
 
-export function useTabBarSpacing() {
+/**
+ * Returns bottom spacing needed to keep content above the app tab bar.
+ *
+ * Allows screens to add their own extra breathing room when needed.
+ */
+export function useTabBarSpacing(extraSpacing = 12) {
   const insets = useSafeAreaInsets();
-  return TAB_BAR_HEIGHT + (insets.bottom || 12) + 42; // +12 gap above the bar
+
+  return TAB_BAR_HEIGHT + insets.bottom + extraSpacing;
 }

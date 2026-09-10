@@ -16,7 +16,10 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+} from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import "../../global.css";
@@ -52,7 +55,7 @@ export default function RootLayout() {
           <StatusBar style="dark" />
 
           <ActionSheetProvider>
-            <SafeAreaProvider>
+            <SafeAreaProvider initialMetrics={initialWindowMetrics}>
               <BottomSheetModalProvider>
                 {/* App navigation */}
                 <Stack screenOptions={{ headerShown: false }}>

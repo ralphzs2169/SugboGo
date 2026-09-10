@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import AppText from "../AppText";
 
 interface InputContainerProps {
   label: string;
@@ -35,10 +36,13 @@ export default function InputContainer({
       {/* Field label */}
       <View className="mb-1.5 flex-row items-center justify-between">
         {showLabel && (
-          <Text className="text-xs font-bold tracking-[0.5px] text-text-secondary">
+          <AppText
+            weight="bold"
+            className="text-xs  tracking-[0.5px] text-text-secondary"
+          >
             {label}
-            {required && <Text className="text-text-error"> *</Text>}
-          </Text>
+            {required && <AppText className="text-text-error"> *</AppText>}
+          </AppText>
         )}
 
         {rightElement}
@@ -61,11 +65,13 @@ export default function InputContainer({
       {bottomElement ? (
         bottomElement
       ) : error ? (
-        <Text className="mt-1 text-xs font-medium text-text-error">
+        <AppText className="mt-1 text-xs font-medium text-text-error">
           {error}
-        </Text>
+        </AppText>
       ) : helperText ? (
-        <Text className="mt-1 text-xs text-text-secondary">{helperText}</Text>
+        <AppText className="mt-1 text-xs text-text-secondary">
+          {helperText}
+        </AppText>
       ) : null}
     </View>
   );

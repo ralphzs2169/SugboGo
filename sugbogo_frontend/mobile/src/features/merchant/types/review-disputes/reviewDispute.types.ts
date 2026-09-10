@@ -38,6 +38,7 @@ export type ReviewDispute = {
   id: number;
   review_id: number;
   business_id: number;
+  attempt_number: number;
   reason: ReviewDisputeReason;
   description: string;
   status: ReviewDisputeStatus;

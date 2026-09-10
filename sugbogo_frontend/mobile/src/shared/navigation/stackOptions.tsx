@@ -15,8 +15,8 @@ export const defaultStackScreenOptions: NativeStackNavigationOptions = {
   headerShadowVisible: false,
   headerTitleAlign: "center",
   headerTitleStyle: {
-    fontWeight: "700",
     fontSize: 16,
+    fontFamily: "NunitoSans_700Bold",
   },
   headerLeft: ({ canGoBack }) =>
     canGoBack ? (

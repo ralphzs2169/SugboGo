@@ -10,13 +10,15 @@ import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import { useBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
+import { useReplyTemplates } from "../../hooks/reply-templates/useReplyTemplates";
+
 import type { BusinessReview } from "@/features/explore/types/review.types";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
-
+import { useReviewDisputes } from "../../hooks/review-disputes/useReviewDisputes";
 import MerchantReviewCard from "../../components/review-management/MerchantReviewCard";
 import MerchantReviewFilters, {
   type ReviewFilter,
@@ -33,6 +35,8 @@ const TAB_BAR_HEIGHT = 64;
 const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
 
 const MASCOT_ALL_CAUGHT_UP = require("@/shared/assets/mascot/mascot-all-caught-up.webp");
+
+const MASCOT_NO_HISTORY = require("@/shared/assets/mascot/mascot-no-history.webp");
 
 /**
  * Gives merchants a focused workspace for explorer reviews and public replies.
@@ -61,6 +65,17 @@ export default function MerchantReviewsScreen() {
     error: reviewsError,
     refetch: refetchReviews,
   } = useBusinessReviews(businessId);
+
+  const { disputes, isLoading: isDisputesLoading } = useReviewDisputes();
+
+  const pendingDisputeCount = useMemo(
+    () => disputes.filter((dispute) => dispute.status === "pending").length,
+    [disputes],
+  );
+
+  const { templates, isLoading: isReplyTemplatesLoading } = useReplyTemplates();
+
+  const quickResponseCount = templates.length;
 
   const replySheetRef = useRef<BottomSheetModal | null>(null);
 
@@ -208,7 +223,14 @@ export default function MerchantReviewsScreen() {
             />
 
             {/* Review management */}
-            <MerchantReviewManagement />
+            <MerchantReviewManagement
+              pendingDisputeCount={
+                isDisputesLoading ? undefined : pendingDisputeCount
+              }
+              quickResponseCount={
+                isReplyTemplatesLoading ? undefined : quickResponseCount
+              }
+            />
 
             {/* Review feed controls */}
             {!reviewsError && !isRetryingReviews && (
@@ -267,10 +289,10 @@ export default function MerchantReviewsScreen() {
             <>
               {/* No reviews yet */}
               {filter === "all" && (
-                <View className="items-center rounded-card border border-border-primary bg-surface px-6 py-10">
+                <View className="items-center  px-6 py-10">
                   <Image
                     source={MASCOT_EMPTY_REVIEWS}
-                    style={{ width: 150, height: 150 }}
+                    style={{ width: 120, height: 120 }}
                     contentFit="contain"
                   />
 
@@ -312,15 +334,21 @@ export default function MerchantReviewsScreen() {
 
               {/* Replied-filter empty state */}
               {filter === "replied" && (
-                <View className="rounded-card border border-border-primary bg-surface px-6 py-10">
+                <View className="items-center bg-surface px-6 py-8">
+                  <Image
+                    source={MASCOT_NO_HISTORY}
+                    style={{ width: 120, height: 120 }}
+                    contentFit="contain"
+                  />
+
                   <AppText
                     weight="bold"
-                    className="text-center text-base text-text-primary"
+                    className="mt-2 text-center text-base text-text-primary"
                   >
-                    No replied reviews
+                    No replied reviews yet
                   </AppText>
 
-                  <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
+                  <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
                     Reviews you reply to will appear here.
                   </AppText>
                 </View>
