@@ -23,9 +23,7 @@ type Props = {
  * Each shortcut can later open filtered
  * Explore results for the corresponding discovery intent.
  */
-export default function DiscoveryShortcutsSection({
-  onShortcutPress,
-}: Props) {
+export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
   const { shortcuts, isLoading, error, refetch } = useDiscoveryShortcuts();
 
   useEffect(() => {
@@ -107,39 +105,39 @@ export default function DiscoveryShortcutsSection({
                 color: "rgba(0,0,0,0.04)",
               }}
             >
-            {/* Prompt icon */}
-            <View className="h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10">
+              {/* Prompt icon */}
+              <View className="h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10">
+                <MaterialCommunityIcons
+                  name={CLUSTER_ICONS[shortcut.cluster.icon] ?? "store"}
+                  size={22}
+                  color={theme.extends.colors.brand}
+                />
+              </View>
+
+              {/* Prompt details */}
+              <View className="min-w-0 flex-1 pl-3">
+                <AppText
+                  weight="semibold"
+                  className="text-[15px] text-text-primary"
+                  numberOfLines={1}
+                >
+                  {shortcut.title}
+                </AppText>
+
+                <AppText
+                  className="mt-0.5 text-xs leading-5 text-text-secondary"
+                  numberOfLines={1}
+                >
+                  {shortcut.subtitle}
+                </AppText>
+              </View>
+
+              {/* Navigation affordance */}
               <MaterialCommunityIcons
-                name={CLUSTER_ICONS[shortcut.cluster.icon] ?? "store"}
-                size={22}
-                color={theme.extends.colors.brand}
+                name="chevron-right"
+                size={21}
+                color={theme.extends.colors.text.tertiary}
               />
-            </View>
-
-            {/* Prompt details */}
-            <View className="min-w-0 flex-1 pl-3">
-              <AppText
-                weight="semibold"
-                className="text-[15px] text-text-primary"
-                numberOfLines={1}
-              >
-                {shortcut.title}
-              </AppText>
-
-              <AppText
-                className="mt-0.5 text-xs leading-5 text-text-secondary"
-                numberOfLines={1}
-              >
-                {shortcut.subtitle}
-              </AppText>
-            </View>
-
-            {/* Navigation affordance */}
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={21}
-              color={theme.extends.colors.text.tertiary}
-            />
             </SafePressable>
           ))}
         </View>

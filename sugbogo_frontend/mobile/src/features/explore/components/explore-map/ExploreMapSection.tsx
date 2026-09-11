@@ -1,73 +1,34 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { LocationObject } from "expo-location";
-import { Platform, View } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
-import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
+import BusinessDiscoveryMap, {
+  type BusinessMapMarker,
+} from "@/features/map/components/BusinessDiscoveryMap";
 import AppText from "@/shared/components/AppText";
-import MapMarker from "@/shared/components/MapMarker";
 import SafePressable from "@/shared/components/SafePressable";
 
 type Props = {
+  businesses: BusinessMapMarker[];
   userLocation: LocationObject | null;
   onOpenMap: () => void;
 };
 
-type MockBusinessMarker = {
-  id: number;
-  latitude: number;
-  longitude: number;
-};
-
 const MAP_PREVIEW_HEIGHT = 210;
 
-const DEFAULT_REGION = {
-  latitude: 10.3157,
-  longitude: 123.8854,
-  latitudeDelta: 0.08,
-  longitudeDelta: 0.08,
-};
-
-const MOCK_BUSINESS_MARKERS: MockBusinessMarker[] = [
-  {
-    id: 1,
-    latitude: 10.319,
-    longitude: 123.891,
-  },
-  {
-    id: 2,
-    latitude: 10.309,
-    longitude: 123.884,
-  },
-  {
-    id: 3,
-    latitude: 10.326,
-    longitude: 123.879,
-  },
-  {
-    id: 4,
-    latitude: 10.312,
-    longitude: 123.899,
-  },
-];
-
 /**
- * Displays a read-only preview of business discovery on the Cebu map.
+ * Displays a read-only preview of nearby business discovery on the Cebu map.
  *
- * The preview centers on the explorer when location is available and keeps map
- * interaction disabled so it does not compete with the Explore page scroll.
+ * The section receives nearby businesses from the Explore screen and delegates
+ * marker rendering, clustering, and user-location positioning to the shared
+ * discovery map while keeping the preview tappable for full map navigation.
  */
-export default function ExploreMapSection({ userLocation, onOpenMap }: Props) {
-  const initialRegion = userLocation
-    ? {
-        latitude: userLocation.coords.latitude,
-        longitude: userLocation.coords.longitude,
-        latitudeDelta: 0.06,
-        longitudeDelta: 0.06,
-      }
-    : DEFAULT_REGION;
-
+export default function ExploreMapSection({
+  businesses,
+  userLocation,
+  onOpenMap,
+}: Props) {
   return (
     <View className="py-6">
       {/* Section introduction */}
@@ -93,41 +54,11 @@ export default function ExploreMapSection({ userLocation, onOpenMap }: Props) {
             style={{ height: MAP_PREVIEW_HEIGHT }}
             className="overflow-hidden bg-surface-secondary"
           >
-            <MapView
-              provider={PROVIDER_GOOGLE}
-              customMapStyle={MAP_STYLE}
-              pointerEvents="none"
-              initialRegion={initialRegion}
-              style={{
-                width: "100%",
-                height: "100%",
-              }}
-              showsUserLocation={userLocation !== null}
-              showsMyLocationButton={false}
-              scrollEnabled={false}
-              zoomEnabled={false}
-              rotateEnabled={false}
-              pitchEnabled={false}
-              toolbarEnabled={false}
-              {...(Platform.OS === "android" && {
-                mapId: process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID,
-              })}
-            >
-              {MOCK_BUSINESS_MARKERS.map((business) => (
-                <Marker
-                  key={business.id}
-                  coordinate={{
-                    latitude: business.latitude,
-                    longitude: business.longitude,
-                  }}
-                  tracksViewChanges={false}
-                >
-                  <View collapsable={false}>
-                    <MapMarker variant="business" />
-                  </View>
-                </Marker>
-              ))}
-            </MapView>
+            <BusinessDiscoveryMap
+              businesses={businesses}
+              userLocation={userLocation}
+              interactive={false}
+            />
 
             {/* Map context label */}
             <View className="absolute left-3 top-3 flex-row items-center rounded-full bg-white/95 px-3 py-2">

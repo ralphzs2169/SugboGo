@@ -108,3 +108,22 @@ export type ExploreBusinessDetail = ExploreBusiness & {
   is_own_business: boolean;
   has_own_review: boolean;
 };
+
+export type ExploreMapPreviewBusiness = {
+  id: number;
+  cluster_icon: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type ExploreMapBusiness = {
+  id: number;
+  business_name: string;
+  cover_photo_url: string | null;
+  category_name: string;
+  cluster_name: string;
+  cluster_icon: string;
+  location: string;
+  latitude: number;
+  longitude: number;
+};

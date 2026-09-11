@@ -12,22 +12,25 @@ import {
 
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
-import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
 import ExploreBySpecialtySection from "../components/explore-by-specialty/ExploreBySpecialtySection";
 import ExploreTopBar from "../components/ExploreTopBar";
 import InterestsSection from "../components/interests/InterestsSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
 import WorthDiscoveringSection from "../components/worth-discovering/WorthDiscoveringSection";
 import useBusinessImpressions from "../hooks/useBusinessImpressions";
+import useMapPreviewBusinesses, {
+  MAP_PREVIEW_QUERY_KEY,
+} from "../hooks/useMapPreviewBusinesses";
 import useDiscoveryFeed, {
   DISCOVERY_FEED_QUERY_KEY,
 } from "../hooks/useDiscoveryFeed";
-import useExploreLocation from "../hooks/useExploreLocation";
+
 import { RECOMMENDATIONS_QUERY_KEY } from "../hooks/useRecommendations";
 import DiscoveryShortcutsSection from "../components/discovery-shortcuts/DiscoveryShortcutsSection";
 import ExploreMapSection from "../components/explore-map/ExploreMapSection";
 import { EXPLORE_SPECIALTIES_QUERY_KEY } from "../hooks/useExploreSpecialties";
 import { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../hooks/useDiscoveryShortcuts";
+import useUserLocation from "@/shared/hooks/useUserLocation";
 
 /**
  * Displays the Explorer discovery experience and coordinates its business feeds.
@@ -47,7 +50,13 @@ export default function ExploreScreen() {
   const newBusinessImpressions = useBusinessImpressions(bottomSpacing);
   const recommendationImpressions = useBusinessImpressions(bottomSpacing);
 
-  const userLocation = useExploreLocation();
+  const { location: userLocation, refreshLocation } = useUserLocation();
+
+  const mapPreview = useMapPreviewBusinesses(
+    userLocation?.coords.latitude ?? null,
+    userLocation?.coords.longitude ?? null,
+  );
+
   const discoveryFeed = useDiscoveryFeed();
 
   const handleRefresh = async () => {
@@ -55,6 +64,7 @@ export default function ExploreScreen() {
 
     try {
       await Promise.all([
+        refreshLocation(),
         queryClient.refetchQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
@@ -69,6 +79,9 @@ export default function ExploreScreen() {
         }),
         queryClient.refetchQueries({
           queryKey: DISCOVERY_SHORTCUTS_QUERY_KEY,
+        }),
+        queryClient.refetchQueries({
+          queryKey: MAP_PREVIEW_QUERY_KEY,
         }),
       ]);
     } finally {
@@ -163,6 +176,7 @@ export default function ExploreScreen() {
 
         {/* Map discovery preview */}
         <ExploreMapSection
+          businesses={mapPreview.businesses}
           userLocation={userLocation}
           onOpenMap={() => {
             router.push("/(explorer)/(tabs)/map");

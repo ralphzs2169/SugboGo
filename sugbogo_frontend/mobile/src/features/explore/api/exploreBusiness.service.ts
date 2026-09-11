@@ -8,6 +8,7 @@ import type {
   DiscoveryShortcut,
   ExploreSpecialty,
   RecommendationBusinessListResponse,
+  ExploreMapPreviewBusiness,
 } from "../types/exploreBusiness.types";
 
 export async function getNewBusinesses(): Promise<
@@ -131,5 +132,19 @@ export async function recordBusinessProfileVisit(businessId: number): Promise<
 > {
   return request(
     apiClient.post(`/explorer/explore/businesses/${businessId}/profile-visit/`),
+  );
+}
+
+export async function getMapPreviewBusinesses(
+  latitude: number,
+  longitude: number,
+): Promise<ApiResponse<ExploreMapPreviewBusiness[]>> {
+  return request(
+    apiClient.get("/explorer/explore/map-preview/", {
+      params: {
+        latitude,
+        longitude,
+      },
+    }),
   );
 }

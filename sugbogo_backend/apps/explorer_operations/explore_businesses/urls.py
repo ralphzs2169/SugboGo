@@ -13,6 +13,9 @@ from apps.explorer_operations.explore_businesses.views.cluster_discovery_shortcu
 from apps.explorer_operations.explore_businesses.views.discovery_feed_views import (
     DiscoveryFeedView,
 )
+from apps.explorer_operations.explore_businesses.views.explore_map_preview_views import (
+    ExploreMapPreviewView,
+)
 from apps.explorer_operations.explore_businesses.views.explore_specialty_tag_views import (
     ExploreSpecialtyView,
 )
@@ -37,6 +40,8 @@ urlpatterns = [
     path("specialties/",ExploreSpecialtyView.as_view(),name="explore-specialties"),
     path("recommendations/", RecommendationView.as_view(), name="recommendations", ),
     path("discovery-shortcuts/", ClusterDiscoveryShortcutView.as_view(), name="discovery-shortcuts", ),
+
+    path("map-preview/",ExploreMapPreviewView.as_view(),name="explore-map-preview"),
 
     path("businesses/<int:business_id>/vouch/", BusinessVouchView.as_view(), name="business-vouch", ),
     path("businesses/<int:business_id>/pocket/", BusinessPocketView.as_view(), name="business-pocket" ),

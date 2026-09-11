@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect } from "react";
-import { useWindowDimensions, View } from "react-native";
+import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import AppText from "@/shared/components/AppText";
@@ -16,23 +16,16 @@ type Props = {
   onSpecialtyPress?: (specialtyId: number) => void;
 };
 
-const HORIZONTAL_PADDING = 16;
-const COLUMN_GAP = 12;
 const LOADING_TILE_COUNT = 6;
 
 /**
- * Displays rotating Specialty Tag shortcuts for focused Explorer discovery.
+ * Displays up to six specialty shortcuts in a compact three-column grid.
  *
- * The backend selects and orders up to six useful specialties based on active
- * business availability. The section renders that order directly and provides
- * loading, error, empty, and retry behavior without applying client ranking.
+ * Each shortcut uses a circular specialty icon with its label underneath,
+ * allowing explorers to quickly browse places by what they are known for.
  */
 export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
-  const { width: screenWidth } = useWindowDimensions();
-
   const { specialties, isLoading, error, refetch } = useExploreSpecialties();
-
-  const tileWidth = (screenWidth - HORIZONTAL_PADDING * 2 - COLUMN_GAP) / 2;
 
   useEffect(() => {
     if (!error) {
@@ -57,7 +50,7 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
   return (
     <View className="py-6">
       {/* Section introduction */}
-      <View className="mb-4 px-4">
+      <View className="mb-5 px-4">
         <AppText weight="bold" className="text-xl text-text-primary">
           Explore by Specialty
         </AppText>
@@ -69,15 +62,13 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
 
       {/* Loading state */}
       {isLoading && (
-        <View className="flex-row flex-wrap gap-3 px-4">
+        <View className="flex-row flex-wrap justify-between gap-y-5 px-4">
           {Array.from({ length: LOADING_TILE_COUNT }).map((_, index) => (
-            <View
-              key={index}
-              style={{
-                width: tileWidth,
-              }}
-              className="min-h-[104px] rounded-card border border-border-primary bg-background"
-            />
+            <View key={index} className="w-[31%] items-center">
+              <View className="h-16 w-16 rounded-full bg-background" />
+
+              <View className="mt-2.5 h-3 w-16 rounded-full bg-background" />
+            </View>
           ))}
         </View>
       )}
@@ -108,7 +99,7 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
 
       {/* Specialty shortcut grid */}
       {!isLoading && !error && (
-        <View className="flex-row flex-wrap gap-3 px-4">
+        <View className="flex-row flex-wrap justify-between gap-y-5 px-4">
           {specialties.map((specialty) => {
             const colorStyles = getSpecialtyTagColor(specialty.color);
             const iconName = getSpecialtyTagIcon(specialty.icon);
@@ -123,49 +114,32 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
                 accessibilityLabel={
                   onSpecialtyPress ? `Explore ${specialty.name}` : undefined
                 }
-                style={{
-                  width: tileWidth,
-                }}
-                className={`min-h-[104px] justify-between rounded-card border border-border-primary bg-surface p-3.5 active:opacity-80 ${
-                  onSpecialtyPress ? "cursor-pointer" : ""
+                className={`w-[31%] items-center ${
+                  onSpecialtyPress ? "cursor-pointer active:opacity-70" : ""
                 }`}
-                android_ripple={
-                  onSpecialtyPress
-                    ? {
-                        color: `${accentColor}12`,
-                      }
-                    : undefined
-                }
               >
-                {/* Specialty identity */}
+                {/* Specialty icon */}
                 <View
-                  className="h-10 w-10 items-center justify-center rounded-xl"
+                  className="h-16 w-16 items-center justify-center rounded-full"
                   style={{
                     backgroundColor: `${accentColor}18`,
                   }}
                 >
                   <MaterialCommunityIcons
                     name={iconName}
-                    size={22}
+                    size={27}
                     color={accentColor}
                   />
                 </View>
 
-                {/* Specialty details */}
-                <View className="mt-3">
-                  <AppText
-                    weight="bold"
-                    className="text-sm leading-5 text-text-primary"
-                    numberOfLines={1}
-                  >
-                    {specialty.name}
-                  </AppText>
-
-                  <AppText className="mt-0.5 text-xs text-text-tertiary">
-                    {specialty.business_count}{" "}
-                    {specialty.business_count === 1 ? "place" : "places"}
-                  </AppText>
-                </View>
+                {/* Specialty label */}
+                <AppText
+                  weight="semibold"
+                  className="mt-2.5 text-center text-xs leading-4 text-text-primary"
+                  numberOfLines={2}
+                >
+                  {specialty.name}
+                </AppText>
               </SafePressable>
             );
           })}
