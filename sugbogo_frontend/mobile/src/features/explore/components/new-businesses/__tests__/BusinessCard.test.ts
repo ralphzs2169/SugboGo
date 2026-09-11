@@ -1,8 +1,8 @@
 import { getBusinessCardWidth } from "../BusinessCard";
 
 describe("business card presentation width", () => {
-  it("uses 84 percent of a phone screen for the featured variant", () => {
-    expect(getBusinessCardWidth(375, "featured")).toBe(315);
+  it("uses 74 percent of a phone screen for the featured variant", () => {
+    expect(getBusinessCardWidth(375, "featured")).toBe(277.5);
   });
 
   it("preserves the existing default card width", () => {
