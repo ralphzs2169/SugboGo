@@ -135,6 +135,96 @@ class RecommendationIntegrationTests(TestCase):
     @patch.object(
         VisibilityEventService,
         "get_profile_visit_business_ids",
+        return_value=[],
+    )
+    def test_specialty_reason_is_preferred_over_category_and_cluster(
+        self,
+        _profile_visits,
+    ):
+        UserCategoryInterest.objects.create(
+            USER_ID=self.explorer,
+            CTGRY_ID=self.category,
+        )
+        UserSpecialtyTagInterest.objects.create(
+            USER_ID=self.explorer,
+            TAG_ID=self.tag,
+        )
+
+        recommendations = RecommendationService.list_recommendations(
+            self.explorer,
+        )
+
+        self.assertEqual(
+            recommendations[0].recommendation_reason,
+            {
+                "type": "specialty_tag",
+                "id": self.tag.TAG_ID,
+                "label": self.tag.TAG_NAME,
+            },
+        )
+
+    def test_strongest_same_type_reason_uses_id_tie_breaker(self):
+        stronger_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Stronger Signal Tag",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=stronger_tag,
+        )
+        business = self._candidate_businesses()[0]
+        business_features = RecommendationService.build_business_feature_map(
+            business,
+            self.configuration,
+        )
+        explorer_features = {
+            ("tag", self.tag.TAG_ID): Decimal("3.00000"),
+            ("tag", stronger_tag.TAG_ID): Decimal("9.00000"),
+        }
+
+        strongest = RecommendationService.build_recommendation_reason(
+            explorer_features=explorer_features,
+            business=business,
+            business_features=business_features,
+        )
+        explorer_features[("tag", self.tag.TAG_ID)] = Decimal("9.00000")
+        tied = RecommendationService.build_recommendation_reason(
+            explorer_features=explorer_features,
+            business=business,
+            business_features=business_features,
+        )
+
+        self.assertEqual(
+            strongest["id"],
+            stronger_tag.TAG_ID,
+        )
+        self.assertEqual(
+            tied["id"],
+            min(
+                self.tag.TAG_ID,
+                stronger_tag.TAG_ID,
+            ),
+        )
+
+    def test_inactive_specialty_cannot_produce_reason(self):
+        business = self._candidate_businesses()[0]
+        business_features = RecommendationService.build_business_feature_map(
+            business,
+            self.configuration,
+        )
+
+        reason = RecommendationService.build_recommendation_reason(
+            explorer_features={
+                ("tag", self.other_tag.TAG_ID): Decimal("99.00000"),
+            },
+            business=business,
+            business_features=business_features,
+        )
+
+        self.assertIsNone(reason)
+
+    @patch.object(
+        VisibilityEventService,
+        "get_profile_visit_business_ids",
     )
     def test_explicit_and_learned_signals_accumulate(
         self,

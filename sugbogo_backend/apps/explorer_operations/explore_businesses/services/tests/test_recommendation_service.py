@@ -4,11 +4,108 @@ from types import SimpleNamespace
 from django.test import SimpleTestCase
 
 from apps.explorer_operations.explore_businesses.services.recommendation_service import (
+    RecommendationService,
     RelevanceGroup,
     classify_relevance,
     cosine_similarity,
     recommendation_sort_key,
 )
+
+
+class RecommendationReasonTests(SimpleTestCase):
+    def setUp(self):
+        self.first_tag = SimpleNamespace(
+            TAG_ID=11,
+            TAG_NAME="Local Coffee",
+        )
+        self.second_tag = SimpleNamespace(
+            TAG_ID=19,
+            TAG_NAME="Outdoor Dining",
+        )
+        self.business = SimpleNamespace(
+            CTGRY_ID=SimpleNamespace(
+                CTGRY_ID=7,
+                CTGRY_NAME="Cafe",
+                CLUS_ID=SimpleNamespace(
+                    CLUS_ID=3,
+                    CLUS_NAME="Culinary",
+                ),
+            ),
+            active_specialty_tag_links=[
+                SimpleNamespace(
+                    TAG_ID_id=self.first_tag.TAG_ID,
+                    TAG_ID=self.first_tag,
+                ),
+                SimpleNamespace(
+                    TAG_ID_id=self.second_tag.TAG_ID,
+                    TAG_ID=self.second_tag,
+                ),
+            ],
+        )
+        self.business_features = {
+            ("cluster", 3): Decimal("1"),
+            ("category", 7): Decimal("2"),
+            ("tag", 11): Decimal("3"),
+            ("tag", 19): Decimal("3"),
+        }
+
+    def test_specialty_is_preferred_and_uses_authoritative_label(self):
+        reason = RecommendationService.build_recommendation_reason(
+            explorer_features={
+                ("cluster", 3): Decimal("20"),
+                ("category", 7): Decimal("20"),
+                ("tag", 11): Decimal("1"),
+            },
+            business=self.business,
+            business_features=self.business_features,
+        )
+
+        self.assertEqual(
+            reason,
+            {
+                "type": "specialty_tag",
+                "id": 11,
+                "label": "Local Coffee",
+            },
+        )
+
+    def test_strongest_same_type_then_lowest_id_is_selected(self):
+        strongest = RecommendationService.build_recommendation_reason(
+            explorer_features={
+                ("tag", 11): Decimal("2"),
+                ("tag", 19): Decimal("8"),
+            },
+            business=self.business,
+            business_features=self.business_features,
+        )
+        tied = RecommendationService.build_recommendation_reason(
+            explorer_features={
+                ("tag", 11): Decimal("8"),
+                ("tag", 19): Decimal("8"),
+            },
+            business=self.business,
+            business_features=self.business_features,
+        )
+
+        self.assertEqual(
+            strongest["id"],
+            19,
+        )
+        self.assertEqual(
+            tied["id"],
+            11,
+        )
+
+    def test_non_business_specialty_feature_is_not_a_reason(self):
+        reason = RecommendationService.build_recommendation_reason(
+            explorer_features={
+                ("tag", 99): Decimal("100"),
+            },
+            business=self.business,
+            business_features=self.business_features,
+        )
+
+        self.assertIsNone(reason)
 
 
 class CosineSimilarityTests(SimpleTestCase):

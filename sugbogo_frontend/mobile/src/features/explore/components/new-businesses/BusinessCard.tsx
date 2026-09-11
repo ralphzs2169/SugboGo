@@ -9,7 +9,10 @@ import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import { formatDistance } from "@/shared/utils/distance.utils";
 
-import type { ExploreBusiness } from "../../types/exploreBusiness.types";
+import type {
+  ExploreBusiness,
+  RecommendationReason,
+} from "../../types/exploreBusiness.types";
 
 type Props = {
   business: ExploreBusiness;
@@ -17,6 +20,7 @@ type Props = {
   distanceAccuracy: number | null;
   onPress: () => void;
   variant?: "default" | "featured" | "compact";
+  recommendationReason?: RecommendationReason | null;
 };
 
 const CARD_WIDTH = 226;
@@ -54,6 +58,7 @@ export default function BusinessCard({
   distanceAccuracy,
   onPress,
   variant = "default",
+  recommendationReason = null,
 }: Props) {
   const { width: screenWidth } = useWindowDimensions();
 
@@ -83,7 +88,14 @@ export default function BusinessCard({
       <SafePressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Open ${business.business_name} business profile`}
+        accessibilityLabel={
+          recommendationReason
+            ? (
+                `Open ${business.business_name} business profile. `
+                + `Interested in ${recommendationReason.label}.`
+              )
+            : `Open ${business.business_name} business profile`
+        }
         className="w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
         android_ripple={{
           color: "rgba(0,0,0,0.05)",
@@ -174,6 +186,27 @@ export default function BusinessCard({
                 </View>
               )}
             </View>
+
+            {/* Personalized recommendation context */}
+            {recommendationReason && (
+              <View className="mt-1.5 min-w-0 flex-row items-center">
+                <MaterialCommunityIcons
+                  name="creation"
+                  size={12}
+                  color={theme.extends.colors.brand}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
+
+                <AppText
+                  weight="medium"
+                  className="ml-1 min-w-0 flex-1 text-[11px] text-brand"
+                  numberOfLines={1}
+                >
+                  Interested in {recommendationReason.label}
+                </AppText>
+              </View>
+            )}
           </View>
 
           {/* Specialty tags */}

@@ -5,18 +5,14 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import InterestsSection from "../InterestsSection";
 import useRecommendations from "../../../hooks/useRecommendations";
-import type { ExploreBusiness } from "../../../types/exploreBusiness.types";
+import type {
+  ExploreBusiness,
+  RecommendationBusiness,
+  RecommendationReason,
+} from "../../../types/exploreBusiness.types";
 
-jest.mock("../../../hooks/useRecommendations");
-jest.mock("@/shared/utils/apiErrors", () => ({
-  handleSystemError: jest.fn(),
-}));
-jest.mock("react-native-toast-message", () => ({
-  show: jest.fn(),
-}));
-jest.mock("../../new-businesses/BusinessCard", () => ({
-  __esModule: true,
-  default: ({
+const mockBusinessCard = jest.fn(
+  ({
     business,
     onPress,
   }: {
@@ -34,6 +30,18 @@ jest.mock("../../new-businesses/BusinessCard", () => ({
       </Pressable>
     );
   },
+);
+
+jest.mock("../../../hooks/useRecommendations");
+jest.mock("@/shared/utils/apiErrors", () => ({
+  handleSystemError: jest.fn(),
+}));
+jest.mock("react-native-toast-message", () => ({
+  show: jest.fn(),
+}));
+jest.mock("../../new-businesses/BusinessCard", () => ({
+  __esModule: true,
+  default: (props: unknown) => mockBusinessCard(props as never),
 }));
 jest.mock("@/shared/components/ErrorState", () => ({
   __esModule: true,
@@ -48,7 +56,11 @@ jest.mock("@/shared/components/ErrorState", () => ({
   },
 }));
 
-function createBusiness(id: number, name: string): ExploreBusiness {
+function createBusiness(
+  id: number,
+  name: string,
+  recommendationReason: RecommendationReason | null = null,
+): RecommendationBusiness {
   return {
     id,
     business_name: name,
@@ -64,6 +76,7 @@ function createBusiness(id: number, name: string): ExploreBusiness {
       latitude: 10.31,
       longitude: 123.89,
     },
+    recommendation_reason: recommendationReason,
   };
 }
 
@@ -90,10 +103,19 @@ async function renderSection() {
 }
 
 describe("Based on Your Interests", () => {
+  beforeEach(() => {
+    mockBusinessCard.mockClear();
+  });
+
   it("reuses BusinessCard and preserves backend order", async () => {
+    const reason: RecommendationReason = {
+      type: "specialty_tag",
+      id: 14,
+      label: "Local Coffee",
+    };
     (useRecommendations as jest.Mock).mockReturnValue({
       businesses: [
-        createBusiness(22, "Backend First"),
+        createBusiness(22, "Backend First", reason),
         createBusiness(4, "Backend Second"),
       ],
       isLoading: false,
@@ -110,6 +132,13 @@ describe("Based on Your Interests", () => {
       "shared-business-card-22",
       "shared-business-card-4",
     ]);
+    expect(mockBusinessCard).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        recommendationReason: reason,
+        variant: "compact",
+      }),
+    );
     await screen.unmount();
   });
 

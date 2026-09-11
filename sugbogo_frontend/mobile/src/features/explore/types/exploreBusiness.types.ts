@@ -38,6 +38,16 @@ export type ExploreBusiness = {
   location: ExploreBusinessLocation;
 };
 
+export type RecommendationReason = {
+  type: "specialty_tag" | "category" | "cluster";
+  id: number;
+  label: string;
+};
+
+export type RecommendationBusiness = ExploreBusiness & {
+  recommendation_reason: RecommendationReason | null;
+};
+
 export type ExploreBusinessPagination = {
   page: number;
   page_size: number;
@@ -49,6 +59,11 @@ export type ExploreBusinessPagination = {
 
 export type ExploreBusinessListResponse = {
   items: ExploreBusiness[];
+  pagination: ExploreBusinessPagination;
+};
+
+export type RecommendationBusinessListResponse = {
+  items: RecommendationBusiness[];
   pagination: ExploreBusinessPagination;
 };
 

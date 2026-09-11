@@ -112,6 +112,12 @@ def recommendation_sort_key(item):
 class RecommendationService:
     """Builds deterministic content-based recommendations for one user."""
 
+    REASON_FEATURE_TYPES = (
+        "tag",
+        "category",
+        "cluster",
+    )
+
     @staticmethod
     def build_business_feature_map(
         business,
@@ -132,6 +138,65 @@ class RecommendationService:
             )
 
         return features
+
+    @staticmethod
+    def build_recommendation_reason(
+        explorer_features,
+        business,
+        business_features,
+    ):
+        """Selects the strongest authoritative shared feature for explanation."""
+
+        for feature_type in RecommendationService.REASON_FEATURE_TYPES:
+            matching_features = [
+                (
+                    feature_id,
+                    explorer_value,
+                )
+                for (
+                    candidate_type,
+                    feature_id,
+                ), explorer_value in explorer_features.items()
+                if candidate_type == feature_type
+                and (
+                    feature_type,
+                    feature_id,
+                ) in business_features
+            ]
+
+            if not matching_features:
+                continue
+
+            feature_id, _ = min(
+                matching_features,
+                key=lambda match: (
+                    -match[1],
+                    match[0],
+                ),
+            )
+
+            if feature_type == "tag":
+                matching_link = next(
+                    link
+                    for link in business.active_specialty_tag_links
+                    if link.TAG_ID_id == feature_id
+                )
+                reason_type = "specialty_tag"
+                label = matching_link.TAG_ID.TAG_NAME
+            elif feature_type == "category":
+                reason_type = "category"
+                label = business.CTGRY_ID.CTGRY_NAME
+            else:
+                reason_type = "cluster"
+                label = business.CTGRY_ID.CLUS_ID.CLUS_NAME
+
+            return {
+                "type": reason_type,
+                "id": feature_id,
+                "label": label,
+            }
+
+        return None
 
     @staticmethod
     def _candidate_queryset(user):
@@ -353,6 +418,14 @@ class RecommendationService:
 
             if relevance_group == RelevanceGroup.NO_MATCH:
                 continue
+
+            business.recommendation_reason = (
+                RecommendationService.build_recommendation_reason(
+                    explorer_features=explorer_features,
+                    business=business,
+                    business_features=business_features,
+                )
+            )
 
             ranked_businesses.append(
                 (

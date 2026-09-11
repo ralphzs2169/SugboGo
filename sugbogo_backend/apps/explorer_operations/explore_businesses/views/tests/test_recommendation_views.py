@@ -140,6 +140,48 @@ class RecommendationViewTests(TestCase):
         self.assertNotIn("similarity", items[0])
         self.assertNotIn("visibility_gap", items[0])
         self.assertNotIn("relevance_group", items[0])
+        self.assertEqual(
+            items[0]["recommendation_reason"],
+            {
+                "type": "category",
+                "id": self.category.CTGRY_ID,
+                "label": self.category.CTGRY_NAME,
+            },
+        )
+
+    @patch.object(
+        VisibilityEventService,
+        "get_profile_visit_business_ids",
+        return_value=[],
+    )
+    def test_cold_start_discovery_reason_is_null(
+        self,
+        _profile_visits,
+    ):
+        business = self._create_business(
+            "Cold Start Business",
+        )
+        self._create_score(
+            business,
+            Decimal("0.50000"),
+            Decimal("0.50000"),
+        )
+
+        response = self.client.get(
+            self.url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["id"],
+            business.BUSN_ID,
+        )
+        self.assertIsNone(
+            response.data["data"]["items"][0]["recommendation_reason"],
+        )
 
     def test_authentication_is_required(self):
         self.client.force_authenticate(user=None)

@@ -5,6 +5,7 @@ import { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
   ExploreBusinessDetail,
   ExploreBusinessListResponse,
+  RecommendationBusinessListResponse,
 } from "../types/exploreBusiness.types";
 
 export async function getNewBusinesses(): Promise<
@@ -20,7 +21,7 @@ export async function getDiscoveryFeed(): Promise<
 }
 
 export async function getRecommendations(): Promise<
-  ApiResponse<ExploreBusinessListResponse>
+  ApiResponse<RecommendationBusinessListResponse>
 > {
   return request(apiClient.get("/explorer/explore/recommendations/"));
 }

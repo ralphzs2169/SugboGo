@@ -189,6 +189,7 @@ export default function InterestsSection({
                   distance={distance}
                   distanceAccuracy={userLocation?.coords.accuracy ?? null}
                   variant="compact"
+                  recommendationReason={business.recommendation_reason}
                   onPress={() => {
                     onBusinessPress(
                       business.id,

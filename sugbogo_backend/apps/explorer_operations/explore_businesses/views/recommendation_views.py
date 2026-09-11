@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 
 from apps.authentication.permissions import HasRole
 from apps.explorer_operations.explore_businesses.serializers.explore_business_serializer import (
-    ExploreBusinessSerializer,
+    RecommendationBusinessSerializer,
 )
 from apps.explorer_operations.explore_businesses.services.recommendation_service import (
     RecommendationService,
@@ -32,7 +32,7 @@ class RecommendationView(APIView):
             businesses,
             request,
         )
-        serializer = ExploreBusinessSerializer(
+        serializer = RecommendationBusinessSerializer(
             page,
             many=True,
         )
