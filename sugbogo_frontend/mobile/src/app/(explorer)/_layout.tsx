@@ -12,6 +12,15 @@ export default function ExplorerLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
 
+      <Stack.Screen
+        name="explore-results"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: false,
+        }}
+      />
+
       {/* Business profile */}
       <Stack.Screen
         name="business/[businessId]"

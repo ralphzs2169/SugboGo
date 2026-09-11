@@ -1,5 +1,5 @@
 import { fireEvent, render } from "@testing-library/react-native";
-import { Pressable } from "react-native";
+import { Pressable as MockPressable } from "react-native";
 
 import DiscoveryShortcutsSection from "../DiscoveryShortcutsSection";
 import useDiscoveryShortcuts from "../../../hooks/useDiscoveryShortcuts";
@@ -14,7 +14,7 @@ jest.mock("react-native-toast-message", () => ({
 jest.mock("@/shared/components/SafePressable", () => ({
   __esModule: true,
   default: (props: Record<string, unknown>) => {
-    return <Pressable {...props} />;
+    return <MockPressable {...props} />;
   },
 }));
 

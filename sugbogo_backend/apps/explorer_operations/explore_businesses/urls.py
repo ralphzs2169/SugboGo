@@ -19,6 +19,9 @@ from apps.explorer_operations.explore_businesses.views.explore_map_preview_views
 from apps.explorer_operations.explore_businesses.views.explore_specialty_tag_views import (
     ExploreSpecialtyView,
 )
+from apps.explorer_operations.explore_businesses.views.filter_options_views import (
+    ExploreFilterOptionsView,
+)
 from apps.explorer_operations.explore_businesses.views.new_businesses_views import (
     NewBusinessesView,
 )
@@ -37,6 +40,7 @@ urlpatterns = [
     
     path("new-businesses/", NewBusinessesView.as_view(), name="new-businesses", ),
     path("discovery/", DiscoveryFeedView.as_view(), name="discovery-feed", ),
+    path("filter-options/", ExploreFilterOptionsView.as_view(), name="filter-options", ),
     path("specialties/",ExploreSpecialtyView.as_view(),name="explore-specialties"),
     path("recommendations/", RecommendationView.as_view(), name="recommendations", ),
     path("discovery-shortcuts/", ClusterDiscoveryShortcutView.as_view(), name="discovery-shortcuts", ),

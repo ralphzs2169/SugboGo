@@ -2,10 +2,18 @@ from rest_framework import serializers
 
 
 class DiscoveryFeedQuerySerializer(serializers.Serializer):
-    """Validates optional taxonomy filters for the discovery feed."""
+    """Validates optional search and taxonomy filters for discovery."""
 
-    category = serializers.IntegerField(
-        min_value=1,
+    search = serializers.CharField(
+        allow_blank=True,
+        max_length=200,
+        required=False,
+        trim_whitespace=True,
+    )
+    category = serializers.ListField(
+        child=serializers.IntegerField(
+            min_value=1,
+        ),
         required=False,
     )
     cluster = serializers.IntegerField(

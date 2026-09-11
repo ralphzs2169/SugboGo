@@ -1,4 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import {
   pocketBusiness,
@@ -7,6 +11,7 @@ import {
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
 import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
+import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
 
 import type {
   ExploreBusinessDetail,
@@ -57,6 +62,9 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.cancelQueries({
           queryKey: RECOMMENDATIONS_QUERY_KEY,
         }),
+        queryClient.cancelQueries({
+          queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+        }),
       ]);
 
       const previousBusiness =
@@ -76,6 +84,12 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.getQueryData<ExploreBusinessListResponse>(
           RECOMMENDATIONS_QUERY_KEY,
         );
+
+      const previousDiscoveryResults = queryClient.getQueriesData<
+        InfiniteData<ExploreBusinessListResponse>
+      >({
+        queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+      });
 
       // Update business detail optimistically.
       queryClient.setQueryData<ExploreBusinessDetail>(
@@ -127,12 +141,30 @@ export default function useBusinessPocket({ businessId }: Props) {
         RECOMMENDATIONS_QUERY_KEY,
         updatePocketState,
       );
+      queryClient.setQueriesData<InfiniteData<ExploreBusinessListResponse>>(
+        {
+          queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+        },
+        (currentResults) => {
+          if (!currentResults) {
+            return currentResults;
+          }
+
+          return {
+            ...currentResults,
+            pages: currentResults.pages.map((page) =>
+              updatePocketState(page) ?? page,
+            ),
+          };
+        },
+      );
 
       return {
         previousBusiness,
         previousNewBusinesses,
         previousDiscoveryFeed,
         previousRecommendations,
+        previousDiscoveryResults,
       };
     },
 
@@ -162,6 +194,13 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.setQueryData(
           RECOMMENDATIONS_QUERY_KEY,
           context.previousRecommendations,
+        );
+      }
+
+      for (const [queryKey, data] of context?.previousDiscoveryResults ?? []) {
+        queryClient.setQueryData(
+          queryKey,
+          data,
         );
       }
     },

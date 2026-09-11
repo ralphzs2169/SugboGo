@@ -78,6 +78,32 @@ export type ExploreBusinessListResponse = {
   pagination: ExploreBusinessPagination;
 };
 
+export type ExploreResultsCriteria = {
+  search: string;
+  clusterId: number | null;
+  categoryIds: number[];
+  specialtyTagId: number | null;
+};
+
+export type ExploreFilterCluster = ExploreBusinessCluster;
+
+export type ExploreFilterCategory = ExploreBusinessCategory & {
+  cluster_id: number;
+};
+
+export type ExploreFilterSpecialty = {
+  id: number;
+  name: string;
+  color: SpecialtyTagColor;
+  icon: string;
+};
+
+export type ExploreFilterOptions = {
+  clusters: ExploreFilterCluster[];
+  categories: ExploreFilterCategory[];
+  specialty_tags: ExploreFilterSpecialty[];
+};
+
 export type RecommendationBusinessListResponse = {
   items: RecommendationBusiness[];
   pagination: ExploreBusinessPagination;

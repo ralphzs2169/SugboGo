@@ -38,7 +38,11 @@ class DiscoveryFeedView(APIView):
 
         queryset = DiscoveryFeedService.list_discovery_businesses(
             user=request.user,
-            category_id=query_serializer.validated_data.get(
+            search=query_serializer.validated_data.get(
+                "search",
+                "",
+            ),
+            category_ids=query_serializer.validated_data.get(
                 "category",
             ),
             cluster_id=query_serializer.validated_data.get(

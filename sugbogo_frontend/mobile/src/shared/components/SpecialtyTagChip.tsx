@@ -10,7 +10,7 @@ type SpecialtyTagChipProps = {
     name: string;
     color: SpecialtyTagColor;
   };
-  mode?: "display" | "registration";
+  mode?: "display" | "registration" | "filter";
   size?: "default" | "small";
   isSelected?: boolean;
   isDisabled?: boolean;
@@ -26,10 +26,9 @@ type SpecialtyTagChipProps = {
 /**
  * Renders a specialty tag as a reusable visual chip.
  *
- * Display mode always uses the specialty's assigned color. Registration mode
- * uses a white outlined appearance for unselected tags and the specialty's
- * filled color once selected. Disabled registration tags use a muted visual
- * treatment to indicate that they cannot currently be selected.
+ * Display mode always uses the specialty's assigned color. Selection modes
+ * use a white outlined appearance until selected, then apply the specialty's
+ * assigned color. Disabled selections retain the shared muted treatment.
  */
 export default function SpecialtyTagChip({
   tag,
@@ -48,11 +47,11 @@ export default function SpecialtyTagChip({
   const styles = getSpecialtyTagColor(tag.color);
 
   const isSmall = size === "small";
-  const isRegistration = mode === "registration";
+  const isSelectionMode = mode === "registration" || mode === "filter";
   const isInteractive = Boolean(onPress);
 
-  const useColoredStyle = !isRegistration || isSelected;
-  const useDisabledStyle = isRegistration && isDisabled && showDisabledStyle;
+  const useColoredStyle = !isSelectionMode || isSelected;
+  const useDisabledStyle = isSelectionMode && isDisabled && showDisabledStyle;
 
   const textColor = useColoredStyle ? styles.text : "text-black";
   const iconColor = useColoredStyle ? styles.icon : "#000000";
@@ -75,7 +74,7 @@ export default function SpecialtyTagChip({
         ],
 
         // Registration selected state uses the specialty color.
-        ...(isRegistration && isSelected
+        ...(isSelectionMode && isSelected
           ? {
               borderColor: styles.borderColor,
             }
@@ -86,7 +85,7 @@ export default function SpecialtyTagChip({
       } ${
         useDisabledStyle
           ? "border border-border-primary bg-gray-200 opacity-40"
-          : isRegistration
+          : isSelectionMode
             ? isSelected
               ? styles.background
               : "border border-border-primary bg-white"
@@ -99,7 +98,7 @@ export default function SpecialtyTagChip({
         className={` ${isSmall ? "text-[10px]" : "text-sm"} ${
           useDisabledStyle
             ? "text-gray-400"
-            : isRegistration && !isSelected
+            : isSelectionMode && !isSelected
               ? "text-text-secondary"
               : textColor
         }`}

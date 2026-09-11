@@ -9,6 +9,8 @@ import type {
   ExploreSpecialty,
   RecommendationBusinessListResponse,
   ExploreMapPreviewBusiness,
+  ExploreFilterOptions,
+  ExploreResultsCriteria,
 } from "../types/exploreBusiness.types";
 
 export async function getNewBusinesses(): Promise<
@@ -21,6 +23,43 @@ export async function getDiscoveryFeed(): Promise<
   ApiResponse<ExploreBusinessListResponse>
 > {
   return request(apiClient.get("/explorer/explore/discovery/"));
+}
+
+export async function getDiscoveryResults(
+  criteria: ExploreResultsCriteria,
+  page: number,
+): Promise<ApiResponse<ExploreBusinessListResponse>> {
+  const params = new URLSearchParams();
+
+  if (criteria.search.trim()) {
+    params.set("search", criteria.search.trim());
+  }
+
+  if (criteria.clusterId !== null) {
+    params.set("cluster", String(criteria.clusterId));
+  }
+
+  for (const categoryId of criteria.categoryIds) {
+    params.append("category", String(categoryId));
+  }
+
+  if (criteria.specialtyTagId !== null) {
+    params.set("specialty_tag", String(criteria.specialtyTagId));
+  }
+
+  params.set("page", String(page));
+
+  return request(
+    apiClient.get("/explorer/explore/discovery/", {
+      params,
+    }),
+  );
+}
+
+export async function getExploreFilterOptions(): Promise<
+  ApiResponse<ExploreFilterOptions>
+> {
+  return request(apiClient.get("/explorer/explore/filter-options/"));
 }
 
 export async function getExploreSpecialties(): Promise<

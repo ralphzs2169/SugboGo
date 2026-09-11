@@ -5,26 +5,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
 const MASCOT_GREETING = require("@/shared/assets/mascot/mascot-greeting.webp");
 
-type CategoryIconName = keyof typeof MaterialCommunityIcons.glyphMap;
-
-type Category = {
-  label: string;
-  icon: CategoryIconName | null;
+type ClusterOption = {
+  id: number;
+  name: string;
+  icon: string;
 };
 
-const CATEGORIES: Category[] = [
-  { label: "All", icon: null },
-  { label: "Culinary", icon: "silverware-fork-knife" },
-  { label: "Leisure", icon: "surfing" },
-  { label: "Creative", icon: "palette-outline" },
-];
-
 type Props = {
-  selectedCategory: string;
-  onSelectCategory: (category: string) => void;
+  clusters: ClusterOption[];
+  selectedClusterId: number | null;
+  onSelectCluster: (clusterId: number | null) => void;
+  onFocusSearch: () => void;
   onPressFilters: () => void;
   activeFilterCount?: number;
 };
@@ -36,8 +31,10 @@ type Props = {
  * quick category navigation, and compact SugboGo mascot branding.
  */
 export default function ExploreTopBar({
-  selectedCategory,
-  onSelectCategory,
+  clusters,
+  selectedClusterId,
+  onSelectCluster,
+  onFocusSearch,
   onPressFilters,
   activeFilterCount = 0,
 }: Props) {
@@ -94,6 +91,7 @@ export default function ExploreTopBar({
           />
 
           <TextInput
+            onFocus={onFocusSearch}
             className="ml-2 flex-1 py-3 text-sm text-text-primary"
             style={{
               fontFamily: "NunitoSans_400Regular",
@@ -131,29 +129,32 @@ export default function ExploreTopBar({
         </Pressable>
       </View>
 
-      {/* Quick discovery categories */}
+      {/* Quick discovery clusters */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         className="flex-none"
         contentContainerClassName="gap-2"
       >
-        {CATEGORIES.map((category) => {
-          const isActive = category.label === selectedCategory;
+        {[
+          { id: null, name: "All", icon: null },
+          ...clusters,
+        ].map((cluster) => {
+          const isActive = cluster.id === selectedClusterId;
 
           return (
             <Pressable
-              key={category.label}
-              onPress={() => onSelectCategory(category.label)}
+              key={cluster.id ?? "all"}
+              onPress={() => onSelectCluster(cluster.id)}
               accessibilityRole="button"
               accessibilityState={{ selected: isActive }}
               className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${
                 isActive ? "bg-brand" : "bg-background"
               }`}
             >
-              {category.icon && (
+              {cluster.icon && (
                 <MaterialCommunityIcons
-                  name={category.icon}
+                  name={CLUSTER_ICONS[cluster.icon] ?? "store"}
                   size={14}
                   color={
                     isActive ? "#FFFFFF" : theme.extends.colors.text.secondary
@@ -168,7 +169,7 @@ export default function ExploreTopBar({
                   isActive ? "text-white" : "text-text-secondary"
                 }`}
               >
-                {category.label}
+                {cluster.name}
               </AppText>
             </Pressable>
           );

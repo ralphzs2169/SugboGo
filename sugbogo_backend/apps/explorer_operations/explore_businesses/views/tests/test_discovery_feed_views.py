@@ -445,6 +445,477 @@ class DiscoveryFeedTests(TestCase):
             response.data["errors"],
         )
 
+    def test_search_trims_whitespace_and_whitespace_only_is_absent(self):
+        """Search is normalized before matching and blank input keeps the feed."""
+
+        match = self._create_business(
+            "Coffee Corner",
+        )
+        other = self._create_business(
+            "Island Crafts",
+        )
+
+        trimmed_response = self.client.get(
+            self.url,
+            {
+                "search": "  Coffee  ",
+            },
+        )
+        blank_response = self.client.get(
+            self.url,
+            {
+                "search": "   ",
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(trimmed_response),
+            [match.BUSN_ID],
+        )
+        self.assertCountEqual(
+            self._response_ids(blank_response),
+            [
+                match.BUSN_ID,
+                other.BUSN_ID,
+            ],
+        )
+
+    def test_search_orders_exact_prefix_contains_then_taxonomy(self):
+        """PostgreSQL relevance tiers precede all score-based ordering."""
+
+        taxonomy_category = Category.objects.create(
+            CTGRY_NAME="Coffee Experiences",
+            CLUS_ID=self.cluster,
+        )
+        exact = self._create_business(
+            "Coffee",
+        )
+        prefix = self._create_business(
+            "Coffee Corner",
+        )
+        contains = self._create_business(
+            "Local Coffee House",
+        )
+        taxonomy = self._create_business(
+            "Morning Place",
+            category=taxonomy_category,
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "search": "coffee",
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(response),
+            [
+                exact.BUSN_ID,
+                prefix.BUSN_ID,
+                contains.BUSN_ID,
+                taxonomy.BUSN_ID,
+            ],
+        )
+
+    def test_search_matches_cluster_and_active_specialty_but_not_inactive(self):
+        """Taxonomy search includes only active specialty assignments."""
+
+        cluster_match = self._create_business(
+            "Cluster Result",
+            category=self.other_category,
+        )
+        specialty_match = self._create_business(
+            "Specialty Result",
+        )
+        inactive_match = self._create_business(
+            "Inactive Result",
+        )
+        search_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Needlework",
+            TAG_COLOR="purple",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=specialty_match,
+            TAG_ID=search_tag,
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=inactive_match,
+            TAG_ID=search_tag,
+            BST_IS_ACTIVE=False,
+            BST_DEACTIVATED_AT=timezone.now(),
+        )
+
+        cluster_response = self.client.get(
+            self.url,
+            {
+                "search": "Other Discovery Feed Cluster",
+            },
+        )
+        specialty_response = self.client.get(
+            self.url,
+            {
+                "search": "Needlework",
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(cluster_response),
+            [cluster_match.BUSN_ID],
+        )
+        self.assertEqual(
+            self._response_ids(specialty_response),
+            [specialty_match.BUSN_ID],
+        )
+
+    def test_discovery_score_orders_businesses_within_equal_search_tier(self):
+        """Discovery score is the secondary key within a relevance tier."""
+
+        low = self._create_business(
+            "Coffee Low",
+        )
+        high = self._create_business(
+            "Coffee High",
+        )
+        self._create_score(
+            low,
+            Decimal("0.10000"),
+        )
+        self._create_score(
+            high,
+            Decimal("0.90000"),
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "search": "Coffee",
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(response),
+            [
+                high.BUSN_ID,
+                low.BUSN_ID,
+            ],
+        )
+
+    def test_multiple_categories_use_or_and_combine_with_cluster(self):
+        """Repeated categories use OR while the cluster group uses AND."""
+
+        same_cluster_category = Category.objects.create(
+            CTGRY_NAME="Second Category",
+            CLUS_ID=self.cluster,
+        )
+        first = self._create_business(
+            "First Category Result",
+        )
+        second = self._create_business(
+            "Second Category Result",
+            category=same_cluster_category,
+        )
+        outside_cluster = self._create_business(
+            "Outside Cluster Result",
+            category=self.other_category,
+        )
+
+        response = self.client.get(
+            self.url,
+            [
+                ("category", self.category.CTGRY_ID),
+                ("category", same_cluster_category.CTGRY_ID),
+                ("category", self.other_category.CTGRY_ID),
+                ("cluster", self.cluster.CLUS_ID),
+            ],
+        )
+
+        self.assertCountEqual(
+            self._response_ids(response),
+            [
+                first.BUSN_ID,
+                second.BUSN_ID,
+            ],
+        )
+        self.assertNotIn(
+            outside_cluster.BUSN_ID,
+            self._response_ids(response),
+        )
+
+    def test_selected_specialty_uses_exact_tag_score_and_keeps_zero(self):
+        """An explicitly selected tag ranks its active links including zero."""
+
+        high = self._create_business(
+            "High Tag Score",
+        )
+        zero = self._create_business(
+            "Zero Tag Score",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=high,
+            TAG_ID=self.active_tag,
+            BST_TAG_SCORE=Decimal("0.80000"),
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=zero,
+            TAG_ID=self.active_tag,
+        )
+        self._create_score(
+            zero,
+            Decimal("1.00000"),
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "specialty_tag": self.active_tag.TAG_ID,
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(response),
+            [
+                high.BUSN_ID,
+                zero.BUSN_ID,
+            ],
+        )
+
+    def test_equal_selected_tag_score_uses_discovery_score(self):
+        """Discovery score breaks ties for the explicitly selected tag."""
+
+        low_discovery = self._create_business(
+            "Equal Tag Low Discovery",
+        )
+        high_discovery = self._create_business(
+            "Equal Tag High Discovery",
+        )
+        for business in (
+            low_discovery,
+            high_discovery,
+        ):
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=self.active_tag,
+                BST_TAG_SCORE=Decimal("0.50000"),
+            )
+        self._create_score(
+            low_discovery,
+            Decimal("0.10000"),
+        )
+        self._create_score(
+            high_discovery,
+            Decimal("0.90000"),
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "specialty_tag": self.active_tag.TAG_ID,
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(response),
+            [
+                high_discovery.BUSN_ID,
+                low_discovery.BUSN_ID,
+            ],
+        )
+
+    def test_equal_specialty_and_discovery_scores_use_created_at(self):
+        """Newer businesses break equal selected-tag and discovery scores."""
+
+        newer = self._create_business(
+            "Equal Scores Newer",
+            created_at=timezone.now(),
+        )
+        older = self._create_business(
+            "Equal Scores Older",
+            created_at=timezone.now() - timedelta(days=1),
+        )
+        for business in (
+            newer,
+            older,
+        ):
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=self.active_tag,
+                BST_TAG_SCORE=Decimal("0.50000"),
+            )
+            self._create_score(
+                business,
+                Decimal("0.50000"),
+            )
+
+        response = self.client.get(
+            self.url,
+            {
+                "specialty_tag": self.active_tag.TAG_ID,
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(response),
+            [
+                newer.BUSN_ID,
+                older.BUSN_ID,
+            ],
+        )
+
+    def test_equal_specialty_discovery_and_created_at_use_lower_id(self):
+        """Lower business ID is the final deterministic specialty tie-break."""
+
+        shared_time = timezone.now() - timedelta(days=1)
+        lower_id = self._create_business(
+            "Equal Everything Lower ID",
+            created_at=shared_time,
+        )
+        higher_id = self._create_business(
+            "Equal Everything Higher ID",
+            created_at=shared_time,
+        )
+        for business in (
+            lower_id,
+            higher_id,
+        ):
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=self.active_tag,
+                BST_TAG_SCORE=Decimal("0.50000"),
+            )
+            self._create_score(
+                business,
+                Decimal("0.50000"),
+            )
+
+        response = self.client.get(
+            self.url,
+            {
+                "specialty_tag": self.active_tag.TAG_ID,
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(response),
+            [
+                lower_id.BUSN_ID,
+                higher_id.BUSN_ID,
+            ],
+        )
+
+    def test_search_and_specialty_order_relevance_before_tag_score(self):
+        """Combined intent ranks relevance, exact tag score, then discovery."""
+
+        exact = self._create_business(
+            "Coffee",
+        )
+        prefix = self._create_business(
+            "Coffee Roasters",
+        )
+        for business, score in (
+            (exact, Decimal("0.10000")),
+            (prefix, Decimal("0.90000")),
+        ):
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=self.active_tag,
+                BST_TAG_SCORE=score,
+            )
+
+        response = self.client.get(
+            self.url,
+            {
+                "search": "Coffee",
+                "specialty_tag": self.active_tag.TAG_ID,
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(response),
+            [
+                exact.BUSN_ID,
+                prefix.BUSN_ID,
+            ],
+        )
+
+    def test_equal_search_relevance_uses_tag_score_before_discovery(self):
+        """Selected TagScore precedes discovery within one relevance tier."""
+
+        high_discovery = self._create_business(
+            "Coffee High Discovery",
+        )
+        high_tag = self._create_business(
+            "Coffee High Tag",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=high_discovery,
+            TAG_ID=self.active_tag,
+            BST_TAG_SCORE=Decimal("0.10000"),
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=high_tag,
+            TAG_ID=self.active_tag,
+            BST_TAG_SCORE=Decimal("0.90000"),
+        )
+        self._create_score(
+            high_discovery,
+            Decimal("0.90000"),
+        )
+        self._create_score(
+            high_tag,
+            Decimal("0.10000"),
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "search": "Coffee",
+                "specialty_tag": self.active_tag.TAG_ID,
+            },
+        )
+
+        self.assertEqual(
+            self._response_ids(response),
+            [
+                high_tag.BUSN_ID,
+                high_discovery.BUSN_ID,
+            ],
+        )
+
+    def test_filter_options_returns_authoritative_taxonomy(self):
+        """The Explorer filter endpoint exposes shared taxonomy identifiers."""
+
+        response = self.client.get(
+            "/api/explorer/explore/filter-options/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertIn(
+            {
+                "id": self.cluster.CLUS_ID,
+                "name": self.cluster.CLUS_NAME,
+                "icon": self.cluster.CLUS_ICON,
+            },
+            response.data["data"]["clusters"],
+        )
+        self.assertIn(
+            {
+                "id": self.category.CTGRY_ID,
+                "name": self.category.CTGRY_NAME,
+                "cluster_id": self.cluster.CLUS_ID,
+            },
+            response.data["data"]["categories"],
+        )
+        self.assertTrue(
+            any(
+                specialty["id"] == self.active_tag.TAG_ID
+                for specialty in response.data["data"]["specialty_tags"]
+            ),
+        )
+
     def test_pagination_uses_page_size_and_stable_order(self):
         """Standard pagination keeps deterministic results across feed pages."""
 
