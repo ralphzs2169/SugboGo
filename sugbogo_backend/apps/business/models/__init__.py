@@ -16,6 +16,7 @@ from .business_pocket_models import BusinessPocket
 from .business_taxonomy_models import (
     Category,
     Cluster,
+    ClusterDiscoveryShortcut,
     SpecialtyTag,
 )
 from .business_vouch_models import (
@@ -34,6 +35,7 @@ __all__ = (
     "Category",
     "Cluster",
     "DiscoveryScore",
+    "ClusterDiscoveryShortcut",
     "Location",
     "ServiceableBoundary",
     "SpecialtyTag",

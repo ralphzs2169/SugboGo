@@ -24,8 +24,10 @@ import useDiscoveryFeed, {
 } from "../hooks/useDiscoveryFeed";
 import useExploreLocation from "../hooks/useExploreLocation";
 import { RECOMMENDATIONS_QUERY_KEY } from "../hooks/useRecommendations";
-import ExplorePromptSection from "../components/explore-prompts/ExplorePromptSection";
+import DiscoveryShortcutsSection from "../components/discovery-shortcuts/DiscoveryShortcutsSection";
 import ExploreMapSection from "../components/explore-map/ExploreMapSection";
+import { EXPLORE_SPECIALTIES_QUERY_KEY } from "../hooks/useExploreSpecialties";
+import { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../hooks/useDiscoveryShortcuts";
 
 /**
  * Displays the Explorer discovery experience and coordinates its business feeds.
@@ -61,6 +63,12 @@ export default function ExploreScreen() {
         }),
         queryClient.refetchQueries({
           queryKey: RECOMMENDATIONS_QUERY_KEY,
+        }),
+        queryClient.refetchQueries({
+          queryKey: EXPLORE_SPECIALTIES_QUERY_KEY,
+        }),
+        queryClient.refetchQueries({
+          queryKey: DISCOVERY_SHORTCUTS_QUERY_KEY,
         }),
       ]);
     } finally {
@@ -151,7 +159,7 @@ export default function ExploreScreen() {
         />
 
         {/* Intent-based discovery shortcuts */}
-        <ExplorePromptSection />
+        <DiscoveryShortcutsSection />
 
         {/* Map discovery preview */}
         <ExploreMapSection

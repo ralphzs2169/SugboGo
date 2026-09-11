@@ -71,6 +71,40 @@ class Category(models.Model):
         return self.CTGRY_NAME
 
 
+class ClusterDiscoveryShortcut(models.Model):
+    CDS_ID = models.AutoField(primary_key=True)
+
+    CLUS_ID = models.OneToOneField(
+        Cluster,
+        on_delete=models.CASCADE,
+        db_column="CLUS_ID",
+        related_name="discovery_shortcut",
+    )
+
+    CDS_TITLE = models.CharField(
+        max_length=100,
+    )
+
+    CDS_SUBTITLE = models.CharField(
+        max_length=200,
+    )
+
+    CDS_IS_ACTIVE = models.BooleanField(
+        default=True,
+    )
+
+    CDS_CREATED_AT = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    CDS_UPDATED_AT = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        db_table = "CLUSTER_DISCOVERY_SHORTCUT"
+
+
 class SpecialtyTag(models.Model):
 
     class TagColor(models.TextChoices):

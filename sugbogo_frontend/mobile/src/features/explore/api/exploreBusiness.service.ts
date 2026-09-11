@@ -5,6 +5,8 @@ import { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
   ExploreBusinessDetail,
   ExploreBusinessListResponse,
+  DiscoveryShortcut,
+  ExploreSpecialty,
   RecommendationBusinessListResponse,
 } from "../types/exploreBusiness.types";
 
@@ -18,6 +20,18 @@ export async function getDiscoveryFeed(): Promise<
   ApiResponse<ExploreBusinessListResponse>
 > {
   return request(apiClient.get("/explorer/explore/discovery/"));
+}
+
+export async function getExploreSpecialties(): Promise<
+  ApiResponse<ExploreSpecialty[]>
+> {
+  return request(apiClient.get("/explorer/explore/specialties/"));
+}
+
+export async function getDiscoveryShortcuts(): Promise<
+  ApiResponse<DiscoveryShortcut[]>
+> {
+  return request(apiClient.get("/explorer/explore/discovery-shortcuts/"));
 }
 
 export async function getRecommendations(): Promise<

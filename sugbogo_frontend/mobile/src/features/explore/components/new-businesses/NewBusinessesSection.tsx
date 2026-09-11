@@ -8,6 +8,7 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import useNewBusinesses from "../../hooks/useNewBusinesses";
 import BusinessCard from "./BusinessCard";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   impressions: BusinessImpressionObservation;
@@ -51,13 +52,13 @@ export default function NewBusinessesSection({
     return (
       <View className="mt-6 px-4">
         <View className="mb-3">
-          <Text className="text-lg font-bold text-text-primary">
-            New Businesses
-          </Text>
+          <AppText weight="bold" className="text-lg text-text-primary">
+            New to SugboGo
+          </AppText>
 
-          <Text className="text-sm text-text-secondary">
-            Discover businesses recently added to SugboGo
-          </Text>
+          <AppText className="text-sm text-text-secondary">
+            Recently added places waiting to be discovered.
+          </AppText>
         </View>
 
         <View className="h-44 items-center justify-center rounded-card bg-surface">
@@ -71,13 +72,13 @@ export default function NewBusinessesSection({
     return (
       <View className="mt-6 px-4">
         <View className="mb-3">
-          <Text className="text-lg font-bold text-text-primary">
-            New Businesses
-          </Text>
+          <AppText weight="bold" className="text-lg text-text-primary">
+            New to SugboGo
+          </AppText>
 
-          <Text className="text-sm text-text-secondary">
-            Discover businesses recently added to SugboGo
-          </Text>
+          <AppText className="text-sm text-text-secondary">
+            Recently added places waiting to be discovered.
+          </AppText>
         </View>
 
         <ErrorState
@@ -102,13 +103,13 @@ export default function NewBusinessesSection({
     >
       {/* Section heading */}
       <View className="mb-3 px-4">
-        <Text className="text-lg font-bold text-text-primary">
-          New Businesses
-        </Text>
+        <AppText weight="bold" className="text-lg text-text-primary">
+          New to SugboGo
+        </AppText>
 
-        <Text className="text-sm text-text-secondary">
-          Discover businesses recently added to SugboGo
-        </Text>
+        <AppText className="text-sm text-text-secondary">
+          Recently added places waiting to be discovered.
+        </AppText>
       </View>
 
       {/* Business cards */}

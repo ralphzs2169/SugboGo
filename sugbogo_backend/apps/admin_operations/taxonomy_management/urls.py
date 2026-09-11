@@ -5,6 +5,10 @@ from apps.admin_operations.taxonomy_management.views.category_views import (
     CategoryListView,
     CategoryStatisticsView,
 )
+from apps.admin_operations.taxonomy_management.views.cluster_discovery_shortcut_views import (
+    ClusterDiscoveryShortcutDetailView,
+    ClusterDiscoveryShortcutListView,
+)
 from apps.admin_operations.taxonomy_management.views.cluster_views import (
     ClusterDetailView,
     ClusterListView,
@@ -19,6 +23,12 @@ from apps.admin_operations.taxonomy_management.views.tag_statistics_views import
 )
 
 urlpatterns = [
+
+    path("discovery-shortcuts/", ClusterDiscoveryShortcutListView.as_view()),
+    path(
+        "discovery-shortcuts/<int:shortcut_id>/",
+        ClusterDiscoveryShortcutDetailView.as_view(),
+    ),
 
     path("specialty-tags/", SpecialtyTagListView.as_view()),
     path("specialty-tags/<int:tag_id>/", SpecialtyTagDetailView.as_view()),

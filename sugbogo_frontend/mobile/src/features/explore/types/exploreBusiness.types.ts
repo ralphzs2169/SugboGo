@@ -38,6 +38,22 @@ export type ExploreBusiness = {
   location: ExploreBusinessLocation;
 };
 
+export type ExploreSpecialty = {
+  id: number;
+  name: string;
+  color: SpecialtyTagColor;
+  icon: string;
+  business_count: number;
+};
+
+export type DiscoveryShortcut = {
+  id: number;
+  title: string;
+  subtitle: string;
+  business_count: number;
+  cluster: ExploreBusinessCluster;
+};
+
 export type RecommendationReason = {
   type: "specialty_tag" | "category" | "cluster";
   id: number;

@@ -90,10 +90,8 @@ export default function BusinessCard({
         accessibilityRole="button"
         accessibilityLabel={
           recommendationReason
-            ? (
-                `Open ${business.business_name} business profile. `
-                + `Interested in ${recommendationReason.label}.`
-              )
+            ? `Open ${business.business_name} business profile. ` +
+              `Interested in ${recommendationReason.label}.`
             : `Open ${business.business_name} business profile`
         }
         className="w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
@@ -259,7 +257,7 @@ export default function BusinessCard({
         style={{
           height: HERO_HEIGHT,
         }}
-        className="relative overflow-hidden rounded-xl bg-surface-secondary"
+        className="relative overflow-hidden rounded-t-xl bg-surface-secondary"
       >
         {business.cover_photo_url ? (
           <Image
