@@ -1,29 +1,35 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 import Modal from "@/shared/components/modals/Modal";
 import { hasFormChanges } from "@/shared/utils/formUtils";
-import toast from "react-hot-toast";
-import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
-import useUpdateSpecialtyTag from "../hooks/useUpdateSpecialtyTag";
 
+import useUpdateSpecialtyTag from "../hooks/useUpdateSpecialtyTag";
+import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
 import SpecialtyTagForm from "./SpecialtyTagForm";
 
+/**
+ * Displays the specialty tag edit modal and manages its editable form state.
+ *
+ * Loads the selected tag's current name, color, and icon, tracks changes,
+ * validates updates, and submits only when the form has been modified.
+ */
 export default function EditSpecialtyTagModal({
   isOpen,
   specialtyTag,
   onClose,
   onSuccess,
 }) {
-  // Keep the original values so the form can detect whether
-  // the user actually changed anything before enabling Save.
   const [initialValues, setInitialValues] = useState({
     name: "",
     color: "blue",
+    icon: "tag",
   });
 
   const [values, setValues] = useState({
     name: "",
     color: "blue",
+    icon: "tag",
   });
 
   const [errors, setErrors] = useState({});
@@ -36,6 +42,7 @@ export default function EditSpecialtyTagModal({
     const nextValues = {
       name: specialtyTag.name ?? "",
       color: specialtyTag.color ?? "blue",
+      icon: specialtyTag.icon ?? "tag",
     };
 
     setValues(nextValues);
@@ -43,9 +50,11 @@ export default function EditSpecialtyTagModal({
     setErrors({});
   }, [specialtyTag]);
 
-  // Prevents submitting when the form still matches
-  // the values loaded from the selected specialty tag.
-  const hasChanges = hasFormChanges(values, initialValues, ["name", "color"]);
+  const hasChanges = hasFormChanges(values, initialValues, [
+    "name",
+    "color",
+    "icon",
+  ]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -106,6 +115,7 @@ export default function EditSpecialtyTagModal({
       description="Update specialty tag information."
       onClose={onClose}
     >
+      {/* Specialty tag edit form */}
       <SpecialtyTagForm
         values={values}
         errors={errors}
