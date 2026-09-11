@@ -28,6 +28,9 @@ from apps.explorer_operations.explore_businesses.views.new_businesses_views impo
 from apps.explorer_operations.explore_businesses.views.recommendation_views import (
     RecommendationView,
 )
+from apps.explorer_operations.explore_businesses.views.similar_business_views import (
+    SimilarBusinessView,
+)
 from apps.explorer_operations.explore_businesses.views.visibility_event_views import (
     BusinessImpressionBatchView,
     BusinessProfileVisitView,
@@ -37,6 +40,11 @@ from django.urls import path
 urlpatterns = [
 
     path("businesses/<int:business_id>/", BusinessDetailView.as_view(), name="business-detail", ),
+    path(
+        "businesses/<int:business_id>/similar/",
+        SimilarBusinessView.as_view(),
+        name="similar-businesses",
+    ),
     
     path("new-businesses/", NewBusinessesView.as_view(), name="new-businesses", ),
     path("discovery/", DiscoveryFeedView.as_view(), name="discovery-feed", ),

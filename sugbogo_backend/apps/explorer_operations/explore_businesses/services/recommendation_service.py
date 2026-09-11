@@ -2,7 +2,6 @@ import logging
 from collections import Counter, defaultdict
 from decimal import Decimal
 from enum import IntEnum
-from math import sqrt
 
 from apps.admin_operations.system_configuration.services import (
     RecommendationAlgorithmConfigurationService,
@@ -20,62 +19,22 @@ from apps.business.services.visibility_event_service import (
 from apps.explorer_operations.explore_businesses.services.discovery_feed_service import (
     DiscoveryFeedService,
 )
+from apps.explorer_operations.explore_businesses.services.taxonomy_similarity import (
+    FeatureMap,
+    build_business_feature_map,
+    cosine_similarity,
+)
 from apps.users.models import UserCategoryInterest, UserSpecialtyTagInterest
 from django.db.models import DecimalField, Exists, OuterRef, Prefetch, Value
 from django.db.models.functions import Coalesce
 
 logger = logging.getLogger(__name__)
 
-FeatureKey = tuple[str, int]
-FeatureMap = dict[FeatureKey, Decimal]
-
-
 class RelevanceGroup(IntEnum):
     NO_MATCH = 0
     LOW = 1
     MODERATE = 2
     HIGH = 3
-
-
-def cosine_similarity(
-    first: FeatureMap,
-    second: FeatureMap,
-) -> float:
-    """Calculates cosine similarity without requiring a fixed vocabulary."""
-
-    if not first or not second:
-        return 0.0
-
-    shared_keys = first.keys() & second.keys()
-    dot_product = sum(
-        float(first[key]) * float(second[key])
-        for key in shared_keys
-    )
-    first_norm = sqrt(
-        sum(
-            float(value) ** 2
-            for value in first.values()
-        ),
-    )
-    second_norm = sqrt(
-        sum(
-            float(value) ** 2
-            for value in second.values()
-        ),
-    )
-
-    if first_norm == 0 or second_norm == 0:
-        return 0.0
-
-    similarity = dot_product / (first_norm * second_norm)
-
-    return min(
-        1.0,
-        max(
-            0.0,
-            similarity,
-        ),
-    )
 
 
 def classify_relevance(
@@ -96,7 +55,7 @@ def classify_relevance(
 
 
 def recommendation_sort_key(item):
-    """Returns the exact deterministic recommendation ranking key."""
+    """Build the deterministic sort key used to rank recommendations."""
 
     business, relevance_group, similarity = item
 
@@ -123,21 +82,12 @@ class RecommendationService:
         business,
         configuration,
     ) -> FeatureMap:
-        features = {
-            ("cluster", business.CTGRY_ID.CLUS_ID_id): (
-                configuration.RAC_CLUSTER_WEIGHT
-            ),
-            ("category", business.CTGRY_ID_id): (
-                configuration.RAC_CATEGORY_WEIGHT
-            ),
-        }
+        """Build the weighted taxonomy feature map for a business."""
 
-        for link in business.active_specialty_tag_links:
-            features[("tag", link.TAG_ID_id)] = (
-                configuration.RAC_SPECIALTY_TAG_WEIGHT
-            )
-
-        return features
+        return build_business_feature_map(
+            business,
+            configuration,
+        )
 
     @staticmethod
     def build_recommendation_reason(
@@ -145,7 +95,7 @@ class RecommendationService:
         business,
         business_features,
     ):
-        """Selects the strongest authoritative shared feature for explanation."""
+        """Select the strongest shared taxonomy feature explaining a recommendation."""
 
         for feature_type in RecommendationService.REASON_FEATURE_TYPES:
             matching_features = [
@@ -200,6 +150,8 @@ class RecommendationService:
 
     @staticmethod
     def _candidate_queryset(user):
+        """Build the optimized active-business queryset used for recommendations."""
+
         user_pocket_exists = BusinessPocket.objects.filter(
             BUSN_ID=OuterRef("BUSN_ID"),
             USER_ID=user,
@@ -276,6 +228,8 @@ class RecommendationService:
         businesses,
         configuration,
     ) -> FeatureMap:
+        """Build the explorer feature map from explicit and learned interests."""
+
         features = defaultdict(Decimal)
 
         category_interests = (
@@ -382,6 +336,8 @@ class RecommendationService:
 
     @staticmethod
     def list_recommendations(user):
+        """Return active businesses ranked by relevance to the explorer."""
+        
         configuration = (
             RecommendationAlgorithmConfigurationService
             .get_current_configuration()
