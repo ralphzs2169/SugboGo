@@ -20,6 +20,9 @@ from apps.business.models import (
     BusinessSpecialtyTag,
     BusinessVouch,
 )
+from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
+    apply_taxonomy_filters,
+)
 
 
 class DiscoveryFeedService:
@@ -32,6 +35,7 @@ class DiscoveryFeedService:
         category_ids=None,
         cluster_id=None,
         specialty_tag_id=None,
+        rank_specialty_by_tag_score=True,
     ):
         """Returns active businesses ordered by their current discovery score."""
 
@@ -109,21 +113,15 @@ class DiscoveryFeedService:
             )
         )
 
-        if category_ids:
-            queryset = queryset.filter(
-                CTGRY_ID_id__in=category_ids,
-            )
+        queryset = apply_taxonomy_filters(
+            queryset,
+            category_ids=category_ids,
+            cluster_id=cluster_id,
+            specialty_tag_id=specialty_tag_id,
+        )
 
-        if cluster_id is not None:
-            queryset = queryset.filter(
-                CTGRY_ID__CLUS_ID_id=cluster_id,
-            )
-
-        if specialty_tag_id is not None:
+        if specialty_tag_id is not None and rank_specialty_by_tag_score:
             queryset = queryset.annotate(
-                selected_specialty_match=Exists(
-                    selected_specialty,
-                ),
                 selected_tag_score=Coalesce(
                     Subquery(
                         selected_specialty.values(
@@ -138,8 +136,6 @@ class DiscoveryFeedService:
                         decimal_places=5,
                     ),
                 ),
-            ).filter(
-                selected_specialty_match=True,
             )
 
         ordering = []
@@ -187,7 +183,7 @@ class DiscoveryFeedService:
                 "-search_relevance",
             )
 
-        if specialty_tag_id is not None:
+        if specialty_tag_id is not None and rank_specialty_by_tag_score:
             ordering.append(
                 "-selected_tag_score",
             )
@@ -202,4 +198,21 @@ class DiscoveryFeedService:
 
         return queryset.order_by(
             *ordering,
+        )
+
+    @staticmethod
+    def list_worth_discovering(
+        user,
+        category_ids=None,
+        cluster_id=None,
+        specialty_tag_id=None,
+    ):
+        """Return the filtered collection with pure Discovery ordering."""
+
+        return DiscoveryFeedService.list_discovery_businesses(
+            user=user,
+            category_ids=category_ids,
+            cluster_id=cluster_id,
+            specialty_tag_id=specialty_tag_id,
+            rank_specialty_by_tag_score=False,
         )

@@ -13,11 +13,19 @@ export default function ExplorerLayout() {
       <Stack.Screen name="(tabs)" />
 
       <Stack.Screen
-        name="explore-results"
+        name="search-filter-results"
         options={{
           ...defaultStackScreenOptions,
           ...slideFromRight,
           headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="explore-collection/[collectionType]"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+          animationTypeForReplace: "push",
         }}
       />
 

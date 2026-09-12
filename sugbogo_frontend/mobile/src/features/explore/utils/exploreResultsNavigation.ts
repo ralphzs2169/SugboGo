@@ -21,15 +21,13 @@ export function navigateToExploreResults(
   };
 
   router.push({
-    pathname: "/(explorer)/explore-results",
+    pathname: "/(explorer)/search-filter-results",
     params: {
       search: resolved.search,
       clusterId: resolved.clusterId === null ? "" : String(resolved.clusterId),
       categoryIds: resolved.categoryIds.join(","),
       specialtyTagId:
-        resolved.specialtyTagId === null
-          ? ""
-          : String(resolved.specialtyTagId),
+        resolved.specialtyTagId === null ? "" : String(resolved.specialtyTagId),
       openFilters: openFilters ? "1" : "",
       focusSearch: focusSearch ? "1" : "",
     },

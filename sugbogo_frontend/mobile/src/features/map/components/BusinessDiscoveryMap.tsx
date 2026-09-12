@@ -18,6 +18,7 @@ type Props = {
   businesses: BusinessMapMarker[];
   userLocation: LocationObject | null;
   interactive?: boolean;
+  trackMarkerUpdates?: boolean;
   onBusinessPress?: (businessId: number) => void;
 };
 
@@ -41,6 +42,7 @@ export default function BusinessDiscoveryMap({
   businesses,
   userLocation,
   interactive = true,
+  trackMarkerUpdates = false,
   onBusinessPress,
 }: Props) {
   const mapRef = useRef<MapView>(null);
@@ -84,7 +86,7 @@ export default function BusinessDiscoveryMap({
         clusteringEnabled
         clusterColor={theme.extends.colors.brand}
         clusterTextColor="#FFFFFF"
-        tracksViewChanges={false}
+        tracksViewChanges={trackMarkerUpdates}
         {...(Platform.OS === "android" && {
           mapId: process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID,
         })}
@@ -97,7 +99,7 @@ export default function BusinessDiscoveryMap({
               latitude: business.latitude,
               longitude: business.longitude,
             }}
-            tracksViewChanges={false}
+            tracksViewChanges={trackMarkerUpdates}
             onPress={() => {
               onBusinessPress?.(business.id);
             }}

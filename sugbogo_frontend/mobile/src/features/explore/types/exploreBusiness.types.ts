@@ -85,6 +85,15 @@ export type ExploreResultsCriteria = {
   specialtyTagId: number | null;
 };
 
+export type ExploreCollectionType =
+  "worth-discovering" | "interests" | "new-businesses";
+
+export type ExploreCollectionCriteria = {
+  clusterId: number | null;
+  categoryIds: number[];
+  specialtyTagId: number | null;
+};
+
 export type ExploreFilterCluster = ExploreBusinessCluster;
 
 export type ExploreFilterCategory = ExploreBusinessCategory & {
@@ -102,6 +111,15 @@ export type ExploreFilterOptions = {
   clusters: ExploreFilterCluster[];
   categories: ExploreFilterCategory[];
   specialty_tags: ExploreFilterSpecialty[];
+};
+
+export type ExploreCollectionBusiness = ExploreBusiness & {
+  recommendation_reason?: RecommendationReason | null;
+};
+
+export type ExploreCollectionBusinessListResponse = {
+  items: ExploreCollectionBusiness[];
+  pagination: ExploreBusinessPagination;
 };
 
 export type RecommendationBusinessListResponse = {

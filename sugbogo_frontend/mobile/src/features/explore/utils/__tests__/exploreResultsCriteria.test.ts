@@ -26,11 +26,12 @@ describe("Explore results criteria", () => {
     });
   });
 
-  it("selecting All clears cluster categories but preserves search and specialty", () => {
+  it("selecting All clears categories and preserves specialty", () => {
     expect(applyClusterSelection(criteria, null, categories)).toEqual({
       ...criteria,
       clusterId: null,
       categoryIds: [],
+      specialtyTagId: 12,
     });
   });
 

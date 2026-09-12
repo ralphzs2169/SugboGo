@@ -1,7 +1,8 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 type ErrorStateProps = {
   title: string;
@@ -65,17 +66,18 @@ export default function ErrorState({
       />
 
       {/* Error message */}
-      <Text
-        className={`text-center font-bold text-text-primary ${titleClassName}`}
+      <AppText
+        weight="bold"
+        className={`text-center text-text-primary ${titleClassName}`}
       >
         {title}
-      </Text>
+      </AppText>
 
-      <Text
+      <AppText
         className={`max-w-72 text-center text-text-secondary ${descriptionClassName}`}
       >
         {description}
-      </Text>
+      </AppText>
 
       {/* Recovery actions */}
       {(primaryActionTitle || secondaryActionTitle) && (
@@ -88,13 +90,14 @@ export default function ErrorState({
                 isSection ? "px-4 py-2" : "px-5 py-3"
               }`}
             >
-              <Text
-                className={`font-semibold text-text-primary ${
+              <AppText
+                weight="semibold"
+                className={`text-text-primary ${
                   isSection ? "text-xs" : "text-sm"
                 }`}
               >
                 {secondaryActionTitle}
-              </Text>
+              </AppText>
             </Pressable>
           )}
 
@@ -114,13 +117,14 @@ export default function ErrorState({
                 />
               )}
 
-              <Text
-                className={`font-semibold text-white ${
+              <AppText
+                weight="semibold"
+                className={`text-white ${
                   isSection ? "ml-1.5 text-xs" : "text-sm"
                 }`}
               >
                 {primaryActionTitle}
-              </Text>
+              </AppText>
             </Pressable>
           )}
         </View>

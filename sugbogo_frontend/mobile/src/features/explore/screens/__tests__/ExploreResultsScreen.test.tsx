@@ -1,7 +1,7 @@
 import React from "react";
 import { render } from "@testing-library/react-native";
 
-import ExploreResultsScreen from "../ExploreResultsScreen";
+import ExploreResultsScreen from "../SearchFilterResultScreen";
 import useDiscoveryResults from "../../hooks/useDiscoveryResults";
 
 const mockOnViewableItemsChanged = jest.fn();

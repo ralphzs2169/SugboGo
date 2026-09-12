@@ -14,7 +14,7 @@ import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
 import ExploreBySpecialtySection from "../components/explore-by-specialty/ExploreBySpecialtySection";
 import ExploreTopBar from "../components/ExploreTopBar";
-import InterestsSection from "../components/interests/InterestsSection";
+import UserInterestsSection from "../components/interests/UserInterestsSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
 import WorthDiscoveringSection from "../components/worth-discovering/WorthDiscoveringSection";
 import useBusinessImpressions from "../hooks/useBusinessImpressions";
@@ -33,6 +33,7 @@ import { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../hooks/useDiscoveryShortcuts";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useExploreFilterOptions from "../hooks/useExploreFilterOptions";
 import { navigateToExploreResults } from "../utils/exploreResultsNavigation";
+import type { ExploreCollectionType } from "../types/exploreBusiness.types";
 
 /**
  * Displays the Explorer discovery experience and coordinates its business feeds.
@@ -121,13 +122,26 @@ export default function ExploreScreen() {
     });
   };
 
+  const openCollection = (
+    collectionType: ExploreCollectionType,
+    source?: "recommendations",
+  ) => {
+    router.push({
+      pathname: "/(explorer)/explore-collection/[collectionType]",
+      params: {
+        collectionType,
+        ...(source ? { source } : {}),
+      },
+    });
+  };
+
   return (
     <View className="flex-1 bg-surface">
       {/* Discovery controls */}
       <ExploreTopBar
         clusters={filterOptions.options.clusters}
         selectedClusterId={null}
-        onFocusSearch={() => navigateToExploreResults({}, false, true)}
+        onPressSearch={() => navigateToExploreResults({}, false, true)}
         onSelectCluster={(clusterId) => {
           if (clusterId !== null) {
             navigateToExploreResults({ clusterId });
@@ -160,6 +174,7 @@ export default function ExploreScreen() {
           impressions={discoveryImpressions}
           userLocation={userLocation}
           onBusinessPress={handleBusinessPress}
+          onSeeAll={() => openCollection("worth-discovering")}
         />
 
         {/* Specialty discovery preview */}
@@ -170,10 +185,11 @@ export default function ExploreScreen() {
         />
 
         {/* Personalized discovery */}
-        <InterestsSection
+        <UserInterestsSection
           impressions={recommendationImpressions}
           userLocation={userLocation}
           onBusinessPress={handleBusinessPress}
+          onSeeAll={(source) => openCollection("interests", source)}
         />
 
         {/* Recently added businesses */}
@@ -181,6 +197,7 @@ export default function ExploreScreen() {
           impressions={newBusinessImpressions}
           userLocation={userLocation}
           onBusinessPress={handleBusinessPress}
+          onSeeAll={() => openCollection("new-businesses")}
         />
 
         {/* Intent-based discovery shortcuts */}

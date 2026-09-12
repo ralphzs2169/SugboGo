@@ -58,6 +58,7 @@ export default function ExploreMapSection({
               businesses={businesses}
               userLocation={userLocation}
               interactive={false}
+              trackMarkerUpdates
             />
 
             {/* Map context label */}

@@ -13,6 +13,7 @@ import type {
   ExploreBusiness,
   RecommendationReason,
 } from "../../types/exploreBusiness.types";
+import { arrangeSpecialtyTags } from "../../utils/arrangeSpecialtyTags.utils";
 
 type Props = {
   business: ExploreBusiness;
@@ -30,6 +31,12 @@ const FEATURED_CARD_MAX_WIDTH = 360;
 const HERO_HEIGHT = 190;
 const COMPACT_IMAGE_SIZE = 108;
 const TAG_SECTION_HEIGHT = 52;
+
+const COMPACT_PARENT_HORIZONTAL_PADDING = 32;
+const COMPACT_CARD_HORIZONTAL_PADDING = 20;
+const COMPACT_CONTENT_GAP = 12;
+
+const STANDARD_CARD_HORIZONTAL_PADDING = 24;
 
 /** Returns the card width for horizontal card presentations. */
 export function getBusinessCardWidth(
@@ -50,7 +57,7 @@ export function getBusinessCardWidth(
  * Displays a business using reusable discovery-card presentations.
  *
  * Horizontal variants support carousel discovery while the compact variant
- * provides a denser row for vertically stacked business recommendations.
+ * provides a denser row with layout-aware specialty tag arrangement.
  */
 export default function BusinessCard({
   business,
@@ -64,25 +71,40 @@ export default function BusinessCard({
 
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
-  const arrangedSpecialtyTags = [...business.specialty_tags]
-    .slice(0, 3)
-    .sort((a, b) => b.name.length - a.name.length);
+  const standardVariant = variant === "featured" ? "featured" : "default";
 
-  const longestTag = arrangedSpecialtyTags[0];
-  const shortestTag = arrangedSpecialtyTags[arrangedSpecialtyTags.length - 1];
-  const middleTags = arrangedSpecialtyTags.slice(1, -1);
+  const standardCardWidth = getBusinessCardWidth(screenWidth, standardVariant);
 
-  const displayTags =
-    arrangedSpecialtyTags.length > 1
-      ? [longestTag, shortestTag, ...middleTags]
-      : arrangedSpecialtyTags;
+  const compactTagAvailableWidth =
+    screenWidth -
+    COMPACT_PARENT_HORIZONTAL_PADDING -
+    COMPACT_CARD_HORIZONTAL_PADDING -
+    COMPACT_IMAGE_SIZE -
+    COMPACT_CONTENT_GAP;
+
+  const standardTagAvailableWidth =
+    standardCardWidth - STANDARD_CARD_HORIZONTAL_PADDING;
+
+  const tagAvailableWidth =
+    variant === "compact"
+      ? compactTagAvailableWidth
+      : standardTagAvailableWidth;
+
+  const displayTags = arrangeSpecialtyTags(
+    business.specialty_tags,
+    tagAvailableWidth,
+  );
 
   if (variant === "compact") {
-    const compactTags = displayTags.slice(0, 2);
-    const remainingTagCount = Math.max(
-      displayTags.length - compactTags.length,
-      0,
-    );
+    const isRecommendation = recommendationReason !== null;
+
+    const compactTags = isRecommendation
+      ? displayTags.slice(0, 2)
+      : displayTags;
+
+    const remainingTagCount = isRecommendation
+      ? Math.max(displayTags.length - compactTags.length, 0)
+      : 0;
 
     return (
       <SafePressable
@@ -143,6 +165,7 @@ export default function BusinessCard({
         {/* Business details */}
         <View className="min-w-0 flex-1 justify-between py-0.5 pl-3">
           <View>
+            {/* Business identity */}
             <AppText
               weight="bold"
               className="text-[15px] leading-5 text-text-primary"
@@ -237,7 +260,7 @@ export default function BusinessCard({
     );
   }
 
-  const cardWidth = getBusinessCardWidth(screenWidth, variant);
+  const cardWidth = getBusinessCardWidth(screenWidth, standardVariant);
 
   return (
     <SafePressable

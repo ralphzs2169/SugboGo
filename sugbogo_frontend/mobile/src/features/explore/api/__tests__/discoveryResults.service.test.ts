@@ -2,6 +2,7 @@ import apiClient from "@/shared/api/apiClient.service";
 
 import {
   getDiscoveryResults,
+  getExploreCollection,
   getExploreFilterOptions,
 } from "../exploreBusiness.service";
 
@@ -69,5 +70,27 @@ describe("Explore discovery results transport", () => {
     expect(apiClient.get).toHaveBeenCalledWith(
       "/explorer/explore/filter-options/",
     );
+  });
+
+  it("sends taxonomy-only collection filters and pagination", async () => {
+    await getExploreCollection(
+      "interests",
+      {
+        clusterId: 3,
+        categoryIds: [7, 4],
+        specialtyTagId: 12,
+      },
+      2,
+    );
+
+    const [url, config] = (apiClient.get as jest.Mock).mock.calls[0];
+    const params = config.params as URLSearchParams;
+
+    expect(url).toBe("/explorer/explore/collections/interests/");
+    expect(params.get("cluster")).toBe("3");
+    expect(params.getAll("category")).toEqual(["7", "4"]);
+    expect(params.get("specialty_tag")).toBe("12");
+    expect(params.get("page")).toBe("2");
+    expect(params.has("search")).toBe(false);
   });
 });

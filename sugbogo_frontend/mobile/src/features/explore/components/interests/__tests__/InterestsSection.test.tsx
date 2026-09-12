@@ -3,7 +3,7 @@ import Toast from "react-native-toast-message";
 
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
-import InterestsSection from "../InterestsSection";
+import InterestsSection from "../UserInterestsSection";
 import useRecommendations from "../../../hooks/useRecommendations";
 import type {
   ExploreBusiness,
@@ -19,7 +19,7 @@ const mockBusinessCard = jest.fn(
     business: ExploreBusiness;
     onPress: () => void;
   }) => {
-    const { Pressable, Text } = require("react-native");
+    const { Pressable, Text } = jest.requireActual("react-native");
 
     return (
       <Pressable
@@ -46,7 +46,7 @@ jest.mock("../../new-businesses/BusinessCard", () => ({
 jest.mock("@/shared/components/ErrorState", () => ({
   __esModule: true,
   default: ({ onPrimaryAction }: { onPrimaryAction: () => void }) => {
-    const { Pressable, Text } = require("react-native");
+    const { Pressable, Text } = jest.requireActual("react-native");
 
     return (
       <Pressable testID="recommendations-retry" onPress={onPrimaryAction}>
@@ -190,5 +190,48 @@ describe("Based on Your Interests", () => {
     expect(handleSystemError).toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalled();
     await screen.unmount();
+  });
+
+  it("offers See all only for genuine recommendation matches", async () => {
+    const onSeeAll = jest.fn();
+    (useRecommendations as jest.Mock).mockReturnValue({
+      businesses: [createBusiness(1, "Discovery Fallback")],
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const fallback = await render(
+      <InterestsSection
+        impressions={createImpressions()}
+        userLocation={null}
+        onBusinessPress={jest.fn()}
+        onSeeAll={onSeeAll}
+      />,
+    );
+    expect(fallback.queryByText("See all")).toBeNull();
+    await fallback.unmount();
+
+    (useRecommendations as jest.Mock).mockReturnValue({
+      businesses: [
+        createBusiness(2, "Matched", {
+          type: "category",
+          id: 8,
+          label: "Cafe",
+        }),
+      ],
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const matched = await render(
+      <InterestsSection
+        impressions={createImpressions()}
+        userLocation={null}
+        onBusinessPress={jest.fn()}
+        onSeeAll={onSeeAll}
+      />,
+    );
+    fireEvent.press(matched.getByText("See all"));
+    expect(onSeeAll).toHaveBeenCalledTimes(1);
   });
 });

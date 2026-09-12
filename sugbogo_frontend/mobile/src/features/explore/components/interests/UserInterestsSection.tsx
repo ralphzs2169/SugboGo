@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { LocationObject } from "expo-location";
 import { useEffect, useMemo } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
@@ -15,6 +15,7 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import useRecommendations from "../../hooks/useRecommendations";
 import BusinessCard from "../new-businesses/BusinessCard";
+import SafePressable from "@/shared/components/SafePressable";
 
 type Props = {
   impressions: BusinessImpressionObservation;
@@ -24,7 +25,7 @@ type Props = {
     distance: number | null,
     distanceAccuracy: number | null,
   ) => void;
-  onSeeAll?: () => void;
+  onSeeAll?: (source: "recommendations") => void;
 };
 
 const PREVIEW_LIMIT = 3;
@@ -35,7 +36,7 @@ const PREVIEW_LIMIT = 3;
  * The section preserves backend ranking, limits the Explore preview to the
  * strongest results, and keeps its loading and recovery states independent.
  */
-export default function InterestsSection({
+export default function UserInterestsSection({
   impressions,
   userLocation,
   onBusinessPress,
@@ -50,7 +51,10 @@ export default function InterestsSection({
   );
 
   const showSeeAll =
-    onSeeAll !== undefined && recommendations.businesses.length > PREVIEW_LIMIT;
+    onSeeAll !== undefined &&
+    visibleBusinesses.some(
+      (business) => business.recommendation_reason !== null,
+    );
 
   useEffect(() => {
     const displayedIds =
@@ -105,12 +109,12 @@ export default function InterestsSection({
         </View>
 
         {showSeeAll && (
-          <Pressable
-            onPress={onSeeAll}
+          <SafePressable
+            onPress={() => onSeeAll?.("recommendations")}
             accessibilityRole="button"
             accessibilityLabel="See all recommended businesses"
             hitSlop={8}
-            className="mt-1 cursor-pointer flex-row items-center py-1 active:opacity-70"
+            className="mt-1 min-h-11 cursor-pointer flex-row items-center active:opacity-70"
           >
             <AppText weight="semibold" className="text-sm text-brand">
               See all
@@ -121,7 +125,7 @@ export default function InterestsSection({
               size={17}
               color={theme.extends.colors.brand}
             />
-          </Pressable>
+          </SafePressable>
         )}
       </View>
 

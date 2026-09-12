@@ -24,11 +24,15 @@ from apps.explorer_operations.explore_businesses.services.taxonomy_similarity im
     build_business_feature_map,
     cosine_similarity,
 )
+from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
+    business_matches_taxonomy,
+)
 from apps.users.models import UserCategoryInterest, UserSpecialtyTagInterest
 from django.db.models import DecimalField, Exists, OuterRef, Prefetch, Value
 from django.db.models.functions import Coalesce
 
 logger = logging.getLogger(__name__)
+
 
 class RelevanceGroup(IntEnum):
     NO_MATCH = 0
@@ -335,9 +339,12 @@ class RecommendationService:
         }
 
     @staticmethod
-    def list_recommendations(user):
+    def list_recommendations(
+        user,
+        allow_discovery_fallback=True,
+    ):
         """Return active businesses ranked by relevance to the explorer."""
-        
+
         configuration = (
             RecommendationAlgorithmConfigurationService
             .get_current_configuration()
@@ -352,7 +359,10 @@ class RecommendationService:
         )
 
         if not explorer_features:
-            return DiscoveryFeedService.list_discovery_businesses(user)
+            if allow_discovery_fallback:
+                return DiscoveryFeedService.list_discovery_businesses(user)
+
+            return []
 
         ranked_businesses = []
 
@@ -398,4 +408,29 @@ class RecommendationService:
         return [
             business
             for business, _, _ in ranked_businesses
+        ]
+
+    @staticmethod
+    def list_recommendation_collection(
+        user,
+        category_ids=None,
+        cluster_id=None,
+        specialty_tag_id=None,
+    ):
+        """Return genuine recommendation matches narrowed by taxonomy."""
+
+        recommendations = RecommendationService.list_recommendations(
+            user,
+            allow_discovery_fallback=False,
+        )
+
+        return [
+            business
+            for business in recommendations
+            if business_matches_taxonomy(
+                business,
+                category_ids=category_ids,
+                cluster_id=cluster_id,
+                specialty_tag_id=specialty_tag_id,
+            )
         ]

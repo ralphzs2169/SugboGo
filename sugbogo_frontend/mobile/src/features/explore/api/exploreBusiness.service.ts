@@ -3,6 +3,7 @@ import { request } from "@/shared/api/request.service";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
 
 import type {
+  ExploreBusiness,
   ExploreBusinessDetail,
   ExploreBusinessListResponse,
   DiscoveryShortcut,
@@ -11,6 +12,9 @@ import type {
   ExploreMapPreviewBusiness,
   ExploreFilterOptions,
   ExploreResultsCriteria,
+  ExploreCollectionCriteria,
+  ExploreCollectionType,
+  ExploreCollectionBusinessListResponse,
 } from "../types/exploreBusiness.types";
 
 export async function getNewBusinesses(): Promise<
@@ -56,6 +60,34 @@ export async function getDiscoveryResults(
   );
 }
 
+export async function getExploreCollection(
+  collectionType: ExploreCollectionType,
+  criteria: ExploreCollectionCriteria,
+  page: number,
+): Promise<ApiResponse<ExploreCollectionBusinessListResponse>> {
+  const params = new URLSearchParams();
+
+  if (criteria.clusterId !== null) {
+    params.set("cluster", String(criteria.clusterId));
+  }
+
+  for (const categoryId of criteria.categoryIds) {
+    params.append("category", String(categoryId));
+  }
+
+  if (criteria.specialtyTagId !== null) {
+    params.set("specialty_tag", String(criteria.specialtyTagId));
+  }
+
+  params.set("page", String(page));
+
+  return request(
+    apiClient.get(`/explorer/explore/collections/${collectionType}/`, {
+      params,
+    }),
+  );
+}
+
 export async function getExploreFilterOptions(): Promise<
   ApiResponse<ExploreFilterOptions>
 > {
@@ -84,6 +116,14 @@ export async function getExploreBusinessDetail(
   businessId: number,
 ): Promise<ApiResponse<ExploreBusinessDetail>> {
   return request(apiClient.get(`/explorer/explore/businesses/${businessId}/`));
+}
+
+export async function getSimilarBusinesses(
+  businessId: number,
+): Promise<ApiResponse<ExploreBusiness[]>> {
+  return request(
+    apiClient.get(`/explorer/explore/businesses/${businessId}/similar/`),
+  );
 }
 
 export async function vouchForBusinessSpecialty(

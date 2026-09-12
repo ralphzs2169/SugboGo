@@ -13,6 +13,9 @@ from apps.explorer_operations.explore_businesses.views.cluster_discovery_shortcu
 from apps.explorer_operations.explore_businesses.views.discovery_feed_views import (
     DiscoveryFeedView,
 )
+from apps.explorer_operations.explore_businesses.views.explore_collection_views import (
+    ExploreCollectionView,
+)
 from apps.explorer_operations.explore_businesses.views.explore_map_preview_views import (
     ExploreMapPreviewView,
 )
@@ -40,11 +43,8 @@ from django.urls import path
 urlpatterns = [
 
     path("businesses/<int:business_id>/", BusinessDetailView.as_view(), name="business-detail", ),
-    path(
-        "businesses/<int:business_id>/similar/",
-        SimilarBusinessView.as_view(),
-        name="similar-businesses",
-    ),
+    path("businesses/<int:business_id>/similar/",SimilarBusinessView.as_view(),name="similar-businesses",),
+    path("collections/<str:collection_type>/",ExploreCollectionView.as_view(),name="explore-collection",),
     
     path("new-businesses/", NewBusinessesView.as_view(), name="new-businesses", ),
     path("discovery/", DiscoveryFeedView.as_view(), name="discovery-feed", ),

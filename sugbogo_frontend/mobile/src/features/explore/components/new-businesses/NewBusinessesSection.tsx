@@ -1,4 +1,9 @@
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  View,
+} from "react-native";
 import type { LocationObject } from "expo-location";
 import { useEffect } from "react";
 
@@ -18,6 +23,7 @@ type Props = {
     distance: number | null,
     distanceAccuracy: number | null,
   ) => void;
+  onSeeAll?: () => void;
 };
 
 /**
@@ -32,6 +38,7 @@ export default function NewBusinessesSection({
   onBusinessPress,
   impressions,
   userLocation,
+  onSeeAll,
 }: Props) {
   const { businesses, isLoading, error, refetch } = useNewBusinesses();
 
@@ -102,14 +109,30 @@ export default function NewBusinessesSection({
       onLayout={impressions.onSectionLayout}
     >
       {/* Section heading */}
-      <View className="mb-3 px-4">
-        <AppText weight="bold" className="text-lg text-text-primary">
-          New to SugboGo
-        </AppText>
+      <View className="mb-3 flex-row items-start justify-between gap-4 px-4">
+        <View className="min-w-0 flex-1">
+          <AppText weight="bold" className="text-lg text-text-primary">
+            New to SugboGo
+          </AppText>
 
-        <AppText className="text-sm text-text-secondary">
-          Recently added places waiting to be discovered.
-        </AppText>
+          <AppText className="text-sm text-text-secondary">
+            Recently added places waiting to be discovered.
+          </AppText>
+        </View>
+
+        {onSeeAll && (
+          <Pressable
+            onPress={onSeeAll}
+            accessibilityRole="button"
+            accessibilityLabel="See all new businesses"
+            hitSlop={8}
+            className="min-h-11 justify-center active:opacity-70"
+          >
+            <AppText weight="semibold" className="text-sm text-brand">
+              See all
+            </AppText>
+          </Pressable>
+        )}
       </View>
 
       {/* Business cards */}

@@ -9,8 +9,8 @@ export const MAP_PREVIEW_QUERY_KEY = ["explore-map-preview"] as const;
 /**
  * Loads nearby business markers for the Explore map preview.
  *
- * The query remains disabled until device coordinates are available and
- * automatically creates a location-specific cache entry for nearby markers.
+ * The query remains disabled until device coordinates are available and keeps
+ * the previous marker data visible while refreshed location data is loading.
  */
 export default function useMapPreviewBusinesses(
   latitude: number | null,
@@ -30,6 +30,10 @@ export default function useMapPreviewBusinesses(
 
       return throwOnApiError(response);
     },
+
+    // Keep existing markers while a refreshed location creates a new query.
+    placeholderData: (previousData) => previousData,
+
     staleTime: 5 * 60 * 1000,
   });
 
