@@ -169,7 +169,6 @@ export default function ExploreScreen() {
         <WorthDiscoveringSection
           businesses={discoveryFeed.businesses}
           isLoading={discoveryFeed.isLoading}
-          isRefetching={discoveryFeed.isRefetching}
           error={discoveryFeed.error}
           refetch={discoveryFeed.refetch}
           impressions={discoveryImpressions}
@@ -212,7 +211,6 @@ export default function ExploreScreen() {
         <ExploreMapSection
           businesses={mapPreview.businesses}
           isLoading={mapPreview.isLoading}
-          isRefetching={mapPreview.isRefetching}
           error={mapPreview.error}
           refetch={mapPreview.refetch}
           userLocation={userLocation}

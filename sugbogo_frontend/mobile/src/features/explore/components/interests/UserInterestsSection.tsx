@@ -1,10 +1,9 @@
 import type { LocationObject } from "expo-location";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import ErrorState from "@/shared/components/ErrorState";
-
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
@@ -43,6 +42,17 @@ export default function UserInterestsSection({
 }: Props) {
   const recommendations = useRecommendations();
   const { retainBusinesses } = impressions;
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+
+    try {
+      await recommendations.refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const visibleBusinesses = useMemo(
     () => recommendations.businesses.slice(0, PREVIEW_LIMIT),
@@ -104,7 +114,7 @@ export default function UserInterestsSection({
       />
 
       {/* Recommendation loading */}
-      {recommendations.isLoading ? (
+      {recommendations.isLoading || isRetrying ? (
         <CompactBusinessListSkeleton
           count={PREVIEW_LIMIT}
           testID="recommendations-loading"
@@ -117,10 +127,7 @@ export default function UserInterestsSection({
             description="We couldn't load these places right now."
             icon="heart-off-outline"
             primaryActionTitle="Retry"
-            onPrimaryAction={() => {
-              void recommendations.refetch();
-            }}
-            isRetrying={recommendations.isRefetching}
+            onPrimaryAction={() => void handleRetry()}
             size="section"
           />
         </View>

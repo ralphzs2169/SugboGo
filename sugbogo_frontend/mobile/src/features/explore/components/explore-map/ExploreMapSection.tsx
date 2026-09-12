@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { LocationObject } from "expo-location";
+import { useState } from "react";
 import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -9,7 +10,6 @@ import BusinessDiscoveryMap, {
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import SafePressable from "@/shared/components/SafePressable";
-import Skeleton from "@/shared/components/Skeleton";
 
 import ExploreSectionHeader from "../ExploreSectionHeader";
 import ExploreMapSkeleton from "./ExploreMapSkeleton";
@@ -17,7 +17,6 @@ import ExploreMapSkeleton from "./ExploreMapSkeleton";
 type Props = {
   businesses: BusinessMapMarker[];
   isLoading: boolean;
-  isRefetching: boolean;
   error: unknown;
   refetch: () => Promise<unknown>;
   userLocation: LocationObject | null;
@@ -35,12 +34,23 @@ const MAP_PREVIEW_HEIGHT = 210;
 export default function ExploreMapSection({
   businesses,
   isLoading,
-  isRefetching,
   error,
   refetch,
   userLocation,
   onOpenMap,
 }: Props) {
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+
+    try {
+      await refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   return (
     <View className="py-6">
       {/* Section heading */}
@@ -50,7 +60,7 @@ export default function ExploreMapSection({
       />
 
       {/* Map loading state */}
-      {isLoading ? (
+      {isLoading || isRetrying ? (
         <ExploreMapSkeleton />
       ) : error ? (
         /* Section recovery */
@@ -59,8 +69,7 @@ export default function ExploreMapSection({
           description="We couldn't load nearby places right now."
           icon="map-marker-off-outline"
           primaryActionTitle="Retry"
-          onPrimaryAction={() => void refetch()}
-          isRetrying={isRefetching}
+          onPrimaryAction={() => void handleRetry()}
           size="section"
         />
       ) : (

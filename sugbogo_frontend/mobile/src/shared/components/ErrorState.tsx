@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -16,15 +16,13 @@ type ErrorStateProps = {
 
   secondaryActionTitle?: string;
   onSecondaryAction?: () => void;
-
-  isRetrying: boolean;
 };
 
 /**
  * Displays a reusable error state for page-level and localized failures.
  *
- * Compact section errors make the entire surface actionable when a single
- * recovery action is available and expose retry progress while refetching.
+ * Compact section errors make the entire surface actionable when only one
+ * recovery action is available, while larger states expose explicit actions.
  */
 export default function ErrorState({
   title,
@@ -35,7 +33,6 @@ export default function ErrorState({
   onPrimaryAction,
   secondaryActionTitle,
   onSecondaryAction,
-  isRetrying,
 }: ErrorStateProps) {
   const isDefault = size === "default";
   const isSmall = size === "small";
@@ -87,33 +84,18 @@ export default function ErrorState({
         {description}
       </AppText>
 
-      {/* Whole-section retry status */}
+      {/* Whole-section recovery affordance */}
       {isSectionTapToRetry && (
         <View className="mt-3 flex-row items-center">
-          {isRetrying ? (
-            <>
-              <ActivityIndicator
-                size="small"
-                color={theme.extends.colors.brand}
-              />
+          <MaterialCommunityIcons
+            name="refresh"
+            size={15}
+            color={theme.extends.colors.brand}
+          />
 
-              <AppText weight="semibold" className="ml-2 text-xs text-brand">
-                Retrying...
-              </AppText>
-            </>
-          ) : (
-            <>
-              <MaterialCommunityIcons
-                name="refresh"
-                size={15}
-                color={theme.extends.colors.brand}
-              />
-
-              <AppText weight="semibold" className="ml-1.5 text-xs text-brand">
-                Tap to {primaryActionTitle?.toLowerCase()}
-              </AppText>
-            </>
-          )}
+          <AppText weight="semibold" className="ml-1.5 text-xs text-brand">
+            Tap to {primaryActionTitle?.toLowerCase()}
+          </AppText>
         </View>
       )}
 
@@ -123,11 +105,9 @@ export default function ErrorState({
           {hasSecondaryAction && (
             <Pressable
               onPress={onSecondaryAction}
-              disabled={isRetrying}
               accessibilityRole="button"
               accessibilityLabel={secondaryActionTitle}
-              accessibilityState={{ disabled: isRetrying }}
-              className={`cursor-pointer flex-row items-center justify-center rounded-full border border-border-primary bg-surface active:opacity-70 disabled:opacity-50 ${
+              className={`cursor-pointer flex-row items-center justify-center rounded-full border border-border-primary bg-surface active:opacity-70 ${
                 isSection ? "px-4 py-2" : "px-5 py-3"
               }`}
             >
@@ -145,24 +125,18 @@ export default function ErrorState({
           {hasPrimaryAction && (
             <Pressable
               onPress={onPrimaryAction}
-              disabled={isRetrying}
               accessibilityRole="button"
               accessibilityLabel={primaryActionTitle}
-              accessibilityState={{ disabled: isRetrying }}
-              className={`cursor-pointer flex-row items-center justify-center rounded-full bg-brand active:opacity-70 disabled:opacity-70 ${
+              className={`cursor-pointer flex-row items-center justify-center rounded-full bg-brand active:opacity-70 ${
                 isSection ? "px-4 py-2" : "px-5 py-3"
               }`}
             >
-              {isRetrying ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                isSection && (
-                  <MaterialCommunityIcons
-                    name="refresh"
-                    size={15}
-                    color="white"
-                  />
-                )
+              {isSection && (
+                <MaterialCommunityIcons
+                  name="refresh"
+                  size={15}
+                  color="white"
+                />
               )}
 
               <AppText
@@ -171,7 +145,7 @@ export default function ErrorState({
                   isSection ? "ml-1.5 text-xs" : "text-sm"
                 }`}
               >
-                {isRetrying ? "Retrying..." : primaryActionTitle}
+                {primaryActionTitle}
               </AppText>
             </Pressable>
           )}
@@ -184,15 +158,9 @@ export default function ErrorState({
     return (
       <Pressable
         onPress={onPrimaryAction}
-        disabled={isRetrying}
         accessibilityRole="button"
-        accessibilityLabel={
-          isRetrying
-            ? `${title}. Retrying.`
-            : `${title}. Tap to ${primaryActionTitle?.toLowerCase()}.`
-        }
-        accessibilityState={{ disabled: isRetrying, busy: isRetrying }}
-        className={`${containerClassName} cursor-pointer active:bg-background active:opacity-70 disabled:opacity-70`}
+        accessibilityLabel={`${title}. Tap to ${primaryActionTitle?.toLowerCase()}.`}
+        className={`${containerClassName} cursor-pointer active:bg-background active:opacity-70`}
       >
         {content}
       </Pressable>

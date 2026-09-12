@@ -1,4 +1,5 @@
 import type { LocationObject } from "expo-location";
+import { useState } from "react";
 import { View } from "react-native";
 
 import ErrorState from "@/shared/components/ErrorState";
@@ -32,10 +33,20 @@ export default function NewBusinessesSection({
   userLocation,
   onSeeAll,
 }: Props) {
-  const { businesses, isLoading, error, refetch, isRefetching } =
-    useNewBusinesses();
+  const { businesses, isLoading, error, refetch } = useNewBusinesses();
+  const [isRetrying, setIsRetrying] = useState(false);
 
-  if (isLoading) {
+  const handleRetry = async () => {
+    setIsRetrying(true);
+
+    try {
+      await refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  if (isLoading || isRetrying) {
     return (
       <View className="py-6">
         {/* Section heading */}
@@ -64,10 +75,9 @@ export default function NewBusinessesSection({
           title="Unable to load new businesses"
           description="We couldn't load the latest businesses. Please try again."
           primaryActionTitle="Retry"
-          onPrimaryAction={() => void refetch()}
+          onPrimaryAction={() => void handleRetry()}
           size="section"
           icon="store-off-outline"
-          isRetrying={isRefetching}
         />
       </View>
     );

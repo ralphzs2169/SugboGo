@@ -321,6 +321,7 @@ export default function SearchFilterResultsScreen() {
             hasSearch={debouncedSearch.length > 0}
             onRetry={() => void results.refetch()}
             onGoBack={() => router.back()}
+            isRetrying={results.isRefetching && !results.isFetchingNextPage}
           />
         }
         ListFooterComponent={

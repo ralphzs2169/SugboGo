@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
@@ -19,8 +19,6 @@ type Props = {
   onSpecialtyPress?: (specialtyId: number) => void;
 };
 
-const LOADING_TILE_COUNT = 6;
-
 /**
  * Displays specialty shortcuts for quickly narrowing Explore results.
  *
@@ -28,8 +26,18 @@ const LOADING_TILE_COUNT = 6;
  * specialty shortcuts are available.
  */
 export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
-  const { specialties, isLoading, isRefetching, error, refetch } =
-    useExploreSpecialties();
+  const { specialties, isLoading, error, refetch } = useExploreSpecialties();
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+
+    try {
+      await refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (!error) {
@@ -60,17 +68,16 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
       />
 
       {/* Loading state */}
-      {isLoading && <ExploreBySpecialtySkeleton />}
+      {(isLoading || isRetrying) && <ExploreBySpecialtySkeleton />}
 
       {/* Section recovery */}
-      {!isLoading && error && (
+      {!isLoading && !isRetrying && error && (
         <ErrorState
           title="Unable to load specialties"
           description="Specialty shortcuts couldn't be loaded right now."
           icon="tag-off-outline"
           primaryActionTitle="Retry"
-          onPrimaryAction={() => void refetch()}
-          isRetrying={isRefetching}
+          onPrimaryAction={() => void handleRetry()}
           size="section"
         />
       )}

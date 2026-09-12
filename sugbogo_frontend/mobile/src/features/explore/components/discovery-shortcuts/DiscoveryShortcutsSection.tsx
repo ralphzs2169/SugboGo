@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
@@ -27,8 +27,18 @@ type Props = {
  * active shortcuts are available.
  */
 export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
-  const { shortcuts, isLoading, isRefetching, error, refetch } =
-    useDiscoveryShortcuts();
+  const { shortcuts, isLoading, error, refetch } = useDiscoveryShortcuts();
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+
+    try {
+      await refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (!error) {
@@ -59,17 +69,16 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
       />
 
       {/* Loading state */}
-      {isLoading && <DiscoveryShortcutsSkeleton />}
+      {(isLoading || isRetrying) && <DiscoveryShortcutsSkeleton />}
 
       {/* Section recovery */}
-      {!isLoading && error && (
+      {!isLoading && !isRetrying && error && (
         <ErrorState
           title="Unable to load discovery shortcuts"
           description="Discovery shortcuts couldn't be loaded right now."
           icon="compass-off-outline"
           primaryActionTitle="Retry"
-          onPrimaryAction={() => void refetch()}
-          isRetrying={isRefetching}
+          onPrimaryAction={() => void handleRetry()}
           size="section"
         />
       )}

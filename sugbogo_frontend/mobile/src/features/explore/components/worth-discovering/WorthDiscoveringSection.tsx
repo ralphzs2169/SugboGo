@@ -1,20 +1,19 @@
 import type { LocationObject } from "expo-location";
+import { useState } from "react";
 import { View } from "react-native";
 
-import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
 import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
-import ExploreSectionHeader from "../ExploreSectionHeader";
 import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
+import ExploreSectionHeader from "../ExploreSectionHeader";
 
 type Props = {
   businesses: ExploreBusiness[];
   isLoading: boolean;
-  isRefetching: boolean;
   error: unknown;
   refetch: () => Promise<unknown>;
   impressions: BusinessImpressionObservation;
@@ -30,13 +29,12 @@ type Props = {
 /**
  * Displays the primary backend-ranked Worth Discovering section.
  *
- * Handles loading, recovery, and empty states while delegating successful
- * carousel presentation and impression tracking to the shared carousel.
+ * Handles loading, recovery, retry, and empty states while delegating
+ * successful carousel presentation and impression tracking to shared UI.
  */
 export default function WorthDiscoveringSection({
   businesses,
   isLoading,
-  isRefetching,
   error,
   refetch,
   impressions,
@@ -44,7 +42,19 @@ export default function WorthDiscoveringSection({
   onBusinessPress,
   onSeeAll,
 }: Props) {
-  if (isLoading) {
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+
+    try {
+      await refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  if (isLoading || isRetrying) {
     return (
       <View className="py-6">
         {/* Section heading */}
@@ -73,10 +83,9 @@ export default function WorthDiscoveringSection({
           title="Unable to load discoveries"
           description="We couldn't load these places right now. Please try again."
           primaryActionTitle="Retry"
-          onPrimaryAction={() => void refetch()}
+          onPrimaryAction={() => void handleRetry()}
           size="section"
           icon="compass-off-outline"
-          isRetrying={isRefetching}
         />
       </View>
     );

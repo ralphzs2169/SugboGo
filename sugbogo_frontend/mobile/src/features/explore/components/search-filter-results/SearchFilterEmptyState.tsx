@@ -14,6 +14,7 @@ type Props = {
   hasSearch: boolean;
   onRetry: () => void;
   onGoBack: () => void;
+  isRetrying: boolean;
 };
 
 /**
@@ -28,6 +29,7 @@ export default function SearchFilterEmptyState({
   hasSearch,
   onRetry,
   onGoBack,
+  isRetrying,
 }: Props) {
   if (isLoading) {
     return (
@@ -47,6 +49,7 @@ export default function SearchFilterEmptyState({
           onPrimaryAction={onRetry}
           secondaryActionTitle="Go back"
           onSecondaryAction={onGoBack}
+          isRetrying={isRetrying}
         />
       </View>
     );
