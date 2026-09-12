@@ -49,9 +49,9 @@ export default function ExploreTopBar({
       {/* Exploration context */}
       <View className="mb-4 flex-row items-center justify-between">
         <View className="flex-1">
-          <AppText weight="extrabold" className="text-2xl text-text-primary">
+          <AppText weight="superbold" className="text-2xl text-text-primary">
             Explore{" "}
-            <AppText weight="extrabold" className="text-2xl text-brand">
+            <AppText weight="superbold" className="text-2xl text-brand">
               Cebu
             </AppText>
           </AppText>

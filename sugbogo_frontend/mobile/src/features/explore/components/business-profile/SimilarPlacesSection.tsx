@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
@@ -13,20 +13,25 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import useSimilarBusinesses from "../../hooks/useSimilarBusinesses";
 import BusinessCard from "../new-businesses/BusinessCard";
 import BusinessProfileSection from "./BusinessProfileSection";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { theme } from "@/constants/theme";
 
 type Props = {
   businessId: number;
 };
 
+const SKELETON_DELAY_MS = 200;
+
 /**
  * Displays compact taxonomy-similar businesses after the profile reviews.
  *
- * Loading and failure recovery stay local to this supplemental section, while
- * an empty successful response removes the section from the profile entirely.
+ * Brief requests stay visually quiet, while slower requests show a delayed
+ * skeleton. Successful empty responses remove the optional section entirely.
  */
 export default function SimilarPlacesSection({ businessId }: Props) {
   const similarBusinesses = useSimilarBusinesses(businessId);
   const { location: userLocation } = useUserLocation();
+  const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(false);
 
   useEffect(() => {
     if (!similarBusinesses.error) {
@@ -44,6 +49,27 @@ export default function SimilarPlacesSection({ businessId }: Props) {
     }
   }, [similarBusinesses.error]);
 
+  useEffect(() => {
+    if (!similarBusinesses.isLoading) {
+      setShowLoadingSkeleton(false);
+      return;
+    }
+
+    setShowLoadingSkeleton(false);
+
+    const timeout = setTimeout(() => {
+      setShowLoadingSkeleton(true);
+    }, SKELETON_DELAY_MS);
+
+    return () => clearTimeout(timeout);
+  }, [businessId, similarBusinesses.isLoading]);
+
+  // Avoid flashing an optional section for fast requests.
+  if (similarBusinesses.isLoading && !showLoadingSkeleton) {
+    return null;
+  }
+
+  // Successful responses with no qualifying matches do not reserve space.
   if (
     !similarBusinesses.isLoading &&
     !similarBusinesses.error &&
@@ -53,14 +79,24 @@ export default function SimilarPlacesSection({ businessId }: Props) {
   }
 
   return (
-    <BusinessProfileSection title="Similar Places">
-      {/* Section content */}
+    <BusinessProfileSection
+      title="Similar Places"
+      icon={
+        <MaterialCommunityIcons
+          name="tag-multiple-outline"
+          size={20}
+          color={theme.extends.colors.text.secondary}
+        />
+      }
+    >
+      {/* Delayed loading state */}
       {similarBusinesses.isLoading ? (
         <View className="gap-3" testID="similar-places-loading">
           <Skeleton className="h-[130px] w-full rounded-card" />
           <Skeleton className="h-[130px] w-full rounded-card" />
         </View>
       ) : similarBusinesses.error ? (
+        /* Local request error */
         <View testID="similar-places-error">
           <ErrorState
             title="Unable to load similar places"
@@ -73,8 +109,8 @@ export default function SimilarPlacesSection({ businessId }: Props) {
           />
         </View>
       ) : (
+        /* Similar business results */
         <View className="gap-3" testID="similar-places-list">
-          {/* Similar business cards */}
           {similarBusinesses.businesses.map((business) => {
             const distance = userLocation
               ? calculateDistanceInKm(
