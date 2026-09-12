@@ -145,7 +145,7 @@ export default function BusinessDetailHero({
             {business.specialty_tags?.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {business.specialty_tags.map((tag) => (
-                  <SpecialtyTagChip key={tag.id} tag={tag} />
+                  <SpecialtyTagChip key={tag.id} tag={tag} showIcon />
                 ))}
               </div>
             )}

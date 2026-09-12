@@ -1,43 +1,41 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import SafePressable from "@/shared/components/SafePressable";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
 const MASCOT_GREETING = require("@/shared/assets/mascot/mascot-greeting.webp");
 
-type CategoryIconName = keyof typeof MaterialCommunityIcons.glyphMap;
-
-type Category = {
-  label: string;
-  icon: CategoryIconName | null;
+type ClusterOption = {
+  id: number;
+  name: string;
+  icon: string;
 };
 
-const CATEGORIES: Category[] = [
-  { label: "All", icon: null },
-  { label: "Culinary", icon: "silverware-fork-knife" },
-  { label: "Leisure", icon: "surfing" },
-  { label: "Creative", icon: "palette-outline" },
-];
-
 type Props = {
-  selectedCategory: string;
-  onSelectCategory: (category: string) => void;
+  clusters: ClusterOption[];
+  selectedClusterId: number | null;
+  onSelectCluster: (clusterId: number | null) => void;
+  onPressSearch: () => void;
   onPressFilters: () => void;
   activeFilterCount?: number;
 };
 
 /**
- * Displays the Explore screen's primary discovery controls.
+ * Displays the Explore homepage's primary discovery controls.
  *
- * Presents the current exploration context alongside search, filtering,
- * quick category navigation, and compact SugboGo mascot branding.
+ * Search acts as an entry point into the dedicated results experience, while
+ * filters and Cluster shortcuts provide direct ways to refine discovery.
  */
 export default function ExploreTopBar({
-  selectedCategory,
-  onSelectCategory,
+  clusters,
+  selectedClusterId,
+  onSelectCluster,
+  onPressSearch,
   onPressFilters,
   activeFilterCount = 0,
 }: Props) {
@@ -51,9 +49,9 @@ export default function ExploreTopBar({
       {/* Exploration context */}
       <View className="mb-4 flex-row items-center justify-between">
         <View className="flex-1">
-          <AppText weight="extrabold" className="text-2xl text-text-primary">
+          <AppText weight="superbold" className="text-2xl text-text-primary">
             Explore{" "}
-            <AppText weight="extrabold" className="text-2xl text-brand">
+            <AppText weight="superbold" className="text-2xl text-brand">
               Cebu
             </AppText>
           </AppText>
@@ -86,31 +84,29 @@ export default function ExploreTopBar({
 
       {/* Search and filtering */}
       <View className="mb-3 flex-row gap-2">
-        <View className="flex-1 flex-row items-center rounded-input border border-border-primary bg-background px-3.5">
+        <SafePressable
+          onPress={onPressSearch}
+          accessibilityRole="button"
+          accessibilityLabel="Search businesses or places"
+          className="cursor-pointer flex-1 flex-row items-center rounded-full border border-border-primary bg-background px-3.5 active:opacity-80"
+        >
           <MaterialCommunityIcons
             name="magnify"
             size={24}
             color={theme.extends.colors.text.tertiary}
           />
 
-          <TextInput
-            className="ml-2 flex-1 py-3 text-sm text-text-primary"
-            style={{
-              fontFamily: "NunitoSans_400Regular",
-            }}
-            placeholder="Search businesses or places..."
-            placeholderTextColor={theme.extends.colors.text.tertiary}
-            returnKeyType="search"
-            accessibilityLabel="Search businesses or places"
-          />
-        </View>
+          <AppText className="ml-2 flex-1 py-3 text-sm text-text-tertiary">
+            Search businesses or places...
+          </AppText>
+        </SafePressable>
 
-        <Pressable
+        <SafePressable
           onPress={onPressFilters}
           hitSlop={6}
           accessibilityRole="button"
           accessibilityLabel="Open discovery filters"
-          className="relative cursor-pointer items-center justify-center rounded-input border border-border-primary bg-background px-3.5 active:opacity-70"
+          className="relative cursor-pointer items-center justify-center rounded-full border border-border-primary bg-background px-3.5 active:opacity-70"
         >
           <MaterialCommunityIcons
             name="tune-variant"
@@ -128,32 +124,32 @@ export default function ExploreTopBar({
               </AppText>
             </View>
           )}
-        </Pressable>
+        </SafePressable>
       </View>
 
-      {/* Quick discovery categories */}
+      {/* Quick discovery clusters */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         className="flex-none"
         contentContainerClassName="gap-2"
       >
-        {CATEGORIES.map((category) => {
-          const isActive = category.label === selectedCategory;
+        {[{ id: null, name: "All", icon: null }, ...clusters].map((cluster) => {
+          const isActive = cluster.id === selectedClusterId;
 
           return (
-            <Pressable
-              key={category.label}
-              onPress={() => onSelectCategory(category.label)}
+            <SafePressable
+              key={cluster.id ?? "all"}
+              onPress={() => onSelectCluster(cluster.id)}
               accessibilityRole="button"
               accessibilityState={{ selected: isActive }}
               className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${
                 isActive ? "bg-brand" : "bg-background"
               }`}
             >
-              {category.icon && (
+              {cluster.icon && (
                 <MaterialCommunityIcons
-                  name={category.icon}
+                  name={CLUSTER_ICONS[cluster.icon] ?? "store"}
                   size={14}
                   color={
                     isActive ? "#FFFFFF" : theme.extends.colors.text.secondary
@@ -168,9 +164,9 @@ export default function ExploreTopBar({
                   isActive ? "text-white" : "text-text-secondary"
                 }`}
               >
-                {category.label}
+                {cluster.name}
               </AppText>
-            </Pressable>
+            </SafePressable>
           );
         })}
       </ScrollView>

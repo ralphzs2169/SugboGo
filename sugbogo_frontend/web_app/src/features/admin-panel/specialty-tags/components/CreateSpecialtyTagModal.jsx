@@ -1,12 +1,18 @@
 import { useState } from "react";
+import { toast } from "react-hot-toast";
 
 import Modal from "@/shared/components/modals/Modal";
 
-import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
 import useCreateSpecialtyTag from "../hooks/useCreateSpecialtyTag";
-import { toast } from "react-hot-toast";
+import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
 import SpecialtyTagForm from "./SpecialtyTagForm";
 
+/**
+ * Displays the create specialty tag modal and manages its form state.
+ *
+ * Initializes new tags with the default color and icon, validates form input,
+ * submits the tag, and resets the form after a successful creation.
+ */
 export default function CreateSpecialtyTagModal({
   isOpen,
   onClose,
@@ -15,6 +21,7 @@ export default function CreateSpecialtyTagModal({
   const [values, setValues] = useState({
     name: "",
     color: "blue",
+    icon: "tag",
   });
 
   const [errors, setErrors] = useState({});
@@ -63,6 +70,7 @@ export default function CreateSpecialtyTagModal({
       setValues({
         name: "",
         color: "blue",
+        icon: "tag",
       });
 
       setErrors({});
@@ -83,6 +91,7 @@ export default function CreateSpecialtyTagModal({
       description="Add a new specialty tag for businesses."
       onClose={onClose}
     >
+      {/* Specialty tag creation form */}
       <SpecialtyTagForm
         values={values}
         errors={errors}

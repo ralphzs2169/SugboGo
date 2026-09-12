@@ -54,7 +54,7 @@ export default function getSpecialtyTagColumns(
       cell: (info) => {
         const tag = info.row.original;
 
-        return <SpecialtyTagChip tag={tag} chipStyle={false} />;
+        return <SpecialtyTagChip tag={tag} showIcon />;
       },
     }),
 

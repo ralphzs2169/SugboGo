@@ -244,6 +244,7 @@ class VisibilityEventServiceTests(TestCase):
         )
 
         VisibilityEventService._indexes_initialized = False
+        VisibilityEventService._unavailable_until = 0.0
         self.time_patcher = patch.object(
             VisibilityEventService,
             "_get_current_time",
@@ -584,6 +585,84 @@ class VisibilityEventServiceTests(TestCase):
 
         with self.assertRaises(VisibilityTrackingUnavailable):
             self._record_first_impression()
+
+    @override_settings(
+        MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS=30,
+    )
+    def test_mongo_failure_cooldown_fails_fast_then_allows_recovery(self):
+        clock = {
+            "value": 100.0,
+        }
+        self.get_database.side_effect = [
+            AutoReconnect(
+                "MongoDB unavailable.",
+            ),
+            self.database,
+        ]
+
+        with patch.object(
+            VisibilityEventService,
+            "_get_monotonic_time",
+            side_effect=lambda: clock["value"],
+        ):
+            with self.assertRaises(
+                VisibilityTrackingUnavailable,
+            ) as first_failure:
+                VisibilityEventService.ensure_indexes()
+
+            self.assertFalse(
+                first_failure.exception.cooldown_short_circuit,
+            )
+            self.assertEqual(
+                self.get_database.call_count,
+                1,
+            )
+
+            with self.assertRaises(
+                VisibilityTrackingUnavailable,
+            ) as cooldown_failure:
+                VisibilityEventService.ensure_indexes()
+
+            self.assertTrue(
+                cooldown_failure.exception.cooldown_short_circuit,
+            )
+            self.assertEqual(
+                self.get_database.call_count,
+                1,
+            )
+
+            clock["value"] = 131.0
+            VisibilityEventService.ensure_indexes()
+            VisibilityEventService.ensure_indexes()
+
+        self.assertEqual(
+            self.get_database.call_count,
+            2,
+        )
+        self.assertEqual(
+            len(self.collection.index_calls),
+            2,
+        )
+        self.assertEqual(
+            VisibilityEventService._unavailable_until,
+            0.0,
+        )
+
+    def test_unexpected_index_initialization_error_propagates(self):
+        self.get_database.side_effect = RuntimeError(
+            "programming error",
+        )
+
+        with self.assertRaisesMessage(
+            RuntimeError,
+            "programming error",
+        ):
+            VisibilityEventService.ensure_indexes()
+
+        self.assertEqual(
+            VisibilityEventService._unavailable_until,
+            0.0,
+        )
 
     def test_recent_metrics_pipeline_uses_time_window(self):
         start_time = self.EVENT_TIME - timedelta(days=30)

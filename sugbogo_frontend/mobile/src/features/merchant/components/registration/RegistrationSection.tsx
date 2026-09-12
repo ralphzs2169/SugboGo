@@ -1,7 +1,9 @@
 import { ReactNode } from "react";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 type RegistrationSectionProps = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -11,6 +13,12 @@ type RegistrationSectionProps = {
   showBorder?: boolean;
 };
 
+/**
+ * Groups related merchant registration fields into a clearly labeled section.
+ *
+ * Displays section context at the top and optionally separates the form
+ * content with a subtle divider.
+ */
 export default function RegistrationSection({
   icon,
   title,
@@ -19,27 +27,32 @@ export default function RegistrationSection({
   showBorder = true,
 }: RegistrationSectionProps) {
   return (
-    <View className="mb-2 bg-surface px-6 pt-6 pb-4">
+    <View className="mb-2 bg-surface px-6 pb-4 pt-6">
+      {/* Section heading */}
       <View className="mb-4">
-        <View className="flex-row items-center">
+        <View className="flex-row items-center justify-between gap-4">
+          <AppText
+            weight="bold"
+            className="min-w-0 flex-1 text-md text-text-primary"
+          >
+            {title}
+          </AppText>
+
           <MaterialCommunityIcons
             name={icon}
-            size={22}
-            color={theme.extends.colors.text.primary}
+            size={20}
+            color={theme.extends.colors.text.secondary}
           />
-
-          <Text className="text-xl ml-2 font-bold text-text-primary">
-            {title}
-          </Text>
         </View>
 
         {description && (
-          <Text className="mt-2 text-sm leading-5 text-text-secondary">
+          <AppText className="mt-2 text-sm leading-5 text-text-secondary">
             {description}
-          </Text>
+          </AppText>
         )}
       </View>
 
+      {/* Section content */}
       <View
         className={showBorder ? "border-t border-border-primary/60 pt-5" : ""}
       >

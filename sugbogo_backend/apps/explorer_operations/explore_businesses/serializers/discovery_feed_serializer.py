@@ -1,11 +1,13 @@
 from rest_framework import serializers
 
 
-class DiscoveryFeedQuerySerializer(serializers.Serializer):
-    """Validates optional taxonomy filters for the discovery feed."""
+class TaxonomyFilterQuerySerializer(serializers.Serializer):
+    """Validate the taxonomy filters shared by Explorer collections."""
 
-    category = serializers.IntegerField(
-        min_value=1,
+    category = serializers.ListField(
+        child=serializers.IntegerField(
+            min_value=1,
+        ),
         required=False,
     )
     cluster = serializers.IntegerField(
@@ -15,4 +17,15 @@ class DiscoveryFeedQuerySerializer(serializers.Serializer):
     specialty_tag = serializers.IntegerField(
         min_value=1,
         required=False,
+    )
+
+
+class DiscoveryFeedQuerySerializer(TaxonomyFilterQuerySerializer):
+    """Validate optional search and taxonomy filters for discovery."""
+
+    search = serializers.CharField(
+        allow_blank=True,
+        max_length=200,
+        required=False,
+        trim_whitespace=True,
     )

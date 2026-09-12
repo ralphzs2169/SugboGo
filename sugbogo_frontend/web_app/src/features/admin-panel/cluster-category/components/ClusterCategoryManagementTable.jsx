@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import { FaLayerGroup } from "react-icons/fa6";
-import { Plus } from "lucide-react";
+import { MessageSquareText, Plus } from "lucide-react";
 import { FiLayers, FiTag } from "react-icons/fi";
 
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
@@ -11,18 +11,22 @@ import Button from "@/shared/components/Button";
 
 import ClusterColumns from "./columns/clusterColumns";
 import CategoryColumns from "./columns/categoryColumns";
+import DiscoveryShortcutColumns from "./columns/discoveryShortcutColumns";
 
 import useClusters from "../hooks/useClusters";
 import useCategories from "../hooks/useCategories";
 import useDeleteCluster from "../hooks/useDeleteCluster";
 import useDeleteCategory from "../hooks/useDeleteCategory";
+import useDeleteDiscoveryShortcut from "../hooks/useDeleteDiscoveryShortcut";
+import useDiscoveryShortcuts from "../hooks/useDiscoveryShortcuts";
 import useClusterCategoryTableState from "../hooks/useClusterCategoryTableState";
 
 import CreateClusterModal from "./CreateClusterModal";
 import CreateCategoryModal from "./CreateCategoryModal";
 import EditClusterModal from "./EditClusterModal";
 import EditCategoryModal from "./EditCategoryModal";
-import CategoryFilters from "./CategoryFilters";
+import CreateDiscoveryShortcutModal from "./CreateDiscoveryShortcutModal";
+import EditDiscoveryShortcutModal from "./EditDiscoveryShortcutModal";
 
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
@@ -47,12 +51,15 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
   // Modal state management
   const [isCreateClusterOpen, setIsCreateClusterOpen] = useState(false);
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
+  const [isCreateDiscoveryShortcutOpen, setIsCreateDiscoveryShortcutOpen] =
+    useState(false);
 
   const [isEditClusterOpen, setIsEditClusterOpen] = useState(false);
   const [editingCluster, setEditingCluster] = useState(null);
 
   const [isEditCategoryOpen, setIsEditCategoryOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+  const [editingDiscoveryShortcut, setEditingDiscoveryShortcut] = useState(null);
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingItem, setDeletingItem] = useState(null);
@@ -64,9 +71,14 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
 
   const { remove: deleteCategory, isDeleting: isDeletingCategory } =
     useDeleteCategory();
+  const { remove: deleteDiscoveryShortcut, isDeleting: isDeletingShortcut } =
+    useDeleteDiscoveryShortcut();
 
-  const isDeleting =
-    deleteType === "cluster" ? isDeletingCluster : isDeletingCategory;
+  const isDeleting = deleteType === "cluster"
+    ? isDeletingCluster
+    : deleteType === "category"
+      ? isDeletingCategory
+      : isDeletingShortcut;
 
   // Table state management hook for global filter, sorting, column filters, and pagination.
   const {
@@ -109,17 +121,59 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     enabled: currentTab === "categories",
   });
 
+  const {
+    shortcuts,
+    totalItems: shortcutTotalItems,
+    pageCount: shortcutPageCount,
+    isLoading: isLoadingShortcuts,
+    isFetching: isFetchingShortcuts,
+    error: shortcutError,
+    refetch: refetchShortcuts,
+  } = useDiscoveryShortcuts(params, {
+    enabled: currentTab === "discovery-shortcuts",
+  });
+
   // Derived state for conditional rendering and actions
   const isClusterTab = currentTab === "clusters";
+  const isCategoryTab = currentTab === "categories";
   const columns = isClusterTab
     ? ClusterColumns(handleEditCluster, handleDeleteCluster)
-    : CategoryColumns(handleEditCategory, handleDeleteCategory);
+    : isCategoryTab
+      ? CategoryColumns(handleEditCategory, handleDeleteCategory)
+      : DiscoveryShortcutColumns(handleEditDiscoveryShortcut, handleDeleteDiscoveryShortcut);
 
-  const data = isClusterTab ? clusters : categories;
-  const isLoading = isClusterTab ? isLoadingClusters : isLoadingCategories;
-  const isFetching = isClusterTab ? isFetchingClusters : isFetchingCategories;
-  const totalItems = isClusterTab ? clusterTotalItems : categoryTotalItems;
-  const pageCount = isClusterTab ? clusterPageCount : categoryPageCount;
+  let data = shortcuts;
+
+  if (isClusterTab) {
+    data = clusters;
+  } else if (isCategoryTab) {
+    data = categories;
+  }
+  const isLoading = isClusterTab
+    ? isLoadingClusters
+    : isCategoryTab
+      ? isLoadingCategories
+      : isLoadingShortcuts;
+  const isFetching = isClusterTab
+    ? isFetchingClusters
+    : isCategoryTab
+      ? isFetchingCategories
+      : isFetchingShortcuts;
+  const totalItems = isClusterTab
+    ? clusterTotalItems
+    : isCategoryTab
+      ? categoryTotalItems
+      : shortcutTotalItems;
+  const pageCount = isClusterTab
+    ? clusterPageCount
+    : isCategoryTab
+      ? categoryPageCount
+      : shortcutPageCount;
+  const activeError = isClusterTab
+    ? clusterError
+    : isCategoryTab
+      ? categoryError
+      : shortcutError;
 
   // Fetch clusters for the category filter dropdown.
   const { clusters: filterClusters } = useClusters(
@@ -150,6 +204,16 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     setIsEditCategoryOpen(true);
   }
 
+  function handleDeleteDiscoveryShortcut(shortcut) {
+    setDeletingItem(shortcut);
+    setDeleteType("discovery shortcut");
+    setDeleteModalOpen(true);
+  }
+
+  function handleEditDiscoveryShortcut(shortcut) {
+    setEditingDiscoveryShortcut(shortcut);
+  }
+
   function handleTabChange(tab) {
     setCurrentTab(tab);
 
@@ -178,8 +242,6 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
       pageIndex: 0,
     }));
   }
-  const activeResource = isClusterTab ? "Cluster" : "Category";
-
   async function handleConfirmDelete() {
     try {
       if (deleteType === "cluster") {
@@ -198,6 +260,12 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
         toast.success("Category deleted successfully.");
       }
 
+      if (deleteType === "discovery shortcut") {
+        await deleteDiscoveryShortcut(deletingItem.id);
+        await refetchShortcuts();
+        toast.success("Discovery shortcut deleted successfully.");
+      }
+
       setDeleteModalOpen(false);
       setDeletingItem(null);
       setDeleteType(null);
@@ -211,18 +279,23 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     }
   }
 
-  const resourceLabel = isClusterTab ? "cluster" : "category";
-  const resourcePlural = isClusterTab ? "clusters" : "categories";
+  const resourcePlural = isClusterTab
+    ? "clusters"
+    : isCategoryTab
+      ? "categories"
+      : "Discovery shortcuts";
 
   function onRetry() {
     if (isClusterTab) {
       refetchClusters();
-    } else {
+    } else if (isCategoryTab) {
       refetchCategories();
+    } else {
+      refetchShortcuts();
     }
   }
 
-  useApiErrorNotification(clusterError || categoryError, {
+  useApiErrorNotification(activeError, {
     toastId: "cluster-category-load-error",
     fallbackMessage: "Unable to load the requested data. Please try again.",
   });
@@ -233,7 +306,7 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
-        error={isClusterTab ? clusterError : categoryError}
+        error={activeError}
         onRetry={onRetry}
         pagination={pagination}
         state={{
@@ -261,13 +334,20 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
               label: "Categories",
               icon: FiTag,
             },
+            {
+              id: "discovery-shortcuts",
+              label: "Discovery Shortcuts",
+              icon: MessageSquareText,
+            },
           ],
           activeTab: currentTab,
           onTabChange: handleTabChange,
 
           searchPlaceholder: isClusterTab
             ? "Search clusters..."
-            : "Search categories...",
+            : isCategoryTab
+              ? "Search categories..."
+              : "Search Discovery shortcuts...",
 
           footerMetaText: `Showing ${data.length} ${resourcePlural}`,
 
@@ -292,14 +372,21 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
               onClick={() =>
                 isClusterTab
                   ? setIsCreateClusterOpen(true)
-                  : setIsCreateCategoryOpen(true)
+                  : isCategoryTab
+                    ? setIsCreateCategoryOpen(true)
+                    : setIsCreateDiscoveryShortcutOpen(true)
               }
             >
-              Add {activeResource}
+              Add{" "}
+              {isClusterTab
+                ? "Cluster"
+                : isCategoryTab
+                  ? "Category"
+                  : "Discovery Shortcut"}
             </Button>
           ),
           renderFilters: () =>
-            !isClusterTab && (
+            isCategoryTab && (
               <FilterMenu
                 filters={[
                   {
@@ -375,10 +462,36 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
         }}
       />
 
+      <CreateDiscoveryShortcutModal
+        isOpen={isCreateDiscoveryShortcutOpen}
+        shortcuts={shortcuts}
+        onClose={() => setIsCreateDiscoveryShortcutOpen(false)}
+        onSuccess={async () => {
+          await refetchShortcuts();
+          toast.success("Discovery shortcut created successfully.");
+        }}
+      />
+
+      <EditDiscoveryShortcutModal
+        isOpen={Boolean(editingDiscoveryShortcut)}
+        shortcut={editingDiscoveryShortcut}
+        onClose={() => setEditingDiscoveryShortcut(null)}
+        onSuccess={async () => {
+          await refetchShortcuts();
+          toast.success("Discovery shortcut updated successfully.");
+        }}
+      />
+
       <ConfirmModal
         isOpen={deleteModalOpen}
-        title={`Delete ${deleteType === "cluster" ? "Cluster" : "Category"}?`}
-        description={`Are you sure you want to delete "${deletingItem?.name}"? This action cannot be undone.`}
+        title={`Delete ${
+          deleteType === "discovery shortcut"
+            ? "Discovery Shortcut"
+            : deleteType === "cluster"
+              ? "Cluster"
+              : "Category"
+        }?`}
+        description={`Are you sure you want to delete "${deletingItem?.title ?? deletingItem?.name}"? This action cannot be undone.`}
         onClose={() => {
           setDeleteModalOpen(false);
           setDeletingItem(null);

@@ -143,6 +143,25 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
 
 
 
+class RecommendationBusinessSerializer(ExploreBusinessSerializer):
+    """Adds a transient shared-interest reason to recommendation results."""
+
+    recommendation_reason = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_recommendation_reason(instance):
+        return getattr(
+            instance,
+            "recommendation_reason",
+            None,
+        )
+
+    class Meta(ExploreBusinessSerializer.Meta):
+        fields = ExploreBusinessSerializer.Meta.fields + (
+            "recommendation_reason",
+        )
+
+
 class ExploreBusinessPhotoSerializer(serializers.ModelSerializer):
     """Serializes a public business photo for Explorer."""
 

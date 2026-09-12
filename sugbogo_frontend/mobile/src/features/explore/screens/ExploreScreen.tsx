@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { useState } from "react";
 import {
   RefreshControl,
   ScrollView,
@@ -7,53 +9,82 @@ import {
   type NativeSyntheticEvent,
   View,
 } from "react-native";
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
+import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+
+import ExploreBySpecialtySection from "../components/explore-by-specialty/ExploreBySpecialtySection";
 import ExploreTopBar from "../components/ExploreTopBar";
-import HiddenGemsSection from "../components/hidden-gems/HiddenGemsSection";
-import InterestsSection from "../components/interests/InterestsSection";
-import TrendingSection from "../components/trending/TrendingSection";
+import UserInterestsSection from "../components/interests/UserInterestsSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
 import WorthDiscoveringSection from "../components/worth-discovering/WorthDiscoveringSection";
-import DiscoverNearYouButton from "../components/DiscoverNearYouButton";
 import useBusinessImpressions from "../hooks/useBusinessImpressions";
+import useMapPreviewBusinesses, {
+  MAP_PREVIEW_QUERY_KEY,
+} from "../hooks/useMapPreviewBusinesses";
 import useDiscoveryFeed, {
   DISCOVERY_FEED_QUERY_KEY,
 } from "../hooks/useDiscoveryFeed";
-import useExploreLocation from "../hooks/useExploreLocation";
-import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
-/** Displays discovery sections and observes real business cards within both scroll axes. */
+import { RECOMMENDATIONS_QUERY_KEY } from "../hooks/useRecommendations";
+import DiscoveryShortcutsSection from "../components/discovery-shortcuts/DiscoveryShortcutsSection";
+import ExploreMapSection from "../components/explore-map/ExploreMapSection";
+import { EXPLORE_SPECIALTIES_QUERY_KEY } from "../hooks/useExploreSpecialties";
+import { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../hooks/useDiscoveryShortcuts";
+import useUserLocation from "@/shared/hooks/useUserLocation";
+import useExploreFilterOptions from "../hooks/useExploreFilterOptions";
+import { navigateToExploreResults } from "../utils/exploreResultsNavigation";
+import type { ExploreCollectionType } from "../types/exploreBusiness.types";
+
+/**
+ * Displays the Explorer discovery experience and coordinates its business feeds.
+ *
+ * The screen combines curated, personalized, specialty, and newly added
+ * discovery surfaces while sharing refresh and impression observation.
+ */
 export default function ExploreScreen() {
   const queryClient = useQueryClient();
 
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const [isRefreshing, setIsRefreshing] = useState(false);
+
   const bottomSpacing = useTabBarSpacing();
+
   const discoveryImpressions = useBusinessImpressions(bottomSpacing);
   const newBusinessImpressions = useBusinessImpressions(bottomSpacing);
-  const userLocation = useExploreLocation();
-  const discoveryFeed = useDiscoveryFeed();
+  const recommendationImpressions = useBusinessImpressions(bottomSpacing);
 
-  useApiErrorNotification({
-    error: discoveryFeed.error,
-    toastId: "explore-discovery-feed-error",
-    title: "Unable to load Worth Discovering",
-    fallbackMessage: "Please try again.",
-  });
+  const { location: userLocation, refreshLocation } = useUserLocation();
+
+  const mapPreview = useMapPreviewBusinesses(
+    userLocation?.coords.latitude ?? null,
+    userLocation?.coords.longitude ?? null,
+  );
+
+  const discoveryFeed = useDiscoveryFeed();
+  const filterOptions = useExploreFilterOptions();
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
 
     try {
       await Promise.all([
+        refreshLocation(),
         queryClient.refetchQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
         queryClient.refetchQueries({
           queryKey: ["explore-new-businesses"],
+        }),
+        queryClient.refetchQueries({
+          queryKey: RECOMMENDATIONS_QUERY_KEY,
+        }),
+        queryClient.refetchQueries({
+          queryKey: EXPLORE_SPECIALTIES_QUERY_KEY,
+        }),
+        queryClient.refetchQueries({
+          queryKey: DISCOVERY_SHORTCUTS_QUERY_KEY,
+        }),
+        queryClient.refetchQueries({
+          queryKey: MAP_PREVIEW_QUERY_KEY,
         }),
       ]);
     } finally {
@@ -64,6 +95,7 @@ export default function ExploreScreen() {
   const handleViewportLayout = (event: LayoutChangeEvent) => {
     discoveryImpressions.onViewportLayout(event);
     newBusinessImpressions.onViewportLayout(event);
+    recommendationImpressions.onViewportLayout(event);
   };
 
   const handleVerticalScroll = (
@@ -71,6 +103,7 @@ export default function ExploreScreen() {
   ) => {
     discoveryImpressions.onVerticalScroll(event);
     newBusinessImpressions.onVerticalScroll(event);
+    recommendationImpressions.onVerticalScroll(event);
   };
 
   const handleBusinessPress = (
@@ -89,15 +122,35 @@ export default function ExploreScreen() {
     });
   };
 
+  const openCollection = (
+    collectionType: ExploreCollectionType,
+    source?: "recommendations",
+  ) => {
+    router.push({
+      pathname: "/(explorer)/explore-collection/[collectionType]",
+      params: {
+        collectionType,
+        ...(source ? { source } : {}),
+      },
+    });
+  };
+
   return (
     <View className="flex-1 bg-surface">
+      {/* Discovery controls */}
       <ExploreTopBar
-        selectedCategory={selectedCategory}
-        onSelectCategory={setSelectedCategory}
-        onPressFilters={() => {}}
+        clusters={filterOptions.options.clusters}
+        selectedClusterId={null}
+        onPressSearch={() => navigateToExploreResults({}, false, true)}
+        onSelectCluster={(clusterId) => {
+          if (clusterId !== null) {
+            navigateToExploreResults({ clusterId });
+          }
+        }}
+        onPressFilters={() => navigateToExploreResults({}, true)}
       />
 
-      {/* Discovery viewport excludes the fixed navigation controls. */}
+      {/* Discovery content */}
       <ScrollView
         testID="explore-discovery-scroll"
         onLayout={handleViewportLayout}
@@ -105,11 +158,14 @@ export default function ExploreScreen() {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pt-4 pb-8"
-        contentContainerStyle={{ paddingBottom: bottomSpacing }}
+        contentContainerStyle={{
+          paddingBottom: bottomSpacing,
+        }}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
+        {/* Curated discovery */}
         <WorthDiscoveringSection
           businesses={discoveryFeed.businesses}
           isLoading={discoveryFeed.isLoading}
@@ -118,21 +174,47 @@ export default function ExploreScreen() {
           impressions={discoveryImpressions}
           userLocation={userLocation}
           onBusinessPress={handleBusinessPress}
+          onSeeAll={() => openCollection("worth-discovering")}
         />
 
-        <HiddenGemsSection selectedCategory={selectedCategory} />
+        {/* Specialty discovery preview */}
+        <ExploreBySpecialtySection
+          onSpecialtyPress={(specialtyTagId) =>
+            navigateToExploreResults({ specialtyTagId })
+          }
+        />
 
-        <InterestsSection selectedCategory={selectedCategory} />
+        {/* Personalized discovery */}
+        <UserInterestsSection
+          impressions={recommendationImpressions}
+          userLocation={userLocation}
+          onBusinessPress={handleBusinessPress}
+          onSeeAll={(source) => openCollection("interests", source)}
+        />
 
-        <TrendingSection selectedCategory={selectedCategory} />
-
+        {/* Recently added businesses */}
         <NewBusinessesSection
           impressions={newBusinessImpressions}
           userLocation={userLocation}
           onBusinessPress={handleBusinessPress}
+          onSeeAll={() => openCollection("new-businesses")}
         />
 
-        <DiscoverNearYouButton onPress={() => {}} />
+        {/* Intent-based discovery shortcuts */}
+        <DiscoveryShortcutsSection
+          onShortcutPress={(clusterId) =>
+            navigateToExploreResults({ clusterId })
+          }
+        />
+
+        {/* Map discovery preview */}
+        <ExploreMapSection
+          businesses={mapPreview.businesses}
+          userLocation={userLocation}
+          onOpenMap={() => {
+            router.push("/(explorer)/(tabs)/map");
+          }}
+        />
       </ScrollView>
     </View>
   );

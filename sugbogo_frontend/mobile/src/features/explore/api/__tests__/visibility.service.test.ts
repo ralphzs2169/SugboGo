@@ -2,6 +2,7 @@ import apiClient from "@/shared/api/apiClient.service";
 import {
   getDiscoveryFeed,
   getExploreBusinessDetail,
+  getRecommendations,
   pocketBusiness,
   removeBusinessFromPocket,
   recordBusinessImpressions,
@@ -37,6 +38,14 @@ describe("visibility transport", () => {
     await getDiscoveryFeed();
 
     expect(apiClient.get).toHaveBeenCalledWith("/explorer/explore/discovery/");
+  });
+
+  it("loads recommendations from the authenticated Explorer endpoint", async () => {
+    await getRecommendations();
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/explorer/explore/recommendations/",
+    );
   });
 
   it("uses the profile ID endpoint without any identity or timestamp body", async () => {

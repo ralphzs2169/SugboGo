@@ -1,5 +1,5 @@
 import type { LocationObject } from "expo-location";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { useEffect } from "react";
 
 import ErrorState from "@/shared/components/ErrorState";
@@ -23,6 +23,7 @@ type Props = {
     distance: number | null,
     distanceAccuracy: number | null,
   ) => void;
+  onSeeAll?: () => void;
 };
 
 /**
@@ -39,6 +40,7 @@ export default function WorthDiscoveringSection({
   impressions,
   userLocation,
   onBusinessPress,
+  onSeeAll,
 }: Props) {
   const { retainBusinesses } = impressions;
 
@@ -134,18 +136,34 @@ export default function WorthDiscoveringSection({
   return (
     <View
       testID="worth-discovering-section"
-      className="py-6"
+      className="pt-3 pb-6"
       onLayout={impressions.onSectionLayout}
     >
       {/* Section heading */}
-      <View className="mb-4 px-4">
-        <AppText weight="bold" className="text-xl text-text-primary">
-          Worth Discovering
-        </AppText>
+      <View className="mb-4 flex-row items-start justify-between gap-4 px-4">
+        <View className="min-w-0 flex-1">
+          <AppText weight="bold" className="text-xl text-text-primary">
+            Worth Discovering
+          </AppText>
 
-        <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-          Community-backed places across Cebu worth exploring.
-        </AppText>
+          <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+            Community-backed places across Cebu worth exploring.
+          </AppText>
+        </View>
+
+        {onSeeAll && (
+          <Pressable
+            onPress={onSeeAll}
+            accessibilityRole="button"
+            accessibilityLabel="See all Worth Discovering places"
+            hitSlop={8}
+            className="mt-1 min-h-11 justify-center active:opacity-70"
+          >
+            <AppText weight="semibold" className="text-sm text-brand">
+              See all
+            </AppText>
+          </Pressable>
+        )}
       </View>
 
       {/* Ranked business cards */}

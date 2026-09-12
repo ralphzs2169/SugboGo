@@ -18,6 +18,10 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
         source="TAG_COLOR",
         read_only=True,
     )
+    icon = serializers.CharField(
+        source="TAG_ICON",
+        read_only=True,
+    )
     created_at = serializers.DateTimeField(
         source="TAG_CREATED_AT",
         read_only=True,
@@ -26,7 +30,9 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
         source="TAG_UPDATED_AT",
         read_only=True,
     )
-    application_count = serializers.IntegerField(read_only=True)
+    application_count = serializers.IntegerField(
+        read_only=True,
+    )
 
     class Meta:
         model = SpecialtyTag
@@ -34,9 +40,10 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "color",
+            "icon",
             "created_at",
             "updated_at",
-            "application_count",    
+            "application_count",
         )
 
 
@@ -59,11 +66,19 @@ class SpecialtyTagCreateSerializer(serializers.ModelSerializer):
         default=SpecialtyTag.TagColor.BLUE,
     )
 
+    icon = serializers.ChoiceField(
+        source="TAG_ICON",
+        choices=SpecialtyTag.TagIcon.choices,
+        required=False,
+        default=SpecialtyTag.TagIcon.TAG,
+    )
+
     class Meta:
         model = SpecialtyTag
         fields = (
             "name",
             "color",
+            "icon",
         )
 
     def validate_name(self, value):
@@ -74,7 +89,9 @@ class SpecialtyTagCreateSerializer(serializers.ModelSerializer):
                 "Specialty tag name must be at least 3 characters."
             )
 
-        if SpecialtyTag.objects.filter(TAG_NAME__iexact=value).exists():
+        if SpecialtyTag.objects.filter(
+            TAG_NAME__iexact=value,
+        ).exists():
             raise serializers.ValidationError(
                 "A specialty tag with this name already exists."
             )
@@ -100,24 +117,30 @@ class SpecialtyTagUpdateSerializer(serializers.ModelSerializer):
         required=False,
     )
 
+    icon = serializers.ChoiceField(
+        source="TAG_ICON",
+        choices=SpecialtyTag.TagIcon.choices,
+        required=False,
+    )
+
     class Meta:
         model = SpecialtyTag
         fields = (
             "name",
             "color",
+            "icon",
         )
-
 
     def validate_name(self, value):
         value = value.strip()
 
         queryset = SpecialtyTag.objects.filter(
-            TAG_NAME__iexact=value
+            TAG_NAME__iexact=value,
         )
 
         if self.instance:
             queryset = queryset.exclude(
-                TAG_ID=self.instance.TAG_ID
+                TAG_ID=self.instance.TAG_ID,
             )
 
         if queryset.exists():

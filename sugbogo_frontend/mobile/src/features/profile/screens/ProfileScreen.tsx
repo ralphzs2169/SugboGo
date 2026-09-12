@@ -1,45 +1,50 @@
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { useLogout } from "@/features/auth/hooks/useLogout";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+
+import AppVersion from "../components/AppVersion";
+import MerchantPortalCard from "../components/MerchantPortalCard";
 import ProfileHeader from "../components/ProfileHeader";
 import ProfileMenuItem from "../components/ProfileMenuItem";
-import MerchantPortalCard from "../components/MerchantPortalCard";
 import ProfileMenuSection from "../components/ProfileMenuSection";
-import { useLogout } from "@/features/auth/hooks/useLogout";
-import AppVersion from "../components/AppVersion";
-import { useAuthStore } from "@/features/auth/store/auth.store";
-import { router, useFocusEffect } from "expo-router";
-import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import ProfileScrollView from "../components/ProfileScrollView";
-import { useCallback, useState } from "react";
 import useApplicationStatus from "../hooks/useApplicationStatus";
-import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import Toast from "react-native-toast-message";
 
 /**
- * ProfileScreen component.
+ * Displays the explorer profile, activity, account controls, and merchant access.
  *
- * Displays the user's profile information, activity, and settings.
+ * Provides lightweight transition feedback while switching app modes and
+ * exposes merchant onboarding status when merchant access is not yet active.
  */
-export default function ProfileScreen({}) {
+export default function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
 
   const canAccessMerchantMode = user?.role === "merchant";
+
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isSwitchingMode, setIsSwitchingMode] = useState(false);
+
   const { logout } = useLogout();
 
   const {
     status: applicationStatus,
     merchantModeAcknowledged,
     isLoading: isLoadingApplicationStatus,
-    error: applicationStatusError,
     refetch: refetchApplicationStatus,
   } = useApplicationStatus();
 
   useFocusEffect(
     useCallback(() => {
-      refetchApplicationStatus();
+      void refetchApplicationStatus();
     }, [refetchApplicationStatus]),
   );
 
@@ -48,14 +53,19 @@ export default function ProfileScreen({}) {
   };
 
   const handleSwitchToMerchant = () => {
-    Toast.show({
-      type: "success",
-      text1: "Switched to Merchant Mode",
-      text2: "You are now in Merchant mode.",
-    });
+    if (isSwitchingMode) {
+      return;
+    }
+
+    setIsSwitchingMode(true);
 
     setActiveMode("merchant");
     router.replace("/(merchant)/(tabs)/dashboard");
+
+    Toast.show({
+      type: "info",
+      text1: "Switched to Merchant Mode",
+    });
   };
 
   return (
@@ -68,6 +78,7 @@ export default function ProfileScreen({}) {
           firstname={user?.first_name ?? ""}
           lastname={user?.last_name ?? ""}
         >
+          {/* Profile identity */}
           <ProfileHeader
             firstname={user?.first_name ?? ""}
             lastname={user?.last_name ?? ""}
@@ -77,24 +88,26 @@ export default function ProfileScreen({}) {
             onEditProfile={() => router.push("/profile/edit-profile")}
           />
 
-          {/* Menu Sections */}
-
           {/* Merchant mode */}
-          {!isLoadingApplicationStatus && (
-            <>
-              {canAccessMerchantMode && merchantModeAcknowledged && (
-                <ProfileMenuSection title="Merchant">
-                  <ProfileMenuItem
-                    title="Switch to Merchant"
-                    icon="storefront-outline"
-                    onPress={handleSwitchToMerchant}
-                  />
-                </ProfileMenuSection>
-              )}
-            </>
-          )}
+          {!isLoadingApplicationStatus &&
+            canAccessMerchantMode &&
+            merchantModeAcknowledged && (
+              <ProfileMenuSection title="Merchant">
+                <ProfileMenuItem
+                  title={
+                    isSwitchingMode
+                      ? "Switching to Merchant..."
+                      : "Switch to Merchant"
+                  }
+                  icon="storefront-outline"
+                  onPress={handleSwitchToMerchant}
+                  disabled={isSwitchingMode}
+                  isLoading={isSwitchingMode}
+                />
+              </ProfileMenuSection>
+            )}
 
-          {/* Activity */}
+          {/* Explorer activity */}
           <ProfileMenuSection title="Your Activity">
             <ProfileMenuItem
               title="My Pockets"
@@ -128,13 +141,13 @@ export default function ProfileScreen({}) {
             />
 
             <ProfileMenuItem
-              title="My Preferences"
+              title="Your Interests"
               icon="tune-variant"
-              onPress={() => {}}
+              onPress={() => router.push("/profile/your-interests")}
             />
           </ProfileMenuSection>
 
-          {/* Merchant portal */}
+          {/* Merchant onboarding */}
           {!isLoadingApplicationStatus && !merchantModeAcknowledged && (
             <MerchantPortalCard
               status={applicationStatus}
@@ -142,6 +155,7 @@ export default function ProfileScreen({}) {
             />
           )}
 
+          {/* Settings and support */}
           <ProfileMenuSection title="Settings & Support">
             <ProfileMenuItem
               title="Account Settings"
@@ -164,6 +178,7 @@ export default function ProfileScreen({}) {
             <ProfileMenuItem title="Sync Now" icon="sync" onPress={() => {}} />
           </ProfileMenuSection>
 
+          {/* Session action */}
           <ProfileMenuSection>
             <ProfileMenuItem
               title="Logout"
@@ -173,17 +188,20 @@ export default function ProfileScreen({}) {
               showChevron={false}
             />
           </ProfileMenuSection>
-          <ConfirmModal
-            visible={showLogoutModal}
-            title="Log out?"
-            message="Are you sure you want to log out of your account?"
-            confirmText="Logout"
-            destructive
-            onCancel={() => setShowLogoutModal(false)}
-            onConfirm={logout}
-          />
+
           <AppVersion />
         </ProfileScrollView>
+
+        {/* Logout confirmation */}
+        <ConfirmModal
+          visible={showLogoutModal}
+          title="Log out?"
+          message="Are you sure you want to log out of your account?"
+          confirmText="Logout"
+          destructive
+          onCancel={() => setShowLogoutModal(false)}
+          onConfirm={logout}
+        />
       </View>
     </SafeAreaView>
   );

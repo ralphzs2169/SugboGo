@@ -12,6 +12,7 @@ import {
   NunitoSans_600SemiBold,
   NunitoSans_700Bold,
   NunitoSans_800ExtraBold,
+  NunitoSans_900Black,
   useFonts,
 } from "@expo-google-fonts/nunito-sans";
 import { Stack } from "expo-router";
@@ -38,6 +39,7 @@ export default function RootLayout() {
     NunitoSans_600SemiBold,
     NunitoSans_700Bold,
     NunitoSans_800ExtraBold,
+    NunitoSans_900Black,
   });
 
   const isLoading = useAuthStore((state) => state.isLoading);

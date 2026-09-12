@@ -1,4 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import {
   removeBusinessSpecialtyVouch,
@@ -7,8 +11,13 @@ import {
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getInstallationId } from "@/shared/api/storage.service";
 import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
+import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
+import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
+import { SIMILAR_BUSINESSES_QUERY_KEY } from "./useSimilarBusinesses";
+import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
 
 import type {
+  ExploreBusiness,
   ExploreBusinessDetail,
   ExploreBusinessListResponse,
 } from "../types/exploreBusiness.types";
@@ -25,9 +34,9 @@ type Variables = {
 /**
  * Manages business specialty vouch mutations with optimistic UI updates.
  *
- * Updates both the business detail and discovery feed caches immediately,
- * then synchronizes both caches with the server after the mutation settles.
- * Failed mutations roll back both cached states.
+ * Updates business detail and Explorer list caches immediately. Failed
+ * mutations restore every cached state, while recommendation item order
+ * remains unchanged until a normal refresh.
  */
 export default function useBusinessVouch({ businessId }: Props) {
   const queryClient = useQueryClient();
@@ -59,6 +68,18 @@ export default function useBusinessVouch({ businessId }: Props) {
         queryClient.cancelQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
+        queryClient.cancelQueries({
+          queryKey: RECOMMENDATIONS_QUERY_KEY,
+        }),
+        queryClient.cancelQueries({
+          queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+        }),
+        queryClient.cancelQueries({
+          queryKey: SIMILAR_BUSINESSES_QUERY_KEY,
+        }),
+        queryClient.cancelQueries({
+          queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+        }),
       ]);
 
       const previousBusiness =
@@ -73,6 +94,29 @@ export default function useBusinessVouch({ businessId }: Props) {
         queryClient.getQueryData<ExploreBusinessListResponse>(
           DISCOVERY_FEED_QUERY_KEY,
         );
+
+      const previousRecommendations =
+        queryClient.getQueryData<ExploreBusinessListResponse>(
+          RECOMMENDATIONS_QUERY_KEY,
+        );
+
+      const previousDiscoveryResults = queryClient.getQueriesData<
+        InfiniteData<ExploreBusinessListResponse>
+      >({
+        queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+      });
+
+      const previousSimilarBusinesses = queryClient.getQueriesData<
+        ExploreBusiness[]
+      >({
+        queryKey: SIMILAR_BUSINESSES_QUERY_KEY,
+      });
+
+      const previousExploreCollections = queryClient.getQueriesData<
+        InfiniteData<ExploreBusinessListResponse>
+      >({
+        queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+      });
 
       // Update business detail optimistically.
       queryClient.setQueryData<ExploreBusinessDetail>(
@@ -126,6 +170,10 @@ export default function useBusinessVouch({ businessId }: Props) {
                 return {
                   ...tag,
                   is_vouched: !isVouched,
+                  vouch_count: Math.max(
+                    0,
+                    tag.vouch_count + (isVouched ? -1 : 1),
+                  ),
                 };
               }),
             };
@@ -133,7 +181,7 @@ export default function useBusinessVouch({ businessId }: Props) {
         };
       };
 
-      // Update both Explorer carousels optimistically.
+      // Update Explorer carousels without changing their item order.
       queryClient.setQueryData<ExploreBusinessListResponse>(
         newBusinessesQueryKey,
         updateVouchState,
@@ -142,11 +190,82 @@ export default function useBusinessVouch({ businessId }: Props) {
         DISCOVERY_FEED_QUERY_KEY,
         updateVouchState,
       );
+      queryClient.setQueryData<ExploreBusinessListResponse>(
+        RECOMMENDATIONS_QUERY_KEY,
+        updateVouchState,
+      );
+      queryClient.setQueriesData<InfiniteData<ExploreBusinessListResponse>>(
+        {
+          queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+        },
+        (currentResults) => {
+          if (!currentResults) {
+            return currentResults;
+          }
+
+          return {
+            ...currentResults,
+            pages: currentResults.pages.map((page) =>
+              updateVouchState(page) ?? page,
+            ),
+          };
+        },
+      );
+      queryClient.setQueriesData<ExploreBusiness[]>(
+        {
+          queryKey: SIMILAR_BUSINESSES_QUERY_KEY,
+        },
+        (currentBusinesses) =>
+          currentBusinesses?.map((business) => {
+            if (business.id !== businessId) {
+              return business;
+            }
+
+            return {
+              ...business,
+              specialty_tags: business.specialty_tags.map((tag) => {
+                if (tag.id !== tagId) {
+                  return tag;
+                }
+
+                return {
+                  ...tag,
+                  is_vouched: !isVouched,
+                  vouch_count: Math.max(
+                    0,
+                    tag.vouch_count + (isVouched ? -1 : 1),
+                  ),
+                };
+              }),
+            };
+          }),
+      );
+      queryClient.setQueriesData<InfiniteData<ExploreBusinessListResponse>>(
+        {
+          queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+        },
+        (currentResults) => {
+          if (!currentResults) {
+            return currentResults;
+          }
+
+          return {
+            ...currentResults,
+            pages: currentResults.pages.map((page) =>
+              updateVouchState(page) ?? page,
+            ),
+          };
+        },
+      );
 
       return {
         previousBusiness,
         previousNewBusinesses,
         previousDiscoveryFeed,
+        previousRecommendations,
+        previousDiscoveryResults,
+        previousSimilarBusinesses,
+        previousExploreCollections,
       };
     },
 
@@ -169,6 +288,34 @@ export default function useBusinessVouch({ businessId }: Props) {
         queryClient.setQueryData(
           DISCOVERY_FEED_QUERY_KEY,
           context.previousDiscoveryFeed,
+        );
+      }
+
+      if (context?.previousRecommendations) {
+        queryClient.setQueryData(
+          RECOMMENDATIONS_QUERY_KEY,
+          context.previousRecommendations,
+        );
+      }
+
+      for (const [queryKey, data] of context?.previousDiscoveryResults ?? []) {
+        queryClient.setQueryData(
+          queryKey,
+          data,
+        );
+      }
+
+      for (const [queryKey, data] of context?.previousSimilarBusinesses ?? []) {
+        queryClient.setQueryData(
+          queryKey,
+          data,
+        );
+      }
+
+      for (const [queryKey, data] of context?.previousExploreCollections ?? []) {
+        queryClient.setQueryData(
+          queryKey,
+          data,
         );
       }
     },

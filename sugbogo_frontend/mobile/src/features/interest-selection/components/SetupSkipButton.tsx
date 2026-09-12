@@ -3,6 +3,7 @@ import { Text, TouchableOpacity } from "react-native";
 
 interface SetupSkipButtonProps {
   onPress: () => void;
+  disabled?: boolean;
 }
 
 /**
@@ -11,11 +12,20 @@ interface SetupSkipButtonProps {
  *
  * @param {() => void} onPress - The function to call when the button is pressed.
  */
-export default function SetupSkipButton({ onPress }: SetupSkipButtonProps) {
+export default function SetupSkipButton({
+  onPress,
+  disabled = false,
+}: SetupSkipButtonProps) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="self-end flex-row items-center"
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel="Skip interest selection"
+      accessibilityState={{ disabled }}
+      className={`min-h-12 self-end flex-row items-center px-2 active:opacity-70 ${
+        disabled ? "opacity-50" : ""
+      }`}
     >
       <Text className="text-body font-semibold text-text-secondary">Skip</Text>
 

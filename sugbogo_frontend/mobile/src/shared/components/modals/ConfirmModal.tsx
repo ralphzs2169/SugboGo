@@ -1,7 +1,10 @@
-import { theme } from "@/constants/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { ReactNode } from "react";
-import { ActivityIndicator, Modal, Text, View } from "react-native";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Modal, View } from "react-native";
+
+import { theme } from "@/constants/theme";
+
+import AppText from "../AppText";
 import Button from "../Button";
 
 interface ConfirmModalProps {
@@ -29,8 +32,15 @@ interface ConfirmModalProps {
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 }
 
+const LONG_ACTION_TEXT_LENGTH = 16;
+const FADE_IN_DURATION = 130;
+const FADE_OUT_DURATION = 100;
+
 /**
- * Displays a reusable confirmation dialog.
+ * Displays a reusable confirmation dialog with balanced actions.
+ *
+ * Uses a fast custom fade transition, equal-width actions for concise labels,
+ * and vertically stacked actions when labels require additional space.
  */
 export default function ConfirmModal({
   visible,
@@ -45,20 +55,72 @@ export default function ConfirmModal({
   loadingText = "Please wait...",
   icon,
 }: ConfirmModalProps) {
+  const [isModalVisible, setIsModalVisible] = useState(visible);
+
+  const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
+
+  const shouldStackActions =
+    confirmText.trim().length > LONG_ACTION_TEXT_LENGTH ||
+    cancelText.trim().length > LONG_ACTION_TEXT_LENGTH;
+
+  useEffect(() => {
+    opacity.stopAnimation();
+
+    if (visible) {
+      opacity.setValue(0);
+      setIsModalVisible(true);
+
+      requestAnimationFrame(() => {
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: FADE_IN_DURATION,
+          useNativeDriver: true,
+        }).start();
+      });
+
+      return;
+    }
+
+    if (!isModalVisible) {
+      return;
+    }
+
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: FADE_OUT_DURATION,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setIsModalVisible(false);
+      }
+    });
+  }, [visible, isModalVisible, opacity]);
+
   return (
     <Modal
-      visible={visible}
+      visible={isModalVisible}
       transparent
       animationType="none"
-
+      statusBarTranslucent
+      navigationBarTranslucent
+      presentationStyle="overFullScreen"
+      hardwareAccelerated
       onRequestClose={() => {
         if (!isLoading) {
           onCancel();
         }
       }}
     >
-      <View className="flex-1 items-center justify-center bg-black/50 px-6">
+      {/* Modal backdrop */}
+      <Animated.View
+        className="flex-1 items-center justify-center bg-black/50 px-6"
+        style={{
+          opacity,
+        }}
+      >
+        {/* Confirmation dialog */}
         <View className="w-full max-w-sm rounded-2xl bg-white p-6">
+          {/* Confirmation icon */}
           {icon && (
             <View className="mb-5 items-center">
               <View
@@ -75,18 +137,23 @@ export default function ConfirmModal({
               </View>
             </View>
           )}
-          <Text className="text-lg font-bold text-text-primary">{title}</Text>
+
+          {/* Confirmation message */}
+          <AppText weight="bold" className="text-lg text-text-primary">
+            {title}
+          </AppText>
 
           <View className="mt-3">
             {typeof message === "string" ? (
-              <Text className="text-sm leading-5 text-text-secondary">
+              <AppText className="text-sm leading-5 text-text-secondary">
                 {message}
-              </Text>
+              </AppText>
             ) : (
               message
             )}
           </View>
 
+          {/* Loading feedback */}
           {isLoading && (
             <View className="mt-5 flex-row items-center">
               <ActivityIndicator
@@ -94,17 +161,25 @@ export default function ConfirmModal({
                 color={theme.extends.colors.brand}
               />
 
-              <Text className="ml-3 text-sm text-text-secondary">
+              <AppText className="ml-3 flex-1 text-sm text-text-secondary">
                 {loadingText}
-              </Text>
+              </AppText>
             </View>
           )}
-          <View className="mt-6 flex-row gap-3">
+
+          {/* Confirmation actions */}
+          <View
+            className={`mt-6 gap-3 ${
+              shouldStackActions ? "flex-col" : "flex-row"
+            }`}
+          >
             <Button
               title={cancelText}
               onPress={onCancel}
               disabled={isLoading}
               variant="outline"
+              rounded="full"
+              className={shouldStackActions ? "w-full" : "flex-1"}
             />
 
             <Button
@@ -112,12 +187,13 @@ export default function ConfirmModal({
               onPress={onConfirm}
               disabled={isLoading}
               variant={destructive ? "danger" : "primary"}
-              className="flex-1"
-              fontClassName="font-bold"
+              rounded="full"
+              className={shouldStackActions ? "w-full" : "flex-1"}
+              textWeight="bold"
             />
           </View>
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

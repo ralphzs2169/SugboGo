@@ -6,13 +6,21 @@ from apps.business.models import (
     BusinessSpecialtyTag,
     BusinessVouch,
 )
+from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
+    apply_taxonomy_filters,
+)
 
 
 class NewBusinessesService:
     """Service class for retrieving newly added businesses for Explorer."""
 
     @staticmethod
-    def list_new_businesses(user):
+    def list_new_businesses(
+        user,
+        category_ids=None,
+        cluster_id=None,
+        specialty_tag_id=None,
+    ):
         """Retrieve active businesses with the current user's interaction state."""
 
         user_pocket_exists = BusinessPocket.objects.filter(
@@ -41,7 +49,7 @@ class NewBusinessesService:
             )
         )
 
-        return (
+        queryset = (
             Business.objects
             .select_related(
                 "CTGRY_ID",
@@ -63,7 +71,16 @@ class NewBusinessesService:
             .filter(
                 BUSN_STATUS=Business.BusinessStatus.ACTIVE,
             )
-            .order_by(
-                "-BUSN_CREATED_AT",
-            )
+        )
+
+        queryset = apply_taxonomy_filters(
+            queryset,
+            category_ids=category_ids,
+            cluster_id=cluster_id,
+            specialty_tag_id=specialty_tag_id,
+        )
+
+        return queryset.order_by(
+            "-BUSN_CREATED_AT",
+            "BUSN_ID",
         )

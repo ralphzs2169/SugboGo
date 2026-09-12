@@ -1,4 +1,9 @@
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  View,
+} from "react-native";
 import type { LocationObject } from "expo-location";
 import { useEffect } from "react";
 
@@ -8,6 +13,7 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import useNewBusinesses from "../../hooks/useNewBusinesses";
 import BusinessCard from "./BusinessCard";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   impressions: BusinessImpressionObservation;
@@ -17,6 +23,7 @@ type Props = {
     distance: number | null,
     distanceAccuracy: number | null,
   ) => void;
+  onSeeAll?: () => void;
 };
 
 /**
@@ -31,6 +38,7 @@ export default function NewBusinessesSection({
   onBusinessPress,
   impressions,
   userLocation,
+  onSeeAll,
 }: Props) {
   const { businesses, isLoading, error, refetch } = useNewBusinesses();
 
@@ -51,13 +59,13 @@ export default function NewBusinessesSection({
     return (
       <View className="mt-6 px-4">
         <View className="mb-3">
-          <Text className="text-lg font-bold text-text-primary">
-            New Businesses
-          </Text>
+          <AppText weight="bold" className="text-lg text-text-primary">
+            New to SugboGo
+          </AppText>
 
-          <Text className="text-sm text-text-secondary">
-            Discover businesses recently added to SugboGo
-          </Text>
+          <AppText className="text-sm text-text-secondary">
+            Recently added places waiting to be discovered.
+          </AppText>
         </View>
 
         <View className="h-44 items-center justify-center rounded-card bg-surface">
@@ -71,13 +79,13 @@ export default function NewBusinessesSection({
     return (
       <View className="mt-6 px-4">
         <View className="mb-3">
-          <Text className="text-lg font-bold text-text-primary">
-            New Businesses
-          </Text>
+          <AppText weight="bold" className="text-lg text-text-primary">
+            New to SugboGo
+          </AppText>
 
-          <Text className="text-sm text-text-secondary">
-            Discover businesses recently added to SugboGo
-          </Text>
+          <AppText className="text-sm text-text-secondary">
+            Recently added places waiting to be discovered.
+          </AppText>
         </View>
 
         <ErrorState
@@ -101,14 +109,30 @@ export default function NewBusinessesSection({
       onLayout={impressions.onSectionLayout}
     >
       {/* Section heading */}
-      <View className="mb-3 px-4">
-        <Text className="text-lg font-bold text-text-primary">
-          New Businesses
-        </Text>
+      <View className="mb-3 flex-row items-start justify-between gap-4 px-4">
+        <View className="min-w-0 flex-1">
+          <AppText weight="bold" className="text-lg text-text-primary">
+            New to SugboGo
+          </AppText>
 
-        <Text className="text-sm text-text-secondary">
-          Discover businesses recently added to SugboGo
-        </Text>
+          <AppText className="text-sm text-text-secondary">
+            Recently added places waiting to be discovered.
+          </AppText>
+        </View>
+
+        {onSeeAll && (
+          <Pressable
+            onPress={onSeeAll}
+            accessibilityRole="button"
+            accessibilityLabel="See all new businesses"
+            hitSlop={8}
+            className="min-h-11 justify-center active:opacity-70"
+          >
+            <AppText weight="semibold" className="text-sm text-brand">
+              See all
+            </AppText>
+          </Pressable>
+        )}
       </View>
 
       {/* Business cards */}

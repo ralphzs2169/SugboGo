@@ -10,11 +10,11 @@ class GoogleMapsService:
     GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
     GOOGLE_PLACES_URL = "https://places.googleapis.com/v1/places"
 
-    NEARBY_LANDMARK_CANDIDATE_POOL_SIZE = 10
-    NEARBY_LANDMARK_RADIUS_METERS = 1000.0
+    NEARBY_LANDMARK_CANDIDATE_POOL_SIZE = 20
+    NEARBY_LANDMARK_RADIUS_METERS = 500.0
     NEARBY_LANDMARK_MAX_RESULTS = 3
 
-    SELECTED_LOCATION_EXCLUSION_RADIUS_METERS = 20.0
+    SELECTED_LOCATION_EXCLUSION_RADIUS_METERS = 10.0
     REQUEST_TIMEOUT_SECONDS = 10 # Maximum time to wait for a Google Maps API response.
 
     @staticmethod
@@ -207,14 +207,13 @@ class GoogleMapsService:
         return address
 
     @staticmethod
-    def _is_within_distance(
+    def _calculate_distance_meters(
         latitude,
         longitude,
         target_latitude,
         target_longitude,
-        max_distance_meters,
     ):
-        """Checks whether two geographic coordinates are within a given distance."""
+        """Calculates the distance in meters between two geographic coordinates."""
 
         earth_radius_meters = 6_371_000
 
@@ -228,7 +227,25 @@ class GoogleMapsService:
             * sin(longitude_difference / 2) ** 2
         )
 
-        distance = 2 * earth_radius_meters * asin(sqrt(a))
+        return 2 * earth_radius_meters * asin(sqrt(a))
+
+
+    @staticmethod
+    def _is_within_distance(
+        latitude,
+        longitude,
+        target_latitude,
+        target_longitude,
+        max_distance_meters,
+    ):
+        """Checks whether two geographic coordinates are within a given distance."""
+
+        distance = GoogleMapsService._calculate_distance_meters(
+            latitude,
+            longitude,
+            target_latitude,
+            target_longitude,
+        )
 
         return distance <= max_distance_meters
 
@@ -239,26 +256,27 @@ class GoogleMapsService:
         response = requests.post(
             f"{GoogleMapsService.GOOGLE_PLACES_URL}:searchNearby",
             json={
-                # Over-fetch candidates so excluding the selected location
-                # doesn't leave us with fewer than the desired number of landmarks.
-                "maxResultCount": GoogleMapsService.NEARBY_LANDMARK_CANDIDATE_POOL_SIZE,
+                "maxResultCount": (
+                    GoogleMapsService.NEARBY_LANDMARK_CANDIDATE_POOL_SIZE
+                ),
                 "locationRestriction": {
                     "circle": {
                         "center": {
                             "latitude": latitude,
                             "longitude": longitude,
                         },
-                        "radius": GoogleMapsService.NEARBY_LANDMARK_RADIUS_METERS,
+                        "radius": (
+                            GoogleMapsService.NEARBY_LANDMARK_RADIUS_METERS
+                        ),
                     }
                 },
-                "rankPreference": "DISTANCE",
+                # Favor recognizable places while keeping every result
+                # inside the configured landmark radius.
+                "rankPreference": "POPULARITY",
             },
             headers={
                 "Content-Type": "application/json",
                 "X-Goog-Api-Key": settings.GOOGLE_MAPS_API_KEY,
-
-                # Request only the fields required to display and
-                # identify nearby landmark suggestions.
                 "X-Goog-FieldMask": (
                     "places.id,"
                     "places.displayName,"
@@ -269,43 +287,55 @@ class GoogleMapsService:
             timeout=GoogleMapsService.REQUEST_TIMEOUT_SECONDS,
         )
 
-        # Raise an exception for unsuccessful Google API responses.
         response.raise_for_status()
 
         data = response.json()
-        landmarks = []
+        candidates = []
 
         for place in data.get("places", []):
-            if len(landmarks) >= GoogleMapsService.NEARBY_LANDMARK_MAX_RESULTS:
-                break
-
             location = place.get("location", {})
             place_latitude = location.get("latitude")
             place_longitude = location.get("longitude")
 
-            if place_latitude is None or place_longitude is None:
+            if not isinstance(place_latitude, (int, float)) or not isinstance(
+                place_longitude,
+                (int, float),
+            ):
                 continue
 
-            # Exclude the selected business location itself.
-            if GoogleMapsService._is_within_distance(
+            distance_meters = GoogleMapsService._calculate_distance_meters(
                 latitude,
                 longitude,
                 place_latitude,
                 place_longitude,
-                GoogleMapsService.SELECTED_LOCATION_EXCLUSION_RADIUS_METERS,
+            )
+
+            # Avoid suggesting the pinned business location itself.
+            if (
+                distance_meters
+                <= GoogleMapsService.SELECTED_LOCATION_EXCLUSION_RADIUS_METERS
             ):
                 continue
 
             display_name = place.get("displayName", {})
 
-            landmarks.append(
+            candidates.append(
                 {
                     "placeId": place.get("id", ""),
                     "name": display_name.get("text", ""),
                     "address": place.get("formattedAddress", ""),
                     "latitude": place_latitude,
                     "longitude": place_longitude,
+                    "distanceMeters": round(distance_meters),
                 }
             )
 
-        return landmarks
+        # Google provides a pool of popular nearby places. From that pool,
+        # prefer landmarks that are geographically closer to the business.
+        candidates.sort(
+            key=lambda landmark: landmark["distanceMeters"],
+        )
+
+        return candidates[
+            : GoogleMapsService.NEARBY_LANDMARK_MAX_RESULTS
+        ]

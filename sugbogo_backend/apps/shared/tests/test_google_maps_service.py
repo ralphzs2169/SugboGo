@@ -307,7 +307,10 @@ class GoogleMapsServiceTests(SimpleTestCase):
         )
 
     @patch("apps.shared.services.google_maps_service.requests.get")
-    def test_get_place_details_raises_when_location_is_missing(self, mock_get):
+    def test_get_place_details_raises_when_location_is_missing(
+        self,
+        mock_get,
+    ):
         mock_response = Mock()
 
         mock_response.json.return_value = {
@@ -317,9 +320,9 @@ class GoogleMapsServiceTests(SimpleTestCase):
 
         mock_get.return_value = mock_response
 
-        with self.assertRaises(
+        with self.assertRaisesRegex(
             TypeError,
-            msg="Place location is unavailable.",
+            "Place location is unavailable.",
         ):
             self.service.get_place_details("ChIJ123")
 
@@ -428,6 +431,35 @@ class GoogleMapsServiceTests(SimpleTestCase):
                 123.8854,
             )
 
+    # Distance calculation
+
+    def test_calculate_distance_meters_returns_zero_for_same_location(self):
+        result = self.service._calculate_distance_meters(
+            10.3157,
+            123.8854,
+            10.3157,
+            123.8854,
+        )
+
+        self.assertEqual(
+            result,
+            0,
+        )
+
+    def test_calculate_distance_meters_returns_distance_between_locations(self):
+        result = self.service._calculate_distance_meters(
+            10.3157,
+            123.8854,
+            10.3160,
+            123.8860,
+        )
+
+        self.assertAlmostEqual(
+            result,
+            73.63,
+            places=2,
+        )
+
     # Nearby landmarks
 
     @patch("apps.shared.services.google_maps_service.requests.post")
@@ -439,23 +471,23 @@ class GoogleMapsServiceTests(SimpleTestCase):
                 {
                     "id": "ChIJLANDMARK1",
                     "displayName": {
-                        "text": "Ayala Center Cebu",
+                        "text": "Cebu Provincial Capitol",
                     },
-                    "formattedAddress": "Cebu Business Park, Cebu City",
+                    "formattedAddress": "Capitol Site, Cebu City",
                     "location": {
-                        "latitude": 10.3188,
-                        "longitude": 123.9058,
+                        "latitude": 10.3160,
+                        "longitude": 123.8860,
                     },
                 },
                 {
                     "id": "ChIJLANDMARK2",
                     "displayName": {
-                        "text": "Fuente Osmeña Circle",
+                        "text": "Nearby Shopping Center",
                     },
-                    "formattedAddress": "Fuente Osmeña, Cebu City",
+                    "formattedAddress": "Cebu City, Cebu",
                     "location": {
-                        "latitude": 10.3106,
-                        "longitude": 123.8930,
+                        "latitude": 10.3170,
+                        "longitude": 123.8865,
                     },
                 },
             ]
@@ -473,17 +505,19 @@ class GoogleMapsServiceTests(SimpleTestCase):
             [
                 {
                     "placeId": "ChIJLANDMARK1",
-                    "name": "Ayala Center Cebu",
-                    "address": "Cebu Business Park, Cebu City",
-                    "latitude": 10.3188,
-                    "longitude": 123.9058,
+                    "name": "Cebu Provincial Capitol",
+                    "address": "Capitol Site, Cebu City",
+                    "latitude": 10.3160,
+                    "longitude": 123.8860,
+                    "distanceMeters": 74,
                 },
                 {
                     "placeId": "ChIJLANDMARK2",
-                    "name": "Fuente Osmeña Circle",
-                    "address": "Fuente Osmeña, Cebu City",
-                    "latitude": 10.3106,
-                    "longitude": 123.8930,
+                    "name": "Nearby Shopping Center",
+                    "address": "Cebu City, Cebu",
+                    "latitude": 10.3170,
+                    "longitude": 123.8865,
+                    "distanceMeters": 188,
                 },
             ],
         )
@@ -491,17 +525,17 @@ class GoogleMapsServiceTests(SimpleTestCase):
         mock_post.assert_called_once_with(
             "https://places.googleapis.com/v1/places:searchNearby",
             json={
-                "maxResultCount": 5,
+                "maxResultCount": 20,
                 "locationRestriction": {
                     "circle": {
                         "center": {
                             "latitude": 10.3157,
                             "longitude": 123.8854,
                         },
-                        "radius": 1000.0,
+                        "radius": 500.0,
                     }
                 },
-                "rankPreference": "DISTANCE",
+                "rankPreference": "POPULARITY",
             },
             headers={
                 "Content-Type": "application/json",
@@ -516,6 +550,349 @@ class GoogleMapsServiceTests(SimpleTestCase):
             timeout=10,
         )
 
+        mock_response.raise_for_status.assert_called_once()
+
+    @patch("apps.shared.services.google_maps_service.requests.post")
+    def test_search_nearby_landmarks_sorts_candidates_by_distance(
+        self,
+        mock_post,
+    ):
+        mock_response = Mock()
+
+        # Google returns candidates by popularity, not necessarily distance.
+        mock_response.json.return_value = {
+            "places": [
+                {
+                    "id": "ChIJFARTHER",
+                    "displayName": {
+                        "text": "Farther Landmark",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3180,
+                        "longitude": 123.8865,
+                    },
+                },
+                {
+                    "id": "ChIJNEAREST",
+                    "displayName": {
+                        "text": "Nearest Landmark",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3160,
+                        "longitude": 123.8860,
+                    },
+                },
+                {
+                    "id": "ChIJMIDDLE",
+                    "displayName": {
+                        "text": "Middle Landmark",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3170,
+                        "longitude": 123.8865,
+                    },
+                },
+            ]
+        }
+
+        mock_post.return_value = mock_response
+
+        result = self.service.search_nearby_landmarks(
+            10.3157,
+            123.8854,
+        )
+
+        self.assertEqual(
+            [landmark["placeId"] for landmark in result],
+            [
+                "ChIJNEAREST",
+                "ChIJMIDDLE",
+                "ChIJFARTHER",
+            ],
+        )
+
+        self.assertEqual(
+            [landmark["distanceMeters"] for landmark in result],
+            [
+                74,
+                188,
+                283,
+            ],
+        )
+
+    @patch("apps.shared.services.google_maps_service.requests.post")
+    def test_search_nearby_landmarks_excludes_pinned_business_location(
+        self,
+        mock_post,
+    ):
+        mock_response = Mock()
+
+        mock_response.json.return_value = {
+            "places": [
+                {
+                    "id": "ChIJBUSINESS",
+                    "displayName": {
+                        "text": "Pinned Business",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        # Effectively the same location as the merchant pin.
+                        "latitude": 10.3157001,
+                        "longitude": 123.8854001,
+                    },
+                },
+                {
+                    "id": "ChIJLANDMARK",
+                    "displayName": {
+                        "text": "Valid Nearby Landmark",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3160,
+                        "longitude": 123.8860,
+                    },
+                },
+            ]
+        }
+
+        mock_post.return_value = mock_response
+
+        result = self.service.search_nearby_landmarks(
+            10.3157,
+            123.8854,
+        )
+
+        self.assertEqual(
+            len(result),
+            1,
+        )
+
+        self.assertEqual(
+            result[0]["placeId"],
+            "ChIJLANDMARK",
+        )
+
+        self.assertEqual(
+            result[0]["name"],
+            "Valid Nearby Landmark",
+        )
+
+    @patch("apps.shared.services.google_maps_service.requests.post")
+    def test_search_nearby_landmarks_keeps_place_outside_exclusion_radius(
+        self,
+        mock_post,
+    ):
+        mock_response = Mock()
+
+        mock_response.json.return_value = {
+            "places": [
+                {
+                    "id": "ChIJLANDMARK",
+                    "displayName": {
+                        "text": "Nearby Landmark",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        # Approximately 16 meters from the selected location.
+                        "latitude": 10.3158,
+                        "longitude": 123.8855,
+                    },
+                },
+            ]
+        }
+
+        mock_post.return_value = mock_response
+
+        result = self.service.search_nearby_landmarks(
+            10.3157,
+            123.8854,
+        )
+
+        self.assertEqual(
+            len(result),
+            1,
+        )
+
+        self.assertEqual(
+            result[0]["placeId"],
+            "ChIJLANDMARK",
+        )
+
+        self.assertEqual(
+            result[0]["distanceMeters"],
+            16,
+        )
+
+    @patch("apps.shared.services.google_maps_service.requests.post")
+    def test_search_nearby_landmarks_limits_results_to_three(
+        self,
+        mock_post,
+    ):
+        mock_response = Mock()
+
+        mock_response.json.return_value = {
+            "places": [
+                {
+                    "id": "ChIJLANDMARK4",
+                    "displayName": {
+                        "text": "Landmark Four",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3190,
+                        "longitude": 123.8870,
+                    },
+                },
+                {
+                    "id": "ChIJLANDMARK2",
+                    "displayName": {
+                        "text": "Landmark Two",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3170,
+                        "longitude": 123.8865,
+                    },
+                },
+                {
+                    "id": "ChIJLANDMARK1",
+                    "displayName": {
+                        "text": "Landmark One",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3160,
+                        "longitude": 123.8860,
+                    },
+                },
+                {
+                    "id": "ChIJLANDMARK3",
+                    "displayName": {
+                        "text": "Landmark Three",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3180,
+                        "longitude": 123.8865,
+                    },
+                },
+            ]
+        }
+
+        mock_post.return_value = mock_response
+
+        result = self.service.search_nearby_landmarks(
+            10.3157,
+            123.8854,
+        )
+
+        self.assertEqual(
+            len(result),
+            3,
+        )
+
+        self.assertEqual(
+            [landmark["placeId"] for landmark in result],
+            [
+                "ChIJLANDMARK1",
+                "ChIJLANDMARK2",
+                "ChIJLANDMARK3",
+            ],
+        )
+
+    @patch("apps.shared.services.google_maps_service.requests.post")
+    def test_search_nearby_landmarks_ignores_places_with_missing_coordinates(
+        self,
+        mock_post,
+    ):
+        mock_response = Mock()
+
+        mock_response.json.return_value = {
+            "places": [
+                {
+                    "id": "ChIJMISSING",
+                    "displayName": {
+                        "text": "Missing Location",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                },
+                {
+                    "id": "ChIJINVALID",
+                    "displayName": {
+                        "text": "Invalid Location",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": "10.3160",
+                        "longitude": "123.8860",
+                    },
+                },
+                {
+                    "id": "ChIJVALID",
+                    "displayName": {
+                        "text": "Valid Landmark",
+                    },
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3160,
+                        "longitude": 123.8860,
+                    },
+                },
+            ]
+        }
+
+        mock_post.return_value = mock_response
+
+        result = self.service.search_nearby_landmarks(
+            10.3157,
+            123.8854,
+        )
+
+        self.assertEqual(
+            len(result),
+            1,
+        )
+
+        self.assertEqual(
+            result[0]["placeId"],
+            "ChIJVALID",
+        )
+
+    @patch("apps.shared.services.google_maps_service.requests.post")
+    def test_search_nearby_landmarks_handles_missing_display_name(
+        self,
+        mock_post,
+    ):
+        mock_response = Mock()
+
+        mock_response.json.return_value = {
+            "places": [
+                {
+                    "id": "ChIJLANDMARK",
+                    "formattedAddress": "Cebu City, Cebu",
+                    "location": {
+                        "latitude": 10.3160,
+                        "longitude": 123.8860,
+                    },
+                },
+            ]
+        }
+
+        mock_post.return_value = mock_response
+
+        result = self.service.search_nearby_landmarks(
+            10.3157,
+            123.8854,
+        )
+
+        self.assertEqual(
+            result[0]["name"],
+            "",
+        )
+
     @patch("apps.shared.services.google_maps_service.requests.post")
     def test_search_nearby_landmarks_returns_empty_list_when_no_places(
         self,
@@ -523,7 +900,7 @@ class GoogleMapsServiceTests(SimpleTestCase):
     ):
         mock_response = Mock()
         mock_response.json.return_value = {
-            "places": []
+            "places": [],
         }
 
         mock_post.return_value = mock_response
@@ -535,7 +912,29 @@ class GoogleMapsServiceTests(SimpleTestCase):
 
         self.assertEqual(
             result,
-            []
+            [],
+        )
+
+        mock_response.raise_for_status.assert_called_once()
+
+    @patch("apps.shared.services.google_maps_service.requests.post")
+    def test_search_nearby_landmarks_returns_empty_list_when_places_missing(
+        self,
+        mock_post,
+    ):
+        mock_response = Mock()
+        mock_response.json.return_value = {}
+
+        mock_post.return_value = mock_response
+
+        result = self.service.search_nearby_landmarks(
+            10.3157,
+            123.8854,
+        )
+
+        self.assertEqual(
+            result,
+            [],
         )
 
     @patch("apps.shared.services.google_maps_service.requests.post")

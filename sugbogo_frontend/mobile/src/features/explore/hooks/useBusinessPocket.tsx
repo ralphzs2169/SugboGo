@@ -1,4 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import {
   pocketBusiness,
@@ -6,8 +10,13 @@ import {
 } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
+import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
+import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
+import { SIMILAR_BUSINESSES_QUERY_KEY } from "./useSimilarBusinesses";
+import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
 
 import type {
+  ExploreBusiness,
   ExploreBusinessDetail,
   ExploreBusinessListResponse,
 } from "../types/exploreBusiness.types";
@@ -24,8 +33,8 @@ type Variables = {
  * Manages business pocket mutations with optimistic UI updates.
  *
  * The pocket state updates immediately across both the business detail
- * and discovery feed. Failed mutations restore both cached states, while
- * settled mutations synchronize the caches with the server.
+ * and Explorer list caches. Failed mutations restore every cached state,
+ * while recommendation item order remains unchanged until a normal refresh.
  */
 export default function useBusinessPocket({ businessId }: Props) {
   const queryClient = useQueryClient();
@@ -53,6 +62,18 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.cancelQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
+        queryClient.cancelQueries({
+          queryKey: RECOMMENDATIONS_QUERY_KEY,
+        }),
+        queryClient.cancelQueries({
+          queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+        }),
+        queryClient.cancelQueries({
+          queryKey: SIMILAR_BUSINESSES_QUERY_KEY,
+        }),
+        queryClient.cancelQueries({
+          queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+        }),
       ]);
 
       const previousBusiness =
@@ -67,6 +88,29 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.getQueryData<ExploreBusinessListResponse>(
           DISCOVERY_FEED_QUERY_KEY,
         );
+
+      const previousRecommendations =
+        queryClient.getQueryData<ExploreBusinessListResponse>(
+          RECOMMENDATIONS_QUERY_KEY,
+        );
+
+      const previousDiscoveryResults = queryClient.getQueriesData<
+        InfiniteData<ExploreBusinessListResponse>
+      >({
+        queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+      });
+
+      const previousSimilarBusinesses = queryClient.getQueriesData<
+        ExploreBusiness[]
+      >({
+        queryKey: SIMILAR_BUSINESSES_QUERY_KEY,
+      });
+
+      const previousExploreCollections = queryClient.getQueriesData<
+        InfiniteData<ExploreBusinessListResponse>
+      >({
+        queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+      });
 
       // Update business detail optimistically.
       queryClient.setQueryData<ExploreBusinessDetail>(
@@ -105,7 +149,7 @@ export default function useBusinessPocket({ businessId }: Props) {
         };
       };
 
-      // Update both Explorer carousels optimistically.
+      // Update Explorer carousels without changing their item order.
       queryClient.setQueryData<ExploreBusinessListResponse>(
         newBusinessesQueryKey,
         updatePocketState,
@@ -114,11 +158,69 @@ export default function useBusinessPocket({ businessId }: Props) {
         DISCOVERY_FEED_QUERY_KEY,
         updatePocketState,
       );
+      queryClient.setQueryData<ExploreBusinessListResponse>(
+        RECOMMENDATIONS_QUERY_KEY,
+        updatePocketState,
+      );
+      queryClient.setQueriesData<InfiniteData<ExploreBusinessListResponse>>(
+        {
+          queryKey: DISCOVERY_RESULTS_QUERY_KEY,
+        },
+        (currentResults) => {
+          if (!currentResults) {
+            return currentResults;
+          }
+
+          return {
+            ...currentResults,
+            pages: currentResults.pages.map((page) =>
+              updatePocketState(page) ?? page,
+            ),
+          };
+        },
+      );
+      queryClient.setQueriesData<ExploreBusiness[]>(
+        {
+          queryKey: SIMILAR_BUSINESSES_QUERY_KEY,
+        },
+        (currentBusinesses) =>
+          currentBusinesses?.map((business) => {
+            if (business.id !== businessId) {
+              return business;
+            }
+
+            return {
+              ...business,
+              is_pocketed: !isPocketed,
+            };
+          }),
+      );
+      queryClient.setQueriesData<InfiniteData<ExploreBusinessListResponse>>(
+        {
+          queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+        },
+        (currentResults) => {
+          if (!currentResults) {
+            return currentResults;
+          }
+
+          return {
+            ...currentResults,
+            pages: currentResults.pages.map((page) =>
+              updatePocketState(page) ?? page,
+            ),
+          };
+        },
+      );
 
       return {
         previousBusiness,
         previousNewBusinesses,
         previousDiscoveryFeed,
+        previousRecommendations,
+        previousDiscoveryResults,
+        previousSimilarBusinesses,
+        previousExploreCollections,
       };
     },
 
@@ -141,6 +243,34 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.setQueryData(
           DISCOVERY_FEED_QUERY_KEY,
           context.previousDiscoveryFeed,
+        );
+      }
+
+      if (context?.previousRecommendations) {
+        queryClient.setQueryData(
+          RECOMMENDATIONS_QUERY_KEY,
+          context.previousRecommendations,
+        );
+      }
+
+      for (const [queryKey, data] of context?.previousDiscoveryResults ?? []) {
+        queryClient.setQueryData(
+          queryKey,
+          data,
+        );
+      }
+
+      for (const [queryKey, data] of context?.previousSimilarBusinesses ?? []) {
+        queryClient.setQueryData(
+          queryKey,
+          data,
+        );
+      }
+
+      for (const [queryKey, data] of context?.previousExploreCollections ?? []) {
+        queryClient.setQueryData(
+          queryKey,
+          data,
         );
       }
     },

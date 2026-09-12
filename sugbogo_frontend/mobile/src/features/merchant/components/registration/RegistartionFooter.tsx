@@ -71,6 +71,7 @@ export default function RegistrationFooter({
           <Button
             title="Back"
             variant="soft"
+            rounded="full"
             className="flex-[0.8]"
             disabled={isSubmitting}
             onPress={onBack}
@@ -79,20 +80,11 @@ export default function RegistrationFooter({
 
         <Button
           title={primaryButtonTitle}
+          rounded="full"
           className={!isFirstStep && !isLastStep ? "flex-[1.2]" : "flex-1"}
           loading={isSubmitting}
           disabled={isSubmitting || (isResubmission && !canResubmit)}
           onPress={onNext}
-          fontClassName="font-bold"
-          icon={
-            !isLastStep ? (
-              <MaterialCommunityIcons
-                name="arrow-right"
-                size={20}
-                color="white"
-              />
-            ) : undefined
-          }
         />
       </View>
     </View>

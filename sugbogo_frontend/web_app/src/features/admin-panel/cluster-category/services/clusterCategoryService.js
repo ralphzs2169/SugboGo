@@ -80,6 +80,42 @@ export async function deleteCategory(categoryId) {
   return response.data;
 }
 
+// Discovery Shortcut API Services
+
+export async function fetchDiscoveryShortcuts(params = {}) {
+  const response = await apiClient.get("/admin/taxonomy/discovery-shortcuts/", {
+    params,
+  });
+
+  return response.data.data;
+}
+
+export async function createDiscoveryShortcut(payload) {
+  const response = await apiClient.post(
+    "/admin/taxonomy/discovery-shortcuts/",
+    payload,
+  );
+
+  return response.data.data;
+}
+
+export async function updateDiscoveryShortcut(shortcutId, payload) {
+  const response = await apiClient.patch(
+    `/admin/taxonomy/discovery-shortcuts/${shortcutId}/`,
+    payload,
+  );
+
+  return response.data.data;
+}
+
+export async function deleteDiscoveryShortcut(shortcutId) {
+  const response = await apiClient.delete(
+    `/admin/taxonomy/discovery-shortcuts/${shortcutId}/`,
+  );
+
+  return response.data;
+}
+
 // Summary API Services
 
 export async function fetchClusterCategorySummary() {

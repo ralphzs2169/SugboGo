@@ -49,6 +49,15 @@ export default function ProfileLayout() {
             title: "Account Settings",
           }}
         />
+
+        <Stack.Screen
+          name="your-interests"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Your Interests",
+          }}
+        />
       </Stack>
     </>
   );

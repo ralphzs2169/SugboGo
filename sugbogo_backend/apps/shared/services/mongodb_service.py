@@ -19,6 +19,10 @@ class MongoDBService:
             cls._client = MongoClient(
                 settings.MONGODB_URI,
                 server_api=ServerApi("1"),
+                serverSelectionTimeoutMS=(
+                    settings.MONGODB_SERVER_SELECTION_TIMEOUT_MS
+                ),
+                connectTimeoutMS=settings.MONGODB_CONNECT_TIMEOUT_MS,
             )
 
         return cls._client

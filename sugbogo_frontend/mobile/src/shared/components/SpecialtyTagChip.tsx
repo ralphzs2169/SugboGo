@@ -10,7 +10,7 @@ type SpecialtyTagChipProps = {
     name: string;
     color: SpecialtyTagColor;
   };
-  mode?: "display" | "registration";
+  mode?: "display" | "registration" | "filter";
   size?: "default" | "small";
   isSelected?: boolean;
   isDisabled?: boolean;
@@ -20,15 +20,15 @@ type SpecialtyTagChipProps = {
   scaleOnPress?: boolean;
   showVouchCount?: boolean;
   showVouchIndicator?: boolean;
+  showSelectionIndicator?: boolean;
 };
 
 /**
  * Renders a specialty tag as a reusable visual chip.
  *
- * Display mode always uses the specialty's assigned color. Registration mode
- * uses a white outlined appearance for unselected tags and the specialty's
- * filled color once selected. Disabled registration tags use a muted visual
- * treatment to indicate that they cannot currently be selected.
+ * Display mode always uses the specialty's assigned color. Selection modes
+ * use a white outlined appearance until selected, then apply the specialty's
+ * assigned color. Disabled selections retain the shared muted treatment.
  */
 export default function SpecialtyTagChip({
   tag,
@@ -42,15 +42,16 @@ export default function SpecialtyTagChip({
   scaleOnPress = false,
   showVouchCount = false,
   showVouchIndicator = false,
+  showSelectionIndicator = false,
 }: SpecialtyTagChipProps) {
   const styles = getSpecialtyTagColor(tag.color);
 
   const isSmall = size === "small";
-  const isRegistration = mode === "registration";
+  const isSelectionMode = mode === "registration" || mode === "filter";
   const isInteractive = Boolean(onPress);
 
-  const useColoredStyle = !isRegistration || isSelected;
-  const useDisabledStyle = isRegistration && isDisabled && showDisabledStyle;
+  const useColoredStyle = !isSelectionMode || isSelected;
+  const useDisabledStyle = isSelectionMode && isDisabled && showDisabledStyle;
 
   const textColor = useColoredStyle ? styles.text : "text-black";
   const iconColor = useColoredStyle ? styles.icon : "#000000";
@@ -59,7 +60,12 @@ export default function SpecialtyTagChip({
     <Pressable
       onPress={onPress}
       disabled={!isInteractive || isDisabled}
-      accessibilityState={{ disabled: isDisabled }}
+      accessibilityRole={isInteractive ? "button" : undefined}
+      accessibilityLabel={isInteractive ? tag.name : undefined}
+      accessibilityState={{
+        disabled: isDisabled,
+        selected: isSelected,
+      }}
       style={({ pressed }) => ({
         transform: [
           {
@@ -68,18 +74,18 @@ export default function SpecialtyTagChip({
         ],
 
         // Registration selected state uses the specialty color.
-        ...(isRegistration && isSelected
+        ...(isSelectionMode && isSelected
           ? {
               borderColor: styles.borderColor,
             }
           : {}),
       })}
-      className={`mb-2 mr-2 flex-row items-center rounded-full ${
-        isSmall ? "px-2.5 py-1" : "px-3.5 py-2"
+      className={`mb-2 mr-2 flex-row items-center justify-center rounded-full ${
+        isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-2"
       } ${
         useDisabledStyle
           ? "border border-border-primary bg-gray-200 opacity-40"
-          : isRegistration
+          : isSelectionMode
             ? isSelected
               ? styles.background
               : "border border-border-primary bg-white"
@@ -92,7 +98,7 @@ export default function SpecialtyTagChip({
         className={` ${isSmall ? "text-[10px]" : "text-sm"} ${
           useDisabledStyle
             ? "text-gray-400"
-            : isRegistration && !isSelected
+            : isSelectionMode && !isSelected
               ? "text-text-secondary"
               : textColor
         }`}
@@ -100,6 +106,16 @@ export default function SpecialtyTagChip({
       >
         {tag.name}
       </AppText>
+
+      {/* Generic selected-state indicator */}
+      {showSelectionIndicator && isSelected && (
+        <MaterialCommunityIcons
+          name="check-circle"
+          size={isSmall ? 13 : 16}
+          color={iconColor}
+          style={{ marginLeft: 5 }}
+        />
+      )}
 
       {/* Vouch indicator */}
       {showVouchIndicator && isSelected && (

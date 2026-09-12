@@ -26,6 +26,7 @@ import BusinessReviewsSection from "../components/business-profile/review-sectio
 import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
 import BusinessVisitInfoContent from "../components/business-profile/BusinessVisitInfoContent";
 import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
+import SimilarPlacesSection from "../components/business-profile/SimilarPlacesSection";
 
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 import useBusinessProfileVisit from "../hooks/useBusinessProfileVisit";
@@ -62,8 +63,7 @@ export default function ExploreBusinessProfileScreen({
   distance,
   distanceAccuracy,
 }: Props) {
-  const { business, isLoading, error, refetch } =
-    useExploreBusinessProfile(businessId);
+  const { business, error, refetch } = useExploreBusinessProfile(businessId);
 
   useBusinessProfileVisit(businessId, business?.id);
 
@@ -240,6 +240,9 @@ export default function ExploreBusinessProfileScreen({
                 onEditReview={handleEditReview}
               />
             </BusinessProfileSection>
+
+            {/* Similar places */}
+            <SimilarPlacesSection businessId={business.id} />
           </>
         ) : (
           <BusinessProfileSkeletonContent />

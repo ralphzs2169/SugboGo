@@ -74,6 +74,11 @@ class SpecialtyTagListView(APIView):
 class SpecialtyTagDetailView(APIView):
     """Handle retrieval, updating, and deletion of a specialty tag."""
 
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
     def get(self, request, tag_id):
         """Retrieve a specific specialty tag."""
 

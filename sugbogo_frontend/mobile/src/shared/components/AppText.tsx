@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Text, type TextProps } from "react-native";
 
-type AppTextWeight = "regular" | "medium" | "semibold" | "bold" | "extrabold";
+export type AppTextWeight =
+  "regular" | "medium" | "semibold" | "bold" | "extrabold" | "superbold";
 
 type AppTextProps = TextProps & {
   children?: ReactNode;
@@ -15,6 +16,7 @@ const FONT_CLASSES: Record<AppTextWeight, string> = {
   semibold: "font-nunito-semibold",
   bold: "font-nunito-bold",
   extrabold: "font-nunito-extrabold",
+  superbold: "font-nunito-black",
 };
 
 /**

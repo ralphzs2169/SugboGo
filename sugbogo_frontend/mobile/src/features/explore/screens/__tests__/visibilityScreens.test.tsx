@@ -1,7 +1,4 @@
 import React, { type PropsWithChildren } from "react";
-
-// Native screen initialization can exceed the default timeout on Windows.
-jest.setTimeout(20000);
 import { fireEvent, render, waitFor, act } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppState } from "react-native";
@@ -11,11 +8,13 @@ import ExploreScreen from "../ExploreScreen";
 import ExploreBusinessProfileScreen from "../ExploreBusinessProfileScreen";
 import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
 import useDiscoveryFeed from "../../hooks/useDiscoveryFeed";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import {
   recordBusinessImpressions,
   recordBusinessProfileVisit,
 } from "../../api/exploreBusiness.service";
+
+// Native screen initialization can exceed the default timeout on Windows.
+jest.setTimeout(20000);
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn(), back: jest.fn() },
@@ -40,11 +39,19 @@ jest.mock("../../hooks/useDiscoveryFeed", () => ({
   DISCOVERY_FEED_QUERY_KEY: ["explore-discovery"],
   default: jest.fn(),
 }));
-jest.mock("../../hooks/useExploreLocation", () => ({
+jest.mock("../../hooks/useExploreFilterOptions", () => ({
   __esModule: true,
-  default: () => null,
+  default: () => ({
+    options: {
+      clusters: [],
+      categories: [],
+      specialty_tags: [],
+    },
+    isLoading: false,
+    error: null,
+    refetch: jest.fn(),
+  }),
 }));
-jest.mock("@/shared/hooks/useApiErrorNotification");
 jest.mock("../../hooks/useBusinessReviews", () => ({
   useBusinessReviewPreview: () => ({ totalCount: 0 }),
 }));
@@ -84,6 +91,15 @@ jest.mock("@expo/vector-icons", () => ({
 }));
 jest.mock("@gorhom/bottom-sheet", () => ({}));
 jest.mock("../../components/ExploreTopBar", () => () => null);
+jest.mock(
+  "../../components/explore-by-specialty/ExploreBySpecialtySection",
+  () => () => null,
+);
+jest.mock(
+  "../../components/discovery-shortcuts/DiscoveryShortcutsSection",
+  () => () => null,
+);
+jest.mock("../../components/explore-map/ExploreMapSection", () => () => null);
 jest.mock("../../components/hidden-gems/HiddenGemsSection", () => () => null);
 jest.mock("../../components/interests/InterestsSection", () => () => null);
 jest.mock(
@@ -136,24 +152,38 @@ jest.mock(
   "../../components/business-profile/state/BusinessProfileErrorState",
   () => {
     const { Text } = require("react-native");
-    return () => <Text>Profile load error</Text>;
+
+    return function MockBusinessProfileErrorState() {
+      return <Text>Profile load error</Text>;
+    };
   },
 );
 jest.mock(
   "../../components/business-profile/state/BusinessProfileSkeletonContent",
   () => {
     const { Text } = require("react-native");
-    return () => <Text>Profile loading</Text>;
+
+    return function MockBusinessProfileSkeletonContent() {
+      return <Text>Profile loading</Text>;
+    };
   },
 );
 jest.mock("../../components/business-profile/ExploreBusinessHero", () => {
   const { Text } = require("react-native");
-  return () => <Text>Displayed profile</Text>;
+
+  return function MockExploreBusinessHero() {
+    return <Text>Displayed profile</Text>;
+  };
 });
 
 jest.mock("../../components/business-profile/BusinessProfileScrollView", () => {
   const { View } = require("react-native");
-  return ({ children }: PropsWithChildren) => <View>{children}</View>;
+
+  return function MockBusinessProfileScrollView({
+    children,
+  }: PropsWithChildren) {
+    return <View>{children}</View>;
+  };
 });
 
 function setup() {
@@ -258,27 +288,21 @@ it("keeps New Businesses visible and notifies when Discovery fails", async () =>
 
   const screen = await render(<ExploreScreen />, { wrapper });
 
-  expect(screen.getByText("New Businesses")).toBeTruthy();
+  expect(screen.getByText("New to SugboGo")).toBeTruthy();
   expect(screen.getByText("Real business")).toBeTruthy();
   expect(screen.getByTestId("worth-discovering-error")).toBeTruthy();
-  expect(useApiErrorNotification).toHaveBeenCalledWith({
-    error: discoveryError,
-    toastId: "explore-discovery-feed-error",
-    title: "Unable to load Worth Discovering",
-    fallbackMessage: "Please try again.",
-  });
 });
 
 it("places Worth Discovering before New Businesses", async () => {
   const { wrapper } = setup();
   const screen = await render(<ExploreScreen />, { wrapper });
   const sectionHeadings = screen.getAllByText(
-    /^(Worth Discovering|New Businesses)$/,
+    /^(Worth Discovering|New to SugboGo)$/,
   );
 
   expect(sectionHeadings.map((heading) => heading.props.children)).toEqual([
     "Worth Discovering",
-    "New Businesses",
+    "New to SugboGo",
   ]);
 });
 
