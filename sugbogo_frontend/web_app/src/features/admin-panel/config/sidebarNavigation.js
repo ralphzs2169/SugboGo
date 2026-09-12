@@ -2,16 +2,13 @@ import {
   FiBarChart2,
   FiSettings,
   FiShield,
-  FiUser,
   FiUsers,
-  FiBriefcase,
   FiMessageSquare,
   FiTag,
   FiMapPin,
   FiFileText,
   FiLayers,
   FiActivity,
-  FiHome,
 } from "react-icons/fi";
 
 import { MdStorefront } from "react-icons/md";
@@ -161,6 +158,13 @@ const navigation = [
         to: "/admin-panel/specialty-tags",
         label: "Specialty Tags",
         Icon: FiTag,
+        roles: ["admin", "super_admin"],
+      },
+      {
+        type: "link",
+        to: "/admin-panel/transit-network",
+        label: "Transit Network",
+        Icon: FiMapPin,
         roles: ["admin", "super_admin"],
       },
       {

@@ -1,4 +1,3 @@
-import React from "react";
 import TableTabs from "./TableTabs";
 import TableControls from "./TableControls";
 import TableHeader from "./TableHeader";
@@ -60,6 +59,7 @@ function DataTable({
     activeTab,
     onTabChange,
     searchPlaceholder = "Search...",
+    showSearch = true,
 
     emptyState = {},
     noResultsState = {},
@@ -108,7 +108,10 @@ function DataTable({
   });
 
   return (
-    <div className="w-full rounded-2xl border border-stroke bg-background pb-6 px-6 pt-2 relative">
+    <div
+      className="relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2"
+      aria-busy={isLoading || isFetching}
+    >
       <div className="mb-6">
         <TableTabs
           tabs={tabs}
@@ -121,6 +124,7 @@ function DataTable({
         globalFilter={state.globalFilter ?? ""}
         setGlobalFilter={onGlobalFilterChange}
         searchPlaceholder={searchPlaceholder}
+        showSearch={showSearch}
         renderFilters={renderFilters}
         renderHeaderActions={renderHeaderActions}
         hasActiveFilters={hasActiveFilters}

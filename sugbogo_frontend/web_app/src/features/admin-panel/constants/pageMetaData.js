@@ -37,6 +37,12 @@ export const PAGE_METADATA = {
       "Manage specialty tags, validation, and weighted impact on business discovery.",
   },
 
+  "/admin-panel/transit-network": {
+    title: "Transit Network Management",
+    subtitle:
+      "Manage jeepney routes, transit points, and directed transfer connections.",
+  },
+
   "/admin-panel/flags-suspicious": {
     title: "Flags & Suspicious Activity",
     subtitle: "Monitor flagged submissions and platform integrity.",

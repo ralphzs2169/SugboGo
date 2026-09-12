@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Search } from "lucide-react";
 import { FaRotateLeft } from "react-icons/fa6";
 
@@ -9,6 +9,7 @@ function TableControls({
   globalFilter,
   setGlobalFilter,
   searchPlaceholder,
+  showSearch = true,
   renderFilters,
   renderHeaderActions,
   hasActiveFilters,
@@ -35,22 +36,24 @@ function TableControls({
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-3">
         {/* Search Bar */}
-        <div className="relative w-full sm:w-72 md:w-96 lg:w-[420px]">
-          {isSearching ? (
-            <span className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-stroke-strong border-t-primary" />
-          ) : (
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
-          )}
+        {showSearch && (
+          <div className="relative w-full sm:w-72 md:w-96 lg:w-[420px]">
+            {isSearching ? (
+              <span className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-stroke-strong border-t-primary" />
+            ) : (
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+            )}
 
-          <input
-            ref={inputRef}
-            type="text"
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder={searchPlaceholder}
-            className="w-full h-9 rounded-md border border-stroke-strong bg-background py-2 pl-9 pr-4 text-sm text-text-primary outline-none placeholder:text-slate-400 focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/10"
-          />
-        </div>
+            <input
+              ref={inputRef}
+              type="text"
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="h-9 w-full rounded-md border border-stroke-strong bg-background py-2 pl-9 pr-4 text-sm text-text-primary outline-none placeholder:text-slate-400 focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/10"
+            />
+          </div>
+        )}
 
         {/* Filters */}
         {renderFilters && renderFilters()}

@@ -21,6 +21,9 @@ export default function TextInput({
   required = false,
   icon: Icon,
   minLength,
+  min,
+  max,
+  step,
   showCharacterCount = false,
 }) {
   const characterCount = value?.trim().length ?? 0;
@@ -59,6 +62,9 @@ export default function TextInput({
           value={value}
           onChange={onChange}
           onFocus={onFocus}
+          min={min}
+          max={max}
+          step={step}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
           className={clsx(
