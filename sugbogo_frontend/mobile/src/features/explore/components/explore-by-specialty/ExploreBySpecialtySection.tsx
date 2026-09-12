@@ -4,6 +4,7 @@ import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import AppText from "@/shared/components/AppText";
+import ErrorState from "@/shared/components/ErrorState";
 import SafePressable from "@/shared/components/SafePressable";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 import { getSpecialtyTagIcon } from "@/shared/constants/specialtyTagIcons";
@@ -11,6 +12,8 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import useExploreSpecialties from "../../hooks/useExploreSpecialties";
+import ExploreSectionHeader from "../ExploreSectionHeader";
+import ExploreBySpecialtySkeleton from "./ExploreBySpecialtySkeleton";
 
 type Props = {
   onSpecialtyPress?: (specialtyId: number) => void;
@@ -19,13 +22,14 @@ type Props = {
 const LOADING_TILE_COUNT = 6;
 
 /**
- * Displays up to six specialty shortcuts in a compact three-column grid.
+ * Displays specialty shortcuts for quickly narrowing Explore results.
  *
- * Each shortcut uses a circular specialty icon with its label underneath,
- * allowing explorers to quickly browse places by what they are known for.
+ * The section owns its specialty query states and hides itself when no active
+ * specialty shortcuts are available.
  */
 export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
-  const { specialties, isLoading, error, refetch } = useExploreSpecialties();
+  const { specialties, isLoading, isRefetching, error, refetch } =
+    useExploreSpecialties();
 
   useEffect(() => {
     if (!error) {
@@ -49,52 +53,26 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
 
   return (
     <View className="py-6">
-      {/* Section introduction */}
-      <View className="mb-5 px-4">
-        <AppText weight="bold" className="text-xl text-text-primary">
-          Explore by Specialty
-        </AppText>
-
-        <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-          Browse places by what they&apos;re known for.
-        </AppText>
-      </View>
+      {/* Section heading */}
+      <ExploreSectionHeader
+        title="Explore by Specialty"
+        subtitle="Browse places by what they're known for."
+      />
 
       {/* Loading state */}
-      {isLoading && (
-        <View className="flex-row flex-wrap justify-between gap-y-5 px-4">
-          {Array.from({ length: LOADING_TILE_COUNT }).map((_, index) => (
-            <View key={index} className="w-[31%] items-center">
-              <View className="h-16 w-16 rounded-full bg-background" />
+      {isLoading && <ExploreBySpecialtySkeleton />}
 
-              <View className="mt-2.5 h-3 w-16 rounded-full bg-background" />
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Persistent error state */}
+      {/* Section recovery */}
       {!isLoading && error && (
-        <View className="mx-4 rounded-card border border-border-primary bg-surface p-4">
-          <AppText weight="semibold" className="text-sm text-text-primary">
-            Unable to load specialties
-          </AppText>
-
-          <AppText className="mt-1 text-sm text-text-secondary">
-            Specialty shortcuts couldn&apos;t be loaded right now.
-          </AppText>
-
-          <SafePressable
-            onPress={() => void refetch()}
-            accessibilityRole="button"
-            accessibilityLabel="Retry loading specialties"
-            className="mt-3 cursor-pointer self-start"
-          >
-            <AppText weight="semibold" className="text-sm text-brand">
-              Retry
-            </AppText>
-          </SafePressable>
-        </View>
+        <ErrorState
+          title="Unable to load specialties"
+          description="Specialty shortcuts couldn't be loaded right now."
+          icon="tag-off-outline"
+          primaryActionTitle="Retry"
+          onPrimaryAction={() => void refetch()}
+          isRetrying={isRefetching}
+          size="section"
+        />
       )}
 
       {/* Specialty shortcut grid */}

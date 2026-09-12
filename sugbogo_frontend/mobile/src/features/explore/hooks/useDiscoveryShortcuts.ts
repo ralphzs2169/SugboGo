@@ -21,5 +21,6 @@ export default function useDiscoveryShortcuts() {
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
+    isRefetching: query.isRefetching,
   };
 }

@@ -5,12 +5,15 @@ import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import ErrorState from "@/shared/components/ErrorState";
 import SafePressable from "@/shared/components/SafePressable";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import useDiscoveryShortcuts from "../../hooks/useDiscoveryShortcuts";
+import ExploreSectionHeader from "../ExploreSectionHeader";
+import DiscoveryShortcutsSkeleton from "./DiscoveryShortcutSkeleton";
 
 type Props = {
   onShortcutPress?: (clusterId: number) => void;
@@ -20,11 +23,12 @@ type Props = {
  * Displays discovery shortcuts for explorers who do not have a specific
  * place or specialty in mind.
  *
- * Each shortcut can later open filtered
- * Explore results for the corresponding discovery intent.
+ * The section owns its loading and recovery states and hides itself when no
+ * active shortcuts are available.
  */
 export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
-  const { shortcuts, isLoading, error, refetch } = useDiscoveryShortcuts();
+  const { shortcuts, isLoading, isRefetching, error, refetch } =
+    useDiscoveryShortcuts();
 
   useEffect(() => {
     if (!error) {
@@ -36,7 +40,7 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
     if (!response.success && !handleSystemError(response)) {
       Toast.show({
         type: "error",
-        text1: "Unable to load Discovery shortcuts",
+        text1: "Unable to load discovery shortcuts",
         text2: response.message || "Please try again.",
       });
     }
@@ -48,49 +52,29 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
 
   return (
     <View className="py-6">
-      {/* Section introduction */}
-      <View className="mb-4 px-4">
-        <AppText weight="bold" className="text-xl text-text-primary">
-          Not sure what to explore?
-        </AppText>
+      {/* Section heading */}
+      <ExploreSectionHeader
+        title="Not sure what to explore?"
+        subtitle="Start with what you feel like doing."
+      />
 
-        <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-          Start with what you feel like doing.
-        </AppText>
-      </View>
+      {/* Loading state */}
+      {isLoading && <DiscoveryShortcutsSkeleton />}
 
-      {isLoading && (
-        <View className="gap-3 px-4">
-          {[0, 1, 2].map((item) => (
-            <View
-              key={item}
-              className="h-[72px] rounded-card border border-border-primary bg-background"
-            />
-          ))}
-        </View>
-      )}
-
+      {/* Section recovery */}
       {!isLoading && error && (
-        <View className="mx-4 rounded-card border border-border-primary bg-surface p-4">
-          <AppText weight="semibold" className="text-sm text-text-primary">
-            Unable to load Discovery shortcuts
-          </AppText>
-          <AppText className="mt-1 text-sm text-text-secondary">
-            Discovery shortcuts couldn&apos;t be loaded right now.
-          </AppText>
-          <SafePressable
-            onPress={() => void refetch()}
-            accessibilityRole="button"
-            accessibilityLabel="Retry loading Discovery shortcuts"
-            className="mt-3 self-start"
-          >
-            <AppText weight="semibold" className="text-sm text-brand">
-              Retry
-            </AppText>
-          </SafePressable>
-        </View>
+        <ErrorState
+          title="Unable to load discovery shortcuts"
+          description="Discovery shortcuts couldn't be loaded right now."
+          icon="compass-off-outline"
+          primaryActionTitle="Retry"
+          onPrimaryAction={() => void refetch()}
+          isRetrying={isRefetching}
+          size="section"
+        />
       )}
 
+      {/* Discovery shortcuts */}
       {!isLoading && !error && (
         <View className="gap-3 px-4">
           {shortcuts.map((shortcut) => (
@@ -105,7 +89,7 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
                 color: "rgba(0,0,0,0.04)",
               }}
             >
-              {/* Prompt icon */}
+              {/* Shortcut icon */}
               <View className="h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10">
                 <MaterialCommunityIcons
                   name={CLUSTER_ICONS[shortcut.cluster.icon] ?? "store"}
@@ -114,7 +98,7 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
                 />
               </View>
 
-              {/* Prompt details */}
+              {/* Shortcut details */}
               <View className="min-w-0 flex-1 pl-3">
                 <AppText
                   weight="semibold"
