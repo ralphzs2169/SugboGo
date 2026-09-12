@@ -148,6 +148,8 @@ INSTALLED_APPS = [
 
     'apps.business.apps.BusinessConfig',
 
+    'apps.transit.apps.TransitConfig',
+
     "apps.merchant_application.apps.MerchantApplicationConfig",
 
     # Merchant Operations
