@@ -1,14 +1,19 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
-import { MaterialIcons } from "@expo/vector-icons";
 
-import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
-import { handleSystemError } from "@/shared/utils/apiErrors";
-import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
 import { useResendResetLink } from "@/features/auth/hooks/useResendResetLink";
 
+import { handleSystemError } from "@/shared/utils/apiErrors";
+import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
+
+/**
+ * Displays the password reset email confirmation state and supports resending
+ * the reset link or returning to the login screen.
+ */
 export default function ResetLinkSentScreen() {
   const router = useRouter();
 
@@ -43,7 +48,9 @@ export default function ResetLinkSentScreen() {
   };
 
   const onResend = async () => {
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
     if (!email) {
       Toast.show({
@@ -83,7 +90,7 @@ export default function ResetLinkSentScreen() {
 
       Toast.show({
         type: "success",
-        text1: "Reset Link Sent",
+        text1: "Reset link sent",
       });
     } catch (error) {
       console.error("Unexpected resend reset link error:", error);
@@ -98,16 +105,17 @@ export default function ResetLinkSentScreen() {
   return (
     <EmailConfirmationLayout
       title="Check your email"
-      description="If an account exists with this email, we've sent a password reset link to:"
+      description="If an account exists for this email, we've sent a password reset link to:"
       email={email}
       openEmailApp={openEmailApp}
-      resendTitle="Resend Reset Link"
+      resendTitle="Resend reset link"
       onResend={onResend}
       resendLoading={loading}
     >
+      {/* Back navigation */}
       <BottomAuthLink
         text=""
-        actionText="Back to Login"
+        actionText="Back to log in"
         icon={
           <MaterialIcons
             name="arrow-back"

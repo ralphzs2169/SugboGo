@@ -1,37 +1,37 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { BackHandler, Text, View } from "react-native";
-import { Toast } from "react-native-toast-message/lib/src/Toast";
+import { BackHandler, View } from "react-native";
+import Toast from "react-native-toast-message";
 
-import { useResetPassword } from "@/features/auth/hooks/useResetPassword";
-import {
-  validateResetPasswordForm,
-  ResetPasswordErrors,
-} from "@/features/auth/utils/resetPasswordValidator";
-import { handleSystemError } from "@/shared/utils/apiErrors";
-
-import ResetPasswordIcon from "@/features/auth/assets/icons/reset-password.svg";
-import Button from "@/shared/components/Button";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import { useResetPassword } from "@/features/auth/hooks/useResetPassword";
+import {
+  ResetPasswordErrors,
+  validateResetPasswordForm,
+} from "@/features/auth/utils/resetPasswordValidator";
+
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import PasswordInput from "@/shared/components/form/PasswordInput";
+import { handleSystemError } from "@/shared/utils/apiErrors";
+
+const MASCOT_RESET_PASSWORD = require("@/shared/assets/mascot/mascot-reset-password.webp");
 
 /**
- * Screen responsible for allowing users to reset their password.
+ * Displays the password reset screen and coordinates creation of a new password.
  *
- * Validates the new password inputs, submits the password reset request,
- * handles validation and system errors, and redirects users back to login
- * after a successful password update.
+ * Handles validation, reset-link errors, password updates, and navigation back
+ * to the login flow after the reset process.
  */
 export default function ResetPasswordScreen() {
   const router = useRouter();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const [errors, setErrors] = useState<ResetPasswordErrors>({});
-
   const [formError, setFormError] = useState("");
 
   const { uid, token } = useLocalSearchParams<{
@@ -41,11 +41,6 @@ export default function ResetPasswordScreen() {
 
   const { handleResetPassword, loading } = useResetPassword();
 
-  /**
-   * Prevents Android hardware back navigation from returning
-   * to the password reset link flow. Users are redirected to
-   * the login screen instead.
-   */
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener(
@@ -61,8 +56,8 @@ export default function ResetPasswordScreen() {
   );
 
   const clearFieldError = (field: "password" | "confirmPassword") => {
-    setErrors((prev) => ({
-      ...prev,
+    setErrors((previous) => ({
+      ...previous,
       [field]: undefined,
     }));
 
@@ -70,7 +65,9 @@ export default function ResetPasswordScreen() {
   };
 
   const onResetPassword = async () => {
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
     const validationErrors = validateResetPasswordForm(
       password,
@@ -104,6 +101,7 @@ export default function ResetPasswordScreen() {
           setErrors({
             password: passwordError,
           });
+
           return;
         }
 
@@ -128,56 +126,89 @@ export default function ResetPasswordScreen() {
 
   return (
     <AuthLayout>
+      {/* Password reset mascot */}
       <View className="mb-6 items-center justify-center">
-        <ResetPasswordIcon width={150} height={150} />
+        <Image
+          source={MASCOT_RESET_PASSWORD}
+          style={{
+            width: 170,
+            height: 170,
+          }}
+          contentFit="contain"
+          accessible={false}
+        />
       </View>
 
-      <Text className="mb-2 text-center text-3xl font-bold text-text-primary">
-        Reset your Password
-      </Text>
+      {/* Password reset introduction */}
+      <View className="mb-7">
+        <AppText
+          weight="bold"
+          className="text-center text-xl text-text-primary"
+        >
+          Reset your password
+        </AppText>
 
-      <Text className="mb-8 text-center text-base text-text-secondary">
-        Create a new password for your account.
-      </Text>
+        <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+          Create a new password to secure your account.
+        </AppText>
+      </View>
 
+      {/* Reset form error */}
       {formError ? (
-        <Text className="mb-4 text-center text-sm font-semibold text-text-error">
-          {formError}
-        </Text>
+        <View className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <View className="flex-row items-start">
+            <MaterialCommunityIcons
+              name="alert-circle-outline"
+              size={18}
+              color="#DC2626"
+            />
+
+            <AppText
+              weight="medium"
+              className="ml-2 flex-1 text-sm leading-5 text-text-error"
+            >
+              {formError}
+            </AppText>
+          </View>
+        </View>
       ) : null}
 
-      <PasswordInput
-        label="NEW PASSWORD"
-        placeholder="Enter your new password"
-        value={password}
-        onChangeText={setPassword}
-        error={errors.password}
-        onFocus={() => clearFieldError("password")}
-      />
+      {/* Password fields */}
+      <View className="gap-1">
+        <PasswordInput
+          label="NEW PASSWORD"
+          placeholder="Enter your new password"
+          value={password}
+          onChangeText={setPassword}
+          error={errors.password}
+          onFocus={() => clearFieldError("password")}
+        />
 
-      <PasswordInput
-        label="CONFIRM PASSWORD"
-        placeholder="Confirm your new password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        error={errors.confirmPassword}
-        onFocus={() => clearFieldError("confirmPassword")}
-      />
+        <PasswordInput
+          label="CONFIRM PASSWORD"
+          placeholder="Confirm your new password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          error={errors.confirmPassword}
+          onFocus={() => clearFieldError("confirmPassword")}
+        />
+      </View>
 
+      {/* Reset action */}
       <Button
-        title="Reset Password"
+        title="Reset password"
         onPress={onResetPassword}
         loading={loading}
-        icon={
-          <MaterialCommunityIcons name="key-outline" size={20} color="white" />
-        }
-        className="mb-20 mt-2 shadow"
-        fontClassName="text-md font-bold"
+        disabled={loading}
+        className="mb-6 mt-5"
+        textWeight="bold"
+        rounded="full"
       />
 
+      {/* Back navigation */}
       <BottomAuthLink
         text=""
-        actionText="Back to Login"
+        actionText="Back to log in"
         icon={
           <MaterialIcons
             name="arrow-back"

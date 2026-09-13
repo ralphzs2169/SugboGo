@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import AppText from "@/shared/components/AppText";
+import { View } from "react-native";
 
 interface DividerProps {
   text: string;
@@ -13,9 +14,9 @@ export default function Divider({ text }: DividerProps) {
     <View className="mb-8 flex-row items-center">
       <View className="h-px flex-1 bg-gray-200" />
 
-      <Text className="mx-3 text-xs font-semibold tracking-[0.5px] text-placeholder">
+      <AppText className="mx-3 text-xs font-semibold tracking-[0.5px] text-placeholder">
         {text}
-      </Text>
+      </AppText>
 
       <View className="h-px flex-1 bg-gray-200" />
     </View>

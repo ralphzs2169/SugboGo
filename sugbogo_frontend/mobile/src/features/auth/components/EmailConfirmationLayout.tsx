@@ -1,12 +1,12 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
-
-import EmailSentIcon from "@/features/auth/assets/icons/email-sent.svg";
-import Button from "@/shared/components/Button";
-import AuthLayout from "./AuthLayout";
-import SecondaryAuthButton from "./SecondaryAuthButton";
+import { View } from "react-native";
 import LottieView from "lottie-react-native";
+
 import emailSentAnimation from "../assets/animations/email-sent.json";
+
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
+
+import AuthLayout from "./AuthLayout";
 
 type EmailConfirmationLayoutProps = {
   title: string;
@@ -23,19 +23,26 @@ type EmailConfirmationLayoutProps = {
   children?: React.ReactNode;
 };
 
+/**
+ * Displays a shared email confirmation state for verification and reset flows.
+ *
+ * Supports verification progress, email-app navigation, resend actions, and
+ * optional flow-specific content while preserving consistent auth styling.
+ */
 export default function EmailSentLayout({
   title,
   description,
   email,
   verifying = false,
   openEmailApp,
-  resendTitle = "Resend Email",
+  resendTitle = "Resend email",
   onResend,
   resendLoading = false,
   children,
 }: EmailConfirmationLayoutProps) {
   return (
     <AuthLayout>
+      {/* Email confirmation animation */}
       <View className="mb-6 items-center justify-center">
         <LottieView
           source={emailSentAnimation}
@@ -46,49 +53,64 @@ export default function EmailSentLayout({
             height: 180,
           }}
         />
-        {/* <EmailSentIcon width={200} height={200} /> */}
       </View>
 
-      <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
-        {title}
-      </Text>
+      {/* Email confirmation introduction */}
+      <View className="mb-7">
+        <AppText
+          weight="bold"
+          className="text-center text-xl text-text-primary"
+        >
+          {title}
+        </AppText>
 
-      {verifying ? (
-        <Text className="mb-8 text-center text-base text-text-secondary">
-          Verifying your email...
-        </Text>
-      ) : (
-        <>
-          <Text className="mb-2 text-center text-base text-text-secondary">
-            {description}
-          </Text>
+        {verifying ? (
+          <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+            Verifying your email...
+          </AppText>
+        ) : (
+          <>
+            <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+              {description}
+            </AppText>
 
-          {email ? (
-            <Text className="mb-8 text-center text-base font-bold text-text-primary">
-              {email}
-            </Text>
-          ) : null}
-        </>
-      )}
+            {email ? (
+              <AppText
+                weight="semibold"
+                className="mt-2 text-center text-sm text-text-primary"
+              >
+                {email}
+              </AppText>
+            ) : null}
+          </>
+        )}
+      </View>
 
+      {/* Primary email action */}
       <Button
-        title="Open Email App"
+        title="Open email app"
         disabled={verifying}
         onPress={openEmailApp}
-        icon={<MaterialIcons name="open-in-new" size={20} color="white" />}
-        className="mb-4 mt-2 shadow"
-        fontClassName="text-md font-bold"
+        className="mb-3 mt-2"
+        textWeight="bold"
+        rounded="full"
       />
 
+      {/* Resend action */}
       {onResend ? (
-        <SecondaryAuthButton
+        <Button
           title={resendTitle}
-          disabled={verifying}
-          loading={resendLoading}
           onPress={onResend}
+          loading={resendLoading}
+          disabled={verifying}
+          variant="outline"
+          rounded="full"
+          textWeight="semibold"
+          className="mb-4"
         />
       ) : null}
 
+      {/* Flow-specific content */}
       {children}
     </AuthLayout>
   );

@@ -1,38 +1,38 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { TouchableOpacity, View } from "react-native";
+import Toast from "react-native-toast-message";
 
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import AuthHeader from "@/features/auth/components/AuthHeader";
+import AuthLayout from "@/features/auth/components/AuthLayout";
+import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import Divider from "@/features/auth/components/Divider";
+import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
+import { useFacebookLogin } from "@/features/auth/hooks/useFacebookLogin";
+import { useGoogleLogin } from "@/features/auth/hooks/useGoogleLogin";
 import { useLogin } from "@/features/auth/hooks/useLogin";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import { useVerificationStore } from "@/features/auth/store/verification.store";
 import {
   LoginErrors,
   validateLoginForm,
 } from "@/features/auth/utils/loginValidator";
 
-import { getFieldError } from "@/shared/utils/apiErrors";
-
+import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
-import AuthHeader from "@/features/auth/components/AuthHeader";
-import AuthLayout from "@/features/auth/components/AuthLayout";
-import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
-import Divider from "@/features/auth/components/Divider";
 import FormInput from "@/shared/components/form/FormInput";
 import PasswordInput from "@/shared/components/form/PasswordInput";
-import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
-
-import { useVerificationStore } from "@/features/auth/store/verification.store";
-import { handleSystemError } from "@/shared/utils/apiErrors";
-import { useFacebookLogin } from "@/features/auth/hooks/useFacebookLogin";
-import { useGoogleLogin } from "@/features/auth/hooks/useGoogleLogin";
-import { useAuthStore } from "@/features/auth/store/auth.store";
-
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import Toast from "react-native-toast-message";
+import LoadingScreen from "@/shared/components/LoadingScreen";
+import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 
 /**
- * Login screen for explorer authentication.
- * Handles credential validation, authentication errors, session expiration,
- * OAuth login, and temporary login rate limits with a live cooldown.
+ * Displays the Explorer login screen and coordinates credential, Google,
+ * and Facebook authentication flows.
+ *
+ * Handles validation, verification redirects, rate-limit feedback, and
+ * session-expiration recovery while keeping the primary login action visually
+ * distinct from secondary social authentication.
  */
 export default function LoginScreen() {
   const router = useRouter();
@@ -41,12 +41,12 @@ export default function LoginScreen() {
     (state) => state.setPendingEmail,
   );
 
-  const [navigating, setNavigating] = useState(false);
-  const [retryAfter, setRetryAfter] = useState(0);
-
   const sessionExpired = useAuthStore((state) => state.sessionExpired);
   const setSessionExpired = useAuthStore((state) => state.setSessionExpired);
   const signingIn = useAuthStore((state) => state.isSigningIn);
+
+  const [navigating, setNavigating] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,10 +62,6 @@ export default function LoginScreen() {
   const isAuthenticating = loading || navigating || signingIn;
   const isLoginDisabled = isAuthenticating || isRateLimited;
 
-  /**
-   * Shows a one-time message when the previous session expired.
-   * The flag is cleared immediately so it won't appear again.
-   */
   useEffect(() => {
     if (!sessionExpired) {
       return;
@@ -75,9 +71,6 @@ export default function LoginScreen() {
     setSessionExpired(false);
   }, [sessionExpired, setSessionExpired]);
 
-  /**
-   * Counts down the server-provided rate-limit cooldown.
-   */
   useEffect(() => {
     if (retryAfter <= 0) {
       return;
@@ -90,9 +83,6 @@ export default function LoginScreen() {
     return () => clearInterval(timer);
   }, [retryAfter]);
 
-  /**
-   * Clears the rate-limit error after the cooldown expires.
-   */
   useEffect(() => {
     if (retryAfter === 0 && formError.startsWith("Too many login attempts.")) {
       setFormError("");
@@ -100,8 +90,8 @@ export default function LoginScreen() {
   }, [retryAfter, formError]);
 
   const clearFieldError = (field: keyof LoginErrors) => {
-    setErrors((prev) => ({
-      ...prev,
+    setErrors((previous) => ({
+      ...previous,
       [field]: undefined,
     }));
 
@@ -189,89 +179,120 @@ export default function LoginScreen() {
 
   return (
     <AuthLayout>
-      {/* Authentication Header */}
+      {/* Brand header */}
       <AuthHeader />
 
-      <Text className="mb-8 text-[17px] font-bold text-text-primary">
-        Login to your account
-      </Text>
+      {/* Login introduction */}
 
-      {/* Login Fields */}
-      <FormInput
-        label="EMAIL ADDRESS"
-        placeholder="Enter your email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        error={errors.email}
-        onFocus={() => clearFieldError("email")}
-      />
+      <AppText weight="bold" className="mb-7 text-xl text-text-primary">
+        Log in to your account
+      </AppText>
 
-      <PasswordInput
-        label="PASSWORD"
-        placeholder="Enter your password"
-        value={password}
-        onChangeText={setPassword}
-        error={errors.password}
-        onFocus={() => clearFieldError("password")}
-        rightElement={
-          <TouchableOpacity
-            onPress={() => router.push("/(auth)/forgot-password")}
-            className="cursor-pointer "
-          >
-            <Text className="text-xs font-bold tracking-[0.5px] text-brand">
-              FORGOT?
-            </Text>
-          </TouchableOpacity>
-        }
-      />
+      {/* Credential fields */}
+      <View className="gap-1">
+        <FormInput
+          label="EMAIL ADDRESS"
+          placeholder="Enter your email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          error={errors.email}
+          onFocus={() => clearFieldError("email")}
+        />
 
-      {/* Login Error */}
+        <PasswordInput
+          label="PASSWORD"
+          placeholder="Enter your password"
+          value={password}
+          onChangeText={setPassword}
+          error={errors.password}
+          onFocus={() => clearFieldError("password")}
+          rightElement={
+            <TouchableOpacity
+              onPress={() => router.push("/(auth)/forgot-password")}
+              accessibilityRole="button"
+              accessibilityLabel="Forgot password"
+              className="cursor-pointer"
+            >
+              <AppText
+                weight="semibold"
+                className="text-xs tracking-[0.3px] text-brand"
+              >
+                Forgot?
+              </AppText>
+            </TouchableOpacity>
+          }
+        />
+      </View>
+
+      {/* Login error */}
       {isRateLimited ? (
-        <View className="my-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
-          <Text className="text-sm font-semibold text-text-error">
-            Too many login attempts. Please try again in {retryAfter} seconds.
-          </Text>
+        <View className="mt-1 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <View className="flex-row items-start">
+            <MaterialCommunityIcons
+              name="alert-circle-outline"
+              size={18}
+              color="#DC2626"
+            />
+
+            <AppText
+              weight="medium"
+              className="ml-2 flex-1 text-sm leading-5 text-text-error"
+            >
+              Too many login attempts. Please try again in {retryAfter} seconds.
+            </AppText>
+          </View>
         </View>
       ) : formError ? (
-        <View className="my-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
-          <Text className="text-sm font-semibold text-text-error">
-            {formError}
-          </Text>
+        <View className="mt-1 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <View className="flex-row items-start">
+            <MaterialCommunityIcons
+              name="alert-circle-outline"
+              size={18}
+              color="#DC2626"
+            />
+
+            <AppText
+              weight="medium"
+              className="ml-2 flex-1 text-sm leading-5 text-text-error"
+            >
+              {formError}
+            </AppText>
+          </View>
         </View>
       ) : null}
 
-      {/* Login Action */}
+      {/* Primary login action */}
       <Button
-        title="Login"
+        title="Log in"
         loading={isAuthenticating}
         disabled={isLoginDisabled}
         onPress={onLogin}
-        icon={<MaterialCommunityIcons name="login" size={20} color="white" />}
-        className="mb-20 mt-2 shadow"
+        className="mb-6 mt-5"
         textWeight="bold"
         rounded="full"
       />
 
-      {/* Social Login */}
-      <Divider text="OR LOG IN WITH" />
+      {/* Alternative authentication */}
+      <Divider text="or continue with" />
 
-      <SocialLoginButtons
-        disabled={isLoginDisabled}
-        onGooglePress={handleGoogleLogin}
-        onFacebookPress={handleFacebookLogin}
-        onApplePress={() => {
-          console.log("Apple Login");
-        }}
-      />
+      <View className="">
+        <SocialLoginButtons
+          disabled={isLoginDisabled}
+          onGooglePress={handleGoogleLogin}
+          onFacebookPress={handleFacebookLogin}
+        />
+      </View>
 
-      {/* Registration Link */}
-      <BottomAuthLink
-        text="New to SugboGo?"
-        actionText="Create an account"
-        onPress={() => router.push("/(auth)/register")}
-      />
+      {/* Registration action */}
+      <View className="mt-6">
+        <BottomAuthLink
+          text="New to SugboGo?"
+          actionText="Create an account"
+          onPress={() => router.push("/(auth)/register")}
+        />
+      </View>
     </AuthLayout>
   );
 }

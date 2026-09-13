@@ -1,5 +1,6 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import SugboGoLogo from "@/shared/components/SugboGoLogo";
+import AppText from "./AppText";
 
 interface BrandLogoProps {
   size?: "sm" | "md" | "lg";
@@ -16,12 +17,14 @@ export default function BrandLogo({ size = "md" }: BrandLogoProps) {
     <View className="flex-row justify-center items-center">
       <SugboGoLogo />
 
-      <Text
-        className={`text-logo ${logoSize[size]} font-bold tracking-[0.5px]`}
-      >
-        <Text className="text-brand">Sugbo</Text>
-        <Text className="text-text-primary">Go</Text>
-      </Text>
+      <AppText className={` ${logoSize[size]}  tracking-[0.5px]`}>
+        <AppText weight="extrabold" className="text-brand">
+          Sugbo
+        </AppText>
+        <AppText weight="extrabold" className="text-text-primary">
+          Go
+        </AppText>
+      </AppText>
     </View>
   );
 }

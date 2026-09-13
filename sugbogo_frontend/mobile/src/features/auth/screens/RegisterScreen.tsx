@@ -1,29 +1,35 @@
-import { useRegister } from "@/features/auth/hooks/useRegister";
-import {
-  RegisterErrors,
-  validateRegisterForm,
-} from "@/features/auth/utils/registerValidator";
-import { handleSystemError } from "@/shared/utils/apiErrors";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Text } from "react-native";
-
+import { View } from "react-native";
 import Toast from "react-native-toast-message";
-import Button from "@/shared/components/Button";
+
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import Divider from "@/features/auth/components/Divider";
+import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
+import { useFacebookLogin } from "@/features/auth/hooks/useFacebookLogin";
+import { useGoogleLogin } from "@/features/auth/hooks/useGoogleLogin";
+import { useRegister } from "@/features/auth/hooks/useRegister";
+import getRegisterErrors from "@/features/auth/utils/registerErrors";
+import {
+  RegisterErrors,
+  validateRegisterForm,
+} from "@/features/auth/utils/registerValidator";
+
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import FormInput from "@/shared/components/form/FormInput";
 import PasswordInput from "@/shared/components/form/PasswordInput";
-import SocialLoginButtons from "@/features/auth/components/SocialLoginButtons";
-import getRegisterErrors from "@/features/auth/utils/registerErrors";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 /**
- * Registration screen responsible for collecting user information,
- * validating the form, creating a user account,
- * and starting the email verification flow.
+ * Displays the Explorer registration screen and coordinates credential,
+ * Google, and Facebook account creation flows.
+ *
+ * Handles client and server validation, account creation, and the transition
+ * into email verification while keeping credential signup visually primary.
  */
 export default function RegisterScreen() {
   const router = useRouter();
@@ -38,10 +44,12 @@ export default function RegisterScreen() {
   const [formError, setFormError] = useState("");
 
   const { handleRegister, loading } = useRegister();
+  const { handleGoogleLogin } = useGoogleLogin();
+  const { handleFacebookLogin } = useFacebookLogin();
 
   const clearFieldError = (field: keyof RegisterErrors) => {
-    setErrors((prev) => ({
-      ...prev,
+    setErrors((previous) => ({
+      ...previous,
       [field]: undefined,
     }));
 
@@ -49,7 +57,9 @@ export default function RegisterScreen() {
   };
 
   const onRegister = async () => {
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
     const validationErrors = validateRegisterForm(
       firstName,
@@ -59,7 +69,6 @@ export default function RegisterScreen() {
       confirmPassword,
     );
 
-    // Display client-side validation errors and stop invalid submissions.
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
@@ -110,96 +119,114 @@ export default function RegisterScreen() {
 
   return (
     <AuthLayout paddingTop={64}>
+      {/* Brand header */}
       <AuthHeader />
 
-      <Text className="mb-6 text-[17px] font-bold text-text-primary">
-        Create your Account
-      </Text>
+      {/* Registration introduction */}
+      <AppText weight="bold" className="mb-7 text-xl text-text-primary">
+        Create your account
+      </AppText>
 
-      <FormInput
-        label="FIRST NAME"
-        placeholder="Enter your first name"
-        value={firstName}
-        onChangeText={setFirstName}
-        autoCapitalize="words"
-        onFocus={() => clearFieldError("firstName")}
-        error={errors.firstName}
-      />
+      {/* Registration fields */}
+      <View className="gap-1">
+        <FormInput
+          label="FIRST NAME"
+          placeholder="Enter your first name"
+          value={firstName}
+          onChangeText={setFirstName}
+          autoCapitalize="words"
+          onFocus={() => clearFieldError("firstName")}
+          error={errors.firstName}
+        />
 
-      <FormInput
-        label="LAST NAME"
-        placeholder="Enter your last name"
-        value={lastName}
-        onChangeText={setLastName}
-        autoCapitalize="words"
-        onFocus={() => clearFieldError("lastName")}
-        error={errors.lastName}
-      />
-      <FormInput
-        label="EMAIL ADDRESS"
-        placeholder="Enter your email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        onFocus={() => clearFieldError("email")}
-        error={errors.email}
-      />
+        <FormInput
+          label="LAST NAME"
+          placeholder="Enter your last name"
+          value={lastName}
+          onChangeText={setLastName}
+          autoCapitalize="words"
+          onFocus={() => clearFieldError("lastName")}
+          error={errors.lastName}
+        />
 
-      <PasswordInput
-        label="PASSWORD"
-        placeholder="Enter your password"
-        value={password}
-        onChangeText={setPassword}
-        error={errors.password}
-        onFocus={() => clearFieldError("password")}
-      />
+        <FormInput
+          label="EMAIL ADDRESS"
+          placeholder="Enter your email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          onFocus={() => clearFieldError("email")}
+          error={errors.email}
+        />
 
-      <PasswordInput
-        label="CONFIRM PASSWORD"
-        placeholder="Confirm your password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        error={errors.confirmPassword}
-        onFocus={() => clearFieldError("confirmPassword")}
-      />
+        <PasswordInput
+          label="PASSWORD"
+          placeholder="Enter your password"
+          value={password}
+          onChangeText={setPassword}
+          error={errors.password}
+          onFocus={() => clearFieldError("password")}
+        />
 
+        <PasswordInput
+          label="CONFIRM PASSWORD"
+          placeholder="Confirm your password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          error={errors.confirmPassword}
+          onFocus={() => clearFieldError("confirmPassword")}
+        />
+      </View>
+
+      {/* Registration error */}
       {formError ? (
-        <Text className=" text-sm font-semibold text-text-error">
-          {formError}
-        </Text>
+        <View className="mt-1 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <View className="flex-row items-start">
+            <MaterialCommunityIcons
+              name="alert-circle-outline"
+              size={18}
+              color="#DC2626"
+            />
+
+            <AppText
+              weight="medium"
+              className="ml-2 flex-1 text-sm leading-5 text-text-error"
+            >
+              {formError}
+            </AppText>
+          </View>
+        </View>
       ) : null}
 
+      {/* Primary registration action */}
       <Button
-        title="Create Account"
+        title="Create account"
         loading={loading}
+        disabled={loading}
         onPress={onRegister}
-        icon={
-          <MaterialIcons name="keyboard-arrow-right" size={20} color="white" />
-        }
-        className="mb-20 mt-2 shadow"
-        fontClassName="text-md font-bold"
+        className="mb-6 mt-5"
+        textWeight="bold"
+        rounded="full"
       />
 
-      <Divider text="OR SIGN UP WITH" />
+      {/* Alternative authentication */}
+      <Divider text="or continue with" />
 
       <SocialLoginButtons
-        onGooglePress={() => {
-          console.log("Google Register");
-        }}
-        onFacebookPress={() => {
-          console.log("Facebook Register");
-        }}
-        onApplePress={() => {
-          console.log("Apple Register");
-        }}
+        disabled={loading}
+        onGooglePress={handleGoogleLogin}
+        onFacebookPress={handleFacebookLogin}
       />
 
-      <BottomAuthLink
-        text="Already have an account?"
-        actionText="Login"
-        onPress={() => router.push("/(auth)/login")}
-      />
+      {/* Login action */}
+      <View className="mt-6">
+        <BottomAuthLink
+          text="Already have an account?"
+          actionText="Log in"
+          onPress={() => router.push("/(auth)/login")}
+        />
+      </View>
     </AuthLayout>
   );
 }
