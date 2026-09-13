@@ -8,6 +8,9 @@ from apps.admin_operations.transit_management.serializers.transit_transfer_seria
 from apps.admin_operations.transit_management.services.transit_transfer_service import (
     TransitTransferService,
 )
+from apps.admin_operations.transit_management.services.transfer_candidate_detection_service import (
+    TransferCandidateDetectionService,
+)
 from apps.admin_operations.transit_management.views import ADMIN_PERMISSIONS
 from apps.transit.models import TransitTransfer
 from core.pagination import StandardPagination
@@ -61,6 +64,22 @@ class TransitTransferListView(APIView):
             data=TransitTransferSerializer(transfer).data,
             message="Transit transfer created successfully.",
             status_code=status.HTTP_201_CREATED,
+        )
+
+
+class TransitTransferCandidateDetectionView(APIView):
+    """Handle administrator-triggered transfer candidate detection."""
+
+    permission_classes = ADMIN_PERMISSIONS
+
+    def post(self, request):
+        """Detect and persist missing pending directed transfer candidates."""
+
+        summary = TransferCandidateDetectionService.detect_candidates()
+
+        return success_response(
+            data=summary,
+            message="Transit transfer candidates detected successfully.",
         )
 
 

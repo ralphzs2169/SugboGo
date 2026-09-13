@@ -48,6 +48,8 @@ class TransitTransferSerializer(serializers.ModelSerializer):
         source="TTFR_UPDATED_AT",
         read_only=True,
     )
+    connection_distance_meters = serializers.SerializerMethodField()
+    route_separation_meters = serializers.SerializerMethodField()
 
     class Meta:
         model = TransitTransfer
@@ -58,8 +60,44 @@ class TransitTransferSerializer(serializers.ModelSerializer):
             "boarding_transit_point",
             "destination_variant",
             "status",
+            "connection_distance_meters",
+            "route_separation_meters",
             "created_at",
             "updated_at",
+        )
+
+    def get_connection_distance_meters(self, instance):
+        """Return the managed connection-point separation in meters."""
+
+        distance = getattr(
+            instance,
+            "connection_distance",
+            None,
+        )
+
+        if distance is None:
+            return None
+
+        return round(
+            distance.m,
+            2,
+        )
+
+    def get_route_separation_meters(self, instance):
+        """Return the current closest route-geometry separation in meters."""
+
+        distance = getattr(
+            instance,
+            "route_separation",
+            None,
+        )
+
+        if distance is None:
+            return None
+
+        return round(
+            distance.m,
+            2,
         )
 
 

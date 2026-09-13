@@ -13,6 +13,7 @@ from apps.admin_operations.transit_management.views.transit_point_views import (
     TransitPointListView,
 )
 from apps.admin_operations.transit_management.views.transit_transfer_views import (
+    TransitTransferCandidateDetectionView,
     TransitTransferConfirmView,
     TransitTransferDetailView,
     TransitTransferIgnoreView,
@@ -48,6 +49,10 @@ urlpatterns = [
     path(
         "transfers/",
         TransitTransferListView.as_view(),
+    ),
+    path(
+        "transfers/detect-candidates/",
+        TransitTransferCandidateDetectionView.as_view(),
     ),
     path(
         "transfers/<int:transfer_id>/",
