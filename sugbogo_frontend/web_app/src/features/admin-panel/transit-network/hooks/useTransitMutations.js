@@ -6,6 +6,7 @@ import {
   createJeepneyRoute,
   createTransitPoint,
   createTransitTransfer,
+  detectTransitTransferCandidates,
   ignoreTransitTransfer,
   updateJeepneyRoute,
   updateRouteVariant,
@@ -117,6 +118,10 @@ export default function useTransitMutations() {
     mutationFn: ignoreTransitTransfer,
     onSuccess: (_, transferId) => invalidateTransferQueries(transferId),
   });
+  const detectCandidatesMutation = useMutation({
+    mutationFn: detectTransitTransferCandidates,
+    onSuccess: () => invalidateTransferQueries(),
+  });
 
   return {
     createRoute: createRouteMutation.mutateAsync,
@@ -129,6 +134,7 @@ export default function useTransitMutations() {
     updateTransfer: updateTransferMutation.mutateAsync,
     confirmTransfer: confirmTransferMutation.mutateAsync,
     ignoreTransfer: ignoreTransferMutation.mutateAsync,
+    detectTransferCandidates: detectCandidatesMutation.mutateAsync,
     isCreatingRoute: createRouteMutation.isPending,
     isUpdatingRoute: updateRouteMutation.isPending,
     isCreatingVariant: createVariantMutation.isPending,
@@ -139,5 +145,6 @@ export default function useTransitMutations() {
     isUpdatingTransfer: updateTransferMutation.isPending,
     isConfirmingTransfer: confirmTransferMutation.isPending,
     isIgnoringTransfer: ignoreTransferMutation.isPending,
+    isDetectingTransferCandidates: detectCandidatesMutation.isPending,
   };
 }

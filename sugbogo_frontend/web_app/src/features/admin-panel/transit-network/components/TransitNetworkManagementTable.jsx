@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { ArrowRightLeft, BusFront, MapPin, Plus, Tags } from "lucide-react";
+import {
+  ArrowRightLeft,
+  BusFront,
+  MapPin,
+  Plus,
+  Sparkles,
+  Tags,
+} from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
@@ -28,9 +35,11 @@ import {
   TransitTransferFormModal,
   TransitTransferReviewModal,
 } from "./TransitTransferModals";
+import TransferMapReviewModal from "./transfer-review/TransferMapReviewModal";
+import TransferSuggestionScanButton from "./transfer-review/TransferSuggestionScanButton";
 
 const STATUS_OPTIONS = [
-  { value: "pending", label: "Pending" },
+  { value: "pending", label: "Pending review" },
   { value: "confirmed", label: "Confirmed" },
   { value: "ignored", label: "Ignored" },
 ];
@@ -56,7 +65,8 @@ const TAB_CONFIG = {
     label: "Transfers",
     singular: "Transfer",
     emptyTitle: "No transit transfers yet",
-    emptyDescription: "Add a directed connection between two route variants.",
+    emptyDescription:
+      "Add a directed connection manually or scan the network for suggestions.",
     icon: ArrowRightLeft,
   },
 };
@@ -73,6 +83,7 @@ export default function TransitNetworkManagementTable() {
   const [detailId, setDetailId] = useState(null);
   const [reviewTransfer, setReviewTransfer] = useState(null);
   const [reviewAction, setReviewAction] = useState(null);
+  const [mapReviewTransfer, setMapReviewTransfer] = useState(null);
   const {
     currentTab,
     globalFilter,
@@ -147,6 +158,7 @@ export default function TransitNetworkManagementTable() {
           )
         : getTransitTransferColumns({
             onView: (transfer) => setDetailId(transfer.id),
+            onViewMap: setMapReviewTransfer,
             onEdit: openEditForm,
             onConfirm: (transfer) => openReview(transfer, "confirm"),
             onIgnore: (transfer) => openReview(transfer, "ignore"),
@@ -156,6 +168,33 @@ export default function TransitNetworkManagementTable() {
     toastId: `transit-${currentTab}-load-error`,
     fallbackMessage: `Unable to load ${activeConfig.label.toLowerCase()}. Please try again.`,
   });
+
+  const transferEmptyState =
+    currentTab === "transfers" && statusFilter === "pending"
+      ? {
+          title: "No suggestions need review",
+          description:
+            "Scan the transit network to look for possible transfer connections.",
+        }
+      : {
+          title: activeConfig.emptyTitle,
+          description: activeConfig.emptyDescription,
+        };
+
+  function editTransferFromDetail(transfer) {
+    setDetailId(null);
+    openEditForm(transfer);
+  }
+
+  function reviewTransferFromDetail(transfer, action) {
+    setDetailId(null);
+    openReview(transfer, action);
+  }
+
+  function mapTransferFromDetail(transfer) {
+    setDetailId(null);
+    setMapReviewTransfer(transfer);
+  }
 
   return (
     <>
@@ -188,8 +227,8 @@ export default function TransitNetworkManagementTable() {
           searchPlaceholder: activeConfig.searchPlaceholder,
           showSearch: currentTab !== "transfers",
           emptyState: {
-            title: activeConfig.emptyTitle,
-            description: activeConfig.emptyDescription,
+            title: transferEmptyState.title,
+            description: transferEmptyState.description,
             icon: (
               <activeConfig.icon className="h-10 w-10 text-text-secondary" />
             ),
@@ -205,24 +244,45 @@ export default function TransitNetworkManagementTable() {
         slots={{
           renderFilters: () =>
             currentTab === "transfers" ? (
-              <FilterMenu
-                filters={[
-                  {
-                    key: "status",
-                    label: "Status",
-                    icon: Tags,
-                    options: STATUS_OPTIONS,
-                    value: statusFilter,
-                    onChange: setStatusFilter,
-                  },
-                ]}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <FilterMenu
+                  filters={[
+                    {
+                      key: "status",
+                      label: "Status",
+                      icon: Tags,
+                      options: STATUS_OPTIONS,
+                      value: statusFilter,
+                      onChange: setStatusFilter,
+                    },
+                  ]}
+                />
+                <Button
+                  variant={statusFilter === "pending" ? "primary" : "secondary"}
+                  size="sm"
+                  icon={Sparkles}
+                  aria-pressed={statusFilter === "pending"}
+                  onClick={() =>
+                    setStatusFilter(statusFilter === "pending" ? "" : "pending")
+                  }
+                >
+                  Pending Suggestions
+                </Button>
+              </div>
             ) : null,
-          renderHeaderActions: () => (
-            <Button icon={Plus} onClick={openCreateForm}>
-              Add {activeConfig.singular}
-            </Button>
-          ),
+          renderHeaderActions: () =>
+            currentTab === "transfers" ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <TransferSuggestionScanButton />
+                <Button icon={Plus} onClick={openCreateForm}>
+                  Add Transfer
+                </Button>
+              </div>
+            ) : (
+              <Button icon={Plus} onClick={openCreateForm}>
+                Add {activeConfig.singular}
+              </Button>
+            ),
         }}
       />
 
@@ -266,11 +326,19 @@ export default function TransitNetworkManagementTable() {
       <TransitTransferDetailModal
         transferId={currentTab === "transfers" ? detailId : null}
         onClose={() => setDetailId(null)}
+        onEdit={editTransferFromDetail}
+        onConfirm={(transfer) => reviewTransferFromDetail(transfer, "confirm")}
+        onIgnore={(transfer) => reviewTransferFromDetail(transfer, "ignore")}
+        onViewMap={mapTransferFromDetail}
       />
       <TransitTransferReviewModal
         transfer={reviewTransfer}
         action={reviewAction}
         onClose={closeReview}
+      />
+      <TransferMapReviewModal
+        transfer={mapReviewTransfer}
+        onClose={() => setMapReviewTransfer(null)}
       />
     </>
   );

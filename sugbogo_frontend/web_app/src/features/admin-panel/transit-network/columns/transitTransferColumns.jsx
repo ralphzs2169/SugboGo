@@ -1,10 +1,13 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { Check, Edit3, Eye, MapPin, X } from "lucide-react";
+import { Check, Edit3, Eye, Map, MapPin, X } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import StatusBadge from "@/shared/components/StatusBadge";
 
-import { formatVariantLabel } from "../utils/transitFormatters";
+import {
+  formatDistanceMeters,
+  formatVariantLabel,
+} from "../utils/transitFormatters";
 
 const columnHelper = createColumnHelper();
 const STATUS_VARIANTS = {
@@ -18,6 +21,7 @@ const STATUS_VARIANTS = {
  */
 export default function getTransitTransferColumns({
   onView,
+  onViewMap,
   onEdit,
   onConfirm,
   onIgnore,
@@ -73,6 +77,26 @@ export default function getTransitTransferColumns({
         </p>
       ),
     }),
+    columnHelper.accessor(
+      (transfer) => transfer.connection_distance_meters,
+      {
+        id: "connection_distance",
+        header: "Distance",
+        size: 180,
+        enableSorting: false,
+        meta: { skeleton: "text" },
+        cell: ({ row }) => (
+          <div>
+            <p className="text-sm font-semibold tabular-nums text-text-primary">
+              Approx. {formatDistanceMeters(row.original.connection_distance_meters)}
+            </p>
+            <p className="mt-1 text-xs tabular-nums text-text-secondary">
+              Routes {formatDistanceMeters(row.original.route_separation_meters)} apart
+            </p>
+          </div>
+        ),
+      },
+    ),
     columnHelper.accessor((transfer) => transfer.status, {
       id: "status",
       header: "Status",
@@ -112,6 +136,14 @@ export default function getTransitTransferColumns({
               tooltipMessage="Edit connection"
               aria-label={`Edit transfer ${transfer.id}`}
               onClick={() => onEdit(transfer)}
+            />
+            <Button
+              variant="action"
+              icon={Map}
+              iconOnly
+              tooltipMessage="View transfer on map"
+              aria-label={`View transfer ${transfer.id} on map`}
+              onClick={() => onViewMap(transfer)}
             />
             {isPending && (
               <>

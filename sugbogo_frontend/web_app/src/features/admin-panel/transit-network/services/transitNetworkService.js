@@ -137,3 +137,11 @@ export async function ignoreTransitTransfer(transferId) {
 
   return unwrapData(response);
 }
+
+export async function detectTransitTransferCandidates() {
+  const response = await apiClient.post(
+    `${BASE_URL}transfers/detect-candidates/`,
+  );
+
+  return unwrapData(response);
+}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { ArrowDown, Check, X } from "lucide-react";
+import { ArrowDown, Check, Edit3, Map, X } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
@@ -15,6 +15,7 @@ import {
   useTransitTransfer,
 } from "../hooks/useTransitQueries";
 import {
+  formatDistanceMeters,
   formatVariantLabel,
   getApiFieldErrors,
 } from "../utils/transitFormatters";
@@ -288,7 +289,14 @@ export function TransitTransferFormModal({ isOpen, transfer, onClose }) {
 /**
  * Displays the complete directed connection and review status for one transfer.
  */
-export function TransitTransferDetailModal({ transferId, onClose }) {
+export function TransitTransferDetailModal({
+  transferId,
+  onClose,
+  onEdit,
+  onConfirm,
+  onIgnore,
+  onViewMap,
+}) {
   const isOpen = Boolean(transferId);
   const { transfer, isLoading, error, refetch } = useTransitTransfer(
     transferId,
@@ -307,6 +315,7 @@ export function TransitTransferDetailModal({ transferId, onClose }) {
       title="Transit Transfer Details"
       description="Review this connection in its valid travel direction."
       maxWidth="max-w-2xl"
+      scrollable
     >
       {isLoading ? (
         <div className="h-72 animate-pulse rounded-xl bg-skeleton" />
@@ -350,9 +359,91 @@ export function TransitTransferDetailModal({ transferId, onClose }) {
               value={formatVariantLabel(transfer?.destination_variant)}
             />
           </div>
+
+          {/* Geographic review distances */}
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <DistanceSummary
+              label="Approx. connection distance"
+              value={formatDistanceMeters(
+                transfer?.connection_distance_meters,
+              )}
+              description="Straight-line separation between the proposed alighting and boarding Transit Points."
+              prominent
+            />
+            <DistanceSummary
+              label="Route separation"
+              value={formatDistanceMeters(transfer?.route_separation_meters)}
+              description="Closest geographic separation between the two route paths."
+            />
+          </div>
+
+          <p className="mt-4 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs leading-relaxed text-text-secondary">
+            These distances are geographic review aids. They do not represent a
+            walking route, travel time, accessibility, or crossing safety.
+          </p>
+
+          {/* Transfer review actions */}
+          <div className="mt-5 flex flex-wrap justify-end gap-3">
+            <Button
+              variant="secondary"
+              icon={Map}
+              onClick={() => onViewMap(transfer)}
+            >
+              View on Map
+            </Button>
+            <Button
+              variant="secondary"
+              icon={Edit3}
+              onClick={() => onEdit(transfer)}
+            >
+              Edit Connection
+            </Button>
+            {transfer?.status === "pending" && (
+              <>
+                <Button
+                  variant="success"
+                  icon={Check}
+                  onClick={() => onConfirm(transfer)}
+                >
+                  Confirm
+                </Button>
+                <Button
+                  variant="danger"
+                  icon={X}
+                  onClick={() => onIgnore(transfer)}
+                >
+                  Ignore
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       )}
     </Modal>
+  );
+}
+
+/**
+ * Presents one derived geographic distance with plain-language context.
+ */
+function DistanceSummary({ label, value, description, prominent = false }) {
+  return (
+    <div className="rounded-xl border border-stroke bg-background p-4">
+      {/* Distance summary */}
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        {label}
+      </p>
+      <p
+        className={`mt-2 tabular-nums text-text-primary ${
+          prominent ? "text-2xl font-bold" : "text-lg font-semibold"
+        }`}
+      >
+        {value}
+      </p>
+      <p className="mt-2 text-xs leading-relaxed text-text-secondary">
+        {description}
+      </p>
+    </div>
   );
 }
 
