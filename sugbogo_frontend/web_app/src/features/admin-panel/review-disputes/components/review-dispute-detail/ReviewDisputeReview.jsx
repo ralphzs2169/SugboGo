@@ -44,7 +44,11 @@ export default function ReviewDisputeReview({ review }) {
         <div className="mt-4">
           {/* Reviewer identity */}
           <div className="flex items-center gap-3">
-            <UserAvatar avatarUrl={author?.avatar_url} size="md" />
+            <UserAvatar
+              avatarUrl={author?.avatar_url}
+              avatarKey={author?.avatar_key}
+              size="md"
+            />
 
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-text-primary">

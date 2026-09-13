@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
+import UserAvatar from "@/shared/components/UserAvatar";
 
 /**
  * Displays the authenticated administrator's identity at the bottom
@@ -43,8 +44,6 @@ export default function SidebarFooter({ isCollapsed = false }) {
     [user?.first_name, user?.last_name].filter(Boolean).join(" ") ||
     "Administrator";
 
-  const avatarUrl = user?.avatar_url;
-
   return (
     <div className="border-t border-stroke px-4 py-4">
       {/* Administrator identity and account actions */}
@@ -55,19 +54,11 @@ export default function SidebarFooter({ isCollapsed = false }) {
         }`}
       >
         {/* Avatar */}
-        <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-stroke bg-surface-muted">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={displayName}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-text-secondary">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-          )}
-        </div>
+        <UserAvatar
+          avatarUrl={user?.avatar_url}
+          avatarKey={user?.avatar_key}
+          size="compact"
+        />
 
         {/* Administrator information */}
         {!isCollapsed && (

@@ -147,7 +147,11 @@ export default function BusinessDetailHero({
 
             {/* Owner */}
             <div className="mt-6 flex items-center gap-3 border-t border-stroke pt-5">
-              <UserAvatar avatarUrl={business.owner?.avatar_url} size="sm" />
+              <UserAvatar
+                avatarUrl={business.owner?.avatar_url}
+                avatarKey={business.owner?.avatar_key}
+                size="sm"
+              />
 
               <div className="min-w-0">
                 <p className="text-xs text-text-secondary">Owner</p>

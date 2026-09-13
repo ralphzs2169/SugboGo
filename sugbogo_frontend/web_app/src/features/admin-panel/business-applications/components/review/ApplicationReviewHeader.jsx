@@ -141,7 +141,10 @@ export default function ApplicationReviewHeader({ application }) {
                 </p>
 
                 <div className="mt-1 flex min-w-0 items-center gap-2">
-                  <UserAvatar avatarUrl={application.submitter?.avatar_url} />
+                  <UserAvatar
+                    avatarUrl={application.submitter?.avatar_url}
+                    avatarKey={application.submitter?.avatar_key}
+                  />
 
                   <p className="truncate text-sm font-medium text-text-primary">
                     {application.submitter?.name || "—"}

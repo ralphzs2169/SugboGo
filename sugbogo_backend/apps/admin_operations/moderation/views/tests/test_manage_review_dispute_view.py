@@ -210,6 +210,10 @@ class ManageReviewDisputeViewTestBase(TestCase):
 class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
     def test_list_returns_successfully(self):
         dispute = self.create_dispute()
+        self.merchant.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_2
+        self.merchant.save(
+            update_fields=["USER_AVATAR_KEY"],
+        )
 
         response = self.client.get(
             self.list_url(),
@@ -243,6 +247,16 @@ class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
         self.assertIn(
             dispute.MRDSP_ID,
             returned_ids,
+        )
+
+        returned_dispute = next(
+            item
+            for item in response.data["data"]["items"]
+            if item["id"] == dispute.MRDSP_ID
+        )
+        self.assertEqual(
+            returned_dispute["merchant"]["avatar_key"],
+            User.AvatarKey.EXPLORER_AVATAR_2,
         )
 
     def test_list_returns_empty_result_when_no_disputes_exist(self):
@@ -532,6 +546,10 @@ class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
 class AdminReviewDisputeDetailViewTests(ManageReviewDisputeViewTestBase):
     def test_get_dispute_successfully(self):
         dispute = self.create_dispute()
+        self.explorer.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_4
+        self.explorer.save(
+            update_fields=["USER_AVATAR_KEY"],
+        )
 
         response = self.client.get(
             self.detail_url(dispute.MRDSP_ID),
@@ -555,6 +573,11 @@ class AdminReviewDisputeDetailViewTests(ManageReviewDisputeViewTestBase):
         self.assertEqual(
             response.data["data"]["id"],
             dispute.MRDSP_ID,
+        )
+
+        self.assertEqual(
+            response.data["data"]["review"]["author"]["avatar_key"],
+            User.AvatarKey.EXPLORER_AVATAR_4,
         )
 
     def test_get_dispute_includes_evidence_file_name(self):

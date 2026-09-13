@@ -119,7 +119,11 @@ export default function getReviewDisputeColumns(onViewDispute) {
         return (
           <div className="flex min-w-0 items-center gap-2.5">
             {/* Merchant avatar */}
-            <UserAvatar avatarUrl={merchant?.avatar_url} size="lg" />
+            <UserAvatar
+              avatarUrl={merchant?.avatar_url}
+              avatarKey={merchant?.avatar_key}
+              size="lg"
+            />
 
             {/* Merchant identity */}
             <div className="min-w-0">
