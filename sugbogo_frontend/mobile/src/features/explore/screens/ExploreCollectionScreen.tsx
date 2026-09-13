@@ -39,7 +39,7 @@ import type {
 
 export const EXPLORE_COLLECTION_TITLES: Record<ExploreCollectionType, string> =
   {
-    "worth-discovering": "Worth Discovering",
+    "hidden-gems": "Hidden Gems",
     interests: "Based on Your Interests",
     "new-businesses": "New to SugboGo",
   };

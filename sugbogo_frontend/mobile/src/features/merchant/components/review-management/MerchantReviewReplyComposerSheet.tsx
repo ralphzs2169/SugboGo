@@ -37,6 +37,7 @@ import { BusinessReview } from "@/features/explore/types/review.types";
 import QuickResponses from "./QuickResponses";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   businessId: number;
@@ -294,17 +295,18 @@ export default function MerchantReviewReplyComposerSheet({
             </Pressable>
 
             <View className="flex-1 pr-3">
-              <Text
-                className="text-xl font-bold text-text-primary"
+              <AppText
+                weight="bold"
+                className="text-xl text-text-primary"
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
                 Quick Responses
-              </Text>
+              </AppText>
 
-              <Text className="text-xs leading-5 text-text-secondary">
+              <AppText className="text-xs leading-5 text-text-secondary">
                 Choose a saved response to quickly reply.
-              </Text>
+              </AppText>
             </View>
 
             <Pressable
@@ -339,13 +341,16 @@ export default function MerchantReviewReplyComposerSheet({
                 color={theme.extends.colors.text.tertiary}
               />
 
-              <Text className="mt-3 text-base font-bold text-text-primary">
+              <AppText
+                weight="bold"
+                className="mt-3 text-base  text-text-primary"
+              >
                 Unable to load templates
-              </Text>
+              </AppText>
 
-              <Text className="mt-1 text-center text-sm leading-5 text-text-secondary">
+              <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
                 We couldn't load your response templates right now.
-              </Text>
+              </AppText>
 
               <Pressable
                 onPress={() => {
@@ -355,7 +360,9 @@ export default function MerchantReviewReplyComposerSheet({
                 accessibilityLabel="Retry loading response templates"
                 className="mt-4 cursor-pointer rounded-lg px-4 py-2 active:opacity-70"
               >
-                <Text className="text-sm font-bold text-brand">Retry</Text>
+                <AppText weight="bold" className="text-sm  text-brand">
+                  Retry
+                </AppText>
               </Pressable>
             </View>
           ) : templates.length === 0 ? (
@@ -367,14 +374,17 @@ export default function MerchantReviewReplyComposerSheet({
                 color={theme.extends.colors.text.tertiary}
               />
 
-              <Text className="mt-3 text-base font-bold text-text-primary">
+              <AppText
+                weight="bold"
+                className="mt-3 text-base  text-text-primary"
+              >
                 No response templates yet
-              </Text>
+              </AppText>
 
-              <Text className="mt-1 text-center text-sm leading-5 text-text-secondary">
+              <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
                 Create a template first to reuse responses when replying to
                 reviews.
-              </Text>
+              </AppText>
             </View>
           ) : (
             /* Template list */
@@ -388,12 +398,13 @@ export default function MerchantReviewReplyComposerSheet({
                   className="mb-3 cursor-pointer rounded-card border border-border-primary bg-surface p-4 active:opacity-70"
                 >
                   <View className="flex-row items-center">
-                    <Text
-                      className="flex-1 text-sm font-bold text-text-primary"
+                    <AppText
+                      weight="bold"
+                      className="flex-1 text-sm  text-text-primary"
                       numberOfLines={1}
                     >
                       {template.title}
-                    </Text>
+                    </AppText>
 
                     <MaterialCommunityIcons
                       name="chevron-right"
@@ -402,12 +413,12 @@ export default function MerchantReviewReplyComposerSheet({
                     />
                   </View>
 
-                  <Text
+                  <AppText
                     className="mt-1.5 text-sm leading-5 text-text-secondary"
                     numberOfLines={3}
                   >
                     {template.text}
-                  </Text>
+                  </AppText>
                 </Pressable>
               ))}
             </View>
@@ -419,19 +430,20 @@ export default function MerchantReviewReplyComposerSheet({
           contentContainerClassName="px-5 pb-32 pt-3"
         >
           {/* Sheet header */}
-          <Text
-            className="text-xl font-bold text-text-primary"
+          <AppText
+            weight="bold"
+            className="text-xl  text-text-primary"
             numberOfLines={1}
             ellipsizeMode="tail"
           >
             {isEditing
               ? `Edit reply to ${review?.author.first_name} ${review?.author.last_name}`
               : `Reply to ${review?.author.first_name} ${review?.author.last_name}`}
-          </Text>
+          </AppText>
 
-          <Text className="mt-2 text-xs leading-5 text-text-secondary">
+          <AppText className="mt-2 text-xs leading-5 text-text-secondary">
             Your reply will be visible publicly on this review.
-          </Text>
+          </AppText>
 
           {/* Reply text */}
           <View className="mt-4">
@@ -455,9 +467,9 @@ export default function MerchantReviewReplyComposerSheet({
           />
           {/* Reply photos */}
           <View className="mt-5">
-            <Text className="mb-3 text-sm font-bold text-text-primary">
+            <AppText weight="bold" className="mb-3 text-sm  text-text-primary">
               Add photos (optional)
-            </Text>
+            </AppText>
 
             <View className="flex-row flex-wrap">
               {existingPhotos.map((photo) => (
@@ -496,18 +508,18 @@ export default function MerchantReviewReplyComposerSheet({
                         color={theme.extends.colors.text.primary}
                       />
 
-                      <Text className="mt-1 text-xs font-medium text-text-secondary">
+                      <AppText className="mt-1 text-xs font-medium text-text-secondary">
                         Add photo
-                      </Text>
+                      </AppText>
                     </>
                   )}
                 </Pressable>
               )}
             </View>
 
-            <Text className="mt-3 text-xs text-text-secondary">
+            <AppText className="mt-3 text-xs text-text-secondary">
               Optional · Up to {MAX_REVIEW_PHOTOS} photos · {photoCount} added
-            </Text>
+            </AppText>
           </View>
 
           {/* Save action */}
@@ -518,6 +530,7 @@ export default function MerchantReviewReplyComposerSheet({
             disabled={!canSubmit}
             className="mt-6"
             fontClassName="text-sm font-bold"
+            rounded="full"
           />
         </BottomSheetScrollView>
       )}

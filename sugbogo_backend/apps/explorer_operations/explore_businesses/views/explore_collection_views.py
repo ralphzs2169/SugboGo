@@ -20,7 +20,7 @@ from ..services.recommendation_service import RecommendationService
 class ExploreCollectionView(APIView):
     """Return one filtered page from a ranked Explore collection."""
 
-    WORTH_DISCOVERING = "worth-discovering"
+    HIDDEN_GEMS = "hidden-gems"
     INTERESTS = "interests"
     NEW_BUSINESSES = "new-businesses"
 
@@ -55,8 +55,8 @@ class ExploreCollectionView(APIView):
             ),
         }
 
-        if collection_type == self.WORTH_DISCOVERING:
-            businesses = DiscoveryFeedService.list_worth_discovering(
+        if collection_type == self.HIDDEN_GEMS:
+            businesses = DiscoveryFeedService.list_hidden_gems(
                 user=request.user,
                 **filters,
             )

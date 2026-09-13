@@ -200,13 +200,13 @@ class DiscoveryFeedService:
         )
 
     @staticmethod
-    def list_worth_discovering(
+    def list_hidden_gems(
         user,
         category_ids=None,
         cluster_id=None,
         specialty_tag_id=None,
     ):
-        """Return the filtered collection with pure Discovery ordering."""
+        """Return the filtered Hidden Gems collection with pure Discovery ordering."""
 
         return DiscoveryFeedService.list_discovery_businesses(
             user=user,

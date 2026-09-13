@@ -1,17 +1,20 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
 import type { LocationObject } from "expo-location";
 import { useEffect } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 
-import AppText from "@/shared/components/AppText";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
+import ExploreSectionHeader from "../ExploreSectionHeader";
 import BusinessCard from "../new-businesses/BusinessCard";
 
 type Props = {
   title: string;
   subtitle: string;
+  titleIcon?: ComponentProps<typeof MaterialCommunityIcons>["name"];
   businesses: ExploreBusiness[];
   impressions: BusinessImpressionObservation;
   userLocation: LocationObject | null;
@@ -31,12 +34,13 @@ type Props = {
 /**
  * Displays a horizontal Explore business carousel.
  *
- * Preserves backend ordering, calculates optional local distance, and reports
- * card visibility through the shared business impression observer.
+ * Preserves backend ordering, calculates optional local distance, reports
+ * impression visibility, and uses the shared Explore section heading.
  */
 export default function ExploreBusinessCarousel({
   title,
   subtitle,
+  titleIcon,
   businesses,
   impressions,
   userLocation,
@@ -65,31 +69,13 @@ export default function ExploreBusinessCarousel({
       onLayout={impressions.onSectionLayout}
     >
       {/* Section heading */}
-      <View className="mb-4 flex-row items-start justify-between gap-4 px-4">
-        <View className="min-w-0 flex-1">
-          <AppText weight="bold" className="text-xl text-text-primary">
-            {title}
-          </AppText>
-
-          <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-            {subtitle}
-          </AppText>
-        </View>
-
-        {onSeeAll && (
-          <Pressable
-            onPress={onSeeAll}
-            accessibilityRole="button"
-            accessibilityLabel={seeAllAccessibilityLabel}
-            hitSlop={8}
-            className="cursor-pointer min-h-7 justify-center active:opacity-70"
-          >
-            <AppText weight="semibold" className="text-sm text-brand">
-              See all
-            </AppText>
-          </Pressable>
-        )}
-      </View>
+      <ExploreSectionHeader
+        title={title}
+        subtitle={subtitle}
+        titleIcon={titleIcon}
+        onSeeAll={onSeeAll}
+        seeAllAccessibilityLabel={seeAllAccessibilityLabel}
+      />
 
       {/* Business carousel */}
       <ScrollView

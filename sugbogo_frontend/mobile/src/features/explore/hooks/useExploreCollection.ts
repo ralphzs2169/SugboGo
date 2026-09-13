@@ -35,14 +35,14 @@ export default function useExploreCollection(
   };
   const query = useInfiniteQuery({
     queryKey: getExploreCollectionQueryKey(
-      collectionType ?? "worth-discovering",
+      collectionType ?? "hidden-gems",
       normalizedCriteria,
     ),
     enabled: collectionType !== null,
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
       const response = await getExploreCollection(
-        collectionType ?? "worth-discovering",
+        collectionType ?? "hidden-gems",
         normalizedCriteria,
         pageParam,
       );

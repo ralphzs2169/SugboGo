@@ -1,7 +1,7 @@
 import { fireEvent, render } from "@testing-library/react-native";
 import { Pressable, Text } from "react-native";
 
-import WorthDiscoveringSection from "../WorthDiscoveringSection";
+import HiddenGemsSection from "../HiddenGemsSection";
 import type { ExploreBusiness } from "../../../types/exploreBusiness.types";
 
 const mockBusinessCard = jest.fn(
@@ -20,6 +20,7 @@ const mockBusinessCard = jest.fn(
 
 jest.mock("../../new-businesses/BusinessCard", () => ({
   __esModule: true,
+  getBusinessCardWidth: () => 240,
   default: (props: unknown) => mockBusinessCard(props as never),
 }));
 
@@ -78,7 +79,7 @@ function createImpressions() {
   };
 }
 
-describe("WorthDiscoveringSection", () => {
+describe("HiddenGemsSection", () => {
   beforeEach(() => {
     mockBusinessCard.mockClear();
   });
@@ -91,7 +92,7 @@ describe("WorthDiscoveringSection", () => {
     const onBusinessPress = jest.fn();
 
     const screen = await render(
-      <WorthDiscoveringSection
+      <HiddenGemsSection
         businesses={businesses}
         isLoading={false}
         error={null}
@@ -113,9 +114,9 @@ describe("WorthDiscoveringSection", () => {
       />,
     );
 
-    expect(screen.getByText("Worth Discovering")).toBeTruthy();
+    expect(screen.getByText("Hidden Gems")).toBeTruthy();
     expect(
-      screen.getByText("Community-backed places across Cebu worth exploring."),
+      screen.getByText("Great local places that deserve more discovery."),
     ).toBeTruthy();
     expect(
       mockBusinessCard.mock.calls.map(([props]) => props.business.id),
@@ -135,7 +136,7 @@ describe("WorthDiscoveringSection", () => {
 
   it("shows a section loading state without rendering fetched cards", async () => {
     const screen = await render(
-      <WorthDiscoveringSection
+      <HiddenGemsSection
         businesses={[]}
         isLoading
         error={null}
@@ -146,14 +147,14 @@ describe("WorthDiscoveringSection", () => {
       />,
     );
 
-    expect(screen.getByText("Worth Discovering")).toBeTruthy();
-    expect(screen.queryByTestId("worth-discovering-scroll")).toBeNull();
+    expect(screen.getByText("Hidden Gems")).toBeTruthy();
+    expect(screen.queryByTestId("hidden-gems-scroll")).toBeNull();
   });
 
   it("renders a persistent error with a query retry action", async () => {
     const refetch = jest.fn().mockResolvedValue(undefined);
     const screen = await render(
-      <WorthDiscoveringSection
+      <HiddenGemsSection
         businesses={[]}
         isLoading={false}
         error={new Error("Unavailable")}
@@ -164,14 +165,14 @@ describe("WorthDiscoveringSection", () => {
       />,
     );
 
-    expect(screen.getByTestId("worth-discovering-error")).toBeTruthy();
+    expect(screen.getByTestId("hidden-gems-error")).toBeTruthy();
     fireEvent.press(screen.getByTestId("discovery-retry"));
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   it("shows a compact non-error state after a successful empty response", async () => {
     const screen = await render(
-      <WorthDiscoveringSection
+      <HiddenGemsSection
         businesses={[]}
         isLoading={false}
         error={null}
@@ -182,16 +183,16 @@ describe("WorthDiscoveringSection", () => {
       />,
     );
 
-    expect(screen.getByTestId("worth-discovering-empty")).toBeTruthy();
-    expect(screen.getByText("Worth Discovering")).toBeTruthy();
+    expect(screen.getByTestId("hidden-gems-empty")).toBeTruthy();
+    expect(screen.getByText("Hidden Gems")).toBeTruthy();
     expect(
-      screen.getByText("Community-backed places across Cebu worth exploring."),
+      screen.getByText("Great local places that deserve more discovery."),
     ).toBeTruthy();
-    expect(screen.getByText("No places to show yet.")).toBeTruthy();
+    expect(screen.getByText("No places to show yet")).toBeTruthy();
     expect(
       screen.getByText("Check back as more local businesses join SugboGo."),
     ).toBeTruthy();
     expect(screen.queryByTestId("discovery-retry")).toBeNull();
-    expect(screen.queryByTestId("worth-discovering-scroll")).toBeNull();
+    expect(screen.queryByTestId("hidden-gems-scroll")).toBeNull();
   });
 });
