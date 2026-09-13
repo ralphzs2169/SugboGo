@@ -4,16 +4,18 @@ import { Pressable, View } from "react-native";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 import Avatar from "@/shared/components/Avatar";
+import type { AvatarKey } from "@/shared/constants/avatars";
 
 import { useImagePicker } from "../hooks/useImagePicker";
 import { ProfilePictureBottomSheet } from "./edit-profile/ProfilePictureBottomSheet";
 
 type Props = {
   imageUrl?: string | null;
+  avatarKey?: AvatarKey | null;
   isShowingCustomProfilePicture: boolean;
-  hasSelectedImage: boolean;
   isUploading: boolean;
   onImageSelected?: (imageUri: string) => void;
+  onChooseAvatar?: () => void;
   onRemovePicture?: () => void;
 };
 
@@ -25,13 +27,14 @@ type Props = {
  */
 export function ProfileImagePicker({
   imageUrl,
+  avatarKey,
   isShowingCustomProfilePicture,
-  hasSelectedImage,
   isUploading,
   onImageSelected,
+  onChooseAvatar,
   onRemovePicture,
 }: Props) {
-  const { pickFromGallery, takePhoto } = useImagePicker();
+  const { pickFromGallery } = useImagePicker();
 
   const sheetRef = useRef<BottomSheetModal | null>(null);
 
@@ -65,27 +68,6 @@ export function ProfileImagePicker({
     }
   }
 
-  // Capture from camera
-  async function handleTakePhoto() {
-    try {
-      const imageUri = await takePhoto();
-
-      if (!imageUri) {
-        return;
-      }
-
-      onImageSelected?.(imageUri);
-    } catch (error) {
-      console.error("Camera capture failed:", error);
-
-      Toast.show({
-        type: "error",
-        text1: "Image Error",
-        text2: "Unable to capture this image. Please try again.",
-      });
-    }
-  }
-
   // Remove current picture
   function handleRemovePicture() {
     sheetRef.current?.dismiss();
@@ -99,13 +81,13 @@ export function ProfileImagePicker({
         onPress={handlePickImage}
         disabled={isUploading}
         accessibilityRole="button"
-        accessibilityLabel="Change profile picture"
+        accessibilityLabel="Change avatar"
         accessibilityState={{ disabled: isUploading }}
         className="cursor-pointer active:opacity-80 disabled:opacity-100"
       >
         <View className="relative">
           <View className="rounded-full border border-white">
-            <Avatar imageUrl={imageUrl} size={120} />
+            <Avatar imageUrl={imageUrl} avatarKey={avatarKey} size={120} />
           </View>
         </View>
       </Pressable>
@@ -114,9 +96,11 @@ export function ProfileImagePicker({
       <ProfilePictureBottomSheet
         sheetRef={sheetRef}
         isShowingCustomProfilePicture={isShowingCustomProfilePicture}
-        hasSelectedImage={hasSelectedImage}
+        onChooseAvatar={() => {
+          sheetRef.current?.dismiss();
+          onChooseAvatar?.();
+        }}
         onChoosePhoto={handleChoosePhoto}
-        onTakePhoto={handleTakePhoto}
         onRemovePicture={handleRemovePicture}
       />
     </>

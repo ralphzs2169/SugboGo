@@ -43,6 +43,14 @@ class UserManager(BaseUserManager):
 # necessary because the default model uses a username field, but our ERD/data   
 # dictionary specifies that users are identified by email instead.
 class User(AbstractBaseUser, PermissionsMixin):
+    class AvatarKey(models.TextChoices):
+        EXPLORER_AVATAR_1 = "explorer_avatar_1", "Explorer avatar 1"
+        EXPLORER_AVATAR_2 = "explorer_avatar_2", "Explorer avatar 2"
+        EXPLORER_AVATAR_3 = "explorer_avatar_3", "Explorer avatar 3"
+        EXPLORER_AVATAR_4 = "explorer_avatar_4", "Explorer avatar 4"
+        EXPLORER_AVATAR_5 = "explorer_avatar_5", "Explorer avatar 5"
+        EXPLORER_AVATAR_6 = "explorer_avatar_6", "Explorer avatar 6"
+
     class UserRole(models.TextChoices):
         EXPLORER = 'explorer', 'Explorer'
         MERCHANT = 'merchant', 'Merchant'
@@ -78,10 +86,16 @@ class User(AbstractBaseUser, PermissionsMixin):
         null=True,
         blank=True
     )
-    USER_USE_OAUTH_AVATAR = models.BooleanField(
-        default=True,
+
+    # Stores the selected built-in SugboGo avatar.
+    # Null means the app should use the default SugboGo avatar.
+    USER_AVATAR_KEY = models.CharField(
+        max_length=20,
+        choices=AvatarKey.choices,
+        null=True,
+        blank=True,
     )
-    
+
     EMAIL_VERIFIED = models.BooleanField(default=False)
     EMAIL_VERIFIED_AT = models.DateTimeField(null=True, blank=True)
 
@@ -158,43 +172,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def avatar_url(self):
-        """
-        Returns the avatar that should be displayed.
+        """Returns the user's uploaded profile picture, if available."""
+        return self.USER_PROFILE_PICTURE
 
-        Priority:
-        1. Custom uploaded profile picture.
-        2. Latest connected OAuth avatar (if enabled).
-        3. None.
-        """
-
-        if self.USER_PROFILE_PICTURE:
-            return self.USER_PROFILE_PICTURE
-
-        if self.USER_USE_OAUTH_AVATAR:
-            oauth = (
-                self.OAUTH_ACCOUNTS
-                .filter(OAUTH_AVATAR_URL__isnull=False)
-                .exclude(OAUTH_AVATAR_URL="")
-                .order_by("-OAUTH_CREATED_AT")
-                .first()
-            )
-
-            if oauth:
-                return oauth.OAUTH_AVATAR_URL
-
-        return None
-
-    @property
-    def oauth_avatar_url(self):
-        oauth = (
-            self.OAUTH_ACCOUNTS
-            .filter(OAUTH_AVATAR_URL__isnull=False)
-            .exclude(OAUTH_AVATAR_URL="")
-            .order_by("-OAUTH_CREATED_AT")
-            .first()
-        )
-
-        return oauth.OAUTH_AVATAR_URL if oauth else None
 
     @property
     def has_custom_profile_picture(self):

@@ -39,6 +39,8 @@ class UserProfileViewTests(APIResponseAssertionsMixin, APITestCase):
 			response.data["data"]["first_name"],
 			self.user.USER_FNAME,
 		)
+		self.assertIn("avatar_key", response.data["data"])
+		self.assertIsNone(response.data["data"]["avatar_key"])
 
 	def test_patch_updates_profile_fields(self):
 		response = self.client.patch(
@@ -58,6 +60,94 @@ class UserProfileViewTests(APIResponseAssertionsMixin, APITestCase):
 		self.user.refresh_from_db()
 		self.assertEqual(self.user.USER_FNAME, "Updated")
 		self.assertEqual(self.user.USER_GENDER, User.Gender.PREFER_NOT_TO_SAY)
+
+	def test_patch_saves_valid_avatar_key(self):
+		response = self.client.patch(
+			self.url,
+			{"avatar_key": User.AvatarKey.EXPLORER_AVATAR_3},
+			format="json",
+		)
+
+		self.assertSuccessResponse(
+			response,
+			message="Profile updated successfully.",
+		)
+		self.user.refresh_from_db()
+		self.assertEqual(
+			self.user.USER_AVATAR_KEY,
+			User.AvatarKey.EXPLORER_AVATAR_3,
+		)
+		self.assertEqual(
+			response.data["data"]["avatar_key"],
+			User.AvatarKey.EXPLORER_AVATAR_3,
+		)
+
+	def test_patch_replaces_valid_avatar_key(self):
+		self.user.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_2
+		self.user.save(update_fields=["USER_AVATAR_KEY"])
+
+		response = self.client.patch(
+			self.url,
+			{"avatar_key": User.AvatarKey.EXPLORER_AVATAR_6},
+			format="json",
+		)
+
+		self.assertSuccessResponse(
+			response,
+			message="Profile updated successfully.",
+		)
+		self.user.refresh_from_db()
+		self.assertEqual(
+			self.user.USER_AVATAR_KEY,
+			User.AvatarKey.EXPLORER_AVATAR_6,
+		)
+
+	def test_patch_rejects_invalid_avatar_key(self):
+		response = self.client.patch(
+			self.url,
+			{"avatar_key": "shared/assets/avatars/explorer-avatar-1.webp"},
+			format="json",
+		)
+
+		self.assertValidationError(response, "avatar_key")
+
+	def test_patch_accepts_null_avatar_key(self):
+		self.user.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_4
+		self.user.save(update_fields=["USER_AVATAR_KEY"])
+
+		response = self.client.patch(
+			self.url,
+			{"avatar_key": None},
+			format="json",
+		)
+
+		self.assertSuccessResponse(
+			response,
+			message="Profile updated successfully.",
+		)
+		self.user.refresh_from_db()
+		self.assertIsNone(self.user.USER_AVATAR_KEY)
+
+	def test_uploaded_profile_picture_remains_avatar_url(self):
+		self.user.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_5
+		self.user.USER_PROFILE_PICTURE = "https://example.com/uploaded.jpg"
+		self.user.save(
+			update_fields=[
+				"USER_AVATAR_KEY",
+				"USER_PROFILE_PICTURE",
+			],
+		)
+
+		response = self.client.get(self.url)
+
+		self.assertEqual(
+			response.data["data"]["avatar_url"],
+			"https://example.com/uploaded.jpg",
+		)
+		self.assertEqual(
+			response.data["data"]["avatar_key"],
+			User.AvatarKey.EXPLORER_AVATAR_5,
+		)
 
 	def test_profile_requires_authentication(self):
 		self.client.force_authenticate(user=None)
@@ -116,42 +206,3 @@ class ProfilePictureViewTests(APIResponseAssertionsMixin, APITestCase):
 			message="Profile picture removed successfully.",
 		)
 		mock_delete.assert_called_once_with(user=self.user)
-
-
-class AvatarPreferencesViewTests(APIResponseAssertionsMixin, APITestCase):
-	"""Tests for updating authenticated user avatar preferences."""
-
-	def setUp(self):
-		self.user = User.objects.create_user(
-			email="avatar-preferences-view@example.com",
-			password="StrongPassword123!",
-			USER_FNAME="Avatar",
-			USER_LNAME="Explorer",
-			USER_ROLE=User.UserRole.EXPLORER,
-			USER_STATUS=User.UserStatus.ACTIVE,
-		)
-		self.client.force_authenticate(self.user)
-		self.url = reverse("avatar-preferences")
-
-	def test_patch_updates_oauth_avatar_preference(self):
-		response = self.client.patch(
-			self.url,
-			{"use_oauth_avatar": False},
-			format="json",
-		)
-
-		self.assertSuccessResponse(
-			response,
-			message="Avatar preferences updated successfully.",
-		)
-		self.user.refresh_from_db()
-		self.assertFalse(self.user.USER_USE_OAUTH_AVATAR)
-
-	def test_patch_requires_avatar_preference_value(self):
-		response = self.client.patch(
-			self.url,
-			{},
-			format="json",
-		)
-
-		self.assertValidationError(response, "use_oauth_avatar")

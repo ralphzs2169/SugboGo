@@ -92,6 +92,11 @@ class ReviewAuthorResponseSerializer(serializers.Serializer):
     last_name = serializers.CharField(source="USER_LNAME", read_only=True)
     role = serializers.CharField(source="USER_ROLE", read_only=True)
     avatar_url = serializers.ReadOnlyField()
+    avatar_key = serializers.CharField(
+        source="USER_AVATAR_KEY",
+        read_only=True,
+        allow_null=True,
+    )
 
 
 class ReviewVouchedSpecialtySerializer(serializers.ModelSerializer):

@@ -1,5 +1,14 @@
 from decimal import Decimal
 
+from apps.business.models import (
+    Business,
+    BusinessPocket,
+    BusinessSpecialtyTag,
+    BusinessVouch,
+)
+from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
+    apply_taxonomy_filters,
+)
 from django.db.models import (
     Case,
     DecimalField,
@@ -13,16 +22,6 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Coalesce
-
-from apps.business.models import (
-    Business,
-    BusinessPocket,
-    BusinessSpecialtyTag,
-    BusinessVouch,
-)
-from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
-    apply_taxonomy_filters,
-)
 
 
 class DiscoveryFeedService:

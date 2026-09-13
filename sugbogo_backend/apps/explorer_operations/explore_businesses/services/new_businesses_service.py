@@ -1,5 +1,3 @@
-from django.db.models import Exists, OuterRef, Prefetch
-
 from apps.business.models import (
     Business,
     BusinessPocket,
@@ -9,6 +7,7 @@ from apps.business.models import (
 from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
     apply_taxonomy_filters,
 )
+from django.db.models import Exists, OuterRef, Prefetch
 
 
 class NewBusinessesService:

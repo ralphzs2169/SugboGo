@@ -245,6 +245,11 @@ class ExploreReviewAuthorSerializer(serializers.Serializer):
         read_only=True,
     )
     avatar_url = serializers.ReadOnlyField()
+    avatar_key = serializers.CharField(
+        source="USER_AVATAR_KEY",
+        read_only=True,
+        allow_null=True,
+    )
 
 
 class ExploreReviewPhotoSerializer(serializers.ModelSerializer):

@@ -18,6 +18,7 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import {
   initialWindowMetrics,
   SafeAreaProvider,
@@ -28,7 +29,7 @@ import "../../global.css";
 
 /**
  * Initializes the application's global providers, fonts, authentication
- * restoration, navigation, and shared UI infrastructure.
+ * restoration, navigation, keyboard handling, and shared UI infrastructure.
  */
 export default function RootLayout() {
   useRestoreSession();
@@ -53,13 +54,13 @@ export default function RootLayout() {
   }
 
   return (
-    <>
-      <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <StatusBar style="dark" />
+    <QueryClientProvider client={queryClient}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar style="dark" />
 
-          <ActionSheetProvider>
-            <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <ActionSheetProvider>
+          <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+            <KeyboardProvider>
               <BottomSheetModalProvider>
                 {/* App navigation */}
                 <Stack screenOptions={{ headerShown: false }}>
@@ -86,10 +87,10 @@ export default function RootLayout() {
 
               {/* Global toast notifications */}
               <Toast config={toastConfig} />
-            </SafeAreaProvider>
-          </ActionSheetProvider>
-        </GestureHandlerRootView>
-      </QueryClientProvider>
-    </>
+            </KeyboardProvider>
+          </SafeAreaProvider>
+        </ActionSheetProvider>
+      </GestureHandlerRootView>
+    </QueryClientProvider>
   );
 }

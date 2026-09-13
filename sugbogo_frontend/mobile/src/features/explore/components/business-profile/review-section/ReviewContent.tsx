@@ -109,7 +109,11 @@ export default function ReviewContent({
     <>
       {/* Reviewer identity and actions */}
       <View className="flex-row items-center">
-        <Avatar imageUrl={review.author.avatar_url} size={40} />
+        <Avatar
+          imageUrl={review.author.avatar_url}
+          avatarKey={review.author.avatar_key}
+          size={40}
+        />
 
         <View className="ml-3 flex-1">
           <View className="flex-row items-center">
@@ -332,7 +336,11 @@ export default function ReviewContent({
         onClose={() => setIsPhotoViewerVisible(false)}
         headerContent={
           <View className="ml-3 flex-1 flex-row items-center">
-            <Avatar imageUrl={review.author.avatar_url} size={34} />
+            <Avatar
+              imageUrl={review.author.avatar_url}
+              avatarKey={review.author.avatar_key}
+              size={34}
+            />
 
             <View className="ml-2.5 flex-1">
               <AppText

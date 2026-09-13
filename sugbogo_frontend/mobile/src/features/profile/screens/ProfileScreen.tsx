@@ -84,6 +84,7 @@ export default function ProfileScreen() {
             lastname={user?.last_name ?? ""}
             email={user?.email ?? ""}
             avatarUrl={user?.avatar_url ?? null}
+            avatarKey={user?.avatar_key ?? null}
             role={user?.role ?? "explorer"}
             onEditProfile={() => router.push("/profile/edit-profile")}
           />

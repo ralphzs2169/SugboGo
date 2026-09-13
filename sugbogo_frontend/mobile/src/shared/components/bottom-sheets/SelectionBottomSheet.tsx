@@ -3,8 +3,11 @@ import {
   BottomSheetModal,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
-import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AppText from "@/shared/components/AppText";
+
 import { theme } from "@/constants/theme";
 
 export type SelectionOption = {
@@ -27,8 +30,7 @@ type Props = {
  * Provides a reusable bottom-sheet selection interface.
  *
  * Supports optional titles, descriptions, icons, and colors for individual
- * options while keeping the component flexible for different selection
- * fields across the app.
+ * options while respecting bottom safe-area spacing.
  */
 export default function SelectionBottomSheet({
   sheetRef,
@@ -38,6 +40,8 @@ export default function SelectionBottomSheet({
   selectedValue,
   onSelect,
 }: Props) {
+  const insets = useSafeAreaInsets();
+
   function handleSelect(value: string) {
     sheetRef.current?.dismiss();
     onSelect(value);
@@ -69,19 +73,29 @@ export default function SelectionBottomSheet({
         />
       )}
     >
-      <BottomSheetView className="px-6 pb-8">
+      <BottomSheetView
+        className="px-6"
+        style={{
+          paddingBottom: Math.max(insets.bottom, 32),
+        }}
+      >
         {/* Header */}
         {(title || description) && (
           <View className="border-b border-gray-100 pb-4">
             <View className="flex-row items-center justify-between">
               {title && (
-                <Text className="flex-1 pr-4 text-lg font-bold text-gray-900">
+                <AppText
+                  weight="bold"
+                  className="flex-1 pr-4 text-lg text-text-primary"
+                >
                   {title}
-                </Text>
+                </AppText>
               )}
 
               <Pressable
                 onPress={handleClose}
+                accessibilityRole="button"
+                accessibilityLabel="Close selection sheet"
                 className="cursor-pointer rounded-full p-1 active:bg-gray-100"
               >
                 <MaterialCommunityIcons
@@ -93,9 +107,9 @@ export default function SelectionBottomSheet({
             </View>
 
             {description && (
-              <Text className="mt-1.5 pr-10 text-sm leading-5 text-text-secondary">
+              <AppText className="mt-1.5 pr-10 text-sm leading-5 text-text-secondary">
                 {description}
-              </Text>
+              </AppText>
             )}
           </View>
         )}
@@ -106,6 +120,10 @@ export default function SelectionBottomSheet({
             <Pressable
               key={option.value}
               onPress={() => handleSelect(option.value)}
+              accessibilityRole="button"
+              accessibilityState={{
+                selected: selectedValue === option.value,
+              }}
               className="cursor-pointer flex-row items-center py-4"
             >
               {option.icon && (
@@ -118,14 +136,14 @@ export default function SelectionBottomSheet({
                 />
               )}
 
-              <Text
+              <AppText
                 className={`flex-1 text-base ${option.icon ? "ml-4" : ""}`}
                 style={{
                   color: option.color ?? "#1F2937",
                 }}
               >
                 {option.label}
-              </Text>
+              </AppText>
 
               {selectedValue === option.value && (
                 <MaterialCommunityIcons

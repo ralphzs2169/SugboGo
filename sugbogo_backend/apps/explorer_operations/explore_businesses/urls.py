@@ -10,11 +10,11 @@ from apps.explorer_operations.explore_businesses.views.business_vouch_views impo
 from apps.explorer_operations.explore_businesses.views.cluster_discovery_shortcut_views import (
     ClusterDiscoveryShortcutView,
 )
-from apps.explorer_operations.explore_businesses.views.discovery_feed_views import (
-    DiscoveryFeedView,
-)
 from apps.explorer_operations.explore_businesses.views.direct_journey_views import (
     DirectJourneySearchView,
+)
+from apps.explorer_operations.explore_businesses.views.discovery_feed_views import (
+    DiscoveryFeedView,
 )
 from apps.explorer_operations.explore_businesses.views.explore_collection_views import (
     ExploreCollectionView,

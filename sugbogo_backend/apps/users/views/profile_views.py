@@ -3,7 +3,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.users.serializers.profile_serializers import (
-    AvatarPreferencesSerializer,
     ProfilePictureSerializer,
     UserSerializer,
     UserUpdateSerializer,
@@ -82,32 +81,5 @@ class ProfilePictureView(APIView):
 
         return success_response(
             message="Profile picture removed successfully.",
-            data=UserSerializer(request.user).data,
-        )
-
-
-class AvatarPreferencesView(APIView):
-    """Updates the authenticated user's avatar preferences."""
-
-    permission_classes = (IsAuthenticated,)
-
-    def patch(self, request):
-        """Updates whether the user prefers their OAuth avatar."""
-        serializer = AvatarPreferencesSerializer(
-            data=request.data,
-        )
-        serializer.is_valid(
-            raise_exception=True,
-        )
-
-        ProfileService.update_avatar_preferences(
-            user=request.user,
-            use_oauth_avatar=serializer.validated_data[
-                "use_oauth_avatar"
-            ],
-        )
-
-        return success_response(
-            message="Avatar preferences updated successfully.",
             data=UserSerializer(request.user).data,
         )

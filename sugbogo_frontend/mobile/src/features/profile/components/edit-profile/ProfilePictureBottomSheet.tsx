@@ -7,9 +7,8 @@ import { PROFILE_PICTURE_OPTIONS } from "@/features/profile/constants/profilePic
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
   isShowingCustomProfilePicture: boolean;
-  hasSelectedImage: boolean;
+  onChooseAvatar: () => void;
   onChoosePhoto: () => void;
-  onTakePhoto: () => void;
   onRemovePicture: () => void;
 };
 
@@ -20,14 +19,11 @@ type Props = {
 export function ProfilePictureBottomSheet({
   sheetRef,
   isShowingCustomProfilePicture,
-  hasSelectedImage,
+  onChooseAvatar,
   onChoosePhoto,
-  onTakePhoto,
   onRemovePicture,
 }: Props) {
-  const canRemovePicture = isShowingCustomProfilePicture || hasSelectedImage;
-
-  const options = canRemovePicture
+  const options = isShowingCustomProfilePicture
     ? PROFILE_PICTURE_OPTIONS
     : PROFILE_PICTURE_OPTIONS.filter(
         (option) => option.value !== "remove_photo",
@@ -35,12 +31,12 @@ export function ProfilePictureBottomSheet({
 
   function handleSelect(value: string) {
     switch (value as ProfilePictureAction) {
-      case "choose_photo":
-        onChoosePhoto();
+      case "choose_avatar":
+        onChooseAvatar();
         break;
 
-      case "take_photo":
-        onTakePhoto();
+      case "upload_photo":
+        onChoosePhoto();
         break;
 
       case "remove_photo":
@@ -52,7 +48,7 @@ export function ProfilePictureBottomSheet({
   return (
     <SelectionBottomSheet
       sheetRef={sheetRef}
-      title="Profile Picture"
+      title="Profile picture actions"
       options={options}
       onSelect={handleSelect}
     />

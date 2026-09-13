@@ -42,7 +42,7 @@ class ProfilePictureService:
 
         This deletes the image from Cloudinary (if one exists) and clears the
         stored profile picture information. The frontend will automatically
-        fall back to the OAuth avatar (if enabled) or the default placeholder.
+        fall back to the selected or default built-in SugboGo avatar.
         """
 
         if not user.USER_PROFILE_PICTURE_PUBLIC_ID:

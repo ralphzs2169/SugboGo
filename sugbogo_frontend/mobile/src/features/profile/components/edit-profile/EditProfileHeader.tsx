@@ -1,17 +1,20 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import AppText from "@/shared/components/AppText";
 
 import { ProfileImagePicker } from "../ProfileImagePicker";
+import type { AvatarKey } from "@/shared/constants/avatars";
 
 const MASCOT_AVATAR_SITTING = require("@/shared/assets/mascot/mascot-avatar-sitting.webp");
 
 type Props = {
   imageUrl: string | null;
+  avatarKey: AvatarKey | null;
   isShowingCustomProfilePicture: boolean;
-  hasSelectedImage: boolean;
   isUploading: boolean;
   onImageSelected: (image: string) => void;
+  onChooseAvatar: () => void;
   onRemovePicture: () => void;
 };
 
@@ -21,10 +24,11 @@ type Props = {
  */
 export default function EditProfileHeader({
   imageUrl,
+  avatarKey,
   isShowingCustomProfilePicture,
-  hasSelectedImage,
   isUploading,
   onImageSelected,
+  onChooseAvatar,
   onRemovePicture,
 }: Props) {
   return (
@@ -67,10 +71,11 @@ export default function EditProfileHeader({
           >
             <ProfileImagePicker
               imageUrl={imageUrl}
+              avatarKey={avatarKey}
               isShowingCustomProfilePicture={isShowingCustomProfilePicture}
-              hasSelectedImage={hasSelectedImage}
               isUploading={isUploading}
               onImageSelected={onImageSelected}
+              onChooseAvatar={onChooseAvatar}
               onRemovePicture={onRemovePicture}
             />
 
@@ -93,9 +98,9 @@ export default function EditProfileHeader({
         </View>
 
         {/* Profile photo guidance */}
-        <Text className="mt-3 text-sm font-medium text-gray-500">
-          {isUploading ? "Uploading photo..." : "Tap to change photo"}
-        </Text>
+        <AppText className="mt-3 text-sm font-medium text-text-secondary">
+          {isUploading ? "Saving photo..." : "Tap to change avatar"}
+        </AppText>
       </View>
     </View>
   );

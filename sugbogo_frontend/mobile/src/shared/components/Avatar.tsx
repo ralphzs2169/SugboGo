@@ -1,22 +1,23 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { View } from "react-native";
-import { theme } from "@/constants/theme";
-
-const PLACEHOLDER_ICON_SCALE = 0.52;
-const PLACEHOLDER_BORDER_WIDTH = 0.5;
+import { resolveAvatarSource } from "@/shared/constants/avatars";
 
 type AvatarProps = {
   imageUrl?: string | null;
+  avatarKey?: string | null;
   size?: number;
 };
 
 /**
  * Displays a user's avatar or a placeholder when no image is available.
  */
-export default function Avatar({ imageUrl, size = 80 }: AvatarProps) {
+export default function Avatar({
+  imageUrl,
+  avatarKey,
+  size = 80,
+}: AvatarProps) {
   const borderRadius = size / 2;
-  const iconSize = size * PLACEHOLDER_ICON_SCALE;
+  const source = imageUrl ? { uri: imageUrl } : resolveAvatarSource(avatarKey);
 
   return (
     <View
@@ -25,37 +26,16 @@ export default function Avatar({ imageUrl, size = 80 }: AvatarProps) {
         height: size,
       }}
     >
-      <View
+      <Image
+        key={imageUrl ?? avatarKey ?? "default-avatar"}
+        source={source}
         style={{
-          position: "absolute",
-          inset: 0,
+          width: size,
+          height: size,
           borderRadius,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#F3F4F6",
-          borderWidth: PLACEHOLDER_BORDER_WIDTH,
-          borderColor: theme.extends.colors.text.secondary,
         }}
-      >
-        <MaterialCommunityIcons
-          name="account"
-          size={iconSize}
-          color={theme.extends.colors.text.secondary}
-        />
-      </View>
-
-      {imageUrl && (
-        <Image
-          key={imageUrl}
-          source={{ uri: imageUrl }}
-          style={{
-            width: size,
-            height: size,
-            borderRadius,
-          }}
-          contentFit="cover"
-        />
-      )}
+        contentFit="cover"
+      />
     </View>
   );
 }
