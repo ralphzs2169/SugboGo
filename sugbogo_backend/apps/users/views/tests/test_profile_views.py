@@ -1,13 +1,12 @@
 from base64 import b64decode
 from unittest.mock import patch
 
+from apps.users.models import User
 from core.tests.assertions import APIResponseAssertionsMixin
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-
-from apps.users.models import User
 
 
 class UserProfileViewTests(APIResponseAssertionsMixin, APITestCase):

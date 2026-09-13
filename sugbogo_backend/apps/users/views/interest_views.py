@@ -6,10 +6,10 @@ from apps.users.serializers.interest_serializers import (
     InterestCategorySerializer,
     InterestSpecialtyTagSerializer,
 )
-from apps.users.services.interest_service import UserInterestService
 from apps.users.serializers.profile_serializers import (
     UserInterestsUpdateSerializer,
 )
+from apps.users.services.interest_service import UserInterestService
 
 
 class UserInterestsView(APIView):

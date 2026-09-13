@@ -1,14 +1,13 @@
-from core.tests.assertions import APIResponseAssertionsMixin
-from django.urls import reverse
-from rest_framework import status
-from rest_framework.test import APITestCase
-
 from apps.business.models import Category, Cluster, SpecialtyTag
 from apps.users.models import (
 	User,
 	UserCategoryInterest,
 	UserSpecialtyTagInterest,
 )
+from core.tests.assertions import APIResponseAssertionsMixin
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
 
 
 class UserInterestsViewTests(APIResponseAssertionsMixin, APITestCase):
