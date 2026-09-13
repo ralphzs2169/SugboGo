@@ -9,6 +9,7 @@ from rest_framework.exceptions import (
 
 from apps.business.models import Business, BusinessVouch
 from apps.review_disputes.models import MerchantReviewDispute
+from apps.reviews.services.sentiment import route_sentiment
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
     Review,
@@ -47,11 +48,17 @@ class ReviewService:
                 "You cannot review your own business.",
             )
 
+        if not isinstance(text, str) or not text.strip():
+            raise ValidationError({"text": "Review text is required."})
+        sentiment_score, sentiment_label, _ = route_sentiment(text)
+
         try:
             review = Review.objects.create(
                 USER_ID=user,
                 BUSN_ID=business,
                 REVW_TEXT=text,
+                REVW_SENTIMENT_SCORE=sentiment_score,
+                REVW_SENTIMENT_LABEL=sentiment_label.lower(),
                 REVW_DEVICE_ID=device_id,
             )
         except IntegrityError:
@@ -374,11 +381,18 @@ class ReviewService:
 
         try:
             if text is not None:
+                if not isinstance(text, str) or not text.strip():
+                    raise ValidationError({"text": "Review text is required."})
+                sentiment_score, sentiment_label, _ = route_sentiment(text)
+                review.REVW_SENTIMENT_SCORE = sentiment_score
+                review.REVW_SENTIMENT_LABEL = sentiment_label.lower()
                 review.REVW_TEXT = text
 
                 review.save(
                     update_fields=[
                         "REVW_TEXT",
+                        "REVW_SENTIMENT_SCORE",
+                        "REVW_SENTIMENT_LABEL",
                         "REVW_UPDATED_AT",
                     ],
                 )
