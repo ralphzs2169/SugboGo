@@ -1,38 +1,5 @@
-// UI types
-
+import { ClusterIcon } from "@/shared/types/cluster.types";
 import { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
-
-export type ClusterIcon =
-  | "utensils"
-  | "coffee"
-  | "shopping_bag"
-  | "store"
-  | "bed_double"
-  | "hotel"
-  | "landmark"
-  | "church"
-  | "tree_palm"
-  | "waves"
-  | "mountain"
-  | "trees"
-  | "compass"
-  | "map_pinned"
-  | "camera"
-  | "music"
-  | "ticket"
-  | "dumbbell"
-  | "heart_pulse"
-  | "sparkles"
-  | "palette"
-  | "book_open"
-  | "graduation_cap"
-  | "briefcase_business"
-  | "car"
-  | "bus"
-  | "bike"
-  | "ship"
-  | "paw_print"
-  | "leaf";
 
 export interface ClusterOption {
   id: number;

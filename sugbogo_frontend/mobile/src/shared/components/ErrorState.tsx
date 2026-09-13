@@ -65,11 +65,11 @@ export default function ErrorState({
   const content = (
     <>
       {/* Error identity */}
-      <MaterialCommunityIcons
+      {/* <MaterialCommunityIcons
         name={icon}
         size={iconSize}
         color={theme.extends.colors.text.tertiary}
-      />
+      /> */}
 
       <AppText
         weight="bold"

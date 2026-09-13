@@ -2,10 +2,11 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import SafePressable from "@/shared/components/SafePressable";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import SafePressable from "@/shared/components/SafePressable";
+import Skeleton from "@/shared/components/Skeleton";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
 const MASCOT_GREETING = require("@/shared/assets/mascot/mascot-greeting.webp");
@@ -23,6 +24,7 @@ type Props = {
   onPressSearch: () => void;
   onPressFilters: () => void;
   activeFilterCount?: number;
+  isLoadingClusters?: boolean;
 };
 
 /**
@@ -38,6 +40,7 @@ export default function ExploreTopBar({
   onPressSearch,
   onPressFilters,
   activeFilterCount = 0,
+  isLoadingClusters = false,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -134,41 +137,55 @@ export default function ExploreTopBar({
         className="flex-none"
         contentContainerClassName="gap-2"
       >
-        {[{ id: null, name: "All", icon: null }, ...clusters].map((cluster) => {
-          const isActive = cluster.id === selectedClusterId;
+        {isLoadingClusters ? (
+          <>
+            <Skeleton className="h-9 w-14 rounded-full" />
+            <Skeleton className="h-9 w-24 rounded-full" />
+            <Skeleton className="h-9 w-20 rounded-full" />
+            <Skeleton className="h-9 w-28 rounded-full" />
+            <Skeleton className="h-9 w-20 rounded-full" />
+          </>
+        ) : (
+          [{ id: null, name: "All", icon: null }, ...clusters].map(
+            (cluster) => {
+              const isActive = cluster.id === selectedClusterId;
 
-          return (
-            <SafePressable
-              key={cluster.id ?? "all"}
-              onPress={() => onSelectCluster(cluster.id)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
-              className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${
-                isActive ? "bg-brand" : "bg-background"
-              }`}
-            >
-              {cluster.icon && (
-                <MaterialCommunityIcons
-                  name={CLUSTER_ICONS[cluster.icon] ?? "store"}
-                  size={14}
-                  color={
-                    isActive ? "#FFFFFF" : theme.extends.colors.text.secondary
-                  }
-                  style={{ marginRight: 5 }}
-                />
-              )}
+              return (
+                <SafePressable
+                  key={cluster.id ?? "all"}
+                  onPress={() => onSelectCluster(cluster.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                  className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${
+                    isActive ? "bg-brand" : "bg-background"
+                  }`}
+                >
+                  {cluster.icon && (
+                    <MaterialCommunityIcons
+                      name={CLUSTER_ICONS[cluster.icon] ?? "store"}
+                      size={14}
+                      color={
+                        isActive
+                          ? "#FFFFFF"
+                          : theme.extends.colors.text.secondary
+                      }
+                      style={{ marginRight: 5 }}
+                    />
+                  )}
 
-              <AppText
-                weight="medium"
-                className={`text-sm ${
-                  isActive ? "text-white" : "text-text-secondary"
-                }`}
-              >
-                {cluster.name}
-              </AppText>
-            </SafePressable>
-          );
-        })}
+                  <AppText
+                    weight="medium"
+                    className={`text-sm ${
+                      isActive ? "text-white" : "text-text-secondary"
+                    }`}
+                  >
+                    {cluster.name}
+                  </AppText>
+                </SafePressable>
+              );
+            },
+          )
+        )}
       </ScrollView>
     </View>
   );

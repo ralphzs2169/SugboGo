@@ -4,7 +4,7 @@ import {
   completeOnboardingInterests,
   getUserInterests,
   updateUserInterests,
-} from "../interest.service";
+} from "../../../profile/api/interest.service";
 
 jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,

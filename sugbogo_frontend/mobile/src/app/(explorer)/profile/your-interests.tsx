@@ -1,5 +1,5 @@
-import YourInterestsScreen from "@/features/interests/screens/YourInterestsScreen";
+import YourInterestsScreen from "@/features/profile/screens/YourInterestsScreen";
 
-export default function YourInterests() {
+export default function YourInterestsRoute() {
   return <YourInterestsScreen />;
 }

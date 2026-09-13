@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
-
-import { getUserInterests } from "../api/interest.service";
+import { getUserInterests } from "../../api/interest.service";
 
 export const USER_INTERESTS_QUERY_KEY = ["user-interests"] as const;
 

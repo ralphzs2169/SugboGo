@@ -1,15 +1,14 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
-import AppText from "@/shared/components/AppText";
 
+import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
-import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+import { getSpecialtyTagIcon } from "@/shared/constants/specialtyTagIcons";
+import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
 
 type SpecialtyTagChipProps = {
-  tag: {
-    name: string;
-    color: SpecialtyTagColor;
-  };
+  tag: SpecialtyTag;
   mode?: "display" | "registration" | "filter";
   size?: "default" | "small";
   isSelected?: boolean;
@@ -18,6 +17,7 @@ type SpecialtyTagChipProps = {
   showDisabledStyle?: boolean;
   count?: number;
   scaleOnPress?: boolean;
+  showIcon?: boolean;
   showVouchCount?: boolean;
   showVouchIndicator?: boolean;
   showSelectionIndicator?: boolean;
@@ -28,7 +28,8 @@ type SpecialtyTagChipProps = {
  *
  * Display mode always uses the specialty's assigned color. Selection modes
  * use a white outlined appearance until selected, then apply the specialty's
- * assigned color. Disabled selections retain the shared muted treatment.
+ * assigned color. The specialty icon and selection indicators can be shown
+ * independently depending on the chip's context.
  */
 export default function SpecialtyTagChip({
   tag,
@@ -40,11 +41,13 @@ export default function SpecialtyTagChip({
   showDisabledStyle = true,
   count,
   scaleOnPress = false,
+  showIcon = false,
   showVouchCount = false,
   showVouchIndicator = false,
   showSelectionIndicator = false,
 }: SpecialtyTagChipProps) {
   const styles = getSpecialtyTagColor(tag.color);
+  const specialtyIcon = getSpecialtyTagIcon(tag.icon);
 
   const isSmall = size === "small";
   const isSelectionMode = mode === "registration" || mode === "filter";
@@ -54,7 +57,9 @@ export default function SpecialtyTagChip({
   const useDisabledStyle = isSelectionMode && isDisabled && showDisabledStyle;
 
   const textColor = useColoredStyle ? styles.text : "text-black";
-  const iconColor = useColoredStyle ? styles.icon : "#000000";
+  const iconColor = useColoredStyle
+    ? styles.icon
+    : theme.extends.colors.text.secondary;
 
   return (
     <Pressable
@@ -73,7 +78,6 @@ export default function SpecialtyTagChip({
           },
         ],
 
-        // Registration selected state uses the specialty color.
         ...(isSelectionMode && isSelected
           ? {
               borderColor: styles.borderColor,
@@ -81,8 +85,8 @@ export default function SpecialtyTagChip({
           : {}),
       })}
       className={`mb-2 mr-2 flex-row items-center justify-center rounded-full ${
-        isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-2"
-      } ${
+        isInteractive ? "cursor-pointer" : ""
+      } ${isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-2"} ${
         useDisabledStyle
           ? "border border-border-primary bg-gray-200 opacity-40"
           : isSelectionMode
@@ -92,10 +96,22 @@ export default function SpecialtyTagChip({
             : styles.background
       }`}
     >
+      {/* Specialty icon */}
+      {showIcon && (
+        <MaterialCommunityIcons
+          name={specialtyIcon}
+          size={isSmall ? 13 : 16}
+          color={
+            useDisabledStyle ? theme.extends.colors.text.tertiary : iconColor
+          }
+          style={{ marginRight: 5 }}
+        />
+      )}
+
       {/* Specialty name */}
       <AppText
         weight="semibold"
-        className={` ${isSmall ? "text-[10px]" : "text-sm"} ${
+        className={`${isSmall ? "text-[10px]" : "text-sm"} ${
           useDisabledStyle
             ? "text-gray-400"
             : isSelectionMode && !isSelected
@@ -107,15 +123,15 @@ export default function SpecialtyTagChip({
         {tag.name}
       </AppText>
 
-      {/* Generic selected-state indicator */}
-      {showSelectionIndicator && isSelected && (
+      {/* Selected-state indicator */}
+      {/* {showSelectionIndicator && isSelected && (
         <MaterialCommunityIcons
           name="check-circle"
           size={isSmall ? 13 : 16}
           color={iconColor}
           style={{ marginLeft: 5 }}
         />
-      )}
+      )} */}
 
       {/* Vouch indicator */}
       {showVouchIndicator && isSelected && (
@@ -139,12 +155,14 @@ export default function SpecialtyTagChip({
           <MaterialCommunityIcons
             name={isSelected ? "heart" : "heart-outline"}
             size={isSmall ? 13 : 16}
-            color={useDisabledStyle ? "#9CA3AF" : iconColor}
+            color={
+              useDisabledStyle ? theme.extends.colors.text.tertiary : iconColor
+            }
           />
 
           <AppText
             weight="bold"
-            className={`ml-1  ${isSmall ? "text-[10px]" : "text-xs"} ${
+            className={`ml-1 ${isSmall ? "text-[10px]" : "text-xs"} ${
               useDisabledStyle ? "text-gray-400" : textColor
             }`}
           >

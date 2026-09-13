@@ -2,8 +2,8 @@ import InterestFooter from "@/features/interest-selection/components/InterestFoo
 import InterestGrid from "@/features/interest-selection/components/InterestGrid";
 import InterestHeader from "@/features/interest-selection/components/InterestHeader";
 import SetupSkipButton from "@/features/interest-selection/components/SetupSkipButton";
-import { useCompleteOnboardingInterests } from "@/features/interests/hooks/useInterestMutations";
-import useUserInterests from "@/features/interests/hooks/useUserInterests";
+import { useCompleteOnboardingInterests } from "@/features/profile/hooks/your-interests/useInterestMutations";
+import useUserInterests from "@/features/profile/hooks/your-interests/useUserInterests";
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";

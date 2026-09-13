@@ -1,8 +1,14 @@
-import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+import type { ClusterIcon } from "@/shared/types/cluster.types";
+
+import type {
+  SpecialtyTagColor,
+  SpecialtyTagIcon,
+} from "@/shared/types/specialtyTag.types";
 
 export type InterestCluster = {
   id: number;
   name: string;
+  icon: ClusterIcon;
 };
 
 export type InterestCategory = {
@@ -15,6 +21,7 @@ export type InterestSpecialtyTag = {
   id: number;
   name: string;
   color: SpecialtyTagColor;
+  icon: SpecialtyTagIcon | null;
 };
 
 export type UserInterests = {
