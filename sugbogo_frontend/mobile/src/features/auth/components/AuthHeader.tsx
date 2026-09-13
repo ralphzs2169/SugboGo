@@ -1,6 +1,6 @@
-import SugboGoLogo from "@/shared/components/SugboGoLogo";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import BrandLogo from "@/shared/components/BrandLogo";
+import AppText from "@/shared/components/AppText";
 interface AuthHeaderProps {
   subtitle?: string;
 }
@@ -11,9 +11,9 @@ export default function AuthHeader({
   return (
     <View className="mb-14 items-center">
       <BrandLogo />
-      <Text className="text-body text-[11.5px] text-text-secondary">
+      <AppText className="text-body text-[11.5px] text-text-secondary">
         {subtitle}
-      </Text>
+      </AppText>
     </View>
   );
 }

@@ -1,8 +1,9 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
 import AuthLayout from "@/features/auth/components/AuthLayout";
+
+import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 
 type AuthSuccessScreenProps = {
@@ -15,11 +16,10 @@ type AuthSuccessScreenProps = {
 };
 
 /**
- * Reusable success screen for authentication flows.
+ * Displays a reusable success state for authentication flows.
  *
- * Displays a success animation, title, description, and a
- * primary action button. Used for screens such as password
- * reset success and email verification.
+ * Presents a success animation, supporting message, and primary follow-up
+ * action for flows such as password reset and email verification.
  */
 export default function AuthSuccessScreen({
   animation,
@@ -27,36 +27,45 @@ export default function AuthSuccessScreen({
   description,
   buttonTitle,
   onPress,
-  buttonIcon = <MaterialCommunityIcons name="login" size={20} color="white" />,
+  buttonIcon,
 }: AuthSuccessScreenProps) {
   return (
     <AuthLayout>
+      {/* Success animation */}
       <View className="items-center justify-center">
         <LottieView
           source={animation}
           autoPlay
           loop={false}
           style={{
-            width: 300,
-            height: 220,
+            width: 250,
+            height: 200,
           }}
         />
       </View>
 
-      <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
-        {title}
-      </Text>
+      {/* Success message */}
+      <View className="mb-7">
+        <AppText
+          weight="bold"
+          className="text-center text-xl text-text-primary"
+        >
+          {title}
+        </AppText>
 
-      <Text className="mb-10 text-center text-base text-text-secondary">
-        {description}
-      </Text>
+        <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+          {description}
+        </AppText>
+      </View>
 
+      {/* Primary follow-up action */}
       <Button
         title={buttonTitle}
         onPress={onPress}
         icon={buttonIcon}
-        className="mt-2 mb-20 shadow"
-        fontClassName="text-md font-bold"
+        className="mt-2"
+        textWeight="bold"
+        rounded="full"
       />
     </AuthLayout>
   );

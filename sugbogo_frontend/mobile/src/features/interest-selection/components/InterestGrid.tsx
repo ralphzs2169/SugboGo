@@ -2,7 +2,7 @@ import { View } from "react-native";
 
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 
-import type { InterestSpecialtyTag } from "@/features/interests/types/interest.types";
+import type { InterestSpecialtyTag } from "@/features/profile/types/interest.types";
 
 interface InterestGridProps {
   tags: InterestSpecialtyTag[];
@@ -22,8 +22,7 @@ export default function InterestGrid({
     <View className="flex-row flex-wrap">
       {tags.map((tag) => {
         const isSelected = selected.includes(tag.id);
-        const isDisabled =
-          !isSelected && selected.length >= MAX_SELECTIONS;
+        const isDisabled = !isSelected && selected.length >= MAX_SELECTIONS;
 
         return (
           <SpecialtyTagChip

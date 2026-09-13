@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import Interests from "@/app/(setup)/interests";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { useCompleteOnboardingInterests } from "@/features/interests/hooks/useInterestMutations";
+import { useCompleteOnboardingInterests } from "@/features/profile/hooks/your-interests/useInterestMutations";
 import useUserInterests from "@/features/interests/hooks/useUserInterests";
 
 jest.mock("expo-router", () => ({
@@ -60,27 +60,27 @@ describe("onboarding interests", () => {
 
     expect(coffee.props.className).toContain("bg-white");
     await fireEvent.press(coffee);
-    expect(screen.getByTestId("interest-selection-progress").props.children).toEqual(
-      [1, " / 3 selected"],
-    );
+    expect(
+      screen.getByTestId("interest-selection-progress").props.children,
+    ).toEqual([1, " / 3 selected"]);
     expect(screen.getByLabelText("Local Coffee").props.className).toContain(
       "bg-blue-500",
     );
 
     await fireEvent.press(screen.getByLabelText("Traditional Food"));
     await fireEvent.press(screen.getByLabelText("Handmade Crafts"));
-    expect(screen.getByTestId("interest-selection-progress").props.children).toEqual(
-      [3, " / 3 selected"],
-    );
+    expect(
+      screen.getByTestId("interest-selection-progress").props.children,
+    ).toEqual([3, " / 3 selected"]);
     expect(
       screen.getByLabelText("Outdoor Dining").props.accessibilityState.disabled,
     ).toBe(true);
 
     await fireEvent.press(screen.getByLabelText("Local Coffee"));
     await fireEvent.press(screen.getByLabelText("Outdoor Dining"));
-    expect(screen.getByLabelText("Outdoor Dining").props.accessibilityState.selected).toBe(
-      true,
-    );
+    expect(
+      screen.getByLabelText("Outdoor Dining").props.accessibilityState.selected,
+    ).toBe(true);
   });
 
   it("submits real IDs and allows zero-selection Skip", async () => {

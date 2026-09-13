@@ -6,8 +6,8 @@ import { RECOMMENDATIONS_QUERY_KEY } from "@/features/explore/hooks/useRecommend
 import {
   completeOnboardingInterests,
   updateUserInterests,
-} from "../api/interest.service";
-import type { UpdateInterestsPayload } from "../types/interest.types";
+} from "../../api/interest.service";
+import type { UpdateInterestsPayload } from "../../types/interest.types";
 import { USER_INTERESTS_QUERY_KEY } from "./useUserInterests";
 
 /** Persists onboarding specialty selections through the shared interest model. */

@@ -1,23 +1,28 @@
-import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
-import { useForgotPassword } from "@/features/auth/hooks/useForgotPassword";
-import { validateForgotPasswordForm } from "@/features/auth/utils/forgotPasswordValidator";
-import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
-import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
+import { MaterialIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Text, View } from "react-native";
-
+import { View } from "react-native";
 import Toast from "react-native-toast-message";
-import ForgotPasswordIllustration from "@/features/auth/assets/icons/forgot-password.svg";
-import Button from "@/shared/components/Button";
+
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
+import { useForgotPassword } from "@/features/auth/hooks/useForgotPassword";
+import { validateForgotPasswordForm } from "@/features/auth/utils/forgotPasswordValidator";
+
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import FormInput from "@/shared/components/form/FormInput";
+import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
+import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
+
+const MASCOT_FORGOT_PASSWORD = require("@/shared/assets/mascot/mascot-forgot-password.webp");
 
 /**
- * Screen that allows users to request a password reset link.
- * Validates the email address, sends a reset request,
- * and redirects users to the reset confirmation screen.
+ * Displays the password recovery screen and coordinates reset-link requests.
+ *
+ * Handles email validation, rate-limit feedback, reset-link delivery, and
+ * navigation back to the login flow.
  */
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -32,7 +37,9 @@ export default function ForgotPasswordScreen() {
   };
 
   const onSendResetLink = async () => {
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
     const validationErrors = validateForgotPasswordForm(email);
 
@@ -98,22 +105,35 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthLayout>
-      {/* Password Reset Illustration */}
+      {/* Password recovery mascot */}
       <View className="mb-6 items-center justify-center">
-        <ForgotPasswordIllustration width={150} height={150} />
+        <Image
+          source={MASCOT_FORGOT_PASSWORD}
+          style={{
+            width: 170,
+            height: 170,
+          }}
+          contentFit="contain"
+          accessible={false}
+        />
       </View>
 
-      {/* Page Introduction */}
-      <Text className="mb-4 text-center text-3xl font-bold text-text-primary">
-        Forgot your password?
-      </Text>
+      {/* Password recovery introduction */}
+      <View className="mb-7">
+        <AppText
+          weight="bold"
+          className="text-center text-xl text-text-primary"
+        >
+          Forgot your password?
+        </AppText>
 
-      <Text className="mb-8 text-center text-base text-text-secondary">
-        Enter your email address and we'll send you a link to reset your
-        password.
-      </Text>
+        <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+          Enter your email address and we&apos;ll send you a link to reset your
+          password.
+        </AppText>
+      </View>
 
-      {/* Email Field */}
+      {/* Email field */}
       <FormInput
         label="EMAIL ADDRESS"
         placeholder="Enter your email"
@@ -125,26 +145,21 @@ export default function ForgotPasswordScreen() {
         onFocus={clearEmailError}
       />
 
-      {/* Submit Action */}
+      {/* Reset action */}
       <Button
-        title="Send Reset Link"
+        title="Send reset link"
         loading={loading}
+        disabled={loading}
         onPress={onSendResetLink}
-        icon={
-          <MaterialCommunityIcons
-            name="email-outline"
-            size={20}
-            color="white"
-          />
-        }
-        className="mb-20 mt-2 shadow"
-        fontClassName="text-md font-bold"
+        className="mb-6 mt-5"
+        textWeight="bold"
+        rounded="full"
       />
 
-      {/* Back Navigation */}
+      {/* Back navigation */}
       <BottomAuthLink
         text=""
-        actionText="Back to Login"
+        actionText="Back to log in"
         icon={
           <MaterialIcons
             name="arrow-back"

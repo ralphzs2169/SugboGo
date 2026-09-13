@@ -148,6 +148,7 @@ export default function ExploreScreen() {
           }
         }}
         onPressFilters={() => navigateToExploreResults({}, true)}
+        isLoadingClusters={filterOptions.isLoading}
       />
 
       {/* Discovery content */}

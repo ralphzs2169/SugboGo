@@ -1,52 +1,74 @@
-import GoogleIcon from "@/shared/components/icons/GoogleIcon";
 import { Ionicons } from "@expo/vector-icons";
-import { TouchableOpacity, View } from "react-native";
+import { Pressable, View } from "react-native";
+
+import AppText from "@/shared/components/AppText";
+import GoogleIcon from "@/shared/components/icons/GoogleIcon";
 
 interface SocialLoginButtonsProps {
   disabled?: boolean;
   onGooglePress?: () => void;
   onFacebookPress?: () => void;
-  onApplePress?: () => void;
 }
 
 /**
- * Renders social login buttons for Google, Facebook, and Apple.
- *
- * The buttons are styled as circular icons and can be disabled during loading states.
- * Each button triggers its respective login handler when pressed.
+ * Renders Google and Facebook authentication actions side by side using
+ * consistent secondary styling beneath the primary credential login action.
  */
 export default function SocialLoginButtons({
+  disabled = false,
   onGooglePress,
-  disabled,
   onFacebookPress,
-  onApplePress,
 }: SocialLoginButtonsProps) {
   return (
-    <View className="flex-row justify-center  mb-8">
-      <TouchableOpacity
+    <View className="flex-row gap-3">
+      {/* Google authentication */}
+      <Pressable
         disabled={disabled}
         onPress={onGooglePress}
+        accessibilityRole="button"
         accessibilityLabel="Continue with Google"
-        className="mr-4 h-[52px] w-[52px] items-center justify-center rounded-full border border-gray-200 bg-white"
+        className={`h-12 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl border border-border-primary bg-surface px-3 active:opacity-75 ${
+          disabled ? "opacity-50" : ""
+        }`}
       >
-        <GoogleIcon />
-      </TouchableOpacity>
+        <View className="mr-2 h-4 w-4 items-center justify-center">
+          <GoogleIcon />
+        </View>
 
-      <TouchableOpacity
+        <AppText
+          weight="semibold"
+          className="text-sm text-text-primary"
+          numberOfLines={1}
+        >
+          Google
+        </AppText>
+      </Pressable>
+
+      {/* Facebook authentication */}
+      <Pressable
         disabled={disabled}
         onPress={onFacebookPress}
-        className="mr-4 h-[52px] w-[52px] items-center justify-center rounded-full border border-[#1877F2] bg-[#1877F2]"
+        accessibilityRole="button"
+        accessibilityLabel="Continue with Facebook"
+        className={`h-12 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl border border-border-primary bg-surface px-3 active:opacity-75 ${
+          disabled ? "opacity-50" : ""
+        }`}
       >
-        <Ionicons name="logo-facebook" size={24} color="white" />
-      </TouchableOpacity>
+        <Ionicons
+          name="logo-facebook"
+          size={21}
+          color="#1877F2"
+          style={{ marginRight: 8 }}
+        />
 
-      <TouchableOpacity
-        disabled={disabled}
-        onPress={onApplePress}
-        className="h-[52px] w-[52px] items-center justify-center rounded-full border border-black bg-black"
-      >
-        <Ionicons name="logo-apple" size={24} color="white" />
-      </TouchableOpacity>
+        <AppText
+          weight="semibold"
+          className="text-sm text-text-primary"
+          numberOfLines={1}
+        >
+          Facebook
+        </AppText>
+      </Pressable>
     </View>
   );
 }

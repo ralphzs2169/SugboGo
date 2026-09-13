@@ -18,3 +18,13 @@ export function getApiFieldErrors(error) {
     ]),
   );
 }
+
+export function formatDistanceMeters(value) {
+  const distance = Number(value);
+
+  if (!Number.isFinite(distance)) {
+    return "Unavailable";
+  }
+
+  return `${Math.round(distance).toLocaleString()} m`;
+}

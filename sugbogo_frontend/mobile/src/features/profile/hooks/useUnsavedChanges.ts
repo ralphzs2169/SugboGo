@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { router, useNavigation } from "expo-router";
+
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
+/**
+ * Protects screens with unsaved changes from accidental navigation.
+ *
+ * Confirmed discards and successful saves can explicitly bypass the guard
+ * before performing their intended navigation action.
+ */
 export function useUnsavedChangesGuard(hasChanges: boolean) {
   const navigation = useNavigation();
   const canLeaveRef = useRef(false);
@@ -21,7 +28,6 @@ export function useUnsavedChangesGuard(hasChanges: boolean) {
       }
 
       event.preventDefault();
-
       setShowConfirm(true);
     });
 
@@ -31,6 +37,7 @@ export function useUnsavedChangesGuard(hasChanges: boolean) {
   function confirmLeave() {
     canLeaveRef.current = true;
     setShowConfirm(false);
+
     router.back();
   }
 
@@ -38,9 +45,17 @@ export function useUnsavedChangesGuard(hasChanges: boolean) {
     setShowConfirm(false);
   }
 
+  function navigateWithoutConfirmation(navigate: () => void) {
+    canLeaveRef.current = true;
+    setShowConfirm(false);
+
+    navigate();
+  }
+
   return {
     showConfirm,
     confirmLeave,
     cancelLeave,
+    navigateWithoutConfirmation,
   };
 }

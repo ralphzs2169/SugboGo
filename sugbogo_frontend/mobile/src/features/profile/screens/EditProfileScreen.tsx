@@ -71,8 +71,12 @@ export default function EditProfileScreen() {
     selectedImage !== null ||
     ((user?.has_custom_profile_picture ?? false) && !removeProfilePicture);
 
-  const { showConfirm, confirmLeave, cancelLeave } =
-    useUnsavedChangesGuard(hasChanges);
+  const {
+    showConfirm,
+    confirmLeave,
+    cancelLeave,
+    navigateWithoutConfirmation,
+  } = useUnsavedChangesGuard(hasChanges);
 
   const clearFieldError = (field: keyof UpdateProfileErrors) => {
     setErrors((prev) => ({
@@ -171,7 +175,7 @@ export default function EditProfileScreen() {
 
     setTimeout(() => {
       Toast.show({
-        type: "success",
+        type: "info",
         text1: "Profile updated successfully.",
       });
     }, 1000);
@@ -179,7 +183,9 @@ export default function EditProfileScreen() {
     setSelectedImage(null);
     setRemoveProfilePicture(false);
 
-    router.replace("/profile");
+    navigateWithoutConfirmation(() => {
+      router.replace("/profile");
+    });
   }
 
   /**
