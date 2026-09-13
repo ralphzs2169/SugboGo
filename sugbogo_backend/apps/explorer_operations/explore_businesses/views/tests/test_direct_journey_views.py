@@ -74,6 +74,11 @@ class DirectJourneySearchViewTests(TestCase):
                     "alighting_to_business_distance_meters": 180.25,
                     "total_access_egress_distance_meters": 300.75,
                     "approximate_ride_distance_meters": 3500.0,
+                    "landmark_context": {
+                        "id": 12,
+                        "name": "Gaisano Capital South",
+                        "distance_from_alighting_meters": 85.0,
+                    },
                 },
             ],
             "reason": None,
@@ -101,6 +106,14 @@ class DirectJourneySearchViewTests(TestCase):
         )
         self.assertIsNone(
             response.data["data"]["reason"],
+        )
+        self.assertEqual(
+            response.data["data"]["journeys"][0]["landmark_context"],
+            {
+                "id": 12,
+                "name": "Gaisano Capital South",
+                "distance_from_alighting_meters": 85.0,
+            },
         )
         mock_search.assert_called_once_with(
             business_id=21,
@@ -138,6 +151,67 @@ class DirectJourneySearchViewTests(TestCase):
                 "journeys": [],
                 "reason": "no_direct_route_match",
             },
+        )
+
+    @patch.object(
+        DirectJourneyService,
+        "search_direct_journeys",
+    )
+    def test_missing_landmark_context_is_a_successful_null_value(
+        self,
+        mock_search,
+    ):
+        """Serialize a valid journey without requiring landmark context."""
+
+        mock_search.return_value = {
+            "journeys": [
+                {
+                    "journey_type": "direct",
+                    "jeepney_route_code": "14D",
+                    "route_variant_id": 8,
+                    "route_variant_origin": {
+                        "id": 1,
+                        "name": "Kamputhaw",
+                    },
+                    "route_variant_destination": {
+                        "id": 4,
+                        "name": "Colon",
+                    },
+                    "boarding_transit_point": {
+                        "id": 2,
+                        "name": "Capitol",
+                        "latitude": 10.3173,
+                        "longitude": 123.8908,
+                    },
+                    "boarding_sequence": 2,
+                    "explorer_to_boarding_distance_meters": 120.5,
+                    "alighting_transit_point": {
+                        "id": 4,
+                        "name": "Colon",
+                        "latitude": 10.2940,
+                        "longitude": 123.9003,
+                    },
+                    "alighting_sequence": 4,
+                    "alighting_to_business_distance_meters": 180.25,
+                    "total_access_egress_distance_meters": 300.75,
+                    "approximate_ride_distance_meters": 3500.0,
+                    "landmark_context": None,
+                },
+            ],
+            "reason": None,
+        }
+
+        response = self.client.get(
+            self.url,
+            self.query_params,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertIsNone(
+            response.data["data"]["journeys"][0]["landmark_context"],
         )
 
     @patch.object(

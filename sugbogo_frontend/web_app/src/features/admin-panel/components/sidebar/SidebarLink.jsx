@@ -79,7 +79,7 @@ export default function SidebarLink({
 
       {badge > 0 && (
         <span
-          className={`flex shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold leading-none text-white ${
+          className={`flex shrink-0 items-center justify-center  text-[10px] font-bold leading-none text-text-primary ${
             isCollapsed
               ? "absolute -right-1 -top-1 h-4 min-w-4 px-1"
               : "ml-auto min-w-5 px-1.5 py-1"

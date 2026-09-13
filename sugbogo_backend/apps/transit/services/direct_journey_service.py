@@ -6,6 +6,7 @@ from apps.business.models import Business
 from apps.transit.constants import (
     DIRECT_ROUTE_RESULT_LIMIT,
     DIRECT_ROUTE_SEARCH_RADIUS_METERS,
+    LANDMARK_CONTEXT_RADIUS_METERS,
 )
 
 
@@ -17,10 +18,10 @@ class DirectJourneyService:
     NO_DIRECT_ROUTE_MATCH = "no_direct_route_match"
 
     @staticmethod
-    def _get_destination_point(
+    def _get_destination_context(
         business_id,
     ):
-        """Retrieve the authoritative location for an active destination business."""
+        """Retrieve the authoritative point and location ID for a destination."""
 
         try:
             business = (
@@ -49,7 +50,10 @@ class DirectJourneyService:
                 "The business location could not be found.",
             )
 
-        return location.LOCT_POINT
+        return (
+            location.LOCT_POINT,
+            location.LOCT_ID,
+        )
 
     @staticmethod
     def _execute_search_query(
@@ -309,7 +313,113 @@ class DirectJourneyService:
             "approximate_ride_distance_meters": row[
                 "ride_distance_meters"
             ],
+            "landmark_context": None,
         }
+
+    @staticmethod
+    def _find_landmark_contexts(
+        location_id,
+        alighting_point_ids,
+    ):
+        """Find the nearest eligible business landmark for each alighting point."""
+
+        unique_alighting_point_ids = sorted(
+            set(
+                alighting_point_ids,
+            )
+        )
+
+        if not unique_alighting_point_ids:
+            return {}
+
+        id_placeholders = ", ".join(
+            [
+                "%s"
+                for _ in unique_alighting_point_ids
+            ]
+        )
+        query = f"""
+            SELECT DISTINCT ON (transit_point."TRPT_ID")
+                transit_point."TRPT_ID" AS alighting_point_id,
+                landmark."BLMK_ID" AS landmark_id,
+                landmark."BLMK_NAME" AS landmark_name,
+                ST_Distance(
+                    landmark."BLMK_POINT"::geography,
+                    transit_point."TRPT_POINT"::geography
+                ) AS distance_from_alighting_meters
+            FROM "TRANSIT_POINT" AS transit_point
+            INNER JOIN "BUSINESS_LANDMARK" AS landmark
+                ON landmark."LOCT_ID" = %s
+            WHERE transit_point."TRPT_ID" IN ({id_placeholders})
+                AND landmark."BLMK_POINT" IS NOT NULL
+                AND NOT ST_IsEmpty(landmark."BLMK_POINT")
+                AND landmark."BLMK_POINT" && ST_Buffer(
+                    transit_point."TRPT_POINT"::geography,
+                    %s
+                )::geometry
+                AND ST_DWithin(
+                    landmark."BLMK_POINT"::geography,
+                    transit_point."TRPT_POINT"::geography,
+                    %s
+                )
+            ORDER BY
+                transit_point."TRPT_ID",
+                distance_from_alighting_meters,
+                landmark."BLMK_ID"
+        """
+        parameters = [
+            location_id,
+            *unique_alighting_point_ids,
+            LANDMARK_CONTEXT_RADIUS_METERS,
+            LANDMARK_CONTEXT_RADIUS_METERS,
+        ]
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                query,
+                parameters,
+            )
+
+            return {
+                alighting_point_id: {
+                    "id": landmark_id,
+                    "name": landmark_name,
+                    "distance_from_alighting_meters": distance,
+                }
+                for (
+                    alighting_point_id,
+                    landmark_id,
+                    landmark_name,
+                    distance,
+                ) in cursor.fetchall()
+            }
+
+    @staticmethod
+    def _enrich_landmark_contexts(
+        journeys,
+        location_id,
+    ):
+        """Attach optional landmark context without changing journey order."""
+
+        contexts_by_alighting_point_id = (
+            DirectJourneyService._find_landmark_contexts(
+                location_id,
+                [
+                    journey["alighting_transit_point"]["id"]
+                    for journey in journeys
+                ],
+            )
+        )
+
+        for journey in journeys:
+            alighting_point_id = journey[
+                "alighting_transit_point"
+            ]["id"]
+            journey["landmark_context"] = (
+                contexts_by_alighting_point_id.get(
+                    alighting_point_id,
+                )
+            )
 
     @staticmethod
     def search_direct_journeys(
@@ -324,7 +434,10 @@ class DirectJourneyService:
             float(latitude),
             srid=4326,
         )
-        destination_point = DirectJourneyService._get_destination_point(
+        (
+            destination_point,
+            destination_location_id,
+        ) = DirectJourneyService._get_destination_context(
             business_id,
         )
         rows = DirectJourneyService._execute_search_query(
@@ -339,6 +452,11 @@ class DirectJourneyService:
             for row in rows
             if row["route_variant_id"] is not None
         ]
+
+        DirectJourneyService._enrich_landmark_contexts(
+            journeys,
+            destination_location_id,
+        )
 
         if journeys:
             reason = None

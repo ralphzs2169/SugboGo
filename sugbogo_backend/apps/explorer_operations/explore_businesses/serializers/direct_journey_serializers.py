@@ -28,6 +28,14 @@ class JourneyTransitPointSerializer(JourneyEndpointSerializer):
     longitude = serializers.FloatField()
 
 
+class JourneyLandmarkContextSerializer(serializers.Serializer):
+    """Serialize an optional approved-business landmark near the alighting point."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    distance_from_alighting_meters = serializers.FloatField()
+
+
 class DirectJourneySerializer(serializers.Serializer):
     """Serialize one ranked zero-transfer jeepney journey."""
 
@@ -48,6 +56,9 @@ class DirectJourneySerializer(serializers.Serializer):
     alighting_to_business_distance_meters = serializers.FloatField()
     total_access_egress_distance_meters = serializers.FloatField()
     approximate_ride_distance_meters = serializers.FloatField()
+    landmark_context = JourneyLandmarkContextSerializer(
+        allow_null=True,
+    )
 
 
 class DirectJourneySearchResultSerializer(serializers.Serializer):
