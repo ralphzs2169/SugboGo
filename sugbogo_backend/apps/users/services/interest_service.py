@@ -13,71 +13,58 @@ class UserInterestService:
 
     @staticmethod
     def get_interests(user):
+        """Retrieves selected and available interests for a user."""
         category_interests = (
             UserCategoryInterest.objects
             .filter(USER_ID=user)
-            .select_related("CTGRY_ID", "CTGRY_ID__CLUS_ID")
+            .select_related(
+                "CTGRY_ID",
+                "CTGRY_ID__CLUS_ID",
+            )
             .order_by("CTGRY_ID_id")
         )
+
         specialty_interests = (
             UserSpecialtyTagInterest.objects
             .filter(USER_ID=user)
             .select_related("TAG_ID")
             .order_by("TAG_ID_id")
         )
+
         available_categories = (
             Category.objects
             .select_related("CLUS_ID")
-            .order_by("CLUS_ID__CLUS_NAME", "CTGRY_NAME", "CTGRY_ID")
+            .order_by(
+                "CLUS_ID__CLUS_NAME",
+                "CTGRY_NAME",
+                "CTGRY_ID",
+            )
         )
-        available_specialty_tags = SpecialtyTag.objects.order_by(
-            "TAG_NAME",
-            "TAG_ID",
+
+        available_specialty_tags = (
+            SpecialtyTag.objects
+            .order_by(
+                "TAG_NAME",
+                "TAG_ID",
+            )
         )
 
         return {
             "categories": [
-                {
-                    "id": interest.CTGRY_ID.CTGRY_ID,
-                    "name": interest.CTGRY_ID.CTGRY_NAME,
-                    "cluster": {
-                        "id": interest.CTGRY_ID.CLUS_ID.CLUS_ID,
-                        "name": interest.CTGRY_ID.CLUS_ID.CLUS_NAME,
-                    },
-                }
+                interest.CTGRY_ID
                 for interest in category_interests
             ],
             "specialty_tags": [
-                {
-                    "id": interest.TAG_ID.TAG_ID,
-                    "name": interest.TAG_ID.TAG_NAME,
-                    "color": interest.TAG_ID.TAG_COLOR,
-                }
+                interest.TAG_ID
                 for interest in specialty_interests
             ],
-            "available_categories": [
-                {
-                    "id": category.CTGRY_ID,
-                    "name": category.CTGRY_NAME,
-                    "cluster": {
-                        "id": category.CLUS_ID.CLUS_ID,
-                        "name": category.CLUS_ID.CLUS_NAME,
-                    },
-                }
-                for category in available_categories
-            ],
-            "available_specialty_tags": [
-                {
-                    "id": specialty_tag.TAG_ID,
-                    "name": specialty_tag.TAG_NAME,
-                    "color": specialty_tag.TAG_COLOR,
-                }
-                for specialty_tag in available_specialty_tags
-            ],
+            "available_categories": available_categories,
+            "available_specialty_tags": available_specialty_tags,
         }
 
     @staticmethod
     def _get_categories(category_ids):
+        """Retrieves categories selected by the user."""
         categories = list(
             Category.objects
             .filter(CTGRY_ID__in=category_ids)
@@ -97,6 +84,7 @@ class UserInterestService:
 
     @staticmethod
     def _get_specialty_tags(specialty_tag_ids):
+        """Retrieves specialty tags selected by the user."""
         specialty_tags = list(
             SpecialtyTag.objects
             .filter(TAG_ID__in=specialty_tag_ids)
@@ -122,13 +110,16 @@ class UserInterestService:
         specialty_tag_ids=None,
         complete_onboarding=False,
     ):
+        """Replaces a user's selected interests atomically."""
         if category_ids is not None:
             categories = UserInterestService._get_categories(
                 category_ids,
             )
+
             UserCategoryInterest.objects.filter(
                 USER_ID=user,
             ).delete()
+
             UserCategoryInterest.objects.bulk_create(
                 [
                     UserCategoryInterest(
@@ -143,9 +134,11 @@ class UserInterestService:
             specialty_tags = UserInterestService._get_specialty_tags(
                 specialty_tag_ids,
             )
+
             UserSpecialtyTagInterest.objects.filter(
                 USER_ID=user,
             ).delete()
+
             UserSpecialtyTagInterest.objects.bulk_create(
                 [
                     UserSpecialtyTagInterest(
