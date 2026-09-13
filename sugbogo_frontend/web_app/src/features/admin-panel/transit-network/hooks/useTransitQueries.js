@@ -4,6 +4,7 @@ import {
   fetchJeepneyRoute,
   fetchJeepneyRoutes,
   fetchRouteVariants,
+  fetchRouteVariant,
   fetchTransitPoint,
   fetchTransitPoints,
   fetchTransitTransfer,
@@ -60,6 +61,21 @@ export function useRouteVariants(params = {}, options = {}) {
     queryFn: () => fetchRouteVariants(params),
     enabled: options.enabled,
   });
+}
+
+export function useRouteVariant(variantId, options = {}) {
+  const query = useQuery({
+    queryKey: transitQueryKeys.variantDetail(variantId),
+    queryFn: () => fetchRouteVariant(variantId),
+    enabled: options.enabled !== false && Boolean(variantId),
+  });
+
+  return {
+    variant: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 export function useTransitPoints(params = {}, options = {}) {

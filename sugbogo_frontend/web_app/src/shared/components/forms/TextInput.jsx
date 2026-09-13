@@ -4,8 +4,8 @@ import { Check } from "lucide-react";
 /**
  * Reusable text input for admin forms.
  *
- * Supports optional minimum-length validation and character-count feedback
- * for forms that need to communicate completion requirements.
+ * Supports read-only values, optional minimum-length validation, and
+ * character-count feedback for forms that communicate completion requirements.
  */
 export default function TextInput({
   id,
@@ -24,6 +24,7 @@ export default function TextInput({
   min,
   max,
   step,
+  readOnly = false,
   showCharacterCount = false,
 }) {
   const characterCount = value?.trim().length ?? 0;
@@ -65,11 +66,13 @@ export default function TextInput({
           min={min}
           max={max}
           step={step}
+          readOnly={readOnly}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
           className={clsx(
             "w-full rounded-md border-2 bg-background py-3 text-sm text-text-primary outline-none transition placeholder:text-text-secondary",
             Icon ? "pl-12 pr-4" : "px-4",
+            readOnly && "cursor-default bg-surface text-text-secondary",
             error
               ? "border-danger focus:border-danger"
               : "border-stroke focus:border-stroke-active",

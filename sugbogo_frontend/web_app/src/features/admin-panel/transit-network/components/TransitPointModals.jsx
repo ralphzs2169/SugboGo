@@ -11,6 +11,7 @@ import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import useTransitMutations from "../hooks/useTransitMutations";
 import { useTransitPoint } from "../hooks/useTransitQueries";
 import { getApiFieldErrors } from "../utils/transitFormatters";
+import TransitPointMapPicker from "./transit-point-editor/TransitPointMapPicker";
 
 const EMPTY_VALUES = { name: "", latitude: "", longitude: "" };
 
@@ -50,12 +51,41 @@ export function TransitPointFormModal({ isOpen, transitPoint, onClose }) {
     useTransitMutations();
   const isEditing = Boolean(transitPoint);
   const isSubmitting = isCreatingPoint || isUpdatingPoint;
+  const latitude = Number(values.latitude);
+  const longitude = Number(values.longitude);
+  const hasValidPosition =
+    values.latitude !== "" &&
+    values.longitude !== "" &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180;
+  const position = hasValidPosition
+    ? {
+        lat: latitude,
+        lng: longitude,
+      }
+    : null;
 
   function handleChange(event) {
     const { name, value } = event.target;
 
     setValues((previous) => ({ ...previous, [name]: value }));
     setErrors((previous) => ({ ...previous, [name]: undefined }));
+  }
+
+  function handlePositionChange(nextPosition) {
+    setValues((previous) => ({
+      ...previous,
+      latitude: nextPosition.lat.toFixed(6),
+      longitude: nextPosition.lng.toFixed(6),
+    }));
+    setErrors((previous) => ({
+      ...previous,
+      latitude: undefined,
+      longitude: undefined,
+      coordinates: undefined,
+    }));
   }
 
   async function handleSubmit(event) {
@@ -101,6 +131,8 @@ export function TransitPointFormModal({ isOpen, transitPoint, onClose }) {
       onClose={onClose}
       title={isEditing ? "Edit Transit Point" : "Add Transit Point"}
       description="Store a SugboGo-managed point used by the transit network."
+      maxWidth="max-w-3xl"
+      scrollable
     >
       {/* Transit Point form */}
       <form className="space-y-5" onSubmit={handleSubmit}>
@@ -114,6 +146,19 @@ export function TransitPointFormModal({ isOpen, transitPoint, onClose }) {
           error={errors.name}
           required
         />
+
+        {/* Visual location picker */}
+        <div>
+          <p className="mb-2 text-sm font-medium text-text-primary">
+            Location <span className="text-danger">*</span>
+          </p>
+          <TransitPointMapPicker
+            position={position}
+            onPositionChange={handlePositionChange}
+          />
+        </div>
+
+        {/* Coordinate verification */}
         <div className="grid gap-4 sm:grid-cols-2">
           <TextInput
             id="transit-point-latitude"
@@ -125,8 +170,8 @@ export function TransitPointFormModal({ isOpen, transitPoint, onClose }) {
             label="Latitude"
             placeholder="10.315699"
             value={values.latitude}
-            onChange={handleChange}
             error={errors.latitude}
+            readOnly
             required
           />
           <TextInput
@@ -139,8 +184,8 @@ export function TransitPointFormModal({ isOpen, transitPoint, onClose }) {
             label="Longitude"
             placeholder="123.885437"
             value={values.longitude}
-            onChange={handleChange}
             error={errors.longitude}
+            readOnly
             required
           />
         </div>

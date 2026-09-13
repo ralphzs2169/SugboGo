@@ -2,11 +2,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   confirmTransitTransfer,
+  createRouteVariant,
   createJeepneyRoute,
   createTransitPoint,
   createTransitTransfer,
   ignoreTransitTransfer,
   updateJeepneyRoute,
+  updateRouteVariant,
   updateTransitPoint,
   updateTransitTransfer,
 } from "../services/transitNetworkService";
@@ -41,6 +43,24 @@ export default function useTransitMutations() {
     ]);
   }
 
+  async function invalidateVariantQueries(routeId, variantId) {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: transitQueryKeys.routes() }),
+      queryClient.invalidateQueries({ queryKey: transitQueryKeys.variants() }),
+      queryClient.invalidateQueries({ queryKey: transitQueryKeys.transfers() }),
+      routeId
+        ? queryClient.invalidateQueries({
+            queryKey: transitQueryKeys.routeDetail(routeId),
+          })
+        : Promise.resolve(),
+      variantId
+        ? queryClient.invalidateQueries({
+            queryKey: transitQueryKeys.variantDetail(variantId),
+          })
+        : Promise.resolve(),
+    ]);
+  }
+
   async function invalidateTransferQueries(transferId) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: transitQueryKeys.transfers() }),
@@ -59,6 +79,16 @@ export default function useTransitMutations() {
   const updateRouteMutation = useMutation({
     mutationFn: ({ routeId, data }) => updateJeepneyRoute(routeId, data),
     onSuccess: (_, { routeId }) => invalidateRouteQueries(routeId),
+  });
+  const createVariantMutation = useMutation({
+    mutationFn: createRouteVariant,
+    onSuccess: (variant) =>
+      invalidateVariantQueries(variant.route_id, variant.id),
+  });
+  const updateVariantMutation = useMutation({
+    mutationFn: ({ variantId, data }) => updateRouteVariant(variantId, data),
+    onSuccess: (variant) =>
+      invalidateVariantQueries(variant.route_id, variant.id),
   });
   const createPointMutation = useMutation({
     mutationFn: createTransitPoint,
@@ -91,6 +121,8 @@ export default function useTransitMutations() {
   return {
     createRoute: createRouteMutation.mutateAsync,
     updateRoute: updateRouteMutation.mutateAsync,
+    createVariant: createVariantMutation.mutateAsync,
+    updateVariant: updateVariantMutation.mutateAsync,
     createPoint: createPointMutation.mutateAsync,
     updatePoint: updatePointMutation.mutateAsync,
     createTransfer: createTransferMutation.mutateAsync,
@@ -99,6 +131,8 @@ export default function useTransitMutations() {
     ignoreTransfer: ignoreTransferMutation.mutateAsync,
     isCreatingRoute: createRouteMutation.isPending,
     isUpdatingRoute: updateRouteMutation.isPending,
+    isCreatingVariant: createVariantMutation.isPending,
+    isUpdatingVariant: updateVariantMutation.isPending,
     isCreatingPoint: createPointMutation.isPending,
     isUpdatingPoint: updatePointMutation.isPending,
     isCreatingTransfer: createTransferMutation.isPending,

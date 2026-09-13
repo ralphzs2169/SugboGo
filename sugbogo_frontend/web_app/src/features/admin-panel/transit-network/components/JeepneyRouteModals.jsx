@@ -1,6 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { ArrowRight, Route } from "lucide-react";
+import { ArrowRight, Map, Plus, Route } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
@@ -95,6 +96,7 @@ export function JeepneyRouteFormModal({ isOpen, route, onClose }) {
  * Displays route detail and its existing directional variants without map editing.
  */
 export function JeepneyRouteDetailModal({ routeId, onClose }) {
+  const navigate = useNavigate();
   const isOpen = Boolean(routeId);
   const { route, isLoading, error, refetch } = useJeepneyRoute(routeId, {
     enabled: isOpen,
@@ -104,6 +106,11 @@ export function JeepneyRouteDetailModal({ routeId, onClose }) {
     toastId: `transit-route-detail-${routeId}-error`,
     fallbackMessage: "Unable to load the jeepney route.",
   });
+
+  function openVariantEditor(path) {
+    onClose();
+    navigate(path);
+  }
 
   return (
     <Modal
@@ -140,9 +147,22 @@ export function JeepneyRouteDetailModal({ routeId, onClose }) {
 
           {/* Directional variants */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-text-primary">
-              Directional Variants
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-text-primary">
+                Directional Variants
+              </h3>
+              <Button
+                size="sm"
+                icon={Plus}
+                onClick={() =>
+                  openVariantEditor(
+                    `/admin-panel/transit-network/routes/${route.id}/variants/new`,
+                  )
+                }
+              >
+                Add Variant
+              </Button>
+            </div>
             {route?.variants?.length ? (
               <div className="space-y-3">
                 {route.variants.map((variant) => (
@@ -161,10 +181,14 @@ export function JeepneyRouteDetailModal({ routeId, onClose }) {
                     <Button
                       variant="secondary"
                       size="sm"
-                      disabled
-                      disabledTooltip="Route path editing will be available in the map editor."
+                      icon={Map}
+                      onClick={() =>
+                        openVariantEditor(
+                          `/admin-panel/transit-network/routes/${route.id}/variants/${variant.id}/edit`,
+                        )
+                      }
                     >
-                      Edit Route Path
+                      Manage Route Path
                     </Button>
                   </div>
                 ))}

@@ -41,6 +41,29 @@ export async function fetchRouteVariants(params = {}) {
   return unwrapData(response);
 }
 
+export async function fetchRouteVariant(variantId) {
+  const response = await apiClient.get(
+    `${BASE_URL}route-variants/${variantId}/`,
+  );
+
+  return unwrapData(response);
+}
+
+export async function createRouteVariant(data) {
+  const response = await apiClient.post(`${BASE_URL}route-variants/`, data);
+
+  return unwrapData(response);
+}
+
+export async function updateRouteVariant(variantId, data) {
+  const response = await apiClient.patch(
+    `${BASE_URL}route-variants/${variantId}/`,
+    data,
+  );
+
+  return unwrapData(response);
+}
+
 export async function fetchTransitPoints(params = {}) {
   const response = await apiClient.get(`${BASE_URL}transit-points/`, {
     params,

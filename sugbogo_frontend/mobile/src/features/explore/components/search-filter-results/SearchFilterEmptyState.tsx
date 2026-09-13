@@ -49,7 +49,6 @@ export default function SearchFilterEmptyState({
           onPrimaryAction={onRetry}
           secondaryActionTitle="Go back"
           onSecondaryAction={onGoBack}
-          isRetrying={isRetrying}
         />
       </View>
     );

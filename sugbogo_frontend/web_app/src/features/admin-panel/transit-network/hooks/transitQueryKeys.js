@@ -9,6 +9,11 @@ export const transitQueryKeys = {
   ],
   variants: () => [...transitQueryKeys.all, "route-variants"],
   variantList: (params) => [...transitQueryKeys.variants(), "list", params],
+  variantDetails: () => [...transitQueryKeys.variants(), "detail"],
+  variantDetail: (variantId) => [
+    ...transitQueryKeys.variantDetails(),
+    String(variantId),
+  ],
   transitPoints: () => [...transitQueryKeys.all, "transit-points"],
   transitPointList: (params) => [
     ...transitQueryKeys.transitPoints(),
