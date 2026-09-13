@@ -100,8 +100,55 @@ jest.mock(
   () => () => null,
 );
 jest.mock("../../components/explore-map/ExploreMapSection", () => () => null);
-jest.mock("../../components/hidden-gems/HiddenGemsSection", () => () => null);
-jest.mock("../../components/interests/InterestsSection", () => () => null);
+jest.mock("../../components/hidden-gems/HiddenGemsSection", () => {
+  const { Pressable, Text, View } = require("react-native");
+
+  return {
+    __esModule: true,
+    default: ({
+      businesses,
+      error,
+      impressions,
+    }: {
+      businesses: Array<{ id: number }>;
+      error: unknown;
+      impressions: {
+        onSectionLayout: (event: unknown) => void;
+        onListLayout: (event: unknown) => void;
+        onCardLayout: (id: number, event: unknown) => void;
+      };
+    }) => {
+      if (error) {
+        return (
+          <View testID="hidden-gems-error" onLayout={() => undefined}>
+            <Text>Hidden Gems</Text>
+          </View>
+        );
+      }
+
+      return (
+        <View
+          testID="hidden-gems-section"
+          onLayout={impressions.onSectionLayout}
+        >
+          <Text>Hidden Gems</Text>
+          <View testID="hidden-gems-scroll" onLayout={impressions.onListLayout}>
+            {businesses.map((business) => (
+              <Pressable
+                key={business.id}
+                testID={`discovery-impression-${business.id}`}
+                onLayout={(event) =>
+                  impressions.onCardLayout(business.id, event)
+                }
+              />
+            ))}
+          </View>
+        </View>
+      );
+    },
+  };
+});
+jest.mock("../../components/interests/UserInterestsSection", () => () => null);
 jest.mock(
   "../../components/discover-more/DiscoverMoreSection",
   () => () => null,
@@ -225,7 +272,7 @@ it("keeps nested Explore scrolling, refresh, and card navigation functional afte
   const refresh = jest.spyOn(client, "refetchQueries");
   const screen = await render(<ExploreScreen />, { wrapper });
   const outerScroll = screen.getByTestId("explore-discovery-scroll");
-  const discoveryScroll = screen.getByTestId("worth-discovering-scroll");
+  const discoveryScroll = screen.getByTestId("hidden-gems-scroll");
   const newBusinessesScroll = screen.getByTestId("new-businesses-scroll");
   expect(recordBusinessImpressions).not.toHaveBeenCalled();
 
@@ -234,7 +281,7 @@ it("keeps nested Explore scrolling, refresh, and card navigation functional afte
     outerScroll.props.onLayout({
       nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 800 } },
     });
-    screen.getByTestId("worth-discovering-section").props.onLayout({
+    screen.getByTestId("hidden-gems-section").props.onLayout({
       nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 400 } },
     });
     discoveryScroll.props.onLayout({
@@ -290,18 +337,16 @@ it("keeps New Businesses visible and notifies when Discovery fails", async () =>
 
   expect(screen.getByText("New to SugboGo")).toBeTruthy();
   expect(screen.getByText("Real business")).toBeTruthy();
-  expect(screen.getByTestId("worth-discovering-error")).toBeTruthy();
+  expect(screen.getByTestId("hidden-gems-error")).toBeTruthy();
 });
 
-it("places Worth Discovering before New Businesses", async () => {
+it("places Hidden Gems before New Businesses", async () => {
   const { wrapper } = setup();
   const screen = await render(<ExploreScreen />, { wrapper });
-  const sectionHeadings = screen.getAllByText(
-    /^(Worth Discovering|New to SugboGo)$/,
-  );
+  const sectionHeadings = screen.getAllByText(/^(Hidden Gems|New to SugboGo)$/);
 
   expect(sectionHeadings.map((heading) => heading.props.children)).toEqual([
-    "Worth Discovering",
+    "Hidden Gems",
     "New to SugboGo",
   ]);
 });

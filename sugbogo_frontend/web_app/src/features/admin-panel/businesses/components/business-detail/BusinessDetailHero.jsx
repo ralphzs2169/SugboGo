@@ -70,7 +70,11 @@ export default function BusinessDetailHero({
               </div>
 
               <div className="mt-3 flex items-center gap-3">
-                <UserAvatar avatarUrl={owner?.avatar_url} size="lg" />
+                <UserAvatar
+                  avatarUrl={owner?.avatar_url}
+                  avatarKey={owner?.avatar_key}
+                  size="lg"
+                />
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-text-primary">

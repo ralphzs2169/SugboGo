@@ -88,6 +88,12 @@ class MerchantApplicationViewTests(
 
     def test_application_list_returns_paginated_applications(self):
         application = self._build_complete_application()
+        application.USER_ID.USER_AVATAR_KEY = (
+            User.AvatarKey.EXPLORER_AVATAR_3
+        )
+        application.USER_ID.save(
+            update_fields=["USER_AVATAR_KEY"],
+        )
 
         application.MAPP_STATUS = (
             MerchantApplication.ApplicationStatus.SUBMITTED
@@ -127,6 +133,11 @@ class MerchantApplicationViewTests(
         self.assertEqual(
             response.data["data"]["items"][0]["id"],
             application.MAPP_ID,
+        )
+
+        self.assertEqual(
+            response.data["data"]["items"][0]["submitter"]["avatar_key"],
+            User.AvatarKey.EXPLORER_AVATAR_3,
         )
 
         self.assertEqual(
@@ -295,6 +306,12 @@ class MerchantApplicationViewTests(
 
     def test_application_detail_returns_application(self):
         application = self._build_complete_application()
+        application.USER_ID.USER_AVATAR_KEY = (
+            User.AvatarKey.EXPLORER_AVATAR_5
+        )
+        application.USER_ID.save(
+            update_fields=["USER_AVATAR_KEY"],
+        )
 
         response = self.client.get(
             self._detail_url(application.MAPP_ID),
@@ -308,6 +325,11 @@ class MerchantApplicationViewTests(
         self.assertEqual(
             response.data["data"]["id"],
             application.MAPP_ID,
+        )
+
+        self.assertEqual(
+            response.data["data"]["submitter"]["avatar_key"],
+            User.AvatarKey.EXPLORER_AVATAR_5,
         )
 
     def test_application_detail_returns_not_found_for_missing_application(self):

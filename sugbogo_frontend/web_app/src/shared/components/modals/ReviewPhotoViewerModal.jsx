@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { createPortal } from "react-dom";
+import UserAvatar from "@/shared/components/UserAvatar";
 /**
  * Provides a fullscreen, focused viewer for review photos.
  *
@@ -89,20 +90,12 @@ export default function ReviewPhotoViewerModal({
 
         {/* Reviewer identity */}
         <div className="ml-3 flex min-w-0 flex-1 items-center">
-          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-white/10">
-            {review?.author?.avatar_url ? (
-              <img
-                src={review.author.avatar_url}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-white">
-                {review?.author?.first_name?.[0]}
-                {review?.author?.last_name?.[0]}
-              </div>
-            )}
-          </div>
+          <UserAvatar
+            avatarUrl={review?.author?.avatar_url}
+            avatarKey={review?.author?.avatar_key}
+            size="compact"
+            className="border-white/20"
+          />
 
           <div className="ml-2.5 min-w-0">
             <p className="truncate text-sm font-semibold text-white">

@@ -7,17 +7,17 @@ import { ProfilePictureAction } from "../types/profile.types";
  */
 export const PROFILE_PICTURE_OPTIONS = [
   {
-    label: "Choose Photo",
-    value: "choose_photo",
-    icon: "image-outline",
+    label: "Choose SugboGo Avatar",
+    value: "choose_avatar",
+    icon: "account-circle-outline",
   },
   {
-    label: "Take Photo",
-    value: "take_photo",
+    label: "Upload Photo",
+    value: "upload_photo",
     icon: "camera-outline",
   },
   {
-    label: "Remove Current Photo",
+    label: "Remove Photo",
     value: "remove_photo",
     icon: "delete-outline",
     color: theme.extends.colors.error,

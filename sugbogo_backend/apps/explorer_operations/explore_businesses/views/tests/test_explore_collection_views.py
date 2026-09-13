@@ -140,7 +140,7 @@ class ExploreCollectionViewTests(TestCase):
             data=params,
         )
 
-    def test_worth_discovering_preserves_discovery_order_under_specialty_filter(
+    def test_hidden_gems_preserves_discovery_order_under_specialty_filter(
         self,
     ):
         high_discovery = self._create_business("High Discovery")
@@ -165,7 +165,7 @@ class ExploreCollectionViewTests(TestCase):
         )
 
         response = self._get_collection(
-            "worth-discovering",
+            "hidden-gems",
             {
                 "specialty_tag": self.coffee_tag.TAG_ID,
             },
@@ -197,7 +197,7 @@ class ExploreCollectionViewTests(TestCase):
             )
 
         response = self._get_collection(
-            "worth-discovering",
+            "hidden-gems",
             [
                 ("category", self.cafe_category.CTGRY_ID),
                 ("category", self.restaurant_category.CTGRY_ID),
@@ -323,7 +323,7 @@ class ExploreCollectionViewTests(TestCase):
             BUSN_STATUS=Business.BusinessStatus.SUSPENDED,
         )
 
-        response = self._get_collection("worth-discovering")
+        response = self._get_collection("hidden-gems")
         returned_ids = {
             item["id"]
             for item in response.data["data"]["items"]
@@ -333,7 +333,7 @@ class ExploreCollectionViewTests(TestCase):
         self.assertIn(verified.BUSN_ID, returned_ids)
         self.assertNotIn(suspended.BUSN_ID, returned_ids)
 
-    def test_worth_discovering_page_query_count_does_not_scale_with_items(self):
+    def test_hidden_gems_page_query_count_does_not_scale_with_items(self):
         for index in range(10):
             business = self._create_business(f"Query Business {index}")
             self._add_specialty(
@@ -343,7 +343,7 @@ class ExploreCollectionViewTests(TestCase):
             )
 
         with self.assertNumQueries(3):
-            response = self._get_collection("worth-discovering")
+            response = self._get_collection("hidden-gems")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["data"]["items"]), 10)
@@ -370,7 +370,7 @@ class ExploreCollectionViewTests(TestCase):
 
         for page in (1, 2, 3):
             response = self._get_collection(
-                "worth-discovering",
+                "hidden-gems",
                 {
                     "page": page,
                     "page_size": 5,

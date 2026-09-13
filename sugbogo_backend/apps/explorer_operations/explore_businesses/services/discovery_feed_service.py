@@ -1,5 +1,14 @@
 from decimal import Decimal
 
+from apps.business.models import (
+    Business,
+    BusinessPocket,
+    BusinessSpecialtyTag,
+    BusinessVouch,
+)
+from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
+    apply_taxonomy_filters,
+)
 from django.db.models import (
     Case,
     DecimalField,
@@ -13,16 +22,6 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Coalesce
-
-from apps.business.models import (
-    Business,
-    BusinessPocket,
-    BusinessSpecialtyTag,
-    BusinessVouch,
-)
-from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
-    apply_taxonomy_filters,
-)
 
 
 class DiscoveryFeedService:
@@ -201,13 +200,13 @@ class DiscoveryFeedService:
         )
 
     @staticmethod
-    def list_worth_discovering(
+    def list_hidden_gems(
         user,
         category_ids=None,
         cluster_id=None,
         specialty_tag_id=None,
     ):
-        """Return the filtered collection with pure Discovery ordering."""
+        """Return the filtered Hidden Gems collection with pure Discovery ordering."""
 
         return DiscoveryFeedService.list_discovery_businesses(
             user=user,

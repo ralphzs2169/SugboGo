@@ -86,7 +86,7 @@ export type ExploreResultsCriteria = {
 };
 
 export type ExploreCollectionType =
-  "worth-discovering" | "interests" | "new-businesses";
+  "hidden-gems" | "interests" | "new-businesses";
 
 export type ExploreCollectionCriteria = {
   clusterId: number | null;

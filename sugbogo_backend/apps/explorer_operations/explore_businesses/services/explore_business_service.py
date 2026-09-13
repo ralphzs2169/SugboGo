@@ -5,8 +5,8 @@ from apps.business.models import (
     BusinessVouch,
 )
 from apps.reviews.models import (
-    ReviewLike,
     Review,
+    ReviewLike,
 )
 from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework.exceptions import NotFound

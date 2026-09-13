@@ -42,18 +42,18 @@ jest.mock("../../hooks/useExploreFilterOptions", () => () => ({
   options: { clusters: [] },
 }));
 jest.mock("../../components/ExploreTopBar", () => () => null);
-jest.mock("../../components/worth-discovering/WorthDiscoveringSection", () => ({
+jest.mock("../../components/hidden-gems/HiddenGemsSection", () => ({
   __esModule: true,
   default: ({ onSeeAll }: { onSeeAll: () => void }) => {
     const { Button } = jest.requireActual("react-native");
-    return <Button title="Open Worth" onPress={onSeeAll} />;
+    return <Button title="Open Hidden Gems" onPress={onSeeAll} />;
   },
 }));
-jest.mock("../../components/interests/InterestsSection", () => ({
+jest.mock("../../components/interests/UserInterestsSection", () => ({
   __esModule: true,
   default: ({ onSeeAll }: { onSeeAll: () => void }) => {
     const { Button } = jest.requireActual("react-native");
-    return <Button title="Open Interests" onPress={onSeeAll} />;
+    return <Button title="Open Interests" onPress={() => onSeeAll()} />;
   },
 }));
 jest.mock("../../components/new-businesses/NewBusinessesSection", () => ({
@@ -63,11 +63,13 @@ jest.mock("../../components/new-businesses/NewBusinessesSection", () => ({
     return <Button title="Open New" onPress={onSeeAll} />;
   },
 }));
-jest.mock("../../components/explore-by-specialty/ExploreBySpecialtySection", () =>
-  () => null,
+jest.mock(
+  "../../components/explore-by-specialty/ExploreBySpecialtySection",
+  () => () => null,
 );
-jest.mock("../../components/discovery-shortcuts/DiscoveryShortcutsSection", () =>
-  () => null,
+jest.mock(
+  "../../components/discovery-shortcuts/DiscoveryShortcutsSection",
+  () => () => null,
 );
 jest.mock("../../components/explore-map/ExploreMapSection", () => () => null);
 
@@ -75,7 +77,7 @@ it("opens the reusable screen with each supported collection type", async () => 
   const screen = await render(<ExploreScreen />);
 
   for (const [title, collectionType] of [
-    ["Open Worth", "worth-discovering"],
+    ["Open Hidden Gems", "hidden-gems"],
     ["Open Interests", "interests"],
     ["Open New", "new-businesses"],
   ]) {

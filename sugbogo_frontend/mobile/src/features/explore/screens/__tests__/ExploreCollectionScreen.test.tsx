@@ -8,7 +8,7 @@ const mockPush = jest.fn();
 const mockRefetch = jest.fn(async () => undefined);
 const mockFetchNextPage = jest.fn(async () => undefined);
 const mockOnViewableItemsChanged = jest.fn();
-let mockCollectionType = "worth-discovering";
+let mockCollectionType = "hidden-gems";
 
 jest.mock("expo-router", () => ({
   router: {
@@ -62,43 +62,46 @@ jest.mock("@/shared/hooks/useUserLocation", () => () => ({
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
 }));
-jest.mock("../../components/results/ExploreFiltersSheet", () => ({
-  __esModule: true,
-  default: ({
-    draft,
-    onChange,
-    onApply,
-  }: {
-    draft: {
-      search: string;
-      clusterId: number | null;
-      categoryIds: number[];
-      specialtyTagId: number | null;
-    };
-    onChange: (criteria: typeof draft) => void;
-    onApply: () => void;
-  }) => {
-    const { Button, Text, View } = jest.requireActual("react-native");
+jest.mock(
+  "../../components/search-filter-results/SearchFilterBottomSheet",
+  () => ({
+    __esModule: true,
+    default: ({
+      draft,
+      onChange,
+      onApply,
+    }: {
+      draft: {
+        search: string;
+        clusterId: number | null;
+        categoryIds: number[];
+        specialtyTagId: number | null;
+      };
+      onChange: (criteria: typeof draft) => void;
+      onApply: () => void;
+    }) => {
+      const { Button, Text, View } = jest.requireActual("react-native");
 
-    return (
-      <View>
-        <Text>{`Draft categories: ${draft.categoryIds.join(",")}`}</Text>
-        <Button
-          title="Draft taxonomy filters"
-          onPress={() =>
-            onChange({
-              ...draft,
-              clusterId: 1,
-              categoryIds: [7, 4],
-              specialtyTagId: 12,
-            })
-          }
-        />
-        <Button title="Apply taxonomy filters" onPress={onApply} />
-      </View>
-    );
-  },
-}));
+      return (
+        <View>
+          <Text>{`Draft categories: ${draft.categoryIds.join(",")}`}</Text>
+          <Button
+            title="Draft taxonomy filters"
+            onPress={() =>
+              onChange({
+                ...draft,
+                clusterId: 1,
+                categoryIds: [7, 4],
+                specialtyTagId: 12,
+              })
+            }
+          />
+          <Button title="Apply taxonomy filters" onPress={onApply} />
+        </View>
+      );
+    },
+  }),
+);
 jest.mock("../../components/new-businesses/BusinessCard", () => ({
   __esModule: true,
   default: ({
@@ -158,9 +161,7 @@ const business: ExploreBusiness = {
   },
 };
 
-function collectionState(
-  overrides: Record<string, unknown> = {},
-) {
+function collectionState(overrides: Record<string, unknown> = {}) {
   return {
     businesses: [business],
     totalItems: 1,
@@ -178,12 +179,12 @@ function collectionState(
 describe("ExploreCollectionScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCollectionType = "worth-discovering";
+    mockCollectionType = "hidden-gems";
     (useExploreCollection as jest.Mock).mockReturnValue(collectionState());
   });
 
   it.each([
-    ["worth-discovering", "Worth Discovering"],
+    ["hidden-gems", "Hidden Gems"],
     ["interests", "Based on Your Interests"],
     ["new-businesses", "New to SugboGo"],
   ])("renders the %s collection title", async (type, title) => {
@@ -266,7 +267,7 @@ describe("ExploreCollectionScreen", () => {
 
     await waitFor(() => {
       expect(useExploreCollection).toHaveBeenLastCalledWith(
-        "worth-discovering",
+        "hidden-gems",
         expect.objectContaining({
           search: "",
           clusterId: 1,
@@ -293,7 +294,7 @@ describe("ExploreCollectionScreen", () => {
 
     await waitFor(() => {
       expect(useExploreCollection).toHaveBeenLastCalledWith(
-        "worth-discovering",
+        "hidden-gems",
         expect.objectContaining({
           clusterId: null,
           categoryIds: [],

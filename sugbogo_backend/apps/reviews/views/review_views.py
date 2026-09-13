@@ -9,7 +9,6 @@ from apps.reviews.serializers.review_serializers import (
     ReviewUpdateSerializer,
 )
 from apps.reviews.services.review_service import ReviewService
-from apps.reviews.services.review_like_service import ReviewLikeService
 from apps.users.models import User
 
 

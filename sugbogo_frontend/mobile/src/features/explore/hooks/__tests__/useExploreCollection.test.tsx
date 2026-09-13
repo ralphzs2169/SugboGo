@@ -63,7 +63,7 @@ describe("useExploreCollection", () => {
       });
 
     const { result, unmount } = await renderHook(
-      () => useExploreCollection("worth-discovering", criteria),
+      () => useExploreCollection("hidden-gems", criteria),
       {
         wrapper: setupClient(),
       },
@@ -74,7 +74,7 @@ describe("useExploreCollection", () => {
     });
     expect(getExploreCollection).toHaveBeenNthCalledWith(
       1,
-      "worth-discovering",
+      "hidden-gems",
       {
         ...criteria,
         categoryIds: [4, 7],
@@ -87,9 +87,7 @@ describe("useExploreCollection", () => {
 
     await waitFor(() => {
       expect(result.current.businesses.map((business) => business.id)).toEqual([
-        20,
-        10,
-        5,
+        20, 10, 5,
       ]);
     });
     unmount();

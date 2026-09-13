@@ -190,7 +190,11 @@ export default function ReviewDisputesScreen() {
           >
             {/* Dispute identity */}
             <View className="flex-row items-start gap-3">
-              <Avatar imageUrl={item.review.author.avatar_url} size={34} />
+              <Avatar
+                imageUrl={item.review.author.avatar_url}
+                avatarKey={item.review.author.avatar_key}
+                size={34}
+              />
 
               <View className="min-w-0 flex-1">
                 <View className="flex-row items-start justify-between gap-3">

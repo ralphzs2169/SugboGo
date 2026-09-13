@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP, localcontext
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 
 from django.db import transaction
 from django.utils import timezone

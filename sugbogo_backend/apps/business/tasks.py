@@ -11,7 +11,6 @@ from apps.business.services.visibility_event_service import (
     VisibilityTrackingUnavailable,
 )
 
-
 logger = logging.getLogger(__name__)
 
 TRANSIENT_RETRY_LIMIT = 3

@@ -23,6 +23,11 @@ class BusinessOwnerSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    avatar_key = serializers.CharField(
+        source="USER_AVATAR_KEY",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = User
@@ -30,6 +35,7 @@ class BusinessOwnerSerializer(serializers.ModelSerializer):
             "name",
             "email",
             "avatar_url",
+            "avatar_key",
         )
 
 

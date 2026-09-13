@@ -16,7 +16,7 @@ import ExploreBySpecialtySection from "../components/explore-by-specialty/Explor
 import ExploreTopBar from "../components/ExploreTopBar";
 import UserInterestsSection from "../components/interests/UserInterestsSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
-import WorthDiscoveringSection from "../components/worth-discovering/WorthDiscoveringSection";
+import HiddenGemsSection from "../components/hidden-gems/HiddenGemsSection";
 import useBusinessImpressions from "../hooks/useBusinessImpressions";
 import useMapPreviewBusinesses, {
   MAP_PREVIEW_QUERY_KEY,
@@ -167,7 +167,7 @@ export default function ExploreScreen() {
         }
       >
         {/* Curated discovery */}
-        <WorthDiscoveringSection
+        <HiddenGemsSection
           businesses={discoveryFeed.businesses}
           isLoading={discoveryFeed.isLoading}
           error={discoveryFeed.error}
@@ -175,7 +175,7 @@ export default function ExploreScreen() {
           impressions={discoveryImpressions}
           userLocation={userLocation}
           onBusinessPress={handleBusinessPress}
-          onSeeAll={() => openCollection("worth-discovering")}
+          onSeeAll={() => openCollection("hidden-gems")}
         />
 
         {/* Specialty discovery preview */}

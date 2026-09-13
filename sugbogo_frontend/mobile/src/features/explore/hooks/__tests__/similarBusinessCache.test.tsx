@@ -95,7 +95,7 @@ describe("Similar Places interaction cache", () => {
     client.setQueryData(["similar-businesses", 7], [createBusiness()]);
     client.setQueryData(["similar-businesses", 9], [createBusiness()]);
     client.setQueryData(
-      ["explore-collections", "worth-discovering", null, [], null],
+      ["explore-collections", "hidden-gems", null, [], null],
       createCollectionData(),
     );
   });
@@ -198,7 +198,7 @@ describe("Similar Places interaction cache", () => {
 
     const cached = client.getQueryData<
       InfiniteData<ExploreBusinessListResponse>
-    >(["explore-collections", "worth-discovering", null, [], null]);
+    >(["explore-collections", "hidden-gems", null, [], null]);
 
     expect(cached?.pages[0].items.map((item) => item.id)).toEqual([42]);
     expect(cached?.pages[0].items[0].is_pocketed).toBe(true);
@@ -229,7 +229,7 @@ describe("Similar Places interaction cache", () => {
 
     const cached = client.getQueryData<
       InfiniteData<ExploreBusinessListResponse>
-    >(["explore-collections", "worth-discovering", null, [], null]);
+    >(["explore-collections", "hidden-gems", null, [], null]);
 
     expect(cached?.pages[0].items.map((item) => item.id)).toEqual([42]);
     expect(cached?.pages[0].items[0].specialty_tags[0]).toEqual(

@@ -1,39 +1,43 @@
-import FormInput from "@/shared/components/form/FormInput";
-import Button from "@/shared/components/Button";
-import ConfirmModal from "@/shared/components/modals/ConfirmModal";
-import FormSelect from "@/shared/components/form/FormSelect";
-import AvatarInfoCard from "../components/edit-profile/AvatarInfoCard";
-import EditProfileHeader from "../components/edit-profile/EditProfileHeader";
-import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
-import { GENDER_OPTIONS } from "../constants/genderOptions";
-import { Gender } from "../types/profile.types";
-import { useAuthStore } from "@/features/auth/store/auth.store";
-import { handleSystemError } from "@/shared/utils/apiErrors";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
+
+import { useAuthStore } from "@/features/auth/store/auth.store";
+
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
+import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
+import FormInput from "@/shared/components/form/FormInput";
+import FormSelect from "@/shared/components/form/FormSelect";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import { handleSystemError } from "@/shared/utils/apiErrors";
+import type { AvatarKey } from "@/shared/constants/avatars";
+
+import AvatarPickerBottomSheet from "../components/edit-profile/AvatarPickerBottomSheet";
+import EditProfileHeader from "../components/edit-profile/EditProfileHeader";
+import { GENDER_OPTIONS } from "../constants/genderOptions";
 import { useRemoveProfilePicture } from "../hooks/useRemoveProfilePicture";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChanges";
 import { useUpdateProfile } from "../hooks/useUpdateProfile";
 import { useUpdateProfilePicture } from "../hooks/useUpdateProfilePicture";
+import { Gender } from "../types/profile.types";
 import getUpdateProfileErrors from "../utils/updateProfileErrors";
 import {
   UpdateProfileErrors,
   validateProfileForm,
 } from "../utils/updateProfileValidator";
-import AppText from "@/shared/components/AppText";
 
 /**
- * EditProfileScreen component allows users to edit their profile information,
- * including first name, last name, and profile picture.
+ * Allows users to edit their profile information and profile picture.
  */
 export default function EditProfileScreen() {
   const user = useAuthStore((state) => state.user);
 
   const genderSheetRef = useRef<BottomSheetModal>(null);
+  const avatarSheetRef = useRef<BottomSheetModal>(null);
 
   // Profile update operations
   const { updateUserProfile, isUpdating } = useUpdateProfile();
@@ -51,6 +55,9 @@ export default function EditProfileScreen() {
     user?.avatar_url ?? null,
   );
   const [removeProfilePicture, setRemoveProfilePicture] = useState(false);
+  const [selectedAvatarKey, setSelectedAvatarKey] = useState<AvatarKey | null>(
+    user?.avatar_key ?? null,
+  );
 
   // UI feedback state
   const [showRemoveModal, setShowRemoveModal] = useState(false);
@@ -65,11 +72,8 @@ export default function EditProfileScreen() {
     lastName !== (user?.last_name ?? "") ||
     gender !== (user?.gender ?? null) ||
     selectedImage !== null ||
-    removeProfilePicture;
-
-  const isShowingCustomProfilePicture =
-    selectedImage !== null ||
-    ((user?.has_custom_profile_picture ?? false) && !removeProfilePicture);
+    removeProfilePicture ||
+    selectedAvatarKey !== (user?.avatar_key ?? null);
 
   const {
     showConfirm,
@@ -92,20 +96,25 @@ export default function EditProfileScreen() {
   }
 
   /**
-   * Removes the profile picture locally before saving changes.
-   * Falls back to the user's OAuth avatar when enabled.
+   * Marks the current uploaded profile picture for removal.
+   * The profile will fall back to the user's SugboGo avatar.
    */
   function confirmRemovePicture() {
     setSelectedImage(null);
-
-    if (user?.use_oauth_avatar && user?.oauth_avatar_url) {
-      setPreviewImage(user.oauth_avatar_url);
-    } else {
-      setPreviewImage(null);
-    }
-
+    setPreviewImage(null);
     setRemoveProfilePicture(true);
     setShowRemoveModal(false);
+  }
+
+  function handleRemovePicture() {
+    setShowRemoveModal(true);
+  }
+
+  function handleSelectAvatar(avatarKey: AvatarKey) {
+    setSelectedAvatarKey(avatarKey);
+    setSelectedImage(null);
+    setPreviewImage(null);
+    setRemoveProfilePicture(user?.has_custom_profile_picture ?? false);
   }
 
   async function handleSaveChanges() {
@@ -119,7 +128,7 @@ export default function EditProfileScreen() {
     setErrors({});
     setFormError("");
 
-    // If the user has chosen to remove their profile picture, call the removePicture function
+    // Remove the existing uploaded profile picture if requested.
     if (removeProfilePicture) {
       const removeResponse = await removePicture();
 
@@ -129,7 +138,7 @@ export default function EditProfileScreen() {
       }
     }
 
-    // If a new profile picture is selected, upload it
+    // Upload a newly selected profile picture.
     if (selectedImage) {
       const pictureResponse = await uploadProfilePicture(selectedImage);
 
@@ -139,16 +148,18 @@ export default function EditProfileScreen() {
       }
     }
 
-    // Update first name and last name if they have changed
+    // Update editable profile fields and the selected built-in avatar.
     if (
       firstName !== user?.first_name ||
       lastName !== user?.last_name ||
-      gender !== user?.gender
+      gender !== user?.gender ||
+      selectedAvatarKey !== (user?.avatar_key ?? null)
     ) {
       const response = await updateUserProfile({
         first_name: firstName,
         last_name: lastName,
-        gender: gender,
+        gender,
+        avatar_key: selectedAvatarKey,
       });
 
       if (!response.success) {
@@ -188,23 +199,6 @@ export default function EditProfileScreen() {
     });
   }
 
-  /**
-   * Handles profile picture removal.
-   * Shows confirmation when removing a custom picture will reveal an OAuth avatar.
-   */
-  function handleRemovePicture() {
-    const needsConfirmation =
-      user?.has_custom_profile_picture &&
-      user?.use_oauth_avatar &&
-      !!user?.oauth_avatar_url;
-
-    if (needsConfirmation) {
-      setShowRemoveModal(true);
-      return;
-    }
-
-    confirmRemovePicture();
-  }
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
       <ScrollView
@@ -214,29 +208,21 @@ export default function EditProfileScreen() {
       >
         <EditProfileHeader
           imageUrl={previewImage}
+          avatarKey={selectedAvatarKey}
           isShowingCustomProfilePicture={
             (user?.has_custom_profile_picture ?? false) && !removeProfilePicture
           }
-          hasSelectedImage={selectedImage !== null}
           isUploading={isUploading}
           onImageSelected={(image) => {
             setSelectedImage(image);
             setPreviewImage(image);
             setRemoveProfilePicture(false);
           }}
+          onChooseAvatar={() => avatarSheetRef.current?.present()}
           onRemovePicture={handleRemovePicture}
         />
 
-        {/* Form content */}
         <View className="flex-1 p-5">
-          {/* Displays OAuth avatar information after a local custom picture removal. */}
-          <AvatarInfoCard
-            visible={
-              !isShowingCustomProfilePicture &&
-              !!user?.use_oauth_avatar &&
-              !!user?.oauth_avatar_url
-            }
-          />
           <FormInput
             label="First Name"
             placeholder="Enter your first name"
@@ -273,8 +259,8 @@ export default function EditProfileScreen() {
 
           <ConfirmModal
             visible={showRemoveModal}
-            title="Remove uploaded profile picture?"
-            message="Your profile picture will change back to your Google or Facebook profile photo. You can change this anytime in Account Settings."
+            title="Remove profile picture?"
+            message="Your uploaded profile picture will be removed and your SugboGo avatar will be shown instead."
             confirmText="Remove"
             destructive
             onCancel={() => setShowRemoveModal(false)}
@@ -289,6 +275,7 @@ export default function EditProfileScreen() {
             className="mt-6 mb-10"
             rounded="full"
           />
+
           <ConfirmModal
             visible={showConfirm}
             title="Discard changes?"
@@ -305,6 +292,12 @@ export default function EditProfileScreen() {
             options={GENDER_OPTIONS}
             selectedValue={gender ?? undefined}
             onSelect={(value) => setGender(value as Gender)}
+          />
+
+          <AvatarPickerBottomSheet
+            sheetRef={avatarSheetRef}
+            selectedAvatarKey={selectedAvatarKey}
+            onSelect={handleSelectAvatar}
           />
         </View>
       </ScrollView>

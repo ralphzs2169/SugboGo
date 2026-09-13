@@ -135,6 +135,11 @@ class ApplicationSubmitterSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="full_name", read_only=True)
     email = serializers.EmailField(source="USER_EMAIL", read_only=True)
     avatar_url = serializers.SerializerMethodField()
+    avatar_key = serializers.CharField(
+        source="USER_AVATAR_KEY",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = User
@@ -142,6 +147,7 @@ class ApplicationSubmitterSerializer(serializers.ModelSerializer):
             "name",
             "email",
             "avatar_url",
+            "avatar_key",
         )
 
     def get_avatar_url(self, obj):

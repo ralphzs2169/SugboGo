@@ -1,50 +1,7 @@
 import { ScrollView, Text } from "react-native";
-import { Toast } from "react-native-toast-message/lib/src/Toast";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRef, useState } from "react";
-import { useAuthStore } from "@/features/auth/store/auth.store";
-import SettingRow from "../components/SettingRow";
-import { useUpdateAvatarPreference } from "../hooks/useUpdateAvatarPreference";
-import { handleSystemError } from "@/shared/utils/apiErrors";
 
 export default function AccountSettingsScreen() {
-  const user = useAuthStore((state) => state.user);
-
-  const { updatePreference, isUpdating } = useUpdateAvatarPreference();
-  const [showLoading, setShowLoading] = useState(false);
-  const loadingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [useSocialAvatar, setUseSocialAvatar] = useState(
-    user?.use_oauth_avatar ?? false,
-  );
-
-  async function handleSocialAvatarToggle(value: boolean) {
-    if (isUpdating) {
-      return;
-    }
-
-    const previousValue = useSocialAvatar;
-
-    setUseSocialAvatar(value);
-
-    const response = await updatePreference({
-      use_oauth_avatar: value,
-    });
-
-    if (!response.success) {
-      setUseSocialAvatar(previousValue);
-
-      if (handleSystemError(response)) {
-        return;
-      }
-
-      Toast.show({
-        type: "error",
-        text1: "Couldn't update settings",
-      });
-    }
-  }
-
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -55,16 +12,11 @@ export default function AccountSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text className="mb-4 text-lg font-bold text-text">
-          Profile Preferences
+          Account Settings
         </Text>
-
-        <SettingRow
-          title="Use connected social profile photo"
-          description="Use your latest connected social account's profile photo when you don't have a custom picture."
-          value={useSocialAvatar}
-          onValueChange={isUpdating ? undefined : handleSocialAvatarToggle}
-          disabled={showLoading}
-        />
+        <Text className="text-sm leading-5 text-text-secondary">
+          Additional account preferences will appear here when available.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );

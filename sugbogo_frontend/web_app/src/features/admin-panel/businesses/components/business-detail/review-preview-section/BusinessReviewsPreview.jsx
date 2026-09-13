@@ -69,7 +69,11 @@ export default function BusinessReviewsPreview({
                 className="flex gap-3 border-b border-stroke px-5 py-4"
               >
                 {/* Avatar */}
-                <UserAvatar avatarUrl={review.author.avatar_url} size="md" />
+                <UserAvatar
+                  avatarUrl={review.author.avatar_url}
+                  avatarKey={review.author.avatar_key}
+                  size="md"
+                />
 
                 <div className="min-w-0 flex-1">
                   {/* Reviewer identity */}

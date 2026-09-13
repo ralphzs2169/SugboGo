@@ -55,6 +55,7 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
             <div className="mt-1 flex items-center gap-2">
               <UserAvatar
                 avatarUrl={application.submitter?.avatar_url}
+                avatarKey={application.submitter?.avatar_key}
                 size="sm"
               />
 

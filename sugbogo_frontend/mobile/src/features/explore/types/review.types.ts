@@ -1,4 +1,5 @@
 import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+import type { AvatarKey } from "@/shared/constants/avatars";
 
 export type ReviewPhoto = {
   id: number;
@@ -10,6 +11,7 @@ export type ReviewAuthor = {
   first_name: string;
   last_name: string;
   avatar_url: string | null;
+  avatar_key?: AvatarKey | null;
 };
 
 export type ReviewVouchedSpecialty = {

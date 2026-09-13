@@ -4,11 +4,13 @@ import Avatar from "@/shared/components/Avatar";
 import RoleBadge from "@/shared/components/RoleBadge";
 import AppText from "@/shared/components/AppText";
 import { Feather } from "@expo/vector-icons";
+import type { AvatarKey } from "@/shared/constants/avatars";
 type ProfileHeaderProps = {
   firstname: string;
   lastname: string;
   email: string;
   avatarUrl?: string | null;
+  avatarKey?: AvatarKey | null;
   role: "explorer" | "merchant";
   onEditProfile?: () => void;
 };
@@ -21,6 +23,7 @@ export default function ProfileHeader({
   lastname,
   email,
   avatarUrl,
+  avatarKey,
   onEditProfile,
   role,
 }: ProfileHeaderProps) {
@@ -41,7 +44,7 @@ export default function ProfileHeader({
       )}
 
       <View className="flex-row items-center">
-        <Avatar imageUrl={avatarUrl} size={100} />
+        <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={100} />
 
         <View className="ml-3 flex-1 pr-12">
           <AppText

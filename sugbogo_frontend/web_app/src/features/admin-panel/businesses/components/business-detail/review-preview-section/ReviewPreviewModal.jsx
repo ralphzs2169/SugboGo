@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import ReviewPhotoViewerModal from "@/shared/components/modals/ReviewPhotoViewerModal";
+import UserAvatar from "@/shared/components/UserAvatar";
 
 function relativeDate(value) {
   const days = Math.max(
@@ -128,20 +129,11 @@ export default function ReviewPreviewModal({ review, onClose }) {
           <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
             <div className="flex min-w-0 items-center gap-3">
               {/* Reviewer avatar */}
-              <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-surface-muted">
-                {review.author.avatar_url ? (
-                  <img
-                    src={review.author.avatar_url}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-text-secondary">
-                    {review.author.first_name?.[0]}
-                    {review.author.last_name?.[0]}
-                  </div>
-                )}
-              </div>
+              <UserAvatar
+                avatarUrl={review.author.avatar_url}
+                avatarKey={review.author.avatar_key}
+                size="lg"
+              />
 
               {/* Reviewer identity */}
               <div className="min-w-0">
