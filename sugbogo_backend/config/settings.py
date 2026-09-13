@@ -145,6 +145,7 @@ INSTALLED_APPS = [
     'apps.admin_operations.analytics.apps.AnalyticsConfig',
     'apps.admin_operations.moderation.apps.ModerationConfig',
     'apps.admin_operations.system_configuration.apps.SystemConfigurationConfig',
+    'apps.admin_operations.transit_management.apps.TransitManagementConfig',
 
     'apps.business.apps.BusinessConfig',
 

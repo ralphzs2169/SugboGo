@@ -1,19 +1,14 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  View,
-} from "react-native";
 import type { LocationObject } from "expo-location";
-import { useEffect } from "react";
+import { useState } from "react";
+import { View } from "react-native";
 
 import ErrorState from "@/shared/components/ErrorState";
-import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
-import useNewBusinesses from "../../hooks/useNewBusinesses";
-import BusinessCard from "./BusinessCard";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
-import AppText from "@/shared/components/AppText";
+import useNewBusinesses from "../../hooks/useNewBusinesses";
+import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
+import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
+import ExploreSectionHeader from "../ExploreSectionHeader";
 
 type Props = {
   impressions: BusinessImpressionObservation;
@@ -27,12 +22,10 @@ type Props = {
 };
 
 /**
- * Displays newly added active businesses from the Explorer API.
+ * Displays recently added businesses on the Explore homepage.
  *
- * Business distances are calculated locally from the explorer's current
- * location. Card container layouts feed screen-level visibility observation.
- * Location access is optional, so businesses remain visible when
- * permission is denied or the device location is unavailable.
+ * Handles loading, recovery, and empty availability while delegating successful
+ * horizontal business presentation and impression tracking to the shared carousel.
  */
 export default function NewBusinessesSection({
   onBusinessPress,
@@ -41,58 +34,50 @@ export default function NewBusinessesSection({
   onSeeAll,
 }: Props) {
   const { businesses, isLoading, error, refetch } = useNewBusinesses();
+  const [isRetrying, setIsRetrying] = useState(false);
 
-  const { retainBusinesses } = impressions;
+  const handleRetry = async () => {
+    setIsRetrying(true);
 
-  useEffect(() => {
-    const displayedIds =
-      error || isLoading ? [] : businesses.map((business) => business.id);
+    try {
+      await refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
-    retainBusinesses(displayedIds);
-  }, [businesses, error, isLoading, retainBusinesses]);
-
-  useEffect(() => {
-    return () => retainBusinesses([]);
-  }, [retainBusinesses]);
-
-  if (isLoading) {
+  if (isLoading || isRetrying) {
     return (
-      <View className="mt-6 px-4">
-        <View className="mb-3">
-          <AppText weight="bold" className="text-lg text-text-primary">
-            New to SugboGo
-          </AppText>
+      <View className="py-6">
+        {/* Section heading */}
+        <ExploreSectionHeader
+          title="New to SugboGo"
+          subtitle="Recently added places waiting to be discovered."
+        />
 
-          <AppText className="text-sm text-text-secondary">
-            Recently added places waiting to be discovered.
-          </AppText>
-        </View>
-
-        <View className="h-44 items-center justify-center rounded-card bg-surface">
-          <ActivityIndicator size="small" />
-        </View>
+        {/* Business placeholders */}
+        <ExploreBusinessCarouselSkeleton variant="default" />
       </View>
     );
   }
 
   if (error) {
     return (
-      <View className="mt-6 px-4">
-        <View className="mb-3">
-          <AppText weight="bold" className="text-lg text-text-primary">
-            New to SugboGo
-          </AppText>
+      <View className="py-6">
+        {/* Section heading */}
+        <ExploreSectionHeader
+          title="New to SugboGo"
+          subtitle="Recently added places waiting to be discovered."
+        />
 
-          <AppText className="text-sm text-text-secondary">
-            Recently added places waiting to be discovered.
-          </AppText>
-        </View>
-
+        {/* Section recovery */}
         <ErrorState
           title="Unable to load new businesses"
           description="We couldn't load the latest businesses. Please try again."
           primaryActionTitle="Retry"
-          onPrimaryAction={refetch}
+          onPrimaryAction={() => void handleRetry()}
+          size="section"
+          icon="store-off-outline"
         />
       </View>
     );
@@ -103,82 +88,20 @@ export default function NewBusinessesSection({
   }
 
   return (
-    <View
-      testID="new-businesses-section"
-      className="mt-6 py-6 bg-surface"
-      onLayout={impressions.onSectionLayout}
-    >
-      {/* Section heading */}
-      <View className="mb-3 flex-row items-start justify-between gap-4 px-4">
-        <View className="min-w-0 flex-1">
-          <AppText weight="bold" className="text-lg text-text-primary">
-            New to SugboGo
-          </AppText>
-
-          <AppText className="text-sm text-text-secondary">
-            Recently added places waiting to be discovered.
-          </AppText>
-        </View>
-
-        {onSeeAll && (
-          <Pressable
-            onPress={onSeeAll}
-            accessibilityRole="button"
-            accessibilityLabel="See all new businesses"
-            hitSlop={8}
-            className="min-h-11 justify-center active:opacity-70"
-          >
-            <AppText weight="semibold" className="text-sm text-brand">
-              See all
-            </AppText>
-          </Pressable>
-        )}
-      </View>
-
-      {/* Business cards */}
-      <ScrollView
-        testID="new-businesses-scroll"
-        onLayout={impressions.onListLayout}
-        onScroll={impressions.onHorizontalScroll}
-        scrollEventThrottle={16}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerClassName="gap-3 px-4"
-      >
-        {businesses.map((business) => {
-          const distance =
-            userLocation !== null
-              ? calculateDistanceInKm(
-                  userLocation.coords.latitude,
-                  userLocation.coords.longitude,
-                  business.location.latitude,
-                  business.location.longitude,
-                )
-              : null;
-
-          return (
-            <View
-              key={business.id}
-              testID={`business-impression-${business.id}`}
-              collapsable={false}
-              onLayout={(event) => impressions.onCardLayout(business.id, event)}
-            >
-              <BusinessCard
-                business={business}
-                distance={distance}
-                distanceAccuracy={userLocation?.coords.accuracy ?? null}
-                onPress={() =>
-                  onBusinessPress(
-                    business.id,
-                    distance,
-                    userLocation?.coords.accuracy ?? null,
-                  )
-                }
-              />
-            </View>
-          );
-        })}
-      </ScrollView>
-    </View>
+    /* Recently added business carousel */
+    <ExploreBusinessCarousel
+      title="New to SugboGo"
+      subtitle="Recently added places waiting to be discovered."
+      businesses={businesses}
+      impressions={impressions}
+      userLocation={userLocation}
+      cardVariant="default"
+      sectionTestID="new-businesses-section"
+      scrollTestID="new-businesses-scroll"
+      impressionTestIDPrefix="business-impression"
+      onBusinessPress={onBusinessPress}
+      onSeeAll={onSeeAll}
+      seeAllAccessibilityLabel="See all new businesses"
+    />
   );
 }

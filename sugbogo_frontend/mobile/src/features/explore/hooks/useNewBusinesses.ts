@@ -20,5 +20,6 @@ export default function useNewBusinesses() {
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
+    isRefetching: query.isRefetching,
   };
 }

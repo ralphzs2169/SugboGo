@@ -43,6 +43,7 @@ urlpatterns = [
     path('api/admin/suspicious-activities/', include('apps.admin_operations.suspicious_activity.urls')),
     path('api/admin/analytics/', include('apps.admin_operations.analytics.urls')),
     path('api/admin/review-disputes/', include('apps.admin_operations.moderation.urls')),
+    path('api/admin/transit/', include('apps.admin_operations.transit_management.urls')),
 
 
     path('api/admin/settings/', include('apps.admin_operations.system_configuration.urls')),

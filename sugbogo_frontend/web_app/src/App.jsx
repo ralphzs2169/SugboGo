@@ -30,6 +30,8 @@ import NotFound from "@/shared/components/errors/NotFound";
 import PageLoader from "@/shared/components/loading/PageLoader";
 import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
 import SpecialtyTagsPage from "./features/admin-panel/pages/SpecialtyTagsPage";
+import TransitNetworkPage from "@/features/admin-panel/pages/TransitNetworkPage";
+import RouteVariantEditorPage from "@/features/admin-panel/pages/RouteVariantEditorPage";
 
 function App() {
   useRestoreSession();
@@ -80,6 +82,15 @@ function App() {
             />
             <Route path="explorer-activity" element={<ExplorerActivities />} />
             <Route path="specialty-tags" element={<SpecialtyTagsPage />} />
+            <Route path="transit-network" element={<TransitNetworkPage />} />
+            <Route
+              path="transit-network/routes/:routeId/variants/new"
+              element={<RouteVariantEditorPage />}
+            />
+            <Route
+              path="transit-network/routes/:routeId/variants/:variantId/edit"
+              element={<RouteVariantEditorPage />}
+            />
             <Route path="flags-suspicious" element={<SuspiciousActivities />} />
             <Route path="review-disputes" element={<ReviewDisputesPage />} />
             <Route

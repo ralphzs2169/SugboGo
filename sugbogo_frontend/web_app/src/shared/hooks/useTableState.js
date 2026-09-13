@@ -98,28 +98,26 @@ export default function useTableState({
   }
 
   function setSorting(updaterOrValue) {
-    setSortingState((previous) => {
-      const next =
-        typeof updaterOrValue === "function"
-          ? updaterOrValue(previous)
-          : updaterOrValue;
+    const next =
+      typeof updaterOrValue === "function"
+        ? updaterOrValue(sorting)
+        : updaterOrValue;
 
-      updateSearchParams({ sort: serializeSorting(next) });
-      return next;
+    setSortingState(next);
+    updateSearchParams({
+      sort: serializeSorting(next),
     });
   }
 
   function setPagination(updaterOrValue) {
-    setPaginationState((previous) => {
-      const next =
-        typeof updaterOrValue === "function"
-          ? updaterOrValue(previous)
-          : updaterOrValue;
+    const next =
+      typeof updaterOrValue === "function"
+        ? updaterOrValue(pagination)
+        : updaterOrValue;
 
-      updateSearchParams({
-        page: next.pageIndex > 0 ? String(next.pageIndex + 1) : null,
-      });
-      return next;
+    setPaginationState(next);
+    updateSearchParams({
+      page: next.pageIndex > 0 ? String(next.pageIndex + 1) : null,
     });
   }
 

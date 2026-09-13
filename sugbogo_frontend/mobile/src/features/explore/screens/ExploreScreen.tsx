@@ -210,6 +210,9 @@ export default function ExploreScreen() {
         {/* Map discovery preview */}
         <ExploreMapSection
           businesses={mapPreview.businesses}
+          isLoading={mapPreview.isLoading}
+          error={mapPreview.error}
+          refetch={mapPreview.refetch}
           userLocation={userLocation}
           onOpenMap={() => {
             router.push("/(explorer)/(tabs)/map");

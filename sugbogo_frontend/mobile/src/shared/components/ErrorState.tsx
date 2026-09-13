@@ -21,8 +21,8 @@ type ErrorStateProps = {
 /**
  * Displays a reusable error state for page-level and localized failures.
  *
- * The section variant stays compact and uses lightweight inline recovery
- * controls so localized errors do not dominate the surrounding content.
+ * Compact section errors make the entire surface actionable when only one
+ * recovery action is available, while larger states expose explicit actions.
  */
 export default function ErrorState({
   title,
@@ -38,8 +38,14 @@ export default function ErrorState({
   const isSmall = size === "small";
   const isSection = size === "section";
 
+  const hasPrimaryAction = Boolean(primaryActionTitle && onPrimaryAction);
+  const hasSecondaryAction = Boolean(secondaryActionTitle && onSecondaryAction);
+
+  const isSectionTapToRetry =
+    isSection && hasPrimaryAction && !hasSecondaryAction;
+
   const containerClassName = isSection
-    ? "items-center px-4 py-4"
+    ? "mx-4 items-center rounded-card border border-border-primary px-4 py-4"
     : `flex-1 items-center justify-center ${isSmall ? "px-5" : "px-8"}`;
 
   const iconSize = isDefault ? 88 : isSmall ? 48 : 28;
@@ -56,16 +62,15 @@ export default function ErrorState({
       ? "mt-1 text-sm leading-5"
       : "mt-1 text-xs leading-4";
 
-  return (
-    <View className={containerClassName}>
-      {/* Error icon */}
+  const content = (
+    <>
+      {/* Error identity */}
       <MaterialCommunityIcons
         name={icon}
         size={iconSize}
         color={theme.extends.colors.text.tertiary}
       />
 
-      {/* Error message */}
       <AppText
         weight="bold"
         className={`text-center text-text-primary ${titleClassName}`}
@@ -79,13 +84,29 @@ export default function ErrorState({
         {description}
       </AppText>
 
-      {/* Recovery actions */}
-      {(primaryActionTitle || secondaryActionTitle) && (
+      {/* Whole-section recovery affordance */}
+      {isSectionTapToRetry && (
+        <View className="mt-3 flex-row items-center">
+          <MaterialCommunityIcons
+            name="refresh"
+            size={15}
+            color={theme.extends.colors.brand}
+          />
+
+          <AppText weight="semibold" className="ml-1.5 text-xs text-brand">
+            Tap to {primaryActionTitle?.toLowerCase()}
+          </AppText>
+        </View>
+      )}
+
+      {/* Explicit recovery actions */}
+      {!isSectionTapToRetry && (hasPrimaryAction || hasSecondaryAction) && (
         <View className={`flex-row gap-2 ${isSection ? "mt-3" : "mt-6"}`}>
-          {secondaryActionTitle && onSecondaryAction && (
+          {hasSecondaryAction && (
             <Pressable
               onPress={onSecondaryAction}
               accessibilityRole="button"
+              accessibilityLabel={secondaryActionTitle}
               className={`cursor-pointer flex-row items-center justify-center rounded-full border border-border-primary bg-surface active:opacity-70 ${
                 isSection ? "px-4 py-2" : "px-5 py-3"
               }`}
@@ -101,10 +122,11 @@ export default function ErrorState({
             </Pressable>
           )}
 
-          {primaryActionTitle && onPrimaryAction && (
+          {hasPrimaryAction && (
             <Pressable
               onPress={onPrimaryAction}
               accessibilityRole="button"
+              accessibilityLabel={primaryActionTitle}
               className={`cursor-pointer flex-row items-center justify-center rounded-full bg-brand active:opacity-70 ${
                 isSection ? "px-4 py-2" : "px-5 py-3"
               }`}
@@ -129,6 +151,21 @@ export default function ErrorState({
           )}
         </View>
       )}
-    </View>
+    </>
   );
+
+  if (isSectionTapToRetry) {
+    return (
+      <Pressable
+        onPress={onPrimaryAction}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}. Tap to ${primaryActionTitle?.toLowerCase()}.`}
+        className={`${containerClassName} cursor-pointer active:bg-background active:opacity-70`}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View className={containerClassName}>{content}</View>;
 }
