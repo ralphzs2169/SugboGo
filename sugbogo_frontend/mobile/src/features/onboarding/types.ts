@@ -1,13 +1,11 @@
-/**
- * Defines the structure of an onboarding screen.
- */
+import type { ImageSource } from "expo-image";
 
+/**
+ * Defines the content displayed by an onboarding screen.
+ */
 export interface OnboardingItem {
   id: number;
   title: string;
   description: string;
-  Illustration: React.ComponentType<{
-    width?: number;
-    height?: number;
-  }>;
+  imageSource: ImageSource;
 }

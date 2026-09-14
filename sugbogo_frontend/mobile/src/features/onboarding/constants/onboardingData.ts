@@ -1,9 +1,12 @@
-import AuthenticGemsIllustration from "../illustrations/authentic-gems.svg";
-import DiscoverIllustration from "../illustrations/discover.svg";
-import GetStartedIllustration from "../illustrations/get-started.svg";
-import LocalNavigationIllustration from "../illustrations/local-navigation.svg";
+import type { OnboardingItem } from "../types";
 
-import { OnboardingItem } from "../types";
+const MASCOT_EXPLORE_CEBU = require("../assets/explore-cebu.webp");
+
+const MASCOT_DISCOVER_HIDDEN_GEMS = require("../assets/discover-hidden-gems.webp");
+
+const MASCOT_EXPLORE_WHAT_FITS_YOU = require("../assets/explore-what-fits-you.webp");
+
+const MASCOT_FIND_YOUR_WAY = require("../assets/find-your-way.webp");
 
 /**
  * Static content for the onboarding screens.
@@ -11,30 +14,30 @@ import { OnboardingItem } from "../types";
 export const onboardingData: OnboardingItem[] = [
   {
     id: 1,
-    title: "The Heart of Discovery",
+    title: "Discover More of Cebu",
     description:
-      "Uncover the soul of Cebu. Discover hidden heritage sites, artisan workshops, and local flavors beyond the usual tourist spots.",
-    Illustration: DiscoverIllustration,
+      "Discover local places, experiences, and businesses you might otherwise miss.",
+    imageSource: MASCOT_EXPLORE_CEBU,
   },
   {
     id: 2,
-    title: "Authentic Gems First",
+    title: "Find the Places Others Miss",
     description:
-      "Specialty over popularity. Explore unique local businesses and culturally rich destinations chosen for their authenticity.",
-    Illustration: AuthenticGemsIllustration,
+      "Discover hidden gems, new local businesses, and special places worth finding around Cebu.",
+    imageSource: MASCOT_DISCOVER_HIDDEN_GEMS,
   },
   {
     id: 3,
-    title: "Guided by Local Wisdom",
+    title: "Explore What Fits You",
     description:
-      "Navigate like a true local. Find your way with landmark-based directions and jeepney routes designed for Cebu's streets.",
-    Illustration: LocalNavigationIllustration,
+      "Choose what interests you and discover local places that better match what you enjoy.",
+    imageSource: MASCOT_EXPLORE_WHAT_FITS_YOU,
   },
   {
     id: 4,
-    title: "Your Journey Begins",
+    title: "Find Your Way There",
     description:
-      "Start your Cebu adventure. Support local businesses, discover unforgettable places, and create experiences worth remembering.",
-    Illustration: GetStartedIllustration,
+      "Visualize routes, follow local transit and landmark guidance, or continue your journey with available ride options.",
+    imageSource: MASCOT_FIND_YOUR_WAY,
   },
 ];

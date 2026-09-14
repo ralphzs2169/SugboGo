@@ -36,7 +36,7 @@ const COMPACT_PARENT_HORIZONTAL_PADDING = 32;
 const COMPACT_CARD_HORIZONTAL_PADDING = 20;
 const COMPACT_CONTENT_GAP = 12;
 
-const STANDARD_CARD_HORIZONTAL_PADDING = 24;
+const STANDARD_CARD_PADDING = 10;
 
 /** Returns the card width for horizontal card presentations. */
 export function getBusinessCardWidth(
@@ -56,8 +56,8 @@ export function getBusinessCardWidth(
 /**
  * Displays a business using reusable discovery-card presentations.
  *
- * Horizontal variants support carousel discovery while the compact variant
- * provides a denser row with layout-aware specialty tag arrangement.
+ * Horizontal variants use an inset image and padded card surface, while the
+ * compact variant provides a denser row with layout-aware specialty tags.
  */
 export default function BusinessCard({
   business,
@@ -83,7 +83,7 @@ export default function BusinessCard({
     COMPACT_CONTENT_GAP;
 
   const standardTagAvailableWidth =
-    standardCardWidth - STANDARD_CARD_HORIZONTAL_PADDING;
+    standardCardWidth - STANDARD_CARD_PADDING * 2;
 
   const tagAvailableWidth =
     variant === "compact"
@@ -270,7 +270,7 @@ export default function BusinessCard({
       }}
       accessibilityRole="button"
       accessibilityLabel={`Open ${business.business_name} business profile`}
-      className="mb-2 mr-3 cursor-pointer rounded-card border border-border-primary bg-surface active:opacity-90"
+      className="mb-2 mr-3 cursor-pointer rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
       android_ripple={{
         color: "rgba(0,0,0,0.05)",
       }}
@@ -280,7 +280,7 @@ export default function BusinessCard({
         style={{
           height: HERO_HEIGHT,
         }}
-        className="relative overflow-hidden rounded-t-xl bg-surface-secondary"
+        className="relative overflow-hidden rounded-xl bg-surface-secondary"
       >
         {business.cover_photo_url ? (
           <Image
@@ -316,7 +316,7 @@ export default function BusinessCard({
       </View>
 
       {/* Business content */}
-      <View className="px-3 pb-3 pt-3">
+      <View className="pb-1 pt-3">
         {/* Business identity */}
         <View>
           <AppText
