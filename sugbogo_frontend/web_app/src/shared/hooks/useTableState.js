@@ -38,9 +38,7 @@ export default function useTableState({
 } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [currentTab, setCurrentTabState] = useState(
-    () => searchParams.get(tabParamKey) || defaultTab,
-  );
+  const currentTab = searchParams.get(tabParamKey) || defaultTab;
 
   const [globalFilter, setGlobalFilter] = useState(
     () => searchParams.get("search") || "",
@@ -62,7 +60,7 @@ export default function useTableState({
   // (e.g. from a detail page) doesn't reset pagination back to page 1.
   const isFirstRender = useRef(true);
 
-  function updateSearchParams(updates) {
+  function updateSearchParams(updates, { replace = true } = {}) {
     setSearchParams(
       (previous) => {
         const next = new URLSearchParams(previous);
@@ -77,7 +75,7 @@ export default function useTableState({
 
         return next;
       },
-      { replace: true },
+      { replace },
     );
   }
 
@@ -92,9 +90,11 @@ export default function useTableState({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedGlobalFilter]);
 
-  function setCurrentTab(tab) {
-    setCurrentTabState(tab);
-    updateSearchParams({ [tabParamKey]: tab === defaultTab ? null : tab });
+  function setCurrentTab(tab, options) {
+    updateSearchParams(
+      { [tabParamKey]: tab === defaultTab ? null : tab },
+      options,
+    );
   }
 
   function setSorting(updaterOrValue) {
@@ -107,6 +107,10 @@ export default function useTableState({
     updateSearchParams({
       sort: serializeSorting(next),
     });
+  }
+
+  function resetSortingState() {
+    setSortingState([]);
   }
 
   function setPagination(updaterOrValue) {
@@ -138,6 +142,7 @@ export default function useTableState({
 
     sorting,
     setSorting,
+    resetSortingState,
     ordering,
 
     pagination,
