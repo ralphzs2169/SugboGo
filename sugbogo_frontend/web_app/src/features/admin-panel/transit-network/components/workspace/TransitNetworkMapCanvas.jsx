@@ -67,6 +67,53 @@ function MapSelectionViewport({ focusRequest }) {
   return null;
 }
 
+/** Resizes the Google Map with its workspace column while retaining its camera. */
+function MapWorkspaceResizeObserver() {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    const container = map.getDiv();
+    let animationFrame = null;
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0]?.contentRect ?? {};
+
+      if (!width || !height) {
+        return;
+      }
+
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+
+      animationFrame = requestAnimationFrame(() => {
+        const center = map.getCenter();
+
+        window.google?.maps?.event.trigger(map, "resize");
+
+        if (center) {
+          map.setCenter(center);
+        }
+      });
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [map]);
+
+  return null;
+}
+
 /**
  * Hosts the single persistent Google Map and composes context-specific route,
  * Transit Point, transfer, draft, and selection layers.
@@ -86,6 +133,7 @@ export default function TransitNetworkMapCanvas({
   transferDestinationVariant,
   focusRequest,
   referenceLayerError,
+  isFullscreen,
   onVariantSelect,
   onTransitPointSelect,
   onPointPositionChange,
@@ -159,9 +207,16 @@ export default function TransitNetworkMapCanvas({
   }
 
   const helpText = getMapHelpText(context, mode, Boolean(transfer));
+  const showMapHelp = isVariantEditing || isPointEditing;
 
   return (
-    <div className="relative h-[72vh] min-h-[560px] overflow-hidden rounded-xl border border-stroke-strong bg-surface">
+    <div
+      className={`relative overflow-hidden rounded-xl border border-stroke-strong bg-surface ${
+        isFullscreen
+          ? "h-[65vh] min-h-[420px] xl:h-full xl:min-h-0"
+          : "h-[72vh] min-h-[560px]"
+      } xl:col-start-2`}
+    >
       {/* Persistent transit network map */}
       <Map
         defaultCenter={CEBU_CITY_CENTER}
@@ -169,7 +224,7 @@ export default function TransitNetworkMapCanvas({
         mapId={import.meta.env.VITE_GOOGLE_MAP_ID}
         mapTypeControl={false}
         streetViewControl={false}
-        fullscreenControl
+        fullscreenControl={false}
         clickableIcons={false}
         gestureHandling="greedy"
         draggableCursor={
@@ -178,6 +233,7 @@ export default function TransitNetworkMapCanvas({
         onClick={handleMapClick}
       >
         <MapSelectionViewport focusRequest={focusRequest} />
+        <MapWorkspaceResizeObserver />
 
         {/* Route context layers */}
         {context === TRANSIT_CONTEXTS.ROUTES && !isVariantEditing &&
@@ -368,16 +424,18 @@ export default function TransitNetworkMapCanvas({
         )}
 
         {/* Contextual map guidance */}
-        <MapControl position={ControlPosition.TOP_LEFT}>
-          <div className="m-3 max-w-72 rounded-lg border border-stroke bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
-            <p className="text-xs font-semibold text-text-primary">
-              {helpText.title}
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-              {helpText.description}
-            </p>
-          </div>
-        </MapControl>
+        {showMapHelp && (
+          <MapControl position={ControlPosition.TOP_LEFT}>
+            <div className="m-3 max-w-72 rounded-lg border border-stroke bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
+              <p className="text-xs font-semibold text-text-primary">
+                {helpText.title}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-text-secondary">
+                {helpText.description}
+              </p>
+            </div>
+          </MapControl>
+        )}
 
         {referenceLayerError && (
           <MapControl position={ControlPosition.TOP_RIGHT}>

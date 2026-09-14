@@ -20,12 +20,21 @@ import {
 export default function TransitNetworkInspector({
   context,
   mode,
+  isCollapsed,
+  isFullscreen,
   routeState,
   pointState,
   transferState,
 }) {
   return (
-    <aside className="themed-scrollbar min-h-[420px] space-y-4 overflow-y-auto xl:h-[72vh]">
+    <aside
+      id="transit-network-inspector"
+      className={`themed-scrollbar space-y-4 overflow-y-auto ${
+        isCollapsed ? "hidden" : "min-h-[420px]"
+      } xl:col-start-3 ${isFullscreen ? "xl:h-full" : "xl:h-[72vh]"}`}
+      aria-hidden={isCollapsed}
+      inert={isCollapsed}
+    >
       {/* Context-sensitive inspector */}
       {context === TRANSIT_CONTEXTS.ROUTES && (
         <RouteContextInspector mode={mode} {...routeState} />

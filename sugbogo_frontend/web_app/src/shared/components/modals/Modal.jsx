@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
 
 /**
  * Reusable modal dialog.
@@ -18,6 +18,29 @@ export default function Modal({
   scrollable = false,
   lockBodyScroll = true,
 }) {
+  const dialogRef = useRef(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const previousActiveElement = document.activeElement;
+    const animationFrame = requestAnimationFrame(() => {
+      dialogRef.current?.focus();
+    });
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+
+      if (previousActiveElement?.isConnected) {
+        previousActiveElement.focus();
+      }
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -52,18 +75,34 @@ export default function Modal({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
         className={`w-full ${maxWidth} ${
           scrollable ? "max-h-[calc(100vh-2rem)]" : ""
-        } overflow-hidden rounded-xl border border-stroke bg-background shadow-x`}
+        } overflow-hidden rounded-xl border border-stroke bg-background shadow-x outline-none focus-visible:ring-2 focus-visible:ring-stroke-active/30`}
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between border-b border-stroke p-6">
           <div>
-            <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+            <h2
+              id={titleId}
+              className="text-lg font-semibold text-text-primary"
+            >
+              {title}
+            </h2>
 
             {description && (
-              <p className="mt-1 text-sm text-text-secondary">{description}</p>
+              <p
+                id={descriptionId}
+                className="mt-1 text-sm text-text-secondary"
+              >
+                {description}
+              </p>
             )}
           </div>
 

@@ -4,6 +4,8 @@ import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 import useRouteVariantWorkspaceEditor from "../../hooks/useRouteVariantWorkspaceEditor";
 import useTransitPointWorkspaceEditor from "../../hooks/useTransitPointWorkspaceEditor";
+import useTransitWorkspaceFullscreen from "../../hooks/useTransitWorkspaceFullscreen";
+import useTransitWorkspaceKeyboardShortcuts from "../../hooks/useTransitWorkspaceKeyboardShortcuts";
 import {
   useJeepneyRoute,
   useJeepneyRoutes,
@@ -23,6 +25,7 @@ import TransitNetworkContextActions from "./TransitNetworkContextActions";
 import TransitNetworkInspector from "./TransitNetworkInspector";
 import TransitNetworkMapCanvas from "./TransitNetworkMapCanvas";
 import TransitNetworkNavigation from "./TransitNetworkNavigation";
+import TransitWorkspaceToolbar from "./TransitWorkspaceToolbar";
 import {
   isPointEditingMode,
   isRouteDrawingMode,
@@ -40,11 +43,26 @@ function geometryPositions(variants = []) {
   );
 }
 
+function getWorkspaceGridClass(isBrowserCollapsed, isInspectorCollapsed) {
+  if (isBrowserCollapsed && isInspectorCollapsed) {
+    return "xl:grid-cols-[0_minmax(0,1fr)_0]";
+  }
+  if (isBrowserCollapsed) {
+    return "xl:grid-cols-[0_minmax(0,1fr)_340px]";
+  }
+  if (isInspectorCollapsed) {
+    return "xl:grid-cols-[260px_minmax(0,1fr)_0]";
+  }
+
+  return "xl:grid-cols-[260px_minmax(0,1fr)_340px]";
+}
+
 /**
  * Coordinates the persistent three-region Transit Network workspace while
  * delegating browsers, map layers, inspectors, and editors to focused modules.
  */
 export default function TransitNetworkWorkspace() {
+  const workspaceRef = useRef(null);
   const [mode, setMode] = useState(TRANSIT_MODES.BROWSE);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [selectedRouteFallback, setSelectedRouteFallback] = useState(null);
@@ -57,6 +75,8 @@ export default function TransitNetworkWorkspace() {
   const [formDirty, setFormDirty] = useState(false);
   const [focusTarget, setFocusTarget] = useState(null);
   const [isLocalDiscardOpen, setIsLocalDiscardOpen] = useState(false);
+  const [isBrowserCollapsed, setIsBrowserCollapsed] = useState(false);
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
   const pendingActionRef = useRef(null);
   const pointEditor = useTransitPointWorkspaceEditor();
   const variantEditor = useRouteVariantWorkspaceEditor();
@@ -139,6 +159,21 @@ export default function TransitNetworkWorkspace() {
         ? formDirty
         : false;
   const navigationGuard = useUnsavedChangesGuard(isDirty);
+  const fullscreen = useTransitWorkspaceFullscreen(workspaceRef);
+  const isEditing = mode !== TRANSIT_MODES.BROWSE;
+  const isOverlayOpen =
+    isLocalDiscardOpen ||
+    navigationGuard.isLeaveConfirmationOpen ||
+    Boolean(transferDecision);
+
+  useTransitWorkspaceKeyboardShortcuts({
+    isRouteGeometryMode: isVariantMode,
+    canUndoGeometry: variantEditor.canUndo,
+    isEditing,
+    isOverlayOpen,
+    onUndoGeometry: variantEditor.undoGeometry,
+    onRequestCancel: requestCancelActiveMode,
+  });
   const activeQuery =
     context === TRANSIT_CONTEXTS.ROUTES
       ? routesQuery
@@ -445,6 +480,24 @@ export default function TransitNetworkWorkspace() {
     pendingAction?.();
   }
 
+  function cancelActiveMode() {
+    if (isVariantMode) {
+      cancelVariantEdit();
+      return;
+    }
+    if (isPointMode) {
+      cancelPointEdit();
+      return;
+    }
+
+    setFormDirty(false);
+    setMode(TRANSIT_MODES.BROWSE);
+  }
+
+  function requestCancelActiveMode() {
+    requestWorkspaceAction(cancelActiveMode);
+  }
+
   const mapTransitPoints =
     context === TRANSIT_CONTEXTS.ROUTES
       ? routeReferencePointsQuery.items
@@ -461,11 +514,22 @@ export default function TransitNetworkWorkspace() {
     context === TRANSIT_CONTEXTS.ROUTES
       ? routeReferencePointsQuery.refetch
       : pointReferenceVariantsQuery.refetch;
+  const workspaceGridClass = getWorkspaceGridClass(
+    isBrowserCollapsed,
+    isInspectorCollapsed,
+  );
 
   return (
-    <div className="rounded-2xl border border-stroke bg-background p-4 sm:p-6">
+    <div
+      ref={workspaceRef}
+      className={`flex flex-col bg-background ${
+        fullscreen.isFullscreen
+          ? "h-screen overflow-hidden p-4"
+          : "rounded-2xl border border-stroke p-4 sm:p-6"
+      }`}
+    >
       {/* Persistent network context navigation */}
-      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mb-4 flex shrink-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <TransitNetworkNavigation context={context} onChange={changeContext} />
         <TransitNetworkContextActions
           context={context}
@@ -478,9 +542,39 @@ export default function TransitNetworkWorkspace() {
         />
       </div>
 
+      <TransitWorkspaceToolbar
+        context={context}
+        mode={mode}
+        hasSelectedTransfer={Boolean(selectedTransfer)}
+        isBrowserCollapsed={isBrowserCollapsed}
+        isInspectorCollapsed={isInspectorCollapsed}
+        isFullscreen={fullscreen.isFullscreen}
+        isFullscreenSupported={fullscreen.isSupported}
+        onToggleBrowser={() => setIsBrowserCollapsed((previous) => !previous)}
+        onToggleInspector={() =>
+          setIsInspectorCollapsed((previous) => !previous)
+        }
+        onToggleFullscreen={fullscreen.toggleFullscreen}
+      />
+
       {/* Shared browser, map, and inspector layout */}
-      <div className="grid min-h-[72vh] gap-4 xl:grid-cols-[260px_minmax(0,1fr)_340px]">
-        <div className="min-h-[420px] xl:h-[72vh]">
+      <div
+        className={`grid gap-4 ${workspaceGridClass} ${
+          fullscreen.isFullscreen
+            ? "min-h-0 flex-1 overflow-y-auto xl:overflow-hidden"
+            : "min-h-[72vh]"
+        }`}
+      >
+        <div
+          id="transit-context-browser"
+          className={`${
+            isBrowserCollapsed ? "hidden" : "min-h-[420px]"
+          } xl:col-start-1 ${
+            fullscreen.isFullscreen ? "xl:h-full" : "xl:h-[72vh]"
+          }`}
+          aria-hidden={isBrowserCollapsed}
+          inert={isBrowserCollapsed}
+        >
           {context === TRANSIT_CONTEXTS.ROUTES && (
             <RouteBrowser
               routes={routesQuery.items}
@@ -564,6 +658,7 @@ export default function TransitNetworkWorkspace() {
           transferDestinationVariant={destinationVariantQuery.variant}
           focusRequest={focusRequest}
           referenceLayerError={referenceLayerError}
+          isFullscreen={fullscreen.isFullscreen}
           onVariantSelect={selectVariant}
           onTransitPointSelect={(point) =>
             isVariantMode
@@ -577,6 +672,8 @@ export default function TransitNetworkWorkspace() {
         <TransitNetworkInspector
           context={context}
           mode={mode}
+          isCollapsed={isInspectorCollapsed}
+          isFullscreen={fullscreen.isFullscreen}
           routeState={{
             selectedRoute,
             selectedVariant,

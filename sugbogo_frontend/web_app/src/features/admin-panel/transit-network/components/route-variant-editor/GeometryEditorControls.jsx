@@ -55,19 +55,26 @@ export default function GeometryEditorControls({
           size="sm"
           icon={RotateCcw}
           disabled={!canUndo}
+          tooltipMessage="Undo the most recent geometry edit (Ctrl/Cmd+Z)"
+          aria-keyshortcuts="Control+Z Meta+Z"
           onClick={onUndo}
         >
-          Undo
+          <span className="inline-flex items-center gap-1.5">
+            Undo
+            <kbd className="text-[10px] font-medium text-text-secondary">
+              Ctrl/Cmd+Z
+            </kbd>
+          </span>
         </Button>
         <Button
           variant="secondary"
           size="sm"
           icon={Eraser}
-          className="col-span-2"
+          className="col-span-2 text-danger hover:bg-danger/5"
           disabled={!geometry.length}
           onClick={onRequestClear}
         >
-          Clear Route
+          Clear Path
         </Button>
       </div>
 
