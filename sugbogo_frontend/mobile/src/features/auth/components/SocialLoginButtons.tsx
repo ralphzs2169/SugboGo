@@ -31,8 +31,8 @@ export default function SocialLoginButtons({
           disabled ? "opacity-50" : ""
         }`}
       >
-        <View className="mr-2 h-4 w-4 items-center justify-center">
-          <GoogleIcon />
+        <View className="mr-3 h-3 w-3 items-center justify-center">
+          <GoogleIcon size={18} />
         </View>
 
         <AppText

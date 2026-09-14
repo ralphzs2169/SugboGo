@@ -2,6 +2,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
 
 import Button from "@/shared/components/Button";
+import StatusBadge from "@/shared/components/StatusBadge";
 
 import { CLUSTER_ICONS } from "../../constants/clusterIcons";
 
@@ -26,6 +27,7 @@ export default function getDiscoveryShortcutColumns(onEdit, onDelete) {
         );
       },
     }),
+
     columnHelper.accessor("title", {
       header: "Title",
       cell: (info) => (
@@ -34,33 +36,31 @@ export default function getDiscoveryShortcutColumns(onEdit, onDelete) {
         </span>
       ),
     }),
+
     columnHelper.accessor("subtitle", {
       header: "Subtitle",
       cell: (info) => (
         <span className="text-sm text-text-secondary">{info.getValue()}</span>
       ),
     }),
+
     columnHelper.accessor("business_count", {
       header: "Active Businesses",
       cell: (info) => (
         <span className="text-sm text-text-primary">{info.getValue()}</span>
       ),
     }),
+
     columnHelper.accessor("is_active", {
       header: "Status",
       enableSorting: false,
       cell: (info) => (
-        <span
-          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-            info.getValue()
-              ? "bg-success/10 text-success"
-              : "bg-stroke/10 text-text-secondary"
-          }`}
-        >
+        <StatusBadge variant={info.getValue() ? "success" : "neutral"}>
           {info.getValue() ? "Active" : "Inactive"}
-        </span>
+        </StatusBadge>
       ),
     }),
+
     columnHelper.display({
       id: "actions",
       header: "Actions",
@@ -75,6 +75,7 @@ export default function getDiscoveryShortcutColumns(onEdit, onDelete) {
             iconOnly
             onClick={() => onEdit(row.original)}
           />
+
           <Button
             variant="secondary"
             size="sm"

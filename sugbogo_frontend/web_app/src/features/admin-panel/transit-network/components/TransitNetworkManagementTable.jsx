@@ -14,7 +14,6 @@ import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu"
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 import getJeepneyRouteColumns from "../columns/jeepneyRouteColumns";
-import getTransitPointColumns from "../columns/transitPointColumns";
 import getTransitTransferColumns from "../columns/transitTransferColumns";
 import useTransitTableState from "../hooks/useTransitTableState";
 import {
@@ -27,16 +26,13 @@ import {
   JeepneyRouteFormModal,
 } from "./JeepneyRouteModals";
 import {
-  TransitPointDetailModal,
-  TransitPointFormModal,
-} from "./TransitPointModals";
-import {
   TransitTransferDetailModal,
   TransitTransferFormModal,
   TransitTransferReviewModal,
 } from "./TransitTransferModals";
 import TransferMapReviewModal from "./transfer-review/TransferMapReviewModal";
 import TransferSuggestionScanButton from "./transfer-review/TransferSuggestionScanButton";
+import TransitPointWorkspace from "./transit-point-workspace/TransitPointWorkspace";
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending review" },
@@ -72,7 +68,7 @@ const TAB_CONFIG = {
 };
 
 /**
- * Coordinates the tabbed DataTable experience for all transit network resources.
+ * Coordinates the tabbed transit management experience for all network resources.
  *
  * React Query owns each tab's server state while this component manages only
  * table controls, dialogs, and selected records.
@@ -151,18 +147,15 @@ export default function TransitNetworkManagementTable() {
           (route) => setDetailId(route.id),
           openEditForm,
         )
-      : currentTab === "transit-points"
-        ? getTransitPointColumns(
-            (point) => setDetailId(point.id),
-            openEditForm,
-          )
-        : getTransitTransferColumns({
+      : currentTab === "transfers"
+        ? getTransitTransferColumns({
             onView: (transfer) => setDetailId(transfer.id),
             onViewMap: setMapReviewTransfer,
             onEdit: openEditForm,
             onConfirm: (transfer) => openReview(transfer, "confirm"),
             onIgnore: (transfer) => openReview(transfer, "ignore"),
-          });
+          })
+        : [];
 
   useApiErrorNotification(activeQuery.error, {
     toastId: `transit-${currentTab}-load-error`,
@@ -198,93 +191,115 @@ export default function TransitNetworkManagementTable() {
 
   return (
     <>
-      {/* Transit resource table */}
-      <DataTable
-        data={activeQuery.items}
-        columns={columns}
-        isLoading={activeQuery.isLoading}
-        isFetching={activeQuery.isFetching}
-        isSearching={currentTab === "transfers" ? false : isSearching}
-        error={activeQuery.error}
-        onRetry={activeQuery.refetch}
-        pagination={pagination}
-        state={{ globalFilter, sorting }}
-        pageCount={activeQuery.pageCount}
-        totalItems={activeQuery.totalItems}
-        onPaginationChange={setPagination}
-        onGlobalFilterChange={setGlobalFilter}
-        onSortingChange={setSorting}
-        hasActiveFilters={hasActiveFilters}
-        onResetFilters={handleResetFilters}
-        config={{
-          tabs: Object.entries(TAB_CONFIG).map(([id, config]) => ({
+      {/* Transit resource workspace */}
+      {currentTab === "transit-points" ? (
+        <TransitPointWorkspace
+          tabs={Object.entries(TAB_CONFIG).map(([id, config]) => ({
             id,
             label: config.label,
             icon: config.icon,
-          })),
-          activeTab: currentTab,
-          onTabChange: handleTabChange,
-          searchPlaceholder: activeConfig.searchPlaceholder,
-          showSearch: currentTab !== "transfers",
-          emptyState: {
-            title: transferEmptyState.title,
-            description: transferEmptyState.description,
-            icon: (
-              <activeConfig.icon className="h-10 w-10 text-text-secondary" />
-            ),
-          },
-          noResultsState: {
-            title: `No ${activeConfig.label.toLowerCase()} found`,
-          },
-          errorState: {
-            title: `Unable to load ${activeConfig.label.toLowerCase()}`,
-            message: `The requested ${activeConfig.label.toLowerCase()} could not be loaded.`,
-          },
-        }}
-        slots={{
-          renderFilters: () =>
-            currentTab === "transfers" ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <FilterMenu
-                  filters={[
-                    {
-                      key: "status",
-                      label: "Status",
-                      icon: Tags,
-                      options: STATUS_OPTIONS,
-                      value: statusFilter,
-                      onChange: setStatusFilter,
-                    },
-                  ]}
-                />
-                <Button
-                  variant={statusFilter === "pending" ? "primary" : "secondary"}
-                  size="sm"
-                  icon={Sparkles}
-                  aria-pressed={statusFilter === "pending"}
-                  onClick={() =>
-                    setStatusFilter(statusFilter === "pending" ? "" : "pending")
-                  }
-                >
-                  Pending Suggestions
-                </Button>
-              </div>
-            ) : null,
-          renderHeaderActions: () =>
-            currentTab === "transfers" ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <TransferSuggestionScanButton />
+          }))}
+          activeTab={currentTab}
+          onTabChange={handleTabChange}
+          query={pointsQuery}
+          search={globalFilter}
+          isSearching={isSearching}
+          pagination={pagination}
+          onSearchChange={setGlobalFilter}
+          onPageChange={setPagination}
+        />
+      ) : (
+        <DataTable
+          data={activeQuery.items}
+          columns={columns}
+          isLoading={activeQuery.isLoading}
+          isFetching={activeQuery.isFetching}
+          isSearching={currentTab === "transfers" ? false : isSearching}
+          error={activeQuery.error}
+          onRetry={activeQuery.refetch}
+          pagination={pagination}
+          state={{ globalFilter, sorting }}
+          pageCount={activeQuery.pageCount}
+          totalItems={activeQuery.totalItems}
+          onPaginationChange={setPagination}
+          onGlobalFilterChange={setGlobalFilter}
+          onSortingChange={setSorting}
+          hasActiveFilters={hasActiveFilters}
+          onResetFilters={handleResetFilters}
+          config={{
+            tabs: Object.entries(TAB_CONFIG).map(([id, config]) => ({
+              id,
+              label: config.label,
+              icon: config.icon,
+            })),
+            activeTab: currentTab,
+            onTabChange: handleTabChange,
+            searchPlaceholder: activeConfig.searchPlaceholder,
+            showSearch: currentTab !== "transfers",
+            emptyState: {
+              title: transferEmptyState.title,
+              description: transferEmptyState.description,
+              icon: (
+                <activeConfig.icon className="h-10 w-10 text-text-secondary" />
+              ),
+            },
+            noResultsState: {
+              title: `No ${activeConfig.label.toLowerCase()} found`,
+            },
+            errorState: {
+              title: `Unable to load ${activeConfig.label.toLowerCase()}`,
+              message: `The requested ${activeConfig.label.toLowerCase()} could not be loaded.`,
+            },
+          }}
+          slots={{
+            renderFilters: () =>
+              currentTab === "transfers" ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <FilterMenu
+                    filters={[
+                      {
+                        key: "status",
+                        label: "Status",
+                        icon: Tags,
+                        options: STATUS_OPTIONS,
+                        value: statusFilter,
+                        onChange: setStatusFilter,
+                      },
+                    ]}
+                  />
+                  <Button
+                    variant={
+                      statusFilter === "pending" ? "primary" : "secondary"
+                    }
+                    size="sm"
+                    icon={Sparkles}
+                    aria-pressed={statusFilter === "pending"}
+                    onClick={() =>
+                      setStatusFilter(
+                        statusFilter === "pending" ? "" : "pending",
+                      )
+                    }
+                  >
+                    Pending Suggestions
+                  </Button>
+                </div>
+              ) : null,
+            renderHeaderActions: () =>
+              currentTab === "transfers" ? (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <TransferSuggestionScanButton />
+                  <Button icon={Plus} onClick={openCreateForm}>
+                    Add Transfer
+                  </Button>
+                </div>
+              ) : (
                 <Button icon={Plus} onClick={openCreateForm}>
-                  Add Transfer
+                  Add {activeConfig.singular}
                 </Button>
-              </div>
-            ) : (
-              <Button icon={Plus} onClick={openCreateForm}>
-                Add {activeConfig.singular}
-              </Button>
-            ),
-        }}
-      />
+              ),
+          }}
+        />
+      )}
 
       {/* Route dialogs */}
       {formMode && currentTab === "routes" && (
@@ -297,20 +312,6 @@ export default function TransitNetworkManagementTable() {
       )}
       <JeepneyRouteDetailModal
         routeId={currentTab === "routes" ? detailId : null}
-        onClose={() => setDetailId(null)}
-      />
-
-      {/* Transit Point dialogs */}
-      {formMode && currentTab === "transit-points" && (
-        <TransitPointFormModal
-          key={`${formMode}-${editingRecord?.id ?? "new"}`}
-          isOpen
-          transitPoint={formMode === "edit" ? editingRecord : null}
-          onClose={closeForm}
-        />
-      )}
-      <TransitPointDetailModal
-        transitPointId={currentTab === "transit-points" ? detailId : null}
         onClose={() => setDetailId(null)}
       />
 
