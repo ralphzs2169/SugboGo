@@ -5,6 +5,7 @@ import Skeleton from "@/shared/components/Skeleton";
 type Props = {
   count?: number;
   testID?: string;
+  applyXPadding?: boolean;
 };
 
 /**
@@ -16,12 +17,13 @@ type Props = {
 export default function CompactBusinessListSkeleton({
   count = 4,
   testID,
+  applyXPadding = true,
 }: Props) {
   return (
     <View className="pt-1" testID={testID}>
       {/* Compact business placeholders */}
       {Array.from({ length: count }).map((_, index) => (
-        <View key={index} className="mb-3 px-4">
+        <View key={index} className={`mb-3 ${applyXPadding ? "px-4" : ""}`}>
           <View className="w-full flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5">
             {/* Business image */}
             <Skeleton className="h-[108px] w-[108px] shrink-0 rounded-xl" />

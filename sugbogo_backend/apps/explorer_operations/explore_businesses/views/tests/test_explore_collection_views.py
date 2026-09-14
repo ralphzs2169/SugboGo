@@ -3,12 +3,6 @@ from decimal import Decimal
 from unittest.mock import patch
 from urllib.parse import urlencode
 
-from django.contrib.gis.geos import Point
-from django.test import TestCase
-from django.utils import timezone
-from rest_framework import status
-from rest_framework.test import APIClient
-
 from apps.business.models import (
     Business,
     BusinessSpecialtyTag,
@@ -22,6 +16,11 @@ from apps.business.services.visibility_event_service import (
     VisibilityEventService,
 )
 from apps.users.models import User, UserCategoryInterest
+from django.contrib.gis.geos import Point
+from django.test import TestCase
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.test import APIClient
 
 
 class ExploreCollectionViewTests(TestCase):

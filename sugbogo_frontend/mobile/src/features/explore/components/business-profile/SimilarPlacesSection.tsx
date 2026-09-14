@@ -4,7 +4,6 @@ import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import ErrorState from "@/shared/components/ErrorState";
-import Skeleton from "@/shared/components/Skeleton";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -15,6 +14,7 @@ import BusinessCard from "../new-businesses/BusinessCard";
 import BusinessProfileSection from "./BusinessProfileSection";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
+import CompactBusinessListSkeleton from "../CompactBusinessListSkeleton";
 
 type Props = {
   businessId: number;
@@ -91,10 +91,11 @@ export default function SimilarPlacesSection({ businessId }: Props) {
     >
       {/* Delayed loading state */}
       {similarBusinesses.isLoading ? (
-        <View className="gap-3" testID="similar-places-loading">
-          <Skeleton className="h-[130px] w-full rounded-card" />
-          <Skeleton className="h-[130px] w-full rounded-card" />
-        </View>
+        <CompactBusinessListSkeleton
+          count={2}
+          testID="similar-places-loading"
+          applyXPadding={false}
+        />
       ) : similarBusinesses.error ? (
         /* Local request error */
         <View testID="similar-places-error">
