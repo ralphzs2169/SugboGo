@@ -34,6 +34,9 @@ from apps.explorer_operations.explore_businesses.views.new_businesses_views impo
 from apps.explorer_operations.explore_businesses.views.recommendation_views import (
     RecommendationView,
 )
+from apps.explorer_operations.explore_businesses.views.road_route_views import (
+    RoadRouteView,
+)
 from apps.explorer_operations.explore_businesses.views.similar_business_views import (
     SimilarBusinessView,
 )
@@ -50,6 +53,11 @@ urlpatterns = [
         "businesses/<int:business_id>/direct-journeys/",
         DirectJourneySearchView.as_view(),
         name="business-direct-journeys",
+    ),
+    path(
+        "businesses/<int:business_id>/road-route/",
+        RoadRouteView.as_view(),
+        name="business-road-route",
     ),
     path("businesses/<int:business_id>/similar/",SimilarBusinessView.as_view(),name="similar-businesses",),
     path("collections/<str:collection_type>/",ExploreCollectionView.as_view(),name="explore-collection",),

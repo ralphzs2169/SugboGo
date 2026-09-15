@@ -13,6 +13,7 @@ import DirectJourneyList from "../components/getting-there/DirectJourneyList";
 import GettingThereEmptyState from "../components/getting-there/GettingThereEmptyState";
 import GettingThereLoadingState from "../components/getting-there/GettingThereLoadingState";
 import LocationUnavailableState from "../components/getting-there/LocationUnavailableState";
+import RoadRouteEntryCard from "../components/getting-there/RoadRouteEntryCard";
 import useDirectJourneys from "../hooks/useDirectJourneys";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 
@@ -95,6 +96,18 @@ export default function GettingThereScreen({ businessId }: Props) {
             </AppText>
           )}
         </View>
+
+        {/* Independent road-route option */}
+        <RoadRouteEntryCard
+          onViewRoute={() => {
+            router.push({
+              pathname: "/(explorer)/business/[businessId]/road-route",
+              params: {
+                businessId: String(businessId),
+              },
+            });
+          }}
+        />
 
         {/* Guide identity */}
         <View className="mb-4 flex-row items-center">

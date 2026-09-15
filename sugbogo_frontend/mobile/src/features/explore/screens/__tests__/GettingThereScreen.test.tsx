@@ -1,4 +1,5 @@
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
+import { router } from "expo-router";
 
 import useUserLocation from "@/shared/hooks/useUserLocation";
 
@@ -9,6 +10,7 @@ import GettingThereScreen from "../GettingThereScreen";
 jest.mock("expo-router", () => ({
   router: {
     back: jest.fn(),
+    push: jest.fn(),
   },
 }));
 jest.mock("@/shared/hooks/useUserLocation");
@@ -77,5 +79,37 @@ describe("GettingThereScreen", () => {
 
     expect(screen.getByText("No convenient direct route found")).toBeTruthy();
     expect(screen.queryByText("no_direct_route_match")).toBeNull();
+  });
+
+  it("keeps Jeepney Guide available and opens the independent road route", async () => {
+    (useUserLocation as jest.Mock).mockReturnValue({
+      status: "available",
+      latitude: 10.3,
+      longitude: 123.88,
+      isRefreshingLocation: false,
+      refreshLocation: jest.fn(),
+    });
+    (useDirectJourneys as jest.Mock).mockReturnValue({
+      result: {
+        journeys: [],
+        reason: "no_direct_route_match",
+      },
+      journeys: [],
+      reason: "no_direct_route_match",
+      isLoading: false,
+      error: null,
+      refetch,
+    });
+
+    const screen = await render(<GettingThereScreen businessId={21} />);
+
+    expect(screen.getByText("Jeepney Guide")).toBeTruthy();
+    fireEvent.press(screen.getByText("View Route"));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/(explorer)/business/[businessId]/road-route",
+      params: {
+        businessId: "21",
+      },
+    });
   });
 });

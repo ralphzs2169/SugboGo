@@ -37,6 +37,13 @@ export default function BusinessLayout() {
             title: "Getting There",
           }}
         />
+
+        <Stack.Screen
+          name="road-route"
+          options={{
+            title: "Road Route",
+          }}
+        />
       </Stack>
     </>
   );

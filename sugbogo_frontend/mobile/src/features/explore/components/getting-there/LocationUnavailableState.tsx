@@ -8,6 +8,7 @@ import type { UserLocationStatus } from "@/shared/hooks/useUserLocation";
 
 type Props = {
   status: Extract<UserLocationStatus, "denied" | "unavailable">;
+  purpose?: "jeepney" | "road-route";
   isRetrying: boolean;
   onRetry: () => void;
 };
@@ -17,12 +18,17 @@ type Props = {
  */
 export default function LocationUnavailableState({
   status,
+  purpose = "jeepney",
   isRetrying,
   onRetry,
 }: Props) {
+  const permissionDescription =
+    purpose === "road-route"
+      ? "SugboGo needs location permission to show the road route from where you are."
+      : "SugboGo needs location permission to find convenient jeepney routes from where you are.";
   const description =
     status === "denied"
-      ? "SugboGo needs location permission to find convenient jeepney routes from where you are."
+      ? permissionDescription
       : "SugboGo couldn't get your current location. Check that location services are available, then try again.";
 
   return (
