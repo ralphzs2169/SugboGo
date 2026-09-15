@@ -106,7 +106,12 @@ export default function ExploreBusinessProfileScreen({
   };
 
   const handleGetDirections = () => {
-    // Navigation integration will be added here.
+    router.push({
+      pathname: "/(explorer)/business/[businessId]/getting-there",
+      params: {
+        businessId: String(businessId),
+      },
+    });
   };
 
   // A hard fetch failure (no cached business to fall back on) still gets

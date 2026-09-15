@@ -30,6 +30,13 @@ export default function BusinessLayout() {
             title: "Reviews",
           }}
         />
+
+        <Stack.Screen
+          name="getting-there"
+          options={{
+            title: "Getting There",
+          }}
+        />
       </Stack>
     </>
   );

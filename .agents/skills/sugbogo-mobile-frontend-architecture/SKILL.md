@@ -600,7 +600,43 @@ Good examples:
 
 Do not add comments that merely restate obvious implementation details.
 
-## 15. Type placement, constants, and utilities
+## 15. Frontend testing
+
+Test behavior, not appearance.
+
+Automated frontend tests should protect meaningful application behavior without unnecessarily locking the UI to its current visual design or wording.
+
+Prioritize tests for:
+
+- user interactions and state transitions;
+- expand/collapse and selection behavior;
+- navigation behavior;
+- mutations and action handlers;
+- form validation;
+- loading, error, empty, and completed states;
+- conditional rendering based on backend data;
+- permissions and access-dependent behavior;
+- filtering and other behavior that changes results.
+
+Do not test presentation details that may change during normal UI polish, including:
+
+- width and height;
+- spacing and padding;
+- colors;
+- typography;
+- border radius;
+- layout measurements;
+- decorative styling.
+
+Avoid asserting exact UI copy when the wording itself is not part of the behavior being protected.
+
+Simple presentational components do not require dedicated tests unless they contain meaningful logic or conditional behavior.
+
+Prefer a small number of behavior-focused tests over exhaustive rendering assertions.
+
+For example, a journey card with expand/collapse behavior and optional landmark guidance should test those behaviors. It does not need tests asserting exact dimensions, spacing, or every rendered sentence.
+
+## 16. Type placement, constants, and utilities
 
 Place domain types beside their feature.
 
@@ -623,7 +659,7 @@ Keep mapping, normalization, comparison, and payload-building logic in named uti
 
 Do not bury large data transformations inside screens.
 
-## 16. New code versus legacy code
+## 17. New code versus legacy code
 
 When implementing new functionality, use the current preferred architecture.
 
@@ -637,7 +673,7 @@ When modifying an older feature:
 
 Older manual request hooks, mock screens, direct `Text`, and prototype interaction patterns are not architectural defaults for new code.
 
-## 17. Legacy patterns that should not be copied
+## 18. Legacy patterns that should not be copied
 
 Do not use older manual `useEffect` + request-state hooks as the default for new server-backed features when React Query is appropriate.
 
@@ -655,7 +691,7 @@ Do not show the same loader for initial load, refresh, and next-page fetches.
 
 Do not reload an entire screen/application to recover from one failed API section.
 
-## 18. Preferred implementation checklist
+## 19. Preferred implementation checklist
 
 Before completing new mobile frontend work, verify:
 

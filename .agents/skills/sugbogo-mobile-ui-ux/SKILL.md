@@ -156,6 +156,7 @@ Repository usage is improving but not uniform. Apply these standard React Native
 - Avoid unnecessary rerenders and per-frame work in large lists or maps. Preserve stable handlers/configuration where viewability, impressions, clustering, or animated scroll state depends on them.
 - Reuse established components before abstracting. Do not create a generic component for a single one-off visual, add a dependency for existing capability, or introduce custom animation without a clear interaction purpose.
 - Make the smallest UI change that solves the request. Do not redesign an entire screen, create a new design system, or change the visual language merely to look more modern.
+- Keep automated UI tests focused on user-visible behavior and meaningful interaction states. Do not let tests unnecessarily lock styling, layout measurements, decorative details, or incidental copy that may change during normal UI polish. Detailed frontend testing conventions belong to the mobile frontend architecture skill.
 
 ## Completion checklist
 
@@ -170,5 +171,5 @@ Repository usage is improving but not uniform. Apply these standard React Native
 - [ ] Used `expo-image`, explicit sizing/fit, and appropriate fallbacks for new media.
 - [ ] Preserved component documentation and concise major-section JSX comments.
 - [ ] Added no unnecessary dependency, abstraction, animation, or screen-wide redesign.
-- [ ] Ran focused lint, type, tests, or build validation appropriate to the changed UI.
+- [ ] Ran focused lint, type, behavior-oriented tests, or build validation appropriate to the changed UI without unnecessarily testing visual polish.
 - [ ] For infinite `FlatList` pagination, used the shared Lottie footer loader for `isFetchingNextPage`, kept it separate from pull-to-refresh, and used `EndOfListMessage` when the collection is exhausted.

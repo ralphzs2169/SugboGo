@@ -1,4 +1,5 @@
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
+import { router } from "expo-router";
 
 import ExploreBusinessProfileScreen from "../ExploreBusinessProfileScreen";
 import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
@@ -6,6 +7,7 @@ import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
 jest.mock("expo-router", () => ({
   router: {
     back: jest.fn(),
+    push: jest.fn(),
   },
 }));
 jest.mock("../../hooks/useExploreBusinessProfile");
@@ -103,7 +105,14 @@ jest.mock(
 );
 jest.mock("../../components/business-profile/BusinessProfileFooter", () => ({
   __esModule: true,
-  default: () => null,
+  default: ({ onGetDirections }: { onGetDirections: () => void }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pressable } = require("react-native");
+
+    return (
+      <Pressable testID="getting-there-action" onPress={onGetDirections} />
+    );
+  },
 }));
 jest.mock("../../components/business-profile/ReviewComposerSheet", () => ({
   __esModule: true,
@@ -155,5 +164,50 @@ describe("Explore Business Profile Similar Places placement", () => {
     expect(tree.indexOf("profile-similar-places")).toBeGreaterThan(
       tree.indexOf("profile-reviews"),
     );
+  });
+
+  it("opens the dedicated Getting There route with only the business ID", async () => {
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: {
+        id: 20,
+        business_name: "Current Business",
+        is_own_business: false,
+        has_own_review: false,
+        specialty_tags: [],
+        description: null,
+        location: {
+          address: "Cebu",
+          city: "Cebu City",
+          province: "Cebu",
+          latitude: 10.31,
+          longitude: 123.89,
+        },
+        operating_hours: [],
+        contact_number: "09171234567",
+        email: null,
+        website: null,
+        photos: [],
+      },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    const screen = await render(
+      <ExploreBusinessProfileScreen
+        businessId={20}
+        distance={null}
+        distanceAccuracy={null}
+      />,
+    );
+
+    await fireEvent.press(screen.getByTestId("getting-there-action"));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/(explorer)/business/[businessId]/getting-there",
+      params: {
+        businessId: "20",
+      },
+    });
   });
 });

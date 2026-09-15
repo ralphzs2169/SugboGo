@@ -50,7 +50,7 @@ export default function BusinessProfileFooter({
     return (
       <FixedFooter>
         <Button
-          title="Get Directions"
+          title="Getting There"
           onPress={onGetDirections}
           icon={
             <MaterialCommunityIcons
@@ -71,7 +71,7 @@ export default function BusinessProfileFooter({
     <FixedFooter>
       <View className="flex-row gap-3">
         <Button
-          title="Get Directions"
+          title="Getting There"
           onPress={onGetDirections}
           variant="soft"
           icon={
