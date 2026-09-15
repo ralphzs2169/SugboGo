@@ -357,6 +357,10 @@ class DiscoveryFeedTests(TestCase):
             ],
             [self.active_tag.TAG_ID],
         )
+        self.assertEqual(
+            item["specialty_tags"][0]["icon"],
+            self.active_tag.TAG_ICON,
+        )
         self.assertTrue(
             item["specialty_tags"][0]["is_vouched"],
         )

@@ -128,10 +128,12 @@ class GoogleRoutesService:
             }
 
         except requests.HTTPError as error:
+            response = error.response
+
             logger.exception(
                 "Google Routes returned HTTP %s: %s",
-                error.response.status_code if error.response else "unknown",
-                error.response.text if error.response else "no response body",
+                response.status_code if response is not None else "unknown",
+                response.text if response is not None else "no response body",
             )
 
             raise RoadRouteServiceUnavailable() from error

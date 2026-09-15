@@ -44,6 +44,13 @@ export default function BusinessLayout() {
             title: "Road Route",
           }}
         />
+
+        <Stack.Screen
+          name="jeepney-guide"
+          options={{
+            title: "Jeepney Guide",
+          }}
+        />
       </Stack>
     </>
   );

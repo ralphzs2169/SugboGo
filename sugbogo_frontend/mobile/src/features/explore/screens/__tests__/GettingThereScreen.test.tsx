@@ -22,6 +22,7 @@ const refetch = jest.fn();
 
 describe("GettingThereScreen", () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
       business: {
         business_name: "Sugbo Cafe",
@@ -32,82 +33,36 @@ describe("GettingThereScreen", () => {
     });
   });
 
-  it("shows a location-specific state and withholds journey coordinates", async () => {
-    (useUserLocation as jest.Mock).mockReturnValue({
-      status: "denied",
-      latitude: null,
-      longitude: null,
-      isRefreshingLocation: false,
-      refreshLocation: jest.fn(),
-    });
-    (useDirectJourneys as jest.Mock).mockReturnValue({
-      result: null,
-      journeys: [],
-      reason: null,
-      isLoading: false,
-      error: null,
-      refetch,
-    });
-
+  it("renders all transportation choices without starting location or journey work", async () => {
     const screen = await render(<GettingThereScreen businessId={21} />);
 
-    expect(screen.getByText("Location needed")).toBeTruthy();
-    expect(useDirectJourneys).toHaveBeenCalledWith(21, null, null);
-  });
-
-  it("renders a successful no-route result without exposing its raw reason", async () => {
-    (useUserLocation as jest.Mock).mockReturnValue({
-      status: "available",
-      latitude: 10.3,
-      longitude: 123.88,
-      isRefreshingLocation: false,
-      refreshLocation: jest.fn(),
-    });
-    (useDirectJourneys as jest.Mock).mockReturnValue({
-      result: {
-        journeys: [],
-        reason: "no_direct_route_match",
-      },
-      journeys: [],
-      reason: "no_direct_route_match",
-      isLoading: false,
-      error: null,
-      refetch,
-    });
-
-    const screen = await render(<GettingThereScreen businessId={21} />);
-
-    expect(screen.getByText("No convenient direct route found")).toBeTruthy();
-    expect(screen.queryByText("no_direct_route_match")).toBeNull();
-  });
-
-  it("keeps Jeepney Guide available and opens the independent road route", async () => {
-    (useUserLocation as jest.Mock).mockReturnValue({
-      status: "available",
-      latitude: 10.3,
-      longitude: 123.88,
-      isRefreshingLocation: false,
-      refreshLocation: jest.fn(),
-    });
-    (useDirectJourneys as jest.Mock).mockReturnValue({
-      result: {
-        journeys: [],
-        reason: "no_direct_route_match",
-      },
-      journeys: [],
-      reason: "no_direct_route_match",
-      isLoading: false,
-      error: null,
-      refetch,
-    });
-
-    const screen = await render(<GettingThereScreen businessId={21} />);
-
+    expect(screen.getByText("View Road Route")).toBeTruthy();
     expect(screen.getByText("Jeepney Guide")).toBeTruthy();
     expect(screen.getAllByText("Book with Grab").length).toBeGreaterThan(0);
+    expect(useUserLocation).not.toHaveBeenCalled();
+    expect(useDirectJourneys).not.toHaveBeenCalled();
+  });
+
+  it("opens the independent road-route screen", async () => {
+    const screen = await render(<GettingThereScreen businessId={21} />);
+
     fireEvent.press(screen.getByText("View Route"));
+
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]/road-route",
+      params: {
+        businessId: "21",
+      },
+    });
+  });
+
+  it("opens the dedicated Jeepney Guide screen", async () => {
+    const screen = await render(<GettingThereScreen businessId={21} />);
+
+    fireEvent.press(screen.getByText("View Jeepney Guide"));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/(explorer)/business/[businessId]/jeepney-guide",
       params: {
         businessId: "21",
       },

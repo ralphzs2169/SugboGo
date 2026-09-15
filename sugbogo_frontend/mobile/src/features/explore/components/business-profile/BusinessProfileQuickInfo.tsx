@@ -1,6 +1,7 @@
-import { theme } from "@/constants/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
+
+import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 
 type Props = {
@@ -12,10 +13,10 @@ type Props = {
 };
 
 /**
- * Displays the key business facts directly below the profile hero.
+ * Displays the business's primary quick-glance information.
  *
- * The component presents review count, operating status, and distance
- * in a compact three-column layout for quick scanning.
+ * Presents reviews, operating status, and distance in a compact floating
+ * three-column card with inset separators for easier visual scanning.
  */
 export default function BusinessProfileQuickInfo({
   reviewCount,
@@ -24,62 +25,92 @@ export default function BusinessProfileQuickInfo({
   distance,
   isOpenNow,
 }: Props) {
+  const statusColor = isOpenNow
+    ? theme.extends.colors.success
+    : theme.extends.colors.error;
+
   return (
-    <View className="flex-row border-b border-border-primary bg-surface">
-      {/* Review count */}
-      <View className="flex-1 items-center justify-center py-3">
+    <View
+      className="flex-row items-stretch overflow-hidden rounded-xl border border-border-primary bg-surface"
+      style={{
+        shadowColor: "#000000",
+        shadowOffset: {
+          width: 0,
+          height: 4,
+        },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 2,
+      }}
+    >
+      {/* Review summary */}
+      <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
         <MaterialCommunityIcons
           name="message-text-outline"
           size={18}
           color={theme.extends.colors.text.secondary}
         />
 
-        <AppText className="mt-0.5 text-sm text-text-secondary">
-          {reviewCount === null
-            ? "—"
-            : `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}`}
+        <AppText weight="bold" className="mt-0.5 text-[13px] text-text-primary">
+          {reviewCount ?? "—"}
+        </AppText>
+
+        <AppText className="text-[11px] text-text-secondary">
+          {reviewCount === 1 ? "review" : "reviews"}
         </AppText>
       </View>
 
+      {/* Review/status divider */}
+      <View className="my-3 w-px bg-border-primary" />
+
       {/* Operating status */}
-      <View className="flex-1 items-center justify-center border-x border-border-primary py-3">
+      <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+        <MaterialCommunityIcons
+          name="clock-outline"
+          size={18}
+          color={statusColor}
+        />
+
         <AppText
           weight="bold"
-          className={`text-[13px] ${
+          className={`mt-0.5 text-[13px] ${
             isOpenNow ? "text-success" : "text-text-error"
           }`}
+          numberOfLines={1}
         >
           {statusLabel}
         </AppText>
 
-        <AppText className="mt-0.5 text-[12px] text-text-secondary">
+        <AppText
+          className="text-center text-[11px] text-text-secondary"
+          numberOfLines={1}
+        >
           {statusDetail}
         </AppText>
       </View>
 
-      {/* Distance */}
-      <View className="flex-1 items-center justify-center py-3">
-        {distance !== null ? (
-          <>
-            <AppText weight="bold" className="text-[13px] text-text-primary">
-              {distance}
-            </AppText>
+      {/* Status/distance divider */}
+      <View className="my-3 w-px bg-border-primary" />
 
-            <AppText className="mt-0.5 text-sm text-text-secondary">
-              away
-            </AppText>
-          </>
-        ) : (
-          <>
-            <AppText weight="bold" className="text-[13px] text-text-primary">
-              Unavailable
-            </AppText>
+      {/* Distance summary */}
+      <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+        <MaterialCommunityIcons
+          name="map-marker-outline"
+          size={18}
+          color={theme.extends.colors.text.secondary}
+        />
 
-            <AppText className="mt-0.5 text-sm text-text-secondary">
-              distance
-            </AppText>
-          </>
-        )}
+        <AppText
+          weight="bold"
+          className="mt-0.5 text-[13px] text-text-primary"
+          numberOfLines={1}
+        >
+          {distance ?? "—"}
+        </AppText>
+
+        <AppText className="text-[11px] text-text-secondary">
+          {distance !== null ? "away" : "distance"}
+        </AppText>
       </View>
     </View>
   );

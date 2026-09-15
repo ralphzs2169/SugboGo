@@ -2,8 +2,10 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useEffect, useRef, useState } from "react";
 import { useNavigation, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import { useBusinessReviews } from "../hooks/useBusinessReviews";
 import BusinessReviewCard from "../components/business-profile/review-section/BusinessReviewCard";
@@ -25,8 +27,8 @@ type Props = {
  *
  * Separates the current user's review from community reviews so their own
  * review is immediately accessible while keeping the remaining reviews focused
- * on community experiences. Review management is handled through a bottom
- * sheet and the fixed footer provides the primary review action.
+ * on community experiences. Eligible Explorers can open the existing review
+ * composer from an inline action, while owners retain their management footer.
  */
 export default function ExploreBusinessReviewsScreen({
   businessId,
@@ -65,6 +67,12 @@ export default function ExploreBusinessReviewsScreen({
   const myReview = reviews.find((review) => review.is_own_review);
   const communityReviews = reviews.filter((review) => !review.is_own_review);
   const hasOwnReview = Boolean(myReview);
+  const canWriteReview = !isOwnBusiness && !hasOwnReview;
+
+  const createReview = () => {
+    setEditingReview(null);
+    presentBottomSheet(reviewSheetRef);
+  };
 
   if (isInitialLoading) {
     return <BusinessReviewsSkeleton bottomInset={insets.bottom} />;
@@ -91,7 +99,9 @@ export default function ExploreBusinessReviewsScreen({
     <View className="flex-1 bg-surface">
       {/* Review list */}
       <ScrollView
-        contentContainerClassName="gap-3 px-4 pb-32 pt-5"
+        contentContainerClassName={`gap-3 px-4 pt-5 ${
+          isOwnBusiness ? "pb-32" : "pb-8"
+        }`}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -103,9 +113,9 @@ export default function ExploreBusinessReviewsScreen({
         {/* My review */}
         {myReview && (
           <View>
-            <Text className="mb-3 text-base font-bold text-text-primary">
+            <AppText weight="bold" className="mb-3 text-base text-text-primary">
               My Review
-            </Text>
+            </AppText>
 
             <BusinessReviewCard
               businessId={businessId}
@@ -115,12 +125,23 @@ export default function ExploreBusinessReviewsScreen({
           </View>
         )}
 
+        {/* Inline review action */}
+        {canWriteReview && communityReviews.length > 0 && (
+          <Button
+            title="Write a review"
+            onPress={createReview}
+            rounded="full"
+            className="mb-2 py-3"
+            fontClassName="text-sm"
+          />
+        )}
+
         {/* Community reviews */}
         {communityReviews.length > 0 && (
           <View className={myReview ? "mt-3" : ""}>
-            <Text className="mb-3 text-base font-bold text-text-primary">
+            <AppText weight="bold" className="mb-3 text-base text-text-primary">
               Community Reviews
-            </Text>
+            </AppText>
 
             <View className="gap-3">
               {communityReviews.map((review) => (
@@ -137,24 +158,34 @@ export default function ExploreBusinessReviewsScreen({
 
         {/* Empty state */}
         {!myReview && communityReviews.length === 0 && (
-          <View className="mt-10 rounded-card bg-surface-secondary p-5">
-            <Text className="text-center text-text-secondary">
-              No reviews yet. Be the first to share your experience.
-            </Text>
+          <View className="mt-10 items-center rounded-card bg-surface-secondary p-5">
+            <AppText
+              weight="semibold"
+              className="text-center text-text-primary"
+            >
+              No reviews yet
+            </AppText>
+            <AppText className="mt-1 text-center text-text-secondary">
+              {isOwnBusiness
+                ? "Reviews from Explorers will show up here."
+                : "Be the first to share your experience."}
+            </AppText>
+
+            {canWriteReview && (
+              <Button
+                title="Write a review"
+                onPress={createReview}
+                rounded="full"
+                className="mt-5 min-w-44 py-3"
+                fontClassName="text-sm"
+              />
+            )}
           </View>
         )}
       </ScrollView>
 
-      {/* Fixed action footer */}
-      <BusinessProfileFooter
-        isOwnBusiness={isOwnBusiness}
-        hasOwnReview={hasOwnReview}
-        onGetDirections={() => {}}
-        onWriteReview={() => {
-          setEditingReview(null);
-          presentBottomSheet(reviewSheetRef);
-        }}
-      />
+      {/* Owner management action */}
+      {isOwnBusiness && <BusinessProfileFooter isOwnBusiness />}
 
       {/* Review composer */}
       <ReviewComposerSheet

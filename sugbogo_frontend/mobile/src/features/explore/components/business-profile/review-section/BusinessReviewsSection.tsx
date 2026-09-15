@@ -5,6 +5,7 @@ import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 
 import { useBusinessReviewPreview } from "../../../hooks/useBusinessReviews";
@@ -17,6 +18,8 @@ type Props = {
   businessId: number;
   businessName: string;
   isOwnBusiness: boolean;
+  hasOwnReview: boolean;
+  onWriteReview: () => void;
   onEditReview: (review: BusinessReview) => void;
 };
 
@@ -31,12 +34,22 @@ export default function BusinessReviewsSection({
   businessId,
   businessName,
   isOwnBusiness,
+  hasOwnReview: businessHasOwnReview,
+  onWriteReview,
   onEditReview,
 }: Props) {
-  const { reviews, isLoading, error, refetch, totalCount, hasOwnReview } =
-    useBusinessReviewPreview(businessId);
+  const {
+    reviews,
+    isLoading,
+    error,
+    refetch,
+    totalCount,
+    hasOwnReview: previewHasOwnReview,
+  } = useBusinessReviewPreview(businessId);
 
   const reviewCount = totalCount ?? 0;
+  const hasOwnReview = businessHasOwnReview || previewHasOwnReview;
+  const canWriteReview = !isOwnBusiness && !hasOwnReview;
 
   const openReviews = () => {
     router.push({
@@ -113,7 +126,7 @@ export default function BusinessReviewsSection({
           />
 
           <AppText className="ml-2 flex-1 text-xs text-text-secondary">
-            You've already reviewed this business. You can edit your review
+            You have already reviewed this business. You can edit your review
             anytime.
           </AppText>
         </View>
@@ -137,33 +150,45 @@ export default function BusinessReviewsSection({
               ? "Reviews from Explorers will show up here."
               : "Be the first to share your experience."}
           </AppText>
+
+          {canWriteReview && (
+            <Button
+              title="Write a review"
+              onPress={onWriteReview}
+              rounded="full"
+              className="mt-5 min-w-44 py-3"
+              fontClassName="text-sm"
+            />
+          )}
         </View>
       )}
 
       {/* Review preview */}
       {!isLoading && !error && reviews.length > 0 && (
-        <View className="gap-2 pb-4">
-          {reviews.map((review) => (
-            <BusinessReviewCard
-              key={review.id}
-              businessId={businessId}
-              review={review}
-              onEdit={onEditReview}
+        <View>
+          <View className="gap-2 pb-4">
+            {reviews.map((review) => (
+              <BusinessReviewCard
+                key={review.id}
+                businessId={businessId}
+                review={review}
+                onEdit={onEditReview}
+              />
+            ))}
+          </View>
+
+          {canWriteReview && (
+            <Button
+              title="Write a review"
+              onPress={onWriteReview}
+              variant="soft"
+              rounded="full"
+              className="mt-1 py-3"
+              fontClassName="text-sm"
             />
-          ))}
+          )}
         </View>
       )}
-
-      {/* Review action */}
-      {!isLoading &&
-        !error &&
-        reviewCount === 0 &&
-        !hasOwnReview &&
-        !isOwnBusiness && (
-          <View className="items-center pt-5">
-            {/* The fixed footer provides the primary review action. */}
-          </View>
-        )}
     </View>
   );
 }

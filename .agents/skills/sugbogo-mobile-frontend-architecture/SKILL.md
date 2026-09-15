@@ -340,19 +340,18 @@ filter UI
 opening sheets and modals
 ```
 
-For page-level data fetching:
+For request errors:
 
-- expose `error` and `refetch` from the data hook;
-- use `useApiErrorNotification()` in the page to show the user-facing toast;
-- show a persistent `ErrorState` in the affected UI section;
-- Retry must call that request's `refetch()`;
-- do not reload the entire application because one request failed.
+- For React Query read/query errors, expose `error` and `refetch`, use `useApiErrorNotification()` for transient feedback, and show `ErrorState` when the failed content cannot render.
+- Retry for a query must call that query's `refetch()`; it remains part of the query error flow even when triggered by a button.
+- For user-triggered mutations or imperative backend actions handled in `try/catch`, use `handleSystemError()` for recognized system-level failures.
+- If `handleSystemError()` returns `true`, do not show another generic error toast.
+- Keep validation, rate limits, conflicts, permissions, field errors, and other feature-specific failures in the calling feature.
+- Do not reload the entire application because one request failed.
 
 Use `ErrorState` with `size="section"` for localized failures when appropriate.
 
-Use the existing shared API error helpers for system and field errors.
-
-Do not replace a retryable persistent error state with a toast only when the affected content cannot render.
+Do not replace a retryable persistent error state with a toast when the affected content cannot render.
 
 ## 8. Loading, empty, and completed states
 
@@ -707,7 +706,7 @@ Before completing new mobile frontend work, verify:
 - exhausted paginated lists use `EndOfListMessage` where useful;
 - duplicate `onEndReached` calls are guarded;
 - page-level request errors expose Retry through `refetch()`;
-- pages use `useApiErrorNotification()` for user-facing API failure toasts;
+- pages use `useQueryErrorNotification()` for user-facing API failure toasts;
 - shared UI primitives are reused before creating duplicates;
 - bottom sheets account for the device bottom inset;
 - clickable UI includes `cursor-pointer` where applicable;

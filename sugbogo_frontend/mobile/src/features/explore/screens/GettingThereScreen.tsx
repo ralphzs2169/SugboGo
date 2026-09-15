@@ -1,55 +1,29 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-import useUserLocation from "@/shared/hooks/useUserLocation";
 
-import DirectJourneyList from "../components/getting-there/DirectJourneyList";
-import GettingThereEmptyState from "../components/getting-there/GettingThereEmptyState";
-import GettingThereLoadingState from "../components/getting-there/GettingThereLoadingState";
 import GrabHandoffCard from "../components/getting-there/GrabHandoffCard";
-import LocationUnavailableState from "../components/getting-there/LocationUnavailableState";
+import JeepneyGuideEntryCard from "../components/getting-there/JeepneyGuideEntryCard";
 import RoadRouteEntryCard from "../components/getting-there/RoadRouteEntryCard";
-import useDirectJourneys from "../hooks/useDirectJourneys";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 
 type Props = {
   businessId: number;
 };
 
-/**
- * Shows Explorer-facing direct jeepney guidance to one business.
- *
- * A single current-location snapshot enables the backend-ranked query, while
- * permission, no-route, request-error, and journey states remain distinct.
- */
+/** Presents independent transportation choices for reaching one business. */
 export default function GettingThereScreen({ businessId }: Props) {
   const businessQuery = useExploreBusinessProfile(businessId);
-  const userLocation = useUserLocation();
-
-  const hasUsableLocation = userLocation.status === "available";
-  const latitude = hasUsableLocation ? userLocation.latitude : null;
-  const longitude = hasUsableLocation ? userLocation.longitude : null;
-
-  const journeyQuery = useDirectJourneys(businessId, latitude, longitude);
 
   useQueryErrorNotification({
     error: businessQuery.error,
     toastId: "getting-there-business-error",
     title: "Unable to load destination",
     fallbackMessage: "We couldn't load this business right now.",
-  });
-
-  useQueryErrorNotification({
-    error: journeyQuery.error,
-    toastId: "direct-journeys-error",
-    title: "Unable to load jeepney guidance",
-    fallbackMessage: "We couldn't check direct jeepney routes right now.",
   });
 
   if (businessQuery.error && !businessQuery.business) {
@@ -94,7 +68,7 @@ export default function GettingThereScreen({ businessId }: Props) {
           )}
         </View>
 
-        {/* Independent road-route option */}
+        {/* Transportation options */}
         <RoadRouteEntryCard
           onViewRoute={() => {
             router.push({
@@ -106,74 +80,17 @@ export default function GettingThereScreen({ businessId }: Props) {
           }}
         />
 
-        {/* Guide identity */}
-        <View className="mb-4 flex-row items-center">
-          <View className="h-10 w-10 items-center justify-center rounded-full bg-brand/10">
-            <MaterialCommunityIcons
-              name="bus"
-              size={22}
-              color={theme.extends.colors.brand}
-            />
-          </View>
+        <JeepneyGuideEntryCard
+          onViewGuide={() => {
+            router.push({
+              pathname: "/(explorer)/business/[businessId]/jeepney-guide",
+              params: {
+                businessId: String(businessId),
+              },
+            });
+          }}
+        />
 
-          <View className="ml-3 flex-1">
-            <AppText weight="bold" className="text-lg text-text-primary">
-              Jeepney Guide
-            </AppText>
-            <AppText className="text-sm text-text-secondary">
-              Direct routes from your current location
-            </AppText>
-          </View>
-        </View>
-
-        {/* Location and journey states */}
-        {userLocation.status === "loading" ? (
-          <GettingThereLoadingState message="Finding your current location…" />
-        ) : userLocation.status === "denied" ||
-          userLocation.status === "unavailable" ? (
-          <LocationUnavailableState
-            status={userLocation.status}
-            isRetrying={userLocation.isRefreshingLocation}
-            onRetry={() => void userLocation.refreshLocation()}
-          />
-        ) : journeyQuery.isLoading && !journeyQuery.result ? (
-          <GettingThereLoadingState message="Checking direct jeepney routes…" />
-        ) : journeyQuery.error && !journeyQuery.result ? (
-          <ErrorState
-            size="small"
-            title="Unable to load jeepney guidance"
-            description="We couldn't check direct jeepney routes right now."
-            primaryActionTitle="Retry"
-            onPrimaryAction={() => void journeyQuery.refetch()}
-          />
-        ) : journeyQuery.journeys.length > 0 ? (
-          <DirectJourneyList
-            journeys={journeyQuery.journeys}
-            businessName={businessName}
-          />
-        ) : journeyQuery.result ? (
-          <GettingThereEmptyState
-            reason={journeyQuery.reason}
-            onRetry={() => void journeyQuery.refetch()}
-          />
-        ) : null}
-
-        {/* Distance clarification */}
-        {journeyQuery.journeys.length > 0 ? (
-          <View className="mt-5 flex-row rounded-xl bg-info px-4 py-3">
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={18}
-              color={theme.extends.colors.text.info}
-            />
-            <AppText className="ml-2 flex-1 text-xs leading-4 text-text-info">
-              Access distances are approximate straight-line distances, not
-              turn-by-turn walking routes.
-            </AppText>
-          </View>
-        ) : null}
-
-        {/* External ride-hailing option */}
         <GrabHandoffCard />
       </ScrollView>
     </SafeAreaView>

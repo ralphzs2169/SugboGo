@@ -56,6 +56,10 @@ class ExploreSpecialtyTagSerializer(serializers.Serializer):
         source="TAG_ID.TAG_COLOR",
         read_only=True,
     )
+    icon = serializers.CharField(
+        source="TAG_ID.TAG_ICON",
+        read_only=True,
+    )
     vouch_count = serializers.IntegerField(
         source="BST_VOUCH_COUNT",
         read_only=True,
