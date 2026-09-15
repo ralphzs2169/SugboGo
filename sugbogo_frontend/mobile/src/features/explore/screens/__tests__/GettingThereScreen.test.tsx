@@ -14,7 +14,7 @@ jest.mock("expo-router", () => ({
   },
 }));
 jest.mock("@/shared/hooks/useUserLocation");
-jest.mock("@/shared/hooks/useApiErrorNotification", () => jest.fn());
+jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("../../hooks/useDirectJourneys");
 jest.mock("../../hooks/useExploreBusinessProfile");
 
@@ -104,6 +104,7 @@ describe("GettingThereScreen", () => {
     const screen = await render(<GettingThereScreen businessId={21} />);
 
     expect(screen.getByText("Jeepney Guide")).toBeTruthy();
+    expect(screen.getAllByText("Book with Grab").length).toBeGreaterThan(0);
     fireEvent.press(screen.getByText("View Route"));
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]/road-route",

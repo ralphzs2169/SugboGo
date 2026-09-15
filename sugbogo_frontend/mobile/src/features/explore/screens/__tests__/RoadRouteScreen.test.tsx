@@ -1,7 +1,7 @@
 import { fireEvent, render } from "@testing-library/react-native";
 
 import useUserLocation from "@/shared/hooks/useUserLocation";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
 import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
 import useRoadRoute from "../../hooks/useRoadRoute";
@@ -13,7 +13,7 @@ jest.mock("expo-router", () => ({
   },
 }));
 jest.mock("@/shared/hooks/useUserLocation");
-jest.mock("@/shared/hooks/useApiErrorNotification", () => jest.fn());
+jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("../../hooks/useExploreBusinessProfile");
 jest.mock("../../hooks/useRoadRoute");
 jest.mock(
@@ -147,7 +147,7 @@ describe("RoadRouteScreen", () => {
     expect(screen.getByText("Unable to load road route")).toBeTruthy();
     fireEvent.press(screen.getByText("Retry"));
     expect(routeRefetch).toHaveBeenCalled();
-    expect(useApiErrorNotification).toHaveBeenCalledWith(
+    expect(useQueryErrorNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         error,
         toastId: "road-route-error",

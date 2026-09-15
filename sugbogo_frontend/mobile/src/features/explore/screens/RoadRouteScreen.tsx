@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 
 import LocationUnavailableState from "../components/getting-there/LocationUnavailableState";
@@ -28,20 +28,16 @@ export default function RoadRouteScreen({ businessId }: Props) {
   const hasUsableLocation = userLocation.status === "available";
   const latitude = hasUsableLocation ? userLocation.latitude : null;
   const longitude = hasUsableLocation ? userLocation.longitude : null;
-  const roadRouteQuery = useRoadRoute(
-    businessId,
-    latitude,
-    longitude,
-  );
+  const roadRouteQuery = useRoadRoute(businessId, latitude, longitude);
 
-  useApiErrorNotification({
+  useQueryErrorNotification({
     error: businessQuery.error,
     toastId: "road-route-business-error",
     title: "Unable to load destination",
     fallbackMessage: "We couldn't load this business right now.",
   });
 
-  useApiErrorNotification({
+  useQueryErrorNotification({
     error: roadRouteQuery.error,
     toastId: "road-route-error",
     title: "Unable to load road route",
@@ -66,12 +62,13 @@ export default function RoadRouteScreen({ businessId }: Props) {
   const businessName = businessQuery.business?.business_name ?? "Destination";
 
   return (
-    <SafeAreaView edges={["bottom"]} className="flex-1 bg-background px-screen-x pb-5 pt-4">
+    <SafeAreaView
+      edges={["bottom"]}
+      className="flex-1 bg-background px-screen-x pb-5 pt-4"
+    >
       {/* Destination context */}
       <View className="mb-4">
-        <AppText className="text-sm text-text-secondary">
-          Road route to
-        </AppText>
+        <AppText className="text-sm text-text-secondary">Road route to</AppText>
         <AppText weight="extrabold" className="mt-1 text-2xl text-text-primary">
           {businessName}
         </AppText>
@@ -102,8 +99,13 @@ export default function RoadRouteScreen({ businessId }: Props) {
           {/* Approximate route summary */}
           <View className="mb-4 flex-row gap-3">
             <View className="flex-1 rounded-card border border-border-primary bg-surface px-4 py-3">
-              <AppText className="text-xs text-text-secondary">Distance</AppText>
-              <AppText weight="extrabold" className="mt-1 text-xl text-text-primary">
+              <AppText className="text-xs text-text-secondary">
+                Distance
+              </AppText>
+              <AppText
+                weight="extrabold"
+                className="mt-1 text-xl text-text-primary"
+              >
                 {formatJourneyDistance(roadRouteQuery.route.distance_meters)}
               </AppText>
             </View>
@@ -111,7 +113,10 @@ export default function RoadRouteScreen({ businessId }: Props) {
               <AppText className="text-xs text-text-secondary">
                 Approx. duration
               </AppText>
-              <AppText weight="extrabold" className="mt-1 text-xl text-text-primary">
+              <AppText
+                weight="extrabold"
+                className="mt-1 text-xl text-text-primary"
+              >
                 {formatRoadRouteDuration(roadRouteQuery.route.duration_seconds)}
               </AppText>
             </View>

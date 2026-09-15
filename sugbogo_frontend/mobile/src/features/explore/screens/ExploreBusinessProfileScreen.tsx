@@ -38,6 +38,7 @@ import {
 } from "../utils/businessHours.utils";
 
 import { formatDistance } from "@/shared/utils/distance.utils";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
 type Props = {
   businessId: number;
@@ -68,6 +69,13 @@ export default function ExploreBusinessProfileScreen({
   useBusinessProfileVisit(businessId, business?.id);
 
   const { totalCount: reviewCount } = useBusinessReviewPreview(businessId);
+
+  useQueryErrorNotification({
+    error,
+    toastId: "business-profile-error",
+    title: "Unable to load business profile",
+    fallbackMessage: "We couldn't load this business right now.",
+  });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 

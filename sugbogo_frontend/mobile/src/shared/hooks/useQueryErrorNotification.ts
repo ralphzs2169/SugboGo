@@ -12,7 +12,7 @@ type Options = {
 };
 
 /** Shows one page-level toast when a query exposes a new API error. */
-export default function useApiErrorNotification({
+export default function useQueryErrorNotification({
   error,
   toastId,
   title,

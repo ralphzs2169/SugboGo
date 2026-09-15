@@ -6,12 +6,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 
 import DirectJourneyList from "../components/getting-there/DirectJourneyList";
 import GettingThereEmptyState from "../components/getting-there/GettingThereEmptyState";
 import GettingThereLoadingState from "../components/getting-there/GettingThereLoadingState";
+import GrabHandoffCard from "../components/getting-there/GrabHandoffCard";
 import LocationUnavailableState from "../components/getting-there/LocationUnavailableState";
 import RoadRouteEntryCard from "../components/getting-there/RoadRouteEntryCard";
 import useDirectJourneys from "../hooks/useDirectJourneys";
@@ -35,20 +36,16 @@ export default function GettingThereScreen({ businessId }: Props) {
   const latitude = hasUsableLocation ? userLocation.latitude : null;
   const longitude = hasUsableLocation ? userLocation.longitude : null;
 
-  const journeyQuery = useDirectJourneys(
-    businessId,
-    latitude,
-    longitude,
-  );
+  const journeyQuery = useDirectJourneys(businessId, latitude, longitude);
 
-  useApiErrorNotification({
+  useQueryErrorNotification({
     error: businessQuery.error,
     toastId: "getting-there-business-error",
     title: "Unable to load destination",
     fallbackMessage: "We couldn't load this business right now.",
   });
 
-  useApiErrorNotification({
+  useQueryErrorNotification({
     error: journeyQuery.error,
     toastId: "direct-journeys-error",
     title: "Unable to load jeepney guidance",
@@ -175,6 +172,9 @@ export default function GettingThereScreen({ businessId }: Props) {
             </AppText>
           </View>
         ) : null}
+
+        {/* External ride-hailing option */}
+        <GrabHandoffCard />
       </ScrollView>
     </SafeAreaView>
   );
