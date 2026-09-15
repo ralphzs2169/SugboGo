@@ -23,6 +23,15 @@ from apps.users.models import User
 class ReviewServiceTests(TestCase):
     """Tests for creating, updating, and deleting business reviews."""
 
+    def setUp(self):
+        # Existing service tests stay offline and independent of provisioned models.
+        patcher = patch(
+            "apps.reviews.services.review_service.route_sentiment",
+            return_value=(0.75, "Positive", "vader"),
+        )
+        self.score_review = patcher.start()
+        self.addCleanup(patcher.stop)
+
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(
@@ -1364,3 +1373,91 @@ class ReviewServiceTests(TestCase):
             "vouched_specialties",
             data,
         )
+
+    def test_sentiment_creation_and_text_edit(self):
+        review = ReviewService.create_review(
+            self.user, self.business.BUSN_ID, "Wonderful food and excellent service.",
+        )
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.75)
+        self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
+        self.score_review.return_value = (-0.6, "Negative", "tagalog")
+        ReviewService.update_review(self.user, review.REVW_ID, text="Bad")
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Bad")
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, -0.6)
+        self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
+        self.score_review.assert_called_with("Bad")
+
+    def test_photo_only_edit_preserves_sentiment_and_flags(self):
+        review = Review.objects.create(
+            USER_ID=self.user, BUSN_ID=self.business, REVW_TEXT="Existing review.",
+            REVW_SENTIMENT_SCORE=-0.6, REVW_SENTIMENT_LABEL="negative",
+            REVW_IS_SPAM_FLAGGED=True, REVW_IS_OUTLIER_SENTIMENT=True,
+        )
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=review, RPHO_PHOTO_URL="https://example.com/photo.jpg",
+            RPHO_PHOTO_PUBLIC_ID="existing-photo",
+        )
+        with patch("apps.reviews.services.review_service.CloudinaryService.delete_image"):
+            ReviewService.update_review(self.user, review.REVW_ID, keep_photo_ids=[])
+        review.refresh_from_db()
+        self.score_review.assert_not_called()
+        self.assertFalse(ReviewPhoto.objects.filter(pk=photo.pk).exists())
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, -0.6)
+        self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
+        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
+
+    def test_blank_direct_service_calls_are_validation_errors(self):
+        for text in ["", " \n\t"]:
+            with self.subTest(text=text), self.assertRaises(ValidationError):
+                ReviewService.create_review(self.user, self.business.BUSN_ID, text)
+        review = Review.objects.create(
+            USER_ID=self.user, BUSN_ID=self.business, REVW_TEXT="Original text.",
+        )
+        with self.assertRaises(ValidationError):
+            ReviewService.update_review(self.user, review.REVW_ID, text=" ")
+        self.score_review.assert_not_called()
+
+    def test_inference_failure_aborts_creation_and_text_edit(self):
+        count_before = Review.objects.count()
+        self.business.refresh_from_db()
+        business_count_before = self.business.BUSN_REVIEW_COUNT
+        self.score_review.side_effect = RuntimeError("Model unavailable")
+        with self.assertRaisesRegex(RuntimeError, "Model unavailable"):
+            ReviewService.create_review(self.user, self.business.BUSN_ID, "Valid review text.")
+        self.assertEqual(Review.objects.count(), count_before)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, business_count_before)
+        review = Review.objects.create(
+            USER_ID=self.user, BUSN_ID=self.business, REVW_TEXT="Original text.",
+            REVW_SENTIMENT_SCORE=0.2, REVW_SENTIMENT_LABEL="positive",
+        )
+        with self.assertRaisesRegex(RuntimeError, "Model unavailable"):
+            ReviewService.update_review(self.user, review.REVW_ID, text="New text.")
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original text.")
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.2)
+        self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
+
+    def test_failure_after_scored_save_rolls_back_creation_and_edit(self):
+        with patch("apps.reviews.services.review_service.CloudinaryService.upload_image",
+                   side_effect=RuntimeError("Upload failed")):
+            with self.assertRaisesRegex(RuntimeError, "Upload failed"):
+                ReviewService.create_review(
+                    self.user, self.business.BUSN_ID, "Valid text.", photos=[object()],
+                )
+            self.assertFalse(Review.objects.filter(USER_ID=self.user).exists())
+            review = Review.objects.create(
+                USER_ID=self.user, BUSN_ID=self.business, REVW_TEXT="Original text.",
+                REVW_SENTIMENT_SCORE=-0.4, REVW_SENTIMENT_LABEL="negative",
+            )
+            with self.assertRaisesRegex(RuntimeError, "Upload failed"):
+                ReviewService.update_review(
+                    self.user, review.REVW_ID, text="Changed text.", photos=[object()],
+                )
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original text.")
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, -0.4)
+        self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
