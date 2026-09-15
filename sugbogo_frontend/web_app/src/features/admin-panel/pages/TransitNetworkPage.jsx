@@ -1,9 +1,9 @@
 import PageHeader from "@/features/admin-panel/components/PageHeader";
-import TransitNetworkManagementTable from "@/features/admin-panel/transit-network/components/TransitNetworkManagementTable";
+import TransitNetworkWorkspace from "@/features/admin-panel/transit-network/components/workspace/TransitNetworkWorkspace";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 /**
- * Hosts the admin transit network management shell and its resource tables.
+ * Hosts the persistent map-centered admin transit network workspace.
  */
 export default function TransitNetworkPage() {
   useDocumentTitle("Transit Network | SugboGo Admin");
@@ -23,11 +23,11 @@ export default function TransitNetworkPage() {
       {/* Transit management workspace */}
       <section>
         <p className="mb-5 max-w-3xl text-sm leading-relaxed text-text-secondary">
-          Manage jeepney route codes, transit infrastructure points, and reviewed
-          transfer connections. Geographic route path editing will be available in
-          the dedicated map editor.
+          Browse, author, and review jeepney routes, managed Transit Points, and
+          directed transfer connections without leaving their shared geographic
+          context.
         </p>
-        <TransitNetworkManagementTable />
+        <TransitNetworkWorkspace />
       </section>
     </>
   );

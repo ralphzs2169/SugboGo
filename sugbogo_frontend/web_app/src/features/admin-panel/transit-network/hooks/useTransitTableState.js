@@ -20,17 +20,25 @@ export default function useTransitTableState() {
   }
 
   function handleTabChange(tab) {
-    tableState.setCurrentTab(tab);
     tableState.setGlobalFilter("");
-    tableState.setSorting([]);
+    tableState.resetSortingState();
     setStatusFilterState("");
     tableState.resetPageIndex();
-    tableState.updateSearchParams({ status: null, page: null });
+    tableState.updateSearchParams(
+      {
+        tab: tab === "routes" ? null : tab,
+        search: null,
+        status: null,
+        sort: null,
+        page: null,
+      },
+      { replace: false },
+    );
   }
 
   function handleResetFilters() {
     tableState.setGlobalFilter("");
-    tableState.setSorting([]);
+    tableState.resetSortingState();
     setStatusFilterState("");
     tableState.resetPageIndex();
     tableState.updateSearchParams({

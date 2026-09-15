@@ -166,11 +166,7 @@ const navigation = [
         label: "Transit Network",
         Icon: FiMapPin,
         roles: ["admin", "super_admin"],
-        activePaths: [
-          "/admin-panel/transit-network",
-          "/admin-panel/transit-network/routes/[routeId]/variants/new",
-          "/admin-panel/transit-network/routes/[routeId]/variants/[variantId]/edit",
-        ],
+        activePaths: ["/admin-panel/transit-network"],
       },
       {
         type: "link",

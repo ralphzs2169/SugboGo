@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { TouchableOpacity, View } from "react-native";
 import Toast from "react-native-toast-message";
 
+import * as onboardingStorage from "@/shared/api/onboardingStorage.service";
+
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
@@ -183,7 +185,15 @@ export default function LoginScreen() {
       <AuthHeader />
 
       {/* Login introduction */}
-
+      {/* {__DEV__ && (
+        <Button
+          title="Reset Onboarding"
+          onPress={async () => {
+            await onboardingStorage.resetOnboarding();
+            router.replace("/");
+          }}
+        />
+      )} */}
       <AppText weight="bold" className="mb-7 text-xl text-text-primary">
         Log in to your account
       </AppText>

@@ -78,7 +78,7 @@ export default function TransitPointEditorPanel({
     );
   }
 
-  const isAdding = mode === "add";
+  const isAdding = mode === "add-transit-point";
 
   function handleSubmit(event) {
     event.preventDefault();

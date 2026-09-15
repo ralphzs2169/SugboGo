@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const WARNING_MESSAGE =
-  "You have unsaved route changes. Leave this page and discard them?";
+  "You have unsaved Transit Network changes. Leave this page and discard them?";
 
 export default function useUnsavedChangesGuard(isDirty) {
   const navigate = useNavigate();
