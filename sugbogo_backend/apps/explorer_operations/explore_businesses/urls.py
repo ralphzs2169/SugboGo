@@ -11,6 +11,7 @@ from apps.explorer_operations.explore_businesses.views.cluster_discovery_shortcu
     ClusterDiscoveryShortcutView,
 )
 from apps.explorer_operations.explore_businesses.views.direct_journey_views import (
+    DirectJourneyMapView,
     DirectJourneySearchView,
 )
 from apps.explorer_operations.explore_businesses.views.discovery_feed_views import (
@@ -49,6 +50,11 @@ from django.urls import path
 urlpatterns = [
 
     path("businesses/<int:business_id>/", BusinessDetailView.as_view(), name="business-detail", ),
+    path(
+        "businesses/<int:business_id>/direct-journeys/map/",
+        DirectJourneyMapView.as_view(),
+        name="business-direct-journey-map",
+    ),
     path(
         "businesses/<int:business_id>/direct-journeys/",
         DirectJourneySearchView.as_view(),

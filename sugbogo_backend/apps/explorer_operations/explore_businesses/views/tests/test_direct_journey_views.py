@@ -42,43 +42,48 @@ class DirectJourneySearchViewTests(TestCase):
     ):
         """Serialize one direct option through the SugboGo success envelope."""
 
+        journey = {
+            "journey_type": "direct",
+            "jeepney_route_code": "14D",
+            "route_variant_id": 8,
+            "route_variant_origin": {
+                "id": 1,
+                "name": "Kamputhaw",
+            },
+            "route_variant_destination": {
+                "id": 4,
+                "name": "Colon",
+            },
+            "boarding_transit_point": {
+                "id": 2,
+                "name": "Capitol",
+                "latitude": 10.3173,
+                "longitude": 123.8908,
+            },
+            "boarding_sequence": 2,
+            "explorer_to_boarding_distance_meters": 120.5,
+            "alighting_transit_point": {
+                "id": 4,
+                "name": "Colon",
+                "latitude": 10.2940,
+                "longitude": 123.9003,
+            },
+            "alighting_sequence": 4,
+            "alighting_to_business_distance_meters": 180.25,
+            "total_access_egress_distance_meters": 300.75,
+            "approximate_ride_distance_meters": 3500.0,
+            "landmark_context": {
+                "id": 12,
+                "name": "Gaisano Capital South",
+                "distance_from_alighting_meters": 85.0,
+            },
+        }
         mock_search.return_value = {
-            "journeys": [
+            "route_options": [
                 {
-                    "journey_type": "direct",
                     "jeepney_route_code": "14D",
-                    "route_variant_id": 8,
-                    "route_variant_origin": {
-                        "id": 1,
-                        "name": "Kamputhaw",
-                    },
-                    "route_variant_destination": {
-                        "id": 4,
-                        "name": "Colon",
-                    },
-                    "boarding_transit_point": {
-                        "id": 2,
-                        "name": "Capitol",
-                        "latitude": 10.3173,
-                        "longitude": 123.8908,
-                    },
-                    "boarding_sequence": 2,
-                    "explorer_to_boarding_distance_meters": 120.5,
-                    "alighting_transit_point": {
-                        "id": 4,
-                        "name": "Colon",
-                        "latitude": 10.2940,
-                        "longitude": 123.9003,
-                    },
-                    "alighting_sequence": 4,
-                    "alighting_to_business_distance_meters": 180.25,
-                    "total_access_egress_distance_meters": 300.75,
-                    "approximate_ride_distance_meters": 3500.0,
-                    "landmark_context": {
-                        "id": 12,
-                        "name": "Gaisano Capital South",
-                        "distance_from_alighting_meters": 85.0,
-                    },
+                    "recommended_journey": journey,
+                    "alternative_journeys": [],
                 },
             ],
             "reason": None,
@@ -101,14 +106,18 @@ class DirectJourneySearchViewTests(TestCase):
             "Direct jeepney journeys retrieved successfully.",
         )
         self.assertEqual(
-            response.data["data"]["journeys"][0]["jeepney_route_code"],
+            response.data["data"]["route_options"][0][
+                "jeepney_route_code"
+            ],
             "14D",
         )
         self.assertIsNone(
             response.data["data"]["reason"],
         )
         self.assertEqual(
-            response.data["data"]["journeys"][0]["landmark_context"],
+            response.data["data"]["route_options"][0][
+                "recommended_journey"
+            ]["landmark_context"],
             {
                 "id": 12,
                 "name": "Gaisano Capital South",
@@ -132,7 +141,7 @@ class DirectJourneySearchViewTests(TestCase):
         """Keep an ordinary no-route result at HTTP 200."""
 
         mock_search.return_value = {
-            "journeys": [],
+            "route_options": [],
             "reason": "no_direct_route_match",
         }
 
@@ -148,7 +157,7 @@ class DirectJourneySearchViewTests(TestCase):
         self.assertEqual(
             response.data["data"],
             {
-                "journeys": [],
+                "route_options": [],
                 "reason": "no_direct_route_match",
             },
         )
@@ -163,39 +172,44 @@ class DirectJourneySearchViewTests(TestCase):
     ):
         """Serialize a valid journey without requiring landmark context."""
 
+        journey = {
+            "journey_type": "direct",
+            "jeepney_route_code": "14D",
+            "route_variant_id": 8,
+            "route_variant_origin": {
+                "id": 1,
+                "name": "Kamputhaw",
+            },
+            "route_variant_destination": {
+                "id": 4,
+                "name": "Colon",
+            },
+            "boarding_transit_point": {
+                "id": 2,
+                "name": "Capitol",
+                "latitude": 10.3173,
+                "longitude": 123.8908,
+            },
+            "boarding_sequence": 2,
+            "explorer_to_boarding_distance_meters": 120.5,
+            "alighting_transit_point": {
+                "id": 4,
+                "name": "Colon",
+                "latitude": 10.2940,
+                "longitude": 123.9003,
+            },
+            "alighting_sequence": 4,
+            "alighting_to_business_distance_meters": 180.25,
+            "total_access_egress_distance_meters": 300.75,
+            "approximate_ride_distance_meters": 3500.0,
+            "landmark_context": None,
+        }
         mock_search.return_value = {
-            "journeys": [
+            "route_options": [
                 {
-                    "journey_type": "direct",
                     "jeepney_route_code": "14D",
-                    "route_variant_id": 8,
-                    "route_variant_origin": {
-                        "id": 1,
-                        "name": "Kamputhaw",
-                    },
-                    "route_variant_destination": {
-                        "id": 4,
-                        "name": "Colon",
-                    },
-                    "boarding_transit_point": {
-                        "id": 2,
-                        "name": "Capitol",
-                        "latitude": 10.3173,
-                        "longitude": 123.8908,
-                    },
-                    "boarding_sequence": 2,
-                    "explorer_to_boarding_distance_meters": 120.5,
-                    "alighting_transit_point": {
-                        "id": 4,
-                        "name": "Colon",
-                        "latitude": 10.2940,
-                        "longitude": 123.9003,
-                    },
-                    "alighting_sequence": 4,
-                    "alighting_to_business_distance_meters": 180.25,
-                    "total_access_egress_distance_meters": 300.75,
-                    "approximate_ride_distance_meters": 3500.0,
-                    "landmark_context": None,
+                    "recommended_journey": journey,
+                    "alternative_journeys": [],
                 },
             ],
             "reason": None,
@@ -211,7 +225,9 @@ class DirectJourneySearchViewTests(TestCase):
             status.HTTP_200_OK,
         )
         self.assertIsNone(
-            response.data["data"]["journeys"][0]["landmark_context"],
+            response.data["data"]["route_options"][0][
+                "recommended_journey"
+            ]["landmark_context"],
         )
 
     @patch.object(

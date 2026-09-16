@@ -387,6 +387,12 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
         allow_null=True,
     )
 
+    cover_photo_url = serializers.URLField(
+        source="BUSN_COVER_PHOTO_URL",
+        read_only=True,
+        allow_null=True,
+    )
+    
     contact_number = serializers.CharField(
         source="BUSN_CONTACT_NUMBER",
         read_only=True,
