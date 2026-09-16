@@ -51,6 +51,20 @@ export default function BusinessLayout() {
             title: "Jeepney Guide",
           }}
         />
+
+        <Stack.Screen
+          name="jeepney-starting-point"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="jeepney-route-map"
+          options={{
+            title: "Jeepney Route",
+          }}
+        />
       </Stack>
     </>
   );

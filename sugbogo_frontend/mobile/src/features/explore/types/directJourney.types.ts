@@ -36,7 +36,44 @@ export type DirectJourney = {
   landmark_context: DirectJourneyLandmarkContext | null;
 };
 
+export type DirectJourneyRouteOption = {
+  jeepney_route_code: string;
+  recommended_journey: DirectJourney;
+  alternative_journeys: DirectJourney[];
+};
+
 export type DirectJourneySearchResult = {
-  journeys: DirectJourney[];
+  route_options: DirectJourneyRouteOption[];
   reason: DirectJourneyNoRouteReason | null;
+};
+
+export type DirectJourneyMapCoordinate = {
+  latitude: number;
+  longitude: number;
+};
+
+export type DirectJourneyMapTransitPoint = DirectJourneyTransitPoint & {
+  sequence: number;
+};
+
+export type DirectJourneyMapGuidance = {
+  jeepney_route_code: string;
+  route_variant: {
+    id: number;
+    origin: DirectJourneyEndpoint;
+    destination: DirectJourneyEndpoint;
+  };
+  boarding_transit_point: DirectJourneyMapTransitPoint;
+  alighting_transit_point: DirectJourneyMapTransitPoint;
+  ride: {
+    approximate_distance_meters: number;
+    full_variant_geometry: DirectJourneyMapCoordinate[];
+    selected_segment_geometry: DirectJourneyMapCoordinate[];
+  };
+  business_location: DirectJourneyMapCoordinate;
+  landmark_context: DirectJourneyLandmarkContext | null;
+};
+
+export type DirectJourneyMapResult = {
+  journey: DirectJourneyMapGuidance;
 };

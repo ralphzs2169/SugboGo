@@ -1,16 +1,19 @@
 import { fireEvent, render } from "@testing-library/react-native";
+import { router } from "expo-router";
 
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 
 import useDirectJourneys from "../../hooks/useDirectJourneys";
 import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
+import { useJourneyOriginStore } from "../../stores/journeyOrigin.store";
 import type { DirectJourney } from "../../types/directJourney.types";
 import JeepneyGuideScreen from "../JeepneyGuideScreen";
 
 jest.mock("expo-router", () => ({
   router: {
     back: jest.fn(),
+    push: jest.fn(),
   },
 }));
 jest.mock("@/shared/hooks/useUserLocation");
@@ -58,10 +61,10 @@ function mockJourneyQuery(
 ) {
   (useDirectJourneys as jest.Mock).mockReturnValue({
     result: {
-      journeys: [],
+      route_options: [],
       reason: "no_direct_route_match",
     },
-    journeys: [],
+    routeOptions: [],
     reason: "no_direct_route_match",
     isLoading: false,
     error: null,
@@ -73,6 +76,10 @@ function mockJourneyQuery(
 describe("JeepneyGuideScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useJourneyOriginStore.setState({
+      businessId: null,
+      confirmedOrigin: null,
+    });
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
       business: { business_name: "Sugbo Cafe" },
       isLoading: false,
@@ -116,8 +123,40 @@ describe("JeepneyGuideScreen", () => {
     const screen = await render(<JeepneyGuideScreen businessId={21} />);
 
     expect(screen.getByText("Location needed")).toBeTruthy();
+    expect(screen.getByText("Choose starting point")).toBeTruthy();
     fireEvent.press(screen.getByText("Try Again"));
     expect(refreshLocation).toHaveBeenCalled();
+  });
+
+  it("opens the full-screen starting-point picker", async () => {
+    const screen = await render(<JeepneyGuideScreen businessId={21} />);
+
+    fireEvent.press(screen.getByText("Change"));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname:
+        "/(explorer)/business/[businessId]/jeepney-starting-point",
+      params: {
+        businessId: "21",
+      },
+    });
+  });
+
+  it("uses a confirmed manual origin for recommendations", async () => {
+    useJourneyOriginStore.setState({
+      businessId: 21,
+      confirmedOrigin: {
+        type: "selected",
+        latitude: 10.318,
+        longitude: 123.904,
+        label: "Ayala Center Cebu",
+      },
+    });
+
+    const screen = await render(<JeepneyGuideScreen businessId={21} />);
+
+    expect(screen.getByText("Ayala Center Cebu")).toBeTruthy();
+    expect(useDirectJourneys).toHaveBeenCalledWith(21, 10.318, 123.904);
   });
 
   it("keeps the journey loading state visible after location is available", async () => {
@@ -130,8 +169,23 @@ describe("JeepneyGuideScreen", () => {
 
   it("renders the recommended journey and optional landmark in backend order", async () => {
     mockJourneyQuery({
-      result: { journeys: [journey], reason: null },
-      journeys: [journey],
+      result: {
+        route_options: [
+          {
+            jeepney_route_code: "14D",
+            recommended_journey: journey,
+            alternative_journeys: [],
+          },
+        ],
+        reason: null,
+      },
+      routeOptions: [
+        {
+          jeepney_route_code: "14D",
+          recommended_journey: journey,
+          alternative_journeys: [],
+        },
+      ],
       reason: null,
     });
 
@@ -143,6 +197,43 @@ describe("JeepneyGuideScreen", () => {
     expect(screen.getByText("Get off at Colon")).toBeTruthy();
     expect(screen.getByText(/Near Gaisano Capital South/)).toBeTruthy();
     expect(useDirectJourneys).toHaveBeenCalledWith(21, 10.3, 123.88);
+  });
+
+  it("navigates to map guidance with only the selected journey IDs", async () => {
+    mockJourneyQuery({
+      result: {
+        route_options: [
+          {
+            jeepney_route_code: "14D",
+            recommended_journey: journey,
+            alternative_journeys: [],
+          },
+        ],
+        reason: null,
+      },
+      routeOptions: [
+        {
+          jeepney_route_code: "14D",
+          recommended_journey: journey,
+          alternative_journeys: [],
+        },
+      ],
+      reason: null,
+    });
+
+    const screen = await render(<JeepneyGuideScreen businessId={21} />);
+    fireEvent.press(screen.getByText("View on map"));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname:
+        "/(explorer)/business/[businessId]/jeepney-route-map",
+      params: {
+        businessId: "21",
+        routeVariantId: "8",
+        boardingTransitPointId: "2",
+        alightingTransitPointId: "4",
+      },
+    });
   });
 
   it("renders a successful no-route result without exposing its raw reason", async () => {

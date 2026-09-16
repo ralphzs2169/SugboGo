@@ -79,6 +79,8 @@ export default function useUserLocation() {
     setStatus(result.status);
     setError(result.error);
     setIsRefreshingLocation(false);
+
+    return result;
   }, []);
 
   useEffect(() => {

@@ -11,6 +11,7 @@ type Props = {
   purpose?: "jeepney" | "road-route";
   isRetrying: boolean;
   onRetry: () => void;
+  onChooseStartingPoint?: () => void;
 };
 
 /**
@@ -21,6 +22,7 @@ export default function LocationUnavailableState({
   purpose = "jeepney",
   isRetrying,
   onRetry,
+  onChooseStartingPoint,
 }: Props) {
   const permissionDescription =
     purpose === "road-route"
@@ -62,6 +64,17 @@ export default function LocationUnavailableState({
         className="mt-5 min-w-36 py-3"
         fontClassName="text-sm"
       />
+
+      {onChooseStartingPoint ? (
+        <Button
+          title="Choose starting point"
+          onPress={onChooseStartingPoint}
+          variant="outline"
+          rounded="full"
+          className="mt-3 min-w-48 py-3"
+          fontClassName="text-sm"
+        />
+      ) : null}
     </View>
   );
 }

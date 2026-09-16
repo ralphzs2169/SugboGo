@@ -47,7 +47,7 @@ export default function useDirectJourneys(
 
   return {
     result: query.data ?? null,
-    journeys: query.data?.journeys ?? [],
+    routeOptions: query.data?.route_options ?? [],
     reason: query.data?.reason ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,

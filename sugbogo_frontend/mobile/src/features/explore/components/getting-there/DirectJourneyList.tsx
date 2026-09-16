@@ -2,45 +2,44 @@ import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 
-import type { DirectJourney } from "../../types/directJourney.types";
+import type {
+  DirectJourney,
+  DirectJourneyRouteOption,
+} from "../../types/directJourney.types";
 import JourneyOptionCard from "./JourneyOptionCard";
 
 type Props = {
-  journeys: DirectJourney[];
-  businessName: string;
+  routeOptions: DirectJourneyRouteOption[];
+  onViewMap: (journey: DirectJourney) => void;
 };
 
-/**
- * Displays direct options in the backend's ranked order.
- *
- * The first option is identified as recommended and expanded for quick reading.
- */
+/** Displays backend-grouped route codes without changing their ranking. */
 export default function DirectJourneyList({
-  journeys,
-  businessName,
+  routeOptions,
+  onViewMap,
 }: Props) {
   return (
     <View>
       {/* Recommended option */}
       <JourneyOptionCard
-        journey={journeys[0]}
-        businessName={businessName}
+        routeOption={routeOptions[0]}
         recommended
+        onViewMap={onViewMap}
       />
 
-      {/* Ranked alternatives */}
-      {journeys.length > 1 ? (
+      {/* Other backend-ranked route codes */}
+      {routeOptions.length > 1 ? (
         <View className="mt-6">
           <AppText weight="bold" className="mb-3 text-lg text-text-primary">
-            Other options
+            Other routes
           </AppText>
 
           <View className="gap-3">
-            {journeys.slice(1).map((journey) => (
+            {routeOptions.slice(1).map((routeOption) => (
               <JourneyOptionCard
-                key={`${journey.route_variant_id}-${journey.boarding_transit_point.id}-${journey.alighting_transit_point.id}`}
-                journey={journey}
-                businessName={businessName}
+                key={routeOption.jeepney_route_code}
+                routeOption={routeOption}
+                onViewMap={onViewMap}
               />
             ))}
           </View>

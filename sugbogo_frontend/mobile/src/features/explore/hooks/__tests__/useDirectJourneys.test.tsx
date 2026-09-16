@@ -16,7 +16,7 @@ describe("useDirectJourneys", () => {
     (getDirectJourneys as jest.Mock).mockResolvedValue({
       success: true,
       data: {
-        journeys: [],
+        route_options: [],
         reason: "no_direct_route_match",
       },
     });
@@ -71,7 +71,7 @@ describe("useDirectJourneys", () => {
         directJourneysQueryKey(21, 10.3, 123.88),
       ),
     ).toEqual({
-      journeys: [],
+      route_options: [],
       reason: "no_direct_route_match",
     });
 
