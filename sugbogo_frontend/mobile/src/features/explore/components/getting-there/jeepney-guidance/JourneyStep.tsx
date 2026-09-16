@@ -11,6 +11,7 @@ type Props = {
   title: string;
   detail: string;
   supportingText?: string;
+  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
   variant?: JourneyStepVariant;
   isLast?: boolean;
 };
@@ -18,14 +19,15 @@ type Props = {
 /**
  * Renders one stage in a direct jeepney journey timeline.
  *
- * Distinguishes the journey origin and destination with dedicated location
- * markers while keeping intermediate travel instructions clearly numbered.
+ * Uses semantic travel icons for journey actions while preserving distinct
+ * origin and destination markers for quick route scanning.
  */
 export default function JourneyStep({
   number,
   title,
   detail,
   supportingText,
+  icon,
   variant = "step",
   isLast = false,
 }: Props) {
@@ -36,15 +38,7 @@ export default function JourneyStep({
     <View className="flex-row">
       {/* Timeline marker and connector */}
       <View className="items-center">
-        {isOrigin ? (
-          <View className="h-7 w-7 items-center justify-center rounded-full border-2 border-brand bg-surface">
-            <MaterialCommunityIcons
-              name="crosshairs-gps"
-              size={15}
-              color={theme.extends.colors.brand}
-            />
-          </View>
-        ) : isDestination ? (
+        {isDestination ? (
           <View className="h-7 w-7 items-center justify-center rounded-full bg-brand">
             <MaterialCommunityIcons
               name="map-marker"
@@ -52,11 +46,27 @@ export default function JourneyStep({
               color="#FFFFFF"
             />
           </View>
+        ) : isOrigin ? (
+          <View className="h-7 w-7 items-center justify-center rounded-full border-2 border-brand bg-surface">
+            <MaterialCommunityIcons
+              name={icon ?? "walk"}
+              size={15}
+              color={theme.extends.colors.brand}
+            />
+          </View>
         ) : (
-          <View className="h-6 w-6 items-center justify-center rounded-full bg-brand">
-            <AppText weight="bold" className="text-[11px] text-white">
-              {number}
-            </AppText>
+          <View className="h-7 w-7 items-center justify-center rounded-full border-2 border-brand bg-surface">
+            {icon ? (
+              <MaterialCommunityIcons
+                name={icon}
+                size={16}
+                color={theme.extends.colors.brand}
+              />
+            ) : (
+              <AppText weight="extrabold" className="text-[12px] text-brand">
+                {number}
+              </AppText>
+            )}
           </View>
         )}
 

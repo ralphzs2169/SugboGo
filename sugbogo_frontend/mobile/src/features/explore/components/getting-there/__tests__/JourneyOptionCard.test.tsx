@@ -4,7 +4,7 @@ import type {
   DirectJourney,
   DirectJourneyRouteOption,
 } from "../../../types/directJourney.types";
-import JourneyOptionCard from "../JourneyOptionCard";
+import JourneyOptionCard from "../jeepney-guidance/JourneyOptionCard";
 
 const journey: DirectJourney = {
   journey_type: "direct",
@@ -76,7 +76,9 @@ describe("JourneyOptionCard", () => {
     expect(screen.getByText("Board at Capitol")).toBeTruthy();
     expect(screen.getByText("Get off at Colon")).toBeTruthy();
     expect(
-      screen.getByText("Near Gaisano Capital South · approx. 85 m from the stop"),
+      screen.getByText(
+        "Near Gaisano Capital South · approx. 85 m from the stop",
+      ),
     ).toBeTruthy();
     expect(screen.getByText("Approx. 3.4 km ride")).toBeTruthy();
     fireEvent.press(screen.getByText("View on map"));

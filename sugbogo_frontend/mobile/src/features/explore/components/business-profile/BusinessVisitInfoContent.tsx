@@ -1,11 +1,10 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Image, type ImageSource } from "expo-image";
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
 import { Animated, LayoutAnimation, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-
+import TransportAction from "@/features/explore/components/business-profile/TransportAction";
 import JeepneyOptionIcon from "../../assets/getting-there-icons/jeepney-code-option.svg";
 import BookRideOptionIcon from "../../assets/getting-there-icons/book-a-ride-option.svg";
 import MapRouteOptionIcon from "../../assets/getting-there-icons/route-map-option.svg";
@@ -18,61 +17,7 @@ import {
   formatTime,
   getBusinessHoursSummary,
 } from "../../utils/businessHours.utils";
-
-type TransportActionProps = {
-  imageSource?: ImageSource;
-  SvgIcon?: ComponentType<{
-    width?: number;
-    height?: number;
-  }>;
-  label: string;
-  onPress: () => void;
-  accessibilityLabel: string;
-};
-
-/**
- * Renders a compact transportation action using either a raster illustration
- * or an SVG icon depending on the supplied asset.
- */
-function TransportAction({
-  imageSource,
-  SvgIcon,
-  label,
-  onPress,
-  accessibilityLabel,
-}: TransportActionProps) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      className="min-h-25 flex-1 cursor-pointer items-center justify-center rounded-xl bg-background-secondary px-2 py-2.5 active:opacity-70"
-    >
-      {/* Transportation illustration */}
-      {SvgIcon ? (
-        <SvgIcon width={46} height={46} />
-      ) : imageSource ? (
-        <Image
-          source={imageSource}
-          style={{
-            width: 46,
-            height: 46,
-          }}
-          contentFit="contain"
-        />
-      ) : null}
-
-      {/* Transportation label */}
-      <AppText
-        weight="semibold"
-        className="mt-1 text-center text-xs text-text-primary"
-        numberOfLines={1}
-      >
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
+import { getBusinessAddressDisplay } from "../../utils/businessLocation.utils";
 
 type Props = {
   location: ExploreBusinessLocation;
@@ -108,11 +53,8 @@ export default function BusinessVisitInfoContent({
   const [isExpanded, setIsExpanded] = useState(false);
   const [rotation] = useState(() => new Animated.Value(0));
 
-  const address = location.address?.trim();
-
-  const cityLine = [location.city, location.province]
-    .filter(Boolean)
-    .join(", ");
+  const { addressLine: address, cityLine } =
+    getBusinessAddressDisplay(location);
 
   const currentDay = new Date()
     .toLocaleDateString("en-US", {

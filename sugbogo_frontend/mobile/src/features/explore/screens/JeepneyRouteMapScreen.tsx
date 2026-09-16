@@ -58,8 +58,7 @@ export default function JeepneyRouteMapScreen({
   });
 
   const businessName = businessQuery.business?.business_name ?? "Destination";
-  const storedOrigin =
-    originBusinessId === businessId ? confirmedOrigin : null;
+  const storedOrigin = originBusinessId === businessId ? confirmedOrigin : null;
   const deviceOrigin =
     userLocation.status === "available" &&
     userLocation.latitude !== null &&
@@ -83,8 +82,7 @@ export default function JeepneyRouteMapScreen({
 
   if (
     !activeOrigin &&
-    (userLocation.status === "denied" ||
-      userLocation.status === "unavailable")
+    (userLocation.status === "denied" || userLocation.status === "unavailable")
   ) {
     return (
       <View className="flex-1 bg-background px-screen-x pb-5 pt-4">

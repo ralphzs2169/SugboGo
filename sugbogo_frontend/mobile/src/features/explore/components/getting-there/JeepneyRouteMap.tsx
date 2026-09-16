@@ -11,6 +11,8 @@ import type {
   DirectJourneyMapGuidance,
 } from "../../types/directJourney.types";
 import MapMarkerCallout from "@/shared/components/MapMarkerCallout";
+import Avatar from "@/shared/components/Avatar";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 type Props = {
   journey: DirectJourneyMapGuidance;
@@ -50,6 +52,10 @@ export default function JeepneyRouteMap({
   originMarkerTitle,
   businessName,
 }: Props) {
+  const avatarUrl = useAuthStore((state) => state.user?.avatar_url ?? null);
+
+  const avatarKey = useAuthStore((state) => state.user?.avatar_key ?? null);
+
   const mapRef = useRef<MapView>(null);
   const fittedJourneyRef = useRef<string | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -166,8 +172,26 @@ export default function JeepneyRouteMap({
         <Marker
           testID="explorer-location-marker"
           coordinate={originLocation}
-          pinColor={EXPLORER_MARKER_COLOR}
+          anchor={{ x: 0.5, y: 0.5 }}
         >
+          {/* Explorer avatar */}
+          <View
+            collapsable={false}
+            className="rounded-full border-2 border-white"
+            style={{
+              shadowColor: "#000",
+              shadowOpacity: 0.22,
+              shadowRadius: 5,
+              shadowOffset: {
+                width: 0,
+                height: 2,
+              },
+              elevation: 6,
+            }}
+          >
+            <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={40} />
+          </View>
+
           <MapMarkerCallout
             label={originMarkerLabel}
             title={originMarkerTitle}
@@ -180,6 +204,10 @@ export default function JeepneyRouteMap({
           coordinate={journey.boarding_transit_point}
           pinColor={BOARDING_MARKER_COLOR}
         >
+          <View collapsable={false}>
+            <MapMarker variant="boarding" />
+          </View>
+
           <MapMarkerCallout
             label="Board here"
             title={journey.boarding_transit_point.name}
@@ -193,6 +221,10 @@ export default function JeepneyRouteMap({
           coordinate={journey.alighting_transit_point}
           pinColor={theme.extends.colors.brand}
         >
+          <View collapsable={false}>
+            <MapMarker variant="alighting" />
+          </View>
+
           <MapMarkerCallout
             label="Get off here"
             title={journey.alighting_transit_point.name}
