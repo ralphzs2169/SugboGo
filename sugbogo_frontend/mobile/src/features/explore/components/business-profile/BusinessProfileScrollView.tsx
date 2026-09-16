@@ -34,9 +34,7 @@ export default function BusinessProfileScrollView({
 
   const [navOpacity] = useState(() => new Animated.Value(0));
   const [identityOpacity] = useState(() => new Animated.Value(0));
-  const [stickyHeaderTranslateY] = useState(
-    () => new Animated.Value(-20),
-  );
+  const [stickyHeaderTranslateY] = useState(() => new Animated.Value(-20));
 
   const wasPastNavThreshold = useRef(false);
   const wasPastIdentityThreshold = useRef(false);
@@ -107,7 +105,7 @@ export default function BusinessProfileScrollView({
 
       <Animated.ScrollView
         contentContainerStyle={{
-          paddingBottom: isOwnBusiness ? 100 : bottom + 24,
+          paddingBottom: isOwnBusiness ? 100 : bottom,
         }}
         onScroll={handleScroll}
         scrollEventThrottle={16}

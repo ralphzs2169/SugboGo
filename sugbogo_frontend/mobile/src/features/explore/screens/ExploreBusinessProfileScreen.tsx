@@ -156,7 +156,7 @@ export default function ExploreBusinessProfileScreen({
         {business && quickInfoStatus ? (
           <>
             {/* Business hero and overlapping quick info */}
-            <View className="mb-2">
+            <View className=" bg-surface">
               <ExploreBusinessHero
                 business={business}
                 isOwnBusiness={business.is_own_business}

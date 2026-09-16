@@ -100,7 +100,7 @@ export default function RoadRouteScreen({ businessId }: Props) {
           <View className="mb-4 flex-row gap-3">
             <View className="flex-1 rounded-card border border-border-primary bg-surface px-4 py-3">
               <AppText className="text-xs text-text-secondary">
-                Distance
+                Distance by road
               </AppText>
               <AppText
                 weight="extrabold"

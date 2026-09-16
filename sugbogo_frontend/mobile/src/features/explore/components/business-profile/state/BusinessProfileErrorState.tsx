@@ -1,9 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
-import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 
@@ -13,8 +11,10 @@ type Props = {
 };
 
 /**
- * Preserves the business profile's visual shell when the profile request
- * fails, while presenting a clear recovery state instead of a blank screen.
+ * Preserves the business profile's visual shell when the profile request fails.
+ *
+ * Mirrors the current hero and floating quick-info layout while presenting a
+ * clear recovery state for retrying the failed profile request.
  */
 export default function BusinessProfileErrorState({
   onRetry,
@@ -22,39 +22,71 @@ export default function BusinessProfileErrorState({
 }: Props) {
   return (
     <View className="flex-1 bg-background">
-      {/* Hero placeholder */}
-      <View className="relative h-72 w-full bg-surface-secondary">
-        <Skeleton className="h-full w-full rounded-none" />
+      {/* Business hero and overlapping quick info */}
+      <View className="bg-surface">
+        {/* Hero placeholder */}
+        <View className="relative h-80 w-full bg-surface-secondary">
+          <Skeleton className="h-full w-full rounded-none" />
 
-        {/* Back button */}
-        <Pressable
-          onPress={() => router.back()}
-          className="absolute left-4 top-4 h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
-          android_ripple={{ color: "rgba(0,0,0,0.08)" }}
-        >
-          <MaterialCommunityIcons
-            name="chevron-left"
-            size={26}
-            color={theme.extends.colors.text.primary}
-          />
-        </Pressable>
-      </View>
-
-      {/* Quick information placeholders */}
-      <View className="flex-row border-b border-border-primary bg-surface">
-        <View className="flex-1 items-center justify-center py-4">
-          <Skeleton className="h-5 w-5 rounded-full" />
-          <Skeleton className="mt-2 h-3 w-16 rounded-md" />
+          {/* Back navigation */}
+          <Pressable
+            onPress={onGoBack}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            className="absolute left-4 top-4 h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
+            android_ripple={{
+              color: "rgba(0,0,0,0.08)",
+            }}
+          >
+            <MaterialCommunityIcons
+              name="chevron-left"
+              size={26}
+              color={theme.extends.colors.text.primary}
+            />
+          </Pressable>
         </View>
 
-        <View className="flex-1 items-center justify-center border-x border-border-primary py-4">
-          <Skeleton className="h-4 w-20 rounded-md" />
-          <Skeleton className="mt-2 h-3 w-24 rounded-md" />
-        </View>
+        {/* Overlapping quick information */}
+        <View className="relative z-10 -mt-8 px-4">
+          <View
+            className="flex-row items-stretch overflow-hidden rounded-xl border border-border-primary bg-surface"
+            style={{
+              shadowColor: "#000000",
+              shadowOffset: {
+                width: 0,
+                height: 4,
+              },
+              shadowOpacity: 0.08,
+              shadowRadius: 4,
+            }}
+          >
+            {/* Review summary */}
+            <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+              <Skeleton className="h-[18px] w-[18px] rounded-full" />
+              <Skeleton className="mt-1 h-3.5 w-7 rounded-md" />
+              <Skeleton className="mt-1 h-3 w-12 rounded-md" />
+            </View>
 
-        <View className="flex-1 items-center justify-center py-4">
-          <Skeleton className="h-4 w-14 rounded-md" />
-          <Skeleton className="mt-2 h-3 w-10 rounded-md" />
+            {/* Review/status divider */}
+            <View className="my-3 w-px bg-border-primary" />
+
+            {/* Operating status */}
+            <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+              <Skeleton className="h-[18px] w-[18px] rounded-full" />
+              <Skeleton className="mt-1 h-3.5 w-14 rounded-md" />
+              <Skeleton className="mt-1 h-3 w-20 rounded-md" />
+            </View>
+
+            {/* Status/distance divider */}
+            <View className="my-3 w-px bg-border-primary" />
+
+            {/* Distance summary */}
+            <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+              <Skeleton className="h-[18px] w-[18px] rounded-full" />
+              <Skeleton className="mt-1 h-3.5 w-12 rounded-md" />
+              <Skeleton className="mt-1 h-3 w-8 rounded-md" />
+            </View>
+          </View>
         </View>
       </View>
 

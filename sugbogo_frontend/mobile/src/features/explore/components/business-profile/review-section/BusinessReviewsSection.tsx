@@ -11,6 +11,7 @@ import ErrorState from "@/shared/components/ErrorState";
 import { useBusinessReviewPreview } from "../../../hooks/useBusinessReviews";
 import type { BusinessReview } from "../../../types/review.types";
 import BusinessReviewCard from "./BusinessReviewCard";
+import BusinessReviewCardSkeleton from "../state/BusinessReviewCardSkeleton";
 
 const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
 
@@ -98,11 +99,7 @@ export default function BusinessReviewsSection({
       </View>
 
       {/* Loading state */}
-      {isLoading && (
-        <AppText className="text-sm text-text-secondary">
-          Loading reviews…
-        </AppText>
-      )}
+      {isLoading && <BusinessReviewCardSkeleton />}
 
       {/* Error state */}
       {error && (
@@ -112,6 +109,7 @@ export default function BusinessReviewsSection({
             description="Please try again."
             primaryActionTitle="Retry"
             onPrimaryAction={refetch}
+            size="section"
           />
         </View>
       )}
@@ -178,14 +176,16 @@ export default function BusinessReviewsSection({
           </View>
 
           {canWriteReview && (
-            <Button
-              title="Write a review"
-              onPress={onWriteReview}
-              variant="soft"
-              rounded="full"
-              className="mt-1 py-3"
-              fontClassName="text-sm"
-            />
+            <View className="items-center">
+              <Button
+                title="Write a review"
+                onPress={onWriteReview}
+                variant="soft"
+                rounded="full"
+                className="mt-1 min-w-44 py-3"
+                fontClassName="text-sm"
+              />
+            </View>
           )}
         </View>
       )}

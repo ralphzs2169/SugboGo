@@ -38,9 +38,8 @@ export default function BusinessProfileQuickInfo({
           width: 0,
           height: 4,
         },
-        shadowOpacity: 0.08,
+        shadowOpacity: 1,
         shadowRadius: 4,
-        elevation: 2,
       }}
     >
       {/* Review summary */}
