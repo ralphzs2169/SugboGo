@@ -28,10 +28,7 @@ export default function JeepneyGuidanceHeader({
   return (
     <View className="px-screen-x py-5">
       {/* Destination label */}
-      <AppText
-        weight="bold"
-        className="mb-2.5 text-[11px] uppercase tracking-wide text-text-primary"
-      >
+      <AppText weight="bold" className="text-base text-text-primary mb-2.5">
         Going to
       </AppText>
 

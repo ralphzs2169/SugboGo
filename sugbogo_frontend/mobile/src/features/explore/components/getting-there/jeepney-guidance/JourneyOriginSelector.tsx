@@ -4,6 +4,7 @@ import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
+import { shadows } from "@/shared/styles/shadows";
 
 type OriginState = "current" | "selected" | "loading" | "unavailable";
 
@@ -39,23 +40,14 @@ export default function JourneyOriginSelector({
   return (
     <View
       className="flex-row items-center rounded-2xl border border-border-primary bg-surface px-4 py-3"
-      style={{
-        shadowColor: "#000000",
-        shadowOffset: {
-          width: 0,
-          height: 4,
-        },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 1,
-      }}
+      style={shadows.floating}
     >
       {/* Origin indicator */}
-      <View className="h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand/10">
+      <View className="h-8 w-8 shrink-0 items-center justify-center rounded-full ">
         <MaterialCommunityIcons
           name={iconName}
           size={21}
-          color={theme.extends.colors.brand}
+          color={theme.extends.colors.text.secondary}
         />
       </View>
 

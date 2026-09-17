@@ -5,10 +5,11 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import { router } from "expo-router";
+import Toast from "react-native-toast-message";
 
-import { reverseGeocode } from "@/shared/api/googlePlaces.service";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 
+import { reverseGeocodeJourneyOrigin } from "../../api/journeyOrigin.service";
 import { useJourneyOriginStore } from "../../stores/journeyOrigin.store";
 import JeepneyStartingPointScreen from "../JeepneyStartingPointScreen";
 
@@ -26,8 +27,14 @@ jest.mock("react-native-safe-area-context", () => {
     useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
   };
 });
-jest.mock("@/shared/api/googlePlaces.service", () => ({
-  reverseGeocode: jest.fn(),
+jest.mock("../../api/journeyOrigin.service", () => ({
+  reverseGeocodeJourneyOrigin: jest.fn(),
+}));
+jest.mock("react-native-toast-message", () => ({
+  __esModule: true,
+  default: {
+    show: jest.fn(),
+  },
 }));
 jest.mock(
   "../../components/getting-there/JourneyOriginPickerMap",
@@ -93,7 +100,7 @@ describe("JeepneyStartingPointScreen", () => {
       isRefreshingLocation: false,
       refreshLocation,
     });
-    (reverseGeocode as jest.Mock).mockResolvedValue({
+    (reverseGeocodeJourneyOrigin as jest.Mock).mockResolvedValue({
       success: true,
       data: {
         address: {
@@ -173,6 +180,40 @@ describe("JeepneyStartingPointScreen", () => {
       confirmedOrigin,
     );
     expect(router.back).toHaveBeenCalled();
+  });
+
+  it("keeps map coordinates usable when reverse geocoding fails", async () => {
+    const user = userEvent.setup();
+    (reverseGeocodeJourneyOrigin as jest.Mock).mockResolvedValue({
+      success: false,
+      code: "LOCATION_SERVICE_UNAVAILABLE",
+      message: "Unable to connect to the location service.",
+    });
+    const screen = await render(
+      <JeepneyStartingPointScreen businessId={21} />,
+    );
+
+    await user.press(screen.getByText("Choose map point"));
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText("Selected map location").length,
+      ).toBeGreaterThan(0);
+    });
+    expect(Toast.show).toHaveBeenCalledWith({
+      type: "error",
+      text1: "Unable to get this address",
+      text2: "Your selected map location is still available.",
+    });
+
+    fireEvent.press(screen.getByText("Confirm starting point"));
+
+    expect(useJourneyOriginStore.getState().confirmedOrigin).toEqual({
+      type: "selected",
+      latitude: 10.32,
+      longitude: 123.9,
+      label: "Selected map location",
+    });
   });
 
   it("can switch a confirmed manual origin back to current location", async () => {

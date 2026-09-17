@@ -12,6 +12,7 @@ type MapMarkerVariant =
   | "custom"
   | "pending"
   | "explorer"
+  | "origin"
   | "boarding"
   | "alighting"
   | "destination";
@@ -56,6 +57,10 @@ const MARKERS: Record<MapMarkerVariant, MarkerConfig> = {
     icon: "exit-run",
   },
   destination: {
+    color: theme.extends.colors.brand,
+  },
+
+  origin: {
     color: theme.extends.colors.brand,
   },
 };

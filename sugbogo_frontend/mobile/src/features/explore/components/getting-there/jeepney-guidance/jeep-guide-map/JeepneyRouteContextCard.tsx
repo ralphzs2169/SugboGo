@@ -7,6 +7,7 @@ import AppText from "@/shared/components/AppText";
 
 import type { DirectJourneyMapGuidance } from "../../../../types/directJourney.types";
 import { formatJourneyDistance } from "../../../../utils/directJourney.utils";
+import { shadows } from "@/shared/styles/shadows";
 
 type Props = {
   journey: DirectJourneyMapGuidance;
@@ -33,16 +34,7 @@ export default function JeepneyRouteContextCard({
   return (
     <View
       className="overflow-hidden rounded-2xl border border-border-primary bg-surface"
-      style={{
-        shadowColor: "#000",
-        shadowOpacity: 0.14,
-        shadowRadius: 10,
-        shadowOffset: {
-          width: 0,
-          height: 4,
-        },
-        elevation: 4,
-      }}
+      style={shadows.floating}
     >
       {/* Destination context */}
       <View className="flex-row items-center px-2.5 py-2">

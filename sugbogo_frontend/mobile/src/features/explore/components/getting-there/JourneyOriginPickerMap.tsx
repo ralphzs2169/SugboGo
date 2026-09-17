@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import MapView, {
   type MapPressEvent,
   Marker,
   PROVIDER_GOOGLE,
 } from "react-native-maps";
 
-import { theme } from "@/constants/theme";
 import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
+import MapMarker from "@/shared/components/MapMarker";
+import MapMarkerCallout from "@/shared/components/MapMarkerCallout";
 
 import type { JourneyOrigin } from "../../types/journeyOrigin.types";
 
@@ -22,6 +23,7 @@ const DEFAULT_REGION = {
   latitudeDelta: 0.05,
   longitudeDelta: 0.05,
 };
+
 const SELECTED_DELTA = 0.012;
 const CAMERA_DURATION_MS = 400;
 
@@ -40,6 +42,7 @@ export default function JourneyOriginPickerMap({
   const cameraGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+
   const [isMapReady, setIsMapReady] = useState(false);
 
   const moveToOrigin = useCallback(() => {
@@ -74,6 +77,7 @@ export default function JourneyOriginPickerMap({
     }
 
     const { latitude, longitude } = event.nativeEvent.coordinate;
+
     onLocationSelect(latitude, longitude);
   };
 
@@ -94,7 +98,10 @@ export default function JourneyOriginPickerMap({
       ref={mapRef}
       provider={PROVIDER_GOOGLE}
       customMapStyle={MAP_STYLE}
-      style={{ width: "100%", height: "100%" }}
+      style={{
+        width: "100%",
+        height: "100%",
+      }}
       initialRegion={
         origin
           ? {
@@ -105,7 +112,12 @@ export default function JourneyOriginPickerMap({
             }
           : DEFAULT_REGION
       }
-      mapPadding={{ top: 130, right: 24, bottom: 245, left: 24 }}
+      mapPadding={{
+        top: 130,
+        right: 24,
+        bottom: 245,
+        left: 24,
+      }}
       showsMyLocationButton={false}
       toolbarEnabled={false}
       onMapReady={() => setIsMapReady(true)}
@@ -120,13 +132,19 @@ export default function JourneyOriginPickerMap({
           testID="journey-origin-marker"
           coordinate={origin}
           draggable
-          pinColor={theme.extends.colors.brand}
-          title={origin.label}
+          anchor={{ x: 0.5, y: 1 }}
           onDragEnd={(event) => {
             const { latitude, longitude } = event.nativeEvent.coordinate;
+
             onLocationSelect(latitude, longitude);
           }}
-        />
+        >
+          <View collapsable={false}>
+            <MapMarker variant="origin" />
+          </View>
+
+          <MapMarkerCallout label="Starting point" title={origin.label} />
+        </Marker>
       )}
     </MapView>
   );

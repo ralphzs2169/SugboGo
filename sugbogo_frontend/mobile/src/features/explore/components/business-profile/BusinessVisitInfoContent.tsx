@@ -117,13 +117,13 @@ export default function BusinessVisitInfoContent({
               weight="semibold"
               className="mb-2 text-xs text-text-secondary"
             >
-              Get there with these options
+              Ways to get there
             </AppText>
 
             <View className="flex-row gap-2 bg-background rounded-lg">
               <TransportAction
                 SvgIcon={MapRouteOptionIcon}
-                label="Route"
+                label="Road Route"
                 accessibilityLabel="View road route"
                 onPress={onViewRoute}
               />

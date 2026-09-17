@@ -4,6 +4,7 @@ import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import DottedTimelineConnector from "@/shared/components/DottedTimelineConnector";
+import { shadows } from "@/shared/styles/shadows";
 
 type Props = {
   boardingPointName: string;
@@ -35,16 +36,7 @@ export default function JeepneyStopGuidanceCard({
   return (
     <View
       className="rounded-t-3xl border-t border-border-primary bg-surface px-4 pb-3 pt-3.5"
-      style={{
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        shadowOffset: {
-          width: 0,
-          height: -3,
-        },
-        elevation: 8,
-      }}
+      style={shadows.docked}
     >
       {/* Guidance heading */}
       <View className="mb-3 flex-row items-center justify-between">

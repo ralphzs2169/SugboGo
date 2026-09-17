@@ -28,6 +28,8 @@ This skill owns visual hierarchy, interaction behavior, feedback states, forms, 
 - Use the existing icon families and shared icon mappings. Keep icon style and size consistent within a visual layer; do not use emoji as structural icons.
 - Reuse official logo components/assets without recoloring or changing proportions. Use `Avatar` for user identity and `SpecialtyTagChip` for specialty display or selection instead of recreating either pattern.
 - Selected states should combine a visible treatment such as fill/border, text or icon, and accessibility state. Do not communicate selection or status by color alone.
+- Reuse `src/shared/styles/shadows.ts` for established surface elevation levels instead of repeating ad hoc shadow values. Use the shadow variant that matches the surface role, such as subtle cards, floating controls, elevated surfaces, or docked footers.
+- Reuse `DottedTimelineConnector` for ordered journey/timeline relationships instead of recreating fixed dot counts or one-off connector lines. Let the surrounding layout control connector height so it adapts to dynamic content.
 
 Canonical shared references include:
 
@@ -36,6 +38,10 @@ Canonical shared references include:
 - `src/shared/components/Avatar.tsx`
 - `src/shared/components/SpecialtyTagChip.tsx`
 - `src/shared/components/CustomTabBar.tsx`
+- `src/shared/components/DottedTimelineConnector.tsx`
+- `src/shared/components/MapMarker.tsx`
+- `src/shared/components/MapMarkerCallout.tsx`
+- `src/shared/styles/shadows.ts`
 
 ## Screen hierarchy and spacing
 
@@ -133,6 +139,7 @@ Canonical references: `ErrorState`, `SearchFilterEmptyState`, `ExploreCollection
 
 - Treat merchant registration's `LocationPickerScreen`, `LocationPickerMap`, and `LandmarkPickerScreen` as the stronger current map-selection references. The Explorer `MapScreen` is still mock/incomplete and does not establish finished product behavior.
 - Keep maps visually primary in location selection. Overlay search, instructions, and confirmation without covering the selected marker or critical controls; use safe-area and tab-bar offsets.
+- Reuse `MapMarker` and `MapMarkerCallout` for maintained map flows instead of falling back to native map pins/callouts when the shared SugboGo marker language applies. Keep marker variants semantically meaningful: user identity, selected origin, boarding, alighting, and business destination should remain visually distinguishable.
 - Hold selection locally until explicit confirmation. Show a clear marker and resolved-address/service-area state, reject invalid locations with text plus visual status, and prevent taps during confirmation or overlapping suggestion interaction.
 - Keep the selected coordinates, marker, address, preview, and map camera synchronized. Guard against stale reverse-geocode responses and accidental map taps during programmatic movement.
 - Do not invent routes, live discovery behavior, directions, or location-changing gestures that the product has not implemented.

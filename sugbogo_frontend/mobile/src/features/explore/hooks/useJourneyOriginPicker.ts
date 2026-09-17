@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import Toast from "react-native-toast-message";
 
-import { reverseGeocode } from "@/shared/api/googlePlaces.service";
 import type { UserLocationStatus } from "@/shared/hooks/useUserLocation";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
 
+import { reverseGeocodeJourneyOrigin } from "../api/journeyOrigin.service";
 import { useJourneyOriginStore } from "../stores/journeyOrigin.store";
 import type { JourneyOrigin } from "../types/journeyOrigin.types";
 
@@ -85,27 +85,42 @@ export default function useJourneyOriginPicker(
         type: "selected",
         latitude,
         longitude,
-        label: "Pinned location",
+        label: "Selected map location",
       });
       setIsResolvingLabel(true);
 
       try {
-        const response = await reverseGeocode(latitude, longitude);
+        const response = await reverseGeocodeJourneyOrigin(
+          latitude,
+          longitude,
+        );
 
         if (requestId !== selectionRequestId.current) {
           return;
         }
 
         if (!response.success) {
+          setDraftOrigin({
+            type: "selected",
+            latitude,
+            longitude,
+            label: "Selected map location",
+          });
+
           if (response.code === "RATE_LIMIT_EXCEEDED") {
             const retryAfter = response.errors?.retry_after as
-              | number
-              | undefined;
+              number | undefined;
 
             Toast.show({
               type: "error",
-              text1: "Unable to name this pin yet",
+              text1: "Unable to get this address",
               text2: getRetryAfterMessage(retryAfter),
+            });
+          } else {
+            Toast.show({
+              type: "error",
+              text1: "Unable to get this address",
+              text2: "Your selected map location is still available.",
             });
           }
 
@@ -113,7 +128,8 @@ export default function useJourneyOriginPicker(
         }
 
         const label =
-          response.data.address.formattedAddress.trim() || "Pinned location";
+          response.data.address.formattedAddress.trim() ||
+          "Selected map location";
 
         setDraftOrigin({
           type: "selected",
@@ -122,7 +138,24 @@ export default function useJourneyOriginPicker(
           label,
         });
       } catch (error) {
+        if (requestId !== selectionRequestId.current) {
+          return;
+        }
+
         console.error("Failed to resolve journey origin:", error);
+
+        setDraftOrigin({
+          type: "selected",
+          latitude,
+          longitude,
+          label: "Selected map location",
+        });
+
+        Toast.show({
+          type: "error",
+          text1: "Unable to get this address",
+          text2: "Your selected map location is still available.",
+        });
       } finally {
         if (requestId === selectionRequestId.current) {
           setIsResolvingLabel(false);
