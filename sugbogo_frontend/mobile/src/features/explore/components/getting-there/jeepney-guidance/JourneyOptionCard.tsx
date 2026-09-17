@@ -20,10 +20,10 @@ type Props = {
 };
 
 /**
- * Presents one backend-grouped jeepney route code and its ways to ride.
+ * Presents one backend-grouped jeepney route code and its available journeys.
  *
- * Highlights the recommended route with a lightweight floating badge while
- * keeping its journey guidance and alternative ways independently expandable.
+ * Highlights the recommended route while keeping detailed guidance and
+ * alternative boarding or drop-off options independently expandable.
  */
 export default function JourneyOptionCard({
   routeOption,
@@ -36,14 +36,16 @@ export default function JourneyOptionCard({
   const journey = routeOption.recommended_journey;
   const alternatives = routeOption.alternative_journeys;
 
-  const direction = `${journey.route_variant_origin.name} → ${journey.route_variant_destination.name}`;
+  const direction =
+    `${journey.route_variant_origin.name} → ` +
+    `${journey.route_variant_destination.name}`;
 
   const landmark = journey.landmark_context;
 
   const landmarkDetail = landmark
-    ? `Near ${landmark.name} · approx. ${formatJourneyDistance(
+    ? `${landmark.name} · ${formatJourneyDistance(
         landmark.distance_from_alighting_meters,
-      )} from the stop`
+      )} away`
     : undefined;
 
   return (
@@ -59,15 +61,9 @@ export default function JourneyOptionCard({
           }}
           pointerEvents="none"
         >
-          {/* <MaterialCommunityIcons
-            name="star-four-points"
-            size={10}
-            color="#FFFFFF"
-          /> */}
-
           <AppText
             weight="bold"
-            className="text-[10px]  tracking-wide text-white"
+            className="text-[10px] tracking-wide text-white"
           >
             Recommended
           </AppText>
@@ -82,7 +78,9 @@ export default function JourneyOptionCard({
         accessibilityHint={
           isExpanded ? "Collapses route guidance" : "Expands route guidance"
         }
-        accessibilityState={{ expanded: isExpanded }}
+        accessibilityState={{
+          expanded: isExpanded,
+        }}
         className="min-h-20 cursor-pointer flex-row items-center rounded-t-card px-4 py-4 active:bg-background"
       >
         {/* Route identifier */}
@@ -108,7 +106,6 @@ export default function JourneyOptionCard({
           </AppText>
 
           <AppText className="mt-0.5 text-xs text-text-secondary">
-            Approx.{" "}
             {formatJourneyDistance(journey.approximate_ride_distance_meters)}{" "}
             ride
           </AppText>
@@ -129,18 +126,20 @@ export default function JourneyOptionCard({
           <JourneyStep
             number={1}
             variant="origin"
-            icon="walk"
+            icon="map-marker-radius-outline"
             title={`Board at ${journey.boarding_transit_point.name}`}
-            detail={`Approx. ${formatJourneyDistance(
+            detail={`${formatJourneyDistance(
               journey.explorer_to_boarding_distance_meters,
-            )} to boarding`}
+            )} from starting point`}
           />
 
           <JourneyStep
             number={2}
             icon="bus"
             title={`Take ${journey.jeepney_route_code}`}
-            detail={`Toward ${journey.route_variant_destination.name} · approx. ${formatJourneyDistance(
+            detail={`Toward ${
+              journey.route_variant_destination.name
+            } · ${formatJourneyDistance(
               journey.approximate_ride_distance_meters,
             )} ride`}
           />
@@ -149,10 +148,12 @@ export default function JourneyOptionCard({
             number={3}
             variant="destination"
             title={`Get off at ${journey.alighting_transit_point.name}`}
-            detail={`Approx. ${formatJourneyDistance(
+            detail={`${formatJourneyDistance(
               journey.alighting_to_business_distance_meters,
-            )} from drop-off to destination`}
+            )} from destination`}
+            supportingLabel="Landmark near this stop"
             supportingText={landmarkDetail}
+            supportingIcon="map-marker-radius-outline"
             isLast
           />
 
@@ -190,7 +191,9 @@ export default function JourneyOptionCard({
                 onPress={() => setShowAlternatives((current) => !current)}
                 accessibilityRole="button"
                 accessibilityLabel={`Other ways to ride ${routeOption.jeepney_route_code}`}
-                accessibilityState={{ expanded: showAlternatives }}
+                accessibilityState={{
+                  expanded: showAlternatives,
+                }}
                 className="min-h-12 cursor-pointer flex-row items-center rounded-xl px-2 py-2 active:bg-background"
               >
                 <View className="h-8 w-8 items-center justify-center rounded-full bg-background">

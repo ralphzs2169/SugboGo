@@ -81,7 +81,7 @@ export default function JourneyOriginSelector({
       <Button
         title={actionTitle}
         onPress={onPress}
-        variant="soft"
+        variant="primary"
         rounded="full"
         textWeight="bold"
         fontClassName="text-xs"

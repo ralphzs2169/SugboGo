@@ -6,6 +6,7 @@ import AppText from "@/shared/components/AppText";
 
 import type { DirectJourney } from "../../../types/directJourney.types";
 import { formatJourneyDistance } from "../../../utils/directJourney.utils";
+import DottedTimelineConnector from "@/shared/components/DottedTimelineConnector";
 
 type Props = {
   journey: DirectJourney;
@@ -14,19 +15,21 @@ type Props = {
 };
 
 /**
- * Displays a compact secondary journey option for the same jeepney route.
+ * Displays a compact alternative way to ride the same jeepney route.
  *
- * Keeps alternative boarding and drop-off choices visually subdued so they
- * remain easy to compare without competing with the recommended journey.
+ * Keeps boarding, alighting, landmark context, and map access visually
+ * subordinate to the recommended journey while remaining easy to compare.
  */
 export default function AlternativeJourneyCard({
   journey,
   optionNumber,
   onViewMap,
 }: Props) {
+  const landmark = journey.landmark_context;
+
   return (
     <View className="rounded-xl border border-border-primary bg-surface px-4 py-3.5">
-      {/* Alternative heading */}
+      {/* Alternative identity */}
       <View className="flex-row items-center justify-between">
         <View className="rounded-full bg-background px-2.5 py-1">
           <AppText
@@ -42,20 +45,20 @@ export default function AlternativeJourneyCard({
         </AppText>
       </View>
 
-      {/* Boarding and drop-off summary */}
+      {/* Boarding and alighting guidance */}
       <View className="mt-4">
         {/* Boarding point */}
         <View className="flex-row">
           <View className="items-center">
             <View className="h-7 w-7 items-center justify-center rounded-full bg-background">
               <MaterialCommunityIcons
-                name="walk"
+                name="map-marker-radius-outline"
                 size={15}
                 color={theme.extends.colors.text.secondary}
               />
             </View>
 
-            <View className="my-1 min-h-7 w-px flex-1 bg-border-primary" />
+            <DottedTimelineConnector className="my-1 min-h-7 flex-1" />
           </View>
 
           <View className="ml-3 flex-1 pb-4">
@@ -67,16 +70,15 @@ export default function AlternativeJourneyCard({
             </AppText>
 
             <AppText className="mt-0.5 text-xs leading-4 text-text-secondary">
-              Approx.{" "}
               {formatJourneyDistance(
                 journey.explorer_to_boarding_distance_meters,
               )}{" "}
-              to boarding
+              from starting point
             </AppText>
           </View>
         </View>
 
-        {/* Drop-off point */}
+        {/* Alighting point */}
         <View className="flex-row">
           <View className="items-center">
             <View className="h-7 w-7 items-center justify-center rounded-full bg-background">
@@ -97,27 +99,37 @@ export default function AlternativeJourneyCard({
             </AppText>
 
             <AppText className="mt-0.5 text-xs leading-4 text-text-secondary">
-              Approx.{" "}
               {formatJourneyDistance(
                 journey.alighting_to_business_distance_meters,
               )}{" "}
-              from drop-off to destination
+              from destination
             </AppText>
 
-            {journey.landmark_context && (
-              <View className="mt-1.5 flex-row items-center">
+            {/* Nearby landmark context */}
+            {landmark && (
+              <View className="mt-2 flex-row items-center rounded-lg bg-brand/5 px-2.5 py-2">
                 <MaterialCommunityIcons
                   name="map-marker-radius-outline"
-                  size={13}
+                  size={14}
                   color={theme.extends.colors.brand}
                 />
 
                 <AppText
-                  weight="semibold"
-                  className="ml-1 text-xs text-brand"
-                  numberOfLines={1}
+                  weight="medium"
+                  className="ml-2 flex-1 text-xs leading-4 text-text-secondary"
+                  numberOfLines={2}
                 >
-                  Near {journey.landmark_context.name}
+                  <AppText
+                    weight="semibold"
+                    className="text-xs text-text-primary"
+                  >
+                    {landmark.name}
+                  </AppText>
+                  {" · "}
+                  {formatJourneyDistance(
+                    landmark.distance_from_alighting_meters,
+                  )}{" "}
+                  away
                 </AppText>
               </View>
             )}

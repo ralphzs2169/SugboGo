@@ -62,7 +62,7 @@ export default function BusinessLayout() {
         <Stack.Screen
           name="jeepney-route-map"
           options={{
-            title: "Jeepney Route",
+            headerShown: false,
           }}
         />
       </Stack>

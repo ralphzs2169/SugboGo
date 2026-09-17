@@ -10,7 +10,7 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import useUserLocation from "@/shared/hooks/useUserLocation";
 
 import LocationUnavailableState from "../components/getting-there/LocationUnavailableState";
-import RoadRouteLoadingState from "../components/getting-there/RoadRouteLoadingState";
+import RoadRouteLoadingState from "../components/getting-there/JeepMapGuideSkeleton";
 import RoadRouteMap from "../components/getting-there/RoadRouteMap";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 import useRoadRoute from "../hooks/useRoadRoute";

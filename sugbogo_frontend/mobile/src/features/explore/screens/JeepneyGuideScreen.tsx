@@ -254,13 +254,15 @@ export default function JeepneyGuideScreen({ businessId }: Props) {
           ) : journeyQuery.isLoading && !journeyQuery.result ? (
             <GettingThereLoadingState message="Checking direct jeepney routes…" />
           ) : journeyQuery.error && !journeyQuery.result ? (
-            <ErrorState
-              size="small"
-              title="Unable to load jeepney guidance"
-              description="We couldn't check direct jeepney routes right now."
-              primaryActionTitle="Retry"
-              onPrimaryAction={() => void journeyQuery.refetch()}
-            />
+            <View className="pt-15">
+              <ErrorState
+                size="small"
+                title="Unable to load jeepney guidance"
+                description="We couldn't check direct jeepney routes right now."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void journeyQuery.refetch()}
+              />
+            </View>
           ) : journeyQuery.routeOptions.length > 0 ? (
             <DirectJourneyList
               routeOptions={journeyQuery.routeOptions}

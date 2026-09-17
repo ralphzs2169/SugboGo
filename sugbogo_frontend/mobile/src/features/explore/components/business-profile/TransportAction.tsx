@@ -1,8 +1,8 @@
 import { Image, type ImageSource } from "expo-image";
 import { type ComponentType } from "react";
-import { Pressable } from "react-native";
 
 import AppText from "@/shared/components/AppText";
+import SafePressable from "@/shared/components/SafePressable";
 
 type TransportActionProps = {
   imageSource?: ImageSource;
@@ -27,7 +27,7 @@ export default function TransportAction({
   accessibilityLabel,
 }: TransportActionProps) {
   return (
-    <Pressable
+    <SafePressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
@@ -55,6 +55,6 @@ export default function TransportAction({
       >
         {label}
       </AppText>
-    </Pressable>
+    </SafePressable>
   );
 }

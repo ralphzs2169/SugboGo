@@ -5,8 +5,8 @@ import { Animated, LayoutAnimation, Pressable, View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import TransportAction from "@/features/explore/components/business-profile/TransportAction";
-import JeepneyOptionIcon from "../../assets/getting-there-icons/jeepney-code-option.svg";
-import BookRideOptionIcon from "../../assets/getting-there-icons/book-a-ride-option.svg";
+import JeepneyOptionIcon from "../../assets/getting-there-icons/jeep-route-option.svg";
+import BookRideOptionIcon from "../../assets/getting-there-icons/book-ride-option.svg";
 import MapRouteOptionIcon from "../../assets/getting-there-icons/route-map-option.svg";
 
 import type {
