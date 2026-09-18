@@ -12,6 +12,17 @@ export const shadows = {
     elevation: 1,
   },
 
+  softCircle: {
+    shadowColor: "#000000",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+
   floating: {
     shadowColor: "#000000",
     shadowOffset: {

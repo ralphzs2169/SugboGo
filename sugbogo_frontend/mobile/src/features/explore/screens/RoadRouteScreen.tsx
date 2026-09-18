@@ -1,10 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useRef, useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import useUserLocation from "@/shared/hooks/useUserLocation";
@@ -14,6 +17,7 @@ import RoadRouteLoadingState from "../components/getting-there/JeepMapGuideSkele
 import RoadRouteMap from "../components/getting-there/RoadRouteMap";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 import useRoadRoute from "../hooks/useRoadRoute";
+import { openGoogleMapsDirections } from "../services/googleMapsHandoff.service";
 import { formatJourneyDistance } from "../utils/directJourney.utils";
 import { formatRoadRouteDuration } from "../utils/roadRoute.utils";
 
@@ -23,6 +27,8 @@ type Props = {
 
 /** Shows a backend-proxied Google driving route to one approved business. */
 export default function RoadRouteScreen({ businessId }: Props) {
+  const handoffPendingRef = useRef(false);
+  const [isHandoffPending, setIsHandoffPending] = useState(false);
   const businessQuery = useExploreBusinessProfile(businessId);
   const userLocation = useUserLocation();
   const hasUsableLocation = userLocation.status === "available";
@@ -60,6 +66,39 @@ export default function RoadRouteScreen({ businessId }: Props) {
   }
 
   const businessName = businessQuery.business?.business_name ?? "Destination";
+
+  async function handleContinueInGoogleMaps() {
+    const destination = roadRouteQuery.route?.destination;
+
+    if (!destination || handoffPendingRef.current) {
+      return;
+    }
+
+    handoffPendingRef.current = true;
+    setIsHandoffPending(true);
+
+    try {
+      const result = await openGoogleMapsDirections(destination);
+
+      if (result === "unavailable") {
+        Toast.show({
+          type: "error",
+          text1: "Google Maps isn't available on this device.",
+        });
+      }
+
+      if (result === "failed") {
+        Toast.show({
+          type: "error",
+          text1: "Unable to open Google Maps.",
+          text2: "Please try again.",
+        });
+      }
+    } finally {
+      handoffPendingRef.current = false;
+      setIsHandoffPending(false);
+    }
+  }
 
   return (
     <SafeAreaView
@@ -138,6 +177,23 @@ export default function RoadRouteScreen({ businessId }: Props) {
               Duration is approximate and does not include live traffic.
             </AppText>
           </View>
+
+          {/* External navigation handoff */}
+          <Button
+            title="Continue in Google Maps"
+            onPress={handleContinueInGoogleMaps}
+            loading={isHandoffPending}
+            disabled={isHandoffPending}
+            icon={
+              <MaterialCommunityIcons
+                name="google-maps"
+                size={20}
+                color={theme.extends.colors.background}
+              />
+            }
+            className="mt-4"
+            accessibilityLabel="Continue road navigation in Google Maps"
+          />
         </View>
       ) : roadRouteQuery.result ? (
         <ErrorState

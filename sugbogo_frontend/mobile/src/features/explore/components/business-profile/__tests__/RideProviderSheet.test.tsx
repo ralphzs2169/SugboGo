@@ -1,17 +1,36 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
+import { BackHandler } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { openGrabBooking } from "../../../services/grabHandoff.service";
+import {
+  openMaxim,
+  openMoveIt,
+} from "../../../services/rideProviderHandoff.service";
 import RideProviderSheet from "../RideProviderSheet";
+
+let mockSheetOnChange: ((index: number) => void) | undefined;
 
 jest.mock("@gorhom/bottom-sheet", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View } = require("react-native");
 
   return {
-    BottomSheetModal: ({ children }: { children: React.ReactNode }) => (
-      <View>{children}</View>
-    ),
+    BottomSheetModal: ({
+      children,
+      onChange,
+    }: {
+      children: React.ReactNode;
+      onChange?: (index: number) => void;
+    }) => {
+      mockSheetOnChange = onChange;
+      return <View>{children}</View>;
+    },
     BottomSheetBackdrop: () => null,
     BottomSheetView: ({ children }: { children: React.ReactNode }) => (
       <View>{children}</View>
@@ -21,6 +40,25 @@ jest.mock("@gorhom/bottom-sheet", () => {
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ bottom: 0 }),
 }));
+jest.mock("expo-image", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require("react-native");
+
+  return {
+    Image: (props: Record<string, unknown>) => <View {...props} />,
+  };
+});
+jest.mock(
+  "../../../assets/ride-provider-icons/grab-logo.svg",
+  () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { View } = require("react-native");
+
+    return function MockGrabLogo(props: Record<string, unknown>) {
+      return <View {...props} />;
+    };
+  },
+);
 jest.mock("react-native-toast-message", () => ({
   __esModule: true,
   default: {
@@ -29,6 +67,10 @@ jest.mock("react-native-toast-message", () => ({
 }));
 jest.mock("../../../services/grabHandoff.service", () => ({
   openGrabBooking: jest.fn(),
+}));
+jest.mock("../../../services/rideProviderHandoff.service", () => ({
+  openMoveIt: jest.fn(),
+  openMaxim: jest.fn(),
 }));
 
 describe("RideProviderSheet", () => {

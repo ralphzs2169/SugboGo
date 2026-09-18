@@ -4,59 +4,137 @@ import {
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Image, type ImageSource } from "expo-image";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  BackHandler,
+  Pressable,
+  View,
+} from "react-native";
 import Toast from "react-native-toast-message";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 
+import GrabLogo from "../../assets/ride-provider-icons/grab-logo.svg";
 import { openGrabBooking } from "../../services/grabHandoff.service";
+import {
+  openMaxim,
+  openMoveIt,
+  type RideProviderHandoffResult,
+} from "../../services/rideProviderHandoff.service";
+
+const MOVE_IT_LOGO = require("../../assets/ride-provider-icons/move-it-logo.png");
+const MAXIM_LOGO = require("../../assets/ride-provider-icons/maxim-logo-2.png");
 
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
 };
 
+type ProviderHandoffResult =
+  | RideProviderHandoffResult
+  | "unavailable";
+
+type RideProvider = {
+  id: "grab" | "move-it" | "maxim";
+  name: string;
+  description: string;
+  logoSource: ImageSource | null;
+  accessibilityLabel: string;
+  unavailableMessage?: string;
+  handoff: () => Promise<ProviderHandoffResult>;
+};
+
+const RIDE_PROVIDERS = [
+  {
+    id: "grab",
+    name: "Grab",
+    description: "Continue booking in Grab",
+    logoSource: null,
+    accessibilityLabel: "Continue booking in Grab",
+    unavailableMessage: "Grab isn't available on this device.",
+    handoff: openGrabBooking,
+  },
+  {
+    id: "move-it",
+    name: "Move It",
+    description: "Open Move It",
+    logoSource: MOVE_IT_LOGO,
+    accessibilityLabel: "Open Move It",
+    handoff: openMoveIt,
+  },
+  {
+    id: "maxim",
+    name: "Maxim",
+    description: "Open Maxim",
+    logoSource: MAXIM_LOGO,
+    accessibilityLabel: "Open Maxim",
+    handoff: openMaxim,
+  },
+] satisfies RideProvider[];
+
 /**
- * Lets an Explorer choose an available external ride provider.
- *
- * Grab is currently the only supported handoff, while the row-based layout
- * leaves room for verified providers to be added later.
+ * Lets an Explorer hand off to an available external ride provider.
  */
 export default function RideProviderSheet({ sheetRef }: Props) {
   const insets = useSafeAreaInsets();
   const handoffPendingRef = useRef(false);
-  const [isHandoffPending, setIsHandoffPending] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [pendingProviderId, setPendingProviderId] = useState<
+    RideProvider["id"] | null
+  >(null);
+  const isHandoffPending = pendingProviderId !== null;
 
-  async function handleGrabPress() {
+  useEffect(() => {
+    if (!isSheetOpen) {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        sheetRef.current?.dismiss();
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [isSheetOpen, sheetRef]);
+
+  async function handleProviderPress(provider: RideProvider) {
     if (handoffPendingRef.current) {
       return;
     }
 
     handoffPendingRef.current = true;
-    setIsHandoffPending(true);
+    setPendingProviderId(provider.id);
 
     try {
-      const result = await openGrabBooking();
+      const result = await provider.handoff();
 
-      if (result === "opened") {
+      if (result === "opened" || result === "store-opened") {
         sheetRef.current?.dismiss();
-      } else if (result === "unavailable") {
-        Toast.show({
-          type: "error",
-          text1: "Grab isn't available on this device.",
-        });
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Unable to open Grab.",
-          text2: "Please try again.",
-        });
+        return;
       }
+
+      if (result === "unavailable" && provider.unavailableMessage) {
+        Toast.show({
+          type: "error",
+          text1: provider.unavailableMessage,
+        });
+        return;
+      }
+
+      Toast.show({
+        type: "error",
+        text1: `Unable to open ${provider.name}.`,
+        text2: "Please try again.",
+      });
     } finally {
       handoffPendingRef.current = false;
-      setIsHandoffPending(false);
+      setPendingProviderId(null);
     }
   }
 
@@ -65,6 +143,12 @@ export default function RideProviderSheet({ sheetRef }: Props) {
       ref={sheetRef}
       enablePanDownToClose
       enableDynamicSizing
+      onChange={(index) => {
+        setIsSheetOpen(index >= 0);
+      }}
+      onDismiss={() => {
+        setIsSheetOpen(false);
+      }}
       backgroundStyle={{
         backgroundColor: "white",
         borderRadius: 24,
@@ -97,40 +181,70 @@ export default function RideProviderSheet({ sheetRef }: Props) {
         </AppText>
 
         {/* Available providers */}
-        <Pressable
-          onPress={handleGrabPress}
-          disabled={isHandoffPending}
-          accessibilityRole="button"
-          accessibilityLabel="Continue booking in Grab"
-          accessibilityState={{
-            busy: isHandoffPending,
-            disabled: isHandoffPending,
-          }}
-          className="mt-5 min-h-16 cursor-pointer flex-row items-center rounded-xl border border-border-primary bg-surface px-4 py-3 active:opacity-70 disabled:opacity-60"
-        >
-          <View className="h-10 w-10 items-center justify-center rounded-full bg-brand/10">
-            <MaterialCommunityIcons
-              name="car-outline"
-              size={22}
-              color={theme.extends.colors.brand}
-            />
-          </View>
+        <View className="mt-5 gap-3">
+          {RIDE_PROVIDERS.map((provider) => {
+            const isSelectedProviderPending =
+              pendingProviderId === provider.id;
 
-          <View className="ml-3 flex-1">
-            <AppText weight="bold" className="text-base text-text-primary">
-              Grab
-            </AppText>
-            <AppText className="text-xs text-text-secondary">
-              Continue booking in Grab
-            </AppText>
-          </View>
+            return (
+              <Pressable
+                key={provider.id}
+                onPress={() => void handleProviderPress(provider)}
+                disabled={isHandoffPending}
+                accessibilityRole="button"
+                accessibilityLabel={provider.accessibilityLabel}
+                accessibilityState={{
+                  busy: isSelectedProviderPending,
+                  disabled: isHandoffPending,
+                }}
+                className="min-h-16 cursor-pointer flex-row items-center rounded-xl border border-border-primary bg-surface px-4 py-3 active:opacity-70 disabled:opacity-60"
+              >
+                <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-white">
+                  {provider.id === "grab" ? (
+                    <GrabLogo
+                      testID="ride-provider-logo-grab"
+                      width={40}
+                      height={30}
+                    />
+                  ) : (
+                    <Image
+                      testID={`ride-provider-logo-${provider.id}`}
+                      source={provider.logoSource}
+                      style={{
+                        width: 40,
+                        height: 40,
+                      }}
+                      contentFit="contain"
+                    />
+                  )}
+                </View>
 
-          <MaterialCommunityIcons
-            name={isHandoffPending ? "dots-horizontal" : "chevron-right"}
-            size={22}
-            color={theme.extends.colors.text.secondary}
-          />
-        </Pressable>
+                <View className="ml-3 flex-1">
+                  <AppText weight="bold" className="text-base text-text-primary">
+                    {provider.name}
+                  </AppText>
+                  <AppText className="text-xs text-text-secondary">
+                    {provider.description}
+                  </AppText>
+                </View>
+
+                {isSelectedProviderPending ? (
+                  <ActivityIndicator
+                    testID={`ride-provider-pending-${provider.id}`}
+                    size="small"
+                    color={theme.extends.colors.brand}
+                  />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={22}
+                    color={theme.extends.colors.text.secondary}
+                  />
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
       </BottomSheetView>
     </BottomSheetModal>
   );

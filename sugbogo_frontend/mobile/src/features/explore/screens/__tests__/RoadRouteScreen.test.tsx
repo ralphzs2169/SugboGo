@@ -1,10 +1,12 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import Toast from "react-native-toast-message";
 
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
 import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
 import useRoadRoute from "../../hooks/useRoadRoute";
+import { openGoogleMapsDirections } from "../../services/googleMapsHandoff.service";
 import RoadRouteScreen from "../RoadRouteScreen";
 
 jest.mock("expo-router", () => ({
@@ -14,8 +16,22 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("@/shared/hooks/useUserLocation");
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
+jest.mock("react-native-toast-message", () => ({
+  show: jest.fn(),
+}));
 jest.mock("../../hooks/useExploreBusinessProfile");
 jest.mock("../../hooks/useRoadRoute");
+jest.mock("../../services/googleMapsHandoff.service", () => ({
+  openGoogleMapsDirections: jest.fn(),
+}));
+jest.mock(
+  "../../components/getting-there/JeepMapGuideSkeleton",
+  () =>
+    function MockRoadRouteLoadingState({ message }: { message: string }) {
+      const { Text } = jest.requireActual("react-native");
+      return <Text>{message}</Text>;
+    },
+);
 jest.mock(
   "../../components/getting-there/RoadRouteMap",
   () =>
@@ -30,6 +46,8 @@ const routeRefetch = jest.fn();
 
 describe("RoadRouteScreen", () => {
   beforeEach(() => {
+    jest.clearAllMocks();
+    (openGoogleMapsDirections as jest.Mock).mockResolvedValue("opened");
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
       business: {
         business_name: "Sugbo Cafe",
@@ -59,6 +77,7 @@ describe("RoadRouteScreen", () => {
     const screen = await render(<RoadRouteScreen businessId={21} />);
 
     expect(screen.getByText("Loading the road route…")).toBeTruthy();
+    expect(screen.queryByText("Continue in Google Maps")).toBeNull();
   });
 
   it("shows the normalized road route summary and map", async () => {
@@ -91,6 +110,16 @@ describe("RoadRouteScreen", () => {
     expect(screen.getByText("18 min")).toBeTruthy();
     expect(screen.getByText("Road-following route map")).toBeTruthy();
     expect(screen.getByText(/does not include live traffic/)).toBeTruthy();
+    expect(screen.getByText("Continue in Google Maps")).toBeTruthy();
+
+    await fireEvent.press(screen.getByText("Continue in Google Maps"));
+
+    await waitFor(() => {
+      expect(openGoogleMapsDirections).toHaveBeenCalledWith({
+        latitude: 10.789,
+        longitude: 123.987,
+      });
+    });
   });
 
   it("shows a location-specific state before querying a route", async () => {
@@ -130,6 +159,7 @@ describe("RoadRouteScreen", () => {
     const screen = await render(<RoadRouteScreen businessId={21} />);
 
     expect(screen.getByText("No road route available")).toBeTruthy();
+    expect(screen.queryByText("Continue in Google Maps")).toBeNull();
   });
 
   it("keeps an API failure visible and retries through React Query", async () => {
@@ -145,6 +175,7 @@ describe("RoadRouteScreen", () => {
     const screen = await render(<RoadRouteScreen businessId={21} />);
 
     expect(screen.getByText("Unable to load road route")).toBeTruthy();
+    expect(screen.queryByText("Continue in Google Maps")).toBeNull();
     fireEvent.press(screen.getByText("Retry"));
     expect(routeRefetch).toHaveBeenCalled();
     expect(useQueryErrorNotification).toHaveBeenCalledWith(
@@ -153,5 +184,42 @@ describe("RoadRouteScreen", () => {
         toastId: "road-route-error",
       }),
     );
+  });
+
+  it("shows non-blocking feedback when Google Maps cannot be opened", async () => {
+    (useRoadRoute as jest.Mock).mockReturnValue({
+      result: {
+        route: {},
+      },
+      route: {
+        distance_meters: 5800,
+        duration_seconds: 1080,
+        encoded_polyline: "encoded-road-route",
+        origin: {
+          latitude: 10.123,
+          longitude: 123.456,
+        },
+        destination: {
+          latitude: 10.789,
+          longitude: 123.987,
+        },
+      },
+      isLoading: false,
+      error: null,
+      refetch: routeRefetch,
+    });
+    (openGoogleMapsDirections as jest.Mock).mockResolvedValue("failed");
+
+    const screen = await render(<RoadRouteScreen businessId={21} />);
+
+    await fireEvent.press(screen.getByText("Continue in Google Maps"));
+
+    await waitFor(() => {
+      expect(Toast.show).toHaveBeenCalledWith({
+        type: "error",
+        text1: "Unable to open Google Maps.",
+        text2: "Please try again.",
+      });
+    });
   });
 });
