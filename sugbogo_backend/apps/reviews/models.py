@@ -353,3 +353,105 @@ class ReplyTemplate(models.Model):
 
     def __str__(self):
         return self.RTPL_TITLE
+
+
+class BusinessReviewSummary(models.Model):
+    """Stores the latest sentiment counts and keyword tags for a business."""
+
+    BRSU_ID = models.AutoField(
+        primary_key=True,
+    )
+
+    BUSN_ID = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        db_column="BUSN_ID",
+        related_name="review_summary",
+    )
+
+    BRSU_POSITIVE_COUNT = models.PositiveIntegerField(
+        default=0,
+    )
+    BRSU_NEUTRAL_COUNT = models.PositiveIntegerField(
+        default=0,
+    )
+    BRSU_NEGATIVE_COUNT = models.PositiveIntegerField(
+        default=0,
+    )
+    BRSU_REVIEW_COUNT = models.PositiveIntegerField(
+        default=0,
+    )
+    BRSU_CLASSIFIED_REVIEW_COUNT = models.PositiveIntegerField(
+        default=0,
+    )
+
+    BRSU_KEYWORD_TAGS = models.JSONField(
+        default=list,
+        blank=True,
+    )
+
+    BRSU_SENTIMENT_COMPUTED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    BRSU_KEYWORDS_PROCESSED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    BRSU_KEYWORDS_FINGERPRINT = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+    )
+    BRSU_KEYWORDS_ATTEMPTED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    BRSU_KEYWORDS_RETRYABLE = models.BooleanField(
+        default=False,
+    )
+    BRSU_CREATED_AT = models.DateTimeField(
+        auto_now_add=True,
+    )
+    BRSU_UPDATED_AT = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        db_table = "BUSINESS_REVIEW_SUMMARY"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(
+                    BRSU_CLASSIFIED_REVIEW_COUNT=(
+                        models.F("BRSU_POSITIVE_COUNT")
+                        + models.F("BRSU_NEUTRAL_COUNT")
+                        + models.F("BRSU_NEGATIVE_COUNT")
+                    ),
+                ),
+                name="brsu_classified_matches_counts",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    BRSU_CLASSIFIED_REVIEW_COUNT__lte=models.F(
+                        "BRSU_REVIEW_COUNT",
+                    ),
+                ),
+                name="brsu_classified_lte_reviews",
+            ),
+        ]
+
+    @property
+    def sentiment_percentages(self):
+        """Calculates sentiment percentages using only classified reviews."""
+        counts = {
+            "positive": self.BRSU_POSITIVE_COUNT,
+            "neutral": self.BRSU_NEUTRAL_COUNT,
+            "negative": self.BRSU_NEGATIVE_COUNT,
+        }
+        if not self.BRSU_CLASSIFIED_REVIEW_COUNT:
+            return dict.fromkeys(counts, 0.0)
+
+        return {
+            label: count / self.BRSU_CLASSIFIED_REVIEW_COUNT * 100
+            for label, count in counts.items()
+        }
