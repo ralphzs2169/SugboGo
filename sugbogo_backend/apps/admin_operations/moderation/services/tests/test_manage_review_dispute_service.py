@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.test import TestCase
@@ -16,7 +17,8 @@ from apps.business.models import (
 )
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import Review
-from apps.users.models import User
+from apps.users.models import ReputationEvent, User
+from apps.users.services.reputation_service import ReputationService
 
 
 class ManageReviewDisputeServiceTests(TestCase):
@@ -468,6 +470,97 @@ class ManageReviewDisputeServiceTests(TestCase):
             ManageReviewDisputeService.uphold_dispute(
                 999999,
             )
+
+    def test_uphold_dispute_creates_confirmed_violation_event_for_review_author(self):
+        dispute = self.create_dispute()
+        author_reputation_before = self.explorer.USER_REPUTATION
+        merchant_reputation_before = self.merchant.USER_REPUTATION
+
+        ManageReviewDisputeService.uphold_dispute(dispute.pk)
+
+        event = ReputationEvent.objects.get(
+            REVT_EVENT_TYPE=ReputationEvent.EventType.CONFIRMED_VIOLATION_PENALTY,
+            REVT_SOURCE_ID=self.review.pk,
+        )
+        self.assertEqual(event.USER_ID_id, self.explorer.pk)
+        self.assertEqual(
+            event.REVT_SOURCE_TYPE,
+            ReputationEvent.SourceType.CONFIRMED_REVIEW_VIOLATION,
+        )
+        self.assertEqual(event.REVT_SOURCE_KEY, f"review:{self.review.pk}")
+        self.assertLess(event.REVT_APPLIED_CHANGE, 0)
+        self.explorer.refresh_from_db()
+        self.merchant.refresh_from_db()
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.assertEqual(
+            self.explorer.USER_REPUTATION,
+            author_reputation_before + event.REVT_APPLIED_CHANGE,
+        )
+        self.assertEqual(event.REVT_RESULTING_REPUTATION, self.explorer.USER_REPUTATION)
+        self.assertEqual(self.merchant.USER_REPUTATION, merchant_reputation_before)
+
+    def test_second_uphold_raises_before_penalty_call_and_does_not_double_penalize(self):
+        dispute = self.create_dispute()
+        ManageReviewDisputeService.uphold_dispute(dispute.pk)
+        self.explorer.refresh_from_db()
+        reputation_after_first_uphold = self.explorer.USER_REPUTATION
+
+        with patch(
+            "apps.admin_operations.moderation.services.manage_review_dispute_service."
+            "ReputationService.apply_confirmed_violation_penalty",
+            wraps=ReputationService.apply_confirmed_violation_penalty,
+        ) as penalty:
+            with self.assertRaisesMessage(
+                ValidationError,
+                "Only pending review disputes can be upheld.",
+            ):
+                ManageReviewDisputeService.uphold_dispute(dispute.pk)
+            penalty.assert_not_called()
+
+        self.explorer.refresh_from_db()
+        self.assertEqual(self.explorer.USER_REPUTATION, reputation_after_first_uphold)
+        self.assertEqual(
+            ReputationEvent.objects.filter(
+                USER_ID=self.explorer,
+                REVT_EVENT_TYPE=ReputationEvent.EventType.CONFIRMED_VIOLATION_PENALTY,
+                REVT_SOURCE_ID=self.review.pk,
+            ).count(),
+            1,
+        )
+
+    def test_penalty_failure_rolls_back_dispute_review_event_and_reputation(self):
+        dispute = self.create_dispute()
+        reputation_before = self.explorer.USER_REPUTATION
+        apply_penalty = ReputationService.apply_confirmed_violation_penalty
+
+        def apply_penalty_then_fail(**kwargs):
+            self.review.refresh_from_db()
+            self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+            apply_penalty(**kwargs)
+            raise RuntimeError("Failure after penalty")
+
+        with patch(
+            "apps.admin_operations.moderation.services.manage_review_dispute_service."
+            "ReputationService.apply_confirmed_violation_penalty",
+            side_effect=apply_penalty_then_fail,
+        ), self.assertRaisesRegex(RuntimeError, "Failure after penalty"):
+            ManageReviewDisputeService.uphold_dispute(dispute.pk, "Violates policy.")
+
+        dispute.refresh_from_db()
+        self.review.refresh_from_db()
+        self.explorer.refresh_from_db()
+        self.assertEqual(dispute.MRDSP_STATUS, MerchantReviewDispute.DisputeStatus.PENDING)
+        self.assertIsNone(dispute.MRDSP_RESOLVED_AT)
+        self.assertIsNone(dispute.MRDSP_ADMIN_NOTES)
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(self.explorer.USER_REPUTATION, reputation_before)
+        self.assertFalse(
+            ReputationEvent.objects.filter(
+                REVT_EVENT_TYPE=ReputationEvent.EventType.CONFIRMED_VIOLATION_PENALTY,
+                REVT_SOURCE_ID=self.review.pk,
+            ).exists(),
+        )
 
     # dismiss_dispute
 

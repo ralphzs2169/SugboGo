@@ -9,6 +9,8 @@ from apps.users.models import User
 class ReviewReportService:
     """Handles reporting business reviews."""
 
+    SPAM_REPORT_THRESHOLD = 3
+
     @staticmethod
     @transaction.atomic
     def create_report(
@@ -17,6 +19,7 @@ class ReviewReportService:
         report_type: str,
         device_id: str | None = None,
     ) -> ReviewReport:
+        """Record a report and flag reviews whose report count reaches three."""
         try:
             review = Review.objects.get(
                 REVW_ID=review_id,
@@ -44,6 +47,14 @@ class ReviewReportService:
             REVW_REPORT_COUNT=models.F(
                 "REVW_REPORT_COUNT",
             ) + 1,
+        )
+
+        # Read the incremented count in SQL; never clear an existing flag.
+        Review.objects.filter(
+            REVW_ID=review.REVW_ID,
+            REVW_REPORT_COUNT__gte=ReviewReportService.SPAM_REPORT_THRESHOLD,
+        ).update(
+            REVW_IS_SPAM_FLAGGED=True,
         )
 
         return report

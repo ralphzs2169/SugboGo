@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.db import IntegrityError, models, transaction
-from django.db.models import Exists, OuterRef, Subquery
+from django.db.models import Avg, Count, Exists, OuterRef, Subquery
 from django.db.models.functions import Greatest
+from django.utils import timezone
 from rest_framework.exceptions import (
     NotFound,
     PermissionDenied,
@@ -24,6 +27,68 @@ from apps.users.services.reputation_service import ReputationService
 class ReviewService:
     """Handles creating, updating, and deleting business reviews."""
 
+    OUTLIER_SENTIMENT_THRESHOLD = 0.8
+    OUTLIER_MIN_PRIOR_REVIEWS = 5
+    DEVICE_MAX_DISTINCT_USERS = 3
+    DEVICE_MAX_REVIEWS_IN_WINDOW = 10
+    DEVICE_REVIEW_WINDOW = timedelta(hours=24)
+
+    @staticmethod
+    def _is_outlier_sentiment(review: Review) -> bool:
+        """Compare a scored review with the business's other published scores."""
+        if review.REVW_SENTIMENT_SCORE is None:
+            return False
+
+        baseline = (
+            Review.objects
+            .filter(
+                BUSN_ID_id=review.BUSN_ID_id,
+                REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+                REVW_SENTIMENT_SCORE__isnull=False,
+            )
+            .exclude(pk=review.pk)
+            .aggregate(
+                count=Count("REVW_ID"),
+                average=Avg("REVW_SENTIMENT_SCORE"),
+            )
+        )
+
+        if baseline["count"] < ReviewService.OUTLIER_MIN_PRIOR_REVIEWS:
+            return False
+
+        return (
+            abs(review.REVW_SENTIMENT_SCORE - baseline["average"])
+            > ReviewService.OUTLIER_SENTIMENT_THRESHOLD
+        )
+
+    @staticmethod
+    def _is_device_abuse(review: Review) -> bool:
+        """Check the saved review's device for shared accounts or bulk posting."""
+        device_id = review.REVW_DEVICE_ID
+        if device_id is None or not device_id.strip():
+            return False
+
+        # Include every status so moderation cannot erase evidence of device use.
+        device_reviews = Review.objects.filter(
+            REVW_DEVICE_ID=device_id,
+        )
+        distinct_users = (
+            device_reviews
+            .filter(BUSN_ID_id=review.BUSN_ID_id)
+            .values("USER_ID_id")
+            .distinct()
+            .count()
+        )
+        if distinct_users > ReviewService.DEVICE_MAX_DISTINCT_USERS:
+            return True
+
+        window_end = timezone.now()
+        recent_count = device_reviews.filter(
+            REVW_CREATED_AT__gte=window_end - ReviewService.DEVICE_REVIEW_WINDOW,
+            REVW_CREATED_AT__lte=window_end,
+        ).count()
+        return recent_count > ReviewService.DEVICE_MAX_REVIEWS_IN_WINDOW
+
     @staticmethod
     @transaction.atomic
     def create_review(
@@ -33,6 +98,7 @@ class ReviewService:
         photos: list | None = None,
         device_id: str | None = None,
     ) -> Review:
+        """Create a scored review with informational moderation signals."""
         try:
             business = Business.objects.get(
                 BUSN_ID=business_id,
@@ -65,6 +131,20 @@ class ReviewService:
             raise ValidationError(
                 "You have already reviewed this business.",
             ) from None
+
+        review.REVW_IS_OUTLIER_SENTIMENT = ReviewService._is_outlier_sentiment(
+            review,
+        )
+        review.REVW_IS_DEVICE_ABUSE_FLAGGED = ReviewService._is_device_abuse(
+            review,
+        )
+        review.save(
+            update_fields=[
+                "REVW_IS_OUTLIER_SENTIMENT",
+                "REVW_IS_DEVICE_ABUSE_FLAGGED",
+                "REVW_UPDATED_AT",
+            ],
+        )
 
         uploaded_public_ids = []
 
@@ -325,6 +405,7 @@ class ReviewService:
         photos: list | None = None,
         keep_photo_ids: list | None = None,
     ) -> Review:
+        """Update review content and recompute sentiment only when text changes."""
         review = ReviewService._get_review(
             review_id,
         )
@@ -380,19 +461,23 @@ class ReviewService:
         ]
 
         try:
-            if text is not None:
+            if text is not None and text != review.REVW_TEXT:
                 if not isinstance(text, str) or not text.strip():
                     raise ValidationError({"text": "Review text is required."})
                 sentiment_score, sentiment_label, _ = route_sentiment(text)
                 review.REVW_SENTIMENT_SCORE = sentiment_score
                 review.REVW_SENTIMENT_LABEL = sentiment_label.lower()
                 review.REVW_TEXT = text
+                review.REVW_IS_OUTLIER_SENTIMENT = (
+                    ReviewService._is_outlier_sentiment(review)
+                )
 
                 review.save(
                     update_fields=[
                         "REVW_TEXT",
                         "REVW_SENTIMENT_SCORE",
                         "REVW_SENTIMENT_LABEL",
+                        "REVW_IS_OUTLIER_SENTIMENT",
                         "REVW_UPDATED_AT",
                     ],
                 )

@@ -6,6 +6,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from apps.business.models import BusinessSpecialtyTag
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import Review
+from apps.users.services.reputation_service import ReputationService
 
 
 class ManageReviewDisputeService:
@@ -159,6 +160,7 @@ class ManageReviewDisputeService:
         dispute_id: int,
         admin_notes: str | None = None,
     ) -> MerchantReviewDispute:
+        """Uphold a dispute and penalize the review author in one transaction."""
         dispute = ManageReviewDisputeService.get_dispute(
             dispute_id,
         )
@@ -190,6 +192,11 @@ class ManageReviewDisputeService:
             REVW_ID=dispute.REVW_ID_id,
         ).update(
             REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+
+        ReputationService.apply_confirmed_violation_penalty(
+            user_id=dispute.REVW_ID.USER_ID_id,
+            review_id=dispute.REVW_ID_id,
         )
 
         return dispute

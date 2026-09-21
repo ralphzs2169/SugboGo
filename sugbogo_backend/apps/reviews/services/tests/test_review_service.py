@@ -1,9 +1,11 @@
+from datetime import timedelta
 from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.utils import timezone
 from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
@@ -16,6 +18,7 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.reviews.models import Review, ReviewLike, ReviewPhoto
+from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
 
@@ -1461,3 +1464,372 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_TEXT, "Original text.")
         self.assertEqual(review.REVW_SENTIMENT_SCORE, -0.4)
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
+
+    def _create_signal_review(
+        self,
+        score=0.75,
+        device_id=None,
+        business=None,
+        user=None,
+        status=Review.ReviewStatus.PUBLISHED,
+    ):
+        if user is None:
+            user = User.objects.create_user(
+                email=f"signal-{User.objects.count()}@example.com",
+                password=None,
+                USER_FNAME="Signal",
+                USER_LNAME="Reviewer",
+                USER_ROLE=User.UserRole.EXPLORER,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+        return Review.objects.create(
+            USER_ID=user,
+            BUSN_ID=business or self.business,
+            REVW_TEXT="A review used to check moderation signals.",
+            REVW_SENTIMENT_SCORE=score,
+            REVW_SENTIMENT_LABEL="positive" if score is not None else None,
+            REVW_DEVICE_ID=device_id,
+            REVW_STATUS=status,
+        )
+
+    def _create_signal_business(self):
+        owner = User.objects.create_user(
+            email=f"signal-owner-{User.objects.count()}@example.com",
+            password=None,
+            USER_FNAME="Signal",
+            USER_LNAME="Merchant",
+            USER_ROLE=User.UserRole.MERCHANT,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        location = Location.objects.create(
+            LOCT_POINT=Point(123.8854, 10.3157, srid=4326),
+            LOCT_ADDRESS="Signal Street",
+            LOCT_CITY="Cebu City",
+            LOCT_PROVINCE="Cebu",
+        )
+        return Business.objects.create(
+            BUSN_NAME=f"Signal Business {Business.objects.count()}",
+            BUSN_DESCRIPTION="A business for device isolation tests.",
+            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            USER_ID=owner,
+            CTGRY_ID=self.category,
+            LOCT_ID=location,
+        )
+
+    def _create_bulk_history(self, count, device_id, created_at=None):
+        reviews = [
+            self._create_signal_review(
+                business=self._create_signal_business(),
+                user=self.second_user,
+                device_id=device_id,
+            )
+            for _ in range(count)
+        ]
+        if created_at is not None:
+            Review.objects.filter(
+                pk__in=[review.pk for review in reviews],
+            ).update(REVW_CREATED_AT=created_at)
+        return reviews
+
+    def test_response_serializes_all_five_moderation_fields(self):
+        review = self._create_signal_review(score=-0.75)
+        review.REVW_SENTIMENT_LABEL = "negative"
+        for flagged in (True, False):
+            with self.subTest(flagged=flagged):
+                review.REVW_IS_OUTLIER_SENTIMENT = flagged
+                review.REVW_IS_SPAM_FLAGGED = flagged
+                review.REVW_IS_DEVICE_ABUSE_FLAGGED = flagged
+                data = ReviewResponseSerializer(review).data
+                self.assertEqual(data["sentiment_score"], -0.75)
+                self.assertEqual(data["sentiment_label"], "negative")
+                self.assertIs(data["is_outlier_sentiment"], flagged)
+                self.assertIs(data["is_spam_flagged"], flagged)
+                self.assertIs(data["is_device_abuse_flagged"], flagged)
+
+    def test_response_serializes_null_sentiment_and_false_flags(self):
+        review = self._create_signal_review(score=None)
+        data = ReviewResponseSerializer(review).data
+        self.assertIsNone(data["sentiment_score"])
+        self.assertIsNone(data["sentiment_label"])
+        self.assertIs(data["is_outlier_sentiment"], False)
+        self.assertIs(data["is_spam_flagged"], False)
+        self.assertIs(data["is_device_abuse_flagged"], False)
+
+    def test_response_moderation_fields_are_read_only(self):
+        fields = {
+            "sentiment_score": -0.9,
+            "sentiment_label": "negative",
+            "is_outlier_sentiment": True,
+            "is_spam_flagged": True,
+            "is_device_abuse_flagged": True,
+        }
+        serializer = ReviewResponseSerializer(data=fields)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data, {})
+        for name in fields:
+            self.assertTrue(serializer.fields[name].read_only)
+
+    def test_outlier_method_flags_both_directions_and_accepts_in_range(self):
+        for _ in range(5):
+            self._create_signal_review(score=0.0)
+        review = self._create_signal_review(user=self.user)
+        for score, expected in ((-0.9, True), (0.9, True), (0.3, False)):
+            with self.subTest(score=score):
+                review.REVW_SENTIMENT_SCORE = score
+                self.assertIs(ReviewService._is_outlier_sentiment(review), expected)
+
+    def test_outlier_method_does_not_flag_at_exact_deviation_threshold(self):
+        for _ in range(5):
+            self._create_signal_review(score=0.0)
+        review = self._create_signal_review(score=0.8, user=self.user)
+        self.assertFalse(ReviewService._is_outlier_sentiment(review))
+
+    def test_outlier_method_cold_start_and_exactly_five_prior_reviews(self):
+        review = self._create_signal_review(score=-0.9, user=self.user)
+        self.assertFalse(ReviewService._is_outlier_sentiment(review))
+        for _ in range(4):
+            self._create_signal_review(score=0.75)
+        self.assertFalse(ReviewService._is_outlier_sentiment(review))
+        self._create_signal_review(score=0.75)
+        self.assertTrue(ReviewService._is_outlier_sentiment(review))
+
+    def test_outlier_method_excludes_itself_from_average(self):
+        for _ in range(5):
+            self._create_signal_review(score=0.0)
+        review = self._create_signal_review(score=0.9, user=self.user)
+        # Including the target would reduce the deviation to 0.75.
+        self.assertTrue(ReviewService._is_outlier_sentiment(review))
+
+    def test_outlier_baseline_uses_only_scored_published_reviews_of_business(self):
+        for _ in range(4):
+            self._create_signal_review(score=0.0)
+        self._create_signal_review(score=None)
+        for status in (Review.ReviewStatus.FLAGGED, Review.ReviewStatus.REJECTED):
+            self._create_signal_review(score=-1.0, status=status)
+        other_business = self._create_signal_business()
+        self._create_signal_review(score=-1.0, business=other_business)
+        review = self._create_signal_review(score=0.9, user=self.user)
+        self.assertFalse(ReviewService._is_outlier_sentiment(review))
+        self._create_signal_review(score=0.0)
+        self.assertTrue(ReviewService._is_outlier_sentiment(review))
+
+    def test_null_sentiment_never_triggers_outlier_query(self):
+        review = self._create_signal_review(score=None)
+        with self.assertNumQueries(0):
+            self.assertFalse(ReviewService._is_outlier_sentiment(review))
+
+    def test_creation_persists_outlier_without_changing_published_status(self):
+        for _ in range(5):
+            self._create_signal_review(score=0.75)
+        self.score_review.return_value = (-0.9, "Negative", "vader")
+        review = ReviewService.create_review(
+            self.user, self.business.pk, "A very disappointing experience.",
+        )
+        self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
+        review.refresh_from_db()
+        self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.score_review.assert_called_once_with("A very disappointing experience.")
+
+    def test_text_edit_sets_and_clears_outlier_but_preserves_other_flags(self):
+        for _ in range(5):
+            self._create_signal_review(score=0.75)
+        review = self._create_signal_review(user=self.user)
+        Review.objects.filter(pk=review.pk).update(
+            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+        )
+        self.score_review.return_value = (-0.9, "Negative", "vader")
+        ReviewService.update_review(self.user, review.pk, text="Disappointing service.")
+        review.refresh_from_db()
+        self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
+        self.score_review.return_value = (0.6, "Positive", "vader")
+        ReviewService.update_review(self.user, review.pk, text="Much better service.")
+        review.refresh_from_db()
+        self.assertFalse(review.REVW_IS_OUTLIER_SENTIMENT)
+        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(self.score_review.call_count, 2)
+
+    def test_unchanged_text_preserves_sentiment_and_all_flags_without_recompute(self):
+        review = self._create_signal_review(user=self.user)
+        Review.objects.filter(pk=review.pk).update(
+            REVW_IS_OUTLIER_SENTIMENT=True,
+            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+        )
+        with patch.object(ReviewService, "_is_outlier_sentiment") as check_outlier:
+            ReviewService.update_review(self.user, review.pk, text=review.REVW_TEXT)
+        self.score_review.assert_not_called()
+        check_outlier.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.75)
+        self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
+        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_fourth_distinct_user_on_device_flags_only_new_review(self):
+        prior_reviews = [
+            self._create_signal_review(device_id="shared-device")
+            for _ in range(3)
+        ]
+        review = ReviewService.create_review(
+            self.user, self.business.pk, "A new review from a shared device.",
+            device_id="shared-device",
+        )
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        review.refresh_from_db()
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        for prior in prior_reviews:
+            prior.refresh_from_db()
+            self.assertFalse(prior.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_third_distinct_user_on_device_is_not_flagged(self):
+        for _ in range(2):
+            self._create_signal_review(device_id="shared-device")
+        review = ReviewService.create_review(
+            self.user, self.business.pk, "A third user sharing one device.",
+            device_id="shared-device",
+        )
+        review.refresh_from_db()
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_sockpuppet_detection_counts_rejected_and_flagged_reviews(self):
+        for status in Review.ReviewStatus.values:
+            self._create_signal_review(device_id="shared-device", status=status)
+        review = ReviewService.create_review(
+            self.user, self.business.pk, "Another review on the same device.",
+            device_id="shared-device",
+        )
+        review.refresh_from_db()
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_sockpuppet_detection_does_not_combine_businesses(self):
+        other_business = self._create_signal_business()
+        for _ in range(3):
+            self._create_signal_review(device_id="shared-device", business=other_business)
+        review = ReviewService.create_review(
+            self.user, self.business.pk, "A review of a different business.",
+            device_id="shared-device",
+        )
+        review.refresh_from_db()
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_missing_device_ids_never_query_or_flag_shared_blank_history(self):
+        for device_id in (None, "", " \t"):
+            with self.subTest(device_id=device_id):
+                for _ in range(11):
+                    self._create_signal_review(device_id=device_id)
+                author = self._create_signal_review(
+                    business=self._create_signal_business(),
+                ).USER_ID
+                review = ReviewService.create_review(
+                    author, self.business.pk, "A review without a usable device ID.",
+                    device_id=device_id,
+                )
+                review.refresh_from_db()
+                self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+                with self.assertNumQueries(0):
+                    self.assertFalse(ReviewService._is_device_abuse(review))
+
+    def test_bulk_spam_flags_eleventh_review_across_businesses(self):
+        self._create_bulk_history(10, "bulk-device")
+        review = ReviewService.create_review(
+            self.second_user, self.business.pk, "An eleventh review across businesses.",
+            device_id="bulk-device",
+        )
+        review.refresh_from_db()
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_bulk_spam_does_not_flag_tenth_review(self):
+        self._create_bulk_history(9, "bulk-device")
+        review = ReviewService.create_review(
+            self.second_user, self.business.pk, "A tenth review across businesses.",
+            device_id="bulk-device",
+        )
+        review.refresh_from_db()
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_bulk_spam_includes_exact_window_start_but_excludes_older_reviews(self):
+        now = timezone.now()
+        history = self._create_bulk_history(
+            10, "bulk-device", created_at=now - timedelta(hours=24),
+        )
+        with patch("apps.reviews.services.review_service.timezone.now", return_value=now):
+            review = ReviewService.create_review(
+                self.second_user, self.business.pk, "A review at the window boundary.",
+                device_id="bulk-device",
+            )
+            review.refresh_from_db()
+            self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+            Review.objects.filter(pk=history[0].pk).update(
+                REVW_CREATED_AT=now - timedelta(hours=24, microseconds=1),
+            )
+            self.assertFalse(ReviewService._is_device_abuse(review))
+
+    def test_bulk_spam_does_not_count_reviews_outside_window(self):
+        self._create_bulk_history(
+            10, "bulk-device", created_at=timezone.now() - timedelta(hours=25),
+        )
+        review = ReviewService.create_review(
+            self.second_user, self.business.pk, "A review after old activity expired.",
+            device_id="bulk-device",
+        )
+        review.refresh_from_db()
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_two_devices_do_not_combine_for_bulk_threshold(self):
+        self._create_bulk_history(5, "device-a")
+        self._create_bulk_history(5, "device-b")
+        review = ReviewService.create_review(
+            self.user, self.business.pk, "Another review from only one device.",
+            device_id="device-a",
+        )
+        review.refresh_from_db()
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_two_devices_do_not_combine_for_sockpuppet_threshold(self):
+        for device_id in ("device-a", "device-b"):
+            for _ in range(2):
+                self._create_signal_review(device_id=device_id)
+        review = ReviewService.create_review(
+            self.user, self.business.pk, "A third user on the first device.",
+            device_id="device-a",
+        )
+        review.refresh_from_db()
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_failed_creation_rolls_back_both_moderation_flags(self):
+        for _ in range(5):
+            self._create_signal_review(score=0.75, device_id="shared-device")
+        self.score_review.return_value = (-0.9, "Negative", "vader")
+        with patch(
+            "apps.reviews.services.review_service.CloudinaryService.upload_image",
+            side_effect=RuntimeError("Upload failed"),
+        ), self.assertRaisesRegex(RuntimeError, "Upload failed"):
+            ReviewService.create_review(
+                self.user, self.business.pk, "A flagged review that fails to save.",
+                device_id="shared-device", photos=[object()],
+            )
+        self.assertFalse(Review.objects.filter(USER_ID=self.user).exists())
+        self.assertFalse(Review.objects.filter(REVW_IS_OUTLIER_SENTIMENT=True).exists())
+        self.assertFalse(Review.objects.filter(REVW_IS_DEVICE_ABUSE_FLAGGED=True).exists())
+
+    def test_failed_text_edit_rolls_back_outlier_change(self):
+        for _ in range(5):
+            self._create_signal_review(score=0.75)
+        review = self._create_signal_review(user=self.user)
+        self.score_review.return_value = (-0.9, "Negative", "vader")
+        with patch(
+            "apps.reviews.services.review_service.CloudinaryService.upload_image",
+            side_effect=RuntimeError("Upload failed"),
+        ), self.assertRaisesRegex(RuntimeError, "Upload failed"):
+            ReviewService.update_review(
+                self.user, review.pk, text="A very disappointing experience.",
+                photos=[object()],
+            )
+        review.refresh_from_db()
+        self.assertFalse(review.REVW_IS_OUTLIER_SENTIMENT)
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.75)

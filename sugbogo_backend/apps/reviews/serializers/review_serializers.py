@@ -149,6 +149,28 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
         source="REVW_REPORT_COUNT",
         read_only=True,
     )
+    sentiment_score = serializers.FloatField(
+        source="REVW_SENTIMENT_SCORE",
+        read_only=True,
+        allow_null=True,
+    )
+    sentiment_label = serializers.CharField(
+        source="REVW_SENTIMENT_LABEL",
+        read_only=True,
+        allow_null=True,
+    )
+    is_outlier_sentiment = serializers.BooleanField(
+        source="REVW_IS_OUTLIER_SENTIMENT",
+        read_only=True,
+    )
+    is_spam_flagged = serializers.BooleanField(
+        source="REVW_IS_SPAM_FLAGGED",
+        read_only=True,
+    )
+    is_device_abuse_flagged = serializers.BooleanField(
+        source="REVW_IS_DEVICE_ABUSE_FLAGGED",
+        read_only=True,
+    )
     created_at = serializers.DateTimeField(
         source="REVW_CREATED_AT",
         read_only=True,
@@ -199,6 +221,11 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "status",
             "like_count",
             "report_count",
+            "sentiment_score",
+            "sentiment_label",
+            "is_outlier_sentiment",
+            "is_spam_flagged",
+            "is_device_abuse_flagged",
             "created_at",
             "updated_at",
             "is_liked",

@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from rest_framework.exceptions import NotFound, ValidationError
@@ -16,6 +18,14 @@ from apps.users.models import User
 
 class ReviewReportServiceTests(TestCase):
     """Tests for reporting business reviews."""
+
+    def setUp(self):
+        patcher = patch(
+            "apps.reviews.services.review_service.route_sentiment",
+            return_value=(0.75, "Positive", "vader"),
+        )
+        self.score_review = patcher.start()
+        self.addCleanup(patcher.stop)
 
     @classmethod
     def setUpTestData(cls):
@@ -229,3 +239,62 @@ class ReviewReportServiceTests(TestCase):
             review.REVW_REPORT_COUNT,
             2,
         )
+
+        self.assertFalse(review.REVW_IS_SPAM_FLAGGED)
+
+    def test_third_report_flags_review_without_rejecting_it(self):
+        review = ReviewService.create_review(
+            self.second_user, self.business.pk, "A review receiving several reports.",
+        )
+        third_reporter = User.objects.create_user(
+            email="third-reporter@example.com",
+            password=None,
+            USER_FNAME="Third",
+            USER_LNAME="Reporter",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        for index, reporter in enumerate(
+            (self.user, self.second_user, third_reporter), start=1,
+        ):
+            ReviewReportService.create_report(
+                reporter, review.pk, ReviewReport.ReportType.SPAM,
+            )
+            review.refresh_from_db()
+            self.assertEqual(review.REVW_REPORT_COUNT, index)
+            self.assertIs(review.REVW_IS_SPAM_FLAGGED, index == 3)
+            self.assertEqual(review.REVW_STATUS, review.ReviewStatus.PUBLISHED)
+        self.assertEqual(review.reports.count(), 3)
+
+    def test_existing_spam_flag_is_preserved_below_threshold(self):
+        review = ReviewService.create_review(
+            self.second_user, self.business.pk, "A previously flagged review.",
+        )
+        review.REVW_IS_SPAM_FLAGGED = True
+        review.save(update_fields=["REVW_IS_SPAM_FLAGGED"])
+        ReviewReportService.create_report(
+            self.user, review.pk, ReviewReport.ReportType.ABUSE,
+        )
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_REPORT_COUNT, 1)
+        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertEqual(review.REVW_STATUS, review.ReviewStatus.PUBLISHED)
+
+    def test_spam_flag_is_set_when_existing_count_is_already_above_threshold(self):
+        review = ReviewService.create_review(
+            self.second_user, self.business.pk, "A review with historical reports.",
+        )
+        review.REVW_REPORT_COUNT = 3
+        review.save(update_fields=["REVW_REPORT_COUNT"])
+        ReviewReportService.create_report(
+            self.user, review.pk, ReviewReport.ReportType.OTHER,
+        )
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_REPORT_COUNT, 4)
+        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        ReviewReportService.create_report(
+            self.second_user, review.pk, ReviewReport.ReportType.MISINFORMATION,
+        )
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_REPORT_COUNT, 5)
+        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
