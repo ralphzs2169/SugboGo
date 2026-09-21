@@ -55,7 +55,7 @@ class GoogleRoutesService:
         destination_latitude,
         destination_longitude,
     ):
-        """Return one normalized traffic-unaware driving route, if available."""
+        """Return one normalized traffic-aware driving route, if available."""
 
         try:
             response = requests.post(
@@ -78,7 +78,7 @@ class GoogleRoutesService:
                         },
                     },
                     "travelMode": "DRIVE",
-                    "routingPreference": "TRAFFIC_UNAWARE",
+                    "routingPreference": "TRAFFIC_AWARE",
                     "computeAlternativeRoutes": False,
                     "units": "METRIC",
                 },

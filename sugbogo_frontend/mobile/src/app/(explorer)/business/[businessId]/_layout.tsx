@@ -41,7 +41,7 @@ export default function BusinessLayout() {
         <Stack.Screen
           name="road-route"
           options={{
-            title: "Road Route",
+            headerShown: false,
           }}
         />
 
