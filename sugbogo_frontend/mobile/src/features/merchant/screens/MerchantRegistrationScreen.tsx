@@ -138,7 +138,6 @@ export default function MerchantRegistrationScreen() {
     isLoading: isLoadingApplication,
     error: applicationError,
     refetch: refetchApplication,
-    refresh: refreshApplication,
   } = useCurrentApplication();
 
   // Administrator feedback
@@ -172,8 +171,6 @@ export default function MerchantRegistrationScreen() {
     useState(false);
 
   const [restoreError, setRestoreError] = useState(false);
-
-  const [isRefreshingAfterSave, setIsRefreshingAfterSave] = useState(false);
 
   const [unsavedSections, setUnsavedSections] = useState<string[]>([]);
 
@@ -214,7 +211,6 @@ export default function MerchantRegistrationScreen() {
     isSavingOperatingHours ||
     isSavingApplicationPhotos ||
     isSavingApplicationDocuments ||
-    isRefreshingAfterSave ||
     isSubmittingApplication;
 
   // Last Saved Snapshots
@@ -395,21 +391,6 @@ export default function MerchantRegistrationScreen() {
     form,
   });
 
-  // Used to refresh the application after saving changes to a section during resubmission.
-  const refreshApplicationAfterSave = async () => {
-    if (!isResubmission) {
-      return;
-    }
-
-    setIsRefreshingAfterSave(true);
-
-    try {
-      await refreshApplication();
-    } finally {
-      setIsRefreshingAfterSave(false);
-    }
-  };
-
   /**
    * Validates and persists the current registration step.
    *
@@ -457,7 +438,6 @@ export default function MerchantRegistrationScreen() {
         }
 
         setLastSavedIdentity(currentIdentity);
-        await refreshApplicationAfterSave();
       }
     }
 
@@ -491,7 +471,6 @@ export default function MerchantRegistrationScreen() {
         }
 
         setLastSavedLocation(currentLocation);
-        await refreshApplicationAfterSave();
       }
     }
 
@@ -515,8 +494,6 @@ export default function MerchantRegistrationScreen() {
         }
 
         setLastSavedOperatingHours(currentOperatingHours);
-
-        await refreshApplicationAfterSave();
       }
     }
 
@@ -551,7 +528,6 @@ export default function MerchantRegistrationScreen() {
       });
 
       setLastSavedPhotos(savedPhotos);
-      await refreshApplicationAfterSave();
     }
 
     // Save Step 5: Verification Documents
@@ -585,7 +561,6 @@ export default function MerchantRegistrationScreen() {
       });
 
       setLastSavedDocuments(savedDocuments);
-      await refreshApplicationAfterSave();
     }
 
     return true;
@@ -724,7 +699,7 @@ export default function MerchantRegistrationScreen() {
     );
   }
 
-  if (applicationError) {
+  if (applicationError && !application) {
     return (
       <ErrorState
         title="Unable to load registration"

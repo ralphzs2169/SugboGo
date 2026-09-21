@@ -184,6 +184,7 @@ export default function MerchantPortalScreen() {
             fontClassName="font-bold tracking wider"
             onPress={handlePrimaryAction}
             loading={isAcknowledging}
+            rounded="full"
           />
         </View>
       </ScrollView>

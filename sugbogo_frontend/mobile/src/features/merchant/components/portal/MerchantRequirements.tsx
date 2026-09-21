@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 const REQUIREMENTS = [
   {
@@ -35,13 +36,13 @@ const REQUIREMENTS = [
 export default function MerchantRequirements() {
   return (
     <View className="bg-surface px-6 py-6">
-      <Text className="mb-2 text-3xl font-bold text-text-primary">
+      <AppText weight="extrabold" className="mb-2 text-3xl  text-text-primary">
         Before you begin
-      </Text>
+      </AppText>
 
-      <Text className="mb-8 text-md text-text-secondary">
+      <AppText weight="medium" className="mb-8  text-text-secondary">
         Prepare these details to complete your merchant registration smoothly.
-      </Text>
+      </AppText>
 
       <View>
         {REQUIREMENTS.map((item, index) => (
@@ -62,13 +63,13 @@ export default function MerchantRequirements() {
             />
 
             <View className="flex-1">
-              <Text className="text-base font-bold text-text-primary">
+              <AppText weight="bold" className="text-base  text-text-primary">
                 {item.title}
-              </Text>
+              </AppText>
 
-              <Text className="mt-1 text-sm leading-5 text-text-secondary">
+              <AppText className="mt-1 text-sm leading-5 text-text-secondary">
                 {item.description}
-              </Text>
+              </AppText>
             </View>
           </View>
         ))}
@@ -76,13 +77,19 @@ export default function MerchantRequirements() {
 
       <View className="mt-8 flex-row items-center justify-between border-t border-border-primary pt-5">
         <View>
-          <Text className="text-xs font-medium uppercase tracking-wider text-text-secondary">
+          <AppText
+            weight="medium"
+            className="text-xs  uppercase tracking-wider text-text-secondary"
+          >
             Estimated Time
-          </Text>
+          </AppText>
 
-          <Text className="mt-1 text-lg font-bold text-text-primary">
+          <AppText
+            weight="superbold"
+            className="mt-1 text-lg  text-text-primary"
+          >
             10–15 minutes
-          </Text>
+          </AppText>
         </View>
 
         <MaterialCommunityIcons

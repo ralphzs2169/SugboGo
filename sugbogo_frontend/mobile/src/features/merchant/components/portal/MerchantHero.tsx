@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import { theme } from "@/constants/theme";
 import MerchantPortalIllustration from "../../assets/illustrations/merchant-portal.svg";
+import AppText from "@/shared/components/AppText";
 
 // Trust indicators displayed in the merchant portal hero section.
 const HIGHLIGHTS = [
@@ -31,14 +32,17 @@ export default function MerchantHero() {
     <View className="relative  items-center bg-surface pb-8 px-8 pt-2">
       <MerchantPortalIllustration width={280} height={280} />
 
-      <Text className="mt-6 text-center text-4xl font-bold tracking-tight text-text-primary">
+      <AppText
+        weight="superbold"
+        className="mt-6 text-center text-4xl tracking-tight text-text-primary"
+      >
         Become a SugboGo Merchant
-      </Text>
+      </AppText>
 
-      <Text className="mt-3 text-center text-md text-text-secondary">
+      <AppText className="mt-3 text-center text-md text-text-secondary">
         Turn your business into a destination explorers discover, visit, and
         come back to.
-      </Text>
+      </AppText>
 
       <View className="mt-8 flex-row flex-wrap justify-center gap-3">
         {HIGHLIGHTS.map((item) => (
@@ -52,9 +56,9 @@ export default function MerchantHero() {
               color="#FFFFFF"
             />
 
-            <Text className="ml-2 text-xs font-semibold text-white">
+            <AppText weight="semibold" className="ml-2 text-xs  text-white">
               {item.label}
-            </Text>
+            </AppText>
           </View>
         ))}
       </View>
