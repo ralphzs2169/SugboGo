@@ -71,6 +71,15 @@ MOBILE_SCHEME = os.getenv("MOBILE_SCHEME", "com.sugbogo.app://")
 
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
+# Daily review keyword extraction
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_KEYWORD_MODEL = os.getenv(
+    "GEMINI_KEYWORD_MODEL",
+    "gemini-3.5-flash-lite",
+)
+GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
+
+
 # Product-defined Metro Cebu urban-core scope for Explorer origin autocomplete.
 # It covers Cebu City, Mandaue, Lapu-Lapu/Mactan, and the adjacent urban
 # corridor. It is not a Cebu Island, Cebu Province, or administrative boundary.
@@ -315,6 +324,13 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
+    "daily-review-summary-recomputation": {
+        "task": "apps.reviews.tasks.recompute_review_summaries",
+        "schedule": crontab(
+            minute=0,
+            hour=3,
+        ),
+    },
     "daily-discovery-score-recomputation": {
         "task": "apps.business.tasks.recompute_discovery_scores",
         "schedule": crontab(
