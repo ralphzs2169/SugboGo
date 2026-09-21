@@ -389,6 +389,7 @@ export default function ReviewComposerSheet({
           disabled={!canSubmit}
           className="mt-6"
           fontClassName="text-sm font-bold"
+          rounded="full"
         />
       </BottomSheetScrollView>
     </BottomSheetModal>
