@@ -56,6 +56,10 @@ class ExploreSpecialtyTagSerializer(serializers.Serializer):
         source="TAG_ID.TAG_COLOR",
         read_only=True,
     )
+    icon = serializers.CharField(
+        source="TAG_ID.TAG_ICON",
+        read_only=True,
+    )
     vouch_count = serializers.IntegerField(
         source="BST_VOUCH_COUNT",
         read_only=True,
@@ -383,6 +387,12 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
         allow_null=True,
     )
 
+    cover_photo_url = serializers.URLField(
+        source="BUSN_COVER_PHOTO_URL",
+        read_only=True,
+        allow_null=True,
+    )
+    
     contact_number = serializers.CharField(
         source="BUSN_CONTACT_NUMBER",
         read_only=True,

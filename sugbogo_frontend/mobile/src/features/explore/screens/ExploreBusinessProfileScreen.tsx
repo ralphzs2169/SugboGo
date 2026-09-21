@@ -2,42 +2,38 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { View } from "react-native";
-
-import type { BusinessReview } from "../types/review.types";
-import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
-import Skeleton from "@/shared/components/Skeleton";
-import FixedFooter from "@/shared/components/FixedFooter";
-
 import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import { formatDistance } from "@/shared/utils/distance.utils";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
-import BusinessProfileSkeletonContent from "../components/business-profile/state/BusinessProfileSkeletonContent";
-import BusinessProfileErrorState from "../components/business-profile/state/BusinessProfileErrorState";
-import ExploreBusinessHero from "../components/business-profile/ExploreBusinessHero";
-import BusinessProfileQuickInfo from "../components/business-profile/BusinessProfileQuickInfo";
-import BusinessProfileScrollView from "../components/business-profile/BusinessProfileScrollView";
-import BusinessSpecialtiesSection from "../components/business-profile/BusinessSpecialtiesSection";
 import BusinessAboutContent from "../components/business-profile/BusinessAboutContent";
 import BusinessPhotosSection from "../components/business-profile/BusinessPhotosSection";
-import BusinessReviewsSection from "../components/business-profile/review-section/BusinessReviewsSection";
-import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
-import BusinessVisitInfoContent from "../components/business-profile/BusinessVisitInfoContent";
 import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
+import BusinessProfileQuickInfo from "../components/business-profile/BusinessProfileQuickInfo";
+import BusinessProfileScrollView from "../components/business-profile/BusinessProfileScrollView";
+import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
+import BusinessReviewsSection from "../components/business-profile/review-section/BusinessReviewsSection";
+import BusinessProfileErrorState from "../components/business-profile/state/BusinessProfileErrorState";
+import BusinessProfileSkeletonContent from "../components/business-profile/state/BusinessProfileSkeletonContent";
+import BusinessSpecialtiesSection from "../components/business-profile/BusinessSpecialtiesSection";
+import BusinessVisitInfoContent from "../components/business-profile/BusinessVisitInfoContent";
+import ExploreBusinessHero from "../components/business-profile/ExploreBusinessHero";
+import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
+import RideProviderSheet from "../components/business-profile/RideProviderSheet";
 import SimilarPlacesSection from "../components/business-profile/SimilarPlacesSection";
-
-import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 import useBusinessProfileVisit from "../hooks/useBusinessProfileVisit";
 import { useBusinessReviewPreview } from "../hooks/useBusinessReviews";
-
+import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
+import type { BusinessReview } from "../types/review.types";
 import {
   getBusinessHoursSummary,
   getQuickInfoStatus,
 } from "../utils/businessHours.utils";
-
-import { formatDistance } from "@/shared/utils/distance.utils";
 
 type Props = {
   businessId: number;
@@ -48,15 +44,9 @@ type Props = {
 /**
  * Displays the public Explorer-facing profile of a business.
  *
- * Coordinates the profile sections, business review preview, refresh behavior,
- * photo gallery, review composer, and contextual footer actions.
- *
- * The SafeAreaView/BusinessProfileScrollView shell stays mounted across the
- * loading -> loaded transition; only the scroll view's children (and the
- * footer) swap between skeleton placeholders and real content. This keeps
- * scroll position and the sticky header's animation state intact instead
- * of resetting when `business` finishes loading, which is what happened
- * when the skeleton was rendered as a fully separate screen.
+ * Coordinates the profile sections, overlapping hero summary, review preview,
+ * refresh behavior, photo gallery, review composer, and contextual visit
+ * actions while keeping the scroll shell stable during profile loading.
  */
 export default function ExploreBusinessProfileScreen({
   businessId,
@@ -69,25 +59,31 @@ export default function ExploreBusinessProfileScreen({
 
   const { totalCount: reviewCount } = useBusinessReviewPreview(businessId);
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  useQueryErrorNotification({
+    error,
+    toastId: "business-profile-error",
+    title: "Unable to load business profile",
+    fallbackMessage: "We couldn't load this business right now.",
+  });
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
-
-  const composerRef = useRef<BottomSheetModal | null>(null);
-
   const [editingReview, setEditingReview] = useState<BusinessReview | null>(
     null,
   );
 
+  const composerRef = useRef<BottomSheetModal | null>(null);
+  const rideProviderRef = useRef<BottomSheetModal | null>(null);
+
   const handleCreateReview = () => {
     setEditingReview(null);
-    composerRef.current?.present();
+    presentBottomSheet(composerRef);
   };
 
   const handleEditReview = (review: BusinessReview) => {
     setEditingReview(review);
-    composerRef.current?.present();
+    presentBottomSheet(composerRef);
   };
 
   const handlePhotoPress = (index: number) => {
@@ -105,12 +101,28 @@ export default function ExploreBusinessProfileScreen({
     }
   };
 
-  const handleGetDirections = () => {
-    // Navigation integration will be added here.
+  const handleViewRoute = () => {
+    router.push({
+      pathname: "/(explorer)/business/[businessId]/road-route",
+      params: {
+        businessId: String(businessId),
+      },
+    });
   };
 
-  // A hard fetch failure (no cached business to fall back on) still gets
-  // its own screen — there's nothing to keep the scroll shell mounted for.
+  const handleJeepneyGuide = () => {
+    router.push({
+      pathname: "/(explorer)/business/[businessId]/jeepney-guide",
+      params: {
+        businessId: String(businessId),
+      },
+    });
+  };
+
+  const handleRide = () => {
+    presentBottomSheet(rideProviderRef);
+  };
+
   if (error && !business) {
     return (
       <SafeAreaView
@@ -128,6 +140,7 @@ export default function ExploreBusinessProfileScreen({
   const hoursSummary = business
     ? getBusinessHoursSummary(business.operating_hours)
     : null;
+
   const quickInfoStatus = hoursSummary
     ? getQuickInfoStatus(hoursSummary)
     : null;
@@ -142,24 +155,27 @@ export default function ExploreBusinessProfileScreen({
       >
         {business && quickInfoStatus ? (
           <>
-            {/* Business hero */}
-            <ExploreBusinessHero
-              business={business}
-              isOwnBusiness={business.is_own_business}
-            />
+            {/* Business hero and overlapping quick info */}
+            <View className=" bg-surface">
+              <ExploreBusinessHero
+                business={business}
+                isOwnBusiness={business.is_own_business}
+              />
 
-            {/* Quick info */}
-            <BusinessProfileQuickInfo
-              reviewCount={reviewCount}
-              statusLabel={quickInfoStatus.statusLabel}
-              statusDetail={quickInfoStatus.statusDetail}
-              isOpenNow={quickInfoStatus.isOpen}
-              distance={
-                distance !== null
-                  ? formatDistance(distance, distanceAccuracy)
-                  : null
-              }
-            />
+              <View className="relative z-10 -mt-8 px-4">
+                <BusinessProfileQuickInfo
+                  reviewCount={reviewCount}
+                  statusLabel={quickInfoStatus.statusLabel}
+                  statusDetail={quickInfoStatus.statusDetail}
+                  isOpenNow={quickInfoStatus.isOpen}
+                  distance={
+                    distance !== null
+                      ? formatDistance(distance, distanceAccuracy)
+                      : null
+                  }
+                />
+              </View>
+            </View>
 
             {/* Business specialties */}
             <BusinessSpecialtiesSection
@@ -182,7 +198,7 @@ export default function ExploreBusinessProfileScreen({
               <BusinessAboutContent description={business.description} />
             </BusinessProfileSection>
 
-            {/* Visit & contact */}
+            {/* Visit and contact information */}
             <BusinessProfileSection
               title="Plan Your Visit"
               icon={
@@ -199,7 +215,9 @@ export default function ExploreBusinessProfileScreen({
                 contactNumber={business.contact_number}
                 email={business.email}
                 website={business.website}
-                onGetDirections={handleGetDirections}
+                onViewRoute={handleViewRoute}
+                onJeepneyGuide={handleJeepneyGuide}
+                onRide={handleRide}
                 isOwnBusiness={business.is_own_business}
               />
             </BusinessProfileSection>
@@ -237,6 +255,8 @@ export default function ExploreBusinessProfileScreen({
                 businessId={business.id}
                 businessName={business.business_name}
                 isOwnBusiness={business.is_own_business}
+                hasOwnReview={business.has_own_review}
+                onWriteReview={handleCreateReview}
                 onEditReview={handleEditReview}
               />
             </BusinessProfileSection>
@@ -249,27 +269,8 @@ export default function ExploreBusinessProfileScreen({
         )}
       </BusinessProfileScrollView>
 
-      {/* Footer */}
-      {business ? (
-        <BusinessProfileFooter
-          isOwnBusiness={business.is_own_business}
-          hasOwnReview={business.has_own_review}
-          onGetDirections={handleGetDirections}
-          onWriteReview={handleCreateReview}
-        />
-      ) : (
-        <FixedFooter>
-          <View className="flex-row gap-3">
-            {/* Secondary CTA */}
-            <Skeleton className="h-12 flex-1 rounded-full" />
-
-            {/* Primary CTA */}
-            <View className="flex-1 overflow-hidden rounded-full">
-              <View className="h-12 bg-brand/30" />
-            </View>
-          </View>
-        </FixedFooter>
-      )}
+      {/* Owner management action */}
+      {business?.is_own_business && <BusinessProfileFooter isOwnBusiness />}
 
       {/* Review composer */}
       {business && (
@@ -278,6 +279,11 @@ export default function ExploreBusinessProfileScreen({
           sheetRef={composerRef}
           review={editingReview}
         />
+      )}
+
+      {/* Ride-provider selection */}
+      {business && !business.is_own_business && (
+        <RideProviderSheet sheetRef={rideProviderRef} />
       )}
     </SafeAreaView>
   );

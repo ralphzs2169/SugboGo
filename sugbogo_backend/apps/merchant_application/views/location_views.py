@@ -4,13 +4,15 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 
+from apps.business.services.serviceable_boundary_service import (
+    ServiceableBoundaryService,
+)
 from apps.merchant_application.serializers.location_serializers import (
     NearbyLandmarksSerializer,
     PlaceDetailsSerializer,
     PlaceSearchSerializer,
     ReverseGeocodeSerializer,
 )
-from apps.merchant_application.services.location_service import LocationService
 from apps.merchant_application.throttles import (
     NearbyLandmarksThrottle,
     PlaceDetailsThrottle,
@@ -37,6 +39,16 @@ def _handle_google_maps_error(error, code):
     )
 
 
+def _outside_service_area_response():
+    """Return the standard response for an unsupported location."""
+
+    return error_response(
+        message=ServiceableBoundaryService.OUTSIDE_SERVICE_AREA_MESSAGE,
+        code="OUTSIDE_SERVICE_AREA",
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 @throttle_classes([ReverseGeocodeThrottle])
@@ -48,6 +60,12 @@ def reverse_geocode_view(request):
 
     latitude = serializer.validated_data["latitude"]
     longitude = serializer.validated_data["longitude"]
+
+    if not ServiceableBoundaryService.is_serviceable(
+        latitude,
+        longitude,
+    ):
+        return _outside_service_area_response()
 
     try:
         address = GoogleMapsService.reverse_geocode(
@@ -63,9 +81,7 @@ def reverse_geocode_view(request):
     return success_response(
         data={
             "address": address,
-            "is_within_service_area": LocationService.is_within_service_area(
-                latitude, longitude
-            ),
+            "is_within_service_area": True,
         },
         message="Location resolved successfully.",
     )
@@ -81,9 +97,15 @@ def place_search_view(request):
     serializer.is_valid(raise_exception=True)
 
     search_input = serializer.validated_data["input"]
+    location_restriction = (
+        ServiceableBoundaryService.get_autocomplete_location_restriction()
+    )
 
     try:
-        suggestions = GoogleMapsService.search_places(search_input)
+        suggestions = GoogleMapsService.search_places(
+            search_input,
+            location_restriction,
+        )
     except (RequestException, ValueError) as error:
         return _handle_google_maps_error(
             error,
@@ -114,6 +136,14 @@ def place_details_view(request):
             error,
             "PLACE_DETAILS_FAILED",
         )
+
+    if not ServiceableBoundaryService.is_serviceable(
+        location["latitude"],
+        location["longitude"],
+    ):
+        return _outside_service_area_response()
+
+    location["isWithinServiceArea"] = True
 
     return success_response(
         data={"location": location},

@@ -14,6 +14,7 @@ type ButtonProps = {
   textWeight?: AppTextWeight;
   variant?: "primary" | "secondary" | "outline" | "soft" | "danger" | "success";
   rounded?: "none" | "sm" | "md" | "lg" | "full";
+  accessibilityLabel?: string;
 };
 
 /**
@@ -33,6 +34,7 @@ export default function Button({
   fontClassName = "text-base",
   textWeight = "semibold",
   rounded = "lg",
+  accessibilityLabel,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
@@ -76,6 +78,7 @@ export default function Button({
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{
         disabled: isDisabled,
         busy: loading,

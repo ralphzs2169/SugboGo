@@ -12,6 +12,18 @@ class GoogleMapsServiceTests(SimpleTestCase):
 
     def setUp(self):
         self.service = GoogleMapsService
+        self.location_restriction = {
+            "rectangle": {
+                "low": {
+                    "latitude": 10.30,
+                    "longitude": 123.87,
+                },
+                "high": {
+                    "latitude": 10.34,
+                    "longitude": 123.92,
+                },
+            },
+        }
 
     # Address parsing
 
@@ -142,7 +154,10 @@ class GoogleMapsServiceTests(SimpleTestCase):
 
         mock_post.return_value = mock_response
 
-        result = self.service.search_places("Ayala Cebu")
+        result = self.service.search_places(
+            "Ayala Cebu",
+            self.location_restriction,
+        )
 
         self.assertEqual(
             result,
@@ -160,6 +175,7 @@ class GoogleMapsServiceTests(SimpleTestCase):
             json={
                 "input": "Ayala Cebu",
                 "includedRegionCodes": ["ph"],
+                "locationRestriction": self.location_restriction,
             },
             headers={
                 "Content-Type": "application/json",
@@ -174,6 +190,19 @@ class GoogleMapsServiceTests(SimpleTestCase):
         )
 
         mock_response.raise_for_status.assert_called_once()
+
+    @patch("apps.shared.services.google_maps_service.requests.post")
+    def test_search_places_returns_no_suggestions_without_a_restriction(
+        self,
+        mock_post,
+    ):
+        result = self.service.search_places(
+            "Cebu",
+            None,
+        )
+
+        self.assertEqual(result, [])
+        mock_post.assert_not_called()
 
     @patch("apps.shared.services.google_maps_service.requests.post")
     def test_search_places_ignores_invalid_suggestions(self, mock_post):
@@ -199,7 +228,10 @@ class GoogleMapsServiceTests(SimpleTestCase):
 
         mock_post.return_value = mock_response
 
-        result = self.service.search_places("Cebu")
+        result = self.service.search_places(
+            "Cebu",
+            self.location_restriction,
+        )
 
         self.assertEqual(
             result,
@@ -225,7 +257,10 @@ class GoogleMapsServiceTests(SimpleTestCase):
         mock_post.return_value = mock_response
 
         with self.assertRaises(requests.HTTPError):
-            self.service.search_places("Ayala")
+            self.service.search_places(
+                "Ayala",
+                self.location_restriction,
+            )
 
         mock_response.raise_for_status.assert_called_once()
 

@@ -74,15 +74,25 @@ class GoogleMapsService:
 
 
     @staticmethod
-    def search_places(search_input):
+    def search_places(
+        search_input,
+        location_restriction,
+    ):
         """Returns place suggestions matching the provided search input."""
+
+        request_data = {
+            "input": search_input,
+            "includedRegionCodes": ["ph"],
+        }
+
+        if location_restriction is None:
+            return []
+
+        request_data["locationRestriction"] = location_restriction
 
         response = requests.post(
             f"{GoogleMapsService.GOOGLE_PLACES_URL}:autocomplete",
-            json={
-                "input": search_input,
-                "includedRegionCodes": ["ph"],
-            },
+            json=request_data,
             headers={
                 "Content-Type": "application/json",
                 "X-Goog-Api-Key": settings.GOOGLE_MAPS_API_KEY,

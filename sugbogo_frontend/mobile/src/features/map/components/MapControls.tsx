@@ -12,19 +12,44 @@ type Props = {
   isPreviewCardOpen: boolean;
 };
 
-export default function MapControls({ onZoomIn, onZoomOut, onLocateMe, isPreviewCardOpen }: Props) {
+export default function MapControls({
+  onZoomIn,
+  onZoomOut,
+  onLocateMe,
+  isPreviewCardOpen,
+}: Props) {
   const insets = useSafeAreaInsets();
   const baseOffset = insets.bottom + TAB_BAR_HEIGHT + 16;
 
   return (
-    <View className="absolute right-md" style={{ bottom: isPreviewCardOpen ? baseOffset + 180 : baseOffset }}>
-      <View className="overflow-hidden rounded-input bg-surface" style={{ elevation: 4 }}>
-        <Pressable onPress={onZoomIn} className="h-10 w-10 items-center justify-center">
-          <MaterialCommunityIcons name="plus" size={20} color={theme.extends.colors.text.primary} />
+    <View
+      className="absolute right-md"
+      style={{ bottom: isPreviewCardOpen ? baseOffset + 180 : baseOffset }}
+    >
+      <View
+        className="overflow-hidden rounded-input bg-surface"
+        style={{ elevation: 4 }}
+      >
+        <Pressable
+          onPress={onZoomIn}
+          className="h-10 w-10 items-center justify-center"
+        >
+          <MaterialCommunityIcons
+            name="plus"
+            size={20}
+            color={theme.extends.colors.text.primary}
+          />
         </Pressable>
         <View style={{ height: 1, backgroundColor: "#E5E7EB" }} />
-        <Pressable onPress={onZoomOut} className="h-10 w-10 items-center justify-center">
-          <MaterialCommunityIcons name="minus" size={20} color={theme.extends.colors.text.primary} />
+        <Pressable
+          onPress={onZoomOut}
+          className="h-10 w-10 items-center justify-center"
+        >
+          <MaterialCommunityIcons
+            name="minus"
+            size={20}
+            color={theme.extends.colors.text.primary}
+          />
         </Pressable>
       </View>
 
@@ -33,7 +58,11 @@ export default function MapControls({ onZoomIn, onZoomOut, onLocateMe, isPreview
         className="mt-sm h-12 w-12 items-center justify-center rounded-full bg-brand"
         style={{ elevation: 4 }}
       >
-        <MaterialCommunityIcons name="crosshairs-gps" size={22} color="#FFFFFF" />
+        <MaterialCommunityIcons
+          name="crosshairs-gps"
+          size={22}
+          color="#FFFFFF"
+        />
       </Pressable>
     </View>
   );

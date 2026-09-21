@@ -7,9 +7,12 @@ export type BusinessLocationAddress = {
   unit?: string;
 };
 
-export type BusinessLocation = BusinessLocationAddress & {
+export type GooglePlaceLocation = BusinessLocationAddress & {
   latitude: number;
   longitude: number;
+};
+
+export type BusinessLocation = GooglePlaceLocation & {
   isWithinServiceArea: boolean;
 };
 

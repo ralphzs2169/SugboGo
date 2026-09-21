@@ -2,7 +2,9 @@ from django.contrib.gis.geos import Point
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
-from apps.business.models import ServiceableBoundary
+from apps.business.services.serviceable_boundary_service import (
+    ServiceableBoundaryService,
+)
 from apps.merchant_application.models import (
     MerchantApplicationLandmark,
     MerchantApplicationLocation,
@@ -15,40 +17,26 @@ class LocationService:
 
     @staticmethod
     def is_within_service_area(latitude, longitude):
-        """
-        Returns whether the given coordinates fall within any active
-        ServiceableBoundary (currently Cebu City only).
+        """Return whether coordinates are covered by an active boundary."""
 
-        Unlike `_validate_within_service_area`, this never raises —
-        it's meant for read-only checks (e.g. surfacing the result to
-        the frontend before a save is attempted), not enforcement.
-        """
-        point = Point(x=longitude, y=latitude, srid=4326)
+        return ServiceableBoundaryService.is_serviceable(
+            latitude,
+            longitude,
+        )
 
-        return ServiceableBoundary.objects.filter(
-            SBND_IS_ACTIVE=True,
-            SBND_BOUNDARY__contains=point,
-        ).exists()
-    
-   
     @staticmethod
-    def _validate_within_service_area(latitude, longitude, field_label="location"):
-        """
-        Raises a ValidationError if the given coordinates do not fall
-        within any active ServiceableBoundary (currently Cebu City only).
-        """
-        point = Point(x=longitude, y=latitude, srid=4326)
+    def _validate_within_service_area(
+        latitude,
+        longitude,
+        field_label="location",
+    ):
+        """Return a point or raise the established service-area error."""
 
-        if not LocationService.is_within_service_area(latitude, longitude):
-            raise ValidationError({
-                field_label: (
-                    "The selected location is outside our current service "
-                    "area (Cebu City). Please choose a location within "
-                    "city limits."
-                )
-            })
-
-        return point
+        return ServiceableBoundaryService.validate_serviceable(
+            latitude,
+            longitude,
+            field_label=field_label,
+        )
 
     @staticmethod
     @transaction.atomic

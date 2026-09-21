@@ -1,4 +1,7 @@
-import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+import type {
+  SpecialtyTagColor,
+  SpecialtyTagIcon,
+} from "@/shared/types/specialtyTag.types";
 
 export type ExploreBusinessCluster = {
   id: number;
@@ -15,6 +18,7 @@ export type ExploreBusinessSpecialtyTag = {
   id: number;
   name: string;
   color: SpecialtyTagColor;
+  icon: SpecialtyTagIcon | null;
   vouch_count: number;
   is_vouched: boolean;
 };

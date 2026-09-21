@@ -202,6 +202,21 @@ class DirectJourneyLandmarkContextTests(TestCase):
             longitude=self.boarding.TRPT_POINT.x,
         )
 
+    def _journeys(
+        self,
+        result,
+    ):
+        """Flatten grouped route options for landmark-level assertions."""
+
+        return [
+            journey
+            for route_option in result["route_options"]
+            for journey in [
+                route_option["recommended_journey"],
+                *route_option["alternative_journeys"],
+            ]
+        ]
+
     def test_landmark_within_200_meters_is_included(self):
         """Attach a permanent business landmark near the alighting point."""
 
@@ -214,7 +229,7 @@ class DirectJourneyLandmarkContextTests(TestCase):
         )
 
         result = self._search()
-        context = result["journeys"][0]["landmark_context"]
+        context = self._journeys(result)[0]["landmark_context"]
 
         self.assertEqual(
             LANDMARK_CONTEXT_RADIUS_METERS,
@@ -248,7 +263,7 @@ class DirectJourneyLandmarkContextTests(TestCase):
         result = self._search()
 
         self.assertIsNone(
-            result["journeys"][0]["landmark_context"],
+            self._journeys(result)[0]["landmark_context"],
         )
 
     def test_landmark_exactly_at_threshold_is_included(self):
@@ -263,7 +278,7 @@ class DirectJourneyLandmarkContextTests(TestCase):
         )
 
         result = self._search()
-        context = result["journeys"][0]["landmark_context"]
+        context = self._journeys(result)[0]["landmark_context"]
 
         self.assertEqual(
             context["id"],
@@ -296,7 +311,7 @@ class DirectJourneyLandmarkContextTests(TestCase):
         result = self._search()
 
         self.assertEqual(
-            result["journeys"][0]["landmark_context"]["id"],
+            self._journeys(result)[0]["landmark_context"]["id"],
             nearest.BLMK_ID,
         )
 
@@ -322,11 +337,11 @@ class DirectJourneyLandmarkContextTests(TestCase):
         result = self._search()
 
         self.assertEqual(
-            len(result["journeys"]),
+            len(self._journeys(result)),
             1,
         )
         self.assertIsNone(
-            result["journeys"][0]["landmark_context"],
+            self._journeys(result)[0]["landmark_context"],
         )
 
     def test_business_without_landmarks_keeps_direct_journey(self):
@@ -335,11 +350,11 @@ class DirectJourneyLandmarkContextTests(TestCase):
         result = self._search()
 
         self.assertEqual(
-            len(result["journeys"]),
+            len(self._journeys(result)),
             1,
         )
         self.assertIsNone(
-            result["journeys"][0]["landmark_context"],
+            self._journeys(result)[0]["landmark_context"],
         )
 
     def test_landmark_without_usable_coordinates_does_not_break_routing(self):
@@ -355,11 +370,11 @@ class DirectJourneyLandmarkContextTests(TestCase):
         result = self._search()
 
         self.assertEqual(
-            len(result["journeys"]),
+            len(self._journeys(result)),
             1,
         )
         self.assertIsNone(
-            result["journeys"][0]["landmark_context"],
+            self._journeys(result)[0]["landmark_context"],
         )
 
     def test_each_journey_uses_its_own_alighting_point(self):
@@ -405,7 +420,7 @@ class DirectJourneyLandmarkContextTests(TestCase):
             result = self._search()
         contexts_by_variant_id = {
             journey["route_variant_id"]: journey["landmark_context"]["id"]
-            for journey in result["journeys"]
+            for journey in self._journeys(result)
         }
 
         self.assertEqual(
@@ -432,13 +447,13 @@ class DirectJourneyLandmarkContextTests(TestCase):
         before = self._search()
         before_order = [
             journey["route_variant_id"]
-            for journey in before["journeys"]
+            for journey in self._journeys(before)
         ]
         before_ride_distances = {
             journey["route_variant_id"]: journey[
                 "approximate_ride_distance_meters"
             ]
-            for journey in before["journeys"]
+            for journey in self._journeys(before)
         }
         landmark = self._create_landmark(
             "Ranking-Neutral Landmark",
@@ -451,7 +466,7 @@ class DirectJourneyLandmarkContextTests(TestCase):
         after = self._search()
         after_order = [
             journey["route_variant_id"]
-            for journey in after["journeys"]
+            for journey in self._journeys(after)
         ]
 
         self.assertEqual(
@@ -466,7 +481,7 @@ class DirectJourneyLandmarkContextTests(TestCase):
             ],
         )
 
-        for journey in after["journeys"]:
+        for journey in self._journeys(after):
             self.assertEqual(
                 journey["approximate_ride_distance_meters"],
                 before_ride_distances[journey["route_variant_id"]],
@@ -497,7 +512,7 @@ class DirectJourneyLandmarkContextTests(TestCase):
         self.assertEqual(
             result,
             {
-                "journeys": [],
+                "route_options": [],
                 "reason": "no_nearby_boarding_point",
             },
         )
