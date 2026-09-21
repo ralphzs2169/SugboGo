@@ -11,7 +11,27 @@ import Button from "@/shared/components/Button";
 
 import { TRANSIT_CONTEXTS, TRANSIT_MODES } from "./transitWorkspaceModes";
 
-function getModePresentation(context, mode, hasSelectedTransfer) {
+function getModePresentation(
+  context,
+  mode,
+  hasSelectedTransfer,
+  isSelectingTransitPoint,
+  isCreatingRouteTransitPoint,
+) {
+  if (isCreatingRouteTransitPoint) {
+    return {
+      label: "Creating Transit Point",
+      hint: "Click the map to place this reusable managed Transit Point.",
+    };
+  }
+
+  if (isSelectingTransitPoint) {
+    return {
+      label: "Selecting Transit Point",
+      hint: "Choose a highlighted map marker or search in the inspector.",
+    };
+  }
+
   const presentations = {
     [TRANSIT_MODES.CREATE_ROUTE]: {
       label: "Creating Route",
@@ -85,6 +105,8 @@ export default function TransitWorkspaceToolbar({
   context,
   mode,
   hasSelectedTransfer,
+  isSelectingTransitPoint,
+  isCreatingRouteTransitPoint,
   isBrowserCollapsed,
   isInspectorCollapsed,
   isFullscreen,
@@ -97,6 +119,8 @@ export default function TransitWorkspaceToolbar({
     context,
     mode,
     hasSelectedTransfer,
+    isSelectingTransitPoint,
+    isCreatingRouteTransitPoint,
   );
   const isEditing = mode !== TRANSIT_MODES.BROWSE;
   const interactionHint =
@@ -118,7 +142,7 @@ export default function TransitWorkspaceToolbar({
           {isEditing && (
             <p className="mt-0.5 text-[11px] text-text-secondary">
               Cancel safely with <kbd className="font-semibold">Esc</kbd>
-              {mode.includes("variant") && (
+              {mode.includes("variant") && !isCreatingRouteTransitPoint && (
                 <>
                   {" "}· Undo geometry with {" "}
                   <kbd className="font-semibold">Ctrl/Cmd+Z</kbd>

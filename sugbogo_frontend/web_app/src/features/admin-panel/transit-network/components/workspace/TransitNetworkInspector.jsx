@@ -8,6 +8,7 @@ import TransferInspector from "../transfers/TransferInspector";
 import TransitPointEditorPanel from "../transit-point-workspace/TransitPointEditorPanel";
 import {
   isRouteDrawingMode,
+  isRouteTransitPointCreationMode,
   isVariantEditingMode,
   TRANSIT_CONTEXTS,
   TRANSIT_MODES,
@@ -57,6 +58,8 @@ function RouteContextInspector({
   routeDetailQuery,
   routeReferencePointsQuery,
   variantEditor,
+  pointEditor,
+  routePointCreationRole,
   onDirtyChange,
   onRouteSaved,
   onVariantSaved,
@@ -64,6 +67,9 @@ function RouteContextInspector({
   onStartCreateVariant,
   onStartEditVariant,
   onToggleDrawing,
+  onStartCreateTransitPoint,
+  onSaveRouteTransitPoint,
+  onCancelRouteTransitPoint,
   onCancelRoute,
   onCancelVariant,
 }) {
@@ -75,6 +81,33 @@ function RouteContextInspector({
         onDirtyChange={onDirtyChange}
         onCancel={onCancelRoute}
         onSaved={onRouteSaved}
+      />
+    );
+  }
+
+  if (isRouteTransitPointCreationMode(mode)) {
+    const roleDescription = {
+      origin:
+        "After saving, this reusable Transit Point will become the route origin.",
+      destination:
+        "After saving, this reusable Transit Point will become the route destination.",
+      "transit-point":
+        "After saving, this reusable Transit Point will be added before the destination.",
+    }[routePointCreationRole];
+
+    return (
+      <TransitPointEditorPanel
+        mode={TRANSIT_MODES.ADD_POINT}
+        selectedPoint={null}
+        values={pointEditor.values}
+        errors={pointEditor.errors}
+        isSubmitting={pointEditor.isSubmitting}
+        submittingAction={pointEditor.submittingAction}
+        onNameChange={pointEditor.handleNameChange}
+        onSave={() => onSaveRouteTransitPoint()}
+        onCancel={onCancelRouteTransitPoint}
+        allowSaveAndAddAnother={false}
+        contextDescription={roleDescription}
       />
     );
   }
@@ -98,6 +131,7 @@ function RouteContextInspector({
         editor={variantEditor}
         isDrawing={isRouteDrawingMode(mode)}
         onToggleDrawing={onToggleDrawing}
+        onCreateTransitPoint={onStartCreateTransitPoint}
         onCancel={onCancelVariant}
         onSaved={onVariantSaved}
       />

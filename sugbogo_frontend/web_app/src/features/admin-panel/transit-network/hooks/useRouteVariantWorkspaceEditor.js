@@ -30,6 +30,8 @@ export default function useRouteVariantWorkspaceEditor() {
   );
   const [geometryHistory, setGeometryHistory] = useState([]);
   const [errors, setErrors] = useState({});
+  const [isSelectingTransitPoint, setIsSelectingTransitPoint] =
+    useState(false);
   const {
     createVariant,
     updateVariant,
@@ -46,11 +48,13 @@ export default function useRouteVariantWorkspaceEditor() {
     setSavedSnapshot(createVariantSnapshot(initialState));
     setGeometryHistory([]);
     setErrors({});
+    setIsSelectingTransitPoint(false);
   }
 
   function reset() {
     setGeometryHistory([]);
     setErrors({});
+    setIsSelectingTransitPoint(false);
   }
 
   function updateEditorState(updater, clearedErrorFields = []) {
@@ -180,14 +184,7 @@ export default function useRouteVariantWorkspaceEditor() {
   }
 
   function selectTransitPoint(pointId) {
-    if (!editorState.originId) {
-      changeOrigin(pointId);
-      toast.success("Origin Transit Point selected.");
-      return;
-    }
-    if (!editorState.destinationId && pointId !== editorState.originId) {
-      changeDestination(pointId);
-      toast.success("Destination Transit Point selected.");
+    if (!isSelectingTransitPoint) {
       return;
     }
     if (
@@ -200,7 +197,34 @@ export default function useRouteVariantWorkspaceEditor() {
     }
 
     addIntermediate(pointId);
-    toast.success("Intermediate Transit Point added.");
+    setIsSelectingTransitPoint(false);
+    toast.success("Transit Point added to the traversal order.");
+  }
+
+  function beginTransitPointSelection() {
+    if (!editorState.originId || !editorState.destinationId) {
+      return;
+    }
+
+    setIsSelectingTransitPoint(true);
+  }
+
+  function cancelTransitPointSelection() {
+    setIsSelectingTransitPoint(false);
+  }
+
+  function attachCreatedTransitPoint(pointId, role) {
+    const normalizedPointId = String(pointId);
+
+    if (role === "origin") {
+      changeOrigin(normalizedPointId);
+    } else if (role === "destination") {
+      changeDestination(normalizedPointId);
+    } else {
+      addIntermediate(normalizedPointId);
+    }
+
+    setIsSelectingTransitPoint(false);
   }
 
   function moveIntermediate(index, direction) {
@@ -255,6 +279,7 @@ export default function useRouteVariantWorkspaceEditor() {
       setEditorState(savedState);
       setSavedSnapshot(createVariantSnapshot(savedState));
       setGeometryHistory([]);
+      setIsSelectingTransitPoint(false);
       toast.success(
         variant
           ? "Route variant updated successfully."
@@ -276,6 +301,7 @@ export default function useRouteVariantWorkspaceEditor() {
     errors,
     isDirty,
     isSaving,
+    isSelectingTransitPoint,
     canUndo: geometryHistory.length > 0,
     begin,
     reset,
@@ -288,6 +314,9 @@ export default function useRouteVariantWorkspaceEditor() {
     changeDestination,
     addIntermediate,
     selectTransitPoint,
+    beginTransitPointSelection,
+    cancelTransitPointSelection,
+    attachCreatedTransitPoint,
     moveIntermediate,
     removeIntermediate,
     save,

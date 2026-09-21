@@ -12,6 +12,7 @@ import { MapPin } from "lucide-react";
 import {
   isPointEditingMode,
   isRouteDrawingMode,
+  isRouteTransitPointCreationMode,
   isVariantEditingMode,
   TRANSIT_CONTEXTS,
   TRANSIT_MODES,
@@ -140,7 +141,13 @@ export default function TransitNetworkMapCanvas({
   onReferenceLayerRetry,
 }) {
   const isVariantEditing = isVariantEditingMode(mode);
-  const isPointEditing = isPointEditingMode(mode);
+  const isCreatingRouteTransitPoint =
+    isRouteTransitPointCreationMode(mode);
+  const isPointEditing =
+    isPointEditingMode(mode) || isCreatingRouteTransitPoint;
+  const isSelectingRouteTransitPoint = Boolean(
+    isVariantEditing && variantEditor?.isSelectingTransitPoint,
+  );
   const draftPath = useMemo(
     () => toPath(variantEditor?.editorState.geometry ?? []),
     [variantEditor?.editorState.geometry],
@@ -179,6 +186,10 @@ export default function TransitNetworkMapCanvas({
       return;
     }
 
+    if (isSelectingRouteTransitPoint) {
+      return;
+    }
+
     if (isRouteDrawingMode(mode)) {
       variantEditor.addGeometryVertex({
         latitude: event.detail.latLng.lat,
@@ -206,7 +217,12 @@ export default function TransitNetworkMapCanvas({
     }
   }
 
-  const helpText = getMapHelpText(context, mode, Boolean(transfer));
+  const helpText = getMapHelpText(
+    context,
+    mode,
+    Boolean(transfer),
+    isSelectingRouteTransitPoint,
+  );
   const showMapHelp = isVariantEditing || isPointEditing;
 
   return (
@@ -228,7 +244,10 @@ export default function TransitNetworkMapCanvas({
         clickableIcons={false}
         gestureHandling="greedy"
         draggableCursor={
-          isPointEditing || isRouteDrawingMode(mode) ? "crosshair" : undefined
+          isPointEditing ||
+          (isRouteDrawingMode(mode) && !isSelectingRouteTransitPoint)
+            ? "crosshair"
+            : undefined
         }
         onClick={handleMapClick}
       >
@@ -286,11 +305,21 @@ export default function TransitNetworkMapCanvas({
                 key={`vertex-${index}`}
                 position={position}
                 title={`Route geometry vertex ${index + 1}`}
-                draggable
+                draggable={
+                  !isSelectingRouteTransitPoint &&
+                  !isCreatingRouteTransitPoint
+                }
                 zIndex={800 + index}
                 onDragEnd={(event) => handleVertexDragEnd(index, event)}
               >
-                <div className="flex h-6 w-6 cursor-move items-center justify-center rounded-full border-2 border-background bg-primary text-[9px] font-bold text-white shadow-md">
+                <div
+                  className={`flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-primary text-[9px] font-bold text-white shadow-md ${
+                    isSelectingRouteTransitPoint ||
+                    isCreatingRouteTransitPoint
+                      ? "cursor-default"
+                      : "cursor-move"
+                  }`}
+                >
                   {index + 1}
                 </div>
               </AdvancedMarker>
@@ -306,10 +335,6 @@ export default function TransitNetworkMapCanvas({
             const isSelected = String(point.id) === String(selectedPoint?.id);
             const isLocallyEditing =
               mode === TRANSIT_MODES.EDIT_POINT && isSelected;
-            const canSelect =
-              context === TRANSIT_CONTEXTS.POINTS
-                ? mode === TRANSIT_MODES.BROWSE
-                : isVariantEditing;
             const pointId = String(point.id);
             const routePointRole = isVariantEditing
               ? pointId === variantEditor?.editorState.originId
@@ -319,14 +344,27 @@ export default function TransitNetworkMapCanvas({
                   : variantEditor?.editorState.intermediatePointIds.includes(
                         pointId,
                       )
-                    ? "intermediate"
+                    ? "transit-point"
                     : "available"
               : "available";
+            const canSelect =
+              context === TRANSIT_CONTEXTS.POINTS
+                ? mode === TRANSIT_MODES.BROWSE
+                : isSelectingRouteTransitPoint &&
+                  routePointRole === "available";
             const routePointClass = {
               origin: "border-success bg-success text-white",
               destination: "border-danger bg-danger text-white",
-              intermediate: "border-info bg-info text-white",
-              available: "border-info bg-background text-text-primary",
+              "transit-point": "border-info bg-info text-white",
+              available: isSelectingRouteTransitPoint
+                ? "border-primary bg-background text-text-primary ring-4 ring-primary/15"
+                : "border-stroke-strong bg-background text-text-secondary",
+            }[routePointRole];
+            const routePointLabel = {
+              origin: "Origin",
+              destination: "Destination",
+              "transit-point": "Transit point",
+              available: "Available Transit Point",
             }[routePointRole];
 
             if (!position || isLocallyEditing) {
@@ -339,7 +377,7 @@ export default function TransitNetworkMapCanvas({
                 position={position}
                 title={
                   context === TRANSIT_CONTEXTS.ROUTES
-                    ? `${point.name} · ${routePointRole}`
+                    ? `${point.name} · ${routePointLabel}`
                     : point.name
                 }
                 clickable={canSelect}
@@ -364,7 +402,8 @@ export default function TransitNetworkMapCanvas({
             );
           })}
 
-        {context === TRANSIT_CONTEXTS.POINTS &&
+        {(context === TRANSIT_CONTEXTS.POINTS ||
+          isCreatingRouteTransitPoint) &&
           isPointEditing &&
           pointDraftPosition && (
             <AdvancedMarker
@@ -461,23 +500,40 @@ export default function TransitNetworkMapCanvas({
   );
 }
 
-function getMapHelpText(context, mode, hasTransfer) {
+function getMapHelpText(
+  context,
+  mode,
+  hasTransfer,
+  isSelectingRouteTransitPoint,
+) {
+  if (isSelectingRouteTransitPoint) {
+    return {
+      title: "Choose a Transit Point",
+      description:
+        "Select a highlighted managed Transit Point marker, or use search in the inspector.",
+    };
+  }
   if (isRouteDrawingMode(mode)) {
     return {
       title: "Drawing route geometry",
       description: "Click the map to add LineString vertices in travel order.",
     };
   }
+  if (isPointEditingMode(mode) || isRouteTransitPointCreationMode(mode)) {
+    return {
+      title:
+        mode === TRANSIT_MODES.ADD_POINT ||
+        isRouteTransitPointCreationMode(mode)
+          ? "Placing a new point"
+          : "Editing point location",
+      description: "Click the map or drag the highlighted marker to reposition it.",
+    };
+  }
   if (isVariantEditingMode(mode)) {
     return {
       title: "Adjusting route path",
-      description: "Drag numbered vertices or select managed Transit Points.",
-    };
-  }
-  if (isPointEditingMode(mode)) {
-    return {
-      title: mode === TRANSIT_MODES.ADD_POINT ? "Placing a new point" : "Editing point location",
-      description: "Click the map or drag the highlighted marker to reposition it.",
+      description:
+        "Drag numbered vertices, or use the inspector to add managed Transit Points.",
     };
   }
   if (context === TRANSIT_CONTEXTS.TRANSFERS) {
