@@ -1,11 +1,14 @@
 from unittest.mock import patch
 
-from apps.users.models import User
-from core.tests.assertions import APIResponseAssertionsMixin
+from django.contrib.gis.geos import MultiPolygon, Polygon
 from django.urls import reverse
 from requests import RequestException
 from rest_framework import status
 from rest_framework.test import APITestCase
+
+from apps.business.models import ServiceableBoundary
+from apps.users.models import User
+from core.tests.assertions import APIResponseAssertionsMixin
 
 
 class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
@@ -31,6 +34,34 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
         self.coordinates = {
             "latitude": 10.3157,
             "longitude": 123.8854,
+        }
+        ServiceableBoundary.objects.create(
+            SBND_NAME="Cebu City Test Boundary",
+            SBND_IS_ACTIVE=True,
+            SBND_BOUNDARY=MultiPolygon(
+                Polygon(
+                    (
+                        (123.87, 10.30),
+                        (123.92, 10.30),
+                        (123.92, 10.34),
+                        (123.87, 10.34),
+                        (123.87, 10.30),
+                    ),
+                    srid=4326,
+                ),
+            ),
+        )
+        self.business_location_restriction = {
+            "rectangle": {
+                "low": {
+                    "latitude": 10.30,
+                    "longitude": 123.87,
+                },
+                "high": {
+                    "latitude": 10.34,
+                    "longitude": 123.92,
+                },
+            },
         }
 
     # Reverse Geocode
@@ -72,13 +103,43 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
 
         self.assertEqual(
             response.data["data"],
-            {"address": address},
+            {
+                "address": address,
+                "is_within_service_area": True,
+            },
         )
 
         mock_reverse_geocode.assert_called_once_with(
             10.3157,
             123.8854,
         )
+
+    @patch(
+        "apps.merchant_application.views.location_views.GoogleMapsService.reverse_geocode"
+    )
+    def test_reverse_geocode_rejects_location_outside_service_area(
+        self,
+        mock_reverse_geocode,
+    ):
+        response = self.client.post(
+            self.reverse_geocode_url,
+            {
+                "latitude": 10.50,
+                "longitude": 124.00,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertFalse(response.data["success"])
+        self.assertEqual(
+            response.data["code"],
+            "OUTSIDE_SERVICE_AREA",
+        )
+        mock_reverse_geocode.assert_not_called()
 
     @patch(
         "apps.merchant_application.views.location_views.GoogleMapsService.reverse_geocode",
@@ -201,6 +262,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
 
         mock_search_places.assert_called_once_with(
             "Ayala Cebu",
+            self.business_location_restriction,
         )
 
     @patch(
@@ -236,6 +298,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
 
         mock_search_places.assert_called_once_with(
             "Ayala Cebu",
+            self.business_location_restriction,
         )
 
     @patch(
@@ -271,6 +334,7 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
 
         mock_search_places.assert_called_once_with(
             "Ayala Cebu",
+            self.business_location_restriction,
         )
 
     # Place Details
@@ -317,8 +381,45 @@ class GoogleMapsViewTests(APIResponseAssertionsMixin, APITestCase):
             {"location": location},
         )
 
+        self.assertTrue(
+            response.data["data"]["location"]["isWithinServiceArea"],
+        )
+
         mock_get_place_details.assert_called_once_with(
             "ChIJ123",
+        )
+
+    @patch(
+        "apps.merchant_application.views.location_views.GoogleMapsService.get_place_details"
+    )
+    def test_place_details_rejects_location_outside_service_area(
+        self,
+        mock_get_place_details,
+    ):
+        mock_get_place_details.return_value = {
+            "latitude": 10.50,
+            "longitude": 124.00,
+            "formattedAddress": "Outside Cebu City",
+            "province": "Cebu",
+            "city": "Mandaue City",
+            "barangay": "",
+            "streetAddress": "",
+        }
+
+        response = self.client.post(
+            self.place_details_url,
+            {"place_id": "ChIJOutside"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertFalse(response.data["success"])
+        self.assertEqual(
+            response.data["code"],
+            "OUTSIDE_SERVICE_AREA",
         )
 
     @patch(

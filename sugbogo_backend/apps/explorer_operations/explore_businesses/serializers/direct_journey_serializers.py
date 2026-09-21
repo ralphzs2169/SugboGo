@@ -61,10 +61,20 @@ class DirectJourneySerializer(serializers.Serializer):
     )
 
 
-class DirectJourneySearchResultSerializer(serializers.Serializer):
-    """Serialize journey options and the reason for an empty result."""
+class DirectJourneyRouteOptionSerializer(serializers.Serializer):
+    """Serialize one route code and its ranked ways to ride."""
 
-    journeys = DirectJourneySerializer(
+    jeepney_route_code = serializers.CharField()
+    recommended_journey = DirectJourneySerializer()
+    alternative_journeys = DirectJourneySerializer(
+        many=True,
+    )
+
+
+class DirectJourneySearchResultSerializer(serializers.Serializer):
+    """Serialize grouped route options and the reason for an empty result."""
+
+    route_options = DirectJourneyRouteOptionSerializer(
         many=True,
     )
     reason = serializers.ChoiceField(
@@ -75,3 +85,77 @@ class DirectJourneySearchResultSerializer(serializers.Serializer):
         ),
         allow_null=True,
     )
+
+
+class DirectJourneyMapQuerySerializer(serializers.Serializer):
+    """Validate the selected direct journey used for map guidance."""
+
+    route_variant_id = serializers.IntegerField(
+        min_value=1,
+    )
+    boarding_transit_point_id = serializers.IntegerField(
+        min_value=1,
+    )
+    alighting_transit_point_id = serializers.IntegerField(
+        min_value=1,
+    )
+
+
+class JourneyMapTransitPointSerializer(JourneyTransitPointSerializer):
+    """Serialize a mapped Transit Point and its authoritative sequence."""
+
+    sequence = serializers.IntegerField()
+
+
+class JourneyMapCoordinateSerializer(serializers.Serializer):
+    """Serialize one WGS 84 coordinate for a journey map."""
+
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()
+
+
+class JourneyMapVariantSerializer(serializers.Serializer):
+    """Serialize identifying context for the selected route variant."""
+
+    id = serializers.IntegerField()
+    origin = JourneyEndpointSerializer()
+    destination = JourneyEndpointSerializer()
+
+
+class JourneyMapRideSerializer(serializers.Serializer):
+    """Serialize full-route and selected-segment ride geometry."""
+
+    approximate_distance_meters = serializers.FloatField()
+    full_variant_geometry = JourneyMapCoordinateSerializer(
+        many=True,
+    )
+    selected_segment_geometry = JourneyMapCoordinateSerializer(
+        many=True,
+    )
+
+
+class JourneyMapBusinessLocationSerializer(serializers.Serializer):
+    """Serialize the authoritative business destination coordinate."""
+
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()
+
+
+class DirectJourneyMapSerializer(serializers.Serializer):
+    """Serialize map-ready context for one selected direct journey."""
+
+    jeepney_route_code = serializers.CharField()
+    route_variant = JourneyMapVariantSerializer()
+    boarding_transit_point = JourneyMapTransitPointSerializer()
+    alighting_transit_point = JourneyMapTransitPointSerializer()
+    ride = JourneyMapRideSerializer()
+    business_location = JourneyMapBusinessLocationSerializer()
+    landmark_context = JourneyLandmarkContextSerializer(
+        allow_null=True,
+    )
+
+
+class DirectJourneyMapResultSerializer(serializers.Serializer):
+    """Serialize the selected direct journey map result."""
+
+    journey = DirectJourneyMapSerializer()

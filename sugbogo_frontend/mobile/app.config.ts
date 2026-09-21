@@ -1,5 +1,7 @@
 import { ExpoConfig } from "expo/config";
 
+import withGrabPackageVisibility from "./plugins/withGrabPackageVisibility";
+
 export default (): ExpoConfig => ({
   name: "SugboGo",
   slug: "sugbogo",
@@ -35,6 +37,7 @@ export default (): ExpoConfig => ({
 
   plugins: [
     "expo-router",
+    withGrabPackageVisibility,
 
     [
       "expo-splash-screen",

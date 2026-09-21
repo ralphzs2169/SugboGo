@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 
 import SearchBar from "./SearchBar";
 import SearchResults from "./SearchResults";
-import usePlaceSearch from "../../../hooks/registration/usePlaceSearch";
+import usePlaceSearch from "@/shared/hooks/usePlaceSearch";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 
 type Props = {

@@ -85,14 +85,16 @@ class DirectJourneyServiceTests(TestCase):
         ordered_points,
         geometry=None,
         route_code=None,
+        route=None,
     ):
         """Create one directional variant and its authoritative memberships."""
 
-        self.route_counter += 1
-        code = route_code or f"T{self.route_counter:02d}"
-        route = JeepneyRoute.objects.create(
-            JRT_CODE=code,
-        )
+        if route is None:
+            self.route_counter += 1
+            code = route_code or f"T{self.route_counter:02d}"
+            route = JeepneyRoute.objects.create(
+                JRT_CODE=code,
+            )
 
         if geometry is None:
             geometry = [
@@ -161,6 +163,21 @@ class DirectJourneyServiceTests(TestCase):
             longitude=longitude,
         )
 
+    def _journeys(
+        self,
+        result,
+    ):
+        """Flatten grouped route options for candidate-level assertions."""
+
+        return [
+            journey
+            for route_option in result["route_options"]
+            for journey in [
+                route_option["recommended_journey"],
+                *route_option["alternative_journeys"],
+            ]
+        ]
+
     def test_points_inside_meter_radius_are_eligible_on_both_ends(self):
         """Include boarding and alighting infrastructure inside 500 meters."""
 
@@ -191,17 +208,17 @@ class DirectJourneyServiceTests(TestCase):
             500,
         )
         self.assertEqual(
-            len(result["journeys"]),
+            len(self._journeys(result)),
             1,
         )
         self.assertLess(
-            result["journeys"][0][
+            self._journeys(result)[0][
                 "explorer_to_boarding_distance_meters"
             ],
             500,
         )
         self.assertLess(
-            result["journeys"][0][
+            self._journeys(result)[0][
                 "alighting_to_business_distance_meters"
             ],
             500,
@@ -235,7 +252,7 @@ class DirectJourneyServiceTests(TestCase):
         self.assertEqual(
             result,
             {
-                "journeys": [],
+                "route_options": [],
                 "reason": "no_nearby_boarding_point",
             },
         )
@@ -272,7 +289,7 @@ class DirectJourneyServiceTests(TestCase):
         self.assertEqual(
             result,
             {
-                "journeys": [],
+                "route_options": [],
                 "reason": "no_nearby_alighting_point",
             },
         )
@@ -310,7 +327,7 @@ class DirectJourneyServiceTests(TestCase):
 
         boarding_ids = {
             journey["boarding_transit_point"]["id"]
-            for journey in result["journeys"]
+            for journey in self._journeys(result)
         }
         self.assertEqual(
             boarding_ids,
@@ -359,15 +376,15 @@ class DirectJourneyServiceTests(TestCase):
         )
 
         self.assertEqual(
-            forward["journeys"][0]["route_variant_id"],
+            self._journeys(forward)[0]["route_variant_id"],
             variant.JRV_ID,
         )
         self.assertEqual(
-            forward["journeys"][0]["boarding_sequence"],
+            self._journeys(forward)[0]["boarding_sequence"],
             2,
         )
         self.assertEqual(
-            forward["journeys"][0]["alighting_sequence"],
+            self._journeys(forward)[0]["alighting_sequence"],
             4,
         )
 
@@ -381,7 +398,7 @@ class DirectJourneyServiceTests(TestCase):
         )
 
         self.assertEqual(
-            reverse["journeys"],
+            reverse["route_options"],
             [],
         )
         self.assertEqual(
@@ -424,7 +441,7 @@ class DirectJourneyServiceTests(TestCase):
         )
 
         self.assertEqual(
-            result["journeys"][0]["route_variant_id"],
+            self._journeys(result)[0]["route_variant_id"],
             reverse_variant.JRV_ID,
         )
 
@@ -458,7 +475,7 @@ class DirectJourneyServiceTests(TestCase):
         )
 
         self.assertEqual(
-            result["journeys"],
+            result["route_options"],
             [],
         )
         self.assertEqual(
@@ -510,7 +527,7 @@ class DirectJourneyServiceTests(TestCase):
         self.assertEqual(
             result,
             {
-                "journeys": [],
+                "route_options": [],
                 "reason": "no_direct_route_match",
             },
         )
@@ -552,7 +569,7 @@ class DirectJourneyServiceTests(TestCase):
             longitude=boarding.TRPT_POINT.x,
             latitude=boarding.TRPT_POINT.y,
         )
-        ride_distance = result["journeys"][0][
+        ride_distance = self._journeys(result)[0][
             "approximate_ride_distance_meters"
         ]
 
@@ -611,7 +628,7 @@ class DirectJourneyServiceTests(TestCase):
             longitude=123.8805,
             latitude=10.3000,
         )
-        journey = result["journeys"][0]
+        journey = self._journeys(result)[0]
         expected_total = (
             journey["explorer_to_boarding_distance_meters"]
             + journey["alighting_to_business_distance_meters"]
@@ -678,7 +695,7 @@ class DirectJourneyServiceTests(TestCase):
         )
 
         self.assertEqual(
-            result["journeys"][0]["route_variant_id"],
+            self._journeys(result)[0]["route_variant_id"],
             close_access_variant.JRV_ID,
         )
 
@@ -726,7 +743,7 @@ class DirectJourneyServiceTests(TestCase):
         )
         ranked_variant_ids = [
             journey["route_variant_id"]
-            for journey in tie_result["journeys"]
+            for journey in self._journeys(tie_result)
         ]
 
         self.assertEqual(
@@ -738,7 +755,7 @@ class DirectJourneyServiceTests(TestCase):
         )
 
     def test_results_are_limited_and_equivalent_combinations_are_unique(self):
-        """Bound results and return each variant-point combination only once."""
+        """Limit route-code groups and keep combinations unique."""
 
         boarding = self._create_point(
             "Shared Boarding",
@@ -769,7 +786,7 @@ class DirectJourneyServiceTests(TestCase):
                 journey["boarding_transit_point"]["id"],
                 journey["alighting_transit_point"]["id"],
             )
-            for journey in result["journeys"]
+            for journey in self._journeys(result)
         ]
 
         self.assertEqual(
@@ -779,6 +796,210 @@ class DirectJourneyServiceTests(TestCase):
         self.assertEqual(
             len(combinations),
             len(set(combinations)),
+        )
+
+    def test_ranked_candidates_are_grouped_by_route_code(self):
+        """Keep one ranked route option with all valid stop alternatives."""
+
+        first_boarding = self._create_point(
+            "First Boarding",
+            123.8800,
+            10.3000,
+        )
+        second_boarding = self._create_point(
+            "Second Boarding",
+            123.8820,
+            10.3000,
+        )
+        first_alighting = self._create_point(
+            "First Alighting",
+            123.8960,
+            10.3000,
+        )
+        second_alighting = self._create_point(
+            "Second Alighting",
+            123.8980,
+            10.3000,
+        )
+        self._create_variant(
+            [
+                first_boarding,
+                second_boarding,
+                first_alighting,
+                second_alighting,
+            ],
+            route_code="14D",
+        )
+        self._set_destination(
+            longitude=123.8970,
+            latitude=10.3000,
+        )
+
+        result = self._search(
+            longitude=123.8810,
+            latitude=10.3000,
+        )
+        route_option = result["route_options"][0]
+        flattened_journeys = self._journeys(
+            result,
+        )
+
+        self.assertEqual(
+            len(result["route_options"]),
+            1,
+        )
+        self.assertEqual(
+            route_option["jeepney_route_code"],
+            "14D",
+        )
+        self.assertEqual(
+            route_option["recommended_journey"],
+            flattened_journeys[0],
+        )
+        self.assertEqual(
+            route_option["alternative_journeys"],
+            flattened_journeys[1:],
+        )
+        self.assertGreater(
+            len(route_option["alternative_journeys"]),
+            0,
+        )
+
+    def test_variants_sharing_route_code_remain_in_one_group(self):
+        """Preserve candidates from separate variants under their route code."""
+
+        route = JeepneyRoute.objects.create(
+            JRT_CODE="14D",
+        )
+        first_boarding = self._create_point(
+            "First Boarding",
+            123.8800,
+            10.3000,
+        )
+        first_alighting = self._create_point(
+            "First Alighting",
+            123.8980,
+            10.3000,
+        )
+        second_boarding = self._create_point(
+            "Second Boarding",
+            123.8802,
+            10.3002,
+        )
+        second_alighting = self._create_point(
+            "Second Alighting",
+            123.8978,
+            10.3002,
+        )
+        first_variant = self._create_variant(
+            [
+                first_boarding,
+                first_alighting,
+            ],
+            route=route,
+        )
+        second_variant = self._create_variant(
+            [
+                second_boarding,
+                second_alighting,
+            ],
+            route=route,
+        )
+
+        result = self._search(
+            longitude=123.8800,
+            latitude=10.3000,
+        )
+        route_option = result["route_options"][0]
+        grouped_variant_ids = {
+            journey["route_variant_id"]
+            for journey in self._journeys(result)
+        }
+
+        self.assertEqual(
+            len(result["route_options"]),
+            1,
+        )
+        self.assertEqual(
+            route_option["jeepney_route_code"],
+            "14D",
+        )
+        self.assertEqual(
+            grouped_variant_ids,
+            {
+                first_variant.JRV_ID,
+                second_variant.JRV_ID,
+            },
+        )
+
+    def test_result_limit_applies_after_route_code_grouping(self):
+        """Prevent one route's stop alternatives from consuming group slots."""
+
+        first_boarding = self._create_point(
+            "14D First Boarding",
+            123.8800,
+            10.3000,
+        )
+        second_boarding = self._create_point(
+            "14D Second Boarding",
+            123.8810,
+            10.3000,
+        )
+        first_alighting = self._create_point(
+            "14D First Alighting",
+            123.8970,
+            10.3000,
+        )
+        second_alighting = self._create_point(
+            "14D Second Alighting",
+            123.8980,
+            10.3000,
+        )
+        self._create_variant(
+            [
+                first_boarding,
+                second_boarding,
+                first_alighting,
+                second_alighting,
+            ],
+            route_code="14D",
+        )
+
+        for index in range(DIRECT_ROUTE_RESULT_LIMIT):
+            boarding = self._create_point(
+                f"Other Boarding {index}",
+                123.8800,
+                10.3030,
+            )
+            alighting = self._create_point(
+                f"Other Alighting {index}",
+                123.8980,
+                10.3030,
+            )
+            self._create_variant(
+                [
+                    boarding,
+                    alighting,
+                ],
+                route_code=f"R{index:02d}",
+            )
+
+        result = self._search(
+            longitude=first_boarding.TRPT_POINT.x,
+            latitude=first_boarding.TRPT_POINT.y,
+        )
+
+        self.assertEqual(
+            len(result["route_options"]),
+            DIRECT_ROUTE_RESULT_LIMIT,
+        )
+        self.assertEqual(
+            result["route_options"][0]["jeepney_route_code"],
+            "14D",
+        )
+        self.assertGreater(
+            len(result["route_options"][0]["alternative_journeys"]),
+            0,
         )
 
     def test_missing_business_raises_controlled_not_found(self):

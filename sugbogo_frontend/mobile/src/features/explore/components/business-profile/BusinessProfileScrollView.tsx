@@ -1,4 +1,4 @@
-import { ReactNode, useRef } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { Animated, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -32,9 +32,9 @@ export default function BusinessProfileScrollView({
 }: Props) {
   const { bottom } = useSafeAreaInsets();
 
-  const navOpacity = useRef(new Animated.Value(0)).current;
-  const identityOpacity = useRef(new Animated.Value(0)).current;
-  const stickyHeaderTranslateY = useRef(new Animated.Value(-20)).current;
+  const [navOpacity] = useState(() => new Animated.Value(0));
+  const [identityOpacity] = useState(() => new Animated.Value(0));
+  const [stickyHeaderTranslateY] = useState(() => new Animated.Value(-20));
 
   const wasPastNavThreshold = useRef(false);
   const wasPastIdentityThreshold = useRef(false);
@@ -105,7 +105,7 @@ export default function BusinessProfileScrollView({
 
       <Animated.ScrollView
         contentContainerStyle={{
-          paddingBottom: 100,
+          paddingBottom: isOwnBusiness ? 100 : bottom,
         }}
         onScroll={handleScroll}
         scrollEventThrottle={16}

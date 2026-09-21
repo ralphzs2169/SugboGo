@@ -6,65 +6,98 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Skeleton from "@/shared/components/Skeleton";
 
+import BusinessReviewCardSkeleton from "./BusinessReviewCardSkeleton";
+
 /**
  * Mirrors the business profile structure while dynamic business data loads.
  *
- * This is the loading-state content only — no SafeAreaView, ScrollView, or
- * FixedFooter of its own. It's rendered as `children` inside the same
- * `BusinessProfileScrollView` that later hosts the real content, so the
- * loading -> loaded transition never unmounts/remounts the scroll
- * container (which previously reset scroll position and sticky-header
- * animation state).
+ * Keeps the loading content inside the profile scroll shell and matches the
+ * current hero overlap, quick-info card, specialty tiles, and review layout
+ * to minimize visual shifting when real business data becomes available.
  */
 export default function BusinessProfileSkeletonContent() {
   return (
     <>
-      {/* Hero */}
-      <View className="relative h-72 w-full bg-surface-secondary">
-        <Skeleton className="h-full w-full rounded-none" />
+      {/* Business hero and overlapping quick info */}
+      <View className="bg-surface">
+        {/* Hero */}
+        <View className="relative h-80 w-full bg-surface-secondary">
+          <Skeleton className="h-full w-full rounded-none" />
 
-        {/* Back button */}
-        <View className="absolute left-4 top-4">
-          <Pressable
-            onPress={() => router.back()}
-            className="h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
-            android_ripple={{ color: "rgba(0,0,0,0.08)" }}
+          {/* Navigation controls */}
+          <View className="absolute left-4 right-4 top-4 flex-row items-center justify-between">
+            <Pressable
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              className="h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
+              android_ripple={{
+                color: "rgba(0,0,0,0.08)",
+              }}
+            >
+              <MaterialCommunityIcons
+                name="chevron-left"
+                size={26}
+                color={theme.extends.colors.text.primary}
+              />
+            </Pressable>
+
+            <Skeleton className="h-10 w-10 rounded-full bg-white/95" />
+          </View>
+
+          {/* Business identity */}
+          <View className="absolute bottom-12 left-5 right-5">
+            <Skeleton className="h-7 w-3/4 rounded-md" />
+            <Skeleton className="mt-2 h-4 w-2/3 rounded-md" />
+          </View>
+        </View>
+
+        {/* Overlapping quick info */}
+        <View className="relative z-10 -mt-8 px-4">
+          <View
+            className="flex-row items-stretch overflow-hidden rounded-xl border border-border-primary bg-surface"
+            style={{
+              shadowColor: "#000000",
+              shadowOffset: {
+                width: 0,
+                height: 4,
+              },
+              shadowOpacity: 0.08,
+              shadowRadius: 4,
+            }}
           >
-            <MaterialCommunityIcons
-              name="chevron-left"
-              size={26}
-              color={theme.extends.colors.text.primary}
-            />
-          </Pressable>
-        </View>
+            {/* Review summary */}
+            <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+              <Skeleton className="h-[18px] w-[18px] rounded-full" />
+              <Skeleton className="mt-1 h-3.5 w-7 rounded-md" />
+              <Skeleton className="mt-1 h-3 w-12 rounded-md" />
+            </View>
 
-        {/* Business identity */}
-        <View className="absolute bottom-5 left-4 right-4">
-          <Skeleton className="h-7 w-3/4 rounded-md" />
-          <Skeleton className="mt-2 h-4 w-2/3 rounded-md" />
-        </View>
-      </View>
+            {/* Review/status divider */}
+            <View className="my-3 w-px bg-border-primary" />
 
-      {/* Quick info */}
-      <View className="flex-row border-b border-border-primary bg-surface">
-        <View className="flex-1 items-center justify-center py-4">
-          <Skeleton className="h-5 w-5 rounded-full" />
-          <Skeleton className="mt-2 h-3 w-16" />
-        </View>
+            {/* Operating status */}
+            <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+              <Skeleton className="h-[18px] w-[18px] rounded-full" />
+              <Skeleton className="mt-1 h-3.5 w-14 rounded-md" />
+              <Skeleton className="mt-1 h-3 w-20 rounded-md" />
+            </View>
 
-        <View className="flex-1 items-center justify-center border-x border-border-primary py-4">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="mt-2 h-3 w-24" />
-        </View>
+            {/* Status/distance divider */}
+            <View className="my-3 w-px bg-border-primary" />
 
-        <View className="flex-1 items-center justify-center py-4">
-          <Skeleton className="h-4 w-14" />
-          <Skeleton className="mt-2 h-3 w-10" />
+            {/* Distance summary */}
+            <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+              <Skeleton className="h-[18px] w-[18px] rounded-full" />
+              <Skeleton className="mt-1 h-3.5 w-12 rounded-md" />
+              <Skeleton className="mt-1 h-3 w-8 rounded-md" />
+            </View>
+          </View>
         </View>
       </View>
 
       {/* Specialties */}
-      <View className="mt-2 bg-surface px-4 py-5">
+      <View className=" bg-surface px-4 py-5">
         <AppText weight="bold" className="text-base text-text-primary">
           Specialties
         </AppText>
@@ -73,10 +106,39 @@ export default function BusinessProfileSkeletonContent() {
           Vouch for what this place gets right
         </AppText>
 
-        <View className="mt-3 flex-row flex-wrap gap-2">
-          <Skeleton className="h-16 flex-1 rounded-xl" />
-          <Skeleton className="h-16 flex-1 rounded-xl" />
-          <Skeleton className="h-16 flex-1 rounded-xl" />
+        <View className="mt-3 flex-row gap-2">
+          {/* Specialty placeholder */}
+          <View className="min-h-24 flex-1 items-center justify-center rounded-xl border border-border-primary px-3 py-2.5">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="mt-1.5 h-3 w-14 rounded-md" />
+
+            <View className="mt-2 flex-row items-center">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <Skeleton className="ml-1 h-3 w-4 rounded-md" />
+            </View>
+          </View>
+
+          {/* Specialty placeholder */}
+          <View className="min-h-24 flex-1 items-center justify-center rounded-xl border border-border-primary px-3 py-2.5">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="mt-1.5 h-3 w-16 rounded-md" />
+
+            <View className="mt-2 flex-row items-center">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <Skeleton className="ml-1 h-3 w-4 rounded-md" />
+            </View>
+          </View>
+
+          {/* Specialty placeholder */}
+          <View className="min-h-24 flex-1 items-center justify-center rounded-xl border border-border-primary px-3 py-2.5">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="mt-1.5 h-3 w-12 rounded-md" />
+
+            <View className="mt-2 flex-row items-center">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <Skeleton className="ml-1 h-3 w-4 rounded-md" />
+            </View>
+          </View>
         </View>
       </View>
 
@@ -89,9 +151,9 @@ export default function BusinessProfileSkeletonContent() {
         </View>
 
         <View className="gap-2">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-4/5" />
+          <Skeleton className="h-4 w-full rounded-md" />
+          <Skeleton className="h-4 w-full rounded-md" />
+          <Skeleton className="h-4 w-4/5 rounded-md" />
         </View>
       </View>
 
@@ -108,38 +170,38 @@ export default function BusinessProfileSkeletonContent() {
           <Skeleton className="h-5 w-5 rounded-full" />
 
           <View className="ml-3 flex-1 gap-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/5" />
+            <Skeleton className="h-4 w-full rounded-md" />
+            <Skeleton className="h-4 w-3/5 rounded-md" />
           </View>
         </View>
 
-        {/* Directions */}
+        {/* Getting there options */}
         <Skeleton className="mt-4 h-11 w-full rounded-md" />
 
         {/* Hours */}
         <View className="mt-4 border-t border-border-primary/60 pt-4">
           <View className="flex-row items-center">
             <Skeleton className="h-5 w-5 rounded-full" />
-            <Skeleton className="ml-3 h-4 w-20" />
-            <Skeleton className="ml-auto h-3 w-20" />
+            <Skeleton className="ml-3 h-4 w-20 rounded-md" />
+            <Skeleton className="ml-auto h-3 w-20 rounded-md" />
           </View>
         </View>
 
-        {/* Contact */}
+        {/* Contact information */}
         <View className="mt-4 border-t border-border-primary/60">
           <View className="flex-row items-center py-4">
             <Skeleton className="h-5 w-5 rounded-full" />
-            <Skeleton className="ml-3 h-4 flex-1" />
+            <Skeleton className="ml-3 h-4 flex-1 rounded-md" />
           </View>
 
           <View className="flex-row items-center border-t border-border-primary/60 py-4">
             <Skeleton className="h-5 w-5 rounded-full" />
-            <Skeleton className="ml-3 h-4 w-4/5" />
+            <Skeleton className="ml-3 h-4 w-4/5 rounded-md" />
           </View>
 
           <View className="flex-row items-center border-t border-border-primary/60 py-4">
             <Skeleton className="h-5 w-5 rounded-full" />
-            <Skeleton className="ml-3 h-4 w-3/4" />
+            <Skeleton className="ml-3 h-4 w-3/4 rounded-md" />
           </View>
         </View>
       </View>
@@ -148,7 +210,7 @@ export default function BusinessProfileSkeletonContent() {
       <View className="mt-2 bg-surface px-4 py-5">
         <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
           <AppText weight="bold" className="mb-3 text-base text-text-primary">
-            See What's Here
+            See What&apos;s Here
           </AppText>
         </View>
 
@@ -161,67 +223,16 @@ export default function BusinessProfileSkeletonContent() {
 
       {/* Reviews */}
       <View className="mt-2 bg-surface">
-        <View className="mb-4 flex-row items-center justify-between px-4 pt-5">
+        <View className="flex-row items-center justify-between px-4 pb-4 pt-5">
           <AppText weight="bold" className="text-base text-text-primary">
             Reviews
           </AppText>
 
-          <AppText weight="semibold" className="text-sm text-brand">
-            See all
-          </AppText>
+          <Skeleton className="h-4 w-16 rounded-md" />
         </View>
 
-        {/* Review card */}
-        <View className="border-b border-border-primary px-4 py-4">
-          {/* Review author */}
-          <View className="flex-row items-center">
-            <Skeleton className="h-[38px] w-[38px] rounded-full" />
-
-            <View className="ml-3 flex-1">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="mt-1.5 h-3 w-16" />
-            </View>
-
-            <Skeleton className="h-5 w-5 rounded-full" />
-          </View>
-
-          {/* Review content */}
-          <View className="mt-3 gap-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-[92%]" />
-            <Skeleton className="h-4 w-[68%]" />
-          </View>
-
-          {/* Review photos */}
-          <View className="mt-3 flex-row gap-2">
-            <Skeleton className="aspect-square flex-1 rounded-lg" />
-            <Skeleton className="aspect-square flex-1 rounded-lg" />
-            <Skeleton className="aspect-square flex-1 rounded-lg" />
-          </View>
-
-          {/* Specialty vouches */}
-          <View className="mt-4">
-            <View className="mb-2 flex-row items-center">
-              <Skeleton className="h-4 w-4 rounded-full" />
-              <Skeleton className="ml-1.5 h-3 w-20" />
-            </View>
-
-            <View className="flex-row flex-wrap gap-2">
-              <Skeleton className="h-7 w-24 rounded-full" />
-              <Skeleton className="h-7 w-28 rounded-full" />
-            </View>
-          </View>
-
-          {/* Like action */}
-          <View className="mt-3 flex-row items-center">
-            <Skeleton className="h-[21px] w-[21px] rounded-full" />
-            <Skeleton className="ml-1.5 h-3 w-5" />
-          </View>
-        </View>
+        <BusinessReviewCardSkeleton />
       </View>
-
-      {/* Bottom spacing */}
-      <View className="h-8" />
     </>
   );
 }

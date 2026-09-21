@@ -1,9 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Animated, LayoutAnimation, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import TransportAction from "@/features/explore/components/business-profile/TransportAction";
+import JeepneyOptionIcon from "../../assets/getting-there-icons/jeep-route-option.svg";
+import BookRideOptionIcon from "../../assets/getting-there-icons/book-ride-option.svg";
+import MapRouteOptionIcon from "../../assets/getting-there-icons/route-map-option.svg";
 
 import type {
   ExploreBusinessLocation,
@@ -13,6 +17,7 @@ import {
   formatTime,
   getBusinessHoursSummary,
 } from "../../utils/businessHours.utils";
+import { getBusinessAddressDisplay } from "../../utils/businessLocation.utils";
 
 type Props = {
   location: ExploreBusinessLocation;
@@ -20,16 +25,17 @@ type Props = {
   contactNumber: string;
   email: string | null;
   website: string | null;
-  onGetDirections: () => void;
+  onViewRoute: () => void;
+  onJeepneyGuide: () => void;
+  onRide: () => void;
   isOwnBusiness: boolean;
 };
-
 /**
- * Displays the practical information an Explorer needs before visiting
- * a business, including its location, operating hours, and contact details.
+ * Displays practical visit information, transportation shortcuts, business
+ * hours, and contact details for an Explorer viewing a business.
  *
- * The weekly schedule can be expanded inline while contact details remain
- * compact and easy to scan.
+ * Transportation actions use branded visual options while the weekly
+ * operating schedule can be expanded inline.
  */
 export default function BusinessVisitInfoContent({
   location,
@@ -37,18 +43,18 @@ export default function BusinessVisitInfoContent({
   contactNumber,
   email,
   website,
-  onGetDirections,
+  onViewRoute,
+  onJeepneyGuide,
+  onRide,
   isOwnBusiness,
 }: Props) {
   const summary = getBusinessHoursSummary(operatingHours);
 
   const [isExpanded, setIsExpanded] = useState(false);
-  const rotation = useRef(new Animated.Value(0)).current;
+  const [rotation] = useState(() => new Animated.Value(0));
 
-  const address = location.address?.trim();
-  const cityLine = [location.city, location.province]
-    .filter(Boolean)
-    .join(", ");
+  const { addressLine: address, cityLine } =
+    getBusinessAddressDisplay(location);
 
   const currentDay = new Date()
     .toLocaleDateString("en-US", {
@@ -77,34 +83,70 @@ export default function BusinessVisitInfoContent({
 
   return (
     <View>
-      {/* Location */}
-      <View className="flex-row">
-        <MaterialCommunityIcons
-          name="map-marker-outline"
-          size={19}
-          color={theme.extends.colors.text.secondary}
-        />
+      {/* Location and transportation */}
+      <View>
+        <View className="flex-row">
+          <MaterialCommunityIcons
+            name="map-marker-outline"
+            size={19}
+            color={theme.extends.colors.text.secondary}
+          />
 
-        <View className="ml-3 flex-1">
-          {address && (
-            <AppText
-              weight="medium"
-              className="text-sm leading-5 text-text-primary"
-              numberOfLines={2}
-            >
-              {address}
-            </AppText>
-          )}
+          <View className="ml-3 flex-1">
+            {address && (
+              <AppText
+                weight="medium"
+                className="text-sm leading-5 text-text-primary"
+                numberOfLines={2}
+              >
+                {address}
+              </AppText>
+            )}
 
-          {cityLine && (
-            <AppText className="text-sm leading-5 text-text-secondary">
-              {cityLine}
-            </AppText>
-          )}
+            {cityLine && (
+              <AppText className="text-sm leading-5 text-text-secondary">
+                {cityLine}
+              </AppText>
+            )}
+          </View>
         </View>
+
+        {!isOwnBusiness && (
+          <View className="mt-4">
+            <AppText
+              weight="semibold"
+              className="mb-2 text-xs text-text-secondary"
+            >
+              Ways to get there
+            </AppText>
+
+            <View className="flex-row gap-2 bg-background rounded-lg">
+              <TransportAction
+                SvgIcon={MapRouteOptionIcon}
+                label="Road Route"
+                accessibilityLabel="View road route"
+                onPress={onViewRoute}
+              />
+
+              <TransportAction
+                SvgIcon={JeepneyOptionIcon}
+                label="Jeepney"
+                accessibilityLabel="Open jeepney guide"
+                onPress={onJeepneyGuide}
+              />
+
+              <TransportAction
+                SvgIcon={BookRideOptionIcon}
+                label="Book a ride"
+                accessibilityLabel="Choose a ride provider"
+                onPress={onRide}
+              />
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* Hours */}
+      {/* Operating hours */}
       <View className="mt-4 border-t border-border-primary/60 pt-4">
         <View className="flex-row items-center">
           <MaterialCommunityIcons
@@ -140,6 +182,12 @@ export default function BusinessVisitInfoContent({
 
           <Pressable
             onPress={toggleHours}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isExpanded
+                ? "Hide full business hours"
+                : "Show full business hours"
+            }
             className="ml-3 cursor-pointer flex-row items-center active:opacity-70"
           >
             <AppText weight="semibold" className="text-xs text-brand">
@@ -148,7 +196,11 @@ export default function BusinessVisitInfoContent({
 
             <Animated.View
               style={{
-                transform: [{ rotate: chevronRotation }],
+                transform: [
+                  {
+                    rotate: chevronRotation,
+                  },
+                ],
               }}
             >
               <MaterialCommunityIcons
@@ -166,6 +218,7 @@ export default function BusinessVisitInfoContent({
             <View className="gap-3">
               {operatingHours.map((hours) => {
                 const dayKey = hours.day.toLowerCase();
+
                 const dayLabel =
                   dayKey.charAt(0).toUpperCase() + dayKey.slice(1);
 
@@ -182,6 +235,7 @@ export default function BusinessVisitInfoContent({
                     scheduleLabel = `${formatTime(
                       hours.open_time,
                     )} – ${formatTime(hours.close_time)}`;
+
                     scheduleClass = "text-text-primary";
                   }
                 }
@@ -229,7 +283,7 @@ export default function BusinessVisitInfoContent({
         )}
       </View>
 
-      {/* Contact */}
+      {/* Contact details */}
       <View className="mt-4 border-t border-border-primary/60">
         {/* Phone */}
         <View className="min-h-14 flex-row items-center border-b border-border-primary/60">

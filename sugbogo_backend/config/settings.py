@@ -80,6 +80,24 @@ GEMINI_KEYWORD_MODEL = os.getenv(
 GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
 
 
+# Product-defined Metro Cebu urban-core scope for Explorer origin autocomplete.
+# It covers Cebu City, Mandaue, Lapu-Lapu/Mactan, and the adjacent urban
+# corridor. It is not a Cebu Island, Cebu Province, or administrative boundary.
+# This rectangle controls search relevance only. It must not be reused as an
+# origin-validity boundary or as evidence that a direct Jeepney route exists.
+JOURNEY_ORIGIN_SEARCH_AREA = {
+    "name": "Metro Cebu MVP urban core",
+    "southwest": {
+        "latitude": 10.20,
+        "longitude": 123.75,
+    },
+    "northeast": {
+        "latitude": 10.50,
+        "longitude": 124.05,
+    },
+}
+
+
 # Application URLs
 BACKEND_URL = os.getenv(
     "BACKEND_URL",

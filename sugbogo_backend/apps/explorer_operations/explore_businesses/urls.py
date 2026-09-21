@@ -11,6 +11,7 @@ from apps.explorer_operations.explore_businesses.views.cluster_discovery_shortcu
     ClusterDiscoveryShortcutView,
 )
 from apps.explorer_operations.explore_businesses.views.direct_journey_views import (
+    DirectJourneyMapView,
     DirectJourneySearchView,
 )
 from apps.explorer_operations.explore_businesses.views.discovery_feed_views import (
@@ -28,11 +29,19 @@ from apps.explorer_operations.explore_businesses.views.explore_specialty_tag_vie
 from apps.explorer_operations.explore_businesses.views.filter_options_views import (
     ExploreFilterOptionsView,
 )
+from apps.explorer_operations.explore_businesses.views.journey_origin_views import (
+    JourneyOriginPlaceDetailsView,
+    JourneyOriginPlaceSearchView,
+    JourneyOriginReverseGeocodeView,
+)
 from apps.explorer_operations.explore_businesses.views.new_businesses_views import (
     NewBusinessesView,
 )
 from apps.explorer_operations.explore_businesses.views.recommendation_views import (
     RecommendationView,
+)
+from apps.explorer_operations.explore_businesses.views.road_route_views import (
+    RoadRouteView,
 )
 from apps.explorer_operations.explore_businesses.views.similar_business_views import (
     SimilarBusinessView,
@@ -45,11 +54,37 @@ from django.urls import path
 
 urlpatterns = [
 
+    path(
+        "journey-origins/places/search/",
+        JourneyOriginPlaceSearchView.as_view(),
+        name="journey-origin-place-search",
+    ),
+    path(
+        "journey-origins/places/details/",
+        JourneyOriginPlaceDetailsView.as_view(),
+        name="journey-origin-place-details",
+    ),
+    path(
+        "journey-origins/reverse-geocode/",
+        JourneyOriginReverseGeocodeView.as_view(),
+        name="journey-origin-reverse-geocode",
+    ),
+
     path("businesses/<int:business_id>/", BusinessDetailView.as_view(), name="business-detail", ),
+    path(
+        "businesses/<int:business_id>/direct-journeys/map/",
+        DirectJourneyMapView.as_view(),
+        name="business-direct-journey-map",
+    ),
     path(
         "businesses/<int:business_id>/direct-journeys/",
         DirectJourneySearchView.as_view(),
         name="business-direct-journeys",
+    ),
+    path(
+        "businesses/<int:business_id>/road-route/",
+        RoadRouteView.as_view(),
+        name="business-road-route",
     ),
     path("businesses/<int:business_id>/similar/",SimilarBusinessView.as_view(),name="similar-businesses",),
     path("collections/<str:collection_type>/",ExploreCollectionView.as_view(),name="explore-collection",),

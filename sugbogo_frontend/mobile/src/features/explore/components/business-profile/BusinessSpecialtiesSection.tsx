@@ -91,6 +91,7 @@ export default function BusinessSpecialtiesSection({
             key={tag.id}
             name={tag.name}
             color={tag.color}
+            icon={tag.icon}
             vouchCount={tag.vouch_count}
             isVouched={tag.is_vouched}
             disabled={isOwnBusiness}

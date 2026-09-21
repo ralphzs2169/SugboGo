@@ -33,6 +33,15 @@ export const theme = {
         info: "#2563EB",
       },
 
+      border: {
+        primary: "#E5E7EB",
+        secondary: "#AEB4BC",
+        disabled: "#E5E7EB",
+        error: "#ef4444",
+        success: "#16A34A",
+        info: "#DBEAFE",
+      },
+
       info: "#EFF6FF",
       success: "#22C55E",
       error: "#DC2626",

@@ -208,6 +208,30 @@ class DirectJourneyService:
                         SELECT COUNT(*)
                         FROM alighting_candidates
                     ) AS alighting_candidate_count
+            ),
+            ordered_journeys AS (
+                SELECT
+                    valid_journeys.*,
+                    ROW_NUMBER() OVER (
+                        ORDER BY
+                            total_access_egress_distance_meters,
+                            ride_distance_meters,
+                            route_variant_id,
+                            boarding_sequence,
+                            alighting_sequence,
+                            boarding_point_id,
+                            alighting_point_id
+                    ) AS journey_rank
+                FROM valid_journeys
+            ),
+            limited_route_codes AS (
+                SELECT
+                    jeepney_route_code,
+                    MIN(journey_rank) AS route_group_rank
+                FROM ordered_journeys
+                GROUP BY jeepney_route_code
+                ORDER BY route_group_rank
+                LIMIT %s
             )
             SELECT
                 candidate_counts.boarding_candidate_count,
@@ -215,26 +239,14 @@ class DirectJourneyService:
                 ranked_journeys.*
             FROM candidate_counts
             LEFT JOIN LATERAL (
-                SELECT *
-                FROM valid_journeys
-                ORDER BY
-                    total_access_egress_distance_meters,
-                    ride_distance_meters,
-                    route_variant_id,
-                    boarding_sequence,
-                    alighting_sequence,
-                    boarding_point_id,
-                    alighting_point_id
-                LIMIT %s
+                SELECT ordered_journeys.*
+                FROM ordered_journeys
+                INNER JOIN limited_route_codes
+                    ON limited_route_codes.jeepney_route_code
+                        = ordered_journeys.jeepney_route_code
+                ORDER BY ordered_journeys.journey_rank
             ) AS ranked_journeys ON TRUE
-            ORDER BY
-                ranked_journeys.total_access_egress_distance_meters,
-                ranked_journeys.ride_distance_meters,
-                ranked_journeys.route_variant_id,
-                ranked_journeys.boarding_sequence,
-                ranked_journeys.alighting_sequence,
-                ranked_journeys.boarding_point_id,
-                ranked_journeys.alighting_point_id
+            ORDER BY ranked_journeys.journey_rank
         """
 
         parameters = [
@@ -422,12 +434,41 @@ class DirectJourneyService:
             )
 
     @staticmethod
+    def _group_ranked_journeys(
+        journeys,
+    ):
+        """Group ranked candidates by route code without changing their order."""
+
+        groups_by_route_code = {}
+
+        for journey in journeys:
+            route_code = journey["jeepney_route_code"]
+
+            if route_code not in groups_by_route_code:
+                groups_by_route_code[route_code] = {
+                    "jeepney_route_code": route_code,
+                    "recommended_journey": journey,
+                    "alternative_journeys": [],
+                }
+                continue
+
+            groups_by_route_code[route_code][
+                "alternative_journeys"
+            ].append(
+                journey,
+            )
+
+        return list(
+            groups_by_route_code.values(),
+        )[:DIRECT_ROUTE_RESULT_LIMIT]
+
+    @staticmethod
     def search_direct_journeys(
         business_id,
         latitude,
         longitude,
     ):
-        """Return ranked direct journeys or a successful no-route reason."""
+        """Return grouped ranked route options or a successful empty reason."""
 
         explorer_point = Point(
             float(longitude),
@@ -445,7 +486,7 @@ class DirectJourneyService:
             destination_point,
         )
         metadata = rows[0]
-        journeys = [
+        ranked_journeys = [
             DirectJourneyService._serialize_journey(
                 row,
             )
@@ -453,12 +494,24 @@ class DirectJourneyService:
             if row["route_variant_id"] is not None
         ]
 
+        route_options = DirectJourneyService._group_ranked_journeys(
+            ranked_journeys,
+        )
+        visible_journeys = [
+            journey
+            for route_option in route_options
+            for journey in [
+                route_option["recommended_journey"],
+                *route_option["alternative_journeys"],
+            ]
+        ]
+
         DirectJourneyService._enrich_landmark_contexts(
-            journeys,
+            visible_journeys,
             destination_location_id,
         )
 
-        if journeys:
+        if route_options:
             reason = None
         elif metadata["boarding_candidate_count"] == 0:
             reason = DirectJourneyService.NO_NEARBY_BOARDING_POINT
@@ -468,6 +521,6 @@ class DirectJourneyService:
             reason = DirectJourneyService.NO_DIRECT_ROUTE_MATCH
 
         return {
-            "journeys": journeys,
+            "route_options": route_options,
             "reason": reason,
         }

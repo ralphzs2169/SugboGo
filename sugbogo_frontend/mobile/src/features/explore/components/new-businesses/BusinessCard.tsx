@@ -14,6 +14,7 @@ import type {
   RecommendationReason,
 } from "../../types/exploreBusiness.types";
 import { arrangeSpecialtyTags } from "../../utils/arrangeSpecialtyTags.utils";
+import { shadows } from "@/shared/styles/shadows";
 
 type Props = {
   business: ExploreBusiness;
@@ -109,6 +110,7 @@ export default function BusinessCard({
     return (
       <SafePressable
         onPress={onPress}
+        style={shadows.subtle}
         accessibilityRole="button"
         accessibilityLabel={
           recommendationReason
@@ -265,9 +267,12 @@ export default function BusinessCard({
   return (
     <SafePressable
       onPress={onPress}
-      style={{
-        width: cardWidth,
-      }}
+      style={[
+        {
+          width: cardWidth,
+        },
+        shadows.subtle,
+      ]}
       accessibilityRole="button"
       accessibilityLabel={`Open ${business.business_name} business profile`}
       className="mb-2 mr-3 cursor-pointer rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"

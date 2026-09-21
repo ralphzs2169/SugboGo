@@ -30,6 +30,41 @@ export default function BusinessLayout() {
             title: "Reviews",
           }}
         />
+
+        <Stack.Screen
+          name="getting-there"
+          options={{
+            title: "Getting There",
+          }}
+        />
+
+        <Stack.Screen
+          name="road-route"
+          options={{
+            title: "Road Route",
+          }}
+        />
+
+        <Stack.Screen
+          name="jeepney-guide"
+          options={{
+            title: "Jeepney Guide",
+          }}
+        />
+
+        <Stack.Screen
+          name="jeepney-starting-point"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="jeepney-route-map"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </>
   );

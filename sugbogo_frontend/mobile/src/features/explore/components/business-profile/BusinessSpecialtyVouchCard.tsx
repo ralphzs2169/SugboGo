@@ -2,13 +2,18 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
 
-import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 import AppText from "@/shared/components/AppText";
-import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
+import { getSpecialtyTagIcon } from "@/shared/constants/specialtyTagIcons";
+import type {
+  SpecialtyTagColor,
+  SpecialtyTagIcon,
+} from "@/shared/types/specialtyTag.types";
 
 type Props = {
   name: string;
   color: SpecialtyTagColor;
+  icon?: SpecialtyTagIcon | null;
   vouchCount: number;
   isVouched: boolean;
   onPress: () => void;
@@ -18,21 +23,20 @@ type Props = {
 /**
  * Displays a merchant-defined specialty as an Explorer-vouchable tile.
  *
- * Unvouched specialties use a white background with a colored outline and
- * accent content, while vouched specialties use the specialty color as the
- * background with white foreground content.
- *
- * Vouching triggers a brief heart pop and pulse animation.
+ * Uses the specialty icon as subtle card artwork while preserving clear
+ * foreground content and animated vouch feedback.
  */
 export default function BusinessSpecialtyVouchCard({
   name,
   color,
+  icon,
   vouchCount,
   isVouched,
   onPress,
   disabled = false,
 }: Props) {
   const styles = getSpecialtyTagColor(color);
+  const iconName = getSpecialtyTagIcon(icon);
 
   const heartScale = useRef(new Animated.Value(1)).current;
   const pulseScale = useRef(new Animated.Value(1)).current;
@@ -85,8 +89,14 @@ export default function BusinessSpecialtyVouchCard({
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
-      accessibilityState={{ disabled }}
-      className={`flex-1 cursor-pointer rounded-xl px-3 py-2.5 active:opacity-80 ${
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={`${name}, ${vouchCount} vouches`}
+      accessibilityState={{
+        disabled,
+        selected: isVouched,
+      }}
+      className={`relative flex-1 cursor-pointer overflow-hidden rounded-xl px-3 py-2.5 active:opacity-80 ${
         isVouched ? styles.background : "bg-white"
       }`}
       style={
@@ -99,15 +109,25 @@ export default function BusinessSpecialtyVouchCard({
       }
     >
       {/* Specialty identity */}
-      <AppText
-        weight={isVouched ? "bold" : "regular"}
-        className={`text-center text-xs ${
-          isVouched ? styles.text : styles.accentText
-        }`}
-        numberOfLines={2}
-      >
-        {name}
-      </AppText>
+      <View className="items-center">
+        <MaterialCommunityIcons
+          name={iconName}
+          size={20}
+          color={foregroundColor}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+
+        <AppText
+          weight={isVouched ? "bold" : "regular"}
+          className={`mt-1 text-center text-xs ${
+            isVouched ? styles.text : styles.accentText
+          }`}
+          numberOfLines={2}
+        >
+          {name}
+        </AppText>
+      </View>
 
       {/* Vouch interaction */}
       <View className="mt-1.5 flex-row items-center justify-center">
