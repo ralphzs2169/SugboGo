@@ -1,51 +1,29 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
+import type { ApiError } from "@/shared/types/apiResponse.types";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getSpecialtyTags } from "../../api/merchantApplication.service";
-import { SpecialtyTagOption } from "../../types/registration/registrationOption.types";
-import { ApiError } from "@/shared/types/apiResponse.types";
+import type { SpecialtyTagOption } from "../../types/registration/registrationOption.types";
+import {
+  MERCHANT_REGISTRATION_OPTIONS_STALE_TIME,
+  merchantApplicationKeys,
+} from "../merchantApplicationQueryKeys";
 
 export default function useSpecialtyTags() {
-  const [specialtyTags, setSpecialtyTags] = useState<SpecialtyTagOption[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<ApiError | null>(null);
-
-  async function loadSpecialtyTags() {
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const query = useQuery<SpecialtyTagOption[], ApiError>({
+    queryKey: merchantApplicationKeys.specialtyTags(),
+    queryFn: async () => {
       const response = await getSpecialtyTags();
 
-      if (!response.success) {
-        setError(response);
-        setSpecialtyTags([]);
-        return;
-      }
-
-      setSpecialtyTags(response.data);
-    } catch (error) {
-      console.error("Failed to load specialty tags:", error);
-
-      setError({
-        success: false,
-        message: "Failed to load specialty tags.",
-        code: "UNKNOWN_ERROR",
-      });
-
-      setSpecialtyTags([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadSpecialtyTags();
-  }, []);
+      return throwOnApiError(response);
+    },
+    staleTime: MERCHANT_REGISTRATION_OPTIONS_STALE_TIME,
+  });
 
   return {
-    specialtyTags,
-    isLoading,
-    error,
-    refetch: loadSpecialtyTags,
+    specialtyTags: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

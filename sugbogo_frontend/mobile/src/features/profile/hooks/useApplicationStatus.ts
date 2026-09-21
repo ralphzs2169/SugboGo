@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getApplicationStatus } from "@/features/merchant/api/merchantApplication.service";
+import { merchantApplicationKeys } from "@/features/merchant/hooks/merchantApplicationQueryKeys";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 /**
@@ -13,7 +14,7 @@ export default function useApplicationStatus() {
   const userId = useAuthStore((state) => state.user?.id);
 
   const query = useQuery({
-    queryKey: ["merchant-application-status", userId],
+    queryKey: merchantApplicationKeys.status(userId),
     queryFn: async () => {
       const response = await getApplicationStatus();
 

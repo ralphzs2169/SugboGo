@@ -20,10 +20,19 @@ import ReviewVerificationDocuments from "../components/registration/review/secti
 export default function ApplicationSummaryScreen() {
   const { application, isLoading, error, refetch } = useCurrentApplication();
 
-  const { clusters, isLoading: isLoadingClusters } = useBusinessClusters();
+  const {
+    clusters,
+    isLoading: isLoadingClusters,
+    error: clustersError,
+    refetch: refetchClusters,
+  } = useBusinessClusters();
 
-  const { categories, isLoading: isLoadingCategories } =
-    useBusinessCategories();
+  const {
+    categories,
+    isLoading: isLoadingCategories,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useBusinessCategories();
 
   if (isLoading || isLoadingClusters || isLoadingCategories) {
     return (
@@ -34,7 +43,7 @@ export default function ApplicationSummaryScreen() {
     );
   }
 
-  if (error) {
+  if (error || clustersError || categoriesError) {
     return (
       <SafeAreaView
         className="flex-1 bg-background"
@@ -44,7 +53,13 @@ export default function ApplicationSummaryScreen() {
           title="Unable to load application"
           description="Please check your internet connection and try again."
           primaryActionTitle="Try Again"
-          onPrimaryAction={refetch}
+          onPrimaryAction={() => {
+            void Promise.all([
+              refetch(),
+              refetchClusters(),
+              refetchCategories(),
+            ]);
+          }}
           secondaryActionTitle="Go Back"
           onSecondaryAction={() => router.back()}
         />

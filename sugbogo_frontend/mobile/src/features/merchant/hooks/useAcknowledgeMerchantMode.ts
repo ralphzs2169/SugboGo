@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { acknowledgeMerchantMode } from "@/features/merchant/api/merchantApplication.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import { merchantApplicationKeys } from "./merchantApplicationQueryKeys";
 
 /**
  * Acknowledges the authenticated merchant's mode.
@@ -22,7 +23,7 @@ export default function useAcknowledgeMerchantMode() {
 
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["merchant-application-status", userId],
+        queryKey: merchantApplicationKeys.status(userId),
       });
     },
   });
