@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from apps.authentication.models import OAuthAccount
 from apps.authentication.services.oauth.base import OAuthUser
+from apps.authentication.services.oauth.facebook import FacebookAuthError
 from apps.users.models import User
 
 
@@ -128,7 +129,7 @@ class FacebookLoginViewTests(
         self,
         mock_verify,
     ):
-        mock_verify.side_effect = ValueError()
+        mock_verify.side_effect = FacebookAuthError()
 
         response = self.client.post(
             self.url,

@@ -19,8 +19,12 @@ def identity_save_view(request):
     """
 
     application = ApplicationService.get_current_application(request.user)
-    is_update = application is not None and hasattr(application, "identity")
-    serializer = ApplicationIdentitySerializer(data=request.data, partial=is_update)
+    identity = getattr(application, "identity", None)
+    serializer = ApplicationIdentitySerializer(
+        instance=identity,
+        data=request.data,
+        partial=identity is not None,
+    )
     serializer.is_valid(raise_exception=True)
 
     _, identity = IdentityService.save_identity(

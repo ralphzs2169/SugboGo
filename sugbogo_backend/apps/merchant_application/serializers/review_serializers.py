@@ -23,6 +23,7 @@ class MerchantApplicationReviewSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        """Require a reason and unique section feedback for rejection."""
         if attrs["action"] == "reject":
             if not attrs.get("rejection_reason"):
                 raise serializers.ValidationError({
@@ -31,5 +32,12 @@ class MerchantApplicationReviewSerializer(serializers.Serializer):
             if not attrs.get("feedback"):
                 raise serializers.ValidationError({
                     "feedback": "At least one feedback item is required."
+                })
+            sections = [item["section"] for item in attrs["feedback"]]
+            if len(sections) != len(set(sections)):
+                raise serializers.ValidationError({
+                    "feedback": (
+                        "Each application section can only have one feedback entry."
+                    ),
                 })
         return attrs

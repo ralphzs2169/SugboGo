@@ -3,21 +3,23 @@ from requests.exceptions import RequestException
 from rest_framework import status
 from rest_framework.decorators import api_view, throttle_classes
 
-from apps.authentication.permissions import user_has_role
 from apps.authentication.serializers import (
     FacebookLoginSerializer,
     LoginResponseSerializer,
 )
 from apps.authentication.services.oauth.account import OAuthAccountService
-from apps.authentication.services.oauth.facebook import FacebookOAuthService
+from apps.authentication.services.oauth.facebook import (
+    FacebookAuthError,
+    FacebookOAuthService,
+)
 from apps.authentication.throttles import OAuthLoginThrottle
 from apps.authentication.utils.jwt import issue_tokens
-from apps.users.models import User
 
 
 @api_view(["POST"])
 @throttle_classes([OAuthLoginThrottle])
 def facebook_login_view(request):
+    """Exchange a verified Facebook identity for an allowed mobile session."""
     serializer = FacebookLoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -33,29 +35,13 @@ def facebook_login_view(request):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
-    except ValueError:
+    except (FacebookAuthError, ValueError):
         return error_response(
             message="Invalid Facebook token.",
             code="INVALID_FACEBOOK_TOKEN",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
-     # Check if the user already exists and has an admin role
-    existing_user = User.objects.filter(
-        USER_EMAIL=oauth_user.email
-    ).first()
-
-    if existing_user and user_has_role(
-        existing_user,
-        User.UserRole.ADMIN,
-    ):
-        return error_response(
-            message="Admin accounts cannot use OAuth login.",
-            code="OAUTH_LOGIN_DENIED",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    
-     # If the user does not exist or is not an admin, proceed to get or create the user
     user = OAuthAccountService.get_or_create_user(oauth_user)
 
     tokens = issue_tokens(

@@ -18,12 +18,18 @@ class GoogleOAuthService:
 
     @staticmethod
     def verify_id_token(token: str) -> OAuthUser:
+        """Verify the token and require the identity fields used for login."""
         payload = id_token.verify_oauth2_token(
             token,
             requests.Request(),
             settings.GOOGLE_OAUTH_CLIENT_ID,
         )
-        print(payload)
+        if (
+            not isinstance(payload, dict)
+            or not payload.get("sub")
+            or not payload.get("email")
+        ):
+            raise ValueError("Google did not return a usable account identity.")
         return OAuthUser(
             provider="google",
             provider_id=payload["sub"],

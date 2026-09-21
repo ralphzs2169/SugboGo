@@ -177,6 +177,16 @@ class ApplicationService:
             )
         
     @staticmethod
+    def validate_category_alignment(category, cluster_id):
+        """Require the selected category to belong to the application cluster."""
+        if category.CLUS_ID_id != cluster_id:
+            raise ValidationError({
+                "business_category_id": (
+                    "The selected category must belong to the selected cluster."
+                ),
+            })
+
+    @staticmethod
     def validate_application_for_submission(application):
         """
         Validate the persisted application state before submission.
@@ -190,6 +200,10 @@ class ApplicationService:
         if identity is None:
             errors["identity"] = "Business identity is required."
         else:
+            ApplicationService.validate_category_alignment(
+                identity.CTGRY_ID,
+                identity.CLUS_ID_id,
+            )
             if identity.specialty_tags.count() != 3:
                 errors["specialty_tags"] = "Exactly 3 specialty tags are required."
 

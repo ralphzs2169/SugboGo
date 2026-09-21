@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.business.models import Category, Cluster, SpecialtyTag
 from apps.merchant_application.models import MerchantApplicationIdentity
+from apps.merchant_application.services.application_service import ApplicationService
 
 
 class ApplicationIdentitySerializer(serializers.ModelSerializer):
@@ -94,12 +95,30 @@ class ApplicationIdentitySerializer(serializers.ModelSerializer):
     )
 
     def validate_specialty_tags(self, value):
-        if len(value) != 3:
+        """Require three distinct specialty tags before saving identity."""
+        if len(value) != 3 or len({tag.pk for tag in value}) != 3:
             raise serializers.ValidationError(
                 "Please select exactly 3 specialty tags."
             )
 
         return value
+
+    def validate(self, attrs):
+        """Validate the effective category and cluster for creates and patches."""
+        category = attrs.get(
+            "CTGRY_ID",
+            getattr(self.instance, "CTGRY_ID", None),
+        )
+        cluster = attrs.get(
+            "CLUS_ID",
+            getattr(self.instance, "CLUS_ID", None),
+        )
+        if category is not None and cluster is not None:
+            ApplicationService.validate_category_alignment(
+                category,
+                cluster.pk,
+            )
+        return attrs
 
     class Meta:
         model = MerchantApplicationIdentity

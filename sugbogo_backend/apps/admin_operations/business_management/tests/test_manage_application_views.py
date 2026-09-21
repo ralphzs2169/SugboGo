@@ -186,6 +186,8 @@ class MerchantApplicationViewTests(
             ordering=None,
             status=None,
             queue_status=None,
+            cluster=None,
+            category=None,
         )
 
     def test_application_list_passes_ordering_parameter_to_service(self):
@@ -224,6 +226,8 @@ class MerchantApplicationViewTests(
             ordering="business_name",
             status=None,
             queue_status=None,
+            cluster=None,
+            category=None,
         )
 
     def test_application_list_passes_status_parameter_to_service(self):
@@ -262,6 +266,8 @@ class MerchantApplicationViewTests(
             ordering=None,
             status=MerchantApplication.ApplicationStatus.SUBMITTED,
             queue_status=None,
+            cluster=None,
+            category=None,
         )
 
     def test_application_list_passes_queue_status_parameter_to_service(self):
@@ -300,6 +306,8 @@ class MerchantApplicationViewTests(
             ordering=None,
             status=None,
             queue_status="overdue",
+            cluster=None,
+            category=None,
         )
 
     # Detail
