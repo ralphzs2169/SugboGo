@@ -19,6 +19,8 @@ export default function TransitPointEditorPanel({
   onStartEdit,
   onSave,
   onCancel,
+  allowSaveAndAddAnother = true,
+  contextDescription,
 }) {
   if (mode === "browse" && !selectedPoint) {
     return (
@@ -31,6 +33,11 @@ export default function TransitPointEditorPanel({
           Choose a marker or list item to inspect it, or place new transit
           infrastructure on the map.
         </p>
+        {contextDescription && (
+          <p className="mt-2 rounded-lg bg-primary/10 px-3 py-2 text-xs leading-relaxed text-text-primary">
+            {contextDescription}
+          </p>
+        )}
         <Button className="mt-4" size="sm" icon={Plus} onClick={onStartAdd}>
           Add Point
         </Button>
@@ -103,6 +110,11 @@ export default function TransitPointEditorPanel({
             ? "Drag the highlighted marker or click the map to adjust its location."
             : "Click the map to choose the managed point location."}
         </p>
+        {contextDescription && (
+          <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-xs leading-relaxed text-text-primary">
+            {contextDescription}
+          </p>
+        )}
       </div>
 
       {/* Point fields */}
@@ -153,7 +165,7 @@ export default function TransitPointEditorPanel({
         <Button variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
-        {isAdding && (
+        {isAdding && allowSaveAndAddAnother && (
           <Button
             variant="secondary"
             loading={isSubmitting && submittingAction === "another"}

@@ -29,6 +29,7 @@ import TransitWorkspaceToolbar from "./TransitWorkspaceToolbar";
 import {
   isPointEditingMode,
   isRouteDrawingMode,
+  isRouteTransitPointCreationMode,
   isVariantEditingMode,
   TRANSIT_CONTEXTS,
   TRANSIT_MODES,
@@ -77,7 +78,12 @@ export default function TransitNetworkWorkspace() {
   const [isLocalDiscardOpen, setIsLocalDiscardOpen] = useState(false);
   const [isBrowserCollapsed, setIsBrowserCollapsed] = useState(false);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+  const [routePointCreationRole, setRoutePointCreationRole] = useState(null);
+  const [recentlyCreatedRoutePoints, setRecentlyCreatedRoutePoints] = useState(
+    [],
+  );
   const pendingActionRef = useRef(null);
+  const routePointReturnModeRef = useRef(null);
   const pointEditor = useTransitPointWorkspaceEditor();
   const variantEditor = useRouteVariantWorkspaceEditor();
   const {
@@ -145,14 +151,17 @@ export default function TransitNetworkWorkspace() {
   const routeVariants = routeDetailQuery.route?.variants ?? [];
   const isVariantMode = isVariantEditingMode(mode);
   const isPointMode = isPointEditingMode(mode);
+  const isRoutePointCreationMode = isRouteTransitPointCreationMode(mode);
   const isFormMode = [
     TRANSIT_MODES.CREATE_ROUTE,
     TRANSIT_MODES.EDIT_ROUTE,
     TRANSIT_MODES.CREATE_TRANSFER,
     TRANSIT_MODES.EDIT_TRANSFER,
   ].includes(mode);
-  const isDirty = isVariantMode
-    ? variantEditor.isDirty
+  const isDirty = isRoutePointCreationMode
+    ? variantEditor.isDirty || pointEditor.isDirty
+    : isVariantMode
+      ? variantEditor.isDirty
     : isPointMode
       ? pointEditor.isDirty
       : isFormMode
@@ -167,7 +176,7 @@ export default function TransitNetworkWorkspace() {
     Boolean(transferDecision);
 
   useTransitWorkspaceKeyboardShortcuts({
-    isRouteGeometryMode: isVariantMode,
+    isRouteGeometryMode: isVariantMode && !isRoutePointCreationMode,
     canUndoGeometry: variantEditor.canUndo,
     isEditing,
     isOverlayOpen,
@@ -403,6 +412,73 @@ export default function TransitNetworkWorkspace() {
     setMode(TRANSIT_MODES.BROWSE);
   }
 
+  function startRouteTransitPointCreation(role) {
+    if (!isVariantMode) {
+      return;
+    }
+
+    routePointReturnModeRef.current = mode;
+    setRoutePointCreationRole(role);
+    variantEditor.cancelTransitPointSelection();
+    pointEditor.beginAdd();
+    setMode(
+      mode.startsWith("create-variant")
+        ? TRANSIT_MODES.CREATE_VARIANT_POINT
+        : TRANSIT_MODES.EDIT_VARIANT_POINT,
+    );
+  }
+
+  function finishRouteTransitPointCreation() {
+    const returnMode = routePointReturnModeRef.current;
+
+    routePointReturnModeRef.current = null;
+    setRoutePointCreationRole(null);
+    setMode(
+      returnMode ??
+        (mode.startsWith("create-variant")
+          ? TRANSIT_MODES.CREATE_VARIANT_ADJUST
+          : TRANSIT_MODES.EDIT_VARIANT_ADJUST),
+    );
+  }
+
+  function cancelRouteTransitPointCreation() {
+    pointEditor.reset();
+    finishRouteTransitPointCreation();
+  }
+
+  async function saveRouteTransitPoint() {
+    const savedPoint = await pointEditor.save({
+      mode: TRANSIT_MODES.ADD_POINT,
+      selectedPoint: null,
+    });
+
+    if (!savedPoint) {
+      return;
+    }
+
+    setRecentlyCreatedRoutePoints((previous) => [
+      ...previous.filter(
+        (point) => String(point.id) !== String(savedPoint.id),
+      ),
+      savedPoint,
+    ]);
+    variantEditor.attachCreatedTransitPoint(
+      String(savedPoint.id),
+      routePointCreationRole,
+    );
+    setFocusTarget({
+      type: "point",
+      key: `route-point-${savedPoint.id}-${Date.now()}`,
+      positions: [
+        {
+          lat: Number(savedPoint.latitude),
+          lng: Number(savedPoint.longitude),
+        },
+      ],
+    });
+    finishRouteTransitPointCreation();
+  }
+
   function startCreateVariant() {
     if (!selectedRoute) {
       return;
@@ -481,6 +557,11 @@ export default function TransitNetworkWorkspace() {
   }
 
   function cancelActiveMode() {
+    if (isRoutePointCreationMode) {
+      cancelRouteTransitPointCreation();
+      return;
+    }
+
     if (isVariantMode) {
       cancelVariantEdit();
       return;
@@ -495,12 +576,34 @@ export default function TransitNetworkWorkspace() {
   }
 
   function requestCancelActiveMode() {
+    if (isRoutePointCreationMode) {
+      cancelRouteTransitPointCreation();
+      return;
+    }
+
+    if (variantEditor.isSelectingTransitPoint) {
+      variantEditor.cancelTransitPointSelection();
+      return;
+    }
+
     requestWorkspaceAction(cancelActiveMode);
   }
 
+  const routeReferencePoints = useMemo(() => {
+    const pointIds = new Set(
+      routeReferencePointsQuery.items.map((point) => String(point.id)),
+    );
+
+    return [
+      ...routeReferencePointsQuery.items,
+      ...recentlyCreatedRoutePoints.filter(
+        (point) => !pointIds.has(String(point.id)),
+      ),
+    ];
+  }, [recentlyCreatedRoutePoints, routeReferencePointsQuery.items]);
   const mapTransitPoints =
     context === TRANSIT_CONTEXTS.ROUTES
-      ? routeReferencePointsQuery.items
+      ? routeReferencePoints
       : pointsQuery.items;
   const transferGeometryError =
     sourceVariantQuery.error || destinationVariantQuery.error;
@@ -546,6 +649,8 @@ export default function TransitNetworkWorkspace() {
         context={context}
         mode={mode}
         hasSelectedTransfer={Boolean(selectedTransfer)}
+        isSelectingTransitPoint={variantEditor.isSelectingTransitPoint}
+        isCreatingRouteTransitPoint={isRoutePointCreationMode}
         isBrowserCollapsed={isBrowserCollapsed}
         isInspectorCollapsed={isInspectorCollapsed}
         isFullscreen={fullscreen.isFullscreen}
@@ -678,8 +783,13 @@ export default function TransitNetworkWorkspace() {
             selectedRoute,
             selectedVariant,
             routeDetailQuery,
-            routeReferencePointsQuery,
+            routeReferencePointsQuery: {
+              ...routeReferencePointsQuery,
+              items: routeReferencePoints,
+            },
             variantEditor,
+            pointEditor,
+            routePointCreationRole,
             onDirtyChange: handleFormDirtyChange,
             onRouteSaved: handleRouteSaved,
             onVariantSaved: handleVariantSaved,
@@ -687,6 +797,9 @@ export default function TransitNetworkWorkspace() {
             onStartCreateVariant: startCreateVariant,
             onStartEditVariant: startEditVariant,
             onToggleDrawing: toggleRouteDrawing,
+            onStartCreateTransitPoint: startRouteTransitPointCreation,
+            onSaveRouteTransitPoint: saveRouteTransitPoint,
+            onCancelRouteTransitPoint: cancelRouteTransitPointCreation,
             onCancelRoute: () => {
               setFormDirty(false);
               setMode(TRANSIT_MODES.BROWSE);

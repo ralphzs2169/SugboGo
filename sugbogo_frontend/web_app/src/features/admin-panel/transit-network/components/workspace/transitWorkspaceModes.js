@@ -10,8 +10,10 @@ export const TRANSIT_MODES = {
   EDIT_ROUTE: "edit-route",
   CREATE_VARIANT_DRAW: "create-variant-draw",
   CREATE_VARIANT_ADJUST: "create-variant-adjust",
+  CREATE_VARIANT_POINT: "create-variant-transit-point",
   EDIT_VARIANT_DRAW: "edit-variant-draw",
   EDIT_VARIANT_ADJUST: "edit-variant-adjust",
+  EDIT_VARIANT_POINT: "edit-variant-transit-point",
   ADD_POINT: "add-transit-point",
   EDIT_POINT: "edit-transit-point",
   CREATE_TRANSFER: "create-transfer",
@@ -30,4 +32,9 @@ export function isRouteDrawingMode(mode) {
 export function isPointEditingMode(mode) {
   return mode === TRANSIT_MODES.ADD_POINT ||
     mode === TRANSIT_MODES.EDIT_POINT;
+}
+
+export function isRouteTransitPointCreationMode(mode) {
+  return mode === TRANSIT_MODES.CREATE_VARIANT_POINT ||
+    mode === TRANSIT_MODES.EDIT_VARIANT_POINT;
 }

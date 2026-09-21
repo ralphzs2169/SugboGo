@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { ArrowDown, ArrowUp, MapPin, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, MapPin, Plus, Trash2, X } from "lucide-react";
 
 import Button from "@/shared/components/Button";
-import SelectInput from "@/shared/components/forms/SelectInput";
+
+import TransitPointSearchSelect from "./TransitPointSearchSelect";
 
 /**
  * Manages meaningful route Transit Points while fixing endpoints in traversal order.
@@ -15,11 +15,14 @@ export default function OrderedTransitPointPanel({
   errors,
   onOriginChange,
   onDestinationChange,
-  onAddIntermediate,
+  isSelectingTransitPoint,
+  onBeginTransitPointSelection,
+  onCancelTransitPointSelection,
+  onSelectTransitPoint,
+  onCreateTransitPoint,
   onMoveIntermediate,
   onRemoveIntermediate,
 }) {
-  const [pointToAdd, setPointToAdd] = useState("");
   const pointById = new Map(
     transitPoints.map((point) => [String(point.id), point]),
   );
@@ -40,7 +43,7 @@ export default function OrderedTransitPointPanel({
     ...intermediatePointIds.map((pointId, index) => ({
       id: pointId,
       point: pointById.get(pointId),
-      role: "Intermediate",
+      role: "Transit point",
       intermediateIndex: index,
     })),
     destinationId && {
@@ -49,15 +52,6 @@ export default function OrderedTransitPointPanel({
       role: "Destination",
     },
   ].filter(Boolean);
-
-  function handleAddPoint() {
-    if (!pointToAdd) {
-      return;
-    }
-
-    onAddIntermediate(pointToAdd);
-    setPointToAdd("");
-  }
 
   return (
     <section className="rounded-xl border border-stroke bg-background p-4">
@@ -74,73 +68,81 @@ export default function OrderedTransitPointPanel({
 
       {/* Direction endpoints */}
       <div className="space-y-4">
-        <SelectInput
+        <TransitPointSearchSelect
           id="variant-origin"
-          name="origin_transit_point_id"
           label="Origin"
+          transitPoints={transitPoints}
           value={originId}
-          onChange={(event) => onOriginChange(event.target.value)}
+          excludedIds={destinationId ? [destinationId] : []}
+          onChange={onOriginChange}
           error={errors.origin_transit_point_id}
-          required
-        >
-          {transitPoints.map((point) => (
-            <option
-              key={point.id}
-              value={point.id}
-              disabled={String(point.id) === destinationId}
-            >
-              {point.name}
-            </option>
-          ))}
-        </SelectInput>
-        <SelectInput
+          placeholder="Search for an origin"
+          onCreateNew={() => onCreateTransitPoint("origin")}
+        />
+        <TransitPointSearchSelect
           id="variant-destination"
-          name="destination_transit_point_id"
           label="Destination"
+          transitPoints={transitPoints}
           value={destinationId}
-          onChange={(event) => onDestinationChange(event.target.value)}
+          excludedIds={originId ? [originId] : []}
+          onChange={onDestinationChange}
           error={errors.destination_transit_point_id}
-          required
-        >
-          {transitPoints.map((point) => (
-            <option
-              key={point.id}
-              value={point.id}
-              disabled={String(point.id) === originId}
-            >
-              {point.name}
-            </option>
-          ))}
-        </SelectInput>
+          placeholder="Search for a destination"
+          onCreateNew={() => onCreateTransitPoint("destination")}
+        />
       </div>
 
-      {/* Intermediate point selector */}
-      <div className="mt-5 rounded-lg bg-surface p-3">
-        <SelectInput
-          id="intermediate-transit-point"
-          name="intermediate_transit_point_id"
-          label="Add Intermediate Point"
-          value={pointToAdd}
-          onChange={(event) => setPointToAdd(event.target.value)}
-          disabled={!originId || !destinationId}
-          placeholder="Select a Transit Point"
-        >
-          {availableIntermediatePoints.map((point) => (
-            <option key={point.id} value={point.id}>
-              {point.name}
-            </option>
-          ))}
-        </SelectInput>
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={Plus}
-          className="mt-3 w-full"
-          disabled={!pointToAdd}
-          onClick={handleAddPoint}
-        >
-          Add to Route
-        </Button>
+      {/* Existing Transit Point selection */}
+      <div className="mt-5 rounded-lg border border-stroke bg-surface p-3">
+        {isSelectingTransitPoint ? (
+          <>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-text-primary">
+                  Choose a Transit Point
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-text-secondary">
+                  Select an eligible marker on the map or search by name.
+                </p>
+              </div>
+              <Button
+                variant="action"
+                size="sm"
+                icon={X}
+                iconOnly
+                tooltipMessage="Cancel Transit Point selection"
+                aria-label="Cancel Transit Point selection"
+                onClick={onCancelTransitPointSelection}
+              />
+            </div>
+            <TransitPointSearchSelect
+              id="route-transit-point-search"
+              transitPoints={availableIntermediatePoints}
+              onChange={onSelectTransitPoint}
+              alwaysOpen
+              autoFocus
+              placeholder="Search available Transit Points"
+              emptyMessage="No additional Transit Points are available."
+              onCreateNew={() => onCreateTransitPoint("transit-point")}
+            />
+          </>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Plus}
+            className="w-full"
+            disabled={!originId || !destinationId}
+            disabledTooltip={
+              !originId || !destinationId
+                ? "Select an origin and destination first."
+                : undefined
+            }
+            onClick={onBeginTransitPointSelection}
+          >
+            Add transit point
+          </Button>
+        )}
       </div>
 
       {/* Traversal order */}
@@ -151,7 +153,7 @@ export default function OrderedTransitPointPanel({
         {orderedRows.length ? (
           <ol className="space-y-2">
             {orderedRows.map((row, index) => {
-              const isIntermediate = row.role === "Intermediate";
+              const isTransitPoint = row.role === "Transit point";
 
               return (
                 <li
@@ -172,7 +174,7 @@ export default function OrderedTransitPointPanel({
                     <p className="text-[11px] text-text-secondary">{row.role}</p>
                   </div>
 
-                  {isIntermediate && (
+                  {isTransitPoint && (
                     <div className="flex shrink-0 items-center">
                       {/* Reorder and remove actions */}
                       <Button

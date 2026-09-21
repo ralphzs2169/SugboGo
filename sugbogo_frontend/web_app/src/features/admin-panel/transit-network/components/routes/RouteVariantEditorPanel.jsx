@@ -18,6 +18,7 @@ export default function RouteVariantEditorPanel({
   editor,
   isDrawing,
   onToggleDrawing,
+  onCreateTransitPoint,
   onCancel,
   onSaved,
 }) {
@@ -61,7 +62,11 @@ export default function RouteVariantEditorPanel({
           errors={editor.errors}
           onOriginChange={editor.changeOrigin}
           onDestinationChange={editor.changeDestination}
-          onAddIntermediate={editor.addIntermediate}
+          isSelectingTransitPoint={editor.isSelectingTransitPoint}
+          onBeginTransitPointSelection={editor.beginTransitPointSelection}
+          onCancelTransitPointSelection={editor.cancelTransitPointSelection}
+          onSelectTransitPoint={editor.selectTransitPoint}
+          onCreateTransitPoint={onCreateTransitPoint}
           onMoveIntermediate={editor.moveIntermediate}
           onRemoveIntermediate={editor.removeIntermediate}
         />
