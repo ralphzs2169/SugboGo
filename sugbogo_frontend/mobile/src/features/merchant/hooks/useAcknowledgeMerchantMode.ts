@@ -22,7 +22,7 @@ export default function useAcknowledgeMerchantMode() {
     },
 
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: merchantApplicationKeys.status(userId),
       });
     },
