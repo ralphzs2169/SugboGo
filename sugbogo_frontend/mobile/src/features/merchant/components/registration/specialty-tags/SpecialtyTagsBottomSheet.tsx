@@ -100,6 +100,7 @@ export default function SpecialtyTagsBottomSheet({
                 isDisabled={isDisabled}
                 onPress={() => onToggleTag(tag.id)}
                 mode="registration"
+                showIcon
               />
             );
           })}

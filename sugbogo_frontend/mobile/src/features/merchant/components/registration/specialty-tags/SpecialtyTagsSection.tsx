@@ -185,6 +185,7 @@ export default function SpecialtyTagsSection() {
                   isSelected={isSelected}
                   isDisabled={isDisabled}
                   onPress={() => handleVisibleTagPress(tag.id)}
+                  showIcon
                 />
               );
             })}

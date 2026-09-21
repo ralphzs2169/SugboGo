@@ -256,7 +256,7 @@ export default function BusinessIdentityStep({
       <RegistrationSection
         icon="tag-outline"
         title="Specialty Tags"
-        description="Choose 3 tags that best describe your business."
+        description="Choose the 3 specialties that best represent your business. These help determine how your business is discovered in SugboGo."
       >
         <View {...registerErrorScrollTarget("specialtyTags")}>
           <SpecialtyTagsSection />

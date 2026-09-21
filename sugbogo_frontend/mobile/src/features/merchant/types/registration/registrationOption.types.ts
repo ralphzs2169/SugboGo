@@ -1,5 +1,8 @@
 import { ClusterIcon } from "@/shared/types/cluster.types";
-import { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+import {
+  SpecialtyTagColor,
+  SpecialtyTagIcon,
+} from "@/shared/types/specialtyTag.types";
 
 export interface ClusterOption {
   id: number;
@@ -31,4 +34,5 @@ export type SpecialtyTagOption = {
   id: number;
   name: string;
   color: SpecialtyTagColor;
+  icon: SpecialtyTagIcon;
 };

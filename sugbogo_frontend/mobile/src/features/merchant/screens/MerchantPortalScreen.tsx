@@ -20,10 +20,6 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 
-function SectionDivider() {
-  return <View className="mx-6 mt-3" />;
-}
-
 /**
  * MerchantPortalScreen serves as the entry point for all
  * merchant-related interactions.
@@ -164,18 +160,21 @@ export default function MerchantPortalScreen() {
           />
         )}
 
-        {config.sections.benefits && (
-          <>
-            <SectionDivider />
-            <MerchantBenefits />
-          </>
-        )}
+        {/* Merchant information sections */}
+        {(config.sections.benefits || config.sections.requirements) && (
+          <View className="gap-2 bg-background py-2">
+            {config.sections.benefits && (
+              <View className="overflow-hidden rounded-md bg-surface">
+                <MerchantBenefits />
+              </View>
+            )}
 
-        {config.sections.requirements && (
-          <>
-            <SectionDivider />
-            <MerchantRequirements />
-          </>
+            {config.sections.requirements && (
+              <View className="overflow-hidden rounded-md bg-surface">
+                <MerchantRequirements />
+              </View>
+            )}
+          </View>
         )}
 
         <View className="bg-surface px-6 py-5">
