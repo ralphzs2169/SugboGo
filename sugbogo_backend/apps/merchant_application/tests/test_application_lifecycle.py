@@ -7,6 +7,9 @@ from apps.merchant_application.serializers.identity_serializers import (
     ApplicationIdentitySerializer,
 )
 from apps.merchant_application.services.application_service import ApplicationService
+from apps.merchant_application.tests.test_services import (
+    MerchantApplicationServiceMixin,
+)
 from apps.users.models import User
 from django.db import IntegrityError, transaction
 from django.urls import reverse
@@ -15,16 +18,10 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 
-class MerchantApplicationLifecycleTests(APITestCase):
+class MerchantApplicationLifecycleTests(MerchantApplicationServiceMixin, APITestCase):
     def setUp(self):
-        self.merchant = User.objects.create_user(
-            email="merchant-lifecycle@example.com",
-            password="StrongPassword123!",
-            USER_FNAME="Merchant",
-            USER_LNAME="Lifecycle",
-            USER_ROLE=User.UserRole.MERCHANT,
-            USER_STATUS=User.UserStatus.ACTIVE,
-        )
+        super().setUp()
+        self.merchant = self.user
         self.admin = User.objects.create_user(
             email="admin-lifecycle@example.com",
             password="StrongPassword123!",
@@ -158,16 +155,13 @@ class MerchantApplicationLifecycleTests(APITestCase):
         self.assertEqual(application.MAPP_HIGHEST_COMPLETED_STEP, 0)
 
     def test_admin_can_approve_submitted_application(self):
-        application = MerchantApplication.objects.create(
-            USER_ID=self.merchant,
-            MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
-            MAPP_SUBMISSION_COUNT=1,
+        application = ApplicationService.submit_application(
+            self._build_complete_application(),
         )
 
-        submission = MerchantApplicationSubmission.objects.create(
+        submission = MerchantApplicationSubmission.objects.get(
             MAPP_ID=application,
             MASUB_SUBMISSION_NUMBER=1,
-            MASUB_SUBMITTED_AT=timezone.now(),
         )
 
         self.client.force_authenticate(self.admin)

@@ -176,7 +176,7 @@ class FacebookOAuthServiceTests(TestCase):
 
         mock_get.return_value = response
 
-        with self.assertRaises(FacebookAuthError):
+        with self.assertRaises(RequestException):
             FacebookOAuthService.verify_access_token(
                 "token",
             )

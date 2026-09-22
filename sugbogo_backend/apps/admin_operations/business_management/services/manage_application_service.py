@@ -29,6 +29,9 @@ from apps.merchant_application.utils.application_queue import (
     get_business_day_cutoff,
     is_review_sla_compliant,
 )
+from apps.merchant_application.services.application_service import (
+    ApplicationService as MerchantApplicationService,
+)
 from apps.users.models import User
 
 
@@ -381,6 +384,11 @@ class ApplicationService:
             raise ValidationError(
                 "The application's business location could not be found.",
             )
+
+        MerchantApplicationService.validate_category_alignment(
+            identity.CTGRY_ID,
+            identity.CLUS_ID_id,
+        )
 
         reviewed_at = timezone.now()
 

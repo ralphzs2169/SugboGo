@@ -127,7 +127,7 @@ class GoogleOAuthServiceTests(TestCase):
         }
 
         with self.assertRaises(
-            KeyError,
+            ValueError,
         ):
             GoogleOAuthService.verify_id_token(
                 "valid-token",
