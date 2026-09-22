@@ -12,6 +12,7 @@ import Users from "@/features/admin-panel/pages/Users";
 import ExplorerActivities from "@/features/admin-panel/pages/ExplorerActivities";
 import SuspiciousActivities from "@/features/admin-panel/pages/SuspiciousActivities";
 import Analytics from "@/features/admin-panel/pages/Analytics";
+import DiscoveryScoresPage from "@/features/admin-panel/pages/DiscoveryScoresPage";
 import Settings from "@/features/admin-panel/pages/Settings";
 import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
 import ProtectedRoute from "@/features/auth/routes/ProtectedRoute";
@@ -107,6 +108,10 @@ function App() {
               element={<ReviewDisputeDetailPage />}
             />
             <Route path="analytics" element={<Analytics />} />
+            <Route
+              path="analytics/discovery-scores"
+              element={<DiscoveryScoresPage />}
+            />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Route>
