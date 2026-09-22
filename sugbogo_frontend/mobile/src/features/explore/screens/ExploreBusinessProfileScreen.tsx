@@ -26,6 +26,7 @@ import ExploreBusinessHero from "../components/business-profile/ExploreBusinessH
 import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
 import RideProviderSheet from "../components/business-profile/RideProviderSheet";
 import SimilarPlacesSection from "../components/business-profile/SimilarPlacesSection";
+import VisitorVibeSection from "../components/business-profile/VisitorVibeSection";
 import useBusinessProfileVisit from "../hooks/useBusinessProfileVisit";
 import { useBusinessReviewPreview } from "../hooks/useBusinessReviews";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
@@ -250,6 +251,9 @@ export default function ExploreBusinessProfileScreen({
             </BusinessProfileSection>
 
             {/* Business reviews */}
+            <VisitorVibeSection insights={business.review_insights} />
+
+            {/* Review preview and actions */}
             <BusinessProfileSection>
               <BusinessReviewsSection
                 businessId={business.id}
