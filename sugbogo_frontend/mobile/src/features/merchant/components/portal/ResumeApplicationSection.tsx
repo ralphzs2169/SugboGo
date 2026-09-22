@@ -1,9 +1,10 @@
 import LottieView from "lottie-react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import resumeAnimation from "../../assets/animations/FbpImPYySG.json";
+import AppText from "@/shared/components/AppText";
 
 type ResumeApplicationSectionProps = {
   currentStep: number;
@@ -51,18 +52,24 @@ export default function ResumeApplicationSection({
         </View>
 
         <View className="mt-3 rounded-full bg-brand/10 px-3.5 py-1.5">
-          <Text className="text-xs font-bold uppercase tracking-wide text-brand">
+          <AppText
+            weight="bold"
+            className="text-xs  uppercase tracking-wide text-brand"
+          >
             {isFinalStep ? "Ready for Review" : "In Progress"}
-          </Text>
+          </AppText>
         </View>
 
-        <Text className="mt-3 text-center text-2xl font-bold text-text-primary">
+        <AppText
+          weight="bold"
+          className="mt-3 text-center text-2xl  text-text-primary"
+        >
           {title}
-        </Text>
+        </AppText>
 
-        <Text className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
+        <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
           {description}
-        </Text>
+        </AppText>
       </View>
 
       {/* Registration progress */}
@@ -77,18 +84,24 @@ export default function ResumeApplicationSection({
           </View>
 
           <View className="flex-1">
-            <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            <AppText
+              weight="semibold"
+              className="text-xs  uppercase tracking-wide text-text-secondary"
+            >
               Registration Progress
-            </Text>
+            </AppText>
 
-            <Text className="mt-0.5 text-base font-bold text-text-primary">
+            <AppText
+              weight="bold"
+              className="mt-0.5 text-base  text-text-primary"
+            >
               Step {currentStep} of {totalSteps}
-            </Text>
+            </AppText>
           </View>
 
-          <Text className="text-base font-bold text-brand">
+          <AppText weight="bold" className="text-base  text-brand">
             {Math.round(progress)}%
-          </Text>
+          </AppText>
         </View>
 
         {/* Progress bar */}
@@ -99,9 +112,9 @@ export default function ResumeApplicationSection({
           />
         </View>
 
-        <Text className="mt-2 text-xs text-text-secondary">
+        <AppText className="mt-2 text-xs text-text-secondary">
           {progressDescription}
-        </Text>
+        </AppText>
       </View>
 
       {/* Last updated */}
@@ -115,13 +128,19 @@ export default function ResumeApplicationSection({
         </View>
 
         <View className="ml-3 flex-1">
-          <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          <AppText
+            weight="semibold"
+            className="text-xs  uppercase tracking-wide text-text-secondary"
+          >
             Last Updated
-          </Text>
+          </AppText>
 
-          <Text className="mt-0.5 text-base font-bold text-text-primary">
+          <AppText
+            weight="bold"
+            className="mt-0.5 text-base  text-text-primary"
+          >
             {lastUpdated}
-          </Text>
+          </AppText>
         </View>
       </View>
     </View>

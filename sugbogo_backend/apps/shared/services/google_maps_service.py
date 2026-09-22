@@ -15,7 +15,7 @@ class GoogleMapsService:
     NEARBY_LANDMARK_MAX_RESULTS = 3
 
     SELECTED_LOCATION_EXCLUSION_RADIUS_METERS = 10.0
-    REQUEST_TIMEOUT_SECONDS = 10 # Maximum time to wait for a Google Maps API response.
+    REQUEST_TIMEOUT_SECONDS = 20 # Maximum time to wait for a Google Maps API response.
 
     @staticmethod
     def _parse_address_components(components, *, geocoding_api=False):

@@ -1,12 +1,10 @@
 import useNearbyLandmarks from "@/features/merchant/hooks/registration/useNearbyLandmarks";
 import LocationPickerScreen from "@/features/merchant/screens/LocationPickerScreen";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
-import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 import { router } from "expo-router";
 import { useState } from "react";
-import { useFormContext } from "react-hook-form";
 import Toast from "react-native-toast-message";
 
 /**
@@ -22,8 +20,6 @@ import Toast from "react-native-toast-message";
  * navigating away from Step 2.
  */
 export default function BusinessLocationPickerPage() {
-  const form = useFormContext<MerchantRegistrationForm>();
-
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
   );

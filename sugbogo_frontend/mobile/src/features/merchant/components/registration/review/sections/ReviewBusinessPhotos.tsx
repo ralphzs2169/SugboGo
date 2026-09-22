@@ -1,4 +1,4 @@
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import type { z } from "zod";
 
 import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
@@ -6,6 +6,7 @@ import ReviewSection from "../ReviewSection";
 import PhotoPreview from "../../business-photos/PhotoPreview";
 import { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import ReviewSectionFeedback from "../ReviewSectionFeedback";
+import AppText from "@/shared/components/AppText";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessPhotosProps = {
@@ -59,12 +60,14 @@ function PhotoGroup({ title, photos }: PhotoGroupProps) {
   return (
     <View className="mb-5">
       <View className="flex-row items-center justify-between">
-        <Text className="text-sm font-semibold text-text-primary">{title}</Text>
+        <AppText weight="semibold" className="text-sm  text-text-primary">
+          {title}
+        </AppText>
 
         {photos.length > 0 && (
-          <Text className="text-xs text-text-secondary">
+          <AppText className="text-xs text-text-secondary">
             {photos.length} {photos.length === 1 ? "photo" : "photos"}
-          </Text>
+          </AppText>
         )}
       </View>
 
@@ -83,7 +86,9 @@ function PhotoGroup({ title, photos }: PhotoGroupProps) {
           </ScrollView>
         ) : (
           <View className="items-center justify-center rounded-lg border border-dashed border-border-primary py-4">
-            <Text className="text-sm text-text-secondary">No photos added</Text>
+            <AppText className="text-sm text-text-secondary">
+              No photos added
+            </AppText>
           </View>
         )}
       </View>

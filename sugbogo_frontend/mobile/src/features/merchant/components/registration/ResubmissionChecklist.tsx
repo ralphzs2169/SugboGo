@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import AppText from "@/shared/components/AppText";
 
 type ResubmissionChecklistProps = {
   feedback: ApplicationFeedbackResponse[];
@@ -62,15 +63,15 @@ export default function ResubmissionChecklist({
           }}
         />
 
-        <Text className="text-xs font-bold text-text-secondary">
+        <AppText weight="bold" className="text-xs text-text-secondary">
           {allChangesMade ? "READY TO RESUBMIT" : "CHANGES REQUIRED"}
-        </Text>
+        </AppText>
 
-        <Text className="mt-1 text-sm leading-6 text-text-primary">
+        <AppText className="mt-1 text-sm leading-6 text-text-primary">
           {allChangesMade
             ? "All requested sections have been updated."
             : "Update the sections requested by the administrator before resubmitting."}
-        </Text>
+        </AppText>
 
         {/* Section checklist */}
         <View className="mt-4 gap-3">
@@ -90,13 +91,16 @@ export default function ResubmissionChecklist({
                 />
 
                 <View className="flex-1">
-                  <Text className="text-sm font-semibold text-text-primary">
+                  <AppText
+                    weight="semibold"
+                    className="text-sm  text-text-primary"
+                  >
                     {SECTION_LABELS[item.section]}
-                  </Text>
+                  </AppText>
 
-                  <Text className="mt-0.5 text-xs text-text-secondary">
+                  <AppText className="mt-0.5 text-xs text-text-secondary">
                     {isChanged ? "Changes made" : "Changes still required"}
-                  </Text>
+                  </AppText>
                 </View>
               </View>
             );

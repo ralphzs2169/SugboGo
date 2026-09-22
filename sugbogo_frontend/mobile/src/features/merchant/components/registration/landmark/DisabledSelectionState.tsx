@@ -1,27 +1,32 @@
-import { theme } from "@/constants/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+
+import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 /**
- * Placeholder displayed until a business location
- * has been selected.
+ * Displays the unavailable landmark state before a business location is chosen.
+ *
+ * Explains that nearby landmark suggestions depend on a confirmed business
+ * location.
  */
 export default function DisabledSelectionState() {
   return (
     <View className="items-center rounded-xl border border-border-disabled bg-disabled px-4 py-6">
+      {/* Disabled landmark state */}
       <MaterialCommunityIcons
         name="map-marker-outline"
         size={28}
         color={theme.extends.colors.text.disabled}
       />
 
-      <Text className="mt-2 text-sm font-medium text-text-tertiary">
+      <AppText weight="medium" className="mt-2 text-sm text-text-tertiary">
         Select a business location first
-      </Text>
+      </AppText>
 
-      <Text className="mt-1 text-center text-xs text-text-tertiary">
+      <AppText className="mt-1 text-center text-xs text-text-tertiary">
         Nearby landmarks will appear here after you pin your business.
-      </Text>
+      </AppText>
     </View>
   );
 }

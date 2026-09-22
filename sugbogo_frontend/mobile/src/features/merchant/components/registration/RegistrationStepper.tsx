@@ -1,3 +1,4 @@
+import AppText from "@/shared/components/AppText";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
@@ -38,18 +39,18 @@ export default function RegistrationStepper({
 }: RegistrationStepperProps) {
   return (
     <View className="bg-surface pb-4 pt-2 border-b border-border-primary">
-      <Text
+      <AppText
         className="mb-4 text-sm font-medium text-text-secondary"
         style={{ marginLeft: STEP_CIRCLE_SIZE / 2 }}
       >
         Step {currentStep} of {totalSteps}
-        <Text className="text-text-tertiary"> • </Text>
-        <Text className="font-semibold text-text-primary">
+        <AppText className="text-text-tertiary"> • </AppText>
+        <AppText weight="semibold" className=" text-text-primary">
           {isResubmission && currentStep === totalSteps
             ? "Review & Resubmit"
             : title}
-        </Text>
-      </Text>
+        </AppText>
+      </AppText>
 
       <View className="flex-row items-center">
         {Array.from({ length: totalSteps }).map((_, index) => {

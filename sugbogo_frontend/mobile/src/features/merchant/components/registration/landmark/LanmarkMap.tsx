@@ -1,17 +1,19 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { View } from "react-native";
 import MapView, {
-  MapPressEvent,
+  type MapPressEvent,
   Marker,
   PROVIDER_GOOGLE,
 } from "react-native-maps";
 
+import { theme } from "@/constants/theme";
+import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 import MapMarker from "@/shared/components/MapMarker";
-import {
+import MapMarkerCallout from "@/shared/components/MapMarkerCallout";
+import type {
   BusinessLandmark,
   BusinessLocation,
 } from "@/shared/types/BusinessLocation.types";
-import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 
 type LandmarkMapProps = {
   businessLocation: BusinessLocation;
@@ -23,13 +25,21 @@ type LandmarkMapProps = {
   initialLongitudeDelta?: number;
 };
 
+const DEFAULT_MAP_DELTA = 0.014;
+
+/**
+ * Displays the merchant's business and selected landmarks on a shared map.
+ *
+ * Uses SugboGo's shared marker and callout presentation while keeping the
+ * initial viewport focused around the current custom-landmark selection area.
+ */
 export default function LandmarkMap({
   businessLocation,
   selectedLandmarks,
   onLandmarkPress,
   onMapPress,
-  initialLatitudeDelta = 0.025,
-  initialLongitudeDelta = 0.025,
+  initialLatitudeDelta = DEFAULT_MAP_DELTA,
+  initialLongitudeDelta = DEFAULT_MAP_DELTA,
   children,
 }: LandmarkMapProps) {
   return (
@@ -51,16 +61,20 @@ export default function LandmarkMap({
           latitude: businessLocation.latitude,
           longitude: businessLocation.longitude,
         }}
-        title="Your business"
+        anchor={{ x: 0.5, y: 1 }}
         onPress={(event) => {
-          // Prevent taps on the business marker from falling through
-          // to the map's onPress and being treated as a new landmark.
           event.stopPropagation();
         }}
       >
         <View collapsable={false}>
           <MapMarker variant="business" />
         </View>
+
+        <MapMarkerCallout
+          label="Business location"
+          title="Your business"
+          labelColor={theme.extends.colors.brand}
+        />
       </Marker>
 
       {/* Selected landmarks */}
@@ -71,15 +85,28 @@ export default function LandmarkMap({
             latitude: landmark.latitude,
             longitude: landmark.longitude,
           }}
-          title={landmark.name}
-          description={landmark.address || "Custom landmark"}
-          onPress={() => onLandmarkPress?.(landmark)}
+          anchor={{ x: 0.5, y: 1 }}
+          onPress={(event) => {
+            event.stopPropagation();
+            onLandmarkPress?.(landmark);
+          }}
         >
           <View collapsable={false}>
             <MapMarker
               variant={landmark.source === "google" ? "google" : "custom"}
             />
           </View>
+
+          <MapMarkerCallout
+            label={
+              landmark.source === "google"
+                ? "Nearby landmark"
+                : "Custom landmark"
+            }
+            title={landmark.name}
+            description={landmark.address || undefined}
+            labelColor={theme.extends.colors.brand}
+          />
         </Marker>
       ))}
 

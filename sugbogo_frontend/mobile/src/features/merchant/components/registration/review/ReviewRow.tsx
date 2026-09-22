@@ -1,5 +1,6 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import type { ReactNode } from "react";
+import AppText from "@/shared/components/AppText";
 
 type ReviewRowProps = {
   label: ReactNode;
@@ -21,14 +22,19 @@ export default function ReviewRow({
   return (
     <View className="mb-5">
       {typeof label === "string" ? (
-        <Text className="text-xs font-medium text-text-secondary">{label}</Text>
+        <AppText weight="medium" className="text-xs  text-text-secondary">
+          {label}
+        </AppText>
       ) : (
         label
       )}
 
-      <Text className={`mt-1 ${valueClassName}`} numberOfLines={numberOfLines}>
+      <AppText
+        className={`mt-1 ${valueClassName}`}
+        numberOfLines={numberOfLines}
+      >
         {displayValue}
-      </Text>
+      </AppText>
     </View>
   );
 }

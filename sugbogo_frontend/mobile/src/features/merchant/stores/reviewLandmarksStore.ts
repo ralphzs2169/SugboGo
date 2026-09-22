@@ -1,17 +1,19 @@
 import { create } from "zustand";
 
 import type {
-  BusinessLocation,
   BusinessLandmark,
+  BusinessLocation,
 } from "@/shared/types/BusinessLocation.types";
 
+type ReviewBusinessLocation = Omit<BusinessLocation, "isWithinServiceArea">;
+
 type ReviewLandmarksStore = {
-  businessLocation: BusinessLocation | null;
+  businessLocation: ReviewBusinessLocation | null;
   selectedLandmarks: BusinessLandmark[];
   returnTo: "application-summary" | "registration-review";
 
   setPreview: (
-    businessLocation: BusinessLocation,
+    businessLocation: ReviewBusinessLocation,
     selectedLandmarks: BusinessLandmark[],
     returnTo: "application-summary" | "registration-review",
   ) => void;

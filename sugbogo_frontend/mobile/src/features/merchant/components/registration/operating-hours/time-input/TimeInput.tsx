@@ -1,6 +1,8 @@
-import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Pressable, View } from "react-native";
+
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 import { formatTime } from "@/features/merchant/utils/merchant-application/operatingHours.utils";
 
 type TimeInputProps = {
@@ -11,10 +13,10 @@ type TimeInputProps = {
 };
 
 /**
- * Displays a single operating-hours time field.
+ * Displays a selectable operating-hours time field.
  *
- * Shows the field label, selected time, clock icon,
- * and validation error when present.
+ * Shows the current formatted time and validation feedback while opening the
+ * native time picker when pressed.
  */
 export default function TimeInput({
   label,
@@ -24,28 +26,38 @@ export default function TimeInput({
 }: TimeInputProps) {
   return (
     <View className="flex-1">
-      <Text className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+      {/* Field label */}
+      <AppText
+        weight="semibold"
+        className="mb-1.5 text-xs uppercase tracking-wide text-text-tertiary"
+      >
         {label}
-      </Text>
+      </AppText>
 
+      {/* Time selection */}
       <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${
+          value ? formatTime(value) : "Select time"
+        }`}
         className={
           error
-            ? "rounded-md border border-red-300 bg-red-50 px-3.5 py-3"
-            : "rounded-md border border-border-primary bg-white px-3.5 py-3"
+            ? "cursor-pointer rounded-md border border-border-error bg-error px-3.5 py-3 active:opacity-70"
+            : "cursor-pointer rounded-md border border-border-primary bg-surface px-3.5 py-3 active:bg-surface-secondary"
         }
-        onPress={onPress}
       >
         <View className="flex-row items-center justify-between">
-          <Text
+          <AppText
+            weight={value ? "semibold" : "medium"}
             className={
               value
-                ? "text-base font-semibold text-text-primary"
-                : "text-base font-medium text-text-tertiary"
+                ? "text-base text-text-primary"
+                : "text-base text-text-tertiary"
             }
           >
             {value ? formatTime(value) : "Select time"}
-          </Text>
+          </AppText>
 
           <MaterialCommunityIcons
             name="clock-outline"
@@ -55,7 +67,10 @@ export default function TimeInput({
         </View>
       </Pressable>
 
-      {error && <Text className="mt-1 text-xs text-red-600">{error}</Text>}
+      {/* Validation feedback */}
+      {error && (
+        <AppText className="mt-1 text-xs text-text-error">{error}</AppText>
+      )}
     </View>
   );
 }

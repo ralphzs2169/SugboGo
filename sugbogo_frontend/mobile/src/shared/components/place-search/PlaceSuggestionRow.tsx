@@ -13,12 +13,12 @@ type Props = {
 };
 
 /**
- * Displays one selectable Google Places suggestion for a journey origin.
+ * Displays one selectable Google Places search suggestion.
  *
- * Shows localized resolving feedback while preventing conflicting selections
- * when another place is already being resolved.
+ * Shows localized resolution progress while preventing conflicting place
+ * selections when another suggestion is already being resolved.
  */
-export default function JourneyOriginSuggestionRow({
+export default function PlaceSuggestionRow({
   suggestion,
   isResolving,
   disabled,

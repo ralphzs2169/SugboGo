@@ -3,6 +3,7 @@ import PromoteYourBusinessIllustration from "../../assets/illustrations/promote-
 import ReachMoreExplorersIllustration from "../../assets/illustrations/reach-more.svg";
 import BuildYourReputationIllustration from "../../assets/illustrations/build-reputation.svg";
 import TrackYourGrowthIllustration from "../../assets/illustrations/track-growth.svg";
+import AppText from "@/shared/components/AppText";
 
 const BENEFITS = [
   {
@@ -36,13 +37,13 @@ const BENEFITS = [
 export default function MerchantBenefits() {
   return (
     <View className="p-6 bg-surface">
-      <Text className="mb-2 text-3xl font-bold  text-text-primary">
+      <AppText weight="extrabold" className="mb-2 text-3xl   text-text-primary">
         What you'll get as a merchant
-      </Text>
-      <Text className="mb-8 text-md text-text-secondary">
+      </AppText>
+      <AppText weight="medium" className="mb-8  text-text-secondary">
         Discover how SugboGo helps your business reach more explorers and grow
         online.
-      </Text>
+      </AppText>
 
       {/* <View className="border border-border-primary px-4 py-2 rounded-xl"> */}
       <View>
@@ -60,19 +61,22 @@ export default function MerchantBenefits() {
               }
             >
               {/* Number */}
-              <Text className="w-6 pt-0.5 text-xl font-bold leading-6 text-text-primary">
+              <AppText
+                weight="bold"
+                className="w-6 pt-0.5 text-xl  leading-6 text-text-primary"
+              >
                 {index + 1}
-              </Text>
+              </AppText>
 
               {/* Text */}
               <View className="flex-1 pt-0.5">
-                <Text className="text-base font-bold text-text-primary">
+                <AppText weight="bold" className="text-base  text-text-primary">
                   {benefit.title}
-                </Text>
+                </AppText>
 
-                <Text className="mt-1 text-sm leading-5 text-text-secondary">
+                <AppText className="mt-1 text-sm leading-5 text-text-secondary">
                   {benefit.description}
-                </Text>
+                </AppText>
               </View>
 
               {/* Illustration */}

@@ -21,8 +21,9 @@ import {
   getJourneyOriginPlaceDetails,
   searchJourneyOriginPlaces,
 } from "../../api/journeyOrigin.service";
-import JourneyOriginSuggestionRow from "./origin-picker/JourneyOriginSuggestionRow";
-import JourneyOriginSearchFeedback from "./origin-picker/JourneyOriginSearchFeedback";
+
+import PlaceSearchFeedback from "@/shared/components/place-search/PlaceSearchFeedback";
+import PlaceSuggestionRow from "@/shared/components/place-search/PlaceSuggestionRow";
 
 const JOURNEY_ORIGIN_PLACE_API = {
   searchPlaces: searchJourneyOriginPlaces,
@@ -37,8 +38,6 @@ type Props = {
 /**
  * Provides a keyboard-friendly place search for selecting a journey origin.
  *
- * Uses the SugboGo mascot to introduce the initial search state while keeping
- * technical and result-specific feedback separate from the mascot experience.
  */
 export default function JourneyOriginSearchSheet({
   sheetRef,
@@ -209,19 +208,19 @@ export default function JourneyOriginSearchSheet({
           contentContainerClassName="pb-12 pt-4"
         >
           {!hasSearchQuery ? (
-            <JourneyOriginSearchFeedback variant="initial" />
+            <PlaceSearchFeedback variant="initial" />
           ) : isSearchRateLimited ? (
-            <JourneyOriginSearchFeedback variant="rate-limited" />
+            <PlaceSearchFeedback variant="rate-limited" />
           ) : error ? (
-            <JourneyOriginSearchFeedback
+            <PlaceSearchFeedback
               variant="error"
               onRetry={() => searchPlaces(query)}
             />
           ) : showNoResults ? (
-            <JourneyOriginSearchFeedback variant="no-results" />
+            <PlaceSearchFeedback variant="no-results" />
           ) : (
             suggestions.map((suggestion) => (
-              <JourneyOriginSuggestionRow
+              <PlaceSuggestionRow
                 key={suggestion.placeId}
                 suggestion={suggestion}
                 isResolving={resolvingPlaceId === suggestion.placeId}

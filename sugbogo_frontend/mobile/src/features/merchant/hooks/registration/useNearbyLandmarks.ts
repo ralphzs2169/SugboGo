@@ -1,8 +1,45 @@
-import { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import { searchNearbyLandmarksService } from "@/shared/api/googlePlaces.service";
-import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
+import type { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
+import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import { merchantApplicationKeys } from "../merchantApplicationQueryKeys";
+
+const NEARBY_LANDMARKS_STALE_TIME = 5 * 60 * 1000;
+
+function hasValidCoordinate(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+async function fetchNearbyLandmarks(
+  latitude: number,
+  longitude: number,
+): Promise<BusinessLandmark[]> {
+  const response = await searchNearbyLandmarksService(latitude, longitude);
+  const data = throwOnApiError(response);
+  const landmarks: BusinessLandmark[] = [];
+
+  for (const landmark of data.landmarks) {
+    if (!landmark.placeId) {
+      continue;
+    }
+
+    landmarks.push({
+      id: landmark.placeId,
+      name: landmark.name,
+      address: landmark.address,
+      latitude: landmark.latitude,
+      longitude: landmark.longitude,
+      source: "google",
+      placeId: landmark.placeId,
+    });
+  }
+
+  return landmarks;
+}
 
 /**
  * Manages nearby landmark suggestions for a selected business location.
@@ -11,9 +48,27 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
  * and converts the API response into the BusinessLandmark model used
  * throughout the merchant registration flow.
  */
-export default function useNearbyLandmarks() {
-  const [landmarks, setLandmarks] = useState<BusinessLandmark[]>([]);
-  const [isLoadingLandmarks, setIsLoadingLandmarks] = useState(false);
+export default function useNearbyLandmarks(
+  latitude: number | null = null,
+  longitude: number | null = null,
+) {
+  const queryClient = useQueryClient();
+  const hasCoordinates =
+    hasValidCoordinate(latitude) && hasValidCoordinate(longitude);
+
+  const query = useQuery<BusinessLandmark[], ApiError>({
+    queryKey: merchantApplicationKeys.nearbyLandmarks(latitude, longitude),
+    queryFn: async () => {
+      if (!hasCoordinates) {
+        throw new Error("Nearby-landmark coordinates are unavailable.");
+      }
+
+      return fetchNearbyLandmarks(latitude, longitude);
+    },
+    enabled: hasCoordinates,
+    staleTime: NEARBY_LANDMARKS_STALE_TIME,
+    retry: false,
+  });
 
   /**
    * Retrieves nearby landmark suggestions for the provided coordinates.
@@ -26,82 +81,53 @@ export default function useNearbyLandmarks() {
       success: boolean;
       landmarks: BusinessLandmark[];
     }> => {
-      setIsLoadingLandmarks(true);
-
       try {
-        const response = await searchNearbyLandmarksService(
-          latitude,
-          longitude,
-        );
+        const landmarks = await queryClient.fetchQuery({
+          queryKey: merchantApplicationKeys.nearbyLandmarks(
+            latitude,
+            longitude,
+          ),
+          queryFn: () => fetchNearbyLandmarks(latitude, longitude),
+          staleTime: NEARBY_LANDMARKS_STALE_TIME,
+          retry: false,
+        });
 
-        if (!response.success) {
-          if (response.code === "RATE_LIMIT_EXCEEDED") {
-            setLandmarks([]);
-            return {
-              success: false,
-              landmarks: [],
-            };
+        return {
+          success: true,
+          landmarks,
+        };
+      } catch (error) {
+        const response = error as ApiError | null;
+
+        if (response?.success === false) {
+          if (response.code !== "RATE_LIMIT_EXCEEDED") {
+            handleSystemError(response);
           }
 
-          handleSystemError(response);
-
-          setLandmarks([]);
           return {
             success: false,
             landmarks: [],
           };
         }
 
-        const mappedLandmarks: BusinessLandmark[] = [];
-
-        for (const landmark of response.data.landmarks) {
-          if (!landmark.placeId) {
-            continue;
-          }
-
-          mappedLandmarks.push({
-            id: landmark.placeId,
-            name: landmark.name,
-            address: landmark.address,
-            latitude: landmark.latitude,
-            longitude: landmark.longitude,
-            source: "google",
-            placeId: landmark.placeId,
-          });
-        }
-
-        setLandmarks(mappedLandmarks);
-
-        return {
-          success: true,
-          landmarks: mappedLandmarks,
-        };
-      } catch (error) {
         console.error("Failed to load nearby landmarks:", error);
 
-        setLandmarks([]);
         return {
           success: false,
           landmarks: [],
         };
-      } finally {
-        setIsLoadingLandmarks(false);
       }
     },
-    [],
+    [queryClient],
   );
 
-  /**
-   * Clears the current nearby landmark suggestions.
-   */
-  const clearLandmarks = useCallback(() => {
-    setLandmarks([]);
-  }, []);
-
   return {
-    landmarks,
-    isLoadingLandmarks,
+    landmarks: query.data ?? [],
+    isLoadingLandmarks: query.isLoading,
+    isFetchingLandmarks: query.isFetching,
+    isRefetchingLandmarks: query.isRefetching,
+    error: query.error,
+    refetch: query.refetch,
     searchNearbyLandmarks,
-    clearLandmarks,
   };
 }

@@ -1,4 +1,6 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+
+import AppText from "@/shared/components/AppText";
 
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
 import { formatTime } from "../../../utils/merchant-application/operatingHours.utils";
@@ -12,7 +14,7 @@ type OperatingHoursSummaryProps = {
 /**
  * Displays a concise summary of a day's operating schedule.
  *
- * Handles closed, 24-hour, normal, and overnight schedules.
+ * Handles closed, 24-hour, standard, and overnight schedules.
  */
 export default function OperatingHoursSummary({
   schedule,
@@ -25,25 +27,31 @@ export default function OperatingHoursSummary({
     schedule.closeTime < schedule.openTime;
 
   if (!schedule.isOpen) {
-    return <Text className="mt-1 text-sm text-text-tertiary">Closed</Text>;
+    return (
+      <AppText className="mt-1 text-sm text-text-tertiary">Closed</AppText>
+    );
   }
 
   if (schedule.is24Hours) {
     return (
-      <Text className="mt-1 text-sm text-text-secondary">Open 24 hours</Text>
+      <AppText className="mt-1 text-sm text-text-secondary">
+        Open 24 hours
+      </AppText>
     );
   }
 
   return (
     <View className="mt-1">
-      <Text className="text-sm text-text-secondary">
+      {/* Daily operating range */}
+      <AppText className="text-sm text-text-secondary">
         {formatTime(schedule.openTime)} - {formatTime(schedule.closeTime)}
-      </Text>
+      </AppText>
 
+      {/* Overnight schedule context */}
       {isOvernight && (
-        <Text className="mt-0.5 text-xs text-text-tertiary">
+        <AppText className="mt-0.5 text-xs text-text-tertiary">
           Overnight · closes the following day
-        </Text>
+        </AppText>
       )}
     </View>
   );

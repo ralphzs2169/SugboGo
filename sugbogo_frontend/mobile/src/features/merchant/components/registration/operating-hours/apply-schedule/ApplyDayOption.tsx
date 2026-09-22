@@ -1,5 +1,7 @@
-import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Pressable, View } from "react-native";
+
+import AppText from "@/shared/components/AppText";
 import type { Day } from "@/features/merchant/constants/registration/operatingHours.constants";
 
 type ApplyDayOptionProps = {
@@ -9,7 +11,10 @@ type ApplyDayOptionProps = {
 };
 
 /**
- * Displays a selectable day option for applying an operating schedule.
+ * Displays a selectable day when copying an operating schedule.
+ *
+ * Uses a restrained selected state and check indicator to show which days will
+ * receive the current schedule.
  */
 export default function ApplyDayOption({
   day,
@@ -18,28 +23,34 @@ export default function ApplyDayOption({
 }: ApplyDayOptionProps) {
   return (
     <Pressable
+      onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityLabel={`Apply schedule to ${day}`}
+      accessibilityState={{ checked: isSelected }}
       className={
         isSelected
-          ? "flex-row items-center justify-between rounded-lg bg-primary/10 px-3 py-3"
-          : "flex-row items-center justify-between rounded-lg px-3 py-3"
+          ? "cursor-pointer flex-row items-center justify-between rounded-lg bg-brand/10 px-3 py-3 active:opacity-70"
+          : "cursor-pointer flex-row items-center justify-between rounded-lg px-3 py-3 active:bg-surface-secondary"
       }
-      onPress={onPress}
     >
-      <Text
+      {/* Day identity */}
+      <AppText
+        weight={isSelected ? "semibold" : "medium"}
         className={
           isSelected
-            ? "text-sm font-semibold capitalize text-primary"
-            : "text-sm font-medium capitalize text-text-primary"
+            ? "text-sm capitalize text-brand"
+            : "text-sm capitalize text-text-primary"
         }
       >
         {day}
-      </Text>
+      </AppText>
 
+      {/* Selection indicator */}
       <View
         className={
           isSelected
-            ? "h-5 w-5 items-center justify-center rounded-full  bg-brand"
-            : "h-5 w-5 rounded-full border border-border-secondary bg-white"
+            ? "h-5 w-5 items-center justify-center rounded-full bg-brand"
+            : "h-5 w-5 items-center justify-center rounded-full border border-border-secondary bg-surface"
         }
       >
         {isSelected && (

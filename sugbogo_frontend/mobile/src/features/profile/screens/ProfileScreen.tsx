@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import ErrorState from "@/shared/components/ErrorState";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 
 import AppVersion from "../components/AppVersion";
@@ -39,6 +40,8 @@ export default function ProfileScreen() {
     status: applicationStatus,
     merchantModeAcknowledged,
     isLoading: isLoadingApplicationStatus,
+    error: applicationStatusError,
+    hasResolvedStatus,
     refetch: refetchApplicationStatus,
   } = useApplicationStatus();
 
@@ -149,12 +152,38 @@ export default function ProfileScreen() {
           </ProfileMenuSection>
 
           {/* Merchant onboarding */}
-          {!isLoadingApplicationStatus && !merchantModeAcknowledged && (
-            <MerchantPortalCard
-              status={applicationStatus}
-              onPress={handleMerchantPortalPress}
-            />
-          )}
+          {!isLoadingApplicationStatus &&
+            applicationStatusError &&
+            hasResolvedStatus &&
+            applicationStatus === null && (
+              <ErrorState
+                size="section"
+                title="Unable to refresh merchant status"
+                description="Showing your last available merchant status."
+                primaryActionTitle="Try Again"
+                onPrimaryAction={() => {
+                  void refetchApplicationStatus();
+                }}
+              />
+            )}
+
+          {!isLoadingApplicationStatus && !merchantModeAcknowledged &&
+            (applicationStatusError && !hasResolvedStatus ? (
+              <ErrorState
+                size="section"
+                title="Unable to load merchant status"
+                description="We couldn't check your merchant application."
+                primaryActionTitle="Try Again"
+                onPrimaryAction={() => {
+                  void refetchApplicationStatus();
+                }}
+              />
+            ) : (
+              <MerchantPortalCard
+                status={applicationStatus}
+                onPress={handleMerchantPortalPress}
+              />
+            ))}
 
           {/* Settings and support */}
           <ProfileMenuSection title="Settings & Support">

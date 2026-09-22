@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, TouchableOpacity, View } from "react-native";
+import { View } from "react-native";
 import MerchantIllustration from "../../merchant/assets/illustrations/merchant-portal-no-shadow.svg";
 
 import { theme } from "@/constants/theme";
 import type { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
 import SafePressable from "@/shared/components/SafePressable";
+import AppText from "@/shared/components/AppText";
 
 type MerchantPortalCardProps = {
   status: MerchantApplicationStatus | null;
@@ -93,9 +94,12 @@ export default function MerchantPortalCard({
           }}
         >
           <MaterialCommunityIcons name={badge.icon} size={12} color="white" />
-          <Text className="text-[10px] font-bold uppercase tracking-wide text-white">
+          <AppText
+            weight="bold"
+            className="text-[10px] uppercase tracking-wide text-white"
+          >
             {badge.label}
-          </Text>
+          </AppText>
         </View>
       )}
 
@@ -105,21 +109,24 @@ export default function MerchantPortalCard({
         </View>
 
         <View className="flex-1 pl-3">
-          <Text className="text-sm font-bold uppercase tracking-wide text-white">
+          <AppText
+            weight="extrabold"
+            className="text-sm  uppercase tracking-wide text-white"
+          >
             {content.title}
-          </Text>
+          </AppText>
 
-          <Text className="mt-1 text-xs font-semibold text-white">
+          <AppText className="mt-1 text-xs font-semibold text-white">
             {content.description}
-          </Text>
+          </AppText>
 
           <SafePressable
             className="mt-3 flex-row items-center justify-center bg-white px-3 py-2 rounded-full active:opacity-70 "
             onPress={onPress}
           >
-            <Text className="text-xs mr-2 font-bold text-brand">
+            <AppText weight="bold" className="text-xs mr-2 text-brand">
               Open Merchant Portal
-            </Text>
+            </AppText>
             <MaterialCommunityIcons
               name="arrow-right"
               size={16}

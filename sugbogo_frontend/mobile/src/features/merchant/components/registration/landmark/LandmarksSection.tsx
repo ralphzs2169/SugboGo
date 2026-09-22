@@ -1,11 +1,13 @@
-import { theme } from "@/constants/theme";
-import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
-import Button from "@/shared/components/Button";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { useFormContext } from "react-hook-form";
-import { Text, View } from "react-native";
+import { Pressable, View } from "react-native";
+
+import { theme } from "@/constants/theme";
+import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
+import AppText from "@/shared/components/AppText";
+
 import { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
 import RegistrationSection from "../RegistrationSection";
 import CapacityHint from "./CapacityHint";
@@ -17,15 +19,10 @@ import LandmarksLoadFailedState from "./landmark-picker/LandmarksFailedLoadtStat
 const MAX_SELECTED_LANDMARKS = 5;
 
 /**
- * Displays nearby landmark suggestions for the merchant's
- * confirmed business location.
+ * Displays nearby landmark suggestions for the merchant's confirmed location.
  *
- * Google-detected landmarks can be selected directly from
- * the registration form. Merchants may select up to five
- * landmarks in total.
- *
- * Custom landmarks can be added through the dedicated
- * landmark picker.
+ * Keeps selected landmarks synchronized with the registration form and provides
+ * an inline secondary action for adding a custom landmark when capacity allows.
  */
 export default function LandmarksSection() {
   const { setValue } = useFormContext<MerchantRegistrationForm>();
@@ -50,6 +47,9 @@ export default function LandmarksSection() {
 
   const remainingLandmarks = MAX_SELECTED_LANDMARKS - selectedLandmarks.length;
 
+  const hasReachedLandmarkLimit =
+    selectedLandmarks.length >= MAX_SELECTED_LANDMARKS;
+
   useEffect(() => {
     setValue("landmarks", selectedLandmarks);
   }, [selectedLandmarks, setValue]);
@@ -59,9 +59,7 @@ export default function LandmarksSection() {
       selectedLandmarks.filter((landmark) => landmark.id !== id),
     );
   }
-  /**
-   * Opens the dedicated picker for selecting a custom landmark.
-   */
+
   function handlePickCustomLandmark() {
     router.push("/(explorer)/merchant-registration/landmarks-picker");
   }
@@ -72,6 +70,7 @@ export default function LandmarksSection() {
       title="Nearby Landmarks"
       description="Suggested automatically after you pin your location. You can remove them and add your own."
     >
+      {/* Landmark selection state */}
       {!hasSelectedLocation ? (
         <DisabledSelectionState />
       ) : nearbyLandmarksLoadFailed ? (
@@ -90,33 +89,52 @@ export default function LandmarksSection() {
         </View>
       )}
 
+      {/* Landmark capacity and custom selection */}
       {hasSelectedLocation && (
         <>
           <CapacityHint
             remaining={remainingLandmarks}
             max={MAX_SELECTED_LANDMARKS}
           />
-          <Button
-            title="Add Custom Landmark"
-            variant="soft"
-            icon={
+
+          <View className="mt-4 items-center">
+            <Pressable
+              onPress={handlePickCustomLandmark}
+              disabled={hasReachedLandmarkLimit}
+              accessibilityRole="button"
+              accessibilityLabel="Add custom landmark"
+              accessibilityState={{
+                disabled: hasReachedLandmarkLimit,
+              }}
+              className="min-h-11 cursor-pointer flex-row items-center justify-center rounded-lg px-2 active:opacity-60 disabled:opacity-40"
+            >
               <MaterialCommunityIcons
                 name="map-marker-plus-outline"
-                size={20}
+                size={18}
                 color={theme.extends.colors.brand}
               />
-            }
-            className="mt-6"
-            fontClassName="text-sm"
-            onPress={handlePickCustomLandmark}
-            disabled={selectedLandmarks.length >= MAX_SELECTED_LANDMARKS}
-          />
+
+              <AppText weight="semibold" className="ml-1.5 text-sm text-brand">
+                Add custom landmark
+              </AppText>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          </View>
         </>
       )}
 
-      <Text className="mt-3 text-center text-xs font-medium text-text-secondary">
+      {/* Selection count */}
+      <AppText
+        weight="medium"
+        className="mt-3 text-center text-xs text-text-secondary"
+      >
         Selected: {selectedLandmarks.length} / {MAX_SELECTED_LANDMARKS}
-      </Text>
+      </AppText>
     </RegistrationSection>
   );
 }

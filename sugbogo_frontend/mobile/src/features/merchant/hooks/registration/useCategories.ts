@@ -1,51 +1,30 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
+import type { ApiError } from "@/shared/types/apiResponse.types";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getCategories } from "../../api/merchantApplication.service";
-import { CategoryOption } from "../../types/registration/registrationOption.types";
-import { ApiError } from "@/shared/types/apiResponse.types";
+import type { CategoryOption } from "../../types/registration/registrationOption.types";
+import {
+  MERCHANT_REGISTRATION_OPTIONS_STALE_TIME,
+  merchantApplicationKeys,
+} from "../merchantApplicationQueryKeys";
 
 export default function useCategories() {
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<ApiError | null>(null);
-
-  async function loadCategories() {
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const query = useQuery<CategoryOption[], ApiError>({
+    queryKey: merchantApplicationKeys.categories(),
+    queryFn: async () => {
       const response = await getCategories();
 
-      if (!response.success) {
-        setError(response);
-        setCategories([]);
-        return;
-      }
-
-      setCategories(response.data);
-    } catch (error) {
-      console.error("Failed to load categories:", error);
-
-      setError({
-        success: false,
-        message: "Failed to load categories.",
-        code: "UNKNOWN_ERROR",
-      });
-
-      setCategories([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadCategories();
-  }, []);
+      return throwOnApiError(response);
+    },
+    staleTime: MERCHANT_REGISTRATION_OPTIONS_STALE_TIME,
+  });
 
   return {
-    categories,
-    isLoading,
-    error,
-    refetch: loadCategories,
+    categories: query.data ?? [],
+    isLoading: query.isLoading,
+    hasData: query.data !== undefined,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

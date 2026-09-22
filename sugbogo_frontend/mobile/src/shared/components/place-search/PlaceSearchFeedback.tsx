@@ -9,28 +9,32 @@ const MASCOT_START_SEARCHING = require("@/shared/assets/mascot/mascot-start-sear
 
 const MASCOT_EMPTY_SEARCH_RESULTS = require("@/shared/assets/mascot/mascot-empty-search-results.webp");
 
-type SearchFeedbackVariant =
+export type PlaceSearchFeedbackVariant =
   "initial" | "rate-limited" | "error" | "no-results";
 
 type Props = {
-  variant: SearchFeedbackVariant;
+  variant: PlaceSearchFeedbackVariant;
+  title?: string;
+  description?: string;
   onRetry?: () => void;
 };
 
 /**
- * Displays contextual feedback for journey-origin place searches.
+ * Displays reusable feedback for place-search experiences.
  *
- * Mascot states are reserved for discovery and empty results, while technical
- * failures use restrained status messaging and an optional recovery action.
+ * Uses mascot illustrations for discovery and valid empty states while
+ * reserving restrained icon-based feedback for technical search failures.
  */
-export default function JourneyOriginSearchFeedback({
+export default function PlaceSearchFeedback({
   variant,
+  title,
+  description,
   onRetry,
 }: Props) {
   if (variant === "initial") {
     return (
       <View className="items-center px-5 py-6">
-        {/* Initial discovery state */}
+        {/* Initial search guidance */}
         <Image
           source={MASCOT_START_SEARCHING}
           style={{
@@ -44,11 +48,11 @@ export default function JourneyOriginSearchFeedback({
           weight="bold"
           className="mt-2 text-center text-lg text-text-primary"
         >
-          Find your starting point
+          {title ?? "Find a place"}
         </AppText>
 
         <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
-          Search for a place or landmark to use as your starting point.
+          {description ?? "Search for a place or landmark."}
         </AppText>
       </View>
     );
@@ -71,11 +75,11 @@ export default function JourneyOriginSearchFeedback({
           weight="bold"
           className="mt-2 text-center text-lg text-text-primary"
         >
-          No matching places
+          {title ?? "No matching places"}
         </AppText>
 
         <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
-          Try a different place or landmark name.
+          {description ?? "Try a different place or landmark name."}
         </AppText>
       </View>
     );
@@ -93,13 +97,14 @@ export default function JourneyOriginSearchFeedback({
       />
 
       <AppText weight="bold" className="mt-3 text-center text-text-primary">
-        {isRateLimited ? "Search paused" : "Unable to search places"}
+        {title ?? (isRateLimited ? "Search paused" : "Unable to search places")}
       </AppText>
 
-      <AppText className="mt-1 text-center text-sm text-text-secondary">
-        {isRateLimited
-          ? "Please wait a moment before trying again."
-          : "Check your connection, then try your search again."}
+      <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
+        {description ??
+          (isRateLimited
+            ? "Please wait a moment before trying again."
+            : "Check your connection, then try your search again.")}
       </AppText>
 
       {/* Recovery action */}

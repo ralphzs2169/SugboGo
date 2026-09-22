@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 
-import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import type { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 
 type LandmarkCardProps = {
   landmark: BusinessLandmark;
@@ -20,27 +21,39 @@ export default function LandmarkCard({
 }: LandmarkCardProps) {
   return (
     <View className="flex-row items-center rounded-xl border border-gray-200 bg-white px-4 py-3">
+      {/* Landmark identity */}
       <MaterialCommunityIcons
         name={landmark.source === "custom" ? "map-marker-plus" : "map-marker"}
         size={22}
+        color={theme.extends.colors.text.secondary}
       />
 
-      <View className="ml-3 flex-1">
-        <Text className="text-sm font-semibold text-text-primary">
+      <View className="ml-3 min-w-0 flex-1">
+        <AppText
+          weight="semibold"
+          className="text-sm text-text-primary"
+          numberOfLines={1}
+        >
           {landmark.name}
-        </Text>
+        </AppText>
 
         {!!landmark.address && (
-          <Text
+          <AppText
             numberOfLines={1}
             className="mt-0.5 text-xs text-text-secondary"
           >
             {landmark.address}
-          </Text>
+          </AppText>
         )}
       </View>
 
-      <Pressable onPress={() => onRemove(landmark.id)} className="p-2">
+      {/* Remove action */}
+      <Pressable
+        onPress={() => onRemove(landmark.id)}
+        accessibilityRole="button"
+        accessibilityLabel={`Remove ${landmark.name}`}
+        className="cursor-pointer p-2 active:opacity-60"
+      >
         <MaterialCommunityIcons
           name="close"
           size={ICON_SIZE}

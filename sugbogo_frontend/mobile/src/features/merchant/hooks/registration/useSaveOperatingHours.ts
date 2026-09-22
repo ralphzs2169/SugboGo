@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 
-import { saveApplicationOperatingHours } from "../../api/merchantApplication.service";
-
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import type {
+  ApiError,
+  ApiResponse,
+} from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
-
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import { saveApplicationOperatingHours } from "../../api/merchantApplication.service";
 import type {
   ApplicationOperatingHoursPayload,
   ApplicationOperatingHoursResponse,
 } from "../../types/registration/registrationApi.types";
+import { merchantApplicationKeys } from "../merchantApplicationQueryKeys";
 
 /**
  * Saves the operating-hours section of the merchant application.
@@ -18,36 +22,58 @@ import type {
  * while exposing the save state to the registration flow.
  */
 export default function useSaveOperatingHours() {
-  const [isSaving, setIsSaving] = useState(false);
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((state) => state.user?.id);
+
+  const mutation = useMutation<
+    ApiResponse<ApplicationOperatingHoursResponse[]>,
+    ApiError,
+    ApplicationOperatingHoursPayload
+  >({
+    mutationFn: async (payload) => {
+      const response = await saveApplicationOperatingHours(payload);
+
+      throwOnApiError(response);
+
+      return response;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: merchantApplicationKeys.current(userId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: merchantApplicationKeys.status(userId),
+        }),
+      ]);
+    },
+  });
 
   async function saveOperatingHours(
     payload: ApplicationOperatingHoursPayload,
   ): Promise<ApiResponse<ApplicationOperatingHoursResponse[]>> {
-    setIsSaving(true);
-
     try {
-      const response = await saveApplicationOperatingHours(payload);
+      return await mutation.mutateAsync(payload);
+    } catch (error) {
+      const response = error as ApiError;
 
-      if (!response.success) {
-        handleSystemError(response);
+      handleSystemError(response);
 
-        Toast.show({
-          type: "error",
-          text1: "Unable to save",
-          text2:
-            response.message ||
-            "We couldn't save your operating hours. Please try again.",
-        });
-      }
+      Toast.show({
+        type: "error",
+        text1: "Unable to save",
+        text2:
+          response.message ||
+          "We couldn't save your operating hours. Please try again.",
+      });
 
       return response;
-    } finally {
-      setIsSaving(false);
     }
   }
 
   return {
     saveOperatingHours,
-    isSaving,
+    isSaving: mutation.isPending,
+    error: mutation.error,
   };
 }

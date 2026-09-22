@@ -1,7 +1,8 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 /**
  * Overlay displayed when no business location has
@@ -23,13 +24,16 @@ export default function MapPreviewEmptyState() {
             color={theme.extends.colors.brand}
           />
 
-          <Text className="mt-1 text-center text-base font-semibold text-text-primary">
+          <AppText
+            weight="semibold"
+            className="mt-1 text-center text-base  text-text-primary"
+          >
             Select your business location
-          </Text>
+          </AppText>
 
-          <Text className="mt-0.5 text-center text-sm text-text-secondary">
+          <AppText className="mt-0.5 text-center text-sm text-text-secondary">
             Tap to search or choose on the map
-          </Text>
+          </AppText>
         </View>
       </View>
     </>

@@ -1,67 +1,71 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import LocationSearch from "./LocationSearch";
+import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import { shadows } from "@/shared/styles/shadows";
 
 type LocationPickerHeaderProps = {
-  value: string;
-  onChangeText: (text: string) => void;
-  onPlaceSelect: Parameters<typeof LocationSearch>[0]["onPlaceSelect"];
-  onSuggestionsVisibleChange: (visible: boolean) => void;
+  onSearch: () => void;
   onClose: () => void;
 };
 
 /**
- * Header displayed above the full-screen business location picker.
+ * Displays floating navigation and search controls above the business map.
  *
- * Provides navigation together with place search for selecting
- * the business location.
+ * Keeps the map visually primary while providing an integrated back action
+ * and a compact entry point to business-location search.
  */
 export default function LocationPickerHeader({
-  value,
-  onChangeText,
-  onPlaceSelect,
-  onSuggestionsVisibleChange,
+  onSearch,
   onClose,
 }: LocationPickerHeaderProps) {
   return (
     <SafeAreaView
       edges={["top"]}
-      className="absolute left-4 right-4 top-0 z-10"
+      pointerEvents="box-none"
+      className="absolute left-0 right-0 top-0 z-10 px-screen-x"
     >
-      <View className="rounded-xl bg-white px-4 py-4  shadow-lg">
-        <View className="flex-row items-center">
-          <Pressable
-            onPress={onClose}
-            className="mr-3 h-9 w-9 items-center justify-center rounded-full bg-gray-100"
-          >
-            <MaterialCommunityIcons
-              name="arrow-left"
-              size={21}
-              color="#1B4D3E"
-            />
-          </Pressable>
-
-          <View className="flex-1">
-            <Text className="text-base font-bold text-text-primary">
-              Pick Your Business Location
-            </Text>
-
-            <Text className="mt-0.5 text-xs text-text-secondary">
-              Search for a place or tap the map to drop a pin.
-            </Text>
-          </View>
-        </View>
-
-        <View className="mt-4">
-          <LocationSearch
-            value={value}
-            onChangeText={onChangeText}
-            onPlaceSelect={onPlaceSelect}
-            onSuggestionsVisibleChange={onSuggestionsVisibleChange}
+      {/* Map navigation and search */}
+      <View
+        className="flex-row items-center overflow-hidden rounded-full border border-border-primary bg-surface"
+        style={shadows.floating}
+      >
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Go back without changing business location"
+          className="h-12 w-12 cursor-pointer items-center justify-center active:bg-surface-secondary"
+        >
+          <MaterialCommunityIcons
+            name="chevron-left"
+            size={24}
+            color={theme.extends.colors.text.primary}
           />
-        </View>
+        </Pressable>
+
+        <View className="h-7 w-px bg-border-primary" />
+
+        <Pressable
+          onPress={onSearch}
+          accessibilityRole="button"
+          accessibilityLabel="Search your business location"
+          className="min-h-12 min-w-0 flex-1 cursor-pointer flex-row items-center px-4 active:bg-surface-secondary"
+        >
+          <MaterialCommunityIcons
+            name="magnify"
+            size={21}
+            color={theme.extends.colors.text.secondary}
+          />
+
+          <AppText
+            className="ml-3 min-w-0 flex-1 text-sm text-text-secondary"
+            numberOfLines={1}
+          >
+            Search your business location
+          </AppText>
+        </Pressable>
       </View>
     </SafeAreaView>
   );

@@ -1,8 +1,12 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
-import underReviewAnimation from "../../assets/animations/under-review.json";
 import LottieView from "lottie-react-native";
+import { View } from "react-native";
+
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import DottedTimelineConnector from "@/shared/components/DottedTimelineConnector";
+
+import underReviewAnimation from "../../assets/animations/under-review.json";
 
 type SubmittedApplicationSectionProps = {
   submittedAt: string;
@@ -13,7 +17,7 @@ type SubmittedApplicationSectionProps = {
  * Displays the merchant application's current post-submission status.
  *
  * Combines a focused under-review status header, the configured review SLA,
- * and a simple vertical timeline showing the application's progress.
+ * and a vertical timeline showing the application's progress.
  */
 export default function SubmittedApplicationSection({
   submittedAt,
@@ -52,19 +56,25 @@ export default function SubmittedApplicationSection({
         />
 
         <View className="mt-4 rounded-full bg-brand/10 px-3.5 py-1.5">
-          <Text className="text-xs font-bold uppercase tracking-wide text-brand">
+          <AppText
+            weight="bold"
+            className="text-xs uppercase tracking-wide text-brand"
+          >
             Under Review
-          </Text>
+          </AppText>
         </View>
 
-        <Text className="mt-3 text-center text-2xl font-bold text-text-primary">
+        <AppText
+          weight="bold"
+          className="mt-3 text-center text-2xl text-text-primary"
+        >
           We're reviewing your application
-        </Text>
+        </AppText>
 
-        <Text className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
+        <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
           Our team is carefully reviewing your submitted documents. We'll notify
           you once a decision has been made.
-        </Text>
+        </AppText>
       </View>
 
       {/* Review SLA */}
@@ -76,21 +86,24 @@ export default function SubmittedApplicationSection({
         />
 
         <View className="ml-3 flex-1">
-          <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          <AppText
+            weight="semibold"
+            className="text-xs uppercase tracking-wide text-text-secondary"
+          >
             Estimated Review Time
-          </Text>
+          </AppText>
 
-          <Text className="mt-0.5 text-base font-bold text-text-primary">
+          <AppText weight="bold" className="mt-0.5 text-base text-text-primary">
             {estimatedReview ?? "Review in progress"}
-          </Text>
+          </AppText>
         </View>
       </View>
 
       {/* Application timeline */}
       <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 py-5">
-        <Text className="mb-5 text-sm font-bold text-text-primary">
+        <AppText weight="bold" className="mb-5 text-sm text-text-primary">
           Application Progress
-        </Text>
+        </AppText>
 
         {steps.map((step, index) => {
           const isLast = index === steps.length - 1;
@@ -111,36 +124,33 @@ export default function SubmittedApplicationSection({
                   <MaterialCommunityIcons
                     name={step.icon}
                     size={17}
-                    color={step.state === "pending" ? "gray" : "white"}
+                    color={
+                      step.state === "pending"
+                        ? theme.extends.colors.text.secondary
+                        : "#FFFFFF"
+                    }
                   />
                 </View>
 
-                {!isLast && (
-                  <View
-                    className={`my-1 h-10 w-0.5 ${
-                      step.state === "done"
-                        ? "bg-success/30"
-                        : "bg-border-primary"
-                    }`}
-                  />
-                )}
+                {!isLast && <DottedTimelineConnector className="my-1 h-10" />}
               </View>
 
               {/* Timeline content */}
               <View className={`ml-4 flex-1 ${isLast ? "" : "pb-5"}`}>
-                <Text
-                  className={`text-sm font-bold ${
+                <AppText
+                  weight="bold"
+                  className={`text-sm ${
                     step.state === "pending"
                       ? "text-text-secondary"
                       : "text-text-primary"
                   }`}
                 >
                   {step.label}
-                </Text>
+                </AppText>
 
-                <Text className="mt-1 text-xs leading-5 text-text-secondary">
+                <AppText className="mt-1 text-xs leading-5 text-text-secondary">
                   {step.detail}
-                </Text>
+                </AppText>
               </View>
             </View>
           );

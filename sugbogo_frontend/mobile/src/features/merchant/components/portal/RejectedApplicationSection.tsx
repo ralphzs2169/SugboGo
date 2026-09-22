@@ -1,11 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
-
-import { ApplicationFeedbackResponse } from "../../types/registration/registrationApi.types";
-import ResubmissionChecklist from "../registration/ResubmissionChecklist";
-import rejectedApplicationAnimation from "../../assets/animations/changes-required.json";
 import LottieView from "lottie-react-native";
+import { View } from "react-native";
+
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+
+import rejectedApplicationAnimation from "../../assets/animations/changes-required.json";
+import type { ApplicationFeedbackResponse } from "../../types/registration/registrationApi.types";
+import ResubmissionChecklist from "../registration/ResubmissionChecklist";
 
 type RejectionApplicationSectionProps = {
   feedback: ApplicationFeedbackResponse[];
@@ -16,8 +18,7 @@ type RejectionApplicationSectionProps = {
  * Displays the merchant application's rejected state.
  *
  * Uses the same status-first visual structure as the submitted application
- * state while focusing the merchant on the required changes and review
- * feedback needed for resubmission.
+ * state while focusing the merchant on required changes and review feedback.
  */
 export default function RejectionApplicationSection({
   feedback,
@@ -35,18 +36,24 @@ export default function RejectionApplicationSection({
         />
 
         <View className="mt-4 rounded-full bg-text-error/10 px-3.5 py-1.5">
-          <Text className="text-xs font-bold uppercase tracking-wide text-text-error">
+          <AppText
+            weight="bold"
+            className="text-xs uppercase tracking-wide text-text-error"
+          >
             Changes Required
-          </Text>
+          </AppText>
         </View>
 
-        <Text className="mt-3 text-center text-2xl font-bold text-text-primary">
+        <AppText
+          weight="bold"
+          className="mt-3 text-center text-2xl text-text-primary"
+        >
           Your application needs some changes
-        </Text>
+        </AppText>
 
-        <Text className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
+        <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
           Review the feedback, make the required changes, and resubmit.
-        </Text>
+        </AppText>
       </View>
 
       {/* Review information */}
@@ -58,23 +65,26 @@ export default function RejectionApplicationSection({
         />
 
         <View className="ml-3 flex-1">
-          <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          <AppText
+            weight="semibold"
+            className="text-xs uppercase tracking-wide text-text-secondary"
+          >
             Reviewed
-          </Text>
+          </AppText>
 
-          <Text className="mt-0.5 text-base font-bold text-text-primary">
+          <AppText weight="bold" className="mt-0.5 text-base text-text-primary">
             {reviewedAt}
-          </Text>
+          </AppText>
         </View>
       </View>
 
       {/* Administrator feedback */}
       <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 pt-5">
-        <Text className="mb-1 text-sm font-bold text-text-primary">
+        <AppText weight="bold" className="mb-1 text-sm text-text-primary">
           Administrator Feedback
-        </Text>
+        </AppText>
 
-        <ResubmissionChecklist feedback={feedback} isInMerchantPortal={true} />
+        <ResubmissionChecklist feedback={feedback} isInMerchantPortal />
       </View>
     </View>
   );

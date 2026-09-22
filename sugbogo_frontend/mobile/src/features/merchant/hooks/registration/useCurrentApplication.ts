@@ -1,75 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import type { ApiError } from "@/shared/types/apiResponse.types";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getCurrentApplication } from "../../api/merchantApplication.service";
-
 import type { ApplicationDetailResponse } from "../../types/registration/registrationApi.types";
+import { merchantApplicationKeys } from "../merchantApplicationQueryKeys";
 
 export default function useCurrentApplication() {
-  const [application, setApplication] =
-    useState<ApplicationDetailResponse | null>(null);
+  const userId = useAuthStore((state) => state.user?.id);
 
-  const [isLoading, setIsLoading] = useState(true);
-
-  const [error, setError] = useState(false);
-
-  const fetchApplication = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setIsLoading(true);
-    }
-
-    setError(false);
-
-    try {
+  const query = useQuery<ApplicationDetailResponse | null, ApiError>({
+    queryKey: merchantApplicationKeys.current(userId),
+    queryFn: async () => {
       const response = await getCurrentApplication();
 
       if (!response.success) {
         if (response.code === "APPLICATION_NOT_FOUND") {
-          setApplication(null);
-          setError(false);
-          return;
+          return null;
         }
-
-        if (showLoading) {
-          setApplication(null);
-          setError(true);
-        }
-
-        return;
       }
 
-      setApplication(response.data);
-      setError(false);
-    } catch (error) {
-      console.error("Failed to fetch current application:", error);
-
-      if (showLoading) {
-        setApplication(null);
-        setError(true);
-      }
-    } finally {
-      if (showLoading) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchApplication();
-  }, [fetchApplication]);
-
-  // Memoized so callers relying on identity (e.g. a useCallback/useEffect
-  // dependency array) don't re-fire on every render.
-  const refetch = useCallback(() => fetchApplication(true), [fetchApplication]);
-  const refresh = useCallback(
-    () => fetchApplication(false),
-    [fetchApplication],
-  );
+      return throwOnApiError(response);
+    },
+    enabled: !!userId,
+  });
 
   return {
-    application,
-    isLoading,
-    error,
-    refetch,
-    refresh,
+    application: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.isError,
+    refetch: query.refetch,
   };
 }

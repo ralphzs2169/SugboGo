@@ -1,6 +1,9 @@
-import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Pressable, View } from "react-native";
+
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import { shadows } from "@/shared/styles/shadows";
 
 type OperatingHoursControlsProps = {
   isOpen: boolean;
@@ -9,19 +12,10 @@ type OperatingHoursControlsProps = {
   on24HoursChange: (is24Hours: boolean) => void;
 };
 
-const pillShadow = {
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.08,
-  shadowRadius: 4,
-  elevation: 3,
-};
-
 /**
- * Controls the open/closed state and 24-hour setting
- * for a single operating-hours schedule.
+ * Controls the open or closed state and 24-hour setting for a daily schedule.
  *
- * The 24-hour option is only available when the day is open.
+ * Keeps the 24-hour option available only while the selected day is open.
  */
 export default function OperatingHoursControls({
   isOpen,
@@ -31,51 +25,59 @@ export default function OperatingHoursControls({
 }: OperatingHoursControlsProps) {
   return (
     <View className="gap-3">
-      {/* Open/closed segmented control */}
+      {/* Open and closed segmented control */}
       <View className="flex-row rounded-md bg-black/5 p-1.5">
         <Pressable
+          onPress={() => onOpenStateChange(true)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isOpen }}
           className={
             isOpen
-              ? "flex-1 rounded-md bg-white px-4 py-3"
-              : "flex-1 rounded-md px-4 py-3"
+              ? "flex-1 cursor-pointer rounded-md bg-surface px-4 py-3"
+              : "flex-1 cursor-pointer rounded-md px-4 py-3 active:bg-surface/60"
           }
-          style={isOpen ? pillShadow : undefined}
-          onPress={() => onOpenStateChange(true)}
+          style={isOpen ? shadows.subtle : undefined}
         >
           <View className="flex-row items-center justify-center gap-1.5">
             {isOpen && <View className="h-2 w-2 rounded-full bg-green-500" />}
-            <Text
+
+            <AppText
+              weight={isOpen ? "bold" : "medium"}
               className={
                 isOpen
-                  ? "text-center text-sm font-bold text-text-primary"
-                  : "text-center text-sm font-medium text-text-tertiary"
+                  ? "text-center text-sm text-text-primary"
+                  : "text-center text-sm text-text-tertiary"
               }
             >
               Open
-            </Text>
+            </AppText>
           </View>
         </Pressable>
 
         <Pressable
+          onPress={() => onOpenStateChange(false)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: !isOpen }}
           className={
             !isOpen
-              ? "flex-1 rounded-md bg-white px-4 py-3"
-              : "flex-1 rounded-md px-4 py-3"
+              ? "flex-1 cursor-pointer rounded-md bg-surface px-4 py-3"
+              : "flex-1 cursor-pointer rounded-md px-4 py-3 active:bg-surface/60"
           }
-          style={!isOpen ? pillShadow : undefined}
-          onPress={() => onOpenStateChange(false)}
+          style={!isOpen ? shadows.subtle : undefined}
         >
           <View className="flex-row items-center justify-center gap-1.5">
             {!isOpen && <View className="h-2 w-2 rounded-full bg-gray-400" />}
-            <Text
+
+            <AppText
+              weight={!isOpen ? "bold" : "medium"}
               className={
                 !isOpen
-                  ? "text-center text-sm font-bold text-text-primary"
-                  : "text-center text-sm font-medium text-text-tertiary"
+                  ? "text-center text-sm text-text-primary"
+                  : "text-center text-sm text-text-tertiary"
               }
             >
               Closed
-            </Text>
+            </AppText>
           </View>
         </Pressable>
       </View>
@@ -83,8 +85,10 @@ export default function OperatingHoursControls({
       {/* 24-hour toggle */}
       {isOpen && (
         <Pressable
-          className="flex-row items-center justify-between py-2"
           onPress={() => on24HoursChange(!is24Hours)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: is24Hours }}
+          className="cursor-pointer flex-row items-center justify-between py-2 active:opacity-70"
         >
           <View className="flex-row items-center gap-3">
             <MaterialCommunityIcons
@@ -97,15 +101,14 @@ export default function OperatingHoursControls({
               }
             />
 
-            <Text
+            <AppText
+              weight={is24Hours ? "semibold" : "medium"}
               className={
-                is24Hours
-                  ? "text-sm font-semibold text-primary"
-                  : "text-sm font-medium text-text-primary"
+                is24Hours ? "text-sm text-brand" : "text-sm text-text-primary"
               }
             >
               Open 24 hours
-            </Text>
+            </AppText>
           </View>
 
           <View
@@ -117,10 +120,12 @@ export default function OperatingHoursControls({
           >
             <View
               className="h-5 w-5 rounded-full bg-white"
-              style={{
-                transform: [{ translateX: is24Hours ? 20 : 0 }],
-                ...pillShadow,
-              }}
+              style={[
+                shadows.subtle,
+                {
+                  transform: [{ translateX: is24Hours ? 20 : 0 }],
+                },
+              ]}
             />
           </View>
         </Pressable>

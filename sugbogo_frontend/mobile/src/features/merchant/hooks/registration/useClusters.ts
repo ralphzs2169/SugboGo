@@ -1,51 +1,30 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
+import type { ApiError } from "@/shared/types/apiResponse.types";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getClusters } from "../../api/merchantApplication.service";
-import { ClusterOption } from "../../types/registration/registrationOption.types";
-import { ApiError } from "@/shared/types/apiResponse.types";
+import type { ClusterOption } from "../../types/registration/registrationOption.types";
+import {
+  MERCHANT_REGISTRATION_OPTIONS_STALE_TIME,
+  merchantApplicationKeys,
+} from "../merchantApplicationQueryKeys";
 
 export default function useClusters() {
-  const [clusters, setClusters] = useState<ClusterOption[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<ApiError | null>(null);
-
-  async function loadClusters() {
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const query = useQuery<ClusterOption[], ApiError>({
+    queryKey: merchantApplicationKeys.clusters(),
+    queryFn: async () => {
       const response = await getClusters();
 
-      if (!response.success) {
-        setError(response);
-        setClusters([]);
-        return;
-      }
-
-      setClusters(response.data);
-    } catch (error) {
-      console.error("Failed to load clusters:", error);
-
-      setError({
-        success: false,
-        message: "Failed to load clusters.",
-        code: "UNKNOWN_ERROR",
-      });
-
-      setClusters([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadClusters();
-  }, []);
+      return throwOnApiError(response);
+    },
+    staleTime: MERCHANT_REGISTRATION_OPTIONS_STALE_TIME,
+  });
 
   return {
-    clusters,
-    isLoading,
-    error,
-    refetch: loadClusters,
+    clusters: query.data ?? [],
+    isLoading: query.isLoading,
+    hasData: query.data !== undefined,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
