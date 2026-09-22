@@ -9,6 +9,14 @@ class BusinessService:
     """Service class for administrator-facing business management queries."""
 
     @staticmethod
+    def get_business_for_review_insights_refresh(business_id: int) -> Business:
+        """Checks that a business exists before its refresh task is queued."""
+        try:
+            return Business.objects.get(BUSN_ID=business_id)
+        except Business.DoesNotExist:
+            raise NotFound("The business could not be found.") from None
+
+    @staticmethod
     def list_businesses(
         search=None,
         ordering=None,
@@ -177,6 +185,7 @@ class BusinessService:
                     "CTGRY_ID__CLUS_ID",
                     "LOCT_ID",
                     "merchant_application",
+                    "review_summary",
                 )
                 .prefetch_related(
                     Prefetch(

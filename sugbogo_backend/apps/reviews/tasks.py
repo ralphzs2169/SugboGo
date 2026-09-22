@@ -4,6 +4,9 @@ from datetime import datetime
 from celery import shared_task
 from django.utils import timezone
 
+from apps.reviews.services.business_review_insights_service import (
+    BusinessReviewInsightsService,
+)
 from apps.reviews.services.review_keyword_service import RetryableKeywordError
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
 
@@ -12,6 +15,44 @@ logger = logging.getLogger(__name__)
 TRANSIENT_RETRY_LIMIT = 3
 TRANSIENT_RETRY_BASE_SECONDS = 60
 TRANSIENT_RETRY_MAX_SECONDS = 300
+
+
+@shared_task(
+    bind=True,
+    name="apps.reviews.tasks.refresh_business_review_insights",
+    max_retries=TRANSIENT_RETRY_LIMIT,
+)
+def refresh_business_review_insights(
+    task,
+    business_id: int,
+    retry_keywords_only: bool = False,
+) -> dict:
+    """Refreshes one business and retries transient keyword failures only."""
+    try:
+        return BusinessReviewInsightsService.refresh(
+            business_id,
+            retry_keywords_only=retry_keywords_only,
+        )
+    except RetryableKeywordError as exc:
+        countdown = min(
+            TRANSIENT_RETRY_BASE_SECONDS * (2 ** task.request.retries),
+            TRANSIENT_RETRY_MAX_SECONDS,
+        )
+        logger.warning(
+            "Business review insights keywords will retry after a transient failure.",
+            extra={
+                "business_id": business_id,
+                "retry_countdown_seconds": countdown,
+            },
+        )
+        raise task.retry(
+            exc=exc,
+            countdown=countdown,
+            kwargs={
+                "business_id": business_id,
+                "retry_keywords_only": True,
+            },
+        )
 
 
 @shared_task(
