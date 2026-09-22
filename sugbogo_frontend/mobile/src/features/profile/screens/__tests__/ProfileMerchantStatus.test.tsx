@@ -148,6 +148,34 @@ describe("ProfileScreen merchant status", () => {
     screen.unmount();
   });
 
+  it("shows a non-blocking retry when cached empty status cannot refresh", async () => {
+    mockStatusState = {
+      ...mockStatusState,
+      error: true,
+      hasResolvedStatus: true,
+    };
+
+    const screen = await render(<ProfileScreen />);
+
+    expect(mockMerchantPortalCard).toHaveBeenCalledWith(
+      expect.objectContaining({ status: null }),
+      undefined,
+    );
+    expect(mockErrorState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        size: "section",
+        title: "Unable to refresh merchant status",
+      }),
+      undefined,
+    );
+
+    const retry = mockErrorState.mock.lastCall[0].onPrimaryAction;
+    retry();
+    expect(mockRefetchApplicationStatus).toHaveBeenCalledTimes(2);
+
+    screen.unmount();
+  });
+
   it("retains focus refetching for externally changed application status", async () => {
     const screen = await render(<ProfileScreen />);
 

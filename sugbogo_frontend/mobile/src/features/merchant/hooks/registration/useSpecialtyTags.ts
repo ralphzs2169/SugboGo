@@ -23,6 +23,7 @@ export default function useSpecialtyTags() {
   return {
     specialtyTags: query.data ?? [],
     isLoading: query.isLoading,
+    hasData: query.data !== undefined,
     error: query.error,
     refetch: query.refetch,
   };

@@ -78,15 +78,20 @@ describe("registration location queries", () => {
     await act(async () => { result.current.searchPlaces("  Cebu  "); });
     expect(searchPlaces).not.toHaveBeenCalled();
     expect(result.current.suggestions).toEqual([]);
+    expect(result.current.isDebouncing).toBe(true);
+    expect(result.current.isSearchSuccess).toBe(false);
 
     await finishDebounce();
     await waitFor(() => expect(result.current.suggestions).toEqual(suggestions));
+    expect(result.current.isDebouncing).toBe(false);
+    expect(result.current.isSearchSuccess).toBe(true);
     expect(searchPlaces).toHaveBeenCalledWith("Cebu");
     expect(client.getQueryData(merchantApplicationKeys.placeSearch("Cebu")))
       .toEqual(suggestions);
 
     await act(async () => { result.current.clearSuggestions(); });
     expect(result.current.suggestions).toEqual([]);
+    expect(result.current.isDebouncing).toBe(false);
     expect(result.current.isSearchRateLimited).toBe(false);
 
     unmount();
@@ -243,6 +248,33 @@ describe("registration location queries", () => {
     );
     expect(client.getQueryState(merchantApplicationKeys.placeDetails("place-1"))?.error)
       .toEqual(expect.objectContaining({ code: "RATE_LIMIT_EXCEEDED" }));
+
+    unmount();
+    client.clear();
+  });
+
+  it("shows feedback for a generic place-detail failure", async () => {
+    (getPlaceDetails as jest.Mock).mockResolvedValue({
+      success: false,
+      message: "Place details unavailable.",
+      code: "PLACE_DETAILS_UNAVAILABLE",
+    });
+    const client = createClient();
+    const { result, unmount } = await renderHook(useRegistrationPlaceSearch, {
+      wrapper: createWrapper(client),
+    });
+
+    await act(async () => {
+      await expect(result.current.getPlaceDetails("place-1"))
+        .resolves.toBeNull();
+    });
+
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "error",
+        text1: "Unable to load place details",
+      }),
+    );
 
     unmount();
     client.clear();

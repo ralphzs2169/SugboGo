@@ -5,6 +5,7 @@ import SearchBar from "./SearchBar";
 import SearchResults from "./SearchResults";
 import useRegistrationPlaceSearch from "@/features/merchant/hooks/registration/useRegistrationPlaceSearch";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+import FormFieldApiError from "@/shared/components/form/FormFieldApiError";
 
 type Props = {
   value: string;
@@ -33,6 +34,9 @@ export default function BusinessLocationSearch({
   const {
     suggestions,
     isLoading,
+    isDebouncing,
+    isSearchSuccess,
+    searchError,
     isSearchRateLimited,
     searchPlaces,
     getPlaceDetails,
@@ -52,6 +56,8 @@ export default function BusinessLocationSearch({
   const showNoResults =
     hasQuery &&
     !isLoading &&
+    !isDebouncing &&
+    isSearchSuccess &&
     !isSearchRateLimited &&
     suggestions.length === 0 &&
     !resolvingPlaceId &&
@@ -135,6 +141,13 @@ export default function BusinessLocationSearch({
           searchPlaces(text);
         }}
       />
+
+      {searchError && (
+        <FormFieldApiError
+          message="Unable to search places."
+          onRetry={() => searchPlaces(value)}
+        />
+      )}
 
       <SearchResults
         suggestions={suggestions}

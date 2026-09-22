@@ -760,6 +760,18 @@ export default function MerchantRegistrationScreen() {
 
           overlay={showReviewCelebration ? <ReviewCelebration /> : null}
         >
+          {applicationError && application && (
+            <ErrorState
+              size="section"
+              title="Unable to refresh registration"
+              description="Showing the last saved application details. Try again to refresh review feedback."
+              primaryActionTitle="Try Again"
+              onPrimaryAction={() => {
+                void refetchApplication();
+              }}
+            />
+          )}
+
           <RegistrationStepContent
             currentStep={currentStep}
             clusters={clusters}

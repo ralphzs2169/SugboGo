@@ -1,4 +1,4 @@
-import { Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import type { z } from "zod";
 
 import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
@@ -17,6 +17,7 @@ import ReviewSectionFeedback from "../ReviewSectionFeedback";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
+import FormFieldApiError from "@/shared/components/form/FormFieldApiError";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessIdentityProps = {
@@ -41,7 +42,13 @@ export default function ReviewBusinessIdentity({
   onEdit,
   feedback,
 }: ReviewBusinessIdentityProps) {
-  const { specialtyTags } = useSpecialtyTags();
+  const {
+    specialtyTags,
+    isLoading: isLoadingSpecialtyTags,
+    hasData: hasSpecialtyTagsData,
+    error: specialtyTagsError,
+    refetch: refetchSpecialtyTags,
+  } = useSpecialtyTags();
 
   const selectedCluster = clusters.find(
     (cluster) => cluster.id.toString() === form.businessCluster,
@@ -143,7 +150,24 @@ export default function ReviewBusinessIdentity({
             Specialty Tags
           </Text>
 
-          {selectedSpecialtyTags.length > 0 ? (
+          {isLoadingSpecialtyTags && !hasSpecialtyTagsData ? (
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator
+                size="small"
+                color={theme.extends.colors.brand}
+              />
+              <Text className="text-sm text-text-secondary">
+                Loading specialty tags...
+              </Text>
+            </View>
+          ) : specialtyTagsError && !hasSpecialtyTagsData ? (
+            <FormFieldApiError
+              message="Unable to load specialty tags."
+              onRetry={() => {
+                void refetchSpecialtyTags();
+              }}
+            />
+          ) : selectedSpecialtyTags.length > 0 ? (
             <View className="flex-row flex-wrap">
               {selectedSpecialtyTags.map((tag) => (
                 <SpecialtyTagChip key={tag.id} tag={tag} />
@@ -151,6 +175,15 @@ export default function ReviewBusinessIdentity({
             </View>
           ) : (
             <Text className="text-sm text-text-primary">Not provided</Text>
+          )}
+
+          {specialtyTagsError && hasSpecialtyTagsData && (
+            <FormFieldApiError
+              message="Specialty tags could not be refreshed."
+              onRetry={() => {
+                void refetchSpecialtyTags();
+              }}
+            />
           )}
         </View>
       </View>

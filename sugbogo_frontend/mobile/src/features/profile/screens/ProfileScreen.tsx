@@ -152,6 +152,21 @@ export default function ProfileScreen() {
           </ProfileMenuSection>
 
           {/* Merchant onboarding */}
+          {!isLoadingApplicationStatus &&
+            applicationStatusError &&
+            hasResolvedStatus &&
+            applicationStatus === null && (
+              <ErrorState
+                size="section"
+                title="Unable to refresh merchant status"
+                description="Showing your last available merchant status."
+                primaryActionTitle="Try Again"
+                onPrimaryAction={() => {
+                  void refetchApplicationStatus();
+                }}
+              />
+            )}
+
           {!isLoadingApplicationStatus && !merchantModeAcknowledged &&
             (applicationStatusError && !hasResolvedStatus ? (
               <ErrorState

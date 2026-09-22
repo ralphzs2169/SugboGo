@@ -11,6 +11,7 @@ import type {
   PlaceSuggestion,
 } from "@/shared/types/BusinessLocation.types";
 import type { ApiError } from "@/shared/types/apiResponse.types";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { merchantApplicationKeys } from "../merchantApplicationQueryKeys";
@@ -37,6 +38,7 @@ export default function useRegistrationPlaceSearch() {
   const hasSearchInput = normalizedInput.length >= MINIMUM_SEARCH_LENGTH;
   const isCurrentSearch =
     hasSearchInput && normalizedInput === debouncedInput;
+  const isDebouncing = hasSearchInput && !isCurrentSearch;
 
   const searchQuery = useQuery<PlaceSuggestion[], ApiError>({
     queryKey: merchantApplicationKeys.placeSearch(debouncedInput),
@@ -123,8 +125,20 @@ export default function useRegistrationPlaceSearch() {
           text1: "Location outside service area",
           text2: response.message,
         });
-      } else if (response?.success !== false) {
-        console.error("Failed to get place details:", error);
+      } else {
+        const systemErrorHandled =
+          response?.success === false && handleSystemError(response);
+
+        if (!systemErrorHandled) {
+          Toast.show({
+            type: "error",
+            text1: "Unable to load place details",
+            text2:
+              response?.success === false
+                ? response.message
+                : "Please try selecting the place again.",
+          });
+        }
       }
 
       return null;
@@ -139,6 +153,10 @@ export default function useRegistrationPlaceSearch() {
     suggestions: isCurrentSearch ? (searchQuery.data ?? []) : [],
     isLoading: isCurrentSearch && searchQuery.isLoading,
     isRefetching: isCurrentSearch && searchQuery.isRefetching,
+    isDebouncing,
+    isSearchSuccess: isCurrentSearch && searchQuery.isSuccess,
+    searchError:
+      searchError?.code === "RATE_LIMIT_EXCEEDED" ? null : searchError,
     error: searchError
       ? "Unable to search places."
       : detailsQuery.error && selectedPlaceId

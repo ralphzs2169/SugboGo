@@ -52,7 +52,7 @@ export default function MerchantPortalScreen() {
     );
   }
 
-  if (error) {
+  if (error && !application) {
     return (
       <SafeAreaView className="flex-1 bg-background">
         <ErrorState
@@ -123,6 +123,18 @@ export default function MerchantPortalScreen() {
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-surface">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {error && application && (
+          <ErrorState
+            size="section"
+            title="Unable to refresh merchant portal"
+            description="Showing your last available application details."
+            primaryActionTitle="Try Again"
+            onPrimaryAction={() => {
+              void refetch();
+            }}
+          />
+        )}
+
         {config.hero && <MerchantHero />}
 
         {config.sections.progress && (

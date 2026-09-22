@@ -8,6 +8,7 @@ import { mapApplicationToForm } from "../utils/merchant-application/mappers/mapA
 
 import useBusinessCategories from "../hooks/registration/useCategories";
 import useBusinessClusters from "../hooks/registration/useClusters";
+import useSpecialtyTags from "../hooks/registration/useSpecialtyTags";
 
 import ReviewBusinessIdentity from "@/features/merchant/components/registration/review/sections/ReviewBusinessIdentity";
 import ErrorState from "@/shared/components/ErrorState";
@@ -23,6 +24,7 @@ export default function ApplicationSummaryScreen() {
   const {
     clusters,
     isLoading: isLoadingClusters,
+    hasData: hasClustersData,
     error: clustersError,
     refetch: refetchClusters,
   } = useBusinessClusters();
@@ -30,11 +32,24 @@ export default function ApplicationSummaryScreen() {
   const {
     categories,
     isLoading: isLoadingCategories,
+    hasData: hasCategoriesData,
     error: categoriesError,
     refetch: refetchCategories,
   } = useBusinessCategories();
 
-  if (isLoading || isLoadingClusters || isLoadingCategories) {
+  const {
+    isLoading: isLoadingSpecialtyTags,
+    hasData: hasSpecialtyTagsData,
+    error: specialtyTagsError,
+    refetch: refetchSpecialtyTags,
+  } = useSpecialtyTags();
+
+  if (
+    isLoading ||
+    isLoadingClusters ||
+    isLoadingCategories ||
+    isLoadingSpecialtyTags
+  ) {
     return (
       <LoadingScreen
         title="Loading Application"
@@ -43,7 +58,12 @@ export default function ApplicationSummaryScreen() {
     );
   }
 
-  if (error || clustersError || categoriesError) {
+  if (
+    (error && !application) ||
+    (clustersError && !hasClustersData) ||
+    (categoriesError && !hasCategoriesData) ||
+    (specialtyTagsError && !hasSpecialtyTagsData)
+  ) {
     return (
       <SafeAreaView
         className="flex-1 bg-background"
@@ -58,6 +78,7 @@ export default function ApplicationSummaryScreen() {
               refetch(),
               refetchClusters(),
               refetchCategories(),
+              refetchSpecialtyTags(),
             ]);
           }}
           secondaryActionTitle="Go Back"
@@ -72,6 +93,7 @@ export default function ApplicationSummaryScreen() {
   }
 
   const form = mapApplicationToForm(application);
+  const hasBackgroundError = error || clustersError || categoriesError;
 
   return (
     <SafeAreaView className="flex-1" edges={["left", "right", "bottom"]}>
@@ -80,6 +102,22 @@ export default function ApplicationSummaryScreen() {
           paddingTop: 0,
         }}
       >
+        {hasBackgroundError && (
+          <ErrorState
+            size="section"
+            title="Unable to refresh application"
+            description="Showing the last available application details."
+            primaryActionTitle="Try Again"
+            onPrimaryAction={() => {
+              void Promise.all([
+                refetch(),
+                refetchClusters(),
+                refetchCategories(),
+              ]);
+            }}
+          />
+        )}
+
         <ReviewBusinessIdentity
           form={form}
           clusters={clusters}
