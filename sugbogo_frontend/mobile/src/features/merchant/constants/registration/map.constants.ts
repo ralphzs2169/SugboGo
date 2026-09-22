@@ -15,4 +15,4 @@ export const MAP_STYLE = [
  * Maximum distance from the business where a custom landmark
  * may be placed.
  */
-export const LANDMARK_RADIUS_METERS = 1000;
+export const LANDMARK_RADIUS_METERS = 500;

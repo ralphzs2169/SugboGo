@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { useState, useRef } from "react";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 import type { ApiError } from "@/shared/types/apiResponse.types";
@@ -8,7 +9,9 @@ import LocationPickerHeader from "../components/registration/location/LocationPi
 import ConfirmLocationSheet from "../components/registration/location/ConfirmLocationSheet";
 import LocationPickerMap from "../components/registration/location/LocationPickerMap";
 import BottomSelectionInfoSheet from "../components/registration/location/BottomSelectionInfoSheet";
+import BusinessLocationSearchSheet from "../components/registration/location/BusinessLocationSearchSheet";
 import useRegistrationReverseGeocode from "../hooks/registration/useRegistrationReverseGeocode";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import Toast from "react-native-toast-message";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
@@ -33,9 +36,7 @@ export default function BusinessLocationPickerScreen({
   onClose,
   isConfirming,
 }: BusinessLocationPickerScreenProps) {
-  // Search bar state
-  const [searchText, setSearchText] = useState("");
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const searchSheetRef = useRef<BottomSheetModal>(null);
 
   // Selected location state
   const [selectedLocation, setSelectedLocation] =
@@ -61,7 +62,6 @@ export default function BusinessLocationPickerScreen({
   // Resolve the address when the user selects a location directly on the map.
   async function handleMapLocationSelect(latitude: number, longitude: number) {
     const requestId = ++selectionRequestId.current;
-    setSearchText("");
     setIsResolvingAddress(true);
 
     try {
@@ -136,20 +136,15 @@ export default function BusinessLocationPickerScreen({
   return (
     <View className="flex-1 bg-background">
       <LocationPickerHeader
-        value={searchText}
-        onChangeText={setSearchText}
-        onPlaceSelect={handleLocationSelect}
-        onSuggestionsVisibleChange={setSuggestionsOpen}
+        onSearch={() => presentBottomSheet(searchSheetRef)}
         onClose={onClose}
       />
 
       <LocationPickerMap
         latitude={selectedLocation?.latitude ?? null}
         longitude={selectedLocation?.longitude ?? null}
-        onLocationSelect={
-          suggestionsOpen || isConfirming ? undefined : handleMapLocationSelect
-        }
-        interactionEnabled={!isConfirming && !suggestionsOpen}
+        onLocationSelect={isConfirming ? undefined : handleMapLocationSelect}
+        interactionEnabled={!isConfirming}
         fullScreen
       />
 
@@ -164,6 +159,11 @@ export default function BusinessLocationPickerScreen({
           isConfirming={isConfirming}
         />
       )}
+
+      <BusinessLocationSearchSheet
+        sheetRef={searchSheetRef}
+        onPlaceSelect={handleLocationSelect}
+      />
     </View>
   );
 }

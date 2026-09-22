@@ -1,19 +1,22 @@
-import { useState, useRef, useEffect } from "react";
-import { View, Platform, KeyboardAvoidingView, Keyboard } from "react-native";
-import { MapPressEvent } from "react-native-maps";
+import { router } from "expo-router";
 import { getDistance } from "geolib";
+import { useEffect, useRef, useState } from "react";
+import type { MapPressEvent } from "react-native-maps";
+import { Keyboard, Platform, View } from "react-native";
 import Toast from "react-native-toast-message";
-import { LANDMARK_RADIUS_METERS } from "../constants/registration/map.constants";
-import { validateLandmarkName } from "../validation/customLandmark";
-import LandmarkPickerMap from "../components/registration/landmark/landmark-picker/LandmarkPickerMap";
-import LandmarkPickerBottomSheet from "../components/registration/landmark/landmark-picker/LandmarkPickerBottomSheet";
-import LandmarkPickerHeader from "../components/registration/landmark/landmark-picker/LandmarkPickerHeader";
-import { LandmarkNameErrors } from "../validation/customLandmark";
-import { isDuplicateLandmarkName } from "../validation/duplicateLandmark";
-import {
+
+import type {
   BusinessLandmark,
   BusinessLocation,
 } from "@/shared/types/BusinessLocation.types";
+
+import LandmarkPickerBottomSheet from "../components/registration/landmark/landmark-picker/LandmarkPickerBottomSheet";
+import LandmarkPickerHeader from "../components/registration/landmark/landmark-picker/LandmarkPickerHeader";
+import LandmarkPickerMap from "../components/registration/landmark/landmark-picker/LandmarkPickerMap";
+import { LANDMARK_RADIUS_METERS } from "../constants/registration/map.constants";
+import type { LandmarkNameErrors } from "../validation/customLandmark";
+import { validateLandmarkName } from "../validation/customLandmark";
+import { isDuplicateLandmarkName } from "../validation/duplicateLandmark";
 
 type LandmarkPickerScreenProps = {
   businessLocation: BusinessLocation;
@@ -22,15 +25,19 @@ type LandmarkPickerScreenProps = {
   onClose: () => void;
 };
 
+function formatRadius(distanceMeters: number) {
+  if (distanceMeters >= 1000) {
+    return `${distanceMeters / 1000} km`;
+  }
+
+  return `${distanceMeters} m`;
+}
+
 /**
- * Allows a merchant to manually add a custom landmark
- * near their confirmed business location.
+ * Allows a merchant to create a custom landmark near their business.
  *
- * Merchants place a marker by tapping the map, provide
- * a landmark name, and confirm the selection.
- *
- * Existing landmarks are displayed as reference markers
- * to help avoid duplicate locations.
+ * Keeps the map visually primary while validating the allowed landmark radius,
+ * landmark name, duplicate names, and maximum landmark capacity locally.
  */
 export default function LandmarkPickerScreen({
   businessLocation,
@@ -46,10 +53,10 @@ export default function LandmarkPickerScreen({
   const [landmarkName, setLandmarkName] = useState("");
   const [errors, setErrors] = useState<LandmarkNameErrors>({});
 
-  /**
-   * Updates the landmark name while clearing any previous
-   * validation error as soon as the user edits the field.
-   */
+  const markerPressed = useRef(false);
+
+  const landmarkRadiusLabel = formatRadius(LANDMARK_RADIUS_METERS);
+
   function handleNameChange(text: string) {
     setLandmarkName(text);
 
@@ -58,17 +65,6 @@ export default function LandmarkPickerScreen({
     }
   }
 
-  // Prevent marker taps from also triggering the map press handler.
-  const markerPressed = useRef(false);
-
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-  /**
-   * Places a custom landmark marker where the merchant taps.
-   *
-   * Taps outside the allowed landmark radius are rejected.
-   * Marker taps are ignored to prevent accidental placement.
-   */
   function handleMapPress(event: MapPressEvent) {
     if (markerPressed.current) {
       markerPressed.current = false;
@@ -92,7 +88,7 @@ export default function LandmarkPickerScreen({
       Toast.show({
         type: "error",
         text1: "Outside landmark area",
-        text2: "Please choose a location within 1 km of your business.",
+        text2: `Choose a location within ${landmarkRadiusLabel} of your business.`,
       });
 
       return;
@@ -101,14 +97,6 @@ export default function LandmarkPickerScreen({
     setCustomLocation(coordinate);
   }
 
-  /**
-   * Validates the custom landmark and submits it.
-   *
-   * Validation includes:
-   * - landmark name rules
-   * - duplicate landmark names
-   * - maximum landmark limit
-   */
   function handleConfirm() {
     if (!customLocation) {
       return;
@@ -156,10 +144,10 @@ export default function LandmarkPickerScreen({
     setLandmarkName("");
   }
 
-  /**
-   * Tracks the keyboard height so the bottom sheet
-   * remains visible while entering the landmark name.
-   */
+  const canSubmit = customLocation !== null && landmarkName.trim().length > 0;
+
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
   useEffect(() => {
     const showEvent =
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -167,8 +155,8 @@ export default function LandmarkPickerScreen({
     const hideEvent =
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-    const show = Keyboard.addListener(showEvent, (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
+    const show = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
     });
 
     const hide = Keyboard.addListener(hideEvent, () => {
@@ -181,43 +169,34 @@ export default function LandmarkPickerScreen({
     };
   }, []);
 
-  // Enable submission only after a marker has been placed
-  // and the merchant has entered some text.
-  const canSubmit = customLocation !== null && landmarkName.trim().length > 0;
-
   return (
-    <KeyboardAvoidingView
-      className="flex-1"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <View className="flex-1 bg-background">
-        {/* Interactive Map */}
-        <LandmarkPickerMap
-          businessLocation={businessLocation}
-          selectedLandmarks={selectedLandmarks}
-          customLocation={customLocation}
-          onMapPress={handleMapPress}
-          onExistingMarkerPress={() => {
-            markerPressed.current = true;
-          }}
-        />
+    <View className="flex-1 bg-background">
+      {/* Map selection surface */}
+      <LandmarkPickerMap
+        businessLocation={businessLocation}
+        selectedLandmarks={selectedLandmarks}
+        customLocation={customLocation}
+        landmarkName={landmarkName}
+        onMapPress={handleMapPress}
+        onExistingMarkerPress={() => {
+          markerPressed.current = true;
+        }}
+      />
 
-        {/* Header overlay. */}
-        <LandmarkPickerHeader onClose={onClose} />
+      {/* Navigation context */}
+      <LandmarkPickerHeader onClose={onClose} />
 
-        {/* Bottom confirmation panel. */}
-
-        <LandmarkPickerBottomSheet
-          keyboardHeight={keyboardHeight}
-          hasPendingLocation={customLocation !== null}
-          landmarkName={landmarkName}
-          canSubmit={canSubmit}
-          onNameChange={handleNameChange}
-          onConfirm={handleConfirm}
-
-          landmarkNameError={errors.name}
-        />
-      </View>
-    </KeyboardAvoidingView>
+      {/* Landmark guidance and confirmation */}
+      <LandmarkPickerBottomSheet
+        keyboardHeight={keyboardHeight}
+        hasPendingLocation={customLocation !== null}
+        landmarkName={landmarkName}
+        canSubmit={canSubmit}
+        landmarkRadiusLabel={landmarkRadiusLabel}
+        onNameChange={handleNameChange}
+        onConfirm={handleConfirm}
+        landmarkNameError={errors.name}
+      />
+    </View>
   );
 }

@@ -1,21 +1,25 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+
+import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 /**
- * Empty state displayed when no landmarks have been selected.
+ * Displays the empty state when no landmarks are currently selected.
  */
 export default function LandmarksEmptyState() {
   return (
-    <View className="items-center rounded-xl border border-dashed border-gray-300 px-4 py-6">
+    <View className="items-center rounded-xl border border-dashed border-border-primary px-4 py-6">
+      {/* Empty landmark state */}
       <MaterialCommunityIcons
         name="map-marker-off-outline"
         size={28}
-        color="#9CA3AF"
+        color={theme.extends.colors.text.tertiary}
       />
 
-      <Text className="mt-2 text-sm text-text-secondary">
+      <AppText className="mt-2 text-sm text-text-secondary">
         No landmarks selected.
-      </Text>
+      </AppText>
     </View>
   );
 }

@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import successAnimation from "@/shared/assets/animations/success-confetti.json";
 import Button from "@/shared/components/Button";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AppText from "@/shared/components/AppText";
 
 type SubmissionSuccessScreenProps = {
   /**
@@ -33,22 +34,28 @@ export default function SubmissionSuccessScreen({
             style={{ width: 260, height: 260 }}
           />
 
-          <Text className="mt-2 text-center text-3xl font-bold text-text-primary">
+          <AppText
+            weight="bold"
+            className="mt-2 text-center text-3xl text-text-primary"
+          >
             Application Submitted
-          </Text>
+          </AppText>
 
-          <Text className="mt-3 text-center text-base leading-7 text-text-secondary">
+          <AppText className="mt-3 text-center text-base leading-7 text-text-secondary">
             Your application is now under review. We'll notify you as soon as
             our team has finished taking a look.
-          </Text>
+          </AppText>
 
           <View className="mt-6 flex-row items-center rounded-2xl bg-background px-4 py-3">
             <View className="h-2 w-2 rounded-full bg-brand" />
 
-            <Text className="ml-2 text-sm font-medium text-text-secondary">
+            <AppText
+              weight="medium"
+              className="ml-2 text-sm text-text-secondary"
+            >
               Estimated review time: {reviewSlaMinBusinessDays}–
               {reviewSlaMaxBusinessDays} business days
-            </Text>
+            </AppText>
           </View>
         </View>
 
@@ -64,8 +71,8 @@ export default function SubmissionSuccessScreen({
               />
             }
             className="w-full"
-            fontClassName="font-bold"
             onPress={onContinue}
+            rounded="full"
           />
         </View>
       </View>

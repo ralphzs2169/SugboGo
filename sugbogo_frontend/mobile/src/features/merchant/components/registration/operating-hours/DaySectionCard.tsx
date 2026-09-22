@@ -1,9 +1,13 @@
-import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import OperatingHoursSummary from "./OperatingHoursSummary";
-import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
-import OperatingHoursStatusBadge from "./StatusBadge";
+import { Pressable, View } from "react-native";
+
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import { shadows } from "@/shared/styles/shadows";
+
+import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
+import OperatingHoursSummary from "./OperatingHoursSummary";
+import OperatingHoursStatusBadge from "./StatusBadge";
 
 type Day = keyof MerchantRegistrationForm["operatingHours"];
 
@@ -19,9 +23,8 @@ type DaySectionCardProps = {
 /**
  * Displays a merchant's operating hours for a single day.
  *
- * Shows the day name, schedule summary, open/closed status, and expansion
- * control. When expanded, the provided children are rendered as the day's
- * operating-hours editor.
+ * Shows the schedule summary and status while allowing the day's editor to
+ * expand within the same card.
  */
 export default function DaySectionCard({
   day,
@@ -32,35 +35,46 @@ export default function DaySectionCard({
   children,
 }: DaySectionCardProps) {
   return (
-    <View
-      className={`overflow-hidden rounded-xl border ${
-        hasError ? "border-border-error bg-error" : "border-border-primary"
-      }`}
-    >
-      <Pressable
-        className="flex-row items-center justify-between px-4 py-4"
-        onPress={onPress}
+    <View className="rounded-xl bg-surface" style={shadows.subtle}>
+      <View
+        className={`overflow-hidden rounded-xl border ${
+          hasError
+            ? "border-border-error bg-error"
+            : "border-border-primary bg-surface"
+        }`}
       >
-        <View>
-          <Text className="text-base font-semibold capitalize text-text-primary">
-            {day}
-          </Text>
+        {/* Day summary */}
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isExpanded }}
+          className="cursor-pointer flex-row items-center justify-between px-4 py-4 active:bg-surface-secondary"
+        >
+          <View className="min-w-0 flex-1 pr-3">
+            <AppText
+              weight="semibold"
+              className="text-base capitalize text-text-primary"
+            >
+              {day}
+            </AppText>
 
-          <OperatingHoursSummary schedule={schedule} />
-        </View>
+            <OperatingHoursSummary schedule={schedule} />
+          </View>
 
-        <View className="flex-row items-center gap-2">
-          <OperatingHoursStatusBadge isOpen={schedule.isOpen} />
+          <View className="flex-row items-center gap-2">
+            <OperatingHoursStatusBadge isOpen={schedule.isOpen} />
 
-          <MaterialCommunityIcons
-            name={isExpanded ? "chevron-up" : "chevron-right"}
-            size={20}
-            color={theme.extends.colors.text.secondary}
-          />
-        </View>
-      </Pressable>
+            <MaterialCommunityIcons
+              name={isExpanded ? "chevron-up" : "chevron-right"}
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
+          </View>
+        </Pressable>
 
-      {isExpanded && <View>{children}</View>}
+        {/* Expanded schedule editor */}
+        {isExpanded && <View>{children}</View>}
+      </View>
     </View>
   );
 }

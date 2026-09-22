@@ -1,4 +1,4 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import type { z } from "zod";
 
 import { DAYS } from "@/features/merchant/constants/registration/operatingHours.constants";
@@ -9,6 +9,7 @@ import ReviewRow from "../ReviewRow";
 import StatusBadge from "../../operating-hours/StatusBadge";
 import { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import ReviewSectionFeedback from "../ReviewSectionFeedback";
+import AppText from "@/shared/components/AppText";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewOperatingHoursProps = {
@@ -58,9 +59,9 @@ export default function ReviewOperatingHours({
               key={day}
               label={
                 <View className="flex-row items-center gap-2">
-                  <Text className="text-sm text-text-secondary">
+                  <AppText className="text-sm text-text-secondary">
                     {formatDay(day)}
-                  </Text>
+                  </AppText>
                   <StatusBadge isOpen={schedule.isOpen} />
                 </View>
               }

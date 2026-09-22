@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import AppText from "@/shared/components/AppText";
 
 type ReviewSectionFeedbackProps = {
   feedback?: ApplicationFeedbackResponse;
@@ -49,13 +50,13 @@ export default function ReviewSectionFeedback({
         />
 
         {/* Feedback content */}
-        <Text className="text-xs font-bold text-text-secondary">
+        <AppText weight="bold" className="text-xs text-text-secondary">
           {isChanged ? "CHANGES MADE" : "CHANGES REQUESTED"}
-        </Text>
+        </AppText>
 
-        <Text className="mt-1 text-sm leading-6 text-text-primary">
+        <AppText className="mt-1 text-sm leading-6 text-text-primary">
           {feedback.message}
-        </Text>
+        </AppText>
       </View>
     </View>
   );

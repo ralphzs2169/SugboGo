@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
 import LottieView from "lottie-react-native";
-
-import approvedApplicationAnimation from "../../assets/animations/approved-application.json";
+import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+
+import approvedApplicationAnimation from "../../assets/animations/approved-application.json";
 
 type ApprovedApplicationSectionProps = {
   businessName: string;
@@ -34,19 +35,25 @@ export default function ApprovedApplicationSection({
         />
 
         <View className="mt-4 rounded-full bg-success/10 px-3.5 py-1.5">
-          <Text className="text-xs font-bold uppercase tracking-wide text-success">
+          <AppText
+            weight="bold"
+            className="text-xs uppercase tracking-wide text-success"
+          >
             Merchant Approved
-          </Text>
+          </AppText>
         </View>
 
-        <Text className="mt-3 text-center text-2xl font-bold text-text-primary">
+        <AppText
+          weight="bold"
+          className="mt-3 text-center text-2xl text-text-primary"
+        >
           Welcome to SugboGo
-        </Text>
+        </AppText>
 
-        <Text className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
+        <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
           Your merchant account is now active and ready to help you grow your
           business.
-        </Text>
+        </AppText>
       </View>
 
       {/* Approval details */}
@@ -60,16 +67,20 @@ export default function ApprovedApplicationSection({
           />
 
           <View className="ml-3 flex-1">
-            <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            <AppText
+              weight="semibold"
+              className="text-xs uppercase tracking-wide text-text-secondary"
+            >
               Business
-            </Text>
+            </AppText>
 
-            <Text
-              className="mt-0.5 text-base font-bold text-text-primary"
+            <AppText
+              weight="bold"
+              className="mt-0.5 text-base text-text-primary"
               numberOfLines={1}
             >
               {businessName}
-            </Text>
+            </AppText>
           </View>
         </View>
 
@@ -82,13 +93,19 @@ export default function ApprovedApplicationSection({
           />
 
           <View className="ml-3 flex-1">
-            <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            <AppText
+              weight="semibold"
+              className="text-xs uppercase tracking-wide text-text-secondary"
+            >
               Approved On
-            </Text>
+            </AppText>
 
-            <Text className="mt-0.5 text-base font-bold text-text-primary">
+            <AppText
+              weight="bold"
+              className="mt-0.5 text-base text-text-primary"
+            >
               {approvedAt}
-            </Text>
+            </AppText>
           </View>
         </View>
       </View>

@@ -1,6 +1,7 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import DocumentPreview from "../verification-documents/DocumentPreview";
 import { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
+import AppText from "@/shared/components/AppText";
 
 type DocumentGroupProps = {
   title: string;
@@ -18,11 +19,13 @@ export default function DocumentGroup({
   return (
     <View className="mb-5">
       <View className="mb-3 flex-row items-center justify-between">
-        <Text className="text-sm font-semibold text-text-primary">{title}</Text>
+        <AppText weight="semibold" className="text-sm  text-text-primary">
+          {title}
+        </AppText>
         {count > 0 && (
-          <Text className="text-xs text-text-secondary">
+          <AppText className="text-xs text-text-secondary">
             {count} {count === 1 ? "document" : "documents"}
-          </Text>
+          </AppText>
         )}
       </View>
 
@@ -42,7 +45,9 @@ export default function DocumentGroup({
         <DocumentPreview document={document} showRemove={false} />
       ) : (
         <View className="items-center justify-center rounded-lg border border-dashed border-border-primary py-4">
-          <Text className="text-sm text-text-secondary">Not provided</Text>
+          <AppText className="text-sm text-text-secondary">
+            Not provided
+          </AppText>
         </View>
       )}
     </View>

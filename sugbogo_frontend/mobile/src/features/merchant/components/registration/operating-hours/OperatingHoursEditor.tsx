@@ -1,16 +1,18 @@
-import { useState } from "react";
-import { Platform, Text, View } from "react-native";
 import { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { Platform, View } from "react-native";
+import { useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
-import ApplyToOtherDays from "./apply-schedule/ApplyToOtherDays";
-import TimeFields from "./TimeFields";
+import Toast from "react-native-toast-message";
+
+import AppText from "@/shared/components/AppText";
+
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
 import { dateToTimeString } from "../../../utils/merchant-application/operatingHours.utils";
-import Toast from "react-native-toast-message";
+import ApplyToOtherDays from "./apply-schedule/ApplyToOtherDays";
 import OperatingHoursControls from "./OperatingHoursControls";
+import TimeFields from "./TimeFields";
 
 type Day = keyof MerchantRegistrationForm["operatingHours"];
-
 type TimeField = "openTime" | "closeTime";
 
 type OperatingHoursEditorProps = {
@@ -19,15 +21,10 @@ type OperatingHoursEditorProps = {
 };
 
 /**
- * Editor for configuring a single day's operating schedule.
+ * Configures the operating schedule for a single day.
  *
- * Handles:
- * - Open/closed state
- * - 24-hour schedules
- * - Opening and closing times
- * - Overnight schedule detection
- * - Applying the schedule to other days
- * - Closing the editor when editing is complete
+ * Handles open and closed states, 24-hour schedules, time selection, overnight
+ * schedules, and copying the resulting schedule to other days.
  */
 export default function OperatingHoursEditor({
   day,
@@ -52,8 +49,6 @@ export default function OperatingHoursEditor({
     field: TimeField;
   } | null>(null);
 
-  // A closing time earlier than the opening time means the schedule
-  // continues into the following day.
   const isOvernight =
     schedule.isOpen &&
     !schedule.is24Hours &&
@@ -61,12 +56,7 @@ export default function OperatingHoursEditor({
     Boolean(schedule.closeTime) &&
     schedule.closeTime < schedule.openTime;
 
-  /**
-   * Updates whether the selected day is open.
-   * When the day is closed, its 24-hour state and time values
-   * are reset because they are no longer applicable.
-   */
-  const handleOpenStateChange = (isOpen: boolean) => {
+  function handleOpenStateChange(isOpen: boolean) {
     setValue(`operatingHours.${day}.isOpen`, isOpen, {
       shouldDirty: true,
       shouldValidate: true,
@@ -90,16 +80,9 @@ export default function OperatingHoursEditor({
         shouldValidate: true,
       });
     }
-  };
+  }
 
-  /**
-   * Toggles the selected day between a normal schedule and
-   * a 24-hour schedule.
-   *
-   * When 24-hour mode is enabled, opening and closing times
-   * are cleared because they are no longer applicable.
-   */
-  const handle24HoursChange = (is24Hours: boolean) => {
+  function handle24HoursChange(is24Hours: boolean) {
     setValue(`operatingHours.${day}.is24Hours`, is24Hours, {
       shouldDirty: true,
       shouldValidate: true,
@@ -118,15 +101,9 @@ export default function OperatingHoursEditor({
         shouldValidate: true,
       });
     }
-  };
+  }
 
-  /**
-   * Validates the current day's schedule and applies it to
-   * the selected days when valid.
-   *
-   * Invalid schedules are not copied to other days.
-   */
-  const handleApplyToDays = async (days: Day[]) => {
+  async function handleApplyToDays(days: Day[]) {
     const isValid = await trigger(`operatingHours.${day}`);
 
     if (!isValid) {
@@ -156,23 +133,13 @@ export default function OperatingHoursEditor({
 
     setTimePicker(null);
     onDone();
-  };
+  }
 
-  // Opens the time picker for the specified time field.
-  const handleTimePress = (field: TimeField) => {
+  function handleTimePress(field: TimeField) {
     setTimePicker({ field });
-  };
+  }
 
-  /**
-   * Updates the selected time field from the native time picker.
-   *
-   * The picker is closed immediately on Android because the
-   * Android time picker is a modal interaction.
-   */
-  const handleTimeChange = (
-    event: DateTimePickerEvent,
-    selectedDate?: Date,
-  ) => {
+  function handleTimeChange(event: DateTimePickerEvent, selectedDate?: Date) {
     if (event.type === "dismissed") {
       setTimePicker(null);
       return;
@@ -194,19 +161,22 @@ export default function OperatingHoursEditor({
     if (Platform.OS === "android") {
       setTimePicker(null);
     }
-  };
+  }
 
   return (
-    <View className="gap-5 px-2 rounded-b-md  border-y border-border-primary bg-white px-5 py-5 ">
+    <View className="gap-5 border-y border-border-primary bg-surface px-5 py-5">
+      {/* Daily schedule heading */}
       <View>
-        <Text className="text-lg font-bold capitalize text-text-primary">
+        <AppText weight="bold" className="text-lg capitalize text-text-primary">
           {day}
-        </Text>
-        <Text className="mt-0.5 text-xs text-text-tertiary">
+        </AppText>
+
+        <AppText className="mt-0.5 text-xs text-text-tertiary">
           Set the hours explorers can visit
-        </Text>
+        </AppText>
       </View>
 
+      {/* Schedule controls */}
       <OperatingHoursControls
         isOpen={schedule.isOpen}
         is24Hours={schedule.is24Hours}
@@ -214,6 +184,7 @@ export default function OperatingHoursEditor({
         on24HoursChange={handle24HoursChange}
       />
 
+      {/* Opening and closing times */}
       {schedule.isOpen && !schedule.is24Hours && (
         <TimeFields
           openTime={schedule.openTime}
@@ -227,6 +198,7 @@ export default function OperatingHoursEditor({
         />
       )}
 
+      {/* Schedule reuse */}
       <ApplyToOtherDays currentDay={day} onApply={handleApplyToDays} />
     </View>
   );

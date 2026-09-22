@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import AppText from "@/shared/components/AppText";
 
 type OperatingHoursStatusBadgeProps = {
   isOpen: boolean;
@@ -20,15 +21,14 @@ export default function OperatingHoursStatusBadge({
         }
       />
 
-      <Text
+      <AppText
+        weight="semibold"
         className={
-          isOpen
-            ? "text-xs font-semibold text-green-700"
-            : "text-xs font-semibold text-text-secondary"
+          isOpen ? "text-xs  text-green-700" : "text-xs text-text-secondary"
         }
       >
         {isOpen ? "Open" : "Closed"}
-      </Text>
+      </AppText>
     </View>
   );
 }

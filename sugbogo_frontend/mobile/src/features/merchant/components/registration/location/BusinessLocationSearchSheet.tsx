@@ -5,95 +5,92 @@ import {
   BottomSheetScrollView,
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
-
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import useRegistrationPlaceSearch from "@/features/merchant/hooks/registration/useRegistrationPlaceSearch";
 import AppText from "@/shared/components/AppText";
-import usePlaceSearch from "@/shared/hooks/usePlaceSearch";
+import PlaceSearchFeedback from "@/shared/components/place-search/PlaceSearchFeedback";
+import PlaceSuggestionRow from "@/shared/components/place-search/PlaceSuggestionRow";
 import type {
-  GooglePlaceLocation,
+  BusinessLocation,
   PlaceSuggestion,
 } from "@/shared/types/BusinessLocation.types";
 
-import {
-  getJourneyOriginPlaceDetails,
-  searchJourneyOriginPlaces,
-} from "../../api/journeyOrigin.service";
-
-import PlaceSearchFeedback from "@/shared/components/place-search/PlaceSearchFeedback";
-import PlaceSuggestionRow from "@/shared/components/place-search/PlaceSuggestionRow";
-
-const JOURNEY_ORIGIN_PLACE_API = {
-  searchPlaces: searchJourneyOriginPlaces,
-  getPlaceDetails: getJourneyOriginPlaceDetails,
-};
-
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
-  onPlaceSelect: (latitude: number, longitude: number, label: string) => void;
+  onPlaceSelect: (location: BusinessLocation) => void;
 };
 
 /**
- * Provides a keyboard-friendly place search for selecting a journey origin.
+ * Provides a keyboard-friendly place search for business registration.
  *
+ * Preserves registration-specific search and service-area behavior while
+ * sharing SugboGo's established place-search presentation and feedback states.
  */
-export default function JourneyOriginSearchSheet({
+export default function BusinessLocationSearchSheet({
   sheetRef,
   onPlaceSelect,
 }: Props) {
+  const insets = useSafeAreaInsets();
+
   const [query, setQuery] = useState("");
   const [resolvingPlaceId, setResolvingPlaceId] = useState<string | null>(null);
+
+  const isSheetOpenRef = useRef(false);
 
   const {
     suggestions,
     isLoading,
-    error,
+    isDebouncing,
+    isSearchSuccess,
+    searchError,
     isSearchRateLimited,
     searchPlaces,
     getPlaceDetails,
     clearSuggestions,
-  } = usePlaceSearch<GooglePlaceLocation>(JOURNEY_ORIGIN_PLACE_API, {
-    handleBusinessServiceAreaError: false,
-  });
+  } = useRegistrationPlaceSearch();
 
   const hasSearchQuery = query.trim().length >= 2;
+  const isSearchPending = isLoading || isDebouncing;
 
   const showNoResults =
     hasSearchQuery &&
-    !isLoading &&
-    !error &&
+    isSearchSuccess &&
+    !isSearchPending &&
+    !searchError &&
     !isSearchRateLimited &&
-    suggestions.length === 0;
+    suggestions.length === 0 &&
+    resolvingPlaceId === null;
 
-  const resetSearch = () => {
+  function resetSearch() {
     setQuery("");
     setResolvingPlaceId(null);
     clearSuggestions();
-  };
+  }
 
-  const selectSuggestion = async (suggestion: PlaceSuggestion) => {
-    if (resolvingPlaceId) {
+  async function selectSuggestion(suggestion: PlaceSuggestion) {
+    if (resolvingPlaceId !== null) {
       return;
     }
 
     setResolvingPlaceId(suggestion.placeId);
 
-    const location = await getPlaceDetails(suggestion.placeId);
+    try {
+      const location = await getPlaceDetails(suggestion.placeId);
 
-    setResolvingPlaceId(null);
+      if (!location) {
+        return;
+      }
 
-    if (!location) {
-      return;
+      onPlaceSelect(location);
+      sheetRef.current?.dismiss();
+    } finally {
+      setResolvingPlaceId(null);
     }
-
-    onPlaceSelect(location.latitude, location.longitude, suggestion.mainText);
-
-    sheetRef.current?.dismiss();
-  };
-
-  const isSheetOpenRef = useRef(false);
+  }
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -105,7 +102,6 @@ export default function JourneyOriginSearchSheet({
 
         sheetRef.current?.dismiss();
 
-        // Consume this Back press so Expo Router does not also navigate back.
         return true;
       },
     );
@@ -150,11 +146,11 @@ export default function JourneyOriginSearchSheet({
       <View className="flex-1 px-5 pt-2">
         {/* Search heading */}
         <AppText weight="bold" className="text-xl text-text-primary">
-          Search starting point
+          Search business location
         </AppText>
 
         <AppText className="mt-1 text-sm text-text-secondary">
-          Find a place or landmark, then inspect it on the map.
+          Find your business or a nearby place, then inspect it on the map.
         </AppText>
 
         {/* Search input */}
@@ -172,14 +168,14 @@ export default function JourneyOriginSearchSheet({
               setQuery(value);
               searchPlaces(value);
             }}
-            placeholder="Search place or landmark"
+            placeholder="Search your business location"
             placeholderTextColor={theme.extends.colors.text.secondary}
             returnKeyType="search"
             className="ml-3 h-12 flex-1 text-sm text-text-primary"
-            accessibilityLabel="Search starting point"
+            accessibilityLabel="Search your business location"
           />
 
-          {isLoading ? (
+          {isSearchPending ? (
             <ActivityIndicator
               size="small"
               color={theme.extends.colors.brand}
@@ -189,7 +185,7 @@ export default function JourneyOriginSearchSheet({
               onPress={resetSearch}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Clear place search"
+              accessibilityLabel="Clear business location search"
               className="h-10 w-10 cursor-pointer items-center justify-center rounded-full active:bg-surface-secondary"
             >
               <MaterialCommunityIcons
@@ -205,19 +201,29 @@ export default function JourneyOriginSearchSheet({
         <BottomSheetScrollView
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerClassName="pb-12 pt-4"
+          contentContainerStyle={{
+            paddingTop: 16,
+            paddingBottom: Math.max(insets.bottom, 32),
+          }}
         >
           {!hasSearchQuery ? (
-            <PlaceSearchFeedback variant="initial" />
+            <PlaceSearchFeedback
+              variant="initial"
+              title="Find your business location"
+              description="Search for your business, a place, or a nearby landmark in Cebu City."
+            />
           ) : isSearchRateLimited ? (
             <PlaceSearchFeedback variant="rate-limited" />
-          ) : error ? (
+          ) : searchError ? (
             <PlaceSearchFeedback
               variant="error"
               onRetry={() => searchPlaces(query)}
             />
           ) : showNoResults ? (
-            <PlaceSearchFeedback variant="no-results" />
+            <PlaceSearchFeedback
+              variant="no-results"
+              description="Try a different business, place, or landmark name."
+            />
           ) : (
             suggestions.map((suggestion) => (
               <PlaceSuggestionRow

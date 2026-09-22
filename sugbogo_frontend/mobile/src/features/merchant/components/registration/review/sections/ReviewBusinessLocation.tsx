@@ -1,4 +1,4 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import type { z } from "zod";
@@ -11,6 +11,7 @@ import { theme } from "@/constants/theme";
 import { useReviewLandmarksStore } from "@/features/merchant/stores/reviewLandmarksStore";
 import { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import ReviewSectionFeedback from "../ReviewSectionFeedback";
+import AppText from "@/shared/components/AppText";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessLocationProps = {
@@ -81,9 +82,9 @@ export default function ReviewBusinessLocation({
           <ReviewRow label="Unit / Building" value={form.unit} />
         </View>
         <View className="w-full">
-          <Text className="mb-2 text-xs font-medium text-text-secondary">
+          <AppText className="mb-2 text-xs font-medium text-text-secondary">
             Landmarks
-          </Text>
+          </AppText>
 
           {form.landmarks.length > 0 ? (
             <Pressable onPress={handleViewLandmarks}>
@@ -94,14 +95,14 @@ export default function ReviewBusinessLocation({
                   }`}
                 >
                   <View className="flex-1">
-                    <Text className="text-sm font-medium text-text-primary">
+                    <AppText className="text-sm font-medium text-text-primary">
                       View landmarks
-                    </Text>
+                    </AppText>
 
-                    <Text className="mt-0.5 text-xs text-text-secondary">
+                    <AppText className="mt-0.5 text-xs text-text-secondary">
                       {form.landmarks.length} landmark
                       {form.landmarks.length !== 1 ? "s" : ""} selected
-                    </Text>
+                    </AppText>
                   </View>
 
                   <MaterialCommunityIcons
@@ -113,7 +114,9 @@ export default function ReviewBusinessLocation({
               )}
             </Pressable>
           ) : (
-            <Text className="text-sm text-text-primary">Not provided</Text>
+            <AppText className="text-sm text-text-primary">
+              Not provided
+            </AppText>
           )}
         </View>
       </View>

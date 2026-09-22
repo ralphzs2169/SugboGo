@@ -86,7 +86,7 @@ export default function SpecialtyTagChip({
       })}
       className={`mb-2 mr-2 flex-row items-center justify-center rounded-full ${
         isInteractive ? "cursor-pointer" : ""
-      } ${isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-2"} ${
+      } ${isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-1.5"} ${
         useDisabledStyle
           ? "border border-border-primary bg-gray-200 opacity-40"
           : isSelectionMode

@@ -1,4 +1,4 @@
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import type { z } from "zod";
 
 import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
@@ -18,6 +18,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import FormFieldApiError from "@/shared/components/form/FormFieldApiError";
+import AppText from "@/shared/components/AppText";
 
 type ReviewForm = z.input<typeof merchantRegistrationSchema>;
 type ReviewBusinessIdentityProps = {
@@ -85,9 +86,12 @@ export default function ReviewBusinessIdentity({
 
       <View className="flex-row flex-wrap">
         <View className="w-1/2 pr-2">
-          <Text className="mb-1 text-sm font-medium text-text-secondary">
+          <AppText
+            weight="semibold"
+            className="mb-1 text-sm text-text-secondary"
+          >
             Business Cluster
-          </Text>
+          </AppText>
 
           <View className="flex-row items-center">
             {clusterIcon && (
@@ -98,9 +102,9 @@ export default function ReviewBusinessIdentity({
               />
             )}
 
-            <Text className="ml-1 flex-1 text-base text-text-primary">
+            <AppText className="ml-1 flex-1 text-base text-text-primary">
               {clusterName}
-            </Text>
+            </AppText>
           </View>
         </View>
 
@@ -146,9 +150,9 @@ export default function ReviewBusinessIdentity({
         </View>
 
         <View className="w-full">
-          <Text className="mb-2 text-sm font-medium text-text-secondary">
+          <AppText className="mb-2 text-sm font-medium text-text-secondary">
             Specialty Tags
-          </Text>
+          </AppText>
 
           {isLoadingSpecialtyTags && !hasSpecialtyTagsData ? (
             <View className="flex-row items-center gap-2">
@@ -156,9 +160,9 @@ export default function ReviewBusinessIdentity({
                 size="small"
                 color={theme.extends.colors.brand}
               />
-              <Text className="text-sm text-text-secondary">
+              <AppText className="text-sm text-text-secondary">
                 Loading specialty tags...
-              </Text>
+              </AppText>
             </View>
           ) : specialtyTagsError && !hasSpecialtyTagsData ? (
             <FormFieldApiError
@@ -170,11 +174,13 @@ export default function ReviewBusinessIdentity({
           ) : selectedSpecialtyTags.length > 0 ? (
             <View className="flex-row flex-wrap">
               {selectedSpecialtyTags.map((tag) => (
-                <SpecialtyTagChip key={tag.id} tag={tag} />
+                <SpecialtyTagChip key={tag.id} tag={tag} showIcon />
               ))}
             </View>
           ) : (
-            <Text className="text-sm text-text-primary">Not provided</Text>
+            <AppText className="text-sm text-text-primary">
+              Not provided
+            </AppText>
           )}
 
           {specialtyTagsError && hasSpecialtyTagsData && (

@@ -1,34 +1,36 @@
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
+import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 import { formatDate } from "@/shared/utils/date.utils";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import SubmittedApplicationSection from "../components/portal/SubmittedApplicationSection";
+import { Toast } from "react-native-toast-message/lib/src/Toast";
+
+import ApprovedApplicationSection from "../components/portal/ApprovedApplicationSection";
 import MerchantBenefits from "../components/portal/MerchantBenefits";
 import MerchantHero from "../components/portal/MerchantHero";
 import MerchantRequirements from "../components/portal/MerchantRequirements";
-import ResumeApplicationSection from "../components/portal/ResumeApplicationSection";
 import RejectionApplicationSection from "../components/portal/RejectedApplicationSection";
-import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
-import ApprovedApplicationSection from "../components/portal/ApprovedApplicationSection";
-import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import ResumeApplicationSection from "../components/portal/ResumeApplicationSection";
+import SubmittedApplicationSection from "../components/portal/SubmittedApplicationSection";
 import useAcknowledgeMerchantMode from "../hooks/useAcknowledgeMerchantMode";
-import { handleSystemError } from "@/shared/utils/apiErrors";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import { Toast } from "react-native-toast-message/lib/src/Toast";
+import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
 
 /**
- * MerchantPortalScreen serves as the entry point for all
- * merchant-related interactions.
+ * Displays the merchant portal based on the user's current registration state.
  *
- * The screen is configuration-driven and renders different
- * sections depending on the user's current merchant
- * registration status.
+ * Renders registration progress, review status, approval details, and merchant
+ * information while coordinating registration navigation and Merchant Mode
+ * activation from the primary portal action.
  */
 export default function MerchantPortalScreen() {
+  const [isNavigating, setIsNavigating] = useState(false);
+
   const { registrationStatus, config, application, isLoading, error, refetch } =
     useMerchantPortalState();
 
@@ -37,9 +39,12 @@ export default function MerchantPortalScreen() {
 
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
 
+  const isPrimaryActionPending = isNavigating || isAcknowledging;
+
   useFocusEffect(
     useCallback(() => {
-      refetch();
+      setIsNavigating(false);
+      void refetch();
     }, [refetch]),
   );
 
@@ -84,17 +89,32 @@ export default function MerchantPortalScreen() {
     );
   }
 
-  const handlePrimaryAction = async () => {
+  async function handlePrimaryAction() {
+    if (isPrimaryActionPending) {
+      return;
+    }
+
     switch (registrationStatus) {
       case "NONE":
       case "DRAFT":
       case "REJECTED":
-        router.push("/(explorer)/merchant-registration");
+        setIsNavigating(true);
+
+        requestAnimationFrame(() => {
+          router.push("/(explorer)/merchant-registration");
+        });
         break;
 
       case "SUBMITTED":
-        router.push("/(explorer)/merchant-registration/submitted-application");
+        setIsNavigating(true);
+
+        requestAnimationFrame(() => {
+          router.push(
+            "/(explorer)/merchant-registration/submitted-application",
+          );
+        });
         break;
+
       case "APPROVED":
         try {
           await acknowledgeMerchantMode();
@@ -118,11 +138,12 @@ export default function MerchantPortalScreen() {
         }
         break;
     }
-  };
+  }
 
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-surface">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* Refresh error */}
         {error && application && (
           <ErrorState
             size="section"
@@ -135,8 +156,10 @@ export default function MerchantPortalScreen() {
           />
         )}
 
+        {/* Merchant portal hero */}
         {config.hero && <MerchantHero />}
 
+        {/* Registration progress */}
         {config.sections.progress && (
           <ResumeApplicationSection
             currentStep={application?.highest_completed_step ?? 1}
@@ -145,6 +168,7 @@ export default function MerchantPortalScreen() {
           />
         )}
 
+        {/* Submitted application */}
         {config.sections.status && (
           <SubmittedApplicationSection
             submittedAt={formatDate(application?.submitted_at)}
@@ -156,12 +180,14 @@ export default function MerchantPortalScreen() {
           />
         )}
 
+        {/* Rejected application */}
         {config.sections.feedback && (
           <RejectionApplicationSection
             reviewedAt={formatDate(application?.reviewed_at)}
             feedback={application?.latest_review?.feedback ?? []}
           />
         )}
+
         {/* Approved application */}
         {config.sections.dashboard && (
           <ApprovedApplicationSection
@@ -172,7 +198,7 @@ export default function MerchantPortalScreen() {
           />
         )}
 
-        {/* Merchant information sections */}
+        {/* Merchant information */}
         {(config.sections.benefits || config.sections.requirements) && (
           <View className="gap-2 bg-background py-2">
             {config.sections.benefits && (
@@ -189,12 +215,15 @@ export default function MerchantPortalScreen() {
           </View>
         )}
 
+        {/* Primary portal action */}
         <View className="bg-surface px-6 py-5">
           <Button
             title={config.primaryAction.buttonTitle}
-            fontClassName="font-bold tracking wider"
+            fontClassName="tracking wider"
+            textWeight="bold"
             onPress={handlePrimaryAction}
-            loading={isAcknowledging}
+            loading={isPrimaryActionPending}
+            disabled={isPrimaryActionPending}
             rounded="full"
           />
         </View>

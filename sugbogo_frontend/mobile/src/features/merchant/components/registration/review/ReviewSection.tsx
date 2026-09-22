@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 
 type ReviewSectionProps = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -29,16 +30,17 @@ export default function ReviewSection({
           <MaterialCommunityIcons
             name={icon}
             size={isPageHeader ? 24 : 22}
-            color={theme.extends.colors.text.primary}
+            color={theme.extends.colors.text.secondary}
           />
 
-          <Text
-            className={`ml-2 flex-1 font-bold ${
+          <AppText
+            weight="bold"
+            className={`ml-2 flex-1  ${
               isPageHeader ? "text-2xl" : "text-md"
             } text-text-primary`}
           >
             {title}
-          </Text>
+          </AppText>
 
           {onEdit && (
             <Pressable
@@ -52,17 +54,17 @@ export default function ReviewSection({
                 color={theme.extends.colors.brand}
               />
 
-              <Text className="ml-1 text-sm font-semibold text-brand">
+              <AppText weight="semibold" className="ml-1 text-sm text-brand">
                 Edit
-              </Text>
+              </AppText>
             </Pressable>
           )}
         </View>
 
         {description && (
-          <Text className="mt-2 text-sm leading-5 text-text-secondary">
+          <AppText className="mt-2 text-sm leading-5 text-text-secondary">
             {description}
-          </Text>
+          </AppText>
         )}
       </View>
 

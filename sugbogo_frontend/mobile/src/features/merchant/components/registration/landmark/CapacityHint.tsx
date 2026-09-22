@@ -25,7 +25,7 @@ export default function CapacityHint({
         : `You can add ${remaining} more nearby landmarks.`;
 
   return (
-    <View className="mt-3 flex-row items-center rounded-xl bg-blue-50 px-4 py-3">
+    <View className="mt-3 flex-row items-center rounded-xl bg-blue-50 px-4 py-2">
       <View className=" h-8 w-8 items-center justify-center rounded-full ">
         <MaterialCommunityIcons
           name="information-outline"
@@ -34,7 +34,9 @@ export default function CapacityHint({
         />
       </View>
 
-      <Text className="flex-1 text-sm leading-5 text-blue-700">{message}</Text>
+      <Text className="flex-1 text-xs leading-5 text-text-secondary">
+        {message}
+      </Text>
     </View>
   );
 }

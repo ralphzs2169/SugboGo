@@ -5,6 +5,7 @@ import type { MerchantRegistrationForm } from "../../../validation/merchantRegis
 import DocumentUploadCard from "../verification-documents/DocumentUploadCard";
 import RegistrationSection from "../RegistrationSection";
 import useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";
+import VerificationDocumentNotice from "../verification-documents/VerificationDocumentNotice";
 
 type OperatingHoursStepProps = {
   registerErrorScrollTarget: ReturnType<
@@ -89,6 +90,8 @@ export default function VerificationDocumentsStep({
           }
         />
       </RegistrationSection>
+      {/* Document privacy guidance */}
+      <VerificationDocumentNotice />
     </View>
   );
 }

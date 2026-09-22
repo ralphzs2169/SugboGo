@@ -1,9 +1,12 @@
-import { Text, View } from "react-native";
+import { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { View } from "react-native";
+
+import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+
 import TimeInput from "./time-input/TimeInput";
 import TimePicker from "./time-input/TimePicker";
-import { theme } from "@/constants/theme";
-import { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 type TimeField = "openTime" | "closeTime";
 
@@ -21,11 +24,10 @@ type TimeFieldsProps = {
 };
 
 /**
- * Displays the opening and closing time controls for a normal
- * operating-hours schedule.
+ * Displays the opening and closing controls for a normal daily schedule.
  *
- * Also displays validation errors, an overnight schedule hint,
- * and the native time picker when a time field is being edited.
+ * Includes time validation feedback, overnight context, and the native time
+ * picker while a time field is being edited.
  */
 export default function TimeFields({
   openTime,
@@ -58,16 +60,16 @@ export default function TimeFields({
 
       {/* Overnight schedule indicator */}
       {isOvernight && (
-        <View className="w-full flex-row items-center rounded-md border border-text-info/10 bg-info px-3 py-1.5">
+        <View className="w-full flex-row items-center rounded-md  bg-info px-3 py-1.5">
           <MaterialCommunityIcons
             name="weather-night"
             size={14}
             color={theme.extends.colors.text.info}
           />
 
-          <Text className="ml-1.5 text-xs font-medium text-text-info">
+          <AppText weight="medium" className="ml-1.5 text-xs text-text-info">
             Closes the following day
-          </Text>
+          </AppText>
         </View>
       )}
 

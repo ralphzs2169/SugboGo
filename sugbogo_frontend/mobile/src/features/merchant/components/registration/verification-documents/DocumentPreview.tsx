@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Image, Linking, Pressable, Text, View } from "react-native";
+import { Image, Linking, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import type { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
 import ImagePreviewModal from "@/shared/components/modals/ImagePreviewModal";
+import AppText from "@/shared/components/AppText";
 
 type DocumentPreviewProps = {
   document: BusinessDocument;
@@ -54,16 +55,17 @@ export default function DocumentPreview({
           )}
 
           <View className="ml-3 flex-1">
-            <Text
-              className="text-sm font-medium text-text-primary"
+            <AppText
+              weight="medium"
+              className="text-sm text-text-primary"
               numberOfLines={1}
             >
               {document.fileName || "Document"}
-            </Text>
+            </AppText>
 
-            <Text className="mt-1 text-xs text-text-secondary">
+            <AppText className="mt-1 text-xs text-text-secondary">
               {isImage ? "Image" : "PDF"}
-            </Text>
+            </AppText>
           </View>
         </Pressable>
 

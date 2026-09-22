@@ -1,13 +1,16 @@
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useState } from "react";
+import { Pressable, View } from "react-native";
+
+import { theme } from "@/constants/theme";
 import {
   DAYS,
   type Day,
 } from "@/features/merchant/constants/registration/operatingHours.constants";
-import ApplyDayOption from "./ApplyDayOption";
-import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
+
+import ApplyDayOption from "./ApplyDayOption";
 
 type ApplyToOtherDaysProps = {
   currentDay: Day;
@@ -15,12 +18,10 @@ type ApplyToOtherDaysProps = {
 };
 
 /**
- * Allows the user to select one or more other days
- * that should receive the current day's schedule.
+ * Allows the current operating schedule to be copied to other days.
  *
- * Selection is managed locally and reported to the parent
- * so the parent can apply the schedule as part of the
- * final "Apply Schedule" action.
+ * Keeps day selection local until the merchant confirms the selected days,
+ * then passes those days back to the parent schedule editor.
  */
 export default function ApplyToOtherDays({
   currentDay,
@@ -31,23 +32,25 @@ export default function ApplyToOtherDays({
 
   const otherDays = DAYS.filter((day) => day !== currentDay);
 
-  //Toggles a day in the selected-days list.
-  const toggleDay = (day: Day) => {
+  function toggleDay(day: Day) {
     setSelectedDays((current) =>
       current.includes(day)
         ? current.filter((selectedDay) => selectedDay !== day)
         : [...current, day],
     );
-  };
+  }
 
   return (
     <View>
+      {/* Schedule-copy trigger */}
       <Pressable
-        className="flex-row items-center justify-between rounded-md border border-border-primary bg-white px-4 py-3.5"
         onPress={() => setIsExpanded((current) => !current)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isExpanded }}
+        className="cursor-pointer flex-row items-center justify-between rounded-md border border-border-primary bg-surface px-4 py-3.5 active:bg-surface-secondary"
       >
-        <View className="flex-row items-center">
-          <View className="h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+        <View className="min-w-0 flex-1 flex-row items-center">
+          <View className="h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-secondary">
             <MaterialCommunityIcons
               name="content-copy"
               size={16}
@@ -55,15 +58,18 @@ export default function ApplyToOtherDays({
             />
           </View>
 
-          <Text className="ml-3 text-sm font-semibold text-text-primary">
+          <AppText
+            weight="semibold"
+            className="ml-3 min-w-0 flex-1 text-sm text-text-primary"
+          >
             Apply schedule to other days
-          </Text>
+          </AppText>
 
           {selectedDays.length > 0 && (
-            <View className="ml-2 rounded-full bg-primary px-2 py-0.5">
-              <Text className="text-xs font-bold text-white">
+            <View className="ml-2 min-w-6 items-center justify-center rounded-full bg-brand px-2 py-0.5">
+              <AppText weight="bold" className="text-xs text-white">
                 {selectedDays.length}
-              </Text>
+              </AppText>
             </View>
           )}
         </View>
@@ -71,15 +77,19 @@ export default function ApplyToOtherDays({
         <MaterialCommunityIcons
           name={isExpanded ? "chevron-up" : "chevron-down"}
           size={20}
-          color="#9AA0A6"
+          color={theme.extends.colors.text.secondary}
         />
       </Pressable>
 
+      {/* Day selection panel */}
       {isExpanded && (
-        <View className="mt-2 rounded-md border border-border-primary bg-white p-4">
-          <Text className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+        <View className="mt-2 rounded-md border border-border-primary bg-surface p-4">
+          <AppText
+            weight="semibold"
+            className="mb-3 text-xs uppercase tracking-wide text-text-tertiary"
+          >
             Apply this schedule to
-          </Text>
+          </AppText>
 
           <View className="gap-1">
             {otherDays.map((day) => (
@@ -92,6 +102,7 @@ export default function ApplyToOtherDays({
             ))}
           </View>
 
+          {/* Apply selection */}
           <Button
             title={
               selectedDays.length > 0
@@ -105,6 +116,7 @@ export default function ApplyToOtherDays({
             variant="soft"
             className="mt-4"
             fontClassName="text-sm font-semibold"
+            rounded="full"
             icon={
               <MaterialCommunityIcons
                 name="calendar-check"
