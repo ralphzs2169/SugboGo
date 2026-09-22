@@ -147,6 +147,7 @@ export type ExploreOperatingHours = {
 };
 
 export type ExploreBusinessDetail = ExploreBusiness & {
+  review_insights?: BusinessReviewInsights | null;
   description: string | null;
   contact_number: string;
   email: string | null;
@@ -155,6 +156,27 @@ export type ExploreBusinessDetail = ExploreBusiness & {
   operating_hours: ExploreOperatingHours[];
   is_own_business: boolean;
   has_own_review: boolean;
+};
+
+export type SentimentBreakdown = {
+  count: number;
+  percentage: number;
+};
+
+export type FrequentMention = {
+  label: string;
+  count: number;
+};
+
+export type BusinessReviewInsights = {
+  review_count: number;
+  sentiment: {
+    positive: SentimentBreakdown;
+    neutral: SentimentBreakdown;
+    negative: SentimentBreakdown;
+  };
+  frequent_mentions: FrequentMention[];
+  updated_at: string | null;
 };
 
 export type ExploreMapPreviewBusiness = {
