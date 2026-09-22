@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 
 import SearchBar from "./SearchBar";
 import SearchResults from "./SearchResults";
-import usePlaceSearch from "@/shared/hooks/usePlaceSearch";
+import useRegistrationPlaceSearch from "@/features/merchant/hooks/registration/useRegistrationPlaceSearch";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 
 type Props = {
@@ -37,7 +37,7 @@ export default function BusinessLocationSearch({
     searchPlaces,
     getPlaceDetails,
     clearSuggestions,
-  } = usePlaceSearch();
+  } = useRegistrationPlaceSearch();
 
   const [resolvingPlaceId, setResolvingPlaceId] = useState<string | null>(null);
   const [isPlaceSelectionInProgress, setIsPlaceSelectionInProgress] =

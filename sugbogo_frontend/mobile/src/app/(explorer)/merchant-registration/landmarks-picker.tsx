@@ -1,18 +1,16 @@
-import { useEffect } from "react";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
 
 import LandmarkPickerScreen from "@/features/merchant/screens/LandmarkPickerScreen";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
-import useNearbyLandmarks from "@/features/merchant/hooks/registration/useNearbyLandmarks";
 import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 
 /**
  * Route responsible for adding a custom landmark.
  *
  * It ensures a business location has already been selected,
- * preloads nearby Google landmarks, and saves the newly
- * created custom landmark to the registration store.
+ * then saves the newly created custom landmark to the
+ * registration store.
  */
 export default function BusinessLandmarkPickerPage() {
   const selectedLocation = useMerchantRegistrationStore(
@@ -26,23 +24,6 @@ export default function BusinessLandmarkPickerPage() {
   const setSelectedLandmarks = useMerchantRegistrationStore(
     (state) => state.setSelectedLandmarks,
   );
-
-  const { searchNearbyLandmarks } = useNearbyLandmarks();
-
-  /**
-   * Preloads nearby Google landmarks once a business
-   * location has been selected.
-   */
-  useEffect(() => {
-    if (!selectedLocation) {
-      return;
-    }
-
-    searchNearbyLandmarks(
-      selectedLocation.latitude,
-      selectedLocation.longitude,
-    );
-  }, [selectedLocation, searchNearbyLandmarks]);
 
   // Prevent access to the landmark picker until a business
   // location has been selected.

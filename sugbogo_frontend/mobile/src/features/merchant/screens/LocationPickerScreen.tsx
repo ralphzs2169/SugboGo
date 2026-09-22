@@ -1,13 +1,14 @@
 import { View } from "react-native";
 import { useState, useRef } from "react";
 
-import { reverseGeocode } from "@/shared/api/googlePlaces.service";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
+import type { ApiError } from "@/shared/types/apiResponse.types";
 
 import LocationPickerHeader from "../components/registration/location/LocationPickerHeader";
 import ConfirmLocationSheet from "../components/registration/location/ConfirmLocationSheet";
 import LocationPickerMap from "../components/registration/location/LocationPickerMap";
 import BottomSelectionInfoSheet from "../components/registration/location/BottomSelectionInfoSheet";
+import useRegistrationReverseGeocode from "../hooks/registration/useRegistrationReverseGeocode";
 
 import Toast from "react-native-toast-message";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
@@ -43,6 +44,7 @@ export default function BusinessLocationPickerScreen({
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
   const [addressLoadFailed, setAddressLoadFailed] = useState(false);
+  const { resolveCoordinates } = useRegistrationReverseGeocode();
 
   // Tracks each location selection attempt with a growing number, so if an
   // older request's data comes back after a newer one, we can tell it's stale and ignore it.
@@ -51,6 +53,7 @@ export default function BusinessLocationPickerScreen({
   // Update the local selection when a place is chosen from search results.
   function handleLocationSelect(location: BusinessLocation) {
     ++selectionRequestId.current; // invalidate any in-flight map selection
+    setIsResolvingAddress(false);
     setAddressLoadFailed(false);
     setSelectedLocation(location);
   }
@@ -62,16 +65,26 @@ export default function BusinessLocationPickerScreen({
     setIsResolvingAddress(true);
 
     try {
-      const response = await reverseGeocode(latitude, longitude);
+      const data = await resolveCoordinates(latitude, longitude);
 
       // A newer selection has happened while this request was running.
       if (requestId !== selectionRequestId.current) {
         return;
       }
 
-      if (!response.success) {
-        setAddressLoadFailed(true);
-        if (response.code === "RATE_LIMIT_EXCEEDED") {
+      setAddressLoadFailed(false);
+
+      setSelectedLocation({
+        latitude,
+        longitude,
+        ...data.address,
+        isWithinServiceArea: data.is_within_service_area,
+      });
+    } catch (error) {
+      if (requestId === selectionRequestId.current) {
+        const response = error as ApiError;
+
+        if (response?.code === "RATE_LIMIT_EXCEEDED") {
           const retryAfter = response.errors?.retry_after as number | undefined;
 
           Toast.show({
@@ -81,37 +94,12 @@ export default function BusinessLocationPickerScreen({
           });
         }
 
-        console.error("Failed to reverse geocode location:", response.message);
+        console.error(
+          "Failed to reverse geocode location:",
+          response?.success === false ? response.message : error,
+        );
 
-        // The address couldn't be resolved at all, so we have no way to
-        // know whether it's within the service area either — treat this
-        // failure state as "unknown, not confirmed in-bounds" rather
-        // than silently defaulting to true.
-        setSelectedLocation({
-          latitude,
-          longitude,
-          formattedAddress: "",
-          province: "",
-          city: "",
-          barangay: "",
-          streetAddress: "",
-          isWithinServiceArea: false,
-        });
-        return;
-      }
-
-      setAddressLoadFailed(false);
-
-      setSelectedLocation({
-        latitude,
-        longitude,
-        ...response.data.address,
-        isWithinServiceArea: response.data.is_within_service_area,
-      });
-    } catch (error) {
-      console.error("Failed to reverse geocode location:", error);
-
-      if (requestId === selectionRequestId.current) {
+        // An unresolved address cannot be confirmed as inside the service area.
         setAddressLoadFailed(true);
         setSelectedLocation({
           latitude,
@@ -125,7 +113,9 @@ export default function BusinessLocationPickerScreen({
         });
       }
     } finally {
-      setIsResolvingAddress(false);
+      if (requestId === selectionRequestId.current) {
+        setIsResolvingAddress(false);
+      }
     }
   }
 
