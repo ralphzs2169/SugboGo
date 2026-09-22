@@ -53,6 +53,11 @@ export const PAGE_METADATA = {
     subtitle: "Understand performance and visibility.",
   },
 
+  "/admin-panel/analytics/discovery-scores": {
+    title: "Discovery Scores",
+    subtitle: "Monitor the scores used to surface businesses in Hidden Gems.",
+  },
+
   "/admin-panel/settings": {
     title: "Settings & Configuration",
     subtitle:

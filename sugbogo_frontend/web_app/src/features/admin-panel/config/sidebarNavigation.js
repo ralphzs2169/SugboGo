@@ -223,6 +223,13 @@ const navigation = [
         Icon: FiBarChart2,
         roles: ["super_admin"],
       },
+      {
+        type: "link",
+        to: "/admin-panel/analytics/discovery-scores",
+        label: "Discovery Scores",
+        Icon: FiBarChart2,
+        roles: ["admin", "super_admin"],
+      },
     ],
   },
 
