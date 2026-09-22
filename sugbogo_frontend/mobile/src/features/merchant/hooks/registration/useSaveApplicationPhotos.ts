@@ -30,7 +30,6 @@ export default function useSaveApplicationPhotos() {
     mutationFn: async (formData) => {
       const response = await saveApplicationPhotos(formData);
 
-      console.log("PHOTO SAVE RESPONSE:", response);
       throwOnApiError(response);
 
       return response;

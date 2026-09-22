@@ -31,6 +31,5 @@ export default function useCurrentApplication() {
     isLoading: query.isLoading,
     error: query.isError,
     refetch: query.refetch,
-    refresh: query.refetch,
   };
 }

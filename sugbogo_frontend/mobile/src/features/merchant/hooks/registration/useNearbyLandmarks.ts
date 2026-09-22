@@ -121,20 +121,6 @@ export default function useNearbyLandmarks(
     [queryClient],
   );
 
-  /**
-   * Clears the current nearby landmark suggestions.
-   */
-  const clearLandmarks = useCallback(() => {
-    if (!hasCoordinates) {
-      return;
-    }
-
-    queryClient.setQueryData<BusinessLandmark[]>(
-      merchantApplicationKeys.nearbyLandmarks(latitude, longitude),
-      [],
-    );
-  }, [hasCoordinates, latitude, longitude, queryClient]);
-
   return {
     landmarks: query.data ?? [],
     isLoadingLandmarks: query.isLoading,
@@ -143,6 +129,5 @@ export default function useNearbyLandmarks(
     error: query.error,
     refetch: query.refetch,
     searchNearbyLandmarks,
-    clearLandmarks,
   };
 }
