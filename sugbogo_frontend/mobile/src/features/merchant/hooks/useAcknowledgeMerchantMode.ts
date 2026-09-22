@@ -21,7 +21,24 @@ export default function useAcknowledgeMerchantMode() {
       return throwOnApiError(response);
     },
 
-    onSuccess: () => {
+    onSuccess: (status) => {
+      queryClient.setQueryData(merchantApplicationKeys.status(userId), status);
+
+      const currentUser = useAuthStore.getState().user;
+
+      if (
+        currentUser !== null &&
+        currentUser.id === userId &&
+        currentUser.role !== "merchant" &&
+        status.status === "approved" &&
+        status.merchant_mode_acknowledged
+      ) {
+        useAuthStore.getState().setUser({
+          ...currentUser,
+          role: "merchant",
+        });
+      }
+
       void queryClient.invalidateQueries({
         queryKey: merchantApplicationKeys.status(userId),
       });
