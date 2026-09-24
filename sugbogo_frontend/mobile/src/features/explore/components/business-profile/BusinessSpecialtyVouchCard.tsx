@@ -23,8 +23,9 @@ type Props = {
 /**
  * Displays a merchant-defined specialty as an Explorer-vouchable tile.
  *
- * Uses the specialty icon as subtle card artwork while preserving clear
- * foreground content and animated vouch feedback.
+ * Uses a bordered specialty treatment when inactive and switches to a solid
+ * specialty color with reversed white content when the Explorer has vouched.
+ * A short heart pulse reinforces successful vouch interactions.
  */
 export default function BusinessSpecialtyVouchCard({
   name,
@@ -43,8 +44,11 @@ export default function BusinessSpecialtyVouchCard({
   const pulseOpacity = useRef(new Animated.Value(0)).current;
   const previousVouched = useRef(isVouched);
 
+  const foregroundColor = isVouched ? "#FFFFFF" : styles.borderColor;
+
   useEffect(() => {
     const justVouched = isVouched && !previousVouched.current;
+
     previousVouched.current = isVouched;
 
     if (!justVouched) {
@@ -84,8 +88,6 @@ export default function BusinessSpecialtyVouchCard({
     ]).start();
   }, [heartScale, isVouched, pulseOpacity, pulseScale]);
 
-  const foregroundColor = isVouched ? styles.icon : styles.borderColor;
-
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
@@ -96,17 +98,12 @@ export default function BusinessSpecialtyVouchCard({
         disabled,
         selected: isVouched,
       }}
-      className={`relative flex-1 cursor-pointer overflow-hidden rounded-xl px-3 py-2.5 active:opacity-80 ${
-        isVouched ? styles.background : "bg-white"
-      }`}
-      style={
-        !isVouched
-          ? {
-              borderWidth: 1.5,
-              borderColor: styles.borderColor,
-            }
-          : undefined
-      }
+      className="relative flex-1 cursor-pointer overflow-hidden rounded-xl px-3 py-2.5 active:opacity-80 disabled:opacity-60"
+      style={{
+        borderWidth: 1.5,
+        borderColor: styles.borderColor,
+        backgroundColor: isVouched ? styles.borderColor : "#FFFFFF",
+      }}
     >
       {/* Specialty identity */}
       <View className="items-center">
@@ -121,7 +118,7 @@ export default function BusinessSpecialtyVouchCard({
         <AppText
           weight={isVouched ? "bold" : "regular"}
           className={`mt-1 text-center text-xs ${
-            isVouched ? styles.text : styles.accentText
+            isVouched ? "text-white" : styles.accentText
           }`}
           numberOfLines={2}
         >
@@ -161,7 +158,7 @@ export default function BusinessSpecialtyVouchCard({
         <AppText
           weight="bold"
           className={`ml-1 text-xs ${
-            isVouched ? styles.text : styles.accentText
+            isVouched ? "text-white" : styles.accentText
           }`}
         >
           {vouchCount}

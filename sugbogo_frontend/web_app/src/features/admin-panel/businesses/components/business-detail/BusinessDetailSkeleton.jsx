@@ -178,6 +178,43 @@ export default function BusinessDetailSkeleton() {
         </div>
       </section>
 
+      {/* Review insights */}
+      <section className="overflow-hidden rounded-xl border border-stroke bg-background">
+        <div className="border-b border-stroke bg-metric-header px-5 py-4">
+          <div className={`${base} h-4 w-32`} />
+          <div className={`${base} mt-2 h-3 w-64 max-w-full`} />
+        </div>
+
+        <div className="p-5">
+          <div className={`${base} h-3 w-20`} />
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={index}
+                className="rounded-lg border border-stroke bg-surface p-4"
+              >
+                <div className={`${base} h-3 w-16`} />
+                <div className={`${base} mt-3 h-7 w-14`} />
+                <div className={`${base} mt-2 h-3 w-20`} />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 border-t border-stroke pt-5">
+            <div className={`${base} h-3 w-40`} />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <div className={`${base} h-7 w-32 rounded-full`} />
+              <div className={`${base} h-7 w-24 rounded-full`} />
+            </div>
+          </div>
+
+          <div className="mt-5 flex justify-between border-t border-stroke pt-5">
+            <div className={`${base} h-4 w-52 max-w-[45%]`} />
+            <div className={`${base} h-9 w-44 max-w-[45%] rounded-lg`} />
+          </div>
+        </div>
+      </section>
+
       {/* Business application */}
       <section>
         <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">

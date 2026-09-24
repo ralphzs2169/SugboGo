@@ -12,6 +12,7 @@ from apps.admin_operations.business_management.views.manage_business_views impor
     BusinessDetailView,
     BusinessListView,
     BusinessMapView,
+    BusinessReviewInsightsRefreshView,
 )
 
 urlpatterns = [
@@ -19,6 +20,11 @@ urlpatterns = [
     path("", BusinessListView.as_view(), name="business-list"),
     path("map/", BusinessMapView.as_view(), name="business-map"),
     path("<int:business_id>/",BusinessDetailView.as_view(),name="business-detail"),
+    path(
+        "<int:business_id>/review-insights/refresh/",
+        BusinessReviewInsightsRefreshView.as_view(),
+        name="business-review-insights-refresh",
+    ),
 
     path("applications/", MerchantApplicationListView.as_view(), name="merchant-application-list", ),
     path("applications/<int:application_id>/", MerchantApplicationDetailView.as_view(), name="merchant-application-detail"),

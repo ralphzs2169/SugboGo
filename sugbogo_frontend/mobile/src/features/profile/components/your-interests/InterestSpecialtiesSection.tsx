@@ -21,7 +21,7 @@ export default function InterestSpecialtiesSection({
   return (
     <View className="py-4">
       {/* Specialty choices */}
-      <View className="flex-row flex-wrap">
+      <View className="flex-row flex-wrap justify-center">
         {availableSpecialtyTags.map((tag) => (
           <SpecialtyTagChip
             key={tag.id}

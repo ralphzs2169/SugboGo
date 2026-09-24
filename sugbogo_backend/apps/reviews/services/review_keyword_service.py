@@ -113,7 +113,16 @@ class ReviewKeywordService:
                 return response.text
         except errors.APIError as exc:
             if exc.code in (408, 429, 500, 502, 503, 504):
-                raise RetryableKeywordError("Gemini is temporarily unavailable.") from None
+                raise RetryableKeywordError(
+                    "Gemini is temporarily unavailable."
+                ) from None
+
+            logger.warning(
+                "Gemini keyword request failed permanently. "
+                "status_code=%s error_type=%s",
+                exc.code,
+                type(exc).__name__,
+            )
             raise
         except (httpx.TransportError, TimeoutError, ConnectionError):
             raise RetryableKeywordError("Gemini connectivity failed.") from None
@@ -202,17 +211,20 @@ class ReviewKeywordService:
         )
         try:
             tags = cls._parse(cls._generate(reviews), reviews)
-        except RetryableKeywordError:
-            BusinessReviewSummary.objects.filter(pk=summary.pk).update(
-                BRSU_KEYWORDS_RETRYABLE=True,
-                BRSU_UPDATED_AT=timezone.now(),
-            )
-            raise
-        except Exception as exc:
-            # Provider exception messages can contain request data; log only the type.
+        except InvalidKeywordResponse as exc:
             logger.warning(
-                "Keyword extraction skipped after an invalid response or permanent failure.",
-                extra={"business_id": business_id, "error_type": type(exc).__name__},
+                "Keyword extraction returned an invalid response. "
+                "business_id=%s reason=%s",
+                business_id,
+                str(exc),
+            )
+            return "failed"
+        except Exception as exc:
+            logger.warning(
+                "Keyword extraction failed permanently. "
+                "business_id=%s error_type=%s",
+                business_id,
+                type(exc).__name__,
             )
             return "failed"
         return cls._store(business_id, fingerprint, tags, timezone.now())

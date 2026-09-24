@@ -1,5 +1,6 @@
 from core.pagination import StandardPagination
 from core.responses import success_response
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -12,6 +13,7 @@ from apps.admin_operations.business_management.services.manage_business_service 
     BusinessService,
 )
 from apps.authentication.permissions import HasRole
+from apps.reviews.tasks import refresh_business_review_insights
 from apps.users.models import User
 
 
@@ -111,4 +113,26 @@ class BusinessDetailView(APIView):
         return success_response(
             data=serializer.data,
             message="Business retrieved successfully.",
+        )
+
+
+class BusinessReviewInsightsRefreshView(APIView):
+    """Queue Review Insights processing for one administrator-selected business."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def post(self, request, business_id):
+        """Verify the business and queue its asynchronous refresh."""
+        business = BusinessService.get_business_for_review_insights_refresh(
+            business_id,
+        )
+        refresh_business_review_insights.delay(business.BUSN_ID)
+
+        return success_response(
+            data={"business_id": business.BUSN_ID},
+            message="Review insights refresh has been queued.",
+            status_code=status.HTTP_202_ACCEPTED,
         )

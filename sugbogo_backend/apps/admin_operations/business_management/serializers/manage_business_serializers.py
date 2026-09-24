@@ -14,6 +14,9 @@ from apps.business.serializers.business_serializers import (
     BusinessOwnerSerializer,
     BusinessSpecialtyTagSerializer,
 )
+from apps.explorer_operations.explore_businesses.serializers.review_insights_serializers import (
+    BusinessReviewInsightsSerializer,
+)
 from apps.merchant_application.models import MerchantApplication
 from apps.reviews.models import Review
 from apps.reviews.serializers.review_reply_serializers import (
@@ -400,6 +403,29 @@ class AdminReviewResponseSerializer(serializers.ModelSerializer):
             "reply",
         )
 
+
+class AdminBusinessReviewInsightsSerializer(BusinessReviewInsightsSerializer):
+    """Adds separate sentiment and keyword freshness to public insight fields."""
+
+    sentiment_computed_at = serializers.DateTimeField(
+        source="BRSU_SENTIMENT_COMPUTED_AT",
+        read_only=True,
+    )
+    keywords_processed_at = serializers.DateTimeField(
+        source="BRSU_KEYWORDS_PROCESSED_AT",
+        read_only=True,
+    )
+
+    class Meta(BusinessReviewInsightsSerializer.Meta):
+        fields = (
+            "review_count",
+            "sentiment",
+            "frequent_mentions",
+            "sentiment_computed_at",
+            "keywords_processed_at",
+        )
+
+
 class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     """Complete administrator-facing business detail serializer."""
 
@@ -514,6 +540,12 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
+
+    review_insights = AdminBusinessReviewInsightsSerializer(
+        source="review_summary",
+        read_only=True,
+        allow_null=True,
+    )
         
     application = AdminBusinessApplicationSerializer(
         source="merchant_application",
@@ -560,5 +592,6 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
             "photos",
             "operating_hours",
             "latest_reviews",
+            "review_insights",
             "application",
         )

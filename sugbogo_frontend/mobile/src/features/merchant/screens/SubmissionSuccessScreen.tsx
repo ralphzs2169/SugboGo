@@ -1,22 +1,24 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import successAnimation from "@/shared/assets/animations/success-confetti.json";
-import Button from "@/shared/components/Button";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 
 type SubmissionSuccessScreenProps = {
-  /**
-   * Displays the configured estimated review window and
-   * provides the action for leaving the success flow.
-   */
   reviewSlaMinBusinessDays: number;
   reviewSlaMaxBusinessDays: number;
   onContinue: () => void;
 };
 
+/**
+ * Displays the success state after a merchant submits an application.
+ *
+ * Presents submission confirmation, the expected review window, and a primary
+ * action for returning to the Merchant Portal.
+ */
 export default function SubmissionSuccessScreen({
   reviewSlaMinBusinessDays,
   reviewSlaMaxBusinessDays,
@@ -25,33 +27,44 @@ export default function SubmissionSuccessScreen({
   return (
     <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-surface">
       <View className="flex-1 justify-center px-8">
-        {/* Success message */}
-        <View className="items-center">
+        {/* Success animation */}
+        <View className="items-center justify-center">
           <LottieView
             source={successAnimation}
             autoPlay
             loop={false}
-            style={{ width: 260, height: 260 }}
+            style={{
+              width: 250,
+              height: 200,
+            }}
           />
+        </View>
 
+        {/* Success message */}
+        <View className="mb-7">
           <AppText
             weight="bold"
-            className="mt-2 text-center text-3xl text-text-primary"
+            className="text-center text-xl text-text-primary"
           >
             Application Submitted
           </AppText>
 
-          <AppText className="mt-3 text-center text-base leading-7 text-text-secondary">
-            Your application is now under review. We'll notify you as soon as
-            our team has finished taking a look.
+          <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+            Your application is now under review. We'll notify you once our team
+            has finished reviewing it.
           </AppText>
 
-          <View className="mt-6 flex-row items-center rounded-2xl bg-background px-4 py-3">
-            <View className="h-2 w-2 rounded-full bg-brand" />
+          {/* Review estimate */}
+          <View className="mt-4 flex-row items-center justify-center">
+            <MaterialCommunityIcons
+              name="clock-outline"
+              size={16}
+              color="#F27F0D"
+            />
 
             <AppText
               weight="medium"
-              className="ml-2 text-sm text-text-secondary"
+              className="ml-1.5 text-xs text-text-secondary"
             >
               Estimated review time: {reviewSlaMinBusinessDays}–
               {reviewSlaMaxBusinessDays} business days
@@ -59,22 +72,17 @@ export default function SubmissionSuccessScreen({
           </View>
         </View>
 
-        {/* Continue action */}
-        <View className="mt-12">
-          <Button
-            title="Back to Merchant Portal"
-            icon={
-              <MaterialCommunityIcons
-                name="arrow-left"
-                size={20}
-                color="white"
-              />
-            }
-            className="w-full"
-            onPress={onContinue}
-            rounded="full"
-          />
-        </View>
+        {/* Primary follow-up action */}
+        <Button
+          title="Back to Merchant Portal"
+          onPress={onContinue}
+          icon={
+            <MaterialCommunityIcons name="arrow-left" size={20} color="white" />
+          }
+          className="mt-2"
+          textWeight="bold"
+          rounded="full"
+        />
       </View>
     </SafeAreaView>
   );

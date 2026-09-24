@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react-native";
 
 import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
-import VisitorVibeSection from "../VisitorVibeSection";
+import VisitorVibeSection from "../review-section/VisitorVibeSection";
 
 const insights: BusinessReviewInsights = {
   review_count: 10,

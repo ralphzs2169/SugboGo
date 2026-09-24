@@ -9,7 +9,9 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 
 import { useBusinessReviewPreview } from "../../../hooks/useBusinessReviews";
+import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
 import type { BusinessReview } from "../../../types/review.types";
+import VisitorVibeSection from "./VisitorVibeSection";
 import BusinessReviewCard from "./BusinessReviewCard";
 import BusinessReviewCardSkeleton from "../state/BusinessReviewCardSkeleton";
 
@@ -20,22 +22,24 @@ type Props = {
   businessName: string;
   isOwnBusiness: boolean;
   hasOwnReview: boolean;
+  reviewInsights?: BusinessReviewInsights | null;
   onWriteReview: () => void;
   onEditReview: (review: BusinessReview) => void;
 };
 
 /**
- * Displays a compact preview of the business's latest reviews.
+ * Displays a compact preview of the business's reviews and review-derived insights.
  *
- * Uses the preview endpoint, which provides up to three reviews and the total
- * review count. Empty and failure states remain localized to this section.
- * Uses a lightweight SugboGo WebP mascot for the true empty-review state.
+ * Shows the stored sentiment summary above the review collection and surfaces
+ * the most frequent review themes immediately before the previewed reviews.
+ * Empty and failure states remain localized to the review collection.
  */
 export default function BusinessReviewsSection({
   businessId,
   businessName,
   isOwnBusiness,
   hasOwnReview: businessHasOwnReview,
+  reviewInsights,
   onWriteReview,
   onEditReview,
 }: Props) {
@@ -51,6 +55,9 @@ export default function BusinessReviewsSection({
   const reviewCount = totalCount ?? 0;
   const hasOwnReview = businessHasOwnReview || previewHasOwnReview;
   const canWriteReview = !isOwnBusiness && !hasOwnReview;
+
+  const frequentMentions = reviewInsights?.frequent_mentions.slice(0, 3) ?? [];
+  const hasFrequentMentions = frequentMentions.length > 0;
 
   const openReviews = () => {
     router.push({
@@ -97,6 +104,9 @@ export default function BusinessReviewsSection({
           </>
         )}
       </View>
+
+      {/* Visitor sentiment summary */}
+      <VisitorVibeSection insights={reviewInsights} />
 
       {/* Loading state */}
       {isLoading && <BusinessReviewCardSkeleton />}
@@ -164,6 +174,34 @@ export default function BusinessReviewsSection({
       {/* Review preview */}
       {!isLoading && !error && reviews.length > 0 && (
         <View>
+          {/* Frequently mentioned themes */}
+          {hasFrequentMentions && (
+            <View className="mb-4 gap-3">
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                Frequently mentioned
+              </AppText>
+
+              <View className="flex-row flex-wrap gap-2">
+                {frequentMentions.map((mention) => (
+                  <View
+                    key={mention.label}
+                    className="max-w-full rounded-tag bg-background px-3 py-2"
+                  >
+                    <AppText
+                      accessibilityLabel={`${mention.label}, mentioned in ${
+                        mention.count
+                      } ${mention.count === 1 ? "review" : "reviews"}`}
+                      className="text-sm text-text-secondary"
+                    >
+                      {mention.label} · {mention.count}
+                    </AppText>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Latest reviews */}
           <View className="gap-2 pb-4">
             {reviews.map((review) => (
               <BusinessReviewCard
@@ -175,6 +213,7 @@ export default function BusinessReviewsSection({
             ))}
           </View>
 
+          {/* Review action */}
           {canWriteReview && (
             <View className="items-center">
               <Button

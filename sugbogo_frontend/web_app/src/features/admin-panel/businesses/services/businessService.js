@@ -21,3 +21,11 @@ export async function fetchBusiness(businessId) {
 
   return response.data.data;
 }
+
+export async function queueReviewInsightsRefresh(businessId) {
+  const response = await apiClient.post(
+    `/admin/businesses/${businessId}/review-insights/refresh/`,
+  );
+
+  return response.data;
+}

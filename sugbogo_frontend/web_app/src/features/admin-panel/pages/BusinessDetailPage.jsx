@@ -9,6 +9,7 @@ import BusinessDetailSkeleton from "../businesses/components/business-detail/Bus
 import BusinessDetailHero from "../businesses/components/business-detail/BusinessDetailHero";
 import BusinessDetailMetrics from "../businesses/components/business-detail/BusinessDetailMetrics";
 import BusinessReviewsPreview from "../businesses/components/business-detail/review-preview-section/BusinessReviewsPreview";
+import ReviewInsightsCard from "../businesses/components/business-detail/ReviewInsightsCard";
 import BusinessPhotosPreview from "../businesses/components/business-detail/BusinessPhotosPreview";
 import BusinessLocationModal from "../businesses/components/business-detail/BusinessLocationModal";
 import BusinessApplicationSummary from "../businesses/components/business-detail/BusinessApplicationSummary";
@@ -131,6 +132,12 @@ export default function BusinessDetailPage() {
                 </div>
               </div>
             </section>
+
+            {/* Stored review insights */}
+            <ReviewInsightsCard
+              businessId={business.id}
+              insights={business.review_insights}
+            />
 
             {/* Application summary */}
             <section>
