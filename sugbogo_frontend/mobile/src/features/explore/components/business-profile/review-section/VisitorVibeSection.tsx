@@ -30,11 +30,15 @@ const SENTIMENTS = [
   },
 ] as const;
 
+function formatPercentage(value: number) {
+  return Number(value.toFixed(1));
+}
+
 /**
- * Displays the stored visitor sentiment breakdown for a business.
+ * Displays the stored visitor sentiment distribution for a business.
  *
- * Summarizes review sentiment through a single segmented distribution bar and
- * uses SugboGo mascot expressions as a compact legend for each sentiment type.
+ * Uses a compact segmented bar for the overall sentiment balance and SugboGo
+ * mascot expressions as a restrained legend for each sentiment category.
  */
 export default function VisitorVibeSection({
   insights,
@@ -61,35 +65,33 @@ export default function VisitorVibeSection({
       </AppText>
 
       {/* Sentiment distribution */}
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        className="mt-4 h-3 flex-row overflow-hidden rounded-full bg-background"
-      >
-        {SENTIMENTS.map(({ key, barClassName }) => {
-          const percentage = insights.sentiment[key].percentage;
+      <View className="mt-3.5 h-2 overflow-hidden rounded-full bg-background">
+        <View className="h-full flex-row">
+          {SENTIMENTS.map(({ key, barClassName }) => {
+            const percentage = insights.sentiment[key].percentage;
 
-          if (percentage <= 0) {
-            return null;
-          }
+            if (percentage <= 0) {
+              return null;
+            }
 
-          return (
-            <View
-              key={key}
-              className={`h-full ${barClassName}`}
-              style={{
-                width: `${percentage}%`,
-              }}
-            />
-          );
-        })}
+            return (
+              <View
+                key={key}
+                className={`h-full ${barClassName}`}
+                style={{
+                  width: `${percentage}%`,
+                }}
+              />
+            );
+          })}
+        </View>
       </View>
 
       {/* Sentiment legend */}
-      <View className="mt-4 flex-row">
-        {SENTIMENTS.map(({ key, label, mascot }) => {
-          const percentage = Number(
-            insights.sentiment[key].percentage.toFixed(2),
+      <View className="mt-4 flex-row rounded-xl bg-background px-2 py-3">
+        {SENTIMENTS.map(({ key, label, mascot }, index) => {
+          const percentage = formatPercentage(
+            insights.sentiment[key].percentage,
           );
 
           return (
@@ -97,28 +99,32 @@ export default function VisitorVibeSection({
               key={key}
               accessible
               accessibilityLabel={`${label}, ${percentage}%`}
-              className="flex-1 items-center"
+              className={`flex-1 flex-row items-center justify-center px-2 ${
+                index > 0 ? "border-l border-border-primary" : ""
+              }`}
             >
               <Image
                 source={mascot}
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 30,
+                  height: 30,
                 }}
                 contentFit="contain"
                 accessible={false}
               />
 
-              <AppText
-                weight="semibold"
-                className="mt-1.5 text-xs text-text-primary"
-              >
-                {label}
-              </AppText>
+              <View className="ml-2">
+                <AppText
+                  weight="semibold"
+                  className="text-xs text-text-primary"
+                >
+                  {label}
+                </AppText>
 
-              <AppText className="mt-0.5 text-[11px] text-text-secondary">
-                {percentage}%
-              </AppText>
+                <AppText className="mt-0.5 text-[11px] text-text-secondary">
+                  {percentage}%
+                </AppText>
+              </View>
             </View>
           );
         })}

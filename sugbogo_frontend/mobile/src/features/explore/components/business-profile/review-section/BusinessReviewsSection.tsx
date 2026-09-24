@@ -105,6 +105,22 @@ export default function BusinessReviewsSection({
         )}
       </View>
 
+      {/* Existing review notice */}
+      {!isLoading && !error && hasOwnReview && (
+        <View className="mb-4 flex-row items-center rounded-md bg-info px-3 py-2.5">
+          <MaterialCommunityIcons
+            name="information-outline"
+            size={16}
+            color={theme.extends.colors.text.info}
+          />
+
+          <AppText className="ml-2 flex-1 text-xs text-text-secondary">
+            You have already reviewed this business. You can edit your review
+            anytime.
+          </AppText>
+        </View>
+      )}
+
       {/* Visitor sentiment summary */}
       <VisitorVibeSection insights={reviewInsights} />
 
@@ -121,22 +137,6 @@ export default function BusinessReviewsSection({
             onPrimaryAction={refetch}
             size="section"
           />
-        </View>
-      )}
-
-      {/* Existing review notice */}
-      {!isLoading && !error && hasOwnReview && (
-        <View className="mb-4 flex-row items-center rounded-md bg-info px-3 py-2.5">
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={16}
-            color={theme.extends.colors.text.info}
-          />
-
-          <AppText className="ml-2 flex-1 text-xs text-text-secondary">
-            You have already reviewed this business. You can edit your review
-            anytime.
-          </AppText>
         </View>
       )}
 

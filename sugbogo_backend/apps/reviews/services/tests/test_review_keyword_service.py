@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import timedelta
 from unittest.mock import patch
@@ -51,7 +52,11 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
     def test_success_stores_counts_fingerprint_and_timestamp(self):
         self.assertEqual(self.refresh(), "updated")
         self.summary.refresh_from_db()
-        self.assertEqual(self.summary.BRSU_KEYWORD_TAGS, [{"text": "friendly service", "count": 2}])
+        self.assertEqual(self.summary.BRSU_KEYWORD_TAGS, [{
+            "text": "friendly service",
+            "count": 2,
+            "review_ids": [self.first.pk, self.second.pk],
+        }])
         self.assertEqual(len(self.summary.BRSU_KEYWORDS_FINGERPRINT), 64)
         self.assertIsNotNone(self.summary.BRSU_KEYWORDS_PROCESSED_AT)
         self.assertIsNotNone(self.summary.BRSU_KEYWORDS_ATTEMPTED_AT)
@@ -61,6 +66,40 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
     def test_unchanged_snapshot_skips_provider_even_next_day(self):
         self.refresh()
         self.allow_next_day()
+        self.assertEqual(self.refresh(), "unchanged")
+        self.provider.assert_called_once()
+
+    def test_legacy_keyword_fingerprint_regenerates_evidence_once(self):
+        reviews = ReviewKeywordService._snapshot(self.business.pk)
+        legacy_payload = json.dumps(
+            [
+                "test-model",
+                ReviewKeywordService.MIN_REVIEW_COUNT,
+                ReviewKeywordService.MAX_TAGS,
+                reviews,
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        legacy_fingerprint = hashlib.sha256(
+            legacy_payload.encode("utf-8"),
+        ).hexdigest()
+        BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(
+            BRSU_KEYWORD_TAGS=[{"text": "friendly service", "count": 2}],
+            BRSU_KEYWORDS_FINGERPRINT=legacy_fingerprint,
+            BRSU_KEYWORDS_ATTEMPTED_AT=timezone.now() - timedelta(days=1),
+        )
+
+        self.assertEqual(self.refresh(), "updated")
+        self.summary.refresh_from_db()
+        self.assertEqual(self.summary.BRSU_KEYWORD_TAGS[0]["review_ids"], [
+            self.first.pk,
+            self.second.pk,
+        ])
+        self.assertNotEqual(
+            self.summary.BRSU_KEYWORDS_FINGERPRINT,
+            legacy_fingerprint,
+        )
         self.assertEqual(self.refresh(), "unchanged")
         self.provider.assert_called_once()
 
@@ -124,7 +163,11 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.summary.refresh_from_db()
         self.assertEqual(self.summary.BRSU_KEYWORDS_FINGERPRINT, original_hash)
         self.assertEqual(self.summary.BRSU_KEYWORDS_PROCESSED_AT, original_time)
-        self.assertEqual(self.summary.BRSU_KEYWORD_TAGS, [{"text": "friendly service", "count": 2}])
+        self.assertEqual(self.summary.BRSU_KEYWORD_TAGS, [{
+            "text": "friendly service",
+            "count": 2,
+            "review_ids": [self.first.pk, self.second.pk],
+        }])
         self.assertEqual(self.refresh(), "already_attempted")
 
     def test_empty_response_is_failure_but_valid_empty_tags_are_success(self):

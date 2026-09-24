@@ -1,8 +1,10 @@
+from datetime import timedelta
 from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -14,7 +16,12 @@ from apps.business.models import (
     Location,
 )
 from apps.review_disputes.models import MerchantReviewDispute
-from apps.reviews.models import Review
+from apps.reviews.models import (
+    BusinessReviewSummary,
+    Review,
+    ReviewPhoto,
+    ReviewReply,
+)
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
 
@@ -315,6 +322,217 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(
             returned_ids,
             expected_ids,
+        )
+
+    def _create_list_review(self, index, **fields):
+        """Creates an independent review author for list-filter tests."""
+        author = User.objects.create_user(
+            email=f"filtered-reviewer-{index}@example.com",
+            password="StrongPassword123!",
+            USER_FNAME=f"Reviewer{index}",
+            USER_LNAME="User",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        return Review.objects.create(
+            USER_ID=author,
+            BUSN_ID=self.business,
+            REVW_TEXT=f"Review wording {index}.",
+            **fields,
+        )
+
+    def _list_ids(self, **params):
+        """Returns review IDs from the existing list response envelope."""
+        response = self.client.get(self.list_url, params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return [item["id"] for item in response.data["data"]]
+
+    def test_sentiment_filters_use_stored_labels_and_leave_null_unfiltered(self):
+        positive = self._create_list_review(1, REVW_SENTIMENT_LABEL="positive")
+        neutral = self._create_list_review(2, REVW_SENTIMENT_LABEL="neutral")
+        negative = self._create_list_review(3, REVW_SENTIMENT_LABEL="negative")
+        pending = self._create_list_review(4)
+
+        self.assertEqual(self._list_ids(sentiment="positive"), [positive.pk])
+        self.assertEqual(self._list_ids(sentiment="neutral"), [neutral.pk])
+        self.assertEqual(self._list_ids(sentiment="negative"), [negative.pk])
+        self.assertEqual(
+            set(self._list_ids()),
+            {positive.pk, neutral.pk, negative.pk, pending.pk},
+        )
+
+    def test_invalid_sentiment_and_ordering_use_validation_envelope(self):
+        for params, field in (
+            ({"sentiment": "mixed"}, "sentiment"),
+            ({"ordering": "most_relevant"}, "ordering"),
+        ):
+            with self.subTest(params=params):
+                response = self.client.get(self.list_url, params)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+                self.assertIn(field, response.data["errors"])
+
+    def test_has_photos_filters_without_duplicate_reviews(self):
+        with_photos = self._create_list_review(1)
+        self._create_list_review(2)
+        for index in range(2):
+            ReviewPhoto.objects.create(
+                REVW_ID=with_photos,
+                RPHO_PHOTO_URL=f"https://example.com/review-{index}.jpg",
+                RPHO_PHOTO_PUBLIC_ID=f"review-{index}",
+            )
+
+        self.assertEqual(self._list_ids(has_photos="true"), [with_photos.pk])
+
+    def test_merchant_replied_filter_preserves_reply_serialization(self):
+        replied = self._create_list_review(1)
+        self._create_list_review(2)
+        ReviewReply.objects.create(REVW_ID=replied, RPLY_TEXT="Thank you!")
+
+        response = self.client.get(self.list_url, {"merchant_replied": "true"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["data"]), 1)
+        self.assertEqual(response.data["data"][0]["id"], replied.pk)
+        self.assertEqual(response.data["data"][0]["reply"]["text"], "Thank you!")
+
+    def test_ordering_is_deterministic_for_dates_and_likes(self):
+        oldest = self._create_list_review(1, REVW_LIKE_COUNT=5)
+        newest = self._create_list_review(2, REVW_LIKE_COUNT=2)
+        tied = self._create_list_review(3, REVW_LIKE_COUNT=5)
+        moment = timezone.now()
+        Review.objects.filter(pk=oldest.pk).update(REVW_CREATED_AT=moment)
+        Review.objects.filter(pk=tied.pk).update(REVW_CREATED_AT=moment)
+        Review.objects.filter(pk=newest.pk).update(
+            REVW_CREATED_AT=moment + timedelta(minutes=1),
+        )
+
+        self.assertEqual(
+            self._list_ids(ordering="newest"),
+            [newest.pk, tied.pk, oldest.pk],
+        )
+        self.assertEqual(
+            self._list_ids(ordering="oldest"),
+            [oldest.pk, tied.pk, newest.pk],
+        )
+        self.assertEqual(
+            self._list_ids(ordering="most_liked"),
+            [tied.pk, oldest.pk, newest.pk],
+        )
+
+    def test_topic_uses_evidence_not_literal_review_text(self):
+        first = self._create_list_review(1)
+        second = self._create_list_review(2)
+        self._create_list_review(3)
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_KEYWORD_TAGS=[{
+                "text": "Friendly service",
+                "count": 2,
+                "review_ids": [first.pk, second.pk],
+            }],
+        )
+
+        self.assertEqual(
+            set(self._list_ids(topic="  FRIENDLY   service  ")),
+            {first.pk, second.pk},
+        )
+        self.assertEqual(self._list_ids(topic="Unknown topic"), [])
+
+    def test_legacy_topic_without_evidence_returns_empty_list(self):
+        self._create_list_review(1)
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_KEYWORD_TAGS=[{"text": "Friendly service", "count": 2}],
+        )
+
+        self.assertEqual(self._list_ids(topic="Friendly service"), [])
+
+    def test_topic_intersects_stale_ids_with_current_eligibility(self):
+        visible = self._create_list_review(1)
+        hidden = self._create_list_review(
+            2,
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        spam = self._create_list_review(3, REVW_IS_SPAM_FLAGGED=True)
+        device_abuse = self._create_list_review(
+            4,
+            REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+        )
+        deleted = self._create_list_review(5)
+        deleted_id = deleted.pk
+        deleted.delete()
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_KEYWORD_TAGS=[{
+                "text": "Friendly service",
+                "count": 5,
+                "review_ids": [
+                    visible.pk,
+                    hidden.pk,
+                    spam.pk,
+                    device_abuse.pk,
+                    deleted_id,
+                ],
+            }],
+        )
+
+        self.assertEqual(self._list_ids(topic="Friendly service"), [visible.pk])
+        Review.objects.filter(pk=visible.pk).update(
+            REVW_STATUS=Review.ReviewStatus.FLAGGED,
+        )
+        self.assertEqual(self._list_ids(topic="Friendly service"), [])
+
+    def test_filters_compose_with_ordering(self):
+        negative = self._create_list_review(
+            1,
+            REVW_SENTIMENT_LABEL="negative",
+            REVW_LIKE_COUNT=2,
+        )
+        positive = self._create_list_review(
+            2,
+            REVW_SENTIMENT_LABEL="positive",
+            REVW_LIKE_COUNT=10,
+        )
+        ReviewPhoto.objects.create(
+            REVW_ID=negative,
+            RPHO_PHOTO_URL="https://example.com/negative.jpg",
+            RPHO_PHOTO_PUBLIC_ID="negative",
+        )
+        ReviewReply.objects.create(REVW_ID=negative, RPLY_TEXT="Thank you!")
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_KEYWORD_TAGS=[{
+                "text": "Friendly service",
+                "count": 2,
+                "review_ids": [negative.pk, positive.pk],
+            }],
+        )
+
+        self.assertEqual(
+            self._list_ids(sentiment="negative", ordering="newest"),
+            [negative.pk],
+        )
+        self.assertEqual(
+            self._list_ids(has_photos="true", ordering="most_liked"),
+            [negative.pk],
+        )
+        self.assertEqual(
+            self._list_ids(merchant_replied="true", ordering="newest"),
+            [negative.pk],
+        )
+        self.assertEqual(
+            self._list_ids(topic="Friendly service", ordering="oldest"),
+            [negative.pk, positive.pk],
+        )
+        self.assertEqual(
+            self._list_ids(
+                topic="Friendly service",
+                sentiment="negative",
+                has_photos="true",
+                merchant_replied="true",
+            ),
+            [negative.pk],
         )
 
     def test_get_all_reviews_exposes_pending_dispute_id_for_merchant(self):

@@ -15,9 +15,14 @@ from apps.business.models import Business, BusinessVouch
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
+    BusinessReviewSummary,
     Review,
     ReviewLike,
     ReviewPhoto,
+    ReviewReply,
+)
+from apps.reviews.services.business_review_summary_service import (
+    BusinessReviewSummaryService,
 )
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
@@ -400,7 +405,13 @@ class ReviewService:
     def list_reviews(
         business_id: int,
         user: User,
+        sentiment: str | None = None,
+        has_photos: bool = False,
+        merchant_replied: bool = False,
+        topic: str | None = None,
+        ordering: str | None = None,
     ):
+        """List published reviews with optional evidence-backed filters."""
         try:
             Business.objects.get(
                 BUSN_ID=business_id,
@@ -413,6 +424,68 @@ class ReviewService:
         reviews = ReviewService._get_review_queryset(
             business_id,
             user,
+        )
+
+        if sentiment is not None:
+            reviews = reviews.filter(REVW_SENTIMENT_LABEL=sentiment)
+
+        if has_photos:
+            photos = ReviewPhoto.objects.filter(
+                REVW_ID_id=OuterRef("pk"),
+            )
+            reviews = reviews.filter(Exists(photos))
+
+        if merchant_replied:
+            replies = ReviewReply.objects.filter(
+                REVW_ID_id=OuterRef("pk"),
+            )
+            reviews = reviews.filter(Exists(replies))
+
+        if topic is not None:
+            tags = (
+                BusinessReviewSummary.objects
+                .filter(BUSN_ID_id=business_id)
+                .values_list("BRSU_KEYWORD_TAGS", flat=True)
+                .first()
+            )
+            normalized_topic = " ".join(topic.split()).casefold()
+            supporting_ids = []
+
+            if isinstance(tags, list):
+                for tag in tags:
+                    if not isinstance(tag, dict):
+                        continue
+                    label = tag.get("text")
+                    if (
+                        isinstance(label, str)
+                        and " ".join(label.split()).casefold() == normalized_topic
+                    ):
+                        evidence = tag.get("review_ids")
+                        if isinstance(evidence, list):
+                            supporting_ids = [
+                                review_id
+                                for review_id in evidence
+                                if type(review_id) is int
+                            ]
+                        break
+
+            eligible_ids = (
+                BusinessReviewSummaryService.eligible_reviews(business_id)
+                .filter(REVW_ID__in=supporting_ids)
+                .values("REVW_ID")
+            )
+            reviews = reviews.filter(REVW_ID__in=eligible_ids)
+
+        ordering_fields = {
+            "newest": ("-REVW_CREATED_AT", "-REVW_ID"),
+            "oldest": ("REVW_CREATED_AT", "REVW_ID"),
+            "most_liked": ("-REVW_LIKE_COUNT", "-REVW_CREATED_AT", "-REVW_ID"),
+        }
+        reviews = reviews.order_by(
+            *ordering_fields.get(
+                ordering,
+                ordering_fields["newest"],
+            ),
         )
 
         return ReviewService._attach_vouched_specialties(

@@ -126,6 +126,22 @@ class ReviewVouchedSpecialtySerializer(serializers.ModelSerializer):
         )
 
 
+class ReviewListQuerySerializer(serializers.Serializer):
+    """Validates optional filters and ordering for the business review list."""
+
+    sentiment = serializers.ChoiceField(
+        choices=("positive", "neutral", "negative"),
+        required=False,
+    )
+    has_photos = serializers.BooleanField(required=False)
+    merchant_replied = serializers.BooleanField(required=False)
+    topic = serializers.CharField(required=False, trim_whitespace=True)
+    ordering = serializers.ChoiceField(
+        choices=("newest", "oldest", "most_liked"),
+        required=False,
+    )
+
+
 class ReviewResponseSerializer(serializers.ModelSerializer):
     """Serializes a business review for API responses."""
 

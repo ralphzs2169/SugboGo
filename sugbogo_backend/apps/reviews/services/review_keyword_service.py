@@ -28,6 +28,8 @@ class ReviewKeywordService:
 
     MIN_REVIEW_COUNT = 2
     MAX_TAGS = 20
+    # Changing the stored evidence shape invalidates earlier fingerprints once.
+    EVIDENCE_SCHEMA_VERSION = 2
 
     @staticmethod
     def _snapshot(business_id):
@@ -42,7 +44,13 @@ class ReviewKeywordService:
     def _fingerprint(cls, reviews):
         """Hashes review content and extraction policy without storing raw text."""
         payload = json.dumps(
-            [settings.GEMINI_KEYWORD_MODEL, cls.MIN_REVIEW_COUNT, cls.MAX_TAGS, reviews],
+            [
+                settings.GEMINI_KEYWORD_MODEL,
+                cls.MIN_REVIEW_COUNT,
+                cls.MAX_TAGS,
+                cls.EVIDENCE_SCHEMA_VERSION,
+                reviews,
+            ],
             ensure_ascii=False,
             separators=(",", ":"),
         )
@@ -164,7 +172,11 @@ class ReviewKeywordService:
             ):
                 raise InvalidKeywordResponse("Invalid supporting review count.")
             seen.add(text.casefold())
-            result.append({"text": text, "count": len(ids)})
+            result.append({
+                "text": text,
+                "count": len(ids),
+                "review_ids": ids,
+            })
         return sorted(result, key=lambda tag: (-tag["count"], tag["text"].casefold()))
 
     @classmethod

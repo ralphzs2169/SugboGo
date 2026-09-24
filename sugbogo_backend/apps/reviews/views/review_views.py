@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from apps.authentication.permissions import HasRole
 from apps.reviews.serializers.review_serializers import (
     ReviewCreateSerializer,
+    ReviewListQuerySerializer,
     ReviewResponseSerializer,
     ReviewUpdateSerializer,
 )
@@ -86,9 +87,13 @@ class ReviewListView(APIView):
     ):
         """Retrieve all reviews for a business."""
 
+        query = ReviewListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+
         reviews = ReviewService.list_reviews(
             business_id=business_id,
             user=request.user,
+            **query.validated_data,
         )
 
         return success_response(
