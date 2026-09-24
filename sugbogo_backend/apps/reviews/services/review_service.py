@@ -672,6 +672,7 @@ class ReviewService:
         user: User,
         review_id: int,
     ) -> None:
+        """Delete a review and immediately refresh its business sentiment summary."""
         review = ReviewService._get_review(
             review_id,
         )
@@ -719,6 +720,10 @@ class ReviewService:
                 ) - 1,
                 0,
             ),
+        )
+
+        BusinessReviewSummaryService.recompute_sentiment(
+            business_id,
         )
 
     @staticmethod

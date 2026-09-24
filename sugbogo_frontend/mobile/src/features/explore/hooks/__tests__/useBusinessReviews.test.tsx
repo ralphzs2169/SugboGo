@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import {
+  deleteReview,
   getAllBusinessReviews,
   getBusinessReviewPreview,
 } from "../../api/reviewBusiness.service";
@@ -15,10 +16,17 @@ import {
 import {
   useBusinessReviewPreview,
   useBusinessReviews,
+  useDeleteReview,
   useMerchantBusinessReviews,
 } from "../useBusinessReviews";
+import {
+  businessReviewPreviewKey,
+  businessReviewsKey,
+  exploreBusinessDetailKey,
+} from "../reviewQueryKeys";
 
 jest.mock("../../api/reviewBusiness.service", () => ({
+  deleteReview: jest.fn(),
   getAllBusinessReviews: jest.fn(),
   getBusinessReviewPreview: jest.fn(),
 }));
@@ -179,6 +187,36 @@ describe("useBusinessReviews", () => {
       100,
     );
     expect(result.current.totalCount).toBe(3);
+    unmount();
+    client.clear();
+  });
+
+  it("refreshes review insights after a successful deletion", async () => {
+    (deleteReview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { review_id: 8 },
+    });
+    const { client, Wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result, unmount } = await renderHook(
+      () => useDeleteReview(20),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({ reviewId: 8 });
+    });
+
+    expect(deleteReview).toHaveBeenCalledWith(8);
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: businessReviewPreviewKey(20),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: businessReviewsKey(20),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: exploreBusinessDetailKey(20),
+    });
     unmount();
     client.clear();
   });

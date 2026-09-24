@@ -22,6 +22,9 @@ from apps.reviews.models import (
     ReviewPhoto,
     ReviewReply,
 )
+from apps.reviews.services.business_review_summary_service import (
+    BusinessReviewSummaryService,
+)
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
 
@@ -1256,6 +1259,16 @@ class ReviewDetailViewTests(APITestCase):
         )
 
     def test_delete_review_removes_review(self):
+        Review.objects.filter(
+            REVW_ID=self.review.REVW_ID,
+        ).update(
+            REVW_SENTIMENT_SCORE=0.8,
+            REVW_SENTIMENT_LABEL="positive",
+        )
+        BusinessReviewSummaryService.recompute_sentiment(
+            self.business.BUSN_ID,
+        )
+
         response = self.client.delete(self.detail_url)
 
         self.assertEqual(
@@ -1266,6 +1279,13 @@ class ReviewDetailViewTests(APITestCase):
         self.assertFalse(
             Review.objects.filter(REVW_ID=self.review.REVW_ID).exists(),
         )
+
+        summary = BusinessReviewSummary.objects.get(
+            BUSN_ID=self.business,
+        )
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
 
     def test_delete_review_rejects_non_owner(self):
         self.client.force_authenticate(self.other_explorer)

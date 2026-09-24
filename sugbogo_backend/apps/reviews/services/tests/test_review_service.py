@@ -17,7 +17,15 @@ from apps.business.models import (
     Location,
     SpecialtyTag,
 )
-from apps.reviews.models import Review, ReviewLike, ReviewPhoto
+from apps.reviews.models import (
+    BusinessReviewSummary,
+    Review,
+    ReviewLike,
+    ReviewPhoto,
+)
+from apps.reviews.services.business_review_summary_service import (
+    BusinessReviewSummaryService,
+)
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
@@ -1001,6 +1009,75 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(
             self.business.BUSN_REVIEW_COUNT,
             0,
+        )
+
+    def test_delete_review_recomputes_classified_sentiment_counts(self):
+        """Remove the deleted classification from the persisted summary."""
+        positive = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Great food.",
+            REVW_SENTIMENT_SCORE=0.8,
+            REVW_SENTIMENT_LABEL="positive",
+        )
+        Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Slow service.",
+            REVW_SENTIMENT_SCORE=-0.7,
+            REVW_SENTIMENT_LABEL="negative",
+        )
+        BusinessReviewSummaryService.recompute_sentiment(
+            self.business.BUSN_ID,
+        )
+
+        ReviewService.delete_review(
+            user=self.user,
+            review_id=positive.REVW_ID,
+        )
+
+        summary = BusinessReviewSummary.objects.get(
+            BUSN_ID=self.business,
+        )
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEUTRAL_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
+
+    def test_delete_last_eligible_review_zeros_sentiment_summary(self):
+        """Keep the existing summary row with zero counts after the last review."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Great food.",
+            REVW_SENTIMENT_SCORE=0.8,
+            REVW_SENTIMENT_LABEL="positive",
+        )
+        BusinessReviewSummaryService.recompute_sentiment(
+            self.business.BUSN_ID,
+        )
+
+        ReviewService.delete_review(
+            user=self.user,
+            review_id=review.REVW_ID,
+        )
+
+        summary = BusinessReviewSummary.objects.get(
+            BUSN_ID=self.business,
+        )
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEUTRAL_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 0)
+        self.assertEqual(
+            summary.sentiment_percentages,
+            {
+                "positive": 0.0,
+                "neutral": 0.0,
+                "negative": 0.0,
+            },
         )
 
     def test_delete_review_rejects_non_owner(self):
