@@ -123,7 +123,7 @@ export default function BusinessReviewCard({
   };
 
   return (
-    <View className="rounded-lg border border-border-primary bg-surface px-4 py-5">
+    <View className="rounded-card border border-border-primary bg-surface px-4 py-5">
       {/* Shared review content */}
       <ReviewContent
         review={review}

@@ -419,7 +419,7 @@ class BusinessReviewSummary(models.Model):
 
     class Meta:
         db_table = "BUSINESS_REVIEW_SUMMARY"
-        constraints = [
+        constraints = [  # noqa: RUF012
             models.CheckConstraint(
                 condition=models.Q(
                     BRSU_CLASSIFIED_REVIEW_COUNT=(
