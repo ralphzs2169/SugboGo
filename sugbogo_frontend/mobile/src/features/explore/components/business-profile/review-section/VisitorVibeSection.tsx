@@ -1,9 +1,10 @@
 import { Image } from "expo-image";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 
 import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
+import type { ReviewSentiment } from "../../../types/review.types";
 
 const MASCOT_FACE_POSITIVE = require("@/shared/assets/mascot/face/mascot-face-positive.webp");
 const MASCOT_FACE_NEUTRAL = require("@/shared/assets/mascot/face/mascot-face-neutral.webp");
@@ -30,6 +31,13 @@ const SENTIMENTS = [
   },
 ] as const;
 
+type Props = {
+  insights?: BusinessReviewInsights | null;
+  selectedSentiment?: ReviewSentiment | null;
+  onSentimentPress?: (sentiment: ReviewSentiment) => void;
+  showDescription?: boolean;
+};
+
 function formatPercentage(value: number) {
   return Number(value.toFixed(1));
 }
@@ -37,14 +45,15 @@ function formatPercentage(value: number) {
 /**
  * Displays the stored visitor sentiment distribution for a business.
  *
- * Uses a compact segmented bar for the overall sentiment balance and SugboGo
- * mascot expressions as a restrained legend for each sentiment category.
+ * Supports both a read-only summary and an interactive sentiment selector
+ * while preserving the server-provided sentiment percentages.
  */
 export default function VisitorVibeSection({
   insights,
-}: {
-  insights?: BusinessReviewInsights | null;
-}) {
+  selectedSentiment = null,
+  onSentimentPress,
+  showDescription = true,
+}: Props) {
   if (!insights) {
     return null;
   }
@@ -58,14 +67,20 @@ export default function VisitorVibeSection({
   }
 
   return (
-    <View className="mb-5">
+    <View>
       {/* Sentiment context */}
-      <AppText className="text-xs leading-5 text-text-secondary">
-        How explorers felt based on their reviews.
-      </AppText>
+      {showDescription && (
+        <AppText className="text-xs leading-5 text-text-secondary">
+          How explorers felt based on their reviews.
+        </AppText>
+      )}
 
       {/* Sentiment distribution */}
-      <View className="mt-3.5 h-2 overflow-hidden rounded-full bg-background">
+      <View
+        className={`h-2 overflow-hidden rounded-full bg-background ${
+          showDescription ? "mt-3.5" : ""
+        }`}
+      >
         <View className="h-full flex-row">
           {SENTIMENTS.map(({ key, barClassName }) => {
             const percentage = insights.sentiment[key].percentage;
@@ -93,16 +108,10 @@ export default function VisitorVibeSection({
           const percentage = formatPercentage(
             insights.sentiment[key].percentage,
           );
+          const selected = selectedSentiment === key;
 
-          return (
-            <View
-              key={key}
-              accessible
-              accessibilityLabel={`${label}, ${percentage}%`}
-              className={`flex-1 flex-row items-center justify-center px-2 ${
-                index > 0 ? "border-l border-border-primary" : ""
-              }`}
-            >
+          const content = (
+            <>
               <Image
                 source={mascot}
                 style={{
@@ -116,16 +125,60 @@ export default function VisitorVibeSection({
               <View className="ml-2">
                 <AppText
                   weight="semibold"
-                  className="text-xs text-text-primary"
+                  className={
+                    selected
+                      ? "text-xs text-brand"
+                      : "text-xs text-text-primary"
+                  }
                 >
                   {label}
                 </AppText>
 
-                <AppText className="mt-0.5 text-[11px] text-text-secondary">
+                <AppText
+                  className={
+                    selected
+                      ? "mt-0.5 text-[11px] text-brand"
+                      : "mt-0.5 text-[11px] text-text-secondary"
+                  }
+                >
                   {percentage}%
                 </AppText>
               </View>
-            </View>
+            </>
+          );
+
+          const containerClassName = `min-w-0 flex-1 flex-row items-center justify-center px-2 ${
+            index > 0 ? "border-l border-border-primary" : ""
+          }`;
+
+          if (!onSentimentPress) {
+            return (
+              <View
+                key={key}
+                accessible
+                accessibilityLabel={`${label}, ${percentage}%`}
+                className={containerClassName}
+              >
+                {content}
+              </View>
+            );
+          }
+
+          return (
+            <Pressable
+              key={key}
+              onPress={() => onSentimentPress(key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${label}, ${percentage}%${
+                selected ? ", selected" : ""
+              }`}
+              className={`${containerClassName} cursor-pointer rounded-lg py-1 active:opacity-70 ${
+                selected ? "bg-brand/10" : ""
+              }`}
+            >
+              {content}
+            </Pressable>
           );
         })}
       </View>

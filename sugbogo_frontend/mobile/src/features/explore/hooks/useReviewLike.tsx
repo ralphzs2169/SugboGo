@@ -1,4 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import * as reviewService from "../api/reviewBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
@@ -10,8 +14,13 @@ import {
 
 import type {
   BusinessReview,
+  BusinessReviewListResponse,
   BusinessReviewPreview,
 } from "../types/review.types";
+
+type CachedReviewCollection =
+  | InfiniteData<BusinessReviewListResponse, number>
+  | { reviews: BusinessReview[]; totalCount: number };
 
 /**
  * Likes or unlikes a review optimistically so the UI responds immediately.
@@ -50,9 +59,9 @@ export function useReviewLike(businessId: number) {
         businessReviewPreviewKey(businessId),
       );
 
-      const previousList = queryClient.getQueryData<BusinessReview[]>(
-        businessReviewsKey(businessId),
-      );
+      const previousLists = queryClient.getQueriesData<CachedReviewCollection>({
+        queryKey: businessReviewsKey(businessId),
+      });
 
       const toggleReview = (review: BusinessReview): BusinessReview =>
         review.id === reviewId
@@ -71,18 +80,40 @@ export function useReviewLike(businessId: number) {
             ? {
                 ...old,
                 reviews: old.reviews.map(toggleReview),
+                user_review: old.user_review
+                  ? toggleReview(old.user_review)
+                  : null,
               }
             : old,
       );
 
-      queryClient.setQueryData<BusinessReview[]>(
-        businessReviewsKey(businessId),
-        (old) => (old ? old.map(toggleReview) : old),
+      queryClient.setQueriesData<CachedReviewCollection>(
+        { queryKey: businessReviewsKey(businessId) },
+        (old) => {
+          if (!old) {
+            return old;
+          }
+
+          if ("pages" in old) {
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.map(toggleReview),
+              })),
+            };
+          }
+
+          return {
+            ...old,
+            reviews: old.reviews.map(toggleReview),
+          };
+        },
       );
 
       return {
         previousPreview,
-        previousList,
+        previousLists,
       };
     },
 
@@ -94,12 +125,9 @@ export function useReviewLike(businessId: number) {
         );
       }
 
-      if (context?.previousList) {
-        queryClient.setQueryData(
-          businessReviewsKey(businessId),
-          context.previousList,
-        );
-      }
+      context?.previousLists.forEach(([queryKey, reviews]) => {
+        queryClient.setQueryData(queryKey, reviews);
+      });
     },
 
     onSettled: async () => {

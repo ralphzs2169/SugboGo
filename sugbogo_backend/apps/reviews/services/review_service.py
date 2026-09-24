@@ -374,6 +374,7 @@ class ReviewService:
         business_id: int,
         user: User,
     ):
+        """Return a bounded public preview and the current user's review."""
         try:
             Business.objects.get(
                 BUSN_ID=business_id,
@@ -394,15 +395,28 @@ class ReviewService:
             user,
         )[:3]
 
+        user_review = (
+            ReviewService._annotated_review_queryset(user)
+            .filter(
+                BUSN_ID_id=business_id,
+                USER_ID=user,
+            )
+            .first()
+        )
+
+        if user_review is not None:
+            ReviewService._attach_vouched_specialties([user_review])
+
         return {
             "reviews": ReviewService._attach_vouched_specialties(
                 reviews,
             ),
             "total_count": total_count,
+            "user_review": user_review,
         }
 
     @staticmethod
-    def list_reviews(
+    def list_reviews_queryset(
         business_id: int,
         user: User,
         sentiment: str | None = None,
@@ -411,7 +425,7 @@ class ReviewService:
         topic: str | None = None,
         ordering: str | None = None,
     ):
-        """List published reviews with optional evidence-backed filters."""
+        """Build a filterable and deterministically ordered review queryset."""
         try:
             Business.objects.get(
                 BUSN_ID=business_id,
@@ -488,9 +502,30 @@ class ReviewService:
             ),
         )
 
-        return ReviewService._attach_vouched_specialties(
-            reviews,
+        return reviews
+
+    @staticmethod
+    def list_reviews(
+        business_id: int,
+        user: User,
+        sentiment: str | None = None,
+        has_photos: bool = False,
+        merchant_replied: bool = False,
+        topic: str | None = None,
+        ordering: str | None = None,
+    ):
+        """List reviews with attached vouches for existing service callers."""
+        reviews = ReviewService.list_reviews_queryset(
+            business_id=business_id,
+            user=user,
+            sentiment=sentiment,
+            has_photos=has_photos,
+            merchant_replied=merchant_replied,
+            topic=topic,
+            ordering=ordering,
         )
+
+        return ReviewService._attach_vouched_specialties(reviews)
 
     @staticmethod
     @transaction.atomic

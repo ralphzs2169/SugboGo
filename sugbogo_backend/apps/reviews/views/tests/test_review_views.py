@@ -299,10 +299,19 @@ class ReviewViewTests(APITestCase):
 
         self.assertEqual(
             response.data["message"],
-            "Reviews retrieved successfully.",
+            "Success.",
         )
 
-        returned_reviews = response.data["data"]
+        returned_reviews = response.data["data"]["items"]
+
+        self.assertEqual(
+            response.data["data"]["pagination"]["page_size"],
+            10,
+        )
+        self.assertEqual(
+            response.data["data"]["pagination"]["total_items"],
+            4,
+        )
 
         self.assertEqual(
             len(returned_reviews),
@@ -322,6 +331,147 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(
             returned_ids,
             expected_ids,
+        )
+
+    def test_review_list_paginates_after_ordering(self):
+        """Return stable page boundaries through the standard list envelope."""
+        reviews = [
+            self._create_list_review(index)
+            for index in range(1, 5)
+        ]
+        moment = timezone.now()
+
+        for index, review in enumerate(reviews):
+            Review.objects.filter(pk=review.pk).update(
+                REVW_CREATED_AT=moment,
+                REVW_LIKE_COUNT=index // 2,
+            )
+
+        newest_ids = [
+            review.pk
+            for review in reversed(reviews)
+        ]
+        oldest_ids = [
+            review.pk
+            for review in reviews
+        ]
+
+        for ordering, expected in (
+            ("newest", newest_ids),
+            ("oldest", oldest_ids),
+            ("most_liked", newest_ids),
+        ):
+            with self.subTest(ordering=ordering):
+                pages = []
+
+                for page_number in (1, 2):
+                    response = self.client.get(
+                        self.list_url,
+                        {
+                            "page": page_number,
+                            "page_size": 2,
+                            "ordering": ordering,
+                        },
+                    )
+                    self.assertEqual(response.status_code, status.HTTP_200_OK)
+                    payload = response.data["data"]
+                    self.assertEqual(
+                        payload["pagination"]["total_items"],
+                        4,
+                    )
+                    self.assertEqual(
+                        payload["pagination"]["total_pages"],
+                        2,
+                    )
+                    self.assertEqual(
+                        payload["pagination"]["has_next"],
+                        page_number == 1,
+                    )
+                    pages.extend(item["id"] for item in payload["items"])
+
+                self.assertEqual(pages, expected)
+
+    def test_combined_filters_are_applied_before_pagination(self):
+        """Paginate the eligible intersection rather than filtering a page."""
+        first = self._create_list_review(1, REVW_SENTIMENT_LABEL="negative")
+        second = self._create_list_review(2, REVW_SENTIMENT_LABEL="negative")
+        excluded = self._create_list_review(3, REVW_SENTIMENT_LABEL="positive")
+
+        for review in (first, second, excluded):
+            ReviewPhoto.objects.create(
+                REVW_ID=review,
+                RPHO_PHOTO_URL=f"https://example.com/{review.pk}.jpg",
+                RPHO_PHOTO_PUBLIC_ID=str(review.pk),
+            )
+            ReviewReply.objects.create(
+                REVW_ID=review,
+                RPLY_TEXT="Thank you!",
+            )
+
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_KEYWORD_TAGS=[{
+                "text": "Slow service",
+                "count": 3,
+                "review_ids": [first.pk, second.pk, excluded.pk],
+            }],
+        )
+
+        params = {
+            "sentiment": "negative",
+            "topic": "Slow service",
+            "has_photos": "true",
+            "merchant_replied": "true",
+            "ordering": "oldest",
+            "page_size": 1,
+        }
+        first_page = self.client.get(self.list_url, {**params, "page": 1})
+        second_page = self.client.get(self.list_url, {**params, "page": 2})
+
+        self.assertEqual(first_page.data["data"]["pagination"]["total_items"], 2)
+        self.assertEqual(second_page.data["data"]["pagination"]["total_items"], 2)
+        self.assertEqual(first_page.data["data"]["items"][0]["id"], first.pk)
+        self.assertEqual(second_page.data["data"]["items"][0]["id"], second.pk)
+
+    def test_preview_includes_user_review_outside_bounded_preview(self):
+        """Expose ownership without scanning paginated review results."""
+        own_review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="My older review.",
+        )
+        for index in range(1, 5):
+            self._create_list_review(index)
+
+        response = self.client.get(self.preview_url)
+        data = response.data["data"]
+
+        self.assertEqual(len(data["reviews"]), 3)
+        self.assertNotIn(own_review.pk, [item["id"] for item in data["reviews"]])
+        self.assertEqual(data["user_review"]["id"], own_review.pk)
+        self.assertTrue(data["user_review"]["is_own_review"])
+
+        filtered = self.client.get(
+            self.list_url,
+            {"sentiment": "negative", "page_size": 1},
+        )
+        self.assertEqual(filtered.data["data"]["items"], [])
+        self.assertEqual(
+            self.client.get(self.preview_url).data["data"]["user_review"]["id"],
+            own_review.pk,
+        )
+
+        Review.objects.filter(pk=own_review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.FLAGGED,
+        )
+        self.assertEqual(
+            self.client.get(self.preview_url).data["data"]["user_review"]["id"],
+            own_review.pk,
+        )
+
+        self.client.force_authenticate(self.merchant)
+        self.assertIsNone(
+            self.client.get(self.preview_url).data["data"]["user_review"],
         )
 
     def _create_list_review(self, index, **fields):
@@ -345,7 +495,10 @@ class ReviewViewTests(APITestCase):
         """Returns review IDs from the existing list response envelope."""
         response = self.client.get(self.list_url, params)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        return [item["id"] for item in response.data["data"]]
+        return [
+            item["id"]
+            for item in response.data["data"]["items"]
+        ]
 
     def test_sentiment_filters_use_stored_labels_and_leave_null_unfiltered(self):
         positive = self._create_list_review(1, REVW_SENTIMENT_LABEL="positive")
@@ -392,9 +545,12 @@ class ReviewViewTests(APITestCase):
         response = self.client.get(self.list_url, {"merchant_replied": "true"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["data"]), 1)
-        self.assertEqual(response.data["data"][0]["id"], replied.pk)
-        self.assertEqual(response.data["data"][0]["reply"]["text"], "Thank you!")
+        self.assertEqual(len(response.data["data"]["items"]), 1)
+        self.assertEqual(response.data["data"]["items"][0]["id"], replied.pk)
+        self.assertEqual(
+            response.data["data"]["items"][0]["reply"]["text"],
+            "Thank you!",
+        )
 
     def test_ordering_is_deterministic_for_dates_and_likes(self):
         oldest = self._create_list_review(1, REVW_LIKE_COUNT=5)
@@ -566,7 +722,7 @@ class ReviewViewTests(APITestCase):
 
         returned_review = next(
             item
-            for item in response.data["data"]
+            for item in response.data["data"]["items"]
             if item["id"] == review.REVW_ID
         )
 
@@ -601,7 +757,7 @@ class ReviewViewTests(APITestCase):
 
         returned_review = next(
             item
-            for item in response.data["data"]
+            for item in response.data["data"]["items"]
             if item["id"] == review.REVW_ID
         )
 
@@ -630,7 +786,7 @@ class ReviewViewTests(APITestCase):
 
         returned_review = next(
             item
-            for item in response.data["data"]
+            for item in response.data["data"]["items"]
             if item["id"] == review.REVW_ID
         )
 

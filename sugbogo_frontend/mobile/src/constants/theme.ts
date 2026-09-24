@@ -22,8 +22,10 @@ export const theme = {
       brandDark: "#F27F0D99",
       brandMuted: "#F27F0D24",
 
-      background: "#ffffff",
-      surface: "#f3f4f6",
+      background: "#F8F9FA", // screen bg
+      surface: "#FFFFFF", // card/top bar bg
+      surfaceMuted: "#F3F4F6",
+      surfaceMutedStrong: "#D1D5DB",
 
       text: {
         primary: "#111827",

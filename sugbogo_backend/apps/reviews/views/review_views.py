@@ -1,3 +1,4 @@
+from core.pagination import StandardPagination
 from core.responses import success_response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -70,6 +71,11 @@ class ReviewView(APIView):
                     many=True,
                 ).data,
                 "total_count": preview["total_count"],
+                "user_review": (
+                    ReviewResponseSerializer(preview["user_review"]).data
+                    if preview["user_review"] is not None
+                    else None
+                ),
             },
             message="Review preview retrieved successfully.",
         )
@@ -90,18 +96,24 @@ class ReviewListView(APIView):
         query = ReviewListQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
 
-        reviews = ReviewService.list_reviews(
+        reviews = ReviewService.list_reviews_queryset(
             business_id=business_id,
             user=request.user,
             **query.validated_data,
         )
 
-        return success_response(
-            data=ReviewResponseSerializer(
-                reviews,
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(
+            reviews,
+            request,
+        )
+        page = ReviewService._attach_vouched_specialties(page)
+
+        return paginator.get_paginated_response(
+            ReviewResponseSerializer(
+                page,
                 many=True,
             ).data,
-            message="Reviews retrieved successfully.",
         )
 
 class ReviewDetailView(APIView):
