@@ -193,6 +193,23 @@ class ReviewViewTests(APITestCase):
             self.business.BUSN_ID,
         )
 
+    def test_create_response_succeeds_when_sentiment_broker_is_unavailable(self):
+        with patch(
+            "apps.reviews.tasks.process_review_sentiment.delay",
+            side_effect=ConnectionError("broker unavailable"),
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    self.preview_url,
+                    {"text": "Great food and excellent service."},
+                    format="multipart",
+                )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        review = Review.objects.get(REVW_ID=response.data["data"]["id"])
+        self.assertIsNone(review.REVW_SENTIMENT_SCORE)
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+
     def test_get_review_preview_returns_maximum_three_reviews(self):
         for index in range(5):
             user = self.explorer

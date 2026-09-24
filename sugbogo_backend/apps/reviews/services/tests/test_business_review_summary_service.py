@@ -60,6 +60,7 @@ class SummaryFixtureMixin:
             "BUSN_ID": business,
             "USER_ID": author,
             "REVW_TEXT": "Friendly service.",
+            "REVW_SENTIMENT_SCORE": 0.75,
             "REVW_SENTIMENT_LABEL": "positive",
         }
         values.update(overrides)

@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from django.db import IntegrityError, models, transaction
@@ -12,7 +13,6 @@ from rest_framework.exceptions import (
 
 from apps.business.models import Business, BusinessVouch
 from apps.review_disputes.models import MerchantReviewDispute
-from apps.reviews.services.sentiment import route_sentiment
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
     Review,
@@ -23,6 +23,8 @@ from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
 
+logger = logging.getLogger(__name__)
+
 
 class ReviewService:
     """Handles creating, updating, and deleting business reviews."""
@@ -32,6 +34,31 @@ class ReviewService:
     DEVICE_MAX_DISTINCT_USERS = 3
     DEVICE_MAX_REVIEWS_IN_WINDOW = 10
     DEVICE_REVIEW_WINDOW = timedelta(hours=24)
+
+    @staticmethod
+    def _queue_sentiment_after_commit(review_id: int, business_id: int) -> None:
+        """Publishes sentiment work after commit without failing the review request."""
+
+        def publish():
+            try:
+                from apps.reviews.tasks import process_review_sentiment
+
+                process_review_sentiment.delay(review_id)
+                logger.info(
+                    "Review sentiment task queued.",
+                    extra={"review_id": review_id, "business_id": business_id},
+                )
+            except Exception as exc:
+                logger.error(
+                    "Review sentiment task enqueue failed.",
+                    extra={
+                        "review_id": review_id,
+                        "business_id": business_id,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+
+        transaction.on_commit(publish, robust=True)
 
     @staticmethod
     def _is_outlier_sentiment(review: Review) -> bool:
@@ -98,7 +125,7 @@ class ReviewService:
         photos: list | None = None,
         device_id: str | None = None,
     ) -> Review:
-        """Create a scored review with informational moderation signals."""
+        """Create a review and queue sentiment after its transaction commits."""
         try:
             business = Business.objects.get(
                 BUSN_ID=business_id,
@@ -116,15 +143,11 @@ class ReviewService:
 
         if not isinstance(text, str) or not text.strip():
             raise ValidationError({"text": "Review text is required."})
-        sentiment_score, sentiment_label, _ = route_sentiment(text)
-
         try:
             review = Review.objects.create(
                 USER_ID=user,
                 BUSN_ID=business,
                 REVW_TEXT=text,
-                REVW_SENTIMENT_SCORE=sentiment_score,
-                REVW_SENTIMENT_LABEL=sentiment_label.lower(),
                 REVW_DEVICE_ID=device_id,
             )
         except IntegrityError:
@@ -132,15 +155,11 @@ class ReviewService:
                 "You have already reviewed this business.",
             ) from None
 
-        review.REVW_IS_OUTLIER_SENTIMENT = ReviewService._is_outlier_sentiment(
-            review,
-        )
         review.REVW_IS_DEVICE_ABUSE_FLAGGED = ReviewService._is_device_abuse(
             review,
         )
         review.save(
             update_fields=[
-                "REVW_IS_OUTLIER_SENTIMENT",
                 "REVW_IS_DEVICE_ABUSE_FLAGGED",
                 "REVW_UPDATED_AT",
             ],
@@ -196,6 +215,10 @@ class ReviewService:
 
             raise
 
+        ReviewService._queue_sentiment_after_commit(
+            review.REVW_ID,
+            business.BUSN_ID,
+        )
         return review
 
     @staticmethod
@@ -405,7 +428,7 @@ class ReviewService:
         photos: list | None = None,
         keep_photo_ids: list | None = None,
     ) -> Review:
-        """Update review content and recompute sentiment only when text changes."""
+        """Clear sentiment and queue rescoring only when review text changes."""
         review = ReviewService._get_review(
             review_id,
         )
@@ -460,17 +483,17 @@ class ReviewService:
             if photo.RPHO_ID not in keep_ids
         ]
 
+        text_changed = False
+
         try:
             if text is not None and text != review.REVW_TEXT:
                 if not isinstance(text, str) or not text.strip():
                     raise ValidationError({"text": "Review text is required."})
-                sentiment_score, sentiment_label, _ = route_sentiment(text)
-                review.REVW_SENTIMENT_SCORE = sentiment_score
-                review.REVW_SENTIMENT_LABEL = sentiment_label.lower()
+                review.REVW_SENTIMENT_SCORE = None
+                review.REVW_SENTIMENT_LABEL = None
                 review.REVW_TEXT = text
-                review.REVW_IS_OUTLIER_SENTIMENT = (
-                    ReviewService._is_outlier_sentiment(review)
-                )
+                review.REVW_IS_OUTLIER_SENTIMENT = False
+                text_changed = True
 
                 review.save(
                     update_fields=[
@@ -528,6 +551,11 @@ class ReviewService:
 
             raise
 
+        if text_changed:
+            ReviewService._queue_sentiment_after_commit(
+                review.REVW_ID,
+                review.BUSN_ID_id,
+            )
         return review
 
     @staticmethod
