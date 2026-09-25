@@ -321,10 +321,6 @@ export default function ReviewComposerSheet({
 
         {/* Review photos */}
         <View>
-          <AppText weight="bold" className="mb-3 text-sm text-text-primary">
-            Include Photos (optional)
-          </AppText>
-
           <View className="flex-row flex-wrap">
             {existingPhotos.map((photo) => (
               <View key={photo.id} className="mr-3">
@@ -388,7 +384,7 @@ export default function ReviewComposerSheet({
           loading={isPending}
           disabled={!canSubmit}
           className="mt-6"
-          fontClassName="text-sm font-bold"
+          textWeight="bold"
           rounded="full"
         />
       </BottomSheetScrollView>

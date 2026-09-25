@@ -34,7 +34,7 @@ type Props = {
  * the most frequent review themes immediately before the previewed reviews.
  * Empty and failure states remain localized to the review collection.
  */
-export default function BusinessReviewsSection({
+export default function BusinessReviewsPreviewSection({
   businessId,
   businessName,
   isOwnBusiness,
@@ -104,22 +104,6 @@ export default function BusinessReviewsSection({
           </>
         )}
       </View>
-
-      {/* Existing review notice */}
-      {!isLoading && !error && hasOwnReview && (
-        <View className="mb-4 flex-row items-center rounded-md bg-info px-3 py-2.5">
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={16}
-            color={theme.extends.colors.text.info}
-          />
-
-          <AppText className="ml-2 flex-1 text-xs text-text-secondary">
-            You have already reviewed this business. You can edit your review
-            anytime.
-          </AppText>
-        </View>
-      )}
 
       {/* Visitor sentiment summary */}
       <VisitorVibeSection insights={reviewInsights} />

@@ -1,11 +1,10 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router, useNavigation } from "expo-router";
-import { Image } from "expo-image";
 import LottieView from "lottie-react-native";
 import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   View,
   type ListRenderItemInfo,
@@ -13,7 +12,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import loadingAnimation from "@/shared/assets/animations/loading.json";
-import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
@@ -36,8 +34,8 @@ import {
   type BusinessReview,
   type BusinessReviewFilters,
 } from "../types/review.types";
-
-const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
+import ReviewCollectionEmptyState from "../components/business-profile/state/ReviewCollectionEmptyState";
+import { shadows } from "@/shared/styles/shadows";
 
 type Props = {
   businessId: number;
@@ -49,7 +47,7 @@ type Props = {
  * Displays paginated business reviews with server-owned filtering and sorting.
  * A bounded preview query supplies ownership independently of loaded pages.
  */
-export default function ExploreBusinessReviewsScreen({
+export default function ReviewsCollectionScreen({
   businessId,
   isOwnBusiness = false,
 }: Props) {
@@ -76,7 +74,6 @@ export default function ExploreBusinessReviewsScreen({
   } = useExploreBusinessProfile(businessId);
 
   const totalCount = ownership.totalCount ?? 0;
-  const resultCount = reviewQuery.error ? totalCount : reviewQuery.totalCount;
   const hasContentFilters = Boolean(
     filters.sentiment ||
     filters.topic ||
@@ -84,6 +81,7 @@ export default function ExploreBusinessReviewsScreen({
     filters.merchantReplied,
   );
   const canWriteReview = !isOwnBusiness && !ownership.userReview;
+  const showWriteReviewFab = canWriteReview && totalCount > 0;
   const isInitialLoading = ownership.isLoading || reviewQuery.isInitialLoading;
   const isInitialError = Boolean(
     ownership.error ||
@@ -110,8 +108,8 @@ export default function ExploreBusinessReviewsScreen({
     reviewQuery.reviews.length >= 5;
 
   useEffect(() => {
-    navigation.setOptions({ title: `Reviews (${resultCount})` });
-  }, [navigation, resultCount]);
+    navigation.setOptions({ title: `Reviews (${totalCount})` });
+  }, [navigation, totalCount]);
 
   useQueryErrorNotification({
     error: reviewQuery.error,
@@ -235,101 +233,19 @@ export default function ExploreBusinessReviewsScreen({
                 onClear={clearFilters}
               />
             )}
-
-            {/* Ownership shortcut and review creation */}
-            {ownership.userReview && !isOwnBusiness && (
-              <View className="flex-row items-center justify-between rounded-card border border-border-primary bg-surface px-4 py-3">
-                <AppText className="flex-1 pr-3 text-sm text-text-secondary">
-                  You reviewed this place
-                </AppText>
-                <Pressable
-                  onPress={() => editReview(ownership.userReview!)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Edit your review"
-                  className="cursor-pointer rounded-full px-2 py-2 active:opacity-70"
-                >
-                  <AppText weight="semibold" className="text-sm text-brand">
-                    Edit review
-                  </AppText>
-                </Pressable>
-              </View>
-            )}
-
-            {canWriteReview && totalCount > 0 && (
-              <Button
-                title="Write a review"
-                onPress={createReview}
-                rounded="full"
-                className="mb-2 py-3"
-                fontClassName="text-sm"
-              />
-            )}
           </View>
         }
         ListEmptyComponent={
-          totalCount === 0 ? (
-            <View className="mx-4 mt-10 items-center rounded-card bg-surface-secondary p-5">
-              <Image
-                source={MASCOT_EMPTY_REVIEWS}
-                style={{ width: 120, height: 120 }}
-                contentFit="contain"
-                accessible={false}
-              />
-              <AppText
-                weight="semibold"
-                className="mt-2 text-center text-text-primary"
-              >
-                No reviews yet
-              </AppText>
-              <AppText className="mt-1 text-center text-text-secondary">
-                {isOwnBusiness
-                  ? "Reviews from Explorers will show up here."
-                  : "Be the first to share your experience."}
-              </AppText>
-              {canWriteReview && (
-                <Button
-                  title="Write a review"
-                  onPress={createReview}
-                  rounded="full"
-                  className="mt-5 min-w-44 py-3"
-                  fontClassName="text-sm"
-                />
-              )}
-            </View>
-          ) : hasListError ? (
-            <View className="mx-4 h-48">
-              <ErrorState
-                size="section"
-                title="Unable to load reviews"
-                description="Please try again with the selected filters."
-                primaryActionTitle="Retry"
-                onPrimaryAction={reviewQuery.refetch}
-              />
-            </View>
-          ) : (
-            <View className="mx-4 items-center rounded-card bg-surface-secondary px-5 py-6">
-              <AppText weight="semibold" className="text-text-primary">
-                {hasContentFilters
-                  ? "No reviews match these filters"
-                  : "No reviews to show right now"}
-              </AppText>
-              {hasContentFilters && (
-                <>
-                  <AppText className="mt-1 text-center text-sm text-text-secondary">
-                    Try changing or clearing your filters.
-                  </AppText>
-                  <Button
-                    title="Clear filters"
-                    onPress={clearFilters}
-                    variant="soft"
-                    rounded="full"
-                    size="sm"
-                    className="mt-4"
-                  />
-                </>
-              )}
-            </View>
-          )
+          <ReviewCollectionEmptyState
+            totalCount={totalCount}
+            hasListError={hasListError}
+            hasContentFilters={hasContentFilters}
+            canWriteReview={canWriteReview}
+            isOwnBusiness={isOwnBusiness}
+            onCreateReview={createReview}
+            onClearFilters={clearFilters}
+            onRetry={() => void reviewQuery.refetch()}
+          />
         }
         ListFooterComponent={
           reviewQuery.isFetchingNextPage && !isRefreshing ? (
@@ -356,7 +272,9 @@ export default function ExploreBusinessReviewsScreen({
           ) : null
         }
         contentContainerStyle={{
-          paddingBottom: isOwnBusiness ? 128 : insets.bottom + 32,
+          paddingBottom: isOwnBusiness
+            ? 128
+            : insets.bottom + (showWriteReviewFab ? 112 : 32),
         }}
         onEndReached={loadNextPage}
         onEndReachedThreshold={0.35}
@@ -386,6 +304,25 @@ export default function ExploreBusinessReviewsScreen({
         </View>
       )}
 
+      {/* Review creation action */}
+      {showWriteReviewFab && (
+        <View
+          className="absolute right-4 z-30 rounded-full bg-brand"
+          style={[{ bottom: insets.bottom + 16 }, shadows.floating]}
+        >
+          <Button
+            title="Write review"
+            accessibilityLabel="Write a review"
+            onPress={createReview}
+            icon={
+              <MaterialCommunityIcons name="pencil" size={18} color="#FFFFFF" />
+            }
+            rounded="full"
+            className="px-5 py-3.5"
+            fontClassName="text-sm"
+          />
+        </View>
+      )}
       {/* Owner action and review composer */}
       {isOwnBusiness && <BusinessProfileFooter isOwnBusiness />}
       <ReviewComposerSheet

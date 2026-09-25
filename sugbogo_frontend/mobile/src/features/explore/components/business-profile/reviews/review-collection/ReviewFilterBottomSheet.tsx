@@ -13,11 +13,11 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FilterChip from "@/shared/components/FilterChip";
 
-import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
+import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
 import type {
   BusinessReviewFilters,
   ReviewSentiment,
-} from "../../../types/review.types";
+} from "../../../../types/review.types";
 
 const SENTIMENT_OPTIONS: {
   label: string;
@@ -62,8 +62,8 @@ type Props = {
 /**
  * Presents staged review filtering and sorting controls in a bottom sheet.
  *
- * Opens directly at its 75% maximum height, keeps selections local until
- * applied, and keeps the action footer fixed while filter options scroll.
+ * Keeps selections local until applied and only exposes sentiment filtering
+ * when the backend reports sufficient classified review data.
  */
 export default function ReviewFilterBottomSheet({
   sheetRef,
@@ -72,6 +72,8 @@ export default function ReviewFilterBottomSheet({
   onApply,
 }: Props) {
   const insets = useSafeAreaInsets();
+
+  const canFilterBySentiment = Boolean(insights?.has_sufficient_sentiment_data);
 
   const [draftFilters, setDraftFilters] =
     useState<BusinessReviewFilters>(filters);
@@ -94,7 +96,11 @@ export default function ReviewFilterBottomSheet({
   };
 
   const handleApply = () => {
-    onApply(draftFilters);
+    onApply({
+      ...draftFilters,
+      sentiment: canFilterBySentiment ? draftFilters.sentiment : null,
+    });
+
     sheetRef.current?.dismiss();
   };
 
@@ -107,7 +113,10 @@ export default function ReviewFilterBottomSheet({
       enablePanDownToClose
       onChange={(index) => {
         if (index === 0) {
-          setDraftFilters(filters);
+          setDraftFilters({
+            ...filters,
+            sentiment: canFilterBySentiment ? filters.sentiment : null,
+          });
         }
       }}
       backgroundStyle={{
@@ -145,39 +154,44 @@ export default function ReviewFilterBottomSheet({
             </AppText>
           </View>
 
-          {/* Sentiment */}
-          <View className="pt-6">
-            <AppText weight="semibold" className="text-base text-text-primary">
-              Vibe
-            </AppText>
+          {/* Sentiment filters */}
+          {canFilterBySentiment && (
+            <View className="pt-6">
+              <AppText
+                weight="semibold"
+                className="text-base text-text-primary"
+              >
+                Vibe
+              </AppText>
 
-            <View className="mt-3 flex-row flex-wrap gap-2">
-              {SENTIMENT_OPTIONS.map((option) => {
-                const selected = draftFilters.sentiment === option.value;
+              <View className="mt-3 flex-row flex-wrap gap-2">
+                {SENTIMENT_OPTIONS.map((option) => {
+                  const selected = draftFilters.sentiment === option.value;
 
-                return (
-                  <FilterChip
-                    key={option.value}
-                    label={option.label}
-                    selected={selected}
-                    showSelectedCheck
-                    onPress={() =>
-                      setDraftFilters((current) => ({
-                        ...current,
-                        sentiment:
-                          current.sentiment === option.value
-                            ? null
-                            : option.value,
-                      }))
-                    }
-                    accessibilityLabel={`Filter by ${option.label} sentiment${
-                      selected ? ", selected" : ""
-                    }`}
-                  />
-                );
-              })}
+                  return (
+                    <FilterChip
+                      key={option.value}
+                      label={option.label}
+                      selected={selected}
+                      showSelectedCheck
+                      onPress={() =>
+                        setDraftFilters((current) => ({
+                          ...current,
+                          sentiment:
+                            current.sentiment === option.value
+                              ? null
+                              : option.value,
+                        }))
+                      }
+                      accessibilityLabel={`Filter by ${option.label} sentiment${
+                        selected ? ", selected" : ""
+                      }`}
+                    />
+                  );
+                })}
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Frequently mentioned topics */}
           {!!insights?.frequent_mentions.length && (
@@ -281,9 +295,9 @@ export default function ReviewFilterBottomSheet({
                         ordering: option.value,
                       }))
                     }
-                    accessibilityLabel={`Sort by ${option.label}${
-                      selected ? ", selected" : ""
-                    }`}
+                    accessibilityLabel={`Sort by ${
+                      option.label
+                    }${selected ? ", selected" : ""}`}
                   />
                 );
               })}
@@ -300,7 +314,7 @@ export default function ReviewFilterBottomSheet({
         >
           <Button
             title="Clear"
-            variant="secondary"
+            variant="outline"
             rounded="full"
             size="sm"
             disabled={!hasDraftFilters}

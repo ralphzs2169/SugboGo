@@ -17,7 +17,7 @@ import BusinessProfileFooter from "../components/business-profile/BusinessProfil
 import BusinessProfileQuickInfo from "../components/business-profile/BusinessProfileQuickInfo";
 import BusinessProfileScrollView from "../components/business-profile/BusinessProfileScrollView";
 import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
-import BusinessReviewsSection from "../components/business-profile/reviews/review-preview-section/BusinessReviewsSection";
+import BusinessReviewsSection from "../components/business-profile/reviews/review-preview-section/BusinessReviewsPreviewSection";
 import BusinessProfileErrorState from "../components/business-profile/state/BusinessProfileErrorState";
 import BusinessProfileSkeletonContent from "../components/business-profile/state/BusinessProfileSkeletonContent";
 import BusinessSpecialtiesSection from "../components/business-profile/BusinessSpecialtiesSection";

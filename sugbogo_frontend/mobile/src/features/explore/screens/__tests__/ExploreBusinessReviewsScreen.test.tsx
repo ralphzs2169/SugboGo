@@ -8,11 +8,13 @@ import {
 } from "../../hooks/useBusinessReviews";
 import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
 import type { BusinessReview } from "../../types/review.types";
-import ExploreBusinessReviewsScreen from "../ExploreBusinessReviewsScreen";
+import ExploreBusinessReviewsScreen from "../ReviewsCollectionScreen";
+
+const mockSetOptions = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
-  useNavigation: () => ({ setOptions: jest.fn() }),
+  useNavigation: () => ({ setOptions: mockSetOptions }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ bottom: 0 }),
@@ -41,15 +43,18 @@ jest.mock("../../components/business-profile/ReviewComposerSheet", () => ({
     return review ? <Text>Editing review {review.id}</Text> : null;
   },
 }));
-jest.mock("../../components/business-profile/state/BusinessReviewsSkeleton", () => ({
-  __esModule: true,
-  default: () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Text } = require("react-native");
+jest.mock(
+  "../../components/business-profile/state/BusinessReviewsSkeleton",
+  () => ({
+    __esModule: true,
+    default: () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Text } = require("react-native");
 
-    return <Text>Reviews loading</Text>;
-  },
-}));
+      return <Text>Reviews loading</Text>;
+    },
+  }),
+);
 jest.mock("../../components/business-profile/BusinessProfileFooter", () => ({
   __esModule: true,
   default: () => {
@@ -60,10 +65,14 @@ jest.mock("../../components/business-profile/BusinessProfileFooter", () => ({
   },
 }));
 jest.mock(
-  "../../components/business-profile/review-section/ReviewFiltersSection",
+  "../../components/business-profile/reviews/review-collection/ReviewFiltersSection",
   () => ({
     __esModule: true,
-    default: ({ filters, onChange, onClear }: {
+    default: ({
+      filters,
+      onChange,
+      onClear,
+    }: {
       filters: { sentiment: string | null };
       onChange: (value: unknown) => void;
       onClear: () => void;
@@ -74,7 +83,9 @@ jest.mock(
       return (
         <View>
           <Text>Visitor Vibe</Text>
-          <Pressable onPress={() => onChange({ ...filters, sentiment: "negative" })}>
+          <Pressable
+            onPress={() => onChange({ ...filters, sentiment: "negative" })}
+          >
             <Text>Negative filter</Text>
           </Pressable>
           <Pressable onPress={onClear}>
@@ -86,10 +97,16 @@ jest.mock(
   }),
 );
 jest.mock(
-  "../../components/business-profile/review-section/BusinessReviewCard",
+  "../../components/business-profile/reviews/BusinessReviewCard",
   () => ({
     __esModule: true,
-    default: ({ review, isLast }: { review: BusinessReview; isLast: boolean }) => {
+    default: ({
+      review,
+      isLast,
+    }: {
+      review: BusinessReview;
+      isLast: boolean;
+    }) => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { Text, View } = require("react-native");
 
@@ -187,9 +204,9 @@ describe("ExploreBusinessReviewsScreen", () => {
 
     expect(screen.getAllByTestId("review-card")).toHaveLength(3);
     expect(
-      screen.getAllByText(/^Review \d$/).map((item) =>
-        item.props.children.join(""),
-      ),
+      screen
+        .getAllByText(/^Review \d$/)
+        .map((item) => item.props.children.join("")),
     ).toEqual(["Review 1", "Review 2", "Review 3"]);
     expect(screen.getByText("Last review 3")).toBeTruthy();
     expect(screen.queryByText("Last review 2")).toBeNull();
@@ -291,7 +308,9 @@ describe("ExploreBusinessReviewsScreen", () => {
 
     await press(screen.getByText("Negative filter"));
     await act(async () => {
-      await screen.getByTestId("reviews-list").props.refreshControl.props.onRefresh();
+      await screen
+        .getByTestId("reviews-list")
+        .props.refreshControl.props.onRefresh();
     });
 
     expect(refetchReviews).toHaveBeenCalled();
@@ -347,6 +366,7 @@ describe("ExploreBusinessReviewsScreen", () => {
     );
     expect(screen.getByText("No reviews yet")).toBeTruthy();
     expect(screen.getByText("Write a review")).toBeTruthy();
+    expect(screen.getAllByLabelText("Write a review")).toHaveLength(1);
   });
 
   it("uses authoritative ownership when the user's review is not loaded", async () => {
@@ -358,18 +378,40 @@ describe("ExploreBusinessReviewsScreen", () => {
       <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
     );
 
-    expect(screen.getByText("You reviewed this place")).toBeTruthy();
+    expect(screen.queryByText("Your review")).toBeNull();
+    expect(screen.queryByLabelText("Edit your review")).toBeNull();
     expect(screen.queryByText("Write a review")).toBeNull();
-    await press(screen.getByLabelText("Edit your review"));
-    expect(screen.getByText("Editing review 99")).toBeTruthy();
-    expect(presentBottomSheet).toHaveBeenCalled();
   });
 
-  it("allows a new reviewer to write", async () => {
+  it("shows the floating review action for an eligible nonempty business", async () => {
     const screen = await render(
       <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
     );
-    expect(screen.getByText("Write a review")).toBeTruthy();
+
+    const writeReview = screen.getByLabelText("Write a review");
+    expect(writeReview).toBeTruthy();
+    await press(writeReview);
+    expect(presentBottomSheet).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the navigation count tied to the unfiltered ownership total", async () => {
+    (useBusinessReviewPreview as jest.Mock).mockReturnValue(
+      preview({ totalCount: 28 }),
+    );
+    (useBusinessReviews as jest.Mock).mockImplementation(
+      (_businessId, filters) =>
+        reviewQuery({ totalCount: filters?.sentiment ? 4 : 28 }),
+    );
+
+    const screen = await render(
+      <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+    );
+    expect(mockSetOptions).toHaveBeenLastCalledWith({ title: "Reviews (28)" });
+
+    await press(screen.getByText("Negative filter"));
+
+    expect(mockSetOptions).toHaveBeenLastCalledWith({ title: "Reviews (28)" });
+    expect(mockSetOptions).not.toHaveBeenCalledWith({ title: "Reviews (4)" });
   });
 
   it("prevents the business owner from writing", async () => {

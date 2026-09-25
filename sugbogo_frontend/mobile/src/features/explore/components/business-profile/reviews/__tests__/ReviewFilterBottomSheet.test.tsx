@@ -5,7 +5,7 @@ import {
   DEFAULT_BUSINESS_REVIEW_FILTERS,
   type BusinessReviewFilters,
 } from "../../../../types/review.types";
-import ReviewFilterBottomSheet from "../ReviewFilterBottomSheet";
+import ReviewFilterBottomSheet from "../review-collection/ReviewFilterBottomSheet";
 
 jest.mock("expo-router", () => ({
   useNavigation: () => ({ isFocused: () => true }),

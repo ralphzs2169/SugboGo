@@ -16,18 +16,21 @@ const SENTIMENTS = [
     label: "Positive",
     mascot: MASCOT_FACE_POSITIVE,
     barClassName: "bg-success",
+    percentageClassName: "text-success",
   },
   {
     key: "neutral",
     label: "Neutral",
     mascot: MASCOT_FACE_NEUTRAL,
     barClassName: "bg-text-secondary",
+    percentageClassName: "text-text-secondary",
   },
   {
     key: "negative",
     label: "Negative",
     mascot: MASCOT_FACE_NEGATIVE,
     barClassName: "bg-text-error",
+    percentageClassName: "text-text-error",
   },
 ] as const;
 
@@ -104,83 +107,82 @@ export default function VisitorVibeSection({
 
       {/* Sentiment legend */}
       <View className="mt-4 flex-row rounded-xl bg-background px-2 py-3">
-        {SENTIMENTS.map(({ key, label, mascot }, index) => {
-          const percentage = formatPercentage(
-            insights.sentiment[key].percentage,
-          );
-          const selected = selectedSentiment === key;
+        {SENTIMENTS.map(
+          ({ key, label, mascot, percentageClassName }, index) => {
+            const percentage = formatPercentage(
+              insights.sentiment[key].percentage,
+            );
+            const selected = selectedSentiment === key;
 
-          const content = (
-            <>
-              <Image
-                source={mascot}
-                style={{
-                  width: 30,
-                  height: 30,
-                }}
-                contentFit="contain"
-                accessible={false}
-              />
+            const content = (
+              <>
+                <Image
+                  source={mascot}
+                  style={{
+                    width: 30,
+                    height: 30,
+                  }}
+                  contentFit="contain"
+                  accessible={false}
+                />
 
-              <View className="ml-2">
-                <AppText
-                  weight="semibold"
-                  className={
-                    selected
-                      ? "text-xs text-brand"
-                      : "text-xs text-text-primary"
-                  }
+                <View className="ml-2">
+                  <AppText
+                    weight="semibold"
+                    className={
+                      selected
+                        ? "text-xs text-brand"
+                        : "text-xs text-text-primary"
+                    }
+                  >
+                    {label}
+                  </AppText>
+
+                  <AppText
+                    weight="semibold"
+                    className={`mt-0.5 text-[11px] ${percentageClassName}`}
+                  >
+                    {percentage}%
+                  </AppText>
+                </View>
+              </>
+            );
+
+            const containerClassName = `min-w-0 flex-1 flex-row items-center justify-center px-2 ${
+              index > 0 ? "border-l border-border-primary" : ""
+            }`;
+
+            if (!onSentimentPress) {
+              return (
+                <View
+                  key={key}
+                  accessible
+                  accessibilityLabel={`${label}, ${percentage}%`}
+                  className={containerClassName}
                 >
-                  {label}
-                </AppText>
+                  {content}
+                </View>
+              );
+            }
 
-                <AppText
-                  className={
-                    selected
-                      ? "mt-0.5 text-[11px] text-brand"
-                      : "mt-0.5 text-[11px] text-text-secondary"
-                  }
-                >
-                  {percentage}%
-                </AppText>
-              </View>
-            </>
-          );
-
-          const containerClassName = `min-w-0 flex-1 flex-row items-center justify-center px-2 ${
-            index > 0 ? "border-l border-border-primary" : ""
-          }`;
-
-          if (!onSentimentPress) {
             return (
-              <View
+              <Pressable
                 key={key}
-                accessible
-                accessibilityLabel={`${label}, ${percentage}%`}
-                className={containerClassName}
+                onPress={() => onSentimentPress(key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${label}, ${percentage}%${
+                  selected ? ", selected" : ""
+                }`}
+                className={`${containerClassName} cursor-pointer rounded-lg py-1 active:opacity-70 ${
+                  selected ? "bg-brand/10" : ""
+                }`}
               >
                 {content}
-              </View>
+              </Pressable>
             );
-          }
-
-          return (
-            <Pressable
-              key={key}
-              onPress={() => onSentimentPress(key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`${label}, ${percentage}%${
-                selected ? ", selected" : ""
-              }`}
-              className={`${containerClassName} cursor-pointer rounded-lg py-1 active:opacity-70 ${
-                selected ? "bg-brand/10" : ""
-              }`}
-            >
-              {content}
-            </Pressable>
-          );
-        })}
+          },
+        )}
       </View>
     </View>
   );

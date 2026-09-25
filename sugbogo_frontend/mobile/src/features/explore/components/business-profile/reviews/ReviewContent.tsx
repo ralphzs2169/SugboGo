@@ -249,6 +249,7 @@ export default function ReviewContent({
                 }}
                 size="small"
                 showVouchIndicator
+                showIcon
               />
             ))}
           </View>

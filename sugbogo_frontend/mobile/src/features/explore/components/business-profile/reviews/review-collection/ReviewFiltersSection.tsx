@@ -1,6 +1,6 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -15,7 +15,7 @@ import type {
   ReviewSentiment,
 } from "../../../../types/review.types";
 import VisitorVibeSection from "../VisitorVibeSection";
-import ReviewFilterBottomSheet from "../ReviewFilterBottomSheet";
+import ReviewFilterBottomSheet from "./ReviewFilterBottomSheet";
 
 const SORT_OPTIONS = [
   {
@@ -43,10 +43,10 @@ type Props = {
 };
 
 /**
- * Presents review insights, filtering, and sorting controls for the review list.
+ * Presents review insights, topic discovery, filtering, and sorting controls.
  *
- * Keeps topic, quick-filter, and sort controls visible while a bottom sheet
- * offers the same choices through the screen-owned filter state.
+ * Keeps topic discovery separate from general review controls and only exposes
+ * sentiment-based interactions when sufficient classified review data exists.
  */
 export default function ReviewFiltersSection({
   insights,
@@ -58,12 +58,50 @@ export default function ReviewFiltersSection({
   onClear,
 }: Props) {
   const filterSheetRef = useRef<BottomSheetModal | null>(null);
+
+  const [optionsWidth, setOptionsWidth] = useState(0);
+  const [optionsContentWidth, setOptionsContentWidth] = useState(0);
+  const [optionsScrollX, setOptionsScrollX] = useState(0);
+
   const activeFilterCount = [
     filters.sentiment,
     filters.topic,
     filters.hasPhotos,
     filters.merchantReplied,
   ].filter(Boolean).length;
+
+  const hasFrequentMentions = Boolean(insights?.frequent_mentions?.length);
+
+  const hasSufficientSentimentData = Boolean(
+    insights?.has_sufficient_sentiment_data,
+  );
+
+  const optionsCanScroll = optionsContentWidth > optionsWidth + 1;
+
+  const showLeftFade = optionsCanScroll && optionsScrollX > 4;
+
+  const showRightFade =
+    optionsCanScroll && optionsScrollX < optionsContentWidth - optionsWidth - 4;
+
+  useEffect(() => {
+    if (
+      !insightsLoading &&
+      !insightsError &&
+      !hasSufficientSentimentData &&
+      filters.sentiment
+    ) {
+      onChange({
+        ...filters,
+        sentiment: null,
+      });
+    }
+  }, [
+    filters,
+    hasSufficientSentimentData,
+    insightsError,
+    insightsLoading,
+    onChange,
+  ]);
 
   const toggleSentiment = (sentiment: ReviewSentiment) => {
     onChange({
@@ -93,76 +131,93 @@ export default function ReviewFiltersSection({
     });
   };
 
-  const [optionsWidth, setOptionsWidth] = useState(0);
-  const [optionsContentWidth, setOptionsContentWidth] = useState(0);
-  const [optionsScrollX, setOptionsScrollX] = useState(0);
-
-  const optionsCanScroll = optionsContentWidth > optionsWidth + 1;
-
-  const showLeftFade = optionsCanScroll && optionsScrollX > 4;
-
-  const showRightFade =
-    optionsCanScroll && optionsScrollX < optionsContentWidth - optionsWidth - 4;
-
   return (
     <View className="gap-5">
       {/* Visitor vibe */}
-      <View>
-        <AppText weight="bold" className="text-base text-text-primary">
-          Visitor Vibe
-        </AppText>
-
-        <AppText className="mt-1 text-xs text-text-secondary">
-          See what explorers are saying about this business.
-        </AppText>
-
-        {/* Insight loading state */}
-        {insightsLoading && (
-          <ActivityIndicator
-            className="mt-4 self-start"
-            color={theme.extends.colors.brand}
-          />
-        )}
-
-        {/* Insight error state */}
-        {insightsError && (
-          <View className="mt-3 h-40">
-            <ErrorState
-              size="section"
-              title="Unable to load Visitor Vibe"
-              description="Reviews are still available below."
-              primaryActionTitle="Retry"
-              onPrimaryAction={onRetryInsights}
-            />
-          </View>
-        )}
-
-        {/* Insight unavailable state */}
-        {!insightsLoading && !insightsError && !insights && (
-          <AppText className="mt-3 text-sm text-text-secondary">
-            Visitor Vibe will appear after reviews are processed.
+      {(insightsLoading || insightsError || hasSufficientSentimentData) && (
+        <View>
+          <AppText weight="bold" className="text-sm text-text-primary">
+            Review Vibe
           </AppText>
-        )}
 
-        {!insightsLoading && !insightsError && insights && (
-          <View className="mt-4">
-            <VisitorVibeSection
-              insights={insights}
-              selectedSentiment={filters.sentiment}
-              onSentimentPress={toggleSentiment}
-              showDescription={false}
+          {insightsLoading && (
+            <ActivityIndicator
+              className="mt-4 self-start"
+              color={theme.extends.colors.brand}
             />
-          </View>
-        )}
-      </View>
+          )}
 
-      {/* Filter entry and frequently mentioned topics */}
-      <View>
+          {insightsError && (
+            <View className="mt-3 h-40">
+              <ErrorState
+                size="section"
+                title="Unable to load Visitor Vibe"
+                description="Reviews are still available below."
+                primaryActionTitle="Retry"
+                onPrimaryAction={onRetryInsights}
+              />
+            </View>
+          )}
+
+          {!insightsLoading &&
+            !insightsError &&
+            hasSufficientSentimentData &&
+            insights && (
+              <View className="mt-4">
+                <VisitorVibeSection
+                  insights={insights}
+                  selectedSentiment={filters.sentiment}
+                  onSentimentPress={toggleSentiment}
+                  showDescription={false}
+                />
+              </View>
+            )}
+        </View>
+      )}
+
+      {/* Frequently mentioned topics */}
+      {hasFrequentMentions && insights && (
+        <View>
+          <AppText weight="bold" className="mb-3 text-sm text-text-primary">
+            Frequently mentioned
+          </AppText>
+
+          <ScrollView
+            testID="review-topic-filters"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerClassName="items-center gap-2 px-1 pr-3"
+          >
+            {insights.frequent_mentions.map((mention) => (
+              <FilterChip
+                key={mention.label}
+                label={mention.label}
+                count={mention.count}
+                selected={filters.topic === mention.label}
+                onPress={() => toggleTopic(mention.label)}
+                accessibilityLabel={`${mention.label}, mentioned in ${
+                  mention.count
+                } ${mention.count === 1 ? "review" : "reviews"}${
+                  filters.topic === mention.label ? ", selected" : ""
+                }`}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Review filters and sorting */}
+      <View className="mb-4">
         <View className="mb-3 flex-row items-center justify-between">
+          <AppText weight="bold" className="text-sm text-text-primary">
+            Filter & sort
+          </AppText>
+
           {activeFilterCount > 0 && (
             <Pressable
               onPress={onClear}
               accessibilityRole="button"
+              accessibilityLabel="Clear review filters"
               hitSlop={8}
               className="cursor-pointer py-1 active:opacity-70"
             >
@@ -173,39 +228,6 @@ export default function ReviewFiltersSection({
           )}
         </View>
 
-        <ScrollView
-          testID="review-topic-filters"
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerClassName="items-center gap-2 px-1 pr-3"
-        >
-          <FilterChip
-            label="Filter"
-            icon="tune-variant"
-            count={activeFilterCount}
-            selected={false}
-            onPress={() => presentBottomSheet(filterSheetRef)}
-            accessibilityLabel={`Filter reviews, ${activeFilterCount} active filters`}
-          />
-          {insights?.frequent_mentions.map((mention) => (
-            <FilterChip
-              key={mention.label}
-              label={mention.label}
-              count={mention.count}
-              selected={filters.topic === mention.label}
-              onPress={() => toggleTopic(mention.label)}
-              accessibilityLabel={`${mention.label}, mentioned in ${
-                mention.count
-              } ${mention.count === 1 ? "review" : "reviews"}${
-                filters.topic === mention.label ? ", selected" : ""
-              }`}
-            />
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Direct quick filters and sorting */}
-      <View>
         <View
           className="relative"
           onLayout={(event) => {
@@ -225,7 +247,17 @@ export default function ReviewFiltersSection({
             }}
             contentContainerClassName="items-center gap-2 px-1 pr-3"
           >
-            {/* Boolean filters */}
+            {/* Full filter entry */}
+            <FilterChip
+              label="Filter"
+              icon="tune-variant"
+              count={activeFilterCount}
+              selected={false}
+              onPress={() => presentBottomSheet(filterSheetRef)}
+              accessibilityLabel={`Filter reviews, ${activeFilterCount} active filters`}
+            />
+
+            {/* Quick content filters */}
             <FilterChip
               label="With photos"
               selected={filters.hasPhotos}
@@ -246,7 +278,7 @@ export default function ReviewFiltersSection({
               }`}
             />
 
-            {/* Filter / sort divider */}
+            {/* Filter and sort divider */}
             <View className="mx-1 h-6 w-px bg-border-primary" />
 
             {/* Sort options */}
@@ -317,6 +349,7 @@ export default function ReviewFiltersSection({
         </View>
       </View>
 
+      {/* Full filter controls */}
       <ReviewFilterBottomSheet
         sheetRef={filterSheetRef}
         insights={insights}
