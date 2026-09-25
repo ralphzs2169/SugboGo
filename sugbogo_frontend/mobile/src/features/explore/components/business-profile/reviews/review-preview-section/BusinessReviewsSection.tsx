@@ -8,12 +8,12 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 
-import { useBusinessReviewPreview } from "../../../hooks/useBusinessReviews";
-import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
-import type { BusinessReview } from "../../../types/review.types";
-import VisitorVibeSection from "./VisitorVibeSection";
-import BusinessReviewCard from "./BusinessReviewCard";
-import BusinessReviewCardSkeleton from "../state/BusinessReviewCardSkeleton";
+import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
+import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
+import type { BusinessReview } from "../../../../types/review.types";
+import VisitorVibeSection from "../VisitorVibeSection";
+import BusinessReviewCard from "../BusinessReviewCard";
+import BusinessReviewCardSkeleton from "../../state/BusinessReviewCardSkeleton";
 
 const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
 

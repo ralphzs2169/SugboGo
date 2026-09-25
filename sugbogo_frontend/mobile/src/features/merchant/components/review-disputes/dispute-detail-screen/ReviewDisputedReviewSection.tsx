@@ -3,7 +3,7 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import ReviewContent from "@/features/explore/components/business-profile/review-section/ReviewContent";
+import ReviewContent from "@/features/explore/components/business-profile/reviews/ReviewContent";
 
 import { REVIEW_DISPUTE_REASON_LABELS } from "../../../constants/reviewDispute.constants";
 import type {

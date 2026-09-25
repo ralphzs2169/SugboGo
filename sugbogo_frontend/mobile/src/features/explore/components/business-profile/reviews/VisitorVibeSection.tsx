@@ -54,7 +54,7 @@ export default function VisitorVibeSection({
   onSentimentPress,
   showDescription = true,
 }: Props) {
-  if (!insights) {
+  if (!insights || !insights.has_sufficient_sentiment_data) {
     return null;
   }
 

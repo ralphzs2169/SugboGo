@@ -9,13 +9,13 @@ import ErrorState from "@/shared/components/ErrorState";
 import FilterChip from "@/shared/components/FilterChip";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
-import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
+import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
 import type {
   BusinessReviewFilters,
   ReviewSentiment,
-} from "../../../types/review.types";
-import VisitorVibeSection from "./VisitorVibeSection";
-import ReviewFilterBottomSheet from "./ReviewFilterBottomSheet";
+} from "../../../../types/review.types";
+import VisitorVibeSection from "../VisitorVibeSection";
+import ReviewFilterBottomSheet from "../ReviewFilterBottomSheet";
 
 const SORT_OPTIONS = [
   {

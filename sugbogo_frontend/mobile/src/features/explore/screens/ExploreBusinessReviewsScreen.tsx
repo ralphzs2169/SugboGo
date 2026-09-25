@@ -23,8 +23,8 @@ import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
 import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
-import BusinessReviewCard from "../components/business-profile/review-section/BusinessReviewCard";
-import ReviewFiltersSection from "../components/business-profile/review-section/ReviewFiltersSection";
+import BusinessReviewCard from "../components/business-profile/reviews/BusinessReviewCard";
+import ReviewFiltersSection from "../components/business-profile/reviews/review-collection/ReviewFiltersSection";
 import BusinessReviewsSkeleton from "../components/business-profile/state/BusinessReviewsSkeleton";
 import {
   useBusinessReviewPreview,
@@ -76,25 +76,22 @@ export default function ExploreBusinessReviewsScreen({
   } = useExploreBusinessProfile(businessId);
 
   const totalCount = ownership.totalCount ?? 0;
-  const resultCount = reviewQuery.error
-    ? totalCount
-    : reviewQuery.totalCount;
+  const resultCount = reviewQuery.error ? totalCount : reviewQuery.totalCount;
   const hasContentFilters = Boolean(
     filters.sentiment ||
-      filters.topic ||
-      filters.hasPhotos ||
-      filters.merchantReplied,
+    filters.topic ||
+    filters.hasPhotos ||
+    filters.merchantReplied,
   );
   const canWriteReview = !isOwnBusiness && !ownership.userReview;
-  const isInitialLoading =
-    ownership.isLoading || reviewQuery.isInitialLoading;
+  const isInitialLoading = ownership.isLoading || reviewQuery.isInitialLoading;
   const isInitialError = Boolean(
     ownership.error ||
-      (reviewQuery.error &&
-        !reviewQuery.isFetchNextPageError &&
-        !hasContentFilters &&
-        filters.ordering === "newest" &&
-        reviewQuery.reviews.length === 0),
+    (reviewQuery.error &&
+      !reviewQuery.isFetchNextPageError &&
+      !hasContentFilters &&
+      filters.ordering === "newest" &&
+      reviewQuery.reviews.length === 0),
   );
   const isUpdatingResults =
     reviewQuery.isFetching &&
@@ -183,12 +180,14 @@ export default function ExploreBusinessReviewsScreen({
     item,
     index,
   }: ListRenderItemInfo<BusinessReview>) => (
-    <BusinessReviewCard
-      businessId={businessId}
-      review={item}
-      isLast={index === displayedReviews.length - 1}
-      onEdit={editReview}
-    />
+    <View className="px-4">
+      <BusinessReviewCard
+        businessId={businessId}
+        review={item}
+        isLast={index === displayedReviews.length - 1}
+        onEdit={editReview}
+      />
+    </View>
   );
 
   if (isInitialLoading) {
@@ -205,10 +204,7 @@ export default function ExploreBusinessReviewsScreen({
           description="We couldn't load the reviews right now. Please try again."
           primaryActionTitle="Retry"
           onPrimaryAction={() => {
-            void Promise.all([
-              ownership.refetch(),
-              reviewQuery.refetch(),
-            ]);
+            void Promise.all([ownership.refetch(), reviewQuery.refetch()]);
           }}
           secondaryActionTitle="Go Back"
           onSecondaryAction={() => router.back()}
@@ -279,7 +275,10 @@ export default function ExploreBusinessReviewsScreen({
                 contentFit="contain"
                 accessible={false}
               />
-              <AppText weight="semibold" className="mt-2 text-center text-text-primary">
+              <AppText
+                weight="semibold"
+                className="mt-2 text-center text-text-primary"
+              >
                 No reviews yet
               </AppText>
               <AppText className="mt-1 text-center text-text-secondary">

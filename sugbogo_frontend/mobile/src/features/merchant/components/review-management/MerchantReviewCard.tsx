@@ -15,8 +15,8 @@ import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import { useDeleteReviewReply } from "../../hooks/review-reply/useReviewReplies";
 import type { BusinessReview } from "@/features/explore/types/review.types";
-import MerchantReviewResponse from "@/features/explore/components/business-profile/review-section/MerchantReviewResponse";
-import ReviewContent from "@/features/explore/components/business-profile/review-section/ReviewContent";
+import MerchantReviewResponse from "@/features/explore/components/business-profile/reviews/MerchantReviewResponse";
+import ReviewContent from "@/features/explore/components/business-profile/reviews/ReviewContent";
 
 type Props = {
   businessId: number;

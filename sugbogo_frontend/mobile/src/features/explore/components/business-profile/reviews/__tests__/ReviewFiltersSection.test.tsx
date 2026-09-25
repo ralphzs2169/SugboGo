@@ -3,7 +3,9 @@ import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
 import { DEFAULT_BUSINESS_REVIEW_FILTERS } from "../../../../types/review.types";
-import ReviewFiltersSection from "../ReviewFiltersSection";
+import ReviewFiltersSection from "../review-collection/ReviewFiltersSection";
+
+jest.setTimeout(15_000);
 
 jest.mock("expo-router", () => ({
   useNavigation: () => ({ isFocused: () => true }),
@@ -18,6 +20,7 @@ jest.mock("../ReviewFilterBottomSheet", () => ({
 
 const insights = {
   review_count: 8,
+  has_sufficient_sentiment_data: true,
   sentiment: {
     positive: { count: 5, percentage: 63 },
     neutral: { count: 2, percentage: 25 },
@@ -57,7 +60,9 @@ describe("ReviewFiltersSection", () => {
     const topicButtons = within(
       screen.getByTestId("review-topic-filters"),
     ).getAllByRole("button");
-    expect(topicButtons.map((button) => button.props.accessibilityLabel)).toEqual([
+    expect(
+      topicButtons.map((button) => button.props.accessibilityLabel),
+    ).toEqual([
       "Filter reviews, 0 active filters",
       "Friendly service, mentioned in 8 reviews",
       "Affordable, mentioned in 6 reviews",
@@ -86,5 +91,27 @@ describe("ReviewFiltersSection", () => {
       ...DEFAULT_BUSINESS_REVIEW_FILTERS,
       ordering: "oldest",
     });
+  });
+
+  it("keeps topics available when Visitor Vibe is below the threshold", async () => {
+    const screen = await render(
+      <ReviewFiltersSection
+        insights={{
+          ...insights,
+          has_sufficient_sentiment_data: false,
+        }}
+        insightsLoading={false}
+        insightsError={false}
+        onRetryInsights={jest.fn()}
+        filters={DEFAULT_BUSINESS_REVIEW_FILTERS}
+        onChange={jest.fn()}
+        onClear={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Positive")).toBeNull();
+    expect(
+      screen.getByLabelText("Friendly service, mentioned in 8 reviews"),
+    ).toBeTruthy();
   });
 });

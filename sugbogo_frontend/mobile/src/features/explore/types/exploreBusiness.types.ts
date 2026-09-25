@@ -170,6 +170,7 @@ export type FrequentMention = {
 
 export type BusinessReviewInsights = {
   review_count: number;
+  has_sufficient_sentiment_data: boolean;
   sentiment: {
     positive: SentimentBreakdown;
     neutral: SentimentBreakdown;

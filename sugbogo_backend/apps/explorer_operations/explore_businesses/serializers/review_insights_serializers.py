@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
 from apps.reviews.models import BusinessReviewSummary
 
 
@@ -17,6 +18,7 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         source="BRSU_REVIEW_COUNT",
         read_only=True,
     )
+    has_sufficient_sentiment_data = serializers.SerializerMethodField()
     sentiment = serializers.SerializerMethodField()
     frequent_mentions = FrequentMentionSerializer(
         source="BRSU_KEYWORD_TAGS",
@@ -39,6 +41,19 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             for label, percentage in percentages.items()
         }
 
+    def get_has_sufficient_sentiment_data(self, instance):
+        """Reports whether the stored classified count meets the display threshold."""
+        return (
+            instance.BRSU_CLASSIFIED_REVIEW_COUNT
+            >= MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+        )
+
     class Meta:
         model = BusinessReviewSummary
-        fields = ("review_count", "sentiment", "frequent_mentions", "updated_at")
+        fields = (
+            "review_count",
+            "has_sufficient_sentiment_data",
+            "sentiment",
+            "frequent_mentions",
+            "updated_at",
+        )

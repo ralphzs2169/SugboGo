@@ -85,7 +85,9 @@ describe("ReviewFilterBottomSheet", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Filter by Friendly service, selected")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Filter by Friendly service, selected"),
+    ).toBeTruthy();
     await press(screen.getByLabelText("Clear review filters"));
     expect(onApply).not.toHaveBeenCalled();
     await press(screen.getByLabelText("Apply review filters"));

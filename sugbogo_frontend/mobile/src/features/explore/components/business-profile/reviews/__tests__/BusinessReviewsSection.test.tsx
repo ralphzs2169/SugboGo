@@ -2,7 +2,7 @@ import { fireEvent, render } from "@testing-library/react-native";
 
 import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
 import type { BusinessReview } from "../../../../types/review.types";
-import BusinessReviewsSection from "../BusinessReviewsSection";
+import BusinessReviewsSection from "../review-preview-section/BusinessReviewsSection";
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
