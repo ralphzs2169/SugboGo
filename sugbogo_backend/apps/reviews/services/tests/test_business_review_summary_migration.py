@@ -80,3 +80,38 @@ class BusinessReviewSummaryMigrationTests(SummaryFixtureMixin, TransactionTestCa
         apps = self.migrate(self.migrate_to)
         restored = apps.get_model("reviews", "BusinessReviewSummary").objects.get(pk=original.pk)
         self.assertEqual(restored.BRSU_KEYWORD_TAGS, original.BRSU_KEYWORD_TAGS)
+
+    def test_narrative_fields_migration_preserves_existing_summary(self):
+        keyword_target = (
+            "reviews",
+            "0007_businessreviewsummary_keyword_tracking",
+        )
+        apps = self.migrate(keyword_target)
+        business = self.create_business()
+        summary_model = apps.get_model("reviews", "BusinessReviewSummary")
+        original = summary_model.objects.create(
+            BUSN_ID_id=business.pk,
+            BRSU_KEYWORD_TAGS=[{"text": "friendly service", "count": 2}],
+        )
+
+        narrative_target = (
+            "reviews",
+            "0008_businessreviewsummary_narrative_fields",
+        )
+        apps = self.migrate(narrative_target)
+        stored = apps.get_model("reviews", "BusinessReviewSummary").objects.get(
+            pk=original.pk,
+        )
+        self.assertEqual(stored.BRSU_KEYWORD_TAGS, original.BRSU_KEYWORD_TAGS)
+        self.assertEqual(stored.BRSU_NARRATIVE, "")
+        self.assertEqual(stored.BRSU_SUPPORTING_REVIEW_REFERENCES, {})
+        self.assertEqual(stored.BRSU_ELIGIBLE_REVIEW_COUNT, 0)
+        self.assertEqual(stored.BRSU_ANALYZED_REVIEW_COUNT, 0)
+        self.assertEqual(stored.BRSU_GENERATION_STATE, "pending")
+        self.assertIsNone(stored.BRSU_GENERATED_AT)
+
+        apps = self.migrate(keyword_target)
+        restored = apps.get_model("reviews", "BusinessReviewSummary").objects.get(
+            pk=original.pk,
+        )
+        self.assertEqual(restored.BRSU_KEYWORD_TAGS, original.BRSU_KEYWORD_TAGS)

@@ -1,6 +1,6 @@
 import json
 from datetime import UTC, datetime
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from celery.exceptions import Retry
 from django.conf import settings
@@ -37,7 +37,10 @@ class ReviewSummaryTaskTests(SimpleTestCase):
         self.assertEqual(result["reference_time"], self.reference_time.isoformat())
         self.assertEqual(result["failed"], 0)
         self.assertEqual(json.loads(json.dumps(result)), result)
-        batch.assert_called_once_with(business_ids=None)
+        batch.assert_called_once_with(
+            business_ids=None,
+            reference_time=self.reference_time,
+        )
         self.assertEqual(log.call_args.kwargs["extra"], result)
 
     @patch.object(ReviewSummaryBatchService, "recompute")
@@ -79,7 +82,7 @@ class ReviewSummaryTaskTests(SimpleTestCase):
             business_ids=[8],
             previous_summary=previous,
         )
-        batch.assert_called_once_with(business_ids=[8])
+        batch.assert_called_once_with(business_ids=[8], reference_time=ANY)
         self.assertEqual(result["considered"], 2)
         self.assertEqual(result["sentiment_updated"], 2)
         self.assertEqual(result["keywords_updated"], 2)

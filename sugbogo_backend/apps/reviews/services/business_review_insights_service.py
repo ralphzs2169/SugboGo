@@ -1,3 +1,5 @@
+from django.utils import timezone
+
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
@@ -8,15 +10,26 @@ class BusinessReviewInsightsService:
     """Coordinates existing sentiment and keyword processing for one business."""
 
     @staticmethod
-    def refresh(business_id: int, retry_keywords_only: bool = False) -> dict:
-        """Refreshes sentiment first, then keywords, except on keyword retries."""
+    def refresh(
+        business_id: int,
+        retry_keywords_only: bool = False,
+        reference_time=None,
+    ) -> dict:
+        """Refreshes windowed sentiment and generated insights for one business."""
+        reference_time = reference_time or timezone.now()
         if not retry_keywords_only:
-            BusinessReviewSummaryService.recompute_sentiment(business_id)
+            BusinessReviewSummaryService.recompute_sentiment(
+                business_id,
+                reference_time=reference_time,
+            )
 
-        keyword_outcome = ReviewKeywordService.refresh(business_id)
+        generation_outcome = ReviewKeywordService.refresh(
+            business_id,
+            reference_time=reference_time,
+        )
 
         return {
             "business_id": business_id,
             "sentiment_recomputed": not retry_keywords_only,
-            "keyword_outcome": keyword_outcome,
+            "generation_outcome": generation_outcome,
         }

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
@@ -85,6 +86,25 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(summary.sentiment_percentages, {
             "positive": 50.0, "neutral": 25.0, "negative": 25.0,
         })
+
+    def test_sentiment_uses_the_same_rolling_thirty_day_window(self):
+        reference_time = timezone.now()
+        boundary = self.create_review(self.business, 100)
+        expired = self.create_review(self.business, 101)
+        Review.objects.filter(pk=boundary.pk).update(
+            REVW_CREATED_AT=reference_time - timedelta(days=30),
+        )
+        Review.objects.filter(pk=expired.pk).update(
+            REVW_CREATED_AT=reference_time - timedelta(days=30, seconds=1),
+        )
+
+        summary = BusinessReviewSummaryService.recompute_sentiment(
+            self.business.pk,
+            reference_time=reference_time,
+        )
+
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
 
     def test_each_moderation_exclusion_leaves_only_clean_review(self):
         self.create_review(self.business)

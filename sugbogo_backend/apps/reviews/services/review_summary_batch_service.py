@@ -1,5 +1,7 @@
 import logging
 
+from django.utils import timezone
+
 from apps.business.models import Business
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
@@ -16,8 +18,9 @@ class ReviewSummaryBatchService:
     """Processes independent business summaries and identifies retryable failures."""
 
     @staticmethod
-    def recompute(business_ids=None):
-        """Runs a full batch or retries keywords only for explicitly selected IDs."""
+    def recompute(business_ids=None, reference_time=None):
+        """Runs a full batch or retries generation for explicitly selected IDs."""
+        reference_time = reference_time or timezone.now()
         retry_only = business_ids is not None
         ids = (
             sorted(set(business_ids))
@@ -39,14 +42,26 @@ class ReviewSummaryBatchService:
             result["considered"] += 1
             try:
                 if not retry_only:
-                    BusinessReviewSummaryService.recompute_sentiment(business_id)
+                    BusinessReviewSummaryService.recompute_sentiment(
+                        business_id,
+                        reference_time=reference_time,
+                    )
                     result["sentiment_updated"] += 1
-                outcome = ReviewKeywordService.refresh(business_id)
+                outcome = ReviewKeywordService.refresh(
+                    business_id,
+                    reference_time=reference_time,
+                )
                 if outcome == "updated":
                     result["keywords_updated"] += 1
                 elif outcome == "cleared":
                     result["keywords_cleared"] += 1
-                elif outcome in {"unchanged", "already_attempted", "busy", "stale"}:
+                elif outcome in {
+                    "unchanged",
+                    "already_attempted",
+                    "busy",
+                    "stale",
+                    "insufficient_reviews",
+                }:
                     result["keywords_skipped"] += 1
                 else:
                     result["failed_business_ids"].append(business_id)

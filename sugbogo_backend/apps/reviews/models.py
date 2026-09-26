@@ -356,7 +356,13 @@ class ReplyTemplate(models.Model):
 
 
 class BusinessReviewSummary(models.Model):
-    """Stores the latest sentiment counts and keyword tags for a business."""
+    """Stores the latest review insights generated for a business."""
+
+    class GenerationState(models.TextChoices):
+        PENDING = "pending", "Pending"
+        INSUFFICIENT_REVIEWS = "insufficient_reviews", "Insufficient reviews"
+        READY = "ready", "Ready"
+        OUTDATED = "outdated", "Outdated"
 
     BRSU_ID = models.AutoField(
         primary_key=True,
@@ -387,6 +393,37 @@ class BusinessReviewSummary(models.Model):
 
     BRSU_KEYWORD_TAGS = models.JSONField(
         default=list,
+        blank=True,
+    )
+    BRSU_NARRATIVE = models.TextField(
+        blank=True,
+        default="",
+    )
+    BRSU_SUPPORTING_REVIEW_REFERENCES = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+    BRSU_COVERAGE_START = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    BRSU_COVERAGE_END = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    BRSU_ELIGIBLE_REVIEW_COUNT = models.PositiveIntegerField(
+        default=0,
+    )
+    BRSU_ANALYZED_REVIEW_COUNT = models.PositiveIntegerField(
+        default=0,
+    )
+    BRSU_GENERATION_STATE = models.CharField(
+        max_length=30,
+        choices=GenerationState.choices,
+        default=GenerationState.PENDING,
+    )
+    BRSU_GENERATED_AT = models.DateTimeField(
+        null=True,
         blank=True,
     )
 

@@ -26,12 +26,21 @@ def refresh_business_review_insights(
     task,
     business_id: int,
     retry_keywords_only: bool = False,
+    reference_time_iso: str | None = None,
 ) -> dict:
-    """Refreshes one business and retries transient keyword failures only."""
+    """Refreshes one business and reuses its window across transient retries."""
+    if reference_time_iso is None:
+        reference_time = timezone.now()
+        reference_time_iso = reference_time.isoformat()
+    else:
+        reference_time = datetime.fromisoformat(reference_time_iso)
+        if timezone.is_naive(reference_time):
+            raise ValueError("The run reference time must include a timezone.")
     try:
         return BusinessReviewInsightsService.refresh(
             business_id,
             retry_keywords_only=retry_keywords_only,
+            reference_time=reference_time,
         )
     except RetryableKeywordError as exc:
         countdown = min(
@@ -51,6 +60,7 @@ def refresh_business_review_insights(
             kwargs={
                 "business_id": business_id,
                 "retry_keywords_only": True,
+                "reference_time_iso": reference_time_iso,
             },
         )
 
@@ -68,7 +78,8 @@ def recompute_review_summaries(
 ) -> dict:
     """Runs daily summaries and retries only transiently failed keyword requests."""
     if reference_time_iso is None:
-        reference_time_iso = timezone.now().isoformat()
+        reference_time = timezone.now()
+        reference_time_iso = reference_time.isoformat()
     else:
         reference_time = datetime.fromisoformat(reference_time_iso)
         if timezone.is_naive(reference_time):
@@ -79,7 +90,10 @@ def recompute_review_summaries(
         extra={"reference_time": reference_time_iso, "retry_number": task.request.retries},
     )
     try:
-        result = ReviewSummaryBatchService.recompute(business_ids=business_ids)
+        result = ReviewSummaryBatchService.recompute(
+            business_ids=business_ids,
+            reference_time=reference_time,
+        )
     except Exception:
         logger.exception("Review summary batch could not be completed.")
         raise
