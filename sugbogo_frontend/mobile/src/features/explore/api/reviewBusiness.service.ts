@@ -3,7 +3,8 @@ import { request } from "@/shared/api/request.service";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 
 import type {
-  BusinessReview,
+  BusinessReviewFilters,
+  BusinessReviewListResponse,
   BusinessReviewPreview,
   LocalReviewPhoto,
 } from "../types/review.types";
@@ -44,8 +45,36 @@ export function getBusinessReviewPreview(
 
 export function getAllBusinessReviews(
   businessId: number,
-): Promise<ApiResponse<BusinessReview[]>> {
-  return request(apiClient.get(`/reviews/business/${businessId}/all/`));
+  filters?: BusinessReviewFilters,
+  page = 1,
+  pageSize?: number,
+): Promise<ApiResponse<BusinessReviewListResponse>> {
+  const url = `/reviews/business/${businessId}/all/`;
+  const params: Record<string, string> = {
+    page: String(page),
+  };
+
+  if (pageSize) {
+    params.page_size = String(pageSize);
+  }
+
+  if (filters?.sentiment) {
+    params.sentiment = filters.sentiment;
+  }
+  if (filters?.topic) {
+    params.topic = filters.topic;
+  }
+  if (filters?.hasPhotos) {
+    params.has_photos = "true";
+  }
+  if (filters?.merchantReplied) {
+    params.merchant_replied = "true";
+  }
+  if (filters?.ordering && filters.ordering !== "newest") {
+    params.ordering = filters.ordering;
+  }
+
+  return request(apiClient.get(url, { params }));
 }
 
 export function createReview(

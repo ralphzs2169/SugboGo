@@ -54,7 +54,7 @@ jest.mock("../../components/business-profile/BusinessProfileSection", () => ({
   },
 }));
 jest.mock(
-  "../../components/business-profile/review-section/BusinessReviewsSection",
+  "../../components/business-profile/reviews/review-preview-section/BusinessReviewsPreviewSection",
   () => ({
     __esModule: true,
     default: ({

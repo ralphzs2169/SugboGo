@@ -1,5 +1,9 @@
-import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+import type {
+  SpecialtyTagColor,
+  SpecialtyTagIcon,
+} from "@/shared/types/specialtyTag.types";
 import type { AvatarKey } from "@/shared/constants/avatars";
+import type { ExploreBusinessPagination } from "./exploreBusiness.types";
 
 export type ReviewPhoto = {
   id: number;
@@ -18,6 +22,7 @@ export type ReviewVouchedSpecialty = {
   id: number;
   name: string;
   color: SpecialtyTagColor;
+  icon: SpecialtyTagIcon | null;
 };
 
 export type ReviewReply = {
@@ -55,4 +60,29 @@ export type LocalReviewPhoto = {
 export type BusinessReviewPreview = {
   reviews: BusinessReview[];
   total_count: number;
+  user_review: BusinessReview | null;
+};
+
+export type BusinessReviewListResponse = {
+  items: BusinessReview[];
+  pagination: ExploreBusinessPagination;
+};
+
+export type ReviewSentiment = "positive" | "neutral" | "negative";
+export type ReviewOrdering = "newest" | "oldest" | "most_liked";
+
+export type BusinessReviewFilters = {
+  sentiment: ReviewSentiment | null;
+  topic: string | null;
+  hasPhotos: boolean;
+  merchantReplied: boolean;
+  ordering: ReviewOrdering;
+};
+
+export const DEFAULT_BUSINESS_REVIEW_FILTERS: BusinessReviewFilters = {
+  sentiment: null,
+  topic: null,
+  hasPhotos: false,
+  merchantReplied: false,
+  ordering: "newest",
 };

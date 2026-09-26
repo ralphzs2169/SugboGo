@@ -9,7 +9,7 @@ import {
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
-import { useBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
+import { useMerchantBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
 import { useReplyTemplates } from "../../hooks/reply-templates/useReplyTemplates";
 
 import type { BusinessReview } from "@/features/explore/types/review.types";
@@ -64,7 +64,7 @@ export default function MerchantReviewsScreen() {
     isRefetching,
     error: reviewsError,
     refetch: refetchReviews,
-  } = useBusinessReviews(businessId);
+  } = useMerchantBusinessReviews(businessId);
 
   const { disputes, isLoading: isDisputesLoading } = useReviewDisputes();
 

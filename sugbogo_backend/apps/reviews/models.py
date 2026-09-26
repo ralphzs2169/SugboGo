@@ -3,6 +3,7 @@ from django.db import models
 from apps.business.models.business_core_models import (
     Business,
 )
+from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
 from apps.users.models import User
 
 
@@ -455,3 +456,28 @@ class BusinessReviewSummary(models.Model):
             label: count / self.BRSU_CLASSIFIED_REVIEW_COUNT * 100
             for label, count in counts.items()
         }
+
+    @property
+    def overall_vibe(self):
+        """Derives the dominant review vibe when classified data is sufficient."""
+        if (
+            self.BRSU_CLASSIFIED_REVIEW_COUNT
+            < MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+        ):
+            return None
+
+        ranked_sentiments = sorted(
+            self.sentiment_percentages.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        top_label, top_percentage = ranked_sentiments[0]
+        second_percentage = ranked_sentiments[1][1]
+
+        if (
+            top_percentage >= 55
+            and top_percentage - second_percentage >= 15
+        ):
+            return f"mostly_{top_label}"
+
+        return "mixed"

@@ -21,7 +21,7 @@ class ReviewReportServiceTests(TestCase):
 
     def setUp(self):
         patcher = patch(
-            "apps.reviews.services.review_service.route_sentiment",
+            "apps.reviews.services.review_sentiment_service.route_sentiment",
             return_value=(0.75, "Positive", "vader"),
         )
         self.score_review = patcher.start()

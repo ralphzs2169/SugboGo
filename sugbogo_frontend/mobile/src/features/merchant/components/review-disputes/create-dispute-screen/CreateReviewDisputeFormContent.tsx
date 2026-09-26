@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
-import ReviewContent from "@/features/explore/components/business-profile/review-section/ReviewContent";
+import ReviewContent from "@/features/explore/components/business-profile/reviews/ReviewContent";
 import type { BusinessReview } from "@/features/explore/types/review.types";
 import AppText from "@/shared/components/AppText";
 import FormSelect from "@/shared/components/form/FormSelect";

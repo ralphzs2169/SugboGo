@@ -117,13 +117,35 @@ class ReviewVouchedSpecialtySerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    icon = serializers.CharField(
+        source="TAG_ID.TAG_ICON",
+        read_only=True,
+    )
+
     class Meta:
         model = BusinessVouch
         fields = (
             "id",
             "name",
             "color",
+            "icon",
         )
+
+
+class ReviewListQuerySerializer(serializers.Serializer):
+    """Validates optional filters and ordering for the business review list."""
+
+    sentiment = serializers.ChoiceField(
+        choices=("positive", "neutral", "negative"),
+        required=False,
+    )
+    has_photos = serializers.BooleanField(required=False)
+    merchant_replied = serializers.BooleanField(required=False)
+    topic = serializers.CharField(required=False, trim_whitespace=True)
+    ordering = serializers.ChoiceField(
+        choices=("newest", "oldest", "most_liked"),
+        required=False,
+    )
 
 
 class ReviewResponseSerializer(serializers.ModelSerializer):

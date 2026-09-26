@@ -8,6 +8,7 @@ from apps.reviews.services.business_review_insights_service import (
     BusinessReviewInsightsService,
 )
 from apps.reviews.services.review_keyword_service import RetryableKeywordError
+from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,36 @@ logger = logging.getLogger(__name__)
 TRANSIENT_RETRY_LIMIT = 3
 TRANSIENT_RETRY_BASE_SECONDS = 60
 TRANSIENT_RETRY_MAX_SECONDS = 300
+
+
+@shared_task(name="apps.reviews.tasks.process_review_sentiment")
+def process_review_sentiment(review_id: int) -> str:
+    """Scores one review and updates its business sentiment summary."""
+    try:
+        outcome = ReviewSentimentService.process_review(review_id)
+    except Exception as exc:
+        logger.error(
+            "Review sentiment processing failed.",
+            extra={"review_id": review_id, "error_type": type(exc).__name__},
+        )
+        return "failed"
+
+    if outcome == "missing":
+        logger.info(
+            "Review sentiment skipped; review is missing.",
+            extra={"review_id": review_id},
+        )
+    elif outcome == "stale":
+        logger.info(
+            "Stale review sentiment discarded.",
+            extra={"review_id": review_id},
+        )
+    elif outcome == "updated":
+        logger.info(
+            "Review sentiment updated.",
+            extra={"review_id": review_id},
+        )
+    return outcome
 
 
 @shared_task(

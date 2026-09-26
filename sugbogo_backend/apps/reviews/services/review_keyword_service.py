@@ -28,6 +28,66 @@ class ReviewKeywordService:
 
     MIN_REVIEW_COUNT = 2
     MAX_TAGS = 20
+    # Changing the stored evidence shape invalidates earlier fingerprints once.
+    EVIDENCE_SCHEMA_VERSION = 2
+
+    @staticmethod
+    @transaction.atomic
+    def remove_review_evidence(business_id: int, review_id: int) -> bool:
+        """Removes one deleted review from stored keyword evidence and counts."""
+        try:
+            summary = BusinessReviewSummary.objects.select_for_update().get(
+                BUSN_ID_id=business_id,
+            )
+        except BusinessReviewSummary.DoesNotExist:
+            return False
+
+        tags = summary.BRSU_KEYWORD_TAGS
+
+        if not isinstance(tags, list):
+            return False
+
+        updated_tags = []
+        changed = False
+
+        for tag in tags:
+            if not isinstance(tag, dict):
+                updated_tags.append(tag)
+                continue
+
+            review_ids = tag.get("review_ids")
+
+            if not isinstance(review_ids, list) or review_id not in review_ids:
+                updated_tags.append(tag)
+                continue
+
+            remaining_review_ids = [
+                supporting_id
+                for supporting_id in review_ids
+                if supporting_id != review_id
+            ]
+            changed = True
+
+            if not remaining_review_ids:
+                continue
+
+            updated_tags.append({
+                **tag,
+                "count": len(remaining_review_ids),
+                "review_ids": remaining_review_ids,
+            })
+
+        if not changed:
+            return False
+
+        summary.BRSU_KEYWORD_TAGS = updated_tags
+        summary.save(
+            update_fields=[
+                "BRSU_KEYWORD_TAGS",
+                "BRSU_UPDATED_AT",
+            ],
+        )
+        return True
 
     @staticmethod
     def _snapshot(business_id):
@@ -42,7 +102,13 @@ class ReviewKeywordService:
     def _fingerprint(cls, reviews):
         """Hashes review content and extraction policy without storing raw text."""
         payload = json.dumps(
-            [settings.GEMINI_KEYWORD_MODEL, cls.MIN_REVIEW_COUNT, cls.MAX_TAGS, reviews],
+            [
+                settings.GEMINI_KEYWORD_MODEL,
+                cls.MIN_REVIEW_COUNT,
+                cls.MAX_TAGS,
+                cls.EVIDENCE_SCHEMA_VERSION,
+                reviews,
+            ],
             ensure_ascii=False,
             separators=(",", ":"),
         )
@@ -164,7 +230,11 @@ class ReviewKeywordService:
             ):
                 raise InvalidKeywordResponse("Invalid supporting review count.")
             seen.add(text.casefold())
-            result.append({"text": text, "count": len(ids)})
+            result.append({
+                "text": text,
+                "count": len(ids),
+                "review_ids": ids,
+            })
         return sorted(result, key=lambda tag: (-tag["count"], tag["text"].casefold()))
 
     @classmethod

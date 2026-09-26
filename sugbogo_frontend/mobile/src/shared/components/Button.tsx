@@ -14,13 +14,14 @@ type ButtonProps = {
   textWeight?: AppTextWeight;
   variant?: "primary" | "secondary" | "outline" | "soft" | "danger" | "success";
   rounded?: "none" | "sm" | "md" | "lg" | "full";
+  size?: "sm" | "md";
   accessibilityLabel?: string;
 };
 
 /**
  * Provides a reusable application button for common user actions.
  *
- * Supports visual variants, Nunito Sans text weights, loading states,
+ * Supports visual variants, sizing, Nunito Sans text weights, loading states,
  * optional icons, disabled states, and configurable corner radius.
  */
 export default function Button({
@@ -31,16 +32,17 @@ export default function Button({
   icon,
   className = "",
   variant = "primary",
-  fontClassName = "text-base",
+  fontClassName,
   textWeight = "semibold",
   rounded = "lg",
+  size = "md",
   accessibilityLabel,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
   const variantClass = {
     primary: "bg-brand",
-    secondary: "bg-surface",
+    secondary: "bg-brand/20",
     outline: "border border-border-primary bg-white",
     soft: "border border-brand bg-white",
     danger: "bg-red-500",
@@ -49,7 +51,7 @@ export default function Button({
 
   const textColorClass = {
     primary: "text-white",
-    secondary: "text-text-primary",
+    secondary: "text-text-secondary",
     outline: "text-text-primary",
     soft: "text-brand",
     danger: "text-white",
@@ -63,6 +65,16 @@ export default function Button({
     lg: "rounded-lg",
     full: "rounded-full",
   }[rounded];
+
+  const sizeClass = {
+    sm: "px-3 py-2.5",
+    md: "px-4 py-4",
+  }[size];
+
+  const defaultFontClass = {
+    sm: "text-sm",
+    md: "text-base",
+  }[size];
 
   const loadingIndicatorColor = {
     primary: "#FFFFFF",
@@ -83,9 +95,9 @@ export default function Button({
         disabled: isDisabled,
         busy: loading,
       }}
-      className={`cursor-pointer flex-row items-center justify-center px-4 py-4 ${
+      className={`cursor-pointer flex-row items-center justify-center ${
         isDisabled ? "opacity-50" : ""
-      } ${roundedClass} ${variantClass} ${className}`}
+      } ${sizeClass} ${roundedClass} ${variantClass} ${className}`}
     >
       {/* Button content */}
       {loading ? (
@@ -97,7 +109,7 @@ export default function Button({
           <AppText
             weight={textWeight}
             numberOfLines={1}
-            className={`${fontClassName} ${textColorClass} ${
+            className={`${fontClassName ?? defaultFontClass} ${textColorClass} ${
               icon ? "ml-2" : ""
             }`}
           >

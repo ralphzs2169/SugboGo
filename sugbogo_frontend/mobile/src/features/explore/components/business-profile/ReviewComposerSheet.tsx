@@ -1,22 +1,24 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, BackHandler, Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
+import { theme } from "@/constants/theme";
 import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
 import PhotoPreview from "@/features/merchant/components/registration/business-photos/PhotoPreview";
-import Button from "@/shared/components/Button";
 import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import FormTextArea from "@/shared/components/form/FormTextArea";
+import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
-import { theme } from "@/constants/theme";
 
 import {
   useCreateReview,
@@ -27,10 +29,11 @@ import type {
   LocalReviewPhoto,
   ReviewPhoto,
 } from "../../types/review.types";
-import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
 
 type Props = {
   businessId: number;
+  businessName: string;
+  coverPhotoUrl?: string | null;
   sheetRef: React.RefObject<BottomSheetModal | null>;
   review?: BusinessReview | null;
 };
@@ -40,14 +43,15 @@ type ReviewErrors = {
 };
 
 /**
- * Provides a keyboard-friendly bottom sheet for creating or editing a review.
+ * Provides the review composer for creating or editing a business review.
  *
- * Supports review text and up to three photos while reusing the application's
- * standard form textarea and photo preview components. Validation errors are
- * shown after submission attempts and cleared when the field is focused.
+ * Presents compact business context, review text and photo controls, validation,
+ * and submission feedback while preserving existing review data during edits.
  */
 export default function ReviewComposerSheet({
   businessId,
+  businessName,
+  coverPhotoUrl,
   sheetRef,
   review,
 }: Props) {
@@ -80,7 +84,7 @@ export default function ReviewComposerSheet({
 
   const trimmedText = text.trim();
 
-  const hasReviewChanges = () => {
+  function hasReviewChanges() {
     if (!isEditing) {
       return true;
     }
@@ -94,25 +98,9 @@ export default function ReviewComposerSheet({
     const newPhotosAdded = photos.length > 0;
 
     return textChanged || existingPhotosChanged || newPhotosAdded;
-  };
+  }
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        if (!isSheetOpen) {
-          return false;
-        }
-
-        sheetRef.current?.dismiss();
-        return true;
-      },
-    );
-
-    return () => subscription.remove();
-  }, [isSheetOpen, sheetRef]);
-
-  const resetForm = () => {
+  function resetForm() {
     const initialText = review?.text ?? "";
     const initialPhotos = review?.photos ?? [];
 
@@ -122,38 +110,16 @@ export default function ReviewComposerSheet({
     setOriginalText(initialText);
     setOriginalPhotoIds(initialPhotos.map((photo) => photo.id));
     setErrors({});
-  };
+  }
 
-  useEffect(() => {
-    resetForm();
-  }, [review]);
-
-  useEffect(() => {
-    const error = createError || updateError;
-
-    if (!error) {
-      return;
-    }
-
-    const response = error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: isEditing ? "Unable to update review" : "Unable to add review",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [createError, updateError, isEditing]);
-
-  const clearFieldError = (field: keyof ReviewErrors) => {
+  function clearFieldError(field: keyof ReviewErrors) {
     setErrors((previous) => ({
       ...previous,
       [field]: undefined,
     }));
-  };
+  }
 
-  const validate = (): ReviewErrors => {
+  function validate(): ReviewErrors {
     const validationErrors: ReviewErrors = {};
 
     if (!trimmedText) {
@@ -163,9 +129,9 @@ export default function ReviewComposerSheet({
     }
 
     return validationErrors;
-  };
+  }
 
-  const addPhotos = async () => {
+  async function addPhotos() {
     if (!canAddMore || isPicking || isPending) {
       return;
     }
@@ -186,9 +152,9 @@ export default function ReviewComposerSheet({
     } finally {
       setIsPicking(false);
     }
-  };
+  }
 
-  const removeExistingPhoto = (photoId: number) => {
+  function removeExistingPhoto(photoId: number) {
     if (isPending) {
       return;
     }
@@ -196,9 +162,9 @@ export default function ReviewComposerSheet({
     setExistingPhotos((current) =>
       current.filter((photo) => photo.id !== photoId),
     );
-  };
+  }
 
-  const removePhoto = (index: number) => {
+  function removePhoto(index: number) {
     if (isPending) {
       return;
     }
@@ -206,16 +172,12 @@ export default function ReviewComposerSheet({
     setPhotos((current) =>
       current.filter((_, photoIndex) => photoIndex !== index),
     );
-  };
+  }
 
   const canSubmit = !isPending && (!isEditing || hasReviewChanges());
 
-  const submit = async () => {
-    if (isPending) {
-      return;
-    }
-
-    if (!canSubmit) {
+  async function submit() {
+    if (isPending || !canSubmit) {
       return;
     }
 
@@ -248,9 +210,49 @@ export default function ReviewComposerSheet({
 
       sheetRef.current?.dismiss();
     } catch {
-      // API errors are handled through the mutation error state.
+      // Mutation error state handles API feedback.
     }
-  };
+  }
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (!isSheetOpen) {
+          return false;
+        }
+
+        sheetRef.current?.dismiss();
+        return true;
+      },
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isSheetOpen, sheetRef]);
+
+  useEffect(() => {
+    resetForm();
+  }, [review]);
+
+  useEffect(() => {
+    const error = createError || updateError;
+
+    if (!error) {
+      return;
+    }
+
+    const response = error as unknown as ApiResponse<unknown>;
+
+    if (!response.success && !handleSystemError(response)) {
+      Toast.show({
+        type: "error",
+        text1: isEditing ? "Unable to update review" : "Unable to add review",
+        text2: response.message || "Please try again.",
+      });
+    }
+  }, [createError, updateError, isEditing]);
 
   return (
     <BottomSheetModal
@@ -260,6 +262,14 @@ export default function ReviewComposerSheet({
       enablePanDownToClose={!isPending}
       keyboardBehavior="fillParent"
       keyboardBlurBehavior="restore"
+      backgroundStyle={{
+        backgroundColor: theme.extends.colors.surface,
+        borderRadius: 24,
+      }}
+      handleIndicatorStyle={{
+        backgroundColor: theme.extends.colors.text.disabled,
+        width: 40,
+      }}
       onChange={(index) => {
         const isOpen = index >= 0;
 
@@ -280,35 +290,86 @@ export default function ReviewComposerSheet({
     >
       <BottomSheetScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerClassName="px-5 pb-32 pt-3"
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName="px-screen-x pb-10 pt-2"
       >
-        {/* Sheet header */}
-        <AppText weight="bold" className="text-xl text-text-primary">
-          {isEditing ? "Edit review" : "Write a review"}
-        </AppText>
+        {/* Review heading */}
+        <View>
+          <AppText weight="bold" className="text-xl text-text-primary">
+            {isEditing ? "Edit review" : "Write a review"}
+          </AppText>
 
-        {/* Informational note */}
-        <View className="mt-2 flex-row items-center">
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={14}
-            color={theme.extends.colors.text.secondary}
-          />
-
-          <AppText className="ml-1 text-xs text-text-secondary">
-            You can submit one review per business.
+          <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+            {isEditing
+              ? "Update what you shared about your experience."
+              : "Share your experience to help other explorers."}
           </AppText>
         </View>
 
+        {/* Business context */}
+        <View
+          accessible
+          accessibilityLabel={`You're reviewing ${businessName}`}
+          className="mt-5 flex-row items-center rounded-xl bg-background p-3"
+        >
+          <View className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-border-primary bg-surface">
+            {/* Cover photo fallback */}
+            <View className="h-full w-full items-center justify-center">
+              <MaterialCommunityIcons
+                name="store-outline"
+                size={22}
+                color={theme.extends.colors.text.secondary}
+              />
+            </View>
+
+            {/* Business cover photo */}
+            {coverPhotoUrl && (
+              <Image
+                source={{ uri: coverPhotoUrl }}
+                contentFit="cover"
+                accessible={false}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  left: 0,
+                }}
+              />
+            )}
+          </View>
+
+          <View className="ml-3 min-w-0 flex-1">
+            <AppText
+              className="text-[11px] text-text-secondary"
+              numberOfLines={1}
+            >
+              You&apos;re reviewing
+            </AppText>
+
+            <AppText
+              weight="semibold"
+              numberOfLines={2}
+              className="mt-0.5 text-sm leading-5 text-text-primary"
+            >
+              {businessName}
+            </AppText>
+          </View>
+        </View>
+
         {/* Review text */}
-        <View className="mt-4">
+        <View className="mt-5">
+          <AppText weight="semibold" className="mb-2 text-sm text-text-primary">
+            Your experience
+          </AppText>
+
           <FormTextArea
             label="Your review"
             showLabel={false}
             value={text}
             onChangeText={setText}
             onFocus={() => clearFieldError("text")}
-            placeholder="Share your experience"
+            placeholder="What stood out about your visit?"
             maxLength={1000}
             showCharacterCount
             minLength={25}
@@ -317,33 +378,61 @@ export default function ReviewComposerSheet({
             editable={!isPending}
             InputComponent={BottomSheetTextInput}
           />
+
+          <View className="mt-2 flex-row items-center">
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={14}
+              color={theme.extends.colors.text.tertiary}
+            />
+
+            <AppText className="ml-1.5 flex-1 text-xs leading-4 text-text-tertiary">
+              One review per business. You can update it later.
+            </AppText>
+          </View>
         </View>
 
         {/* Review photos */}
-        <View>
-          <AppText weight="bold" className="mb-3 text-sm text-text-primary">
-            Include Photos (optional)
-          </AppText>
+        <View className="mt-5">
+          <View className="mb-3 flex-row items-center justify-between">
+            <View>
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                Photos
+              </AppText>
 
-          <View className="flex-row flex-wrap">
+              <AppText className="mt-0.5 text-xs text-text-secondary">
+                Optional · Add up to {MAX_REVIEW_PHOTOS}
+              </AppText>
+            </View>
+
+            <View className="rounded-full bg-background px-2.5 py-1">
+              <AppText
+                weight="medium"
+                className="text-[11px] text-text-secondary"
+              >
+                {photoCount}/{MAX_REVIEW_PHOTOS}
+              </AppText>
+            </View>
+          </View>
+
+          {/* Photo previews */}
+          <View className="flex-row flex-wrap gap-3">
             {existingPhotos.map((photo) => (
-              <View key={photo.id} className="mr-3">
-                <PhotoPreview
-                  uri={photo.photo_url}
-                  onRemove={
-                    isPending ? undefined : () => removeExistingPhoto(photo.id)
-                  }
-                />
-              </View>
+              <PhotoPreview
+                key={photo.id}
+                uri={photo.photo_url}
+                onRemove={
+                  isPending ? undefined : () => removeExistingPhoto(photo.id)
+                }
+              />
             ))}
 
             {photos.map((photo, index) => (
-              <View key={`${photo.uri}-${index}`} className="mr-3">
-                <PhotoPreview
-                  uri={photo.uri}
-                  onRemove={isPending ? undefined : () => removePhoto(index)}
-                />
-              </View>
+              <PhotoPreview
+                key={`${photo.uri}-${index}`}
+                uri={photo.uri}
+                onRemove={isPending ? undefined : () => removePhoto(index)}
+              />
             ))}
 
             {canAddMore && (
@@ -352,21 +441,26 @@ export default function ReviewComposerSheet({
                 disabled={isPicking || isPending}
                 accessibilityRole="button"
                 accessibilityLabel="Add review photo"
-                className="h-24 w-24 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border-secondary active:opacity-70"
+                className="h-24 w-24 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border-secondary bg-background active:opacity-70 disabled:opacity-50"
               >
                 {isPicking ? (
-                  <ActivityIndicator color={theme.extends.colors.brand} />
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.extends.colors.brand}
+                  />
                 ) : (
                   <>
-                    <MaterialCommunityIcons
-                      name="plus"
-                      size={24}
-                      color={theme.extends.colors.text.primary}
-                    />
+                    <View className="h-8 w-8 items-center justify-center rounded-full bg-surface">
+                      <MaterialCommunityIcons
+                        name="image-plus-outline"
+                        size={18}
+                        color={theme.extends.colors.text.secondary}
+                      />
+                    </View>
 
                     <AppText
                       weight="medium"
-                      className="mt-1 text-xs text-text-secondary"
+                      className="mt-1.5 text-[11px] text-text-secondary"
                     >
                       Add photo
                     </AppText>
@@ -375,10 +469,6 @@ export default function ReviewComposerSheet({
               </Pressable>
             )}
           </View>
-
-          <AppText className="mt-3 text-xs text-text-secondary">
-            Optional · Up to {MAX_REVIEW_PHOTOS} photos · {photoCount} added
-          </AppText>
         </View>
 
         {/* Submit action */}
@@ -387,8 +477,8 @@ export default function ReviewComposerSheet({
           onPress={submit}
           loading={isPending}
           disabled={!canSubmit}
-          className="mt-6"
-          fontClassName="text-sm font-bold"
+          className="mt-7"
+          textWeight="bold"
           rounded="full"
         />
       </BottomSheetScrollView>
