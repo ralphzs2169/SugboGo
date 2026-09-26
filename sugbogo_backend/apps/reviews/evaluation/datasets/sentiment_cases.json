@@ -1,0 +1,258 @@
+[
+  {
+    "id": "en-positive-01",
+    "language": "english",
+    "text": "The food was excellent and the staff made us feel welcome.",
+    "expected_label": "positive",
+    "expected_route": "vader",
+    "notes": "Direct praise for food and service."
+  },
+  {
+    "id": "en-positive-02",
+    "language": "english",
+    "text": "The food was not bad at all; I really enjoyed it.",
+    "expected_label": "positive",
+    "expected_route": "vader",
+    "notes": "Positive meaning expressed through negation."
+  },
+  {
+    "id": "en-positive-03",
+    "language": "english",
+    "text": "Worth the trip, especially for the fresh seafood and kind crew.",
+    "expected_label": "positive",
+    "expected_route": "vader",
+    "notes": "Positive travel recommendation."
+  },
+  {
+    "id": "en-negative-01",
+    "language": "english",
+    "text": "The meal was cold, bland, and painfully slow to arrive.",
+    "expected_label": "negative",
+    "expected_route": "vader",
+    "notes": "Multiple direct complaints."
+  },
+  {
+    "id": "en-negative-02",
+    "language": "english",
+    "text": "I expected a great visit, but the service was disappointing.",
+    "expected_label": "negative",
+    "expected_route": "vader",
+    "notes": "Expectation followed by negative contrast."
+  },
+  {
+    "id": "en-negative-03",
+    "language": "english",
+    "text": "The place is not clean and I would not recommend it.",
+    "expected_label": "negative",
+    "expected_route": "vader",
+    "notes": "Negative recommendation with negation."
+  },
+  {
+    "id": "en-neutral-01",
+    "language": "english",
+    "text": "The cafe is on the second floor and closes at nine in the evening.",
+    "expected_label": "neutral",
+    "expected_route": "vader",
+    "notes": "Factual location and schedule."
+  },
+  {
+    "id": "en-neutral-02",
+    "language": "english",
+    "text": "We ordered noodles, coffee, and two bottles of water.",
+    "expected_label": "neutral",
+    "expected_route": "vader",
+    "notes": "Factual order description."
+  },
+  {
+    "id": "fil-positive-01",
+    "language": "filipino",
+    "text": "Napakasarap ng pagkain at napakabait ng mga staff.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Direct praise for food and staff."
+  },
+  {
+    "id": "fil-positive-02",
+    "language": "filipino",
+    "text": "Sulit ang presyo at siguradong babalik kami.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Value and intent to return."
+  },
+  {
+    "id": "fil-positive-03",
+    "language": "filipino",
+    "text": "Malinis ang lugar at mabilis ang serbisyo.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Positive cleanliness and speed."
+  },
+  {
+    "id": "fil-negative-01",
+    "language": "filipino",
+    "text": "Sobrang tagal ng serbisyo at malamig pa ang pagkain.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Slow service and cold food."
+  },
+  {
+    "id": "fil-negative-02",
+    "language": "filipino",
+    "text": "Hindi masarap ang pagkain at sayang ang binayad namin.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Negative food assessment and value."
+  },
+  {
+    "id": "fil-negative-03",
+    "language": "filipino",
+    "text": "Masungit ang staff at hindi kami tinulungan.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Unhelpful and rude staff."
+  },
+  {
+    "id": "fil-neutral-01",
+    "language": "filipino",
+    "text": "Nasa tabi ng palengke ang tindahan at alas otso ito nagbubukas.",
+    "expected_label": "neutral",
+    "expected_route": "local",
+    "notes": "Factual location and opening time."
+  },
+  {
+    "id": "fil-neutral-02",
+    "language": "filipino",
+    "text": "Umorder kami ng dalawang kanin at isang inumin.",
+    "expected_label": "neutral",
+    "expected_route": "local",
+    "notes": "Factual order description."
+  },
+  {
+    "id": "ceb-positive-01",
+    "language": "cebuano",
+    "text": "Lami kaayo ang pagkaon ug buotan ang staff.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Delicious food and kind staff."
+  },
+  {
+    "id": "ceb-positive-02",
+    "language": "cebuano",
+    "text": "Nindot ug limpyo kaayo ang lugar.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Pleasant and clean place."
+  },
+  {
+    "id": "ceb-positive-03",
+    "language": "cebuano",
+    "text": "Balik-balikan gyud nako kay sulit ang presyo.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Good value and intent to return."
+  },
+  {
+    "id": "ceb-positive-04",
+    "language": "cebuano",
+    "text": "Paspas ang serbisyo ug maabiabihon sila.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Fast and welcoming service."
+  },
+  {
+    "id": "ceb-negative-01",
+    "language": "cebuano",
+    "text": "Dugay kaayo ang serbisyo ug bugnaw ang pagkaon.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Slow service and cold food."
+  },
+  {
+    "id": "ceb-negative-02",
+    "language": "cebuano",
+    "text": "Hugaw ang lugar ug baho ang kasilyas.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Dirty place and restroom complaint."
+  },
+  {
+    "id": "ceb-negative-03",
+    "language": "cebuano",
+    "text": "Dili lami ang pagkaon, sayang ang bayad.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Bad food and poor value."
+  },
+  {
+    "id": "ceb-negative-04",
+    "language": "cebuano",
+    "text": "Masuko ang staff ug dili motabang.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Rude and unhelpful staff."
+  },
+  {
+    "id": "ceb-neutral-01",
+    "language": "cebuano",
+    "text": "Duol kini sa terminal ug abli hangtod alas dyes.",
+    "expected_label": "neutral",
+    "expected_route": "local",
+    "notes": "Factual location and schedule."
+  },
+  {
+    "id": "ceb-neutral-02",
+    "language": "cebuano",
+    "text": "Nag-order mi og duha ka kan-on ug usa ka ilimnon.",
+    "expected_label": "neutral",
+    "expected_route": "local",
+    "notes": "Factual order description."
+  },
+  {
+    "id": "mixed-positive-01",
+    "language": "mixed",
+    "text": "Sulit and very accommodating ang crew, babalik gyud mi.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Positive Filipino, English, and Cebuano mixture."
+  },
+  {
+    "id": "mixed-positive-02",
+    "language": "mixed",
+    "text": "Super lami ang food and the place feels welcoming.",
+    "expected_label": "positive",
+    "expected_route": "local",
+    "notes": "Positive Cebuano and English mixture."
+  },
+  {
+    "id": "mixed-negative-01",
+    "language": "mixed",
+    "text": "Dugay ang serving and the food was already cold.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Negative Filipino and English mixture."
+  },
+  {
+    "id": "mixed-negative-02",
+    "language": "mixed",
+    "text": "Hindi worth it, mahal kaayo and the staff was rude.",
+    "expected_label": "negative",
+    "expected_route": "local",
+    "notes": "Negative Filipino, Cebuano, and English mixture."
+  },
+  {
+    "id": "mixed-neutral-01",
+    "language": "mixed",
+    "text": "Masarap ang food but the service was very slow.",
+    "expected_label": "neutral",
+    "expected_route": "local",
+    "notes": "Balanced positive food and negative service."
+  },
+  {
+    "id": "mixed-neutral-02",
+    "language": "mixed",
+    "text": "Lami ang food, pero mahal kaayo for the portion.",
+    "expected_label": "neutral",
+    "expected_route": "local",
+    "notes": "Balanced food praise and value complaint."
+  }
+]

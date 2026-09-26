@@ -1,0 +1,88 @@
+[
+  {
+    "id": "mixed-service-and-wait",
+    "title": "Friendly service with recurring wait-time complaints",
+    "reviews": [
+      {"id": 101, "text": "Friendly kaayo ang staff, pero dugay mi naghulat sa food."},
+      {"id": 102, "text": "The crew was welcoming and helpful, but service took almost an hour."},
+      {"id": 103, "text": "Maabiabihon ang mga staff ug lami ang ginabot."},
+      {"id": 104, "text": "Masarap ang pagkain pero napakatagal dumating."},
+      {"id": 105, "text": "Kind staff and tasty local food. We would return."},
+      {"id": 106, "text": "Dugay ang serving during lunch, although buotan ang crew."}
+    ],
+    "expected_themes": [
+      {
+        "name": "friendly service",
+        "aliases": ["friendly service", "friendly staff", "kind staff", "welcoming crew", "helpful crew", "maabiabihon staff", "buotan crew"],
+        "supporting_review_ids": [101, 102, 103, 105, 106]
+      },
+      {
+        "name": "long wait",
+        "aliases": ["long wait", "slow service", "slow serving", "waiting time", "dugay serving", "matagal serbisyo"],
+        "supporting_review_ids": [101, 102, 104, 106]
+      },
+      {
+        "name": "tasty food",
+        "aliases": ["tasty food", "delicious food", "local food", "lami food", "masarap pagkain"],
+        "supporting_review_ids": [103, 104, 105]
+      }
+    ],
+    "forbidden_themes": [
+      {"name": "parking", "aliases": ["parking"]},
+      {"name": "wifi", "aliases": ["wifi", "internet"]}
+    ],
+    "expected_facts": [
+      "Staff are repeatedly described as friendly, kind, welcoming, or helpful.",
+      "Several reviews mention slow service or a long wait.",
+      "Food receives positive comments, including the local term ginabot."
+    ],
+    "forbidden_claims": [
+      "There is parking.",
+      "The business provides Wi-Fi.",
+      "Every visitor experienced fast service."
+    ]
+  },
+  {
+    "id": "clean-value-with-restroom-concern",
+    "title": "Clean dining area and good value with a restroom concern",
+    "reviews": [
+      {"id": 201, "text": "Limpyo ang dining area ug sulit ang ilang meals."},
+      {"id": 202, "text": "Clean tables, generous portions, and affordable prices."},
+      {"id": 203, "text": "Sulit kaayo ang presyo and the serving was generous."},
+      {"id": 204, "text": "Malinis ang kainan pero kailangan linisin ang restroom."},
+      {"id": 205, "text": "Affordable food and a clean, comfortable dining space."},
+      {"id": 206, "text": "Okay ang meal, pero hugaw ug baho ang kasilyas."}
+    ],
+    "expected_themes": [
+      {
+        "name": "clean dining area",
+        "aliases": ["clean dining area", "clean tables", "clean dining space", "clean restaurant", "limpyo dining", "malinis kainan"],
+        "supporting_review_ids": [201, 202, 204, 205]
+      },
+      {
+        "name": "good value",
+        "aliases": ["good value", "affordable prices", "affordable food", "worth the price", "sulit presyo"],
+        "supporting_review_ids": [201, 202, 203, 205]
+      },
+      {
+        "name": "restroom cleanliness",
+        "aliases": ["dirty restroom", "restroom cleanliness", "unclean restroom", "hugaw kasilyas", "baho kasilyas"],
+        "supporting_review_ids": [204, 206]
+      }
+    ],
+    "forbidden_themes": [
+      {"name": "live music", "aliases": ["live music", "band"]},
+      {"name": "ocean view", "aliases": ["ocean view", "sea view"]}
+    ],
+    "expected_facts": [
+      "The dining area is repeatedly described as clean.",
+      "Several reviewers consider the food affordable or good value.",
+      "Two reviews raise a restroom-cleanliness concern."
+    ],
+    "forbidden_claims": [
+      "The restroom is consistently clean.",
+      "The business has live music.",
+      "The business has an ocean view."
+    ]
+  }
+]
