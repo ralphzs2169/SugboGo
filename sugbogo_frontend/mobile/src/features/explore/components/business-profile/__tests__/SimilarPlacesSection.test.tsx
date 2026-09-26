@@ -65,6 +65,8 @@ function createBusiness(id: number): ExploreBusiness {
     id,
     business_name: `Similar Business ${id}`,
     cover_photo_url: null,
+    review_count: 0,
+    overall_vibe: null,
     is_pocketed: id === 1,
     cluster: {
       id: 1,

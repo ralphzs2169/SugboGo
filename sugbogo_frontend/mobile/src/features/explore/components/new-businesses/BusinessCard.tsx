@@ -14,6 +14,7 @@ import type {
   RecommendationReason,
 } from "../../types/exploreBusiness.types";
 import { arrangeSpecialtyTags } from "../../utils/arrangeSpecialtyTags.utils";
+import { OVERALL_REVIEW_VIBE_LABELS } from "../../utils/reviewVibe.utils";
 import { shadows } from "@/shared/styles/shadows";
 
 type Props = {
@@ -95,6 +96,9 @@ export default function BusinessCard({
     business.specialty_tags,
     tagAvailableWidth,
   );
+  const overallVibeLabel = business.overall_vibe
+    ? OVERALL_REVIEW_VIBE_LABELS[business.overall_vibe]
+    : null;
 
   if (variant === "compact") {
     const isRecommendation = recommendationReason !== null;
@@ -349,6 +353,58 @@ export default function BusinessCard({
               />
             ))}
           </View>
+        </View>
+
+        {/* Review metadata */}
+        {/* Review metadata */}
+        <View className="mt-2 flex-row items-center">
+          {business.review_count === 0 ? (
+            <View className="flex-row items-center">
+              <MaterialCommunityIcons
+                name="message-text-outline"
+                size={13}
+                color={theme.extends.colors.text.tertiary}
+              />
+
+              <AppText className="ml-1.5 text-xs text-text-tertiary">
+                No reviews yet
+              </AppText>
+            </View>
+          ) : (
+            <>
+              {/* Review count */}
+              <View className="flex-row items-center">
+                <MaterialCommunityIcons
+                  name="message-text-outline"
+                  size={13}
+                  color={theme.extends.colors.text.secondary}
+                />
+
+                <AppText
+                  weight="semibold"
+                  className="ml-1.5 text-xs text-text-secondary"
+                >
+                  {business.review_count}{" "}
+                  {business.review_count === 1 ? "review" : "reviews"}
+                </AppText>
+              </View>
+
+              {/* Overall visitor vibe */}
+              {overallVibeLabel && (
+                <>
+                  <View className="mx-2 h-1 w-1 rounded-full bg-border-secondary" />
+
+                  <AppText
+                    weight="medium"
+                    className="ml-1 text-[11px] text-text-secondary"
+                    numberOfLines={1}
+                  >
+                    {overallVibeLabel}
+                  </AppText>
+                </>
+              )}
+            </>
+          )}
         </View>
 
         {/* Business metadata */}

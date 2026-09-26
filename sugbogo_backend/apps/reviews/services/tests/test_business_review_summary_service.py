@@ -87,6 +87,33 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
             "positive": 50.0, "neutral": 25.0, "negative": 25.0,
         })
 
+    def test_overall_vibe_uses_dominance_and_existing_minimum_threshold(self):
+        cases = [
+            (4, 4, 0, 0, None),
+            (10, 7, 2, 1, "mostly_positive"),
+            (11, 2, 7, 2, "mostly_neutral"),
+            (20, 4, 3, 13, "mostly_negative"),
+            (100, 48, 27, 25, "mixed"),
+            (20, 11, 8, 1, "mostly_positive"),
+            (100, 54, 30, 16, "mixed"),
+            (100, 55, 41, 4, "mixed"),
+        ]
+
+        for classified, positive, neutral, negative, expected in cases:
+            with self.subTest(
+                classified=classified,
+                positive=positive,
+                neutral=neutral,
+                negative=negative,
+            ):
+                summary = BusinessReviewSummary(
+                    BRSU_CLASSIFIED_REVIEW_COUNT=classified,
+                    BRSU_POSITIVE_COUNT=positive,
+                    BRSU_NEUTRAL_COUNT=neutral,
+                    BRSU_NEGATIVE_COUNT=negative,
+                )
+                self.assertEqual(summary.overall_vibe, expected)
+
     def test_each_moderation_exclusion_leaves_only_clean_review(self):
         self.create_review(self.business)
         exclusions = [

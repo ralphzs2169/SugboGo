@@ -16,6 +16,8 @@ const business: ExploreBusiness = {
   id: 12,
   business_name: "Reason Test Business",
   cover_photo_url: null,
+  review_count: 12,
+  overall_vibe: "mostly_positive",
   is_pocketed: false,
   cluster: {
     id: 2,

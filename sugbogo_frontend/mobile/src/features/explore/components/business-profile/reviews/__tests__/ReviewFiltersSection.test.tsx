@@ -13,7 +13,7 @@ jest.mock("expo-router", () => ({
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
 }));
-jest.mock("../ReviewFilterBottomSheet", () => ({
+jest.mock("../review-collection/ReviewFilterBottomSheet", () => ({
   __esModule: true,
   default: () => null,
 }));
@@ -21,6 +21,7 @@ jest.mock("../ReviewFilterBottomSheet", () => ({
 const insights = {
   review_count: 8,
   has_sufficient_sentiment_data: true,
+  overall_vibe: "mostly_positive",
   sentiment: {
     positive: { count: 5, percentage: 63 },
     neutral: { count: 2, percentage: 25 },
@@ -93,7 +94,7 @@ describe("ReviewFiltersSection", () => {
     });
   });
 
-  it("keeps topics available when Visitor Vibe is below the threshold", async () => {
+  it("keeps topics available when Review Vibe is below the threshold", async () => {
     const screen = await render(
       <ReviewFiltersSection
         insights={{

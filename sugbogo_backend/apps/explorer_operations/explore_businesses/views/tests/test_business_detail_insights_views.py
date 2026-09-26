@@ -17,6 +17,13 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         self.url = f"/api/explorer/explore/businesses/{self.business.pk}/"
 
     def test_serializes_only_public_stored_insights_without_processing(self):
+        self.business.BUSN_REVIEW_COUNT = 12
+        self.business.save(
+            update_fields=[
+                "BUSN_REVIEW_COUNT",
+                "BUSN_UPDATED_AT",
+            ],
+        )
         summary = BusinessReviewSummary.objects.create(
             BUSN_ID=self.business,
             BRSU_REVIEW_COUNT=9,
@@ -43,6 +50,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             {
                 "review_count",
                 "has_sufficient_sentiment_data",
+                "overall_vibe",
                 "sentiment",
                 "frequent_mentions",
                 "updated_at",
@@ -50,6 +58,12 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         )
         self.assertEqual(insights["review_count"], 9)
         self.assertTrue(insights["has_sufficient_sentiment_data"])
+        self.assertEqual(insights["overall_vibe"], "mostly_positive")
+        self.assertEqual(response.data["data"]["review_count"], 9)
+        self.assertEqual(
+            response.data["data"]["overall_vibe"],
+            "mostly_positive",
+        )
         self.assertEqual(
             insights["frequent_mentions"],
             [{"label": "friendly service", "count": 3}],
@@ -84,6 +98,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
                 insights = response.data["data"]["review_insights"]
                 self.assertEqual(insights["review_count"], review_count)
                 self.assertFalse(insights["has_sufficient_sentiment_data"])
+                self.assertIsNone(insights["overall_vibe"])
                 self.assertEqual(insights["frequent_mentions"], [])
                 for value in insights["sentiment"].values():
                     self.assertEqual(value, {"count": 0, "percentage": 0.0})

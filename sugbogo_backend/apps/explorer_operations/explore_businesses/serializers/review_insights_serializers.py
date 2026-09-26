@@ -19,6 +19,9 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     has_sufficient_sentiment_data = serializers.SerializerMethodField()
+    overall_vibe = serializers.CharField(
+        read_only=True,
+    )
     sentiment = serializers.SerializerMethodField()
     frequent_mentions = FrequentMentionSerializer(
         source="BRSU_KEYWORD_TAGS",
@@ -53,6 +56,7 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         fields = (
             "review_count",
             "has_sufficient_sentiment_data",
+            "overall_vibe",
             "sentiment",
             "frequent_mentions",
             "updated_at",

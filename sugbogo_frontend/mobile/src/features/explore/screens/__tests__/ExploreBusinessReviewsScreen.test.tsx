@@ -84,7 +84,7 @@ jest.mock(
 
       return (
         <View>
-          <Text>Visitor Vibe</Text>
+          <Text>Review Vibe</Text>
           <Pressable
             onPress={() => onChange({ ...filters, sentiment: "negative" })}
           >

@@ -61,6 +61,7 @@ class SimilarBusinessService:
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
                 "discovery_score",
+                "review_summary",
             )
             .annotate(
                 is_pocketed=Exists(

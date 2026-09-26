@@ -11,7 +11,7 @@ import ErrorState from "@/shared/components/ErrorState";
 import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
 import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
 import type { BusinessReview } from "../../../../types/review.types";
-import VisitorVibeSection from "../VisitorVibeSection";
+import ReviewVibeSection from "../ReviewVibeSection";
 import BusinessReviewCard from "../BusinessReviewCard";
 import BusinessReviewCardSkeleton from "../../state/BusinessReviewCardSkeleton";
 
@@ -105,8 +105,8 @@ export default function BusinessReviewsPreviewSection({
         )}
       </View>
 
-      {/* Visitor sentiment summary */}
-      <VisitorVibeSection insights={reviewInsights} />
+      {/* Review sentiment summary */}
+      <ReviewVibeSection insights={reviewInsights} />
 
       {/* Loading state */}
       {isLoading && <BusinessReviewCardSkeleton />}

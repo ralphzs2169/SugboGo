@@ -14,7 +14,7 @@ import type {
   BusinessReviewFilters,
   ReviewSentiment,
 } from "../../../../types/review.types";
-import VisitorVibeSection from "../VisitorVibeSection";
+import ReviewVibeSection from "../ReviewVibeSection";
 import ReviewFilterBottomSheet from "./ReviewFilterBottomSheet";
 
 const SORT_OPTIONS = [
@@ -133,29 +133,35 @@ export default function ReviewFiltersSection({
 
   return (
     <View className="gap-5">
-      {/* Visitor vibe */}
+      {/* Review vibe */}
       {(insightsLoading || insightsError || hasSufficientSentimentData) && (
         <View>
-          <AppText weight="bold" className="text-sm text-text-primary">
-            Review Vibe
-          </AppText>
-
           {insightsLoading && (
-            <ActivityIndicator
-              className="mt-4 self-start"
-              color={theme.extends.colors.brand}
-            />
+            <View>
+              <AppText weight="bold" className="text-sm text-text-primary">
+                Review Vibe
+              </AppText>
+              <ActivityIndicator
+                className="mt-4 self-start"
+                color={theme.extends.colors.brand}
+              />
+            </View>
           )}
 
           {insightsError && (
-            <View className="mt-3 h-40">
-              <ErrorState
-                size="section"
-                title="Unable to load Visitor Vibe"
-                description="Reviews are still available below."
-                primaryActionTitle="Retry"
-                onPrimaryAction={onRetryInsights}
-              />
+            <View>
+              <AppText weight="bold" className="text-sm text-text-primary">
+                Review Vibe
+              </AppText>
+              <View className="mt-3 h-40">
+                <ErrorState
+                  size="section"
+                  title="Unable to load Review Vibe"
+                  description="Reviews are still available below."
+                  primaryActionTitle="Retry"
+                  onPrimaryAction={onRetryInsights}
+                />
+              </View>
             </View>
           )}
 
@@ -163,8 +169,8 @@ export default function ReviewFiltersSection({
             !insightsError &&
             hasSufficientSentimentData &&
             insights && (
-              <View className="mt-4">
-                <VisitorVibeSection
+              <View>
+                <ReviewVibeSection
                   insights={insights}
                   selectedSentiment={filters.sentiment}
                   onSentimentPress={toggleSentiment}

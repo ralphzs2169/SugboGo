@@ -5,6 +5,10 @@ import AppText from "@/shared/components/AppText";
 
 import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
 import type { ReviewSentiment } from "../../../types/review.types";
+import {
+  OVERALL_REVIEW_VIBE_LABELS,
+  OVERALL_REVIEW_VIBE_STYLES,
+} from "../../../utils/reviewVibe.utils";
 
 const MASCOT_FACE_POSITIVE = require("@/shared/assets/mascot/face/mascot-face-positive.webp");
 const MASCOT_FACE_NEUTRAL = require("@/shared/assets/mascot/face/mascot-face-neutral.webp");
@@ -46,12 +50,12 @@ function formatPercentage(value: number) {
 }
 
 /**
- * Displays the visitor sentiment distribution and overall review vibe.
+ * Displays the review sentiment distribution and backend-computed overall vibe.
  *
  * Supports a read-only summary or interactive sentiment filtering while
  * preserving the sentiment percentages supplied by the backend.
  */
-export default function VisitorVibeSection({
+export default function ReviewVibeSection({
   insights,
   selectedSentiment = null,
   onSentimentPress,
@@ -60,6 +64,14 @@ export default function VisitorVibeSection({
   if (!insights || !insights.has_sufficient_sentiment_data) {
     return null;
   }
+
+  const overallVibe = insights.overall_vibe;
+
+  if (!overallVibe) {
+    return null;
+  }
+
+  const overallVibeStyle = OVERALL_REVIEW_VIBE_STYLES[overallVibe];
 
   const hasSentiment = SENTIMENTS.some(
     ({ key }) => insights.sentiment[key].percentage > 0,
@@ -73,18 +85,32 @@ export default function VisitorVibeSection({
     <View>
       {/* Overall vibe context */}
       {showDescription && (
-        <View className="flex-row items-center justify-between gap-3">
-          <AppText className="min-w-0 flex-1 text-xs leading-5 text-text-secondary">
+        <View>
+          <View className="flex-row items-center justify-between gap-3">
+            <AppText weight="bold" className="text-sm text-text-primary">
+              Review Vibe
+            </AppText>
+
+            <View
+              testID="overall-review-vibe"
+              className={`shrink-0 flex-row items-center rounded-full px-2.5 py-1.5 ${overallVibeStyle.containerClassName}`}
+            >
+              <View
+                className={`mr-1.5 h-1.5 w-1.5 rounded-full ${overallVibeStyle.dotClassName}`}
+              />
+
+              <AppText
+                weight="semibold"
+                className={`text-[11px] ${overallVibeStyle.textClassName}`}
+              >
+                {OVERALL_REVIEW_VIBE_LABELS[overallVibe]}
+              </AppText>
+            </View>
+          </View>
+
+          <AppText className="mt-1 text-xs leading-5 text-text-secondary">
             How explorers felt based on their reviews.
           </AppText>
-
-          <View className="shrink-0 flex-row items-center rounded-full bg-success px-2.5 py-1.5">
-            <View className="mr-1.5 h-1.5 w-1.5 rounded-full bg-white" />
-
-            <AppText weight="semibold" className="text-[11px] text-white">
-              Mostly positive
-            </AppText>
-          </View>
         </View>
       )}
 

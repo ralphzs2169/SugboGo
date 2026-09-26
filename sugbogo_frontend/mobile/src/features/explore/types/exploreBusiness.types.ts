@@ -35,6 +35,8 @@ export type ExploreBusiness = {
   id: number;
   business_name: string;
   cover_photo_url: string | null;
+  review_count: number;
+  overall_vibe: OverallReviewVibe | null;
   is_pocketed: boolean;
   cluster: ExploreBusinessCluster;
   category: ExploreBusinessCategory;
@@ -168,9 +170,16 @@ export type FrequentMention = {
   count: number;
 };
 
+export type OverallReviewVibe =
+  | "mostly_positive"
+  | "mostly_neutral"
+  | "mostly_negative"
+  | "mixed";
+
 export type BusinessReviewInsights = {
   review_count: number;
   has_sufficient_sentiment_data: boolean;
+  overall_vibe: OverallReviewVibe | null;
   sentiment: {
     positive: SentimentBreakdown;
     neutral: SentimentBreakdown;
