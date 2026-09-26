@@ -1,4 +1,7 @@
-import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
+import type {
+  SpecialtyTagColor,
+  SpecialtyTagIcon,
+} from "@/shared/types/specialtyTag.types";
 import type { AvatarKey } from "@/shared/constants/avatars";
 import type { ExploreBusinessPagination } from "./exploreBusiness.types";
 
@@ -19,6 +22,7 @@ export type ReviewVouchedSpecialty = {
   id: number;
   name: string;
   color: SpecialtyTagColor;
+  icon: SpecialtyTagIcon | null;
 };
 
 export type ReviewReply = {

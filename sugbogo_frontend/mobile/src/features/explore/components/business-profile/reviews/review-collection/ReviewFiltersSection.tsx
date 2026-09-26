@@ -168,7 +168,7 @@ export default function ReviewFiltersSection({
                   insights={insights}
                   selectedSentiment={filters.sentiment}
                   onSentimentPress={toggleSentiment}
-                  showDescription={false}
+                  showDescription
                 />
               </View>
             )}

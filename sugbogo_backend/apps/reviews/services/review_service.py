@@ -24,6 +24,7 @@ from apps.reviews.models import (
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
+from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
@@ -707,6 +708,7 @@ class ReviewService:
                 public_id,
             )
 
+        deleted_review_id = review.REVW_ID
         business_id = review.BUSN_ID_id
 
         review.delete()
@@ -724,6 +726,10 @@ class ReviewService:
 
         BusinessReviewSummaryService.recompute_sentiment(
             business_id,
+        )
+        ReviewKeywordService.remove_review_evidence(
+            business_id=business_id,
+            review_id=deleted_review_id,
         )
 
     @staticmethod

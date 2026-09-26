@@ -26,6 +26,7 @@ from apps.reviews.models import (
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
+from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
@@ -1079,6 +1080,70 @@ class ReviewServiceTests(TestCase):
                 "negative": 0.0,
             },
         )
+
+    def test_delete_review_cleans_stored_keyword_evidence_without_generation(self):
+        """Keep stored keyword evidence consistent without invoking Gemini."""
+        deleted_review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Friendly service and cozy seating.",
+        )
+        remaining_review = Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Friendly staff and affordable meals.",
+        )
+        summary = BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_KEYWORD_TAGS=[
+                {
+                    "text": "Friendly service",
+                    "count": 2,
+                    "review_ids": [
+                        deleted_review.REVW_ID,
+                        remaining_review.REVW_ID,
+                    ],
+                },
+                {
+                    "text": "Cozy seating",
+                    "count": 1,
+                    "review_ids": [deleted_review.REVW_ID],
+                },
+                {
+                    "text": "Affordable meals",
+                    "count": 1,
+                    "review_ids": [remaining_review.REVW_ID],
+                },
+            ],
+        )
+
+        with (
+            patch.object(ReviewKeywordService, "refresh") as refresh,
+            patch.object(ReviewKeywordService, "_generate") as generate,
+        ):
+            ReviewService.delete_review(
+                user=self.user,
+                review_id=deleted_review.REVW_ID,
+            )
+
+        summary.refresh_from_db()
+        self.assertEqual(
+            summary.BRSU_KEYWORD_TAGS,
+            [
+                {
+                    "text": "Friendly service",
+                    "count": 1,
+                    "review_ids": [remaining_review.REVW_ID],
+                },
+                {
+                    "text": "Affordable meals",
+                    "count": 1,
+                    "review_ids": [remaining_review.REVW_ID],
+                },
+            ],
+        )
+        refresh.assert_not_called()
+        generate.assert_not_called()
 
     def test_delete_review_rejects_non_owner(self):
         review = ReviewService.create_review(

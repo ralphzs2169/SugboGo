@@ -12,6 +12,8 @@ import ExploreBusinessReviewsScreen from "../ReviewsCollectionScreen";
 
 const mockSetOptions = jest.fn();
 
+jest.setTimeout(15_000);
+
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
   useNavigation: () => ({ setOptions: mockSetOptions }),

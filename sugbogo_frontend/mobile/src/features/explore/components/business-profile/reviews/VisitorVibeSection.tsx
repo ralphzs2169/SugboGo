@@ -46,10 +46,10 @@ function formatPercentage(value: number) {
 }
 
 /**
- * Displays the stored visitor sentiment distribution for a business.
+ * Displays the visitor sentiment distribution and overall review vibe.
  *
- * Supports both a read-only summary and an interactive sentiment selector
- * while preserving the server-provided sentiment percentages.
+ * Supports a read-only summary or interactive sentiment filtering while
+ * preserving the sentiment percentages supplied by the backend.
  */
 export default function VisitorVibeSection({
   insights,
@@ -71,17 +71,27 @@ export default function VisitorVibeSection({
 
   return (
     <View>
-      {/* Sentiment context */}
+      {/* Overall vibe context */}
       {showDescription && (
-        <AppText className="text-xs leading-5 text-text-secondary">
-          How explorers felt based on their reviews.
-        </AppText>
+        <View className="flex-row items-center justify-between gap-3">
+          <AppText className="min-w-0 flex-1 text-xs leading-5 text-text-secondary">
+            How explorers felt based on their reviews.
+          </AppText>
+
+          <View className="shrink-0 flex-row items-center rounded-full bg-success px-2.5 py-1.5">
+            <View className="mr-1.5 h-1.5 w-1.5 rounded-full bg-white" />
+
+            <AppText weight="semibold" className="text-[11px] text-white">
+              Mostly positive
+            </AppText>
+          </View>
+        </View>
       )}
 
       {/* Sentiment distribution */}
       <View
-        className={`h-2 overflow-hidden rounded-full bg-background ${
-          showDescription ? "mt-3.5" : ""
+        className={`h-2.5 overflow-hidden rounded-full bg-background ${
+          showDescription ? "mt-4" : ""
         }`}
       >
         <View className="h-full flex-row">
@@ -112,6 +122,7 @@ export default function VisitorVibeSection({
             const percentage = formatPercentage(
               insights.sentiment[key].percentage,
             );
+
             const selected = selectedSentiment === key;
 
             const content = (

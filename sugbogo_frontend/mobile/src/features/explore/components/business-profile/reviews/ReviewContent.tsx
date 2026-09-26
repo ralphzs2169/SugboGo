@@ -246,6 +246,7 @@ export default function ReviewContent({
                 tag={{
                   name: tag.name,
                   color: tag.color,
+                  icon: tag.icon,
                 }}
                 size="small"
                 showVouchIndicator

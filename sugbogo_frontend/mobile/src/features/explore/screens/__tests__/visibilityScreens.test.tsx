@@ -85,6 +85,7 @@ jest.mock("../../components/new-businesses/BusinessCard", () => {
 });
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: require("react-native").View,
+  useSafeAreaInsets: () => ({ bottom: 0 }),
 }));
 jest.mock("@expo/vector-icons", () => ({
   MaterialCommunityIcons: () => null,
@@ -164,6 +165,10 @@ jest.mock(
   () => () => null,
 );
 jest.mock(
+  "../../components/business-profile/RideProviderSheet",
+  () => () => null,
+);
+jest.mock(
   "../../components/business-profile/BusinessProfileQuickInfo",
   () => () => null,
 );
@@ -180,7 +185,7 @@ jest.mock(
   () => () => null,
 );
 jest.mock(
-  "../../components/business-profile/review-section/BusinessReviewsSection",
+  "../../components/business-profile/reviews/review-preview-section/BusinessReviewsPreviewSection",
   () => () => null,
 );
 jest.mock(

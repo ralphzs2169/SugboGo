@@ -277,6 +277,8 @@ export default function ExploreBusinessProfileScreen({
       {business && (
         <ReviewComposerSheet
           businessId={business.id}
+          businessName={business.business_name}
+          coverPhotoUrl={business.cover_photo_url}
           sheetRef={composerRef}
           review={editingReview}
         />

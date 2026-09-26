@@ -49,6 +49,7 @@ type Props = {
  */
 export default function ReviewsCollectionScreen({
   businessId,
+  businessName,
   isOwnBusiness = false,
 }: Props) {
   const [filters, setFilters] = useState<BusinessReviewFilters>(
@@ -327,6 +328,8 @@ export default function ReviewsCollectionScreen({
       {isOwnBusiness && <BusinessProfileFooter isOwnBusiness />}
       <ReviewComposerSheet
         businessId={businessId}
+        businessName={business?.business_name ?? businessName ?? "Business"}
+        coverPhotoUrl={business?.cover_photo_url}
         sheetRef={reviewSheetRef}
         review={editingReview}
       />

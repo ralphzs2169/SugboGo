@@ -117,12 +117,18 @@ class ReviewVouchedSpecialtySerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    icon = serializers.CharField(
+        source="TAG_ID.TAG_ICON",
+        read_only=True,
+    )
+
     class Meta:
         model = BusinessVouch
         fields = (
             "id",
             "name",
             "color",
+            "icon",
         )
 
 
