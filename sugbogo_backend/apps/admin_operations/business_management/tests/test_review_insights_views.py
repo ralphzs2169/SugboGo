@@ -93,11 +93,16 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
         BusinessReviewSummary.objects.create(
             BUSN_ID=self.business,
             BRSU_REVIEW_COUNT=5,
+            BRSU_ELIGIBLE_REVIEW_COUNT=5,
+            BRSU_ANALYZED_REVIEW_COUNT=5,
             BRSU_CLASSIFIED_REVIEW_COUNT=4,
             BRSU_POSITIVE_COUNT=2,
             BRSU_NEUTRAL_COUNT=1,
             BRSU_NEGATIVE_COUNT=1,
+            BRSU_NARRATIVE="Visitors consistently mention friendly service.",
             BRSU_KEYWORD_TAGS=[{"text": "friendly service", "count": 3}],
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+            BRSU_GENERATED_AT=computed_at,
             BRSU_SENTIMENT_COMPUTED_AT=computed_at,
             BRSU_KEYWORDS_PROCESSED_AT=processed_at,
             BRSU_KEYWORDS_FINGERPRINT="private",
@@ -109,13 +114,34 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
 
         self.assertEqual(response.status_code, 200)
         insights = response.data["data"]["review_insights"]
-        self.assertEqual(set(insights), {
-            "review_count",
-            "sentiment",
-            "frequent_mentions",
-            "sentiment_computed_at",
-            "keywords_processed_at",
-        })
+        self.assertEqual(
+            set(insights),
+            {
+                "state",
+                "state_message",
+                "content_available",
+                "narrative",
+                "review_count",
+                "eligible_review_count",
+                "analyzed_review_count",
+                "classified_review_count",
+                "is_sampled",
+                "sentiment",
+                "frequent_mentions",
+                "coverage_start",
+                "coverage_end",
+                "generated_at",
+                "updated_at",
+                "sentiment_computed_at",
+                "keywords_processed_at",
+            },
+        )
+        self.assertEqual(insights["state"], "ready")
+        self.assertTrue(insights["content_available"])
+        self.assertEqual(
+            insights["narrative"],
+            "Visitors consistently mention friendly service.",
+        )
         self.assertEqual(insights["review_count"], 5)
         self.assertEqual(insights["sentiment"], {
             "positive": {"count": 2, "percentage": 50.0},
