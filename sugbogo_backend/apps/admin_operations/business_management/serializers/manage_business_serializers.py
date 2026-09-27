@@ -417,10 +417,7 @@ class AdminBusinessReviewInsightsSerializer(BusinessReviewInsightsSerializer):
     )
 
     class Meta(BusinessReviewInsightsSerializer.Meta):
-        fields = (
-            "review_count",
-            "sentiment",
-            "frequent_mentions",
+        fields = BusinessReviewInsightsSerializer.Meta.fields + (
             "sentiment_computed_at",
             "keywords_processed_at",
         )
