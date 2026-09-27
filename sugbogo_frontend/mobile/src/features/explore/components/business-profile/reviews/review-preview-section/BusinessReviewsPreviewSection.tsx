@@ -8,12 +8,12 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 
-import { useBusinessReviewPreview } from "../../../hooks/useBusinessReviews";
-import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
-import type { BusinessReview } from "../../../types/review.types";
-import VisitorVibeSection from "./VisitorVibeSection";
-import BusinessReviewCard from "./BusinessReviewCard";
-import BusinessReviewCardSkeleton from "../state/BusinessReviewCardSkeleton";
+import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
+import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
+import type { BusinessReview } from "../../../../types/review.types";
+import ReviewVibeSection from "../ReviewVibeSection";
+import BusinessReviewCard from "../BusinessReviewCard";
+import BusinessReviewCardSkeleton from "../../state/BusinessReviewCardSkeleton";
 
 const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
 
@@ -34,7 +34,7 @@ type Props = {
  * the most frequent review themes immediately before the previewed reviews.
  * Empty and failure states remain localized to the review collection.
  */
-export default function BusinessReviewsSection({
+export default function BusinessReviewsPreviewSection({
   businessId,
   businessName,
   isOwnBusiness,
@@ -105,8 +105,8 @@ export default function BusinessReviewsSection({
         )}
       </View>
 
-      {/* Visitor sentiment summary */}
-      <VisitorVibeSection insights={reviewInsights} />
+      {/* Review sentiment summary */}
+      <ReviewVibeSection insights={reviewInsights} />
 
       {/* Loading state */}
       {isLoading && <BusinessReviewCardSkeleton />}
@@ -121,22 +121,6 @@ export default function BusinessReviewsSection({
             onPrimaryAction={refetch}
             size="section"
           />
-        </View>
-      )}
-
-      {/* Existing review notice */}
-      {!isLoading && !error && hasOwnReview && (
-        <View className="mb-4 flex-row items-center rounded-md bg-info px-3 py-2.5">
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={16}
-            color={theme.extends.colors.text.info}
-          />
-
-          <AppText className="ml-2 flex-1 text-xs text-text-secondary">
-            You have already reviewed this business. You can edit your review
-            anytime.
-          </AppText>
         </View>
       )}
 

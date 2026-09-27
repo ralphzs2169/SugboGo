@@ -4,6 +4,7 @@ from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
+from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 
 
 class BusinessReviewInsightsService:
@@ -18,6 +19,10 @@ class BusinessReviewInsightsService:
         """Refreshes windowed sentiment and generated insights for one business."""
         reference_time = reference_time or timezone.now()
         if not retry_keywords_only:
+            ReviewSentimentService.reconcile_business(
+                business_id,
+                reference_time=reference_time,
+            )
             BusinessReviewSummaryService.recompute_sentiment(
                 business_id,
                 reference_time=reference_time,

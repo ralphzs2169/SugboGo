@@ -1,6 +1,7 @@
 from unittest.mock import ANY, patch
 
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.reviews.models import BusinessReviewSummary, Review
 from apps.reviews.services.business_review_insights_service import (
@@ -13,6 +14,7 @@ from apps.reviews.services.review_keyword_service import (
     RetryableKeywordError,
     ReviewKeywordService,
 )
+from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.reviews.services.tests.test_business_review_summary_service import (
     SummaryFixtureMixin,
 )
@@ -25,15 +27,24 @@ class BusinessReviewInsightsServiceTests(SummaryFixtureMixin, TestCase):
 
     def test_recomputes_sentiment_before_keywords_and_returns_outcome(self):
         calls = []
+        reference_time = timezone.now()
 
         def recompute_sentiment(business_id, reference_time=None):
-            calls.append(("sentiment", business_id))
+            calls.append(("sentiment", business_id, reference_time))
+
+        def reconcile_sentiment(business_id, reference_time=None):
+            calls.append(("reconcile", business_id, reference_time))
 
         def refresh_keywords(business_id, reference_time=None):
-            calls.append(("keywords", business_id))
+            calls.append(("keywords", business_id, reference_time))
             return "updated"
 
         with (
+            patch.object(
+                ReviewSentimentService,
+                "reconcile_business",
+                side_effect=reconcile_sentiment,
+            ),
             patch.object(
                 BusinessReviewSummaryService,
                 "recompute_sentiment",
@@ -45,13 +56,17 @@ class BusinessReviewInsightsServiceTests(SummaryFixtureMixin, TestCase):
                 side_effect=refresh_keywords,
             ),
         ):
-            result = BusinessReviewInsightsService.refresh(self.business.pk)
+            result = BusinessReviewInsightsService.refresh(
+                self.business.pk,
+                reference_time=reference_time,
+            )
 
         self.assertEqual(
             calls,
             [
-                ("sentiment", self.business.pk),
-                ("keywords", self.business.pk),
+                ("reconcile", self.business.pk, reference_time),
+                ("sentiment", self.business.pk, reference_time),
+                ("keywords", self.business.pk, reference_time),
             ],
         )
         self.assertEqual(result, {
@@ -62,6 +77,7 @@ class BusinessReviewInsightsServiceTests(SummaryFixtureMixin, TestCase):
 
     def test_keyword_retry_does_not_recompute_sentiment(self):
         with (
+            patch.object(ReviewSentimentService, "reconcile_business") as reconcile,
             patch.object(BusinessReviewSummaryService, "recompute_sentiment") as sentiment,
             patch.object(ReviewKeywordService, "refresh", return_value="unchanged") as keywords,
         ):
@@ -70,6 +86,7 @@ class BusinessReviewInsightsServiceTests(SummaryFixtureMixin, TestCase):
                 retry_keywords_only=True,
             )
 
+        reconcile.assert_not_called()
         sentiment.assert_not_called()
         keywords.assert_called_once_with(self.business.pk, reference_time=ANY)
         self.assertEqual(result["sentiment_recomputed"], False)

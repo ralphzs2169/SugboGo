@@ -10,6 +10,7 @@ from apps.reviews.services.review_keyword_service import (
     RetryableKeywordError,
     ReviewKeywordService,
 )
+from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,10 @@ class ReviewSummaryBatchService:
             result["considered"] += 1
             try:
                 if not retry_only:
+                    ReviewSentimentService.reconcile_business(
+                        business_id,
+                        reference_time=reference_time,
+                    )
                     BusinessReviewSummaryService.recompute_sentiment(
                         business_id,
                         reference_time=reference_time,

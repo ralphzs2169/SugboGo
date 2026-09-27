@@ -17,6 +17,8 @@ insights during a request.
 | `eligible_review_count` | Nonblank reviews eligible for narrative generation |
 | `analyzed_review_count` | Eligible reviews included in the generation sample |
 | `classified_review_count` | Reviews included in the sentiment percentage denominator |
+| `has_sufficient_sentiment_data` | Whether the classified-review count meets the Review Vibe display threshold |
+| `overall_vibe` | Derived Review Vibe label, or `null` below the sentiment threshold |
 | `is_sampled` | `true` when only part of the eligible nonblank set was analyzed |
 | `sentiment` | Positive, neutral, and negative counts and percentages |
 | `frequent_mentions` | Generated keyword labels and counts; evidence review IDs are private |
@@ -39,6 +41,8 @@ Administrator detail responses also include `sentiment_computed_at` and
   "eligible_review_count": 240,
   "analyzed_review_count": 100,
   "classified_review_count": 232,
+  "has_sufficient_sentiment_data": true,
+  "overall_vibe": "mostly_positive",
   "is_sampled": true,
   "sentiment": {
     "positive": {"count": 180, "percentage": 77.59},
@@ -72,7 +76,9 @@ When `is_sampled` is true, the frontend can render a disclosure such as
 Use `content_available` as the rendering gate. Do not infer availability from
 counts, timestamps, or the presence of sentiment data. Sentiment remains
 available independently because it is computed locally and may be newer than
-the generated narrative.
+the generated narrative. Likewise, `has_sufficient_sentiment_data` and
+`overall_vibe` describe sentiment readiness independently of the generated
+content state.
 
 ## Frontend acceptance checks
 

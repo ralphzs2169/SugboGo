@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import ExploreBusinessReviewsScreen from "@/features/explore/screens/ExploreBusinessReviewsScreen";
+import ReviewsCollectionScreen from "@/features/explore/screens/ReviewsCollectionScreen";
 
 export default function BusinessReviewsRoute() {
   const { businessId, isOwnBusiness } = useLocalSearchParams<{
@@ -8,7 +8,7 @@ export default function BusinessReviewsRoute() {
   }>();
 
   return (
-    <ExploreBusinessReviewsScreen
+    <ReviewsCollectionScreen
       businessId={Number(businessId)}
       isOwnBusiness={isOwnBusiness === "1"}
     />

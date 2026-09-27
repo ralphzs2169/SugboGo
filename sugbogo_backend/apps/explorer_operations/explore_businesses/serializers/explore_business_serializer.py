@@ -115,6 +115,8 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
     is_pocketed = serializers.BooleanField(
         read_only=True,
     )
+    review_count = serializers.SerializerMethodField()
+    overall_vibe = serializers.SerializerMethodField()
 
     cluster = ExploreClusterSerializer(
         source="CTGRY_ID.CLUS_ID",
@@ -134,6 +136,18 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    @staticmethod
+    def get_review_count(instance):
+        """Returns the eligible review count used by Explorer review insights."""
+        summary = getattr(instance, "review_summary", None)
+        return summary.BRSU_REVIEW_COUNT if summary is not None else 0
+
+    @staticmethod
+    def get_overall_vibe(instance):
+        """Returns the derived overall vibe when the summary has enough data."""
+        summary = getattr(instance, "review_summary", None)
+        return summary.overall_vibe if summary is not None else None
+
     class Meta:
         model = Business
         fields = (
@@ -141,6 +155,8 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
             "business_name",
             "cover_photo_url",
             "is_pocketed",
+            "review_count",
+            "overall_vibe",
             "cluster",
             "category",
             "specialty_tags",

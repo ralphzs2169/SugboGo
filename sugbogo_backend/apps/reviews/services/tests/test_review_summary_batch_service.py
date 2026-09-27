@@ -1,10 +1,12 @@
 from unittest.mock import ANY, call, patch
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.reviews.models import BusinessReviewSummary
 from apps.reviews.services.business_review_summary_service import BusinessReviewSummaryService
 from apps.reviews.services.review_keyword_service import RetryableKeywordError, ReviewKeywordService
+from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
 from apps.reviews.services.tests.test_business_review_summary_service import SummaryFixtureMixin
 
@@ -17,8 +19,16 @@ class ReviewSummaryBatchServiceTests(SummaryFixtureMixin, TestCase):
         cls.create_review(cls.first)
 
     @patch.object(ReviewKeywordService, "refresh", side_effect=["updated", "cleared"])
-    def test_batch_persists_sentiment_and_counts_keyword_outcomes(self, keywords):
-        result = ReviewSummaryBatchService.recompute()
+    @patch.object(ReviewSentimentService, "reconcile_business")
+    def test_batch_persists_sentiment_and_counts_keyword_outcomes(
+        self,
+        reconcile,
+        keywords,
+    ):
+        reference_time = timezone.now()
+        result = ReviewSummaryBatchService.recompute(
+            reference_time=reference_time,
+        )
         self.assertEqual(result, {
             "considered": 2,
             "sentiment_updated": 2,
@@ -31,8 +41,12 @@ class ReviewSummaryBatchServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(BusinessReviewSummary.objects.get(BUSN_ID=self.first).BRSU_REVIEW_COUNT, 1)
         self.assertEqual(BusinessReviewSummary.objects.get(BUSN_ID=self.second).BRSU_REVIEW_COUNT, 0)
         self.assertEqual(keywords.call_args_list, [
-            call(self.first.pk, reference_time=ANY),
-            call(self.second.pk, reference_time=ANY),
+            call(self.first.pk, reference_time=reference_time),
+            call(self.second.pk, reference_time=reference_time),
+        ])
+        self.assertEqual(reconcile.call_args_list, [
+            call(self.first.pk, reference_time=reference_time),
+            call(self.second.pk, reference_time=reference_time),
         ])
 
     @patch.object(ReviewKeywordService, "refresh", side_effect=["failed", "updated"])

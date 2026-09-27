@@ -174,6 +174,10 @@ const navigation = [
         label: "All Users",
         Icon: FiUsers,
         roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/users/all",
+          "/admin-panel/users/[userId]",
+        ],
       },
       {
         type: "link",

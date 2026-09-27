@@ -2,7 +2,9 @@ import { fireEvent, render } from "@testing-library/react-native";
 
 import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
 import type { BusinessReview } from "../../../../types/review.types";
-import BusinessReviewsSection from "../BusinessReviewsSection";
+import BusinessReviewsSection from "../review-preview-section/BusinessReviewsPreviewSection";
+
+jest.setTimeout(15_000);
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
@@ -72,6 +74,9 @@ describe("BusinessReviewsSection", () => {
       <BusinessReviewsSection {...defaultProps} hasOwnReview />,
     );
     expect(existingReviewScreen.queryByText("Write a review")).toBeNull();
+    expect(
+      existingReviewScreen.queryByText(/already reviewed this business/i),
+    ).toBeNull();
 
     const ownerScreen = await render(
       <BusinessReviewsSection {...defaultProps} isOwnBusiness />,

@@ -25,6 +25,7 @@ type Props = {
   businessId: number;
   review: BusinessReview;
   onEdit?: (review: BusinessReview) => void;
+  isLast?: boolean;
 };
 
 /**
@@ -38,6 +39,7 @@ export default function BusinessReviewCard({
   businessId,
   review,
   onEdit,
+  isLast = false,
 }: Props) {
   const { mutateAsync: like, isPending: isLikePending } =
     useReviewLike(businessId);
@@ -123,7 +125,11 @@ export default function BusinessReviewCard({
   };
 
   return (
-    <View className="rounded-card border border-border-primary bg-surface px-4 py-5">
+    <View
+      className={`border-t border-border-primary bg-surface px-4 py-5 ${
+        isLast ? "border-b" : ""
+      }`}
+    >
       {/* Shared review content */}
       <ReviewContent
         review={review}

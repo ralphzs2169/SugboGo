@@ -8,8 +8,12 @@ from apps.explorer_operations.explore_businesses.services.explore_business_servi
     ExploreBusinessService,
 )
 from apps.reviews.models import BusinessReviewSummary
-from apps.reviews.services.business_review_summary_service import BusinessReviewSummaryService
-from apps.reviews.services.tests.test_business_review_summary_service import SummaryFixtureMixin
+from apps.reviews.services.business_review_summary_service import (
+    BusinessReviewSummaryService,
+)
+from apps.reviews.services.tests.test_business_review_summary_service import (
+    SummaryFixtureMixin,
+)
 
 
 class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
@@ -22,6 +26,8 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         "eligible_review_count",
         "analyzed_review_count",
         "classified_review_count",
+        "has_sufficient_sentiment_data",
+        "overall_vibe",
         "is_sampled",
         "sentiment",
         "frequent_mentions",
@@ -39,6 +45,13 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
     def test_serializes_only_public_stored_insights_without_processing(self):
         generated_at = timezone.now()
         coverage_start = generated_at - timedelta(days=30)
+        self.business.BUSN_REVIEW_COUNT = 12
+        self.business.save(
+            update_fields=[
+                "BUSN_REVIEW_COUNT",
+                "BUSN_UPDATED_AT",
+            ],
+        )
         summary = BusinessReviewSummary.objects.create(
             BUSN_ID=self.business,
             BRSU_REVIEW_COUNT=9,
@@ -58,15 +71,32 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             BRSU_COVERAGE_END=generated_at,
             BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
             BRSU_GENERATED_AT=generated_at,
-            BRSU_SUPPORTING_REVIEW_REFERENCES=[1, 2, 3],
+            BRSU_SUPPORTING_REVIEW_REFERENCES={
+                "narrative_review_ids": [1, 2, 3],
+                "themes": [{
+                    "text": "friendly service",
+                    "review_ids": [1, 2, 3],
+                }],
+            },
             BRSU_KEYWORDS_FINGERPRINT="private",
             BRSU_KEYWORDS_RETRYABLE=True,
         )
         with (
-            patch.object(BusinessReviewSummaryService, "recompute_sentiment") as recompute,
-            patch("apps.reviews.services.review_keyword_service.ReviewKeywordService.refresh") as keywords,
-            patch("apps.reviews.services.review_keyword_service.ReviewKeywordService._generate") as generate,
-            patch("apps.reviews.tasks.recompute_review_summaries.delay") as schedule,
+            patch.object(
+                BusinessReviewSummaryService,
+                "recompute_sentiment",
+            ) as recompute,
+            patch(
+                "apps.reviews.services.review_keyword_service."
+                "ReviewKeywordService.refresh",
+            ) as keywords,
+            patch(
+                "apps.reviews.services.review_keyword_service."
+                "ReviewKeywordService._generate",
+            ) as generate,
+            patch(
+                "apps.reviews.tasks.recompute_review_summaries.delay",
+            ) as schedule,
         ):
             response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
@@ -84,7 +114,14 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         self.assertEqual(insights["eligible_review_count"], 8)
         self.assertEqual(insights["analyzed_review_count"], 8)
         self.assertEqual(insights["classified_review_count"], 6)
+        self.assertTrue(insights["has_sufficient_sentiment_data"])
+        self.assertEqual(insights["overall_vibe"], "mostly_positive")
         self.assertFalse(insights["is_sampled"])
+        self.assertEqual(response.data["data"]["review_count"], 9)
+        self.assertEqual(
+            response.data["data"]["overall_vibe"],
+            "mostly_positive",
+        )
         self.assertEqual(
             insights["frequent_mentions"],
             [{"label": "friendly service", "count": 3}],
@@ -136,6 +173,56 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
                 self.assertFalse(insights["content_available"])
                 self.assertIsNone(insights["narrative"])
                 self.assertEqual(insights["frequent_mentions"], [])
+
+    def test_generated_content_unavailable_while_sentiment_is_sufficient(self):
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_GENERATION_STATE=(
+                BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS
+            ),
+            BRSU_REVIEW_COUNT=5,
+            BRSU_CLASSIFIED_REVIEW_COUNT=5,
+            BRSU_POSITIVE_COUNT=5,
+        )
+
+        insights = self.client.get(self.url).data["data"]["review_insights"]
+
+        self.assertFalse(insights["content_available"])
+        self.assertIsNone(insights["narrative"])
+        self.assertEqual(insights["frequent_mentions"], [])
+        self.assertTrue(insights["has_sufficient_sentiment_data"])
+        self.assertEqual(insights["overall_vibe"], "mostly_positive")
+
+    def test_generated_content_ready_while_sentiment_is_insufficient(self):
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+            BRSU_NARRATIVE="Visitors consistently praise the service.",
+            BRSU_KEYWORD_TAGS=[{
+                "text": "friendly service",
+                "count": 2,
+                "review_ids": [1, 2],
+            }],
+            BRSU_REVIEW_COUNT=5,
+            BRSU_ELIGIBLE_REVIEW_COUNT=5,
+            BRSU_ANALYZED_REVIEW_COUNT=5,
+            BRSU_CLASSIFIED_REVIEW_COUNT=4,
+            BRSU_POSITIVE_COUNT=4,
+        )
+
+        insights = self.client.get(self.url).data["data"]["review_insights"]
+
+        self.assertTrue(insights["content_available"])
+        self.assertEqual(
+            insights["narrative"],
+            "Visitors consistently praise the service.",
+        )
+        self.assertEqual(
+            insights["frequent_mentions"],
+            [{"label": "friendly service", "count": 2}],
+        )
+        self.assertFalse(insights["has_sufficient_sentiment_data"])
+        self.assertIsNone(insights["overall_vibe"])
 
     def test_outdated_state_distinguishes_retained_and_invalidated_content(self):
         summary = BusinessReviewSummary.objects.create(
@@ -200,9 +287,43 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
                 self.assertEqual(response.status_code, 200)
                 insights = response.data["data"]["review_insights"]
                 self.assertEqual(insights["review_count"], review_count)
+                self.assertFalse(insights["has_sufficient_sentiment_data"])
+                self.assertIsNone(insights["overall_vibe"])
                 self.assertEqual(insights["frequent_mentions"], [])
                 for value in insights["sentiment"].values():
                     self.assertEqual(value, {"count": 0, "percentage": 0.0})
+
+    def test_sentiment_sufficiency_uses_existing_classified_threshold(self):
+        summary = BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_REVIEW_COUNT=5,
+            BRSU_CLASSIFIED_REVIEW_COUNT=4,
+            BRSU_POSITIVE_COUNT=4,
+        )
+
+        below = self.client.get(self.url)
+        self.assertFalse(
+            below.data["data"]["review_insights"][
+                "has_sufficient_sentiment_data"
+            ],
+        )
+
+        summary.BRSU_CLASSIFIED_REVIEW_COUNT = 5
+        summary.BRSU_POSITIVE_COUNT = 5
+        summary.save(
+            update_fields=[
+                "BRSU_CLASSIFIED_REVIEW_COUNT",
+                "BRSU_POSITIVE_COUNT",
+                "BRSU_UPDATED_AT",
+            ],
+        )
+
+        at_threshold = self.client.get(self.url)
+        self.assertTrue(
+            at_threshold.data["data"]["review_insights"][
+                "has_sufficient_sentiment_data"
+            ],
+        )
 
     def test_null_and_unknown_labels_do_not_change_classified_denominator(self):
         for index, label in enumerate(["positive", "neutral", None, "unknown"]):
@@ -212,14 +333,26 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         self.assertEqual(response.status_code, 200)
         insights = response.data["data"]["review_insights"]
         self.assertEqual(insights["review_count"], 4)
-        self.assertEqual(insights["sentiment"]["positive"], {"count": 1, "percentage": 50.0})
-        self.assertEqual(insights["sentiment"]["neutral"], {"count": 1, "percentage": 50.0})
+        self.assertEqual(
+            insights["sentiment"]["positive"],
+            {"count": 1, "percentage": 50.0},
+        )
+        self.assertEqual(
+            insights["sentiment"]["neutral"],
+            {"count": 1, "percentage": 50.0},
+        )
 
     def test_summary_relation_is_eager_loaded_including_missing_summary(self):
         for exists in [False, True]:
             with self.subTest(exists=exists):
                 if exists:
                     BusinessReviewSummary.objects.create(BUSN_ID=self.business)
-                business = ExploreBusinessService.get_business_detail(self.business.pk, self.business.USER_ID)
+                business = ExploreBusinessService.get_business_detail(
+                    self.business.pk,
+                    self.business.USER_ID,
+                )
                 with self.assertNumQueries(0):
-                    self.assertEqual(getattr(business, "review_summary", None) is not None, exists)
+                    self.assertEqual(
+                        getattr(business, "review_summary", None) is not None,
+                        exists,
+                    )

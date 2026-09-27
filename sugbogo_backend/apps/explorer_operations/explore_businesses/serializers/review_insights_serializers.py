@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
 from apps.reviews.models import BusinessReviewSummary
 
 
@@ -46,6 +47,10 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         source="BRSU_CLASSIFIED_REVIEW_COUNT",
         read_only=True,
     )
+    has_sufficient_sentiment_data = serializers.SerializerMethodField()
+    overall_vibe = serializers.CharField(
+        read_only=True,
+    )
     is_sampled = serializers.SerializerMethodField()
     sentiment = serializers.SerializerMethodField()
     frequent_mentions = serializers.SerializerMethodField()
@@ -85,7 +90,9 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         ):
             if self._has_publishable_content(instance):
                 return "Review insights are outdated and awaiting refresh."
-            return "Review insights are unavailable because supporting reviews changed."
+            return (
+                "Review insights are unavailable because supporting reviews changed."
+            )
         return self.STATE_MESSAGES.get(instance.BRSU_GENERATION_STATE)
 
     def get_content_available(self, instance):
@@ -122,6 +129,13 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             for label, percentage in percentages.items()
         }
 
+    def get_has_sufficient_sentiment_data(self, instance):
+        """Reports whether the stored classified count meets the display threshold."""
+        return (
+            instance.BRSU_CLASSIFIED_REVIEW_COUNT
+            >= MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+        )
+
     class Meta:
         model = BusinessReviewSummary
         fields = (
@@ -133,6 +147,8 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             "eligible_review_count",
             "analyzed_review_count",
             "classified_review_count",
+            "has_sufficient_sentiment_data",
+            "overall_vibe",
             "is_sampled",
             "sentiment",
             "frequent_mentions",
