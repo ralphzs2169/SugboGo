@@ -1,0 +1,141 @@
+{
+  "generated_at": "2026-09-26T15:55:49.747252+00:00",
+  "policy": {
+    "english_confidence_threshold": 0.8,
+    "tagalog_model": "dost-asti/RoBERTa-tl-sentiment-analysis",
+    "tagalog_model_revision": "3355ad5a830178573c59684adf149d6544f3d86f",
+    "gemini_model": "gemini-3.5-flash-lite"
+  },
+  "sentiment": {
+    "case_count": 32,
+    "completed_count": 32,
+    "error_count": 0,
+    "accuracy": 0.7812,
+    "macro_f1": 0.7727,
+    "routing_accuracy": 0.9062,
+    "by_language": {
+      "cebuano": {
+        "total": 10,
+        "correct": 6,
+        "accuracy": 0.6
+      },
+      "english": {
+        "total": 8,
+        "correct": 8,
+        "accuracy": 1.0
+      },
+      "filipino": {
+        "total": 8,
+        "correct": 7,
+        "accuracy": 0.875
+      },
+      "mixed": {
+        "total": 6,
+        "correct": 4,
+        "accuracy": 0.6667
+      }
+    },
+    "confusion_matrix": {
+      "positive": {
+        "positive": 11,
+        "neutral": 0,
+        "negative": 1
+      },
+      "neutral": {
+        "positive": 3,
+        "neutral": 5,
+        "negative": 0
+      },
+      "negative": {
+        "positive": 2,
+        "neutral": 1,
+        "negative": 9
+      }
+    },
+    "failures": [
+      {
+        "id": "fil-neutral-02",
+        "language": "filipino",
+        "expected": "neutral",
+        "predicted": "positive",
+        "score": 0.9724,
+        "expected_route": "local",
+        "actual_route": "local"
+      },
+      {
+        "id": "ceb-positive-01",
+        "language": "cebuano",
+        "expected": "positive",
+        "predicted": "negative",
+        "score": -0.8809,
+        "expected_route": "local",
+        "actual_route": "local"
+      },
+      {
+        "id": "ceb-negative-01",
+        "language": "cebuano",
+        "expected": "negative",
+        "predicted": "positive",
+        "score": 0.786,
+        "expected_route": "local",
+        "actual_route": "local"
+      },
+      {
+        "id": "ceb-negative-02",
+        "language": "cebuano",
+        "expected": "negative",
+        "predicted": "positive",
+        "score": 0.5321,
+        "expected_route": "local",
+        "actual_route": "local"
+      },
+      {
+        "id": "ceb-neutral-02",
+        "language": "cebuano",
+        "expected": "neutral",
+        "predicted": "positive",
+        "score": 0.9983,
+        "expected_route": "local",
+        "actual_route": "local"
+      },
+      {
+        "id": "mixed-negative-01",
+        "language": "mixed",
+        "expected": "negative",
+        "predicted": "neutral",
+        "score": 0.0,
+        "expected_route": "local",
+        "actual_route": "vader"
+      },
+      {
+        "id": "mixed-negative-02",
+        "language": "mixed",
+        "expected": "negative",
+        "predicted": "negative",
+        "score": -0.2732,
+        "expected_route": "local",
+        "actual_route": "vader"
+      },
+      {
+        "id": "mixed-neutral-01",
+        "language": "mixed",
+        "expected": "neutral",
+        "predicted": "neutral",
+        "score": 0.0,
+        "expected_route": "local",
+        "actual_route": "vader"
+      },
+      {
+        "id": "mixed-neutral-02",
+        "language": "mixed",
+        "expected": "neutral",
+        "predicted": "positive",
+        "score": 0.9999,
+        "expected_route": "local",
+        "actual_route": "local"
+      }
+    ],
+    "errors": [],
+    "dataset_fingerprint": "e2ee5ccbc4f86d1880d874769303831dc184049c32165f0136738eccca2691fb"
+  }
+}
