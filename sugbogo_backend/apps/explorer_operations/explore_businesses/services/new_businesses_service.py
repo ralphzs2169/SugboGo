@@ -54,6 +54,7 @@ class NewBusinessesService:
                 "CTGRY_ID",
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
+                "review_summary",
             )
             .annotate(
                 is_pocketed=Exists(

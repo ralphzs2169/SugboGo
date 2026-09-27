@@ -33,6 +33,58 @@ class ReviewKeywordService:
     MAX_TAGS = 20
     MAX_NARRATIVE_WORDS = 60
     MAX_NARRATIVE_SENTENCES = 2
+    EVIDENCE_SCHEMA_VERSION = 3
+
+    @classmethod
+    @transaction.atomic
+    def remove_review_evidence(
+        cls,
+        business_id: int,
+        review_id: int,
+    ) -> bool:
+        """Invalidates generated insights when a supporting review is deleted."""
+        try:
+            summary = BusinessReviewSummary.objects.select_for_update().get(
+                BUSN_ID_id=business_id,
+            )
+        except BusinessReviewSummary.DoesNotExist:
+            return False
+
+        supporting_ids = cls._reference_ids(
+            summary.BRSU_SUPPORTING_REVIEW_REFERENCES,
+        )
+        tags = summary.BRSU_KEYWORD_TAGS
+        if isinstance(tags, list):
+            for tag in tags:
+                if not isinstance(tag, dict):
+                    continue
+                review_ids = tag.get("review_ids")
+                if isinstance(review_ids, list):
+                    supporting_ids.update(review_ids)
+
+        if review_id not in supporting_ids:
+            return False
+
+        summary.BRSU_NARRATIVE = ""
+        summary.BRSU_KEYWORD_TAGS = []
+        summary.BRSU_SUPPORTING_REVIEW_REFERENCES = {}
+        summary.BRSU_GENERATION_STATE = BusinessReviewSummary.GenerationState.OUTDATED
+        summary.BRSU_GENERATED_AT = None
+        summary.BRSU_KEYWORDS_PROCESSED_AT = None
+        summary.BRSU_KEYWORDS_RETRYABLE = False
+        summary.save(
+            update_fields=[
+                "BRSU_NARRATIVE",
+                "BRSU_KEYWORD_TAGS",
+                "BRSU_SUPPORTING_REVIEW_REFERENCES",
+                "BRSU_GENERATION_STATE",
+                "BRSU_GENERATED_AT",
+                "BRSU_KEYWORDS_PROCESSED_AT",
+                "BRSU_KEYWORDS_RETRYABLE",
+                "BRSU_UPDATED_AT",
+            ],
+        )
+        return True
 
     @staticmethod
     def _coverage(reference_time):
@@ -84,6 +136,8 @@ class ReviewKeywordService:
                 cls.MAX_ANALYZED_REVIEWS,
                 cls.MAX_TAGS,
                 cls.MAX_NARRATIVE_WORDS,
+                cls.EVIDENCE_SCHEMA_VERSION,
+                cls.MAX_NARRATIVE_SENTENCES,
                 reviews,
             ],
             ensure_ascii=False,
@@ -233,8 +287,16 @@ class ReviewKeywordService:
             ):
                 raise InvalidKeywordResponse("Invalid supporting review count.")
             seen.add(text.casefold())
-            stored_tags.append({"text": text, "count": len(ids)})
-            theme_references.append({"text": text, "review_ids": sorted(ids)})
+            sorted_ids = sorted(ids)
+            stored_tags.append({
+                "text": text,
+                "count": len(sorted_ids),
+                "review_ids": sorted_ids,
+            })
+            theme_references.append({
+                "text": text,
+                "review_ids": sorted_ids,
+            })
 
         ordering = sorted(
             range(len(stored_tags)),

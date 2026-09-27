@@ -32,6 +32,8 @@ function createBusiness(): ExploreBusiness {
     id: 42,
     business_name: "Cached Similar Business",
     cover_photo_url: null,
+    review_count: 0,
+    overall_vibe: null,
     is_pocketed: false,
     cluster: {
       id: 1,

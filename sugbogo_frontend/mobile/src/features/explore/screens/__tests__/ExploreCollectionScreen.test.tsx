@@ -148,6 +148,8 @@ const business: ExploreBusiness = {
   id: 42,
   business_name: "Collection Place",
   cover_photo_url: null,
+  review_count: 0,
+  overall_vibe: null,
   is_pocketed: false,
   cluster: { id: 1, name: "Culinary", icon: "utensils" },
   category: { id: 2, name: "Cafe" },

@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import timedelta
 from unittest.mock import patch
@@ -64,7 +65,11 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         )
         self.assertEqual(
             self.summary.BRSU_KEYWORD_TAGS,
-            [{"text": "friendly service", "count": 2}],
+            [{
+                "text": "friendly service",
+                "count": 2,
+                "review_ids": [self.reviews[0].pk, self.reviews[1].pk],
+            }],
         )
         self.assertEqual(self.summary.BRSU_ELIGIBLE_REVIEW_COUNT, 5)
         self.assertEqual(self.summary.BRSU_ANALYZED_REVIEW_COUNT, 5)
@@ -84,10 +89,72 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertIsNotNone(self.summary.BRSU_GENERATED_AT)
         self.assertEqual(len(self.summary.BRSU_KEYWORDS_FINGERPRINT), 64)
 
+    def test_legacy_keyword_fingerprint_regenerates_evidence_once(self):
+        reviews = ReviewKeywordService._snapshot(
+            self.business.pk,
+            self.reference_time,
+        )
+        legacy_payload = json.dumps(
+            [
+                "test-model",
+                ReviewKeywordService.MIN_REVIEW_COUNT,
+                ReviewKeywordService.MAX_TAGS,
+                reviews,
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        legacy_fingerprint = hashlib.sha256(
+            legacy_payload.encode("utf-8"),
+        ).hexdigest()
+        BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(
+            BRSU_KEYWORD_TAGS=[{"text": "friendly service", "count": 2}],
+            BRSU_KEYWORDS_FINGERPRINT=legacy_fingerprint,
+            BRSU_KEYWORDS_ATTEMPTED_AT=timezone.now() - timedelta(days=1),
+        )
+
+        self.assertEqual(self.refresh(), "updated")
+        self.summary.refresh_from_db()
+        self.assertEqual(
+            self.summary.BRSU_KEYWORD_TAGS[0]["review_ids"],
+            [self.reviews[0].pk, self.reviews[1].pk],
+        )
+        self.assertNotEqual(
+            self.summary.BRSU_KEYWORDS_FINGERPRINT,
+            legacy_fingerprint,
+        )
+        self.assertEqual(self.refresh(), "unchanged")
+        self.provider.assert_called_once()
+
     def test_unchanged_snapshot_skips_provider(self):
         self.refresh()
         self.assertEqual(self.refresh(), "unchanged")
         self.provider.assert_called_once()
+
+    def test_changed_snapshot_waits_until_next_day(self):
+        self.refresh()
+        Review.objects.filter(pk=self.reviews[-1].pk).update(
+            REVW_TEXT="Friendly staff and nice food.",
+        )
+
+        self.assertEqual(self.refresh(), "already_attempted")
+        self.allow_next_day()
+        self.assertEqual(self.refresh(), "updated")
+        self.assertEqual(self.provider.call_count, 2)
+
+    def test_added_review_is_sent_in_full_snapshot(self):
+        self.refresh()
+        added = self.create_review(self.business, 10)
+        self.reference_time = timezone.now()
+        self.allow_next_day()
+
+        self.refresh()
+
+        sent = self.provider.call_args.args[0]
+        self.assertEqual(
+            {review_id for review_id, _ in sent},
+            {review.pk for review in self.reviews} | {added.pk},
+        )
 
     def test_below_five_nonblank_reviews_stores_insufficient_state(self):
         self.reviews[-1].delete()
@@ -174,6 +241,12 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
             self.summary.BRSU_GENERATION_STATE,
             BusinessReviewSummary.GenerationState.OUTDATED,
         )
+
+        self.provider.side_effect = None
+        self.provider.return_value = self.response()
+        self.assertEqual(self.refresh(), "updated")
+        self.summary.refresh_from_db()
+        self.assertFalse(self.summary.BRSU_KEYWORDS_RETRYABLE)
 
     def test_safe_previous_result_is_retained_and_marked_outdated_on_failure(self):
         self.refresh()
@@ -262,3 +335,10 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
             cursor.return_value.__enter__.return_value.fetchone.return_value = (False,)
             self.assertEqual(self.refresh(), "busy")
         self.provider.assert_not_called()
+
+    def test_other_business_content_does_not_change_fingerprint(self):
+        self.refresh()
+        other_business = self.create_business(2)
+        self.create_review(other_business)
+
+        self.assertEqual(self.refresh(), "unchanged")

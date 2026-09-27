@@ -1,17 +1,26 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import * as reviewService from "../api/reviewBusiness.service";
 import type {
-  BusinessReview,
+  BusinessReviewFilters,
+  BusinessReviewListResponse,
   BusinessReviewPreview,
+  BusinessReview,
   LocalReviewPhoto,
 } from "../types/review.types";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
   exploreBusinessDetailKey,
+  filteredBusinessReviewsKey,
 } from "./reviewQueryKeys";
 
 /**
@@ -58,7 +67,8 @@ export function useBusinessReviewPreview(businessId: number) {
   return {
     reviews,
     totalCount: query.error ? null : (query.data?.total_count ?? 0),
-    hasOwnReview: reviews.some((review) => review.is_own_review),
+    userReview: query.data?.user_review ?? null,
+    hasOwnReview: Boolean(query.data?.user_review),
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
     error: query.error,
@@ -66,23 +76,89 @@ export function useBusinessReviewPreview(businessId: number) {
   };
 }
 
-/** Retrieves the complete collection for the dedicated reviews screen. */
-export function useBusinessReviews(businessId: number) {
-  const query = useQuery({
-    queryKey: businessReviewsKey(businessId),
-    queryFn: async (): Promise<BusinessReview[]> =>
-      throwOnApiError(await reviewService.getAllBusinessReviews(businessId)),
+/** Loads filtered review pages in the backend's stable order. */
+export function useBusinessReviews(
+  businessId: number,
+  filters?: BusinessReviewFilters,
+) {
+  const query = useInfiniteQuery({
+    queryKey: filters
+      ? filteredBusinessReviewsKey(businessId, filters)
+      : businessReviewsKey(businessId),
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }): Promise<BusinessReviewListResponse> =>
+      throwOnApiError(
+        await reviewService.getAllBusinessReviews(
+          businessId,
+          filters,
+          pageParam,
+        ),
+      ),
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.has_next
+        ? lastPage.pagination.page + 1
+        : undefined,
+    placeholderData: keepPreviousData,
     enabled: Boolean(businessId),
   });
 
   return {
-    reviews: query.data ?? [],
-    totalCount: query.data?.length ?? 0,
+    reviews: query.data?.pages.flatMap((page) => page.items) ?? [],
+    totalCount: query.data?.pages[0]?.pagination.total_items ?? 0,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: query.fetchNextPage,
+    isFetchingNextPage: query.isFetchingNextPage,
+    isFetchNextPageError: query.isFetchNextPageError,
+    isPlaceholderData: query.isPlaceholderData,
 
     isInitialLoading: query.isLoading && !query.isFetched,
     isFetching: query.isFetching,
     isRefetching: query.isRefetching,
 
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+/** Keeps merchant review management's existing complete collection available. */
+export function useMerchantBusinessReviews(businessId: number) {
+  const query = useQuery({
+    queryKey: [...businessReviewsKey(businessId), "merchant-all"],
+    queryFn: async (): Promise<{
+      reviews: BusinessReview[];
+      totalCount: number;
+    }> => {
+      const reviews: BusinessReview[] = [];
+      let page = 1;
+      let hasNext = true;
+      let totalCount = 0;
+
+      while (hasNext) {
+        const result = throwOnApiError(
+          await reviewService.getAllBusinessReviews(
+            businessId,
+            undefined,
+            page,
+            100,
+          ),
+        );
+
+        reviews.push(...result.items);
+        totalCount = result.pagination.total_items;
+        hasNext = result.pagination.has_next;
+        page += 1;
+      }
+
+      return { reviews, totalCount };
+    },
+    enabled: Boolean(businessId),
+  });
+
+  return {
+    reviews: query.data?.reviews ?? [],
+    totalCount: query.data?.totalCount ?? 0,
+    isInitialLoading: query.isLoading && !query.isFetched,
+    isRefetching: query.isRefetching,
     error: query.error,
     refetch: query.refetch,
   };

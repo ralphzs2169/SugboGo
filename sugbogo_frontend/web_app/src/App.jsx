@@ -9,6 +9,7 @@ import AdminPanelLayout from "@/features/admin-panel/pages/AdminPanelLayout";
 import Dashboard from "@/features/admin-panel/pages/Dashboard";
 import Businesses from "@/features/admin-panel/pages/BusinessesPage";
 import Users from "@/features/admin-panel/pages/Users";
+import UserDetailPage from "@/features/admin-panel/pages/UserDetailPage";
 import ExplorerActivities from "@/features/admin-panel/pages/ExplorerActivities";
 import SuspiciousActivities from "@/features/admin-panel/pages/SuspiciousActivities";
 import Analytics from "@/features/admin-panel/pages/Analytics";
@@ -76,6 +77,7 @@ function App() {
             <Route path="cluster-category" element={<ClusterCategoryPage />} />
             <Route path="users" element={<Users />} />
             <Route path="users/all" element={<Users />} />
+            <Route path="users/:userId" element={<UserDetailPage />} />
             <Route
               path="users/roles-permissions"
               element={<RolesPermissions />}

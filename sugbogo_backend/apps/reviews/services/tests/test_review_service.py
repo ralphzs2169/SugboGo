@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
 from django.test import TestCase
 from django.utils import timezone
 from PIL import Image
@@ -17,9 +18,19 @@ from apps.business.models import (
     Location,
     SpecialtyTag,
 )
-from apps.reviews.models import Review, ReviewLike, ReviewPhoto
+from apps.reviews.models import (
+    BusinessReviewSummary,
+    Review,
+    ReviewLike,
+    ReviewPhoto,
+)
+from apps.reviews.services.business_review_summary_service import (
+    BusinessReviewSummaryService,
+)
+from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.users.models import User
 
 
@@ -29,7 +40,7 @@ class ReviewServiceTests(TestCase):
     def setUp(self):
         # Existing service tests stay offline and independent of provisioned models.
         patcher = patch(
-            "apps.reviews.services.review_service.route_sentiment",
+            "apps.reviews.services.review_sentiment_service.route_sentiment",
             return_value=(0.75, "Positive", "vader"),
         )
         self.score_review = patcher.start()
@@ -974,10 +985,18 @@ class ReviewServiceTests(TestCase):
             ),
         )
 
-        ReviewService.delete_review(
-            user=self.user,
-            review_id=review.REVW_ID,
-        )
+        with patch(
+            "apps.reviews.tasks.refresh_business_review_insights.delay",
+        ) as enqueue:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                ReviewService.delete_review(
+                    user=self.user,
+                    review_id=review.REVW_ID,
+                )
+                enqueue.assert_not_called()
+
+        self.assertEqual(len(callbacks), 1)
+        enqueue.assert_called_once_with(self.business.BUSN_ID)
 
         self.assertFalse(
             Review.objects.filter(
@@ -1001,6 +1020,251 @@ class ReviewServiceTests(TestCase):
             self.business.BUSN_REVIEW_COUNT,
             0,
         )
+
+    def test_delete_review_rollback_does_not_queue_insights(self):
+        """Discard insight publication when the surrounding transaction rolls back."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Great food.",
+        )
+
+        with patch(
+            "apps.reviews.tasks.refresh_business_review_insights.delay",
+        ) as enqueue:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                with self.assertRaises(RuntimeError):
+                    with transaction.atomic():
+                        ReviewService.delete_review(
+                            user=self.user,
+                            review_id=review.REVW_ID,
+                        )
+                        raise RuntimeError("rollback")
+
+        self.assertEqual(callbacks, [])
+        enqueue.assert_not_called()
+        self.assertTrue(
+            Review.objects.filter(REVW_ID=review.REVW_ID).exists(),
+        )
+
+    def test_delete_review_recomputes_classified_sentiment_counts(self):
+        """Remove the deleted classification from the persisted summary."""
+        positive = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Great food.",
+            REVW_SENTIMENT_SCORE=0.8,
+            REVW_SENTIMENT_LABEL="positive",
+        )
+        Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Slow service.",
+            REVW_SENTIMENT_SCORE=-0.7,
+            REVW_SENTIMENT_LABEL="negative",
+        )
+        BusinessReviewSummaryService.recompute_sentiment(
+            self.business.BUSN_ID,
+        )
+
+        ReviewService.delete_review(
+            user=self.user,
+            review_id=positive.REVW_ID,
+        )
+
+        summary = BusinessReviewSummary.objects.get(
+            BUSN_ID=self.business,
+        )
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEUTRAL_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
+
+    def test_delete_last_eligible_review_zeros_sentiment_summary(self):
+        """Keep the existing summary row with zero counts after the last review."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Great food.",
+            REVW_SENTIMENT_SCORE=0.8,
+            REVW_SENTIMENT_LABEL="positive",
+        )
+        BusinessReviewSummaryService.recompute_sentiment(
+            self.business.BUSN_ID,
+        )
+
+        ReviewService.delete_review(
+            user=self.user,
+            review_id=review.REVW_ID,
+        )
+
+        summary = BusinessReviewSummary.objects.get(
+            BUSN_ID=self.business,
+        )
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEUTRAL_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 0)
+        self.assertEqual(
+            summary.sentiment_percentages,
+            {
+                "positive": 0.0,
+                "neutral": 0.0,
+                "negative": 0.0,
+            },
+        )
+
+    def test_delete_review_invalidates_generated_bundle_without_generation(self):
+        """Invalidate the complete generated bundle without invoking Gemini."""
+        deleted_review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Friendly service and cozy seating.",
+        )
+        remaining_review = Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Friendly staff and affordable meals.",
+        )
+        summary = BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_NARRATIVE="Visitors mention friendly service and cozy seating.",
+            BRSU_KEYWORD_TAGS=[
+                {
+                    "text": "Friendly service",
+                    "count": 2,
+                    "review_ids": [
+                        deleted_review.REVW_ID,
+                        remaining_review.REVW_ID,
+                    ],
+                },
+                {
+                    "text": "Cozy seating",
+                    "count": 1,
+                    "review_ids": [deleted_review.REVW_ID],
+                },
+                {
+                    "text": "Affordable meals",
+                    "count": 1,
+                    "review_ids": [remaining_review.REVW_ID],
+                },
+            ],
+            BRSU_SUPPORTING_REVIEW_REFERENCES={
+                "narrative_review_ids": [
+                    deleted_review.REVW_ID,
+                    remaining_review.REVW_ID,
+                ],
+                "themes": [{
+                    "text": "Friendly service",
+                    "review_ids": [
+                        deleted_review.REVW_ID,
+                        remaining_review.REVW_ID,
+                    ],
+                }],
+            },
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+            BRSU_GENERATED_AT=timezone.now(),
+            BRSU_KEYWORDS_PROCESSED_AT=timezone.now(),
+        )
+
+        with (
+            patch.object(ReviewKeywordService, "refresh") as refresh,
+            patch.object(ReviewKeywordService, "_generate") as generate,
+        ):
+            ReviewService.delete_review(
+                user=self.user,
+                review_id=deleted_review.REVW_ID,
+            )
+
+        summary.refresh_from_db()
+        self.assertEqual(summary.BRSU_NARRATIVE, "")
+        self.assertEqual(summary.BRSU_KEYWORD_TAGS, [])
+        self.assertEqual(summary.BRSU_SUPPORTING_REVIEW_REFERENCES, {})
+        self.assertEqual(
+            summary.BRSU_GENERATION_STATE,
+            BusinessReviewSummary.GenerationState.OUTDATED,
+        )
+        self.assertIsNone(summary.BRSU_GENERATED_AT)
+        self.assertIsNone(summary.BRSU_KEYWORDS_PROCESSED_AT)
+        refresh.assert_not_called()
+        generate.assert_not_called()
+
+    def test_deletion_regeneration_uses_existing_insufficient_reviews_pipeline(self):
+        """Let the queued pipeline publish insufficient state below five reviews."""
+        additional_users = [
+            User.objects.create_user(
+                email=f"deletion-insights-{index}@example.com",
+                password=None,
+                USER_FNAME="Deletion",
+                USER_LNAME=f"Reviewer {index}",
+                USER_ROLE=User.UserRole.EXPLORER,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+            for index in range(3)
+        ]
+        authors = [
+            self.user,
+            self.second_user,
+            *additional_users,
+        ]
+        reviews = [
+            Review.objects.create(
+                USER_ID=author,
+                BUSN_ID=self.business,
+                REVW_TEXT=f"Eligible review {index}.",
+                REVW_SENTIMENT_SCORE=0.75,
+                REVW_SENTIMENT_LABEL="positive",
+            )
+            for index, author in enumerate(authors)
+        ]
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_NARRATIVE="Explorers consistently mention friendly service.",
+            BRSU_KEYWORD_TAGS=[{
+                "text": "Friendly service",
+                "count": 2,
+                "review_ids": [reviews[0].pk, reviews[1].pk],
+            }],
+            BRSU_SUPPORTING_REVIEW_REFERENCES={
+                "narrative_review_ids": [reviews[0].pk, reviews[1].pk],
+                "themes": [{
+                    "text": "Friendly service",
+                    "review_ids": [reviews[0].pk, reviews[1].pk],
+                }],
+            },
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+            BRSU_GENERATED_AT=timezone.now(),
+            BRSU_KEYWORDS_PROCESSED_AT=timezone.now(),
+        )
+
+        with patch(
+            "apps.reviews.tasks.refresh_business_review_insights.delay",
+        ) as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                ReviewService.delete_review(
+                    user=self.user,
+                    review_id=reviews[0].pk,
+                )
+
+        enqueue.assert_called_once_with(self.business.BUSN_ID)
+
+        from apps.reviews.tasks import refresh_business_review_insights
+
+        with patch.object(ReviewKeywordService, "_generate") as generate:
+            result = refresh_business_review_insights.run(
+                business_id=self.business.BUSN_ID,
+            )
+
+        summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
+        self.assertEqual(result["generation_outcome"], "insufficient_reviews")
+        self.assertEqual(
+            summary.BRSU_GENERATION_STATE,
+            BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS,
+        )
+        self.assertEqual(summary.BRSU_ELIGIBLE_REVIEW_COUNT, 4)
+        generate.assert_not_called()
 
     def test_delete_review_rejects_non_owner(self):
         review = ReviewService.create_review(
@@ -1382,15 +1646,120 @@ class ReviewServiceTests(TestCase):
             self.user, self.business.BUSN_ID, "Wonderful food and excellent service.",
         )
         review.refresh_from_db()
+        self.assertIsNone(review.REVW_SENTIMENT_SCORE)
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+        self.score_review.assert_not_called()
+
+        ReviewSentimentService.process_review(review.pk)
+        review.refresh_from_db()
         self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.75)
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
         self.score_review.return_value = (-0.6, "Negative", "tagalog")
         ReviewService.update_review(self.user, review.REVW_ID, text="Bad")
         review.refresh_from_db()
         self.assertEqual(review.REVW_TEXT, "Bad")
+        self.assertIsNone(review.REVW_SENTIMENT_SCORE)
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+
+        ReviewSentimentService.process_review(review.pk)
+        review.refresh_from_db()
         self.assertEqual(review.REVW_SENTIMENT_SCORE, -0.6)
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
         self.score_review.assert_called_with("Bad")
+
+    def test_creation_queues_sentiment_only_after_commit(self):
+        with patch("apps.reviews.tasks.process_review_sentiment.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                review = ReviewService.create_review(
+                    self.user,
+                    self.business.pk,
+                    "A new review.",
+                )
+                enqueue.assert_not_called()
+                self.score_review.assert_not_called()
+
+        self.assertEqual(len(callbacks), 1)
+        enqueue.assert_called_once_with(review.pk)
+        review.refresh_from_db()
+        self.assertIsNone(review.REVW_SENTIMENT_SCORE)
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+
+    def test_text_edit_clears_sentiment_and_queues_after_commit(self):
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Original text.",
+            REVW_SENTIMENT_SCORE=0.7,
+            REVW_SENTIMENT_LABEL="positive",
+            REVW_IS_OUTLIER_SENTIMENT=True,
+        )
+        with patch("apps.reviews.tasks.process_review_sentiment.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                ReviewService.update_review(
+                    self.user,
+                    review.pk,
+                    text="Edited text.",
+                )
+                enqueue.assert_not_called()
+                self.score_review.assert_not_called()
+
+        self.assertEqual(len(callbacks), 1)
+        enqueue.assert_called_once_with(review.pk)
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Edited text.")
+        self.assertIsNone(review.REVW_SENTIMENT_SCORE)
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+        self.assertFalse(review.REVW_IS_OUTLIER_SENTIMENT)
+
+    def test_unchanged_text_does_not_queue_or_clear_sentiment(self):
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Original text.",
+            REVW_SENTIMENT_SCORE=0.7,
+            REVW_SENTIMENT_LABEL="positive",
+        )
+        with patch("apps.reviews.tasks.process_review_sentiment.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                ReviewService.update_review(
+                    self.user,
+                    review.pk,
+                    text="Original text.",
+                )
+
+        self.assertEqual(callbacks, [])
+        enqueue.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.7)
+        self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
+
+    def test_enqueue_failure_preserves_created_review_and_edited_text(self):
+        with patch(
+            "apps.reviews.tasks.process_review_sentiment.delay",
+            side_effect=ConnectionError("broker unavailable"),
+        ):
+            with self.assertLogs(
+                "apps.reviews.services.review_service",
+                level="ERROR",
+            ) as logs:
+                with self.captureOnCommitCallbacks(execute=True):
+                    review = ReviewService.create_review(
+                        self.user,
+                        self.business.pk,
+                        "Original text.",
+                    )
+                with self.captureOnCommitCallbacks(execute=True):
+                    ReviewService.update_review(
+                        self.user,
+                        review.pk,
+                        text="Edited text.",
+                    )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Edited text.")
+        self.assertIsNone(review.REVW_SENTIMENT_SCORE)
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+        self.assertEqual(len(logs.output), 2)
 
     def test_photo_only_edit_preserves_sentiment_and_flags(self):
         review = Review.objects.create(
@@ -1423,28 +1792,37 @@ class ReviewServiceTests(TestCase):
             ReviewService.update_review(self.user, review.REVW_ID, text=" ")
         self.score_review.assert_not_called()
 
-    def test_inference_failure_aborts_creation_and_text_edit(self):
+    def test_inference_failure_leaves_created_and_edited_reviews_pending(self):
         count_before = Review.objects.count()
         self.business.refresh_from_db()
         business_count_before = self.business.BUSN_REVIEW_COUNT
         self.score_review.side_effect = RuntimeError("Model unavailable")
-        with self.assertRaisesRegex(RuntimeError, "Model unavailable"):
-            ReviewService.create_review(self.user, self.business.BUSN_ID, "Valid review text.")
-        self.assertEqual(Review.objects.count(), count_before)
-        self.business.refresh_from_db()
-        self.assertEqual(self.business.BUSN_REVIEW_COUNT, business_count_before)
-        review = Review.objects.create(
-            USER_ID=self.user, BUSN_ID=self.business, REVW_TEXT="Original text.",
-            REVW_SENTIMENT_SCORE=0.2, REVW_SENTIMENT_LABEL="positive",
+        review = ReviewService.create_review(
+            self.user,
+            self.business.BUSN_ID,
+            "Valid review text.",
         )
         with self.assertRaisesRegex(RuntimeError, "Model unavailable"):
-            ReviewService.update_review(self.user, review.REVW_ID, text="New text.")
+            ReviewSentimentService.process_review(review.pk)
+        self.assertEqual(Review.objects.count(), count_before + 1)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, business_count_before + 1)
         review.refresh_from_db()
-        self.assertEqual(review.REVW_TEXT, "Original text.")
-        self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.2)
-        self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
+        self.assertIsNone(review.REVW_SENTIMENT_SCORE)
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
 
-    def test_failure_after_scored_save_rolls_back_creation_and_edit(self):
+        review.REVW_SENTIMENT_SCORE = 0.2
+        review.REVW_SENTIMENT_LABEL = "positive"
+        review.save(update_fields=["REVW_SENTIMENT_SCORE", "REVW_SENTIMENT_LABEL"])
+        ReviewService.update_review(self.user, review.REVW_ID, text="New text.")
+        with self.assertRaisesRegex(RuntimeError, "Model unavailable"):
+            ReviewSentimentService.process_review(review.pk)
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "New text.")
+        self.assertIsNone(review.REVW_SENTIMENT_SCORE)
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+
+    def test_photo_failure_rolls_back_creation_and_text_edit(self):
         with patch("apps.reviews.services.review_service.CloudinaryService.upload_image",
                    side_effect=RuntimeError("Upload failed")):
             with self.assertRaisesRegex(RuntimeError, "Upload failed"):
@@ -1625,7 +2003,8 @@ class ReviewServiceTests(TestCase):
         review = ReviewService.create_review(
             self.user, self.business.pk, "A very disappointing experience.",
         )
-        self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
+        self.assertFalse(review.REVW_IS_OUTLIER_SENTIMENT)
+        ReviewSentimentService.process_review(review.pk)
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
@@ -1641,10 +2020,12 @@ class ReviewServiceTests(TestCase):
         )
         self.score_review.return_value = (-0.9, "Negative", "vader")
         ReviewService.update_review(self.user, review.pk, text="Disappointing service.")
+        ReviewSentimentService.process_review(review.pk)
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
         self.score_review.return_value = (0.6, "Positive", "vader")
         ReviewService.update_review(self.user, review.pk, text="Much better service.")
+        ReviewSentimentService.process_review(review.pk)
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_OUTLIER_SENTIMENT)
         self.assertTrue(review.REVW_IS_SPAM_FLAGGED)

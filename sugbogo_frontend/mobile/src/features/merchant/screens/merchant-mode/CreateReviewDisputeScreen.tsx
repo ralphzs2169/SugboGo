@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import Toast from "react-native-toast-message";
 
-import { useBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
+import { useMerchantBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import ErrorState from "@/shared/components/ErrorState";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
@@ -78,7 +78,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
     isInitialLoading: isReviewsLoading,
     error: reviewsError,
     refetch: refetchReviews,
-  } = useBusinessReviews(businessId);
+  } = useMerchantBusinessReviews(businessId);
 
   const createDispute = useCreateReviewDispute(businessId);
   const addEvidence = useAddReviewDisputeEvidence();
