@@ -138,9 +138,8 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_review_count(instance):
-        """Returns the eligible review count used by Explorer review insights."""
-        summary = getattr(instance, "review_summary", None)
-        return summary.BRSU_REVIEW_COUNT if summary is not None else 0
+        """Returns the total currently published reviews for the business."""
+        return instance.published_review_count
 
     @staticmethod
     def get_overall_vibe(instance):

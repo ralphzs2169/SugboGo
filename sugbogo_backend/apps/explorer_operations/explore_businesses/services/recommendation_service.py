@@ -31,6 +31,8 @@ from apps.users.models import UserCategoryInterest, UserSpecialtyTagInterest
 from django.db.models import DecimalField, Exists, OuterRef, Prefetch, Value
 from django.db.models.functions import Coalesce
 
+from .published_review_count import published_review_count
+
 logger = logging.getLogger(__name__)
 
 
@@ -186,6 +188,7 @@ class RecommendationService:
             )
             .annotate(
                 is_pocketed=Exists(user_pocket_exists),
+                published_review_count=published_review_count(),
                 recommendation_visibility_gap=Coalesce(
                     "discovery_score__DSC_V_SCORE",
                     Value(Decimal("0.00000")),

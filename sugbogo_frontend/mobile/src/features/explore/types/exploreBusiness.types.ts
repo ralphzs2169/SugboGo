@@ -171,21 +171,29 @@ export type FrequentMention = {
 };
 
 export type OverallReviewVibe =
-  | "mostly_positive"
-  | "mostly_neutral"
-  | "mostly_negative"
-  | "mixed";
+  "mostly_positive" | "mostly_neutral" | "mostly_negative" | "mixed";
 
 export type BusinessReviewInsights = {
+  state: "pending" | "insufficient_reviews" | "ready" | "outdated";
+  state_message: string | null;
+  content_available: boolean;
+  narrative: string | null;
   review_count: number;
+  eligible_review_count: number;
+  analyzed_review_count: number;
+  classified_review_count: number;
   has_sufficient_sentiment_data: boolean;
   overall_vibe: OverallReviewVibe | null;
+  is_sampled: boolean;
   sentiment: {
     positive: SentimentBreakdown;
     neutral: SentimentBreakdown;
     negative: SentimentBreakdown;
   };
   frequent_mentions: FrequentMention[];
+  coverage_start: string | null;
+  coverage_end: string | null;
+  generated_at: string | null;
   updated_at: string | null;
 };
 

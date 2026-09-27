@@ -154,6 +154,42 @@ export default function ReviewFilterBottomSheet({
             </AppText>
           </View>
 
+          {/* Review content filters */}
+          <View className="pt-6">
+            <View className="mt-3 flex-row flex-wrap gap-2">
+              <FilterChip
+                label="With photos"
+                icon="image-outline"
+                selected={draftFilters.hasPhotos}
+                showSelectedCheck
+                onPress={() =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    hasPhotos: !current.hasPhotos,
+                  }))
+                }
+                accessibilityLabel={`With photos${
+                  draftFilters.hasPhotos ? ", selected" : ""
+                }`}
+              />
+
+              <FilterChip
+                label="With reply"
+                selected={draftFilters.merchantReplied}
+                showSelectedCheck
+                onPress={() =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    merchantReplied: !current.merchantReplied,
+                  }))
+                }
+                accessibilityLabel={`With reply${
+                  draftFilters.merchantReplied ? ", selected" : ""
+                }`}
+              />
+            </View>
+          </View>
+
           {/* Sentiment filters */}
           {canFilterBySentiment && (
             <View className="pt-6">
@@ -232,46 +268,6 @@ export default function ReviewFilterBottomSheet({
               </View>
             </View>
           )}
-
-          {/* Review content filters */}
-          <View className="pt-6">
-            <AppText weight="semibold" className="text-base text-text-primary">
-              More filters
-            </AppText>
-
-            <View className="mt-3 flex-row flex-wrap gap-2">
-              <FilterChip
-                label="With photos"
-                icon="image-outline"
-                selected={draftFilters.hasPhotos}
-                showSelectedCheck
-                onPress={() =>
-                  setDraftFilters((current) => ({
-                    ...current,
-                    hasPhotos: !current.hasPhotos,
-                  }))
-                }
-                accessibilityLabel={`With photos${
-                  draftFilters.hasPhotos ? ", selected" : ""
-                }`}
-              />
-
-              <FilterChip
-                label="With reply"
-                selected={draftFilters.merchantReplied}
-                showSelectedCheck
-                onPress={() =>
-                  setDraftFilters((current) => ({
-                    ...current,
-                    merchantReplied: !current.merchantReplied,
-                  }))
-                }
-                accessibilityLabel={`With reply${
-                  draftFilters.merchantReplied ? ", selected" : ""
-                }`}
-              />
-            </View>
-          </View>
 
           {/* Sorting */}
           <View className="pt-6">

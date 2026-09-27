@@ -42,7 +42,8 @@ async function renderBusiness(overrides: Partial<ExploreBusiness>) {
 describe("BusinessCard review vibe", () => {
   it("shows review count and vibe when available", async () => {
     const screen = await renderBusiness({});
-    expect(screen.getByText("12 reviews · Mostly positive")).toBeTruthy();
+    expect(screen.getByText("12 reviews")).toBeTruthy();
+    expect(screen.getByText("Mostly positive")).toBeTruthy();
   });
 
   it("shows only the review count when vibe is unavailable", async () => {

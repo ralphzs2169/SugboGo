@@ -15,6 +15,8 @@ from apps.explorer_operations.explore_businesses.services.taxonomy_similarity im
 )
 from django.db.models import DecimalField, Exists, OuterRef, Prefetch, Value
 from django.db.models.functions import Coalesce
+
+from .published_review_count import published_review_count
 from rest_framework.exceptions import NotFound
 
 
@@ -67,6 +69,7 @@ class SimilarBusinessService:
                 is_pocketed=Exists(
                     user_pocket_exists,
                 ),
+                published_review_count=published_review_count(),
                 similar_discovery_score=Coalesce(
                     "discovery_score__DSC_D_SCORE",
                     Value(

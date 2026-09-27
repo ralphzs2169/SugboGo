@@ -5,10 +5,6 @@ import AppText from "@/shared/components/AppText";
 
 import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
 import type { ReviewSentiment } from "../../../types/review.types";
-import {
-  OVERALL_REVIEW_VIBE_LABELS,
-  OVERALL_REVIEW_VIBE_STYLES,
-} from "../../../utils/reviewVibe.utils";
 
 const MASCOT_FACE_POSITIVE = require("@/shared/assets/mascot/face/mascot-face-positive.webp");
 const MASCOT_FACE_NEUTRAL = require("@/shared/assets/mascot/face/mascot-face-neutral.webp");
@@ -49,11 +45,15 @@ function formatPercentage(value: number) {
   return Number(value.toFixed(1));
 }
 
+function formatReviewCount(count: number) {
+  return `${count} ${count === 1 ? "review" : "reviews"}`;
+}
+
 /**
- * Displays the review sentiment distribution and backend-computed overall vibe.
+ * Displays a compact recent-sentiment breakdown for a business.
  *
- * Supports a read-only summary or interactive sentiment filtering while
- * preserving the sentiment percentages supplied by the backend.
+ * Uses individual sentiment bars for easier comparison and supports optional
+ * sentiment filtering while preserving backend-provided counts and percentages.
  */
 export default function ReviewVibeSection({
   insights,
@@ -65,14 +65,6 @@ export default function ReviewVibeSection({
     return null;
   }
 
-  const overallVibe = insights.overall_vibe;
-
-  if (!overallVibe) {
-    return null;
-  }
-
-  const overallVibeStyle = OVERALL_REVIEW_VIBE_STYLES[overallVibe];
-
   const hasSentiment = SENTIMENTS.some(
     ({ key }) => insights.sentiment[key].percentage > 0,
   );
@@ -83,119 +75,80 @@ export default function ReviewVibeSection({
 
   return (
     <View>
-      {/* Overall vibe context */}
+      {/* Sentiment heading */}
       {showDescription && (
-        <View>
-          <View className="flex-row items-center justify-between gap-3">
-            <AppText weight="bold" className="text-sm text-text-primary">
-              Review Vibe
-            </AppText>
-
-            <View
-              testID="overall-review-vibe"
-              className={`shrink-0 flex-row items-center rounded-full px-2.5 py-1.5 ${overallVibeStyle.containerClassName}`}
-            >
-              <View
-                className={`mr-1.5 h-1.5 w-1.5 rounded-full ${overallVibeStyle.dotClassName}`}
-              />
-
-              <AppText
-                weight="semibold"
-                className={`text-[11px] ${overallVibeStyle.textClassName}`}
-              >
-                {OVERALL_REVIEW_VIBE_LABELS[overallVibe]}
-              </AppText>
-            </View>
-          </View>
-
-          <AppText className="mt-1 text-xs leading-5 text-text-secondary">
-            How explorers felt based on their reviews.
-          </AppText>
-        </View>
+        <AppText weight="semibold" className="mb-3 text-sm text-text-primary">
+          Recent Sentiment
+        </AppText>
       )}
 
-      {/* Sentiment distribution */}
-      <View
-        className={`h-2.5 overflow-hidden rounded-full bg-background ${
-          showDescription ? "mt-4" : ""
-        }`}
-      >
-        <View className="h-full flex-row">
-          {SENTIMENTS.map(({ key, barClassName }) => {
-            const percentage = insights.sentiment[key].percentage;
-
-            if (percentage <= 0) {
-              return null;
-            }
-
-            return (
-              <View
-                key={key}
-                className={`h-full ${barClassName}`}
-                style={{
-                  width: `${percentage}%`,
-                }}
-              />
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Sentiment legend */}
-      <View className="mt-4 flex-row rounded-xl bg-background px-2 py-3">
+      {/* Sentiment distribution rows */}
+      <View className="gap-1.5">
         {SENTIMENTS.map(
-          ({ key, label, mascot, percentageClassName }, index) => {
-            const percentage = formatPercentage(
-              insights.sentiment[key].percentage,
-            );
-
+          ({ key, label, mascot, barClassName, percentageClassName }) => {
+            const sentiment = insights.sentiment[key];
+            const percentage = formatPercentage(sentiment.percentage);
             const selected = selectedSentiment === key;
 
             const content = (
-              <>
-                <Image
-                  source={mascot}
-                  style={{
-                    width: 30,
-                    height: 30,
-                  }}
-                  contentFit="contain"
-                  accessible={false}
-                />
+              <View className="flex-row items-center px-2 py-2">
+                {/* Sentiment identity */}
+                <View className="w-[92px] flex-row items-center">
+                  <Image
+                    source={mascot}
+                    style={{
+                      width: 22,
+                      height: 22,
+                    }}
+                    contentFit="contain"
+                    accessible={false}
+                  />
 
-                <View className="ml-2">
-                  <AppText
-                    weight="semibold"
-                    className={
-                      selected
-                        ? "text-xs text-brand"
-                        : "text-xs text-text-primary"
-                    }
-                  >
-                    {label}
-                  </AppText>
+                  <View className="ml-2">
+                    <AppText
+                      weight="semibold"
+                      className="text-xs text-text-primary"
+                    >
+                      {label}
+                    </AppText>
 
-                  <AppText
-                    weight="semibold"
-                    className={`mt-0.5 text-[11px] ${percentageClassName}`}
-                  >
-                    {percentage}%
-                  </AppText>
+                    <AppText className="text-[9px] text-text-tertiary">
+                      {formatReviewCount(sentiment.count)}
+                    </AppText>
+                  </View>
                 </View>
-              </>
-            );
 
-            const containerClassName = `min-w-0 flex-1 flex-row items-center justify-center px-2 ${
-              index > 0 ? "border-l border-border-primary" : ""
-            }`;
+                {/* Sentiment bar */}
+                <View className="mx-3 h-2 flex-1 overflow-hidden rounded-full bg-gray-200">
+                  {percentage > 0 && (
+                    <View
+                      className={`h-full rounded-full ${barClassName}`}
+                      style={{
+                        width: `${percentage}%`,
+                      }}
+                    />
+                  )}
+                </View>
+
+                {/* Sentiment percentage */}
+                <AppText
+                  weight="bold"
+                  className={`w-11 text-right text-xs ${percentageClassName}`}
+                >
+                  {percentage}%
+                </AppText>
+              </View>
+            );
 
             if (!onSentimentPress) {
               return (
                 <View
                   key={key}
                   accessible
-                  accessibilityLabel={`${label}, ${percentage}%`}
-                  className={containerClassName}
+                  accessibilityLabel={`${label}, ${percentage}%, ${formatReviewCount(
+                    sentiment.count,
+                  )}`}
+                  className="rounded-lg"
                 >
                   {content}
                 </View>
@@ -208,11 +161,11 @@ export default function ReviewVibeSection({
                 onPress={() => onSentimentPress(key)}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
-                accessibilityLabel={`${label}, ${percentage}%${
-                  selected ? ", selected" : ""
-                }`}
-                className={`${containerClassName} cursor-pointer rounded-lg py-1 active:opacity-70 ${
-                  selected ? "bg-brand/10" : ""
+                accessibilityLabel={`${label}, ${percentage}%, ${formatReviewCount(
+                  sentiment.count,
+                )}${selected ? ", selected" : ""}`}
+                className={`cursor-pointer rounded-lg active:opacity-70 ${
+                  selected ? "bg-surface-muted-strong" : ""
                 }`}
               >
                 {content}

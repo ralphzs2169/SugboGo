@@ -4,26 +4,33 @@ import { router, useNavigation } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   FlatList,
   RefreshControl,
   View,
   type ListRenderItemInfo,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { theme } from "@/constants/theme";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-import { theme } from "@/constants/theme";
+import { shadows } from "@/shared/styles/shadows";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
 import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
 import BusinessReviewCard from "../components/business-profile/reviews/BusinessReviewCard";
+import ReviewFilterBottomSheet from "../components/business-profile/reviews/review-collection/ReviewFilterBottomSheet";
 import ReviewFiltersSection from "../components/business-profile/reviews/review-collection/ReviewFiltersSection";
+
 import BusinessReviewsSkeleton from "../components/business-profile/state/BusinessReviewsSkeleton";
+import ReviewCollectionEmptyState from "../components/business-profile/state/ReviewCollectionEmptyState";
 import {
   useBusinessReviewPreview,
   useBusinessReviews,
@@ -34,8 +41,7 @@ import {
   type BusinessReview,
   type BusinessReviewFilters,
 } from "../types/review.types";
-import ReviewCollectionEmptyState from "../components/business-profile/state/ReviewCollectionEmptyState";
-import { shadows } from "@/shared/styles/shadows";
+import ReviewFiltersStickyHeader from "../components/business-profile/reviews/review-collection/ReviewFilterStickyHeader";
 
 type Props = {
   businessId: number;
@@ -45,7 +51,9 @@ type Props = {
 
 /**
  * Displays paginated business reviews with server-owned filtering and sorting.
- * A bounded preview query supplies ownership independently of loaded pages.
+ *
+ * Keeps Review Insights scrollable while promoting the filter and sort controls
+ * into an animated sticky header once their inline position reaches the top.
  */
 export default function ReviewsCollectionScreen({
   businessId,
@@ -59,14 +67,25 @@ export default function ReviewsCollectionScreen({
   const [editingReview, setEditingReview] = useState<BusinessReview | null>(
     null,
   );
+  const [filterControlsOffsetY, setFilterControlsOffsetY] = useState<
+    number | null
+  >(null);
+  const [stickyFiltersVisible, setStickyFiltersVisible] = useState(false);
+
+  const [stickyFilterOpacity] = useState(() => new Animated.Value(0));
+  const [stickyFilterTranslateY] = useState(() => new Animated.Value(-12));
 
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+
   const reviewSheetRef = useRef<BottomSheetModal | null>(null);
+  const filterSheetRef = useRef<BottomSheetModal | null>(null);
   const isEndReachedRef = useRef(false);
+  const wasPastFilterThreshold = useRef(false);
 
   const ownership = useBusinessReviewPreview(businessId);
   const reviewQuery = useBusinessReviews(businessId, filters);
+
   const {
     business,
     isLoading: insightsLoading,
@@ -75,15 +94,19 @@ export default function ReviewsCollectionScreen({
   } = useExploreBusinessProfile(businessId);
 
   const totalCount = ownership.totalCount ?? 0;
+
   const hasContentFilters = Boolean(
     filters.sentiment ||
     filters.topic ||
     filters.hasPhotos ||
     filters.merchantReplied,
   );
+
   const canWriteReview = !isOwnBusiness && !ownership.userReview;
   const showWriteReviewFab = canWriteReview && totalCount > 0;
+
   const isInitialLoading = ownership.isLoading || reviewQuery.isInitialLoading;
+
   const isInitialError = Boolean(
     ownership.error ||
     (reviewQuery.error &&
@@ -92,15 +115,20 @@ export default function ReviewsCollectionScreen({
       filters.ordering === "newest" &&
       reviewQuery.reviews.length === 0),
   );
+
   const isUpdatingResults =
+    reviewQuery.isPlaceholderData &&
     reviewQuery.isFetching &&
     !reviewQuery.isInitialLoading &&
     !reviewQuery.isFetchingNextPage &&
     !isRefreshing;
+
   const hasListError = Boolean(
     reviewQuery.error && !reviewQuery.isFetchNextPageError,
   );
+
   const displayedReviews = hasListError ? [] : reviewQuery.reviews;
+
   const shouldShowEndMessage =
     !reviewQuery.isInitialLoading &&
     !reviewQuery.error &&
@@ -111,6 +139,16 @@ export default function ReviewsCollectionScreen({
   useEffect(() => {
     navigation.setOptions({ title: `Reviews (${totalCount})` });
   }, [navigation, totalCount]);
+
+  useEffect(() => {
+    if (totalCount > 0) {
+      return;
+    }
+
+    wasPastFilterThreshold.current = false;
+    stickyFilterOpacity.setValue(0);
+    stickyFilterTranslateY.setValue(-12);
+  }, [stickyFilterOpacity, stickyFilterTranslateY, totalCount]);
 
   useQueryErrorNotification({
     error: reviewQuery.error,
@@ -134,6 +172,10 @@ export default function ReviewsCollectionScreen({
   const createReview = () => {
     setEditingReview(null);
     presentBottomSheet(reviewSheetRef);
+  };
+
+  const openFilters = () => {
+    presentBottomSheet(filterSheetRef);
   };
 
   const clearFilters = () => {
@@ -175,11 +217,54 @@ export default function ReviewsCollectionScreen({
     });
   };
 
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (filterControlsOffsetY === null || totalCount === 0) {
+      return;
+    }
+
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const isPastFilterThreshold = offsetY >= filterControlsOffsetY;
+
+    if (isPastFilterThreshold === wasPastFilterThreshold.current) {
+      return;
+    }
+
+    wasPastFilterThreshold.current = isPastFilterThreshold;
+    setStickyFiltersVisible(isPastFilterThreshold);
+
+    Animated.parallel([
+      Animated.timing(stickyFilterOpacity, {
+        toValue: isPastFilterThreshold ? 1 : 0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(stickyFilterTranslateY, {
+        toValue: isPastFilterThreshold ? 0 : -12,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const captureFilterControlsOffset = (offsetY: number) => {
+    setFilterControlsOffsetY(offsetY);
+
+    if (!wasPastFilterThreshold.current) {
+      setStickyFiltersVisible(false);
+    }
+  };
+
   const renderReview = ({
     item,
     index,
   }: ListRenderItemInfo<BusinessReview>) => (
-    <View className="px-4">
+    <View
+      testID={`review-result-row-${item.id}`}
+      pointerEvents={isUpdatingResults ? "none" : "auto"}
+      className={`bg-surface px-4 ${
+        isUpdatingResults ? "opacity-60" : "opacity-100"
+      }`}
+    >
       <BusinessReviewCard
         businessId={businessId}
         review={item}
@@ -214,26 +299,39 @@ export default function ReviewsCollectionScreen({
 
   return (
     <View className="flex-1 bg-surface">
-      {/* Paginated reviews and controls */}
+      {/* Sticky review controls */}
+      {totalCount > 0 && (
+        <ReviewFiltersStickyHeader
+          visible={stickyFiltersVisible}
+          opacity={stickyFilterOpacity}
+          translateY={stickyFilterTranslateY}
+          filters={filters}
+          onChange={setFilters}
+          onClear={clearFilters}
+          onOpenFilter={openFilters}
+        />
+      )}
+
+      {/* Paginated reviews and inline controls */}
       <FlatList
         testID="reviews-list"
         data={displayedReviews}
         keyExtractor={(review) => String(review.id)}
         renderItem={renderReview}
         ListHeaderComponent={
-          <View className="gap-3 px-4 pt-5">
-            {/* Insights and review controls */}
-            {totalCount > 0 && (
-              <ReviewFiltersSection
-                insights={business?.review_insights}
-                insightsLoading={insightsLoading}
-                insightsError={Boolean(insightsError)}
-                onRetryInsights={() => void refetchInsights()}
-                filters={filters}
-                onChange={setFilters}
-                onClear={clearFilters}
-              />
-            )}
+          <View className="gap-3 px-4">
+            <ReviewFiltersSection
+              insights={business?.review_insights}
+              insightsLoading={insightsLoading}
+              insightsError={Boolean(insightsError)}
+              onRetryInsights={() => void refetchInsights()}
+              filters={filters}
+              onChange={setFilters}
+              onClear={clearFilters}
+              onOpenFilter={openFilters}
+              onFilterControlsLayout={captureFilterControlsOffset}
+              showReviewControls={totalCount > 0}
+            />
           </View>
         }
         ListEmptyComponent={
@@ -277,6 +375,8 @@ export default function ReviewsCollectionScreen({
             ? 128
             : insets.bottom + (showWriteReviewFab ? 112 : 32),
         }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         onEndReached={loadNextPage}
         onEndReachedThreshold={0.35}
         refreshControl={
@@ -291,6 +391,7 @@ export default function ReviewsCollectionScreen({
       {/* Lightweight filter update feedback */}
       {isUpdatingResults && (
         <View
+          testID="reviews-filter-update-loader"
           pointerEvents="none"
           className="absolute left-0 right-0 top-1/2 z-20 items-center"
         >
@@ -324,8 +425,19 @@ export default function ReviewsCollectionScreen({
           />
         </View>
       )}
-      {/* Owner action and review composer */}
+
+      {/* Owner action */}
       {isOwnBusiness && <BusinessProfileFooter isOwnBusiness />}
+
+      {/* Full review filter controls */}
+      <ReviewFilterBottomSheet
+        sheetRef={filterSheetRef}
+        insights={business?.review_insights}
+        filters={filters}
+        onApply={setFilters}
+      />
+
+      {/* Review composer */}
       <ReviewComposerSheet
         businessId={businessId}
         businessName={business?.business_name ?? businessName ?? "Business"}

@@ -6,6 +6,7 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 
 const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
+const MASCOT_NO_FILTER_RESULT = require("@/shared/assets/mascot/mascot-no-filter-result.webp");
 
 type Props = {
   totalCount: number;
@@ -21,8 +22,8 @@ type Props = {
 /**
  * Displays the appropriate empty or failed state for the full reviews list.
  *
- * Distinguishes a business with no reviews from filtered-empty results and
- * retryable review-list failures.
+ * Distinguishes businesses with no reviews from filtered-empty results and
+ * retryable review-list failures while providing the relevant recovery action.
  */
 export default function ReviewCollectionEmptyState({
   totalCount,
@@ -36,24 +37,27 @@ export default function ReviewCollectionEmptyState({
 }: Props) {
   if (totalCount === 0) {
     return (
-      <View className="mx-4 mt-10 items-center rounded-card bg-surface-secondary p-5">
+      <View className="items-center px-8 py-10" testID="reviews-empty">
         {/* Empty reviews illustration */}
         <Image
           source={MASCOT_EMPTY_REVIEWS}
-          style={{ width: 120, height: 120 }}
+          style={{
+            width: 120,
+            height: 120,
+          }}
           contentFit="contain"
           accessible={false}
         />
 
         {/* Empty reviews message */}
         <AppText
-          weight="semibold"
-          className="mt-2 text-center text-text-primary"
+          weight="bold"
+          className="mt-2 text-center text-md text-text-primary"
         >
           No reviews yet
         </AppText>
 
-        <AppText className="mt-1 text-center text-text-secondary">
+        <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
           {isOwnBusiness
             ? "Reviews from Explorers will show up here."
             : "Be the first to share your experience."}
@@ -65,7 +69,7 @@ export default function ReviewCollectionEmptyState({
             title="Write a review"
             onPress={onCreateReview}
             rounded="full"
-            className="mt-5 min-w-44 py-3"
+            className="mt-5 min-w-44 cursor-pointer py-3"
             fontClassName="text-sm"
           />
         )}
@@ -75,7 +79,7 @@ export default function ReviewCollectionEmptyState({
 
   if (hasListError) {
     return (
-      <View className="mx-4 h-48">
+      <View className="mx-4 h-48" testID="reviews-error">
         {/* Review loading failure */}
         <ErrorState
           size="section"
@@ -88,32 +92,68 @@ export default function ReviewCollectionEmptyState({
     );
   }
 
+  if (hasContentFilters) {
+    return (
+      <View className="items-center px-8 py-10" testID="reviews-filter-empty">
+        {/* Filtered-empty illustration */}
+        <Image
+          source={MASCOT_NO_FILTER_RESULT}
+          style={{
+            width: 120,
+            height: 120,
+          }}
+          contentFit="contain"
+          accessible={false}
+        />
+
+        {/* Filtered-empty message */}
+        <AppText
+          weight="bold"
+          className="mt-2 text-center text-md text-text-primary"
+        >
+          No reviews match these filters
+        </AppText>
+
+        <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
+          Try changing or clearing your filters.
+        </AppText>
+
+        {/* Filter recovery action */}
+        <Button
+          title="Clear filters"
+          onPress={onClearFilters}
+          variant="soft"
+          rounded="full"
+          size="sm"
+          className="mt-4 cursor-pointer"
+        />
+      </View>
+    );
+  }
+
   return (
-    <View className="mx-4 items-center rounded-card bg-surface-secondary px-5 py-6">
-      {/* Empty filtered results */}
-      <AppText weight="semibold" className="text-text-primary">
-        {hasContentFilters
-          ? "No reviews match these filters"
-          : "No reviews to show right now"}
+    <View className="items-center px-8 py-10" testID="reviews-empty-fallback">
+      {/* Fallback empty state */}
+      <Image
+        source={MASCOT_EMPTY_REVIEWS}
+        style={{
+          width: 100,
+          height: 100,
+        }}
+        contentFit="contain"
+        accessible={false}
+      />
+
+      <AppText
+        weight="bold"
+        className="mt-2 text-center text-md text-text-primary"
+      >
+        No reviews to show right now
       </AppText>
 
-      {hasContentFilters && (
-        <>
-          <AppText className="mt-1 text-center text-sm text-text-secondary">
-            Try changing or clearing your filters.
-          </AppText>
-
-          {/* Filter recovery action */}
-          <Button
-            title="Clear filters"
-            onPress={onClearFilters}
-            variant="soft"
-            rounded="full"
-            size="sm"
-            className="mt-4"
-          />
-        </>
-      )}
+      <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
+        Check back again later.
+      </AppText>
     </View>
   );
 }

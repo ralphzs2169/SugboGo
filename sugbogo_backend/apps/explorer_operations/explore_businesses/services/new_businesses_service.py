@@ -9,6 +9,8 @@ from apps.explorer_operations.explore_businesses.services.taxonomy_filter_servic
 )
 from django.db.models import Exists, OuterRef, Prefetch
 
+from .published_review_count import published_review_count
+
 
 class NewBusinessesService:
     """Service class for retrieving newly added businesses for Explorer."""
@@ -60,6 +62,7 @@ class NewBusinessesService:
                 is_pocketed=Exists(
                     user_pocket_exists,
                 ),
+                published_review_count=published_review_count(),
             )
             .prefetch_related(
                 Prefetch(

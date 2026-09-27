@@ -7,7 +7,13 @@ from rest_framework.test import APITestCase
 from apps.explorer_operations.explore_businesses.services.explore_business_service import (
     ExploreBusinessService,
 )
-from apps.reviews.models import BusinessReviewSummary
+from apps.explorer_operations.explore_businesses.services.new_businesses_service import (
+    NewBusinessesService,
+)
+from apps.explorer_operations.explore_businesses.serializers.explore_business_serializer import (
+    ExploreBusinessSerializer,
+)
+from apps.reviews.models import BusinessReviewSummary, Review
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
@@ -81,6 +87,8 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             BRSU_KEYWORDS_FINGERPRINT="private",
             BRSU_KEYWORDS_RETRYABLE=True,
         )
+        for index in range(9):
+            self.create_review(self.business, index)
         with (
             patch.object(
                 BusinessReviewSummaryService,
@@ -144,6 +152,59 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         schedule.assert_not_called()
         summary.refresh_from_db()
         self.assertEqual(summary.BRSU_KEYWORDS_FINGERPRINT, "private")
+
+    def test_root_count_is_all_published_while_insights_count_is_recent(self):
+        reviews = []
+        for index in range(5):
+            reviews.append(self.create_review(self.business, index))
+        reference_time = timezone.now()
+        Review.objects.filter(pk=reviews[0].pk).update(
+            REVW_CREATED_AT=reference_time - timedelta(days=31),
+        )
+        self.create_review(
+            self.business,
+            6,
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        self.create_review(
+            self.business,
+            7,
+            REVW_STATUS=Review.ReviewStatus.FLAGGED,
+        )
+        BusinessReviewSummaryService.recompute_sentiment(
+            self.business.pk,
+            reference_time=reference_time,
+        )
+        summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
+        summary.BRSU_ELIGIBLE_REVIEW_COUNT = 4
+        summary.save(update_fields=["BRSU_ELIGIBLE_REVIEW_COUNT"])
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["review_count"], 5)
+        insights = response.data["data"]["review_insights"]
+        self.assertEqual(insights["review_count"], 4)
+        self.assertEqual(insights["eligible_review_count"], 4)
+        self.assertEqual(insights["classified_review_count"], 4)
+
+        list_business = NewBusinessesService.list_new_businesses(
+            self.business.USER_ID,
+        ).get(pk=self.business.pk)
+        list_data = ExploreBusinessSerializer(list_business).data
+        self.assertEqual(list_data["review_count"], 5)
+
+    def test_list_count_does_not_require_a_review_insights_summary(self):
+        self.create_review(self.business, 0)
+        self.create_review(self.business, 1)
+
+        list_business = NewBusinessesService.list_new_businesses(
+            self.business.USER_ID,
+        ).get(pk=self.business.pk)
+        list_data = ExploreBusinessSerializer(list_business).data
+
+        self.assertEqual(list_data["review_count"], 2)
+        self.assertIsNone(list_data["overall_vibe"])
 
     def test_pending_and_insufficient_states_hide_generated_content(self):
         summary = BusinessReviewSummary.objects.create(

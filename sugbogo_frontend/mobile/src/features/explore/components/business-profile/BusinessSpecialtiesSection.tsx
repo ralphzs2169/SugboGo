@@ -5,9 +5,9 @@ import AppText from "@/shared/components/AppText";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
-import BusinessSpecialtyVouchCard from "./BusinessSpecialtyVouchCard";
 import useBusinessVouch from "../../hooks/useBusinessVouch";
 import type { ExploreBusinessSpecialtyTag } from "../../types/exploreBusiness.types";
+import BusinessSpecialtyVouchCard from "./BusinessSpecialtyVouchCard";
 
 type Props = {
   businessId: number;
@@ -16,11 +16,10 @@ type Props = {
 };
 
 /**
- * Displays the specialties associated with a business and allows explorers
- * to vouch for or remove their vouch from individual specialties.
+ * Displays a compact group of business specialty vouch reactions.
  *
- * Vouch interactions update optimistically while only the specialty currently
- * being submitted is temporarily disabled.
+ * Allows Explorers to add or remove specialty vouches while presenting the
+ * business's three specialties as a lightweight shared interaction group.
  */
 export default function BusinessSpecialtiesSection({
   businessId,
@@ -69,35 +68,34 @@ export default function BusinessSpecialtiesSection({
   };
 
   return (
-    <View className="bg-surface px-4 py-6">
+    <View className="bg-surface px-4 py-4">
       {/* Section heading */}
-      <AppText
-        weight="bold"
-        className="text-base tracking-wide text-text-primary"
-      >
+      <AppText weight="bold" className="text-base text-text-primary">
         Specialties
       </AppText>
 
-      <AppText className="mt-1 text-sm text-text-secondary">
+      <AppText className="mt-0.5 text-xs text-text-secondary">
         {isOwnBusiness
           ? "What Explorers vouch for at your business"
-          : "Vouch for what this place gets right"}
+          : "What does this place get right?"}
       </AppText>
 
-      {/* Specialty vouch cards */}
-      <View className="mt-3 flex-row flex-wrap gap-2">
-        {specialtyTags.map((tag) => (
-          <BusinessSpecialtyVouchCard
-            key={tag.id}
-            name={tag.name}
-            color={tag.color}
-            icon={tag.icon}
-            vouchCount={tag.vouch_count}
-            isVouched={tag.is_vouched}
-            disabled={isOwnBusiness}
-            onPress={() => handleVouch(tag)}
-          />
-        ))}
+      {/* Specialty reactions */}
+      <View className="mt-3 rounded-xl bg-background px-1 py-2">
+        <View className="flex-row items-start">
+          {specialtyTags.map((tag) => (
+            <BusinessSpecialtyVouchCard
+              key={tag.id}
+              name={tag.name}
+              color={tag.color}
+              icon={tag.icon}
+              vouchCount={tag.vouch_count}
+              isVouched={tag.is_vouched}
+              disabled={isOwnBusiness}
+              onPress={() => handleVouch(tag)}
+            />
+          ))}
+        </View>
       </View>
     </View>
   );

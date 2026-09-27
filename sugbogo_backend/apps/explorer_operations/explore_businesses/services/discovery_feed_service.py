@@ -23,6 +23,8 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 
+from .published_review_count import published_review_count
+
 
 class DiscoveryFeedService:
     """Builds the ranked business feed shown to Explorer users."""
@@ -90,6 +92,7 @@ class DiscoveryFeedService:
                 is_pocketed=Exists(
                     user_pocket_exists,
                 ),
+                published_review_count=published_review_count(),
                 discovery_rank_score=Coalesce(
                     "discovery_score__DSC_D_SCORE",
                     Value(
