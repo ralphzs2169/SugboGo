@@ -76,10 +76,16 @@ class ReviewSentimentService:
         return "updated"
 
     @staticmethod
-    def reconcile_business(business_id: int) -> dict:
+    def reconcile_business(
+        business_id: int,
+        reference_time=None,
+    ) -> dict:
         """Attempts each eligible incomplete review before summary aggregation."""
         review_ids = (
-            BusinessReviewSummaryService.eligible_reviews(business_id)
+            BusinessReviewSummaryService.eligible_reviews(
+                business_id,
+                reference_time=reference_time,
+            )
             .filter(
                 Q(REVW_SENTIMENT_SCORE__isnull=True)
                 | Q(REVW_SENTIMENT_LABEL__isnull=True),

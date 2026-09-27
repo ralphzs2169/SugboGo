@@ -175,7 +175,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
             result = BusinessReviewInsightsService.refresh(self.business.pk)
 
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
-        self.assertEqual(result["keyword_outcome"], "unchanged")
+        self.assertEqual(result["generation_outcome"], "unchanged")
         self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         review.refresh_from_db()

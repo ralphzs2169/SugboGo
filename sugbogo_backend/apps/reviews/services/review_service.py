@@ -67,6 +67,30 @@ class ReviewService:
         transaction.on_commit(publish, robust=True)
 
     @staticmethod
+    def _queue_review_insights_after_commit(business_id: int) -> None:
+        """Publishes review-insight regeneration after a successful commit."""
+
+        def publish():
+            try:
+                from apps.reviews.tasks import refresh_business_review_insights
+
+                refresh_business_review_insights.delay(business_id)
+                logger.info(
+                    "Business review insights regeneration queued.",
+                    extra={"business_id": business_id},
+                )
+            except Exception as exc:
+                logger.error(
+                    "Business review insights regeneration enqueue failed.",
+                    extra={
+                        "business_id": business_id,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+
+        transaction.on_commit(publish, robust=True)
+
+    @staticmethod
     def _is_outlier_sentiment(review: Review) -> bool:
         """Compare a scored review with the business's other published scores."""
         if review.REVW_SENTIMENT_SCORE is None:
@@ -730,6 +754,9 @@ class ReviewService:
         ReviewKeywordService.remove_review_evidence(
             business_id=business_id,
             review_id=deleted_review_id,
+        )
+        ReviewService._queue_review_insights_after_commit(
+            business_id,
         )
 
     @staticmethod

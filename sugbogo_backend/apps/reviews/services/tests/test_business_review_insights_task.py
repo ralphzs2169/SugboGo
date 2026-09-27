@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from celery.exceptions import Retry
 from django.test import SimpleTestCase
@@ -16,12 +16,16 @@ class BusinessReviewInsightsTaskTests(SimpleTestCase):
         refresh.return_value = {
             "business_id": 12,
             "sentiment_recomputed": True,
-            "keyword_outcome": "updated",
+            "generation_outcome": "updated",
         }
 
         result = refresh_business_review_insights.run(business_id=12)
 
-        refresh.assert_called_once_with(12, retry_keywords_only=False)
+        refresh.assert_called_once_with(
+            12,
+            retry_keywords_only=False,
+            reference_time=ANY,
+        )
         self.assertEqual(result, refresh.return_value)
 
     @patch.object(
@@ -46,6 +50,7 @@ class BusinessReviewInsightsTaskTests(SimpleTestCase):
                     self.assertEqual(retry.call_args.kwargs["kwargs"], {
                         "business_id": 12,
                         "retry_keywords_only": True,
+                        "reference_time_iso": ANY,
                     })
                 finally:
                     refresh_business_review_insights.pop_request()

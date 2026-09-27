@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet
 from django.utils import timezone
@@ -10,14 +12,22 @@ from apps.reviews.models import BusinessReviewSummary, Review
 class BusinessReviewSummaryService:
     """Reads stored summaries and recomputes sentiment from eligible reviews."""
 
+    WINDOW_DAYS = 30
+
     @staticmethod
-    def eligible_reviews(business_id: int) -> QuerySet:
-        """Returns published, non-spam, non-device-abuse reviews for a business."""
+    def eligible_reviews(business_id: int, reference_time=None) -> QuerySet:
+        """Returns eligible reviews in the rolling generation window."""
+        reference_time = reference_time or timezone.now()
+        coverage_start = reference_time - timedelta(
+            days=BusinessReviewSummaryService.WINDOW_DAYS,
+        )
         return Review.objects.filter(
             BUSN_ID_id=business_id,
             REVW_STATUS=Review.ReviewStatus.PUBLISHED,
             REVW_IS_SPAM_FLAGGED=False,
             REVW_IS_DEVICE_ABUSE_FLAGGED=False,
+            REVW_CREATED_AT__gte=coverage_start,
+            REVW_CREATED_AT__lte=reference_time,
         )
 
     @staticmethod
@@ -34,7 +44,10 @@ class BusinessReviewSummaryService:
 
     @staticmethod
     @transaction.atomic
-    def recompute_sentiment(business_id: int) -> BusinessReviewSummary:
+    def recompute_sentiment(
+        business_id: int,
+        reference_time=None,
+    ) -> BusinessReviewSummary:
         """Atomically replaces sentiment counts while preserving keyword state."""
         try:
             business = Business.objects.get(
@@ -53,6 +66,7 @@ class BusinessReviewSummaryService:
         )
         counts = BusinessReviewSummaryService.eligible_reviews(
             business_id,
+            reference_time=reference_time,
         ).aggregate(
             total=Count("REVW_ID"),
             positive=Count(

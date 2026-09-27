@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
 from django.test import TestCase
 from django.utils import timezone
 from PIL import Image
@@ -984,10 +985,18 @@ class ReviewServiceTests(TestCase):
             ),
         )
 
-        ReviewService.delete_review(
-            user=self.user,
-            review_id=review.REVW_ID,
-        )
+        with patch(
+            "apps.reviews.tasks.refresh_business_review_insights.delay",
+        ) as enqueue:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                ReviewService.delete_review(
+                    user=self.user,
+                    review_id=review.REVW_ID,
+                )
+                enqueue.assert_not_called()
+
+        self.assertEqual(len(callbacks), 1)
+        enqueue.assert_called_once_with(self.business.BUSN_ID)
 
         self.assertFalse(
             Review.objects.filter(
@@ -1010,6 +1019,32 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(
             self.business.BUSN_REVIEW_COUNT,
             0,
+        )
+
+    def test_delete_review_rollback_does_not_queue_insights(self):
+        """Discard insight publication when the surrounding transaction rolls back."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Great food.",
+        )
+
+        with patch(
+            "apps.reviews.tasks.refresh_business_review_insights.delay",
+        ) as enqueue:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                with self.assertRaises(RuntimeError):
+                    with transaction.atomic():
+                        ReviewService.delete_review(
+                            user=self.user,
+                            review_id=review.REVW_ID,
+                        )
+                        raise RuntimeError("rollback")
+
+        self.assertEqual(callbacks, [])
+        enqueue.assert_not_called()
+        self.assertTrue(
+            Review.objects.filter(REVW_ID=review.REVW_ID).exists(),
         )
 
     def test_delete_review_recomputes_classified_sentiment_counts(self):
@@ -1081,8 +1116,8 @@ class ReviewServiceTests(TestCase):
             },
         )
 
-    def test_delete_review_cleans_stored_keyword_evidence_without_generation(self):
-        """Keep stored keyword evidence consistent without invoking Gemini."""
+    def test_delete_review_invalidates_generated_bundle_without_generation(self):
+        """Invalidate the complete generated bundle without invoking Gemini."""
         deleted_review = Review.objects.create(
             USER_ID=self.user,
             BUSN_ID=self.business,
@@ -1095,6 +1130,7 @@ class ReviewServiceTests(TestCase):
         )
         summary = BusinessReviewSummary.objects.create(
             BUSN_ID=self.business,
+            BRSU_NARRATIVE="Visitors mention friendly service and cozy seating.",
             BRSU_KEYWORD_TAGS=[
                 {
                     "text": "Friendly service",
@@ -1115,6 +1151,22 @@ class ReviewServiceTests(TestCase):
                     "review_ids": [remaining_review.REVW_ID],
                 },
             ],
+            BRSU_SUPPORTING_REVIEW_REFERENCES={
+                "narrative_review_ids": [
+                    deleted_review.REVW_ID,
+                    remaining_review.REVW_ID,
+                ],
+                "themes": [{
+                    "text": "Friendly service",
+                    "review_ids": [
+                        deleted_review.REVW_ID,
+                        remaining_review.REVW_ID,
+                    ],
+                }],
+            },
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+            BRSU_GENERATED_AT=timezone.now(),
+            BRSU_KEYWORDS_PROCESSED_AT=timezone.now(),
         )
 
         with (
@@ -1127,22 +1179,91 @@ class ReviewServiceTests(TestCase):
             )
 
         summary.refresh_from_db()
+        self.assertEqual(summary.BRSU_NARRATIVE, "")
+        self.assertEqual(summary.BRSU_KEYWORD_TAGS, [])
+        self.assertEqual(summary.BRSU_SUPPORTING_REVIEW_REFERENCES, {})
         self.assertEqual(
-            summary.BRSU_KEYWORD_TAGS,
-            [
-                {
-                    "text": "Friendly service",
-                    "count": 1,
-                    "review_ids": [remaining_review.REVW_ID],
-                },
-                {
-                    "text": "Affordable meals",
-                    "count": 1,
-                    "review_ids": [remaining_review.REVW_ID],
-                },
-            ],
+            summary.BRSU_GENERATION_STATE,
+            BusinessReviewSummary.GenerationState.OUTDATED,
         )
+        self.assertIsNone(summary.BRSU_GENERATED_AT)
+        self.assertIsNone(summary.BRSU_KEYWORDS_PROCESSED_AT)
         refresh.assert_not_called()
+        generate.assert_not_called()
+
+    def test_deletion_regeneration_uses_existing_insufficient_reviews_pipeline(self):
+        """Let the queued pipeline publish insufficient state below five reviews."""
+        additional_users = [
+            User.objects.create_user(
+                email=f"deletion-insights-{index}@example.com",
+                password=None,
+                USER_FNAME="Deletion",
+                USER_LNAME=f"Reviewer {index}",
+                USER_ROLE=User.UserRole.EXPLORER,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+            for index in range(3)
+        ]
+        authors = [
+            self.user,
+            self.second_user,
+            *additional_users,
+        ]
+        reviews = [
+            Review.objects.create(
+                USER_ID=author,
+                BUSN_ID=self.business,
+                REVW_TEXT=f"Eligible review {index}.",
+                REVW_SENTIMENT_SCORE=0.75,
+                REVW_SENTIMENT_LABEL="positive",
+            )
+            for index, author in enumerate(authors)
+        ]
+        BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_NARRATIVE="Explorers consistently mention friendly service.",
+            BRSU_KEYWORD_TAGS=[{
+                "text": "Friendly service",
+                "count": 2,
+                "review_ids": [reviews[0].pk, reviews[1].pk],
+            }],
+            BRSU_SUPPORTING_REVIEW_REFERENCES={
+                "narrative_review_ids": [reviews[0].pk, reviews[1].pk],
+                "themes": [{
+                    "text": "Friendly service",
+                    "review_ids": [reviews[0].pk, reviews[1].pk],
+                }],
+            },
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+            BRSU_GENERATED_AT=timezone.now(),
+            BRSU_KEYWORDS_PROCESSED_AT=timezone.now(),
+        )
+
+        with patch(
+            "apps.reviews.tasks.refresh_business_review_insights.delay",
+        ) as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                ReviewService.delete_review(
+                    user=self.user,
+                    review_id=reviews[0].pk,
+                )
+
+        enqueue.assert_called_once_with(self.business.BUSN_ID)
+
+        from apps.reviews.tasks import refresh_business_review_insights
+
+        with patch.object(ReviewKeywordService, "_generate") as generate:
+            result = refresh_business_review_insights.run(
+                business_id=self.business.BUSN_ID,
+            )
+
+        summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
+        self.assertEqual(result["generation_outcome"], "insufficient_reviews")
+        self.assertEqual(
+            summary.BRSU_GENERATION_STATE,
+            BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS,
+        )
+        self.assertEqual(summary.BRSU_ELIGIBLE_REVIEW_COUNT, 4)
         generate.assert_not_called()
 
     def test_delete_review_rejects_non_owner(self):
