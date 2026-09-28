@@ -294,7 +294,7 @@ export default function ExploreCollectionScreen() {
     collection.businesses.length >= 5;
 
   return (
-    <View className="flex-1 bg-surface">
+    <View className="flex-1 bg-background">
       {/* Collection navigation and controls */}
       <ExploreCollectionTopBar
         title={EXPLORE_COLLECTION_TITLES[collectionType]}

@@ -158,7 +158,7 @@ export default function ExploreScreen() {
         onScroll={handleVerticalScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="pt-4 pb-8"
+        contentContainerClassName=" pb-8"
         contentContainerStyle={{
           paddingBottom: bottomSpacing,
         }}

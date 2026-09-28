@@ -14,22 +14,24 @@ import BusinessPocketButton from "./BusinessPocketButton";
 type Props = {
   business: ExploreBusiness;
   isOwnBusiness: boolean;
+  onShare: () => void;
 };
 
 /**
  * Displays the business cover photo and primary identity information.
  *
  * Anchors the business identity over the cover image with a readability
- * gradient while exposing navigation and Pocket actions above the hero.
+ * gradient while exposing navigation, Share, and Pocket actions.
  */
 export default function ExploreBusinessHero({
   business,
   isOwnBusiness,
+  onShare,
 }: Props) {
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
   return (
-    <View className="relative h-80 w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
+    <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
       {/* Cover photo */}
       {business.cover_photo_url ? (
         <Image
@@ -71,17 +73,25 @@ export default function ExploreBusinessHero({
         pointerEvents="none"
       />
 
-      {/* Navigation and Pocket controls */}
+      {/* Navigation and business actions */}
       <View className="absolute left-4 right-4 top-4 flex-row items-center justify-between">
+        {/* Back */}
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Go back"
-          className="h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
+          className="relative h-10 w-10 items-center justify-center rounded-full active:opacity-80"
           android_ripple={{
             color: "rgba(0,0,0,0.08)",
+            borderless: true,
           }}
         >
+          {/* White button surface */}
+          <View
+            pointerEvents="none"
+            className="absolute h-10 w-10 rounded-full bg-white/95"
+          />
+
           <MaterialCommunityIcons
             name="chevron-left"
             size={26}
@@ -89,10 +99,38 @@ export default function ExploreBusinessHero({
           />
         </Pressable>
 
-        <BusinessPocketButton
-          businessId={business.id}
-          isPocketed={business.is_pocketed}
-        />
+        {/* Business actions */}
+        <View className="flex-row items-center gap-2">
+          {/* Share */}
+          <Pressable
+            onPress={onShare}
+            accessibilityRole="button"
+            accessibilityLabel={`Share ${business.business_name}`}
+            className="relative h-10 w-10 items-center justify-center rounded-full active:opacity-80"
+            android_ripple={{
+              color: "rgba(0,0,0,0.08)",
+              borderless: true,
+            }}
+          >
+            {/* White button surface */}
+            <View
+              pointerEvents="none"
+              className="absolute h-10 w-10 rounded-full bg-white/95"
+            />
+
+            <MaterialCommunityIcons
+              name="share-variant"
+              size={20}
+              color={theme.extends.colors.text.primary}
+            />
+          </Pressable>
+
+          {/* Pocket */}
+          <BusinessPocketButton
+            businessId={business.id}
+            isPocketed={business.is_pocketed}
+          />
+        </View>
       </View>
 
       {/* Business identity */}
@@ -114,6 +152,7 @@ export default function ExploreBusinessHero({
           </View>
         )}
 
+        {/* Business name */}
         <AppText
           weight="bold"
           className="text-2xl text-white"
@@ -122,6 +161,7 @@ export default function ExploreBusinessHero({
           {business.business_name}
         </AppText>
 
+        {/* Classification */}
         <View className="mt-1.5 flex-row items-center">
           <MaterialCommunityIcons
             name={clusterIconName}

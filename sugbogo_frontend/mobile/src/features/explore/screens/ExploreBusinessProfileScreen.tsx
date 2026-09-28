@@ -161,6 +161,7 @@ function ExploreBusinessProfileScreenContent({
               <ExploreBusinessHero
                 business={business}
                 isOwnBusiness={business.is_own_business}
+                onShare={() => {}}
               />
 
               <View className="relative z-10 -mt-8 px-4">

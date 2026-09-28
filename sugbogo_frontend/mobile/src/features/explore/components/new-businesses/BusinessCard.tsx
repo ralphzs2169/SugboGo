@@ -7,6 +7,7 @@ import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
+import { shadows } from "@/shared/styles/shadows";
 import { formatDistance } from "@/shared/utils/distance.utils";
 
 import type {
@@ -14,8 +15,10 @@ import type {
   RecommendationReason,
 } from "../../types/exploreBusiness.types";
 import { arrangeSpecialtyTags } from "../../utils/arrangeSpecialtyTags.utils";
-import { OVERALL_REVIEW_VIBE_LABELS } from "../../utils/reviewVibe.utils";
-import { shadows } from "@/shared/styles/shadows";
+import {
+  OVERALL_REVIEW_VIBE_LABELS,
+  OVERALL_REVIEW_VIBE_STYLES,
+} from "../../utils/reviewVibe.utils";
 
 type Props = {
   business: ExploreBusiness;
@@ -30,7 +33,7 @@ const CARD_WIDTH = 226;
 const FEATURED_CARD_WIDTH_RATIO = 0.74;
 const FEATURED_CARD_MAX_WIDTH = 360;
 
-const HERO_HEIGHT = 190;
+const HERO_HEIGHT = 200;
 const COMPACT_IMAGE_SIZE = 108;
 const TAG_SECTION_HEIGHT = 52;
 
@@ -39,6 +42,7 @@ const COMPACT_CARD_HORIZONTAL_PADDING = 20;
 const COMPACT_CONTENT_GAP = 12;
 
 const STANDARD_CARD_PADDING = 10;
+const COMPACT_VISIBLE_TAG_COUNT = 2;
 
 /** Returns the card width for horizontal card presentations. */
 export function getBusinessCardWidth(
@@ -58,8 +62,12 @@ export function getBusinessCardWidth(
 /**
  * Displays a business using reusable discovery-card presentations.
  *
- * Horizontal variants use an inset image and padded card surface, while the
- * compact variant provides a denser row with layout-aware specialty tags.
+ * Horizontal variants prioritize the business image, identity, specialties,
+ * and review vibe. Category and distance are presented over the image to keep
+ * the content surface easy to scan.
+ *
+ * The compact variant provides a denser row with secondary metadata and a
+ * maximum of two visible specialty tags.
  */
 export default function BusinessCard({
   business,
@@ -96,20 +104,22 @@ export default function BusinessCard({
     business.specialty_tags,
     tagAvailableWidth,
   );
+
   const overallVibeLabel = business.overall_vibe
     ? OVERALL_REVIEW_VIBE_LABELS[business.overall_vibe]
     : null;
 
+  const overallVibeStyle = business.overall_vibe
+    ? OVERALL_REVIEW_VIBE_STYLES[business.overall_vibe]
+    : null;
+
   if (variant === "compact") {
-    const isRecommendation = recommendationReason !== null;
+    const compactTags = displayTags.slice(0, COMPACT_VISIBLE_TAG_COUNT);
 
-    const compactTags = isRecommendation
-      ? displayTags.slice(0, 2)
-      : displayTags;
-
-    const remainingTagCount = isRecommendation
-      ? Math.max(displayTags.length - compactTags.length, 0)
-      : 0;
+    const remainingTagCount = Math.max(
+      displayTags.length - compactTags.length,
+      0,
+    );
 
     return (
       <SafePressable
@@ -158,11 +168,11 @@ export default function BusinessCard({
 
           {/* Pocket indicator */}
           {business.is_pocketed && (
-            <View className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-full bg-white/95">
+            <View className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-md bg-black/65">
               <MaterialCommunityIcons
                 name="bookmark"
-                size={14}
-                color={theme.extends.colors.brand}
+                size={15}
+                color="#FFFFFF"
               />
             </View>
           )}
@@ -180,17 +190,17 @@ export default function BusinessCard({
               {business.business_name}
             </AppText>
 
-            {/* Category and distance */}
-            <View className="mt-1.5 flex-row items-center">
+            {/* Business metadata */}
+            <View className="mt-1 flex-row items-center">
               <MaterialCommunityIcons
                 name={clusterIconName}
-                size={13}
-                color={theme.extends.colors.brand}
+                size={12}
+                color={theme.extends.colors.text.tertiary}
               />
 
               <AppText
                 weight="medium"
-                className="ml-1.5 min-w-0 flex-1 text-xs text-text-secondary"
+                className="ml-1 min-w-0 flex-1 text-[11px] text-text-secondary"
                 numberOfLines={1}
               >
                 {business.category.name}
@@ -246,6 +256,7 @@ export default function BusinessCard({
                   size="small"
                   isSelected={tag.is_vouched}
                   showVouchIndicator={tag.is_vouched}
+                  showIcon
                 />
               ))}
 
@@ -314,29 +325,64 @@ export default function BusinessCard({
 
         {/* Pocket indicator */}
         {business.is_pocketed && (
-          <View className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/95">
-            <MaterialCommunityIcons
-              name="bookmark"
-              size={16}
-              color={theme.extends.colors.brand}
-            />
+          <View className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-md bg-black/65">
+            <MaterialCommunityIcons name="bookmark" size={16} color="#FFFFFF" />
           </View>
         )}
+
+        {/* Image metadata */}
+        <View className="absolute bottom-0 left-0 right-0 h-9 flex-row items-center justify-between bg-black/65">
+          {/* Category */}
+          <View className="ml-2.5 min-w-0 flex-1 flex-row items-center">
+            <MaterialCommunityIcons
+              name={clusterIconName}
+              size={13}
+              color={theme.extends.colors.brand}
+            />
+
+            <AppText
+              weight="semibold"
+              className="ml-1.5 min-w-0 flex-1 text-[11px] text-white"
+              numberOfLines={1}
+            >
+              {business.category.name}
+            </AppText>
+          </View>
+
+          {/* Distance */}
+          {distance !== null && (
+            <View className="mr-2.5 ml-2 shrink-0 flex-row items-center">
+              <MaterialCommunityIcons
+                name="map-marker-outline"
+                size={13}
+                color="#FFFFFF"
+              />
+
+              <AppText
+                weight="semibold"
+                className="ml-1 text-[11px] text-white"
+                numberOfLines={1}
+              >
+                {formatDistance(distance, distanceAccuracy)}
+              </AppText>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Business content */}
       <View className="pb-1 pt-3">
         {/* Business identity */}
-        <View>
-          <AppText
-            weight="bold"
-            className="text-base leading-5 text-text-primary"
-            numberOfLines={2}
-          >
-            {business.business_name}
-          </AppText>
+        <AppText
+          weight="bold"
+          className="text-base leading-5 text-text-primary"
+          numberOfLines={2}
+        >
+          {business.business_name}
+        </AppText>
 
-          {/* Specialty tags */}
+        {/* Specialty tags */}
+        {displayTags.length > 0 && (
           <View
             className="mt-2 flex-row flex-wrap content-start overflow-hidden"
             style={{
@@ -350,14 +396,14 @@ export default function BusinessCard({
                 size="small"
                 isSelected={tag.is_vouched}
                 showVouchIndicator={tag.is_vouched}
+                showIcon
               />
             ))}
           </View>
-        </View>
+        )}
 
         {/* Review metadata */}
-        {/* Review metadata */}
-        <View className="mt-2 flex-row items-center">
+        <View className="mt-2 flex-row items-center border-t border-border-primary pt-2.5">
           {business.review_count === 0 ? (
             <View className="flex-row items-center">
               <MaterialCommunityIcons
@@ -390,56 +436,22 @@ export default function BusinessCard({
               </View>
 
               {/* Overall visitor vibe */}
-              {overallVibeLabel && (
-                <>
-                  <View className="mx-2 h-1 w-1 rounded-full bg-border-secondary" />
+              {overallVibeLabel && overallVibeStyle && (
+                <View className="ml-2 min-w-0 shrink flex-row items-center">
+                  <View
+                    className={`h-2 w-2 shrink-0 rounded-full ${overallVibeStyle.containerClassName}`}
+                  />
 
                   <AppText
                     weight="medium"
-                    className="ml-1 text-[11px] text-text-secondary"
+                    className="ml-1.5 shrink text-[11px] text-text-secondary"
                     numberOfLines={1}
                   >
                     {overallVibeLabel}
                   </AppText>
-                </>
+                </View>
               )}
             </>
-          )}
-        </View>
-
-        {/* Business metadata */}
-        <View className="mt-2 flex-row items-center justify-between gap-3 pb-1">
-          <View className="min-w-0 flex-1 flex-row items-center">
-            <MaterialCommunityIcons
-              name={clusterIconName}
-              size={14}
-              color={theme.extends.colors.brand}
-            />
-
-            <AppText
-              weight="medium"
-              className="ml-1.5 min-w-0 flex-1 text-xs text-text-secondary"
-              numberOfLines={1}
-            >
-              {business.category.name}
-            </AppText>
-          </View>
-
-          {distance !== null && (
-            <View className="shrink-0 flex-row items-center">
-              <MaterialCommunityIcons
-                name="map-marker-outline"
-                size={13}
-                color={theme.extends.colors.text.tertiary}
-              />
-
-              <AppText
-                className="ml-1 text-xs text-text-tertiary"
-                numberOfLines={1}
-              >
-                {formatDistance(distance, distanceAccuracy)} away
-              </AppText>
-            </View>
           )}
         </View>
       </View>
