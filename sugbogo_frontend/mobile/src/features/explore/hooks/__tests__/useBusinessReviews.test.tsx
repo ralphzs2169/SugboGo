@@ -30,6 +30,8 @@ import {
   businessReviewsKey,
   exploreBusinessDetailKey,
 } from "../reviewQueryKeys";
+import { DISCOVERY_FEED_QUERY_KEY } from "../useDiscoveryFeed";
+import { EXPLORE_COLLECTIONS_QUERY_KEY } from "../useExploreCollection";
 
 const mockStartSentimentSync = jest.fn();
 const mockStartGeneratedInsightsSync = jest.fn();
@@ -241,6 +243,12 @@ describe("useBusinessReviews", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: exploreBusinessDetailKey(20),
     });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: DISCOVERY_FEED_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+    });
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     expect(mockStartGeneratedInsightsSync).toHaveBeenCalledWith({
       baselineGeneratedAt: null,
@@ -259,6 +267,7 @@ describe("useBusinessReviews", () => {
       data: { id: 18, business_id: 20, user_id: 4 },
     });
     const { client, Wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
     const { result, unmount } = await renderHook(() => useCreateReview(20), {
       wrapper: Wrapper,
     });
@@ -279,6 +288,12 @@ describe("useBusinessReviews", () => {
       startedAt: expect.any(Number),
     });
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: DISCOVERY_FEED_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+    });
     unmount();
     client.clear();
   });
@@ -289,6 +304,7 @@ describe("useBusinessReviews", () => {
       data: { id: 8 },
     });
     const { client, Wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
     const { result, unmount } = await renderHook(() => useUpdateReview(20), {
       wrapper: Wrapper,
     });
@@ -323,6 +339,12 @@ describe("useBusinessReviews", () => {
       startedAt: expect.any(Number),
     });
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalledWith({
+      queryKey: DISCOVERY_FEED_QUERY_KEY,
+    });
+    expect(invalidate).not.toHaveBeenCalledWith({
+      queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
+    });
     unmount();
     client.clear();
   });

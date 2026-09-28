@@ -1,7 +1,5 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 
 import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
@@ -13,10 +11,10 @@ type Props = {
 };
 
 /**
- * Shows the business profile's compact takeaway from recent Review Insights.
+ * Shows the business profile's compact Review Insights preview.
  *
- * Keeps Reviews as the profile's single umbrella heading and places the
- * generated summary, overall vibe, and recent-review context in one card.
+ * Keeps Reviews as the profile's main section heading while making unavailable,
+ * insufficient, and updating states explicitly identifiable as Review Insights.
  */
 export default function ReviewInsightsPreview({ insights }: Props) {
   const recentCount = insights?.eligible_review_count ?? 0;
@@ -28,8 +26,8 @@ export default function ReviewInsightsPreview({ insights }: Props) {
 
   const isUpdating = Boolean(
     insights &&
-      (insights.state === "pending" || insights.state === "outdated") &&
-      !insights.content_available,
+    (insights.state === "pending" || insights.state === "outdated") &&
+    !insights.content_available,
   );
 
   const overallVibe =
@@ -39,29 +37,29 @@ export default function ReviewInsightsPreview({ insights }: Props) {
 
   return (
     <View className="mb-5">
-      {/* Empty, insufficient, and generation states */}
+      {/* Review Insights availability and generation states */}
       {!insights ? (
         <ReviewInsightsStateCard
           icon="chart-box-outline"
-          title="Recent insights are not available yet"
+          title="Review Insights aren't available yet"
           description="Insights will appear after recent reviews are processed."
         />
       ) : !hasRecentReviews && !isUpdating ? (
         <ReviewInsightsStateCard
           icon="chart-box-outline"
-          title="No recent insights yet"
+          title="No Review Insights yet"
           description="At least 5 eligible reviews from the past 30 days are needed to generate insights."
         />
       ) : insights.state === "insufficient_reviews" ? (
         <ReviewInsightsStateCard
           icon="chart-box-outline"
-          title="Not enough recent reviews yet"
+          title="Not enough reviews for Review Insights"
           description={insights.state_message ?? ""}
         />
       ) : isUpdating ? (
         <ReviewInsightsStateCard
           icon="refresh"
-          title="Updating insights…"
+          title="Updating Review Insights…"
           description={
             insights.state_message ||
             "Recent reviews changed, so we’re refreshing this summary."
@@ -88,24 +86,16 @@ export default function ReviewInsightsPreview({ insights }: Props) {
             </View>
           }
         />
-      ) : insights.state === "pending" ? (
-        /* Pending generation state */
-        <View className="flex-row items-start gap-2">
-          <MaterialCommunityIcons
-            name="clock-outline"
-            size={16}
-            color={theme.extends.colors.text.secondary}
-          />
-
-          <AppText className="flex-1 text-xs leading-5 text-text-secondary">
-            {insights.state_message}
-          </AppText>
-        </View>
       ) : (
-        /* Fallback insight state */
-        <AppText className="text-xs leading-5 text-text-secondary">
-          {insights.state_message}
-        </AppText>
+        /* Fallback Review Insights state */
+        <ReviewInsightsStateCard
+          icon="chart-box-outline"
+          title="Review Insights aren't available yet"
+          description={
+            insights.state_message ||
+            "Insights will appear after recent reviews are processed."
+          }
+        />
       )}
     </View>
   );

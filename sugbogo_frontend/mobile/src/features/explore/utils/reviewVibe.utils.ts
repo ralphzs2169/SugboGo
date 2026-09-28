@@ -21,18 +21,18 @@ export const OVERALL_REVIEW_VIBE_STYLES: Record<
     textClassName: "text-white",
   },
   mostly_neutral: {
-    containerClassName: "bg-surface-muted",
-    dotClassName: "bg-text-secondary",
-    textClassName: "text-text-secondary",
+    containerClassName: "bg-slate-500",
+    dotClassName: "bg-white",
+    textClassName: "text-white",
   },
   mostly_negative: {
-    containerClassName: "border border-border-error bg-error",
-    dotClassName: "bg-text-error",
-    textClassName: "text-text-error",
+    containerClassName: "bg-text-error",
+    dotClassName: "bg-white",
+    textClassName: "text-white",
   },
   mixed: {
-    containerClassName: "bg-surface-muted",
-    dotClassName: "bg-text-secondary",
-    textClassName: "text-text-secondary",
+    containerClassName: "bg-amber-600",
+    dotClassName: "bg-white",
+    textClassName: "text-white",
   },
 };

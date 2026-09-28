@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  type QueryClient,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -19,6 +20,12 @@ import type {
 } from "../types/review.types";
 import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
 import { useReviewDerivedDataSyncActions } from "./ReviewDerivedDataSyncProvider";
+import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
+import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
+import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
+import { MAP_PREVIEW_QUERY_KEY } from "./useMapPreviewBusinesses";
+import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
+import { SIMILAR_BUSINESSES_QUERY_KEY } from "./useSimilarBusinesses";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
@@ -37,6 +44,24 @@ type ReviewMutationContext = {
   baselineSentimentComputedAt: string | null;
   startedAt: number;
 };
+
+const BUSINESS_CARD_COLLECTION_QUERY_KEYS = [
+  DISCOVERY_FEED_QUERY_KEY,
+  ["explore-new-businesses"] as const,
+  RECOMMENDATIONS_QUERY_KEY,
+  DISCOVERY_RESULTS_QUERY_KEY,
+  SIMILAR_BUSINESSES_QUERY_KEY,
+  EXPLORE_COLLECTIONS_QUERY_KEY,
+  MAP_PREVIEW_QUERY_KEY,
+] as const;
+
+function invalidateBusinessCardCollections(queryClient: QueryClient) {
+  return Promise.all(
+    BUSINESS_CARD_COLLECTION_QUERY_KEYS.map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey }),
+    ),
+  );
+}
 
 /**
  * Handles review-related mutations and refreshes the affected
@@ -83,6 +108,10 @@ function useReviewMutation<TVariables, TResult>(
           queryKey: exploreBusinessDetailKey(businessId),
         }),
       ]);
+
+      if (sync === "create" || sync === "delete") {
+        await invalidateBusinessCardCollections(queryClient);
+      }
 
       if (sync === "create") {
         startSentimentSync({

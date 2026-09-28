@@ -115,7 +115,6 @@ def refresh_business_review_insights(
             exc=exc,
             countdown=countdown,
             kwargs={
-                "business_id": business_id,
                 "retry_keywords_only": True,
                 "reference_time_iso": reference_time_iso,
             },

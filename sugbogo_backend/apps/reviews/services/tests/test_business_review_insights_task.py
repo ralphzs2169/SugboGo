@@ -44,11 +44,10 @@ class BusinessReviewInsightsTaskTests(SimpleTestCase):
                         side_effect=Retry(),
                     ) as retry:
                         with self.assertRaises(Retry):
-                            refresh_business_review_insights.run(business_id=12)
+                            refresh_business_review_insights.run(12)
 
                     self.assertEqual(retry.call_args.kwargs["countdown"], seconds)
                     self.assertEqual(retry.call_args.kwargs["kwargs"], {
-                        "business_id": 12,
                         "retry_keywords_only": True,
                         "reference_time_iso": ANY,
                     })
