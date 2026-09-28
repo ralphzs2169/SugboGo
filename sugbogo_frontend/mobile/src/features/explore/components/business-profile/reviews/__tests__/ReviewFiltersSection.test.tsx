@@ -1,6 +1,5 @@
 import { act, fireEvent, render, within } from "@testing-library/react-native";
 
-import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
 import { DEFAULT_BUSINESS_REVIEW_FILTERS } from "../../../../types/review.types";
 import ReviewFiltersSection from "../review-collection/ReviewFiltersSection";
@@ -10,18 +9,23 @@ jest.setTimeout(15_000);
 jest.mock("expo-router", () => ({
   useNavigation: () => ({ isFocused: () => true }),
 }));
-jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
-  presentBottomSheet: jest.fn(),
-}));
 jest.mock("../review-collection/ReviewFilterBottomSheet", () => ({
   __esModule: true,
   default: () => null,
 }));
 
 const insights = {
+  state: "ready",
+  state_message: "Review insights are ready.",
+  content_available: true,
+  narrative: "Visitors enjoy the service.",
   review_count: 8,
+  eligible_review_count: 8,
+  analyzed_review_count: 8,
+  classified_review_count: 8,
   has_sufficient_sentiment_data: true,
   overall_vibe: "mostly_positive",
+  is_sampled: false,
   sentiment: {
     positive: { count: 5, percentage: 63 },
     neutral: { count: 2, percentage: 25 },
@@ -46,6 +50,7 @@ describe("ReviewFiltersSection", () => {
 
   it("places Filter before topics and keeps quick filters and sorting visible", async () => {
     const onChange = jest.fn();
+    const onOpenFilter = jest.fn();
     const screen = await render(
       <ReviewFiltersSection
         insights={insights}
@@ -55,6 +60,7 @@ describe("ReviewFiltersSection", () => {
         filters={DEFAULT_BUSINESS_REVIEW_FILTERS}
         onChange={onChange}
         onClear={jest.fn()}
+        onOpenFilter={onOpenFilter}
       />,
     );
 
@@ -64,20 +70,25 @@ describe("ReviewFiltersSection", () => {
     expect(
       topicButtons.map((button) => button.props.accessibilityLabel),
     ).toEqual([
-      "Filter reviews, 0 active filters",
       "Friendly service, mentioned in 8 reviews",
       "Affordable, mentioned in 6 reviews",
     ]);
+    expect(
+      screen.getByLabelText("Filter reviews, 0 active filters"),
+    ).toBeTruthy();
     expect(screen.getByLabelText("With photos")).toBeTruthy();
     expect(screen.getByLabelText("With reply")).toBeTruthy();
     expect(screen.getByLabelText("Sort by Newest, selected")).toBeTruthy();
     expect(screen.getByLabelText("Sort by Oldest")).toBeTruthy();
     expect(screen.getByLabelText("Sort by Most liked")).toBeTruthy();
 
-    await press(topicButtons[0]);
-    expect(presentBottomSheet).toHaveBeenCalledTimes(1);
+    await press(screen.getByLabelText("Filter reviews, 0 active filters"));
+    expect(onOpenFilter).toHaveBeenCalledTimes(1);
 
-    await press(topicButtons[1]);
+    expect(screen.getByText("Positive")).toBeTruthy();
+    expect(screen.getByText("Frequently mentioned")).toBeTruthy();
+
+    await press(topicButtons[0]);
     expect(onChange).toHaveBeenLastCalledWith({
       ...DEFAULT_BUSINESS_REVIEW_FILTERS,
       topic: "Friendly service",
@@ -107,6 +118,7 @@ describe("ReviewFiltersSection", () => {
         filters={DEFAULT_BUSINESS_REVIEW_FILTERS}
         onChange={jest.fn()}
         onClear={jest.fn()}
+        onOpenFilter={jest.fn()}
       />,
     );
 
@@ -114,5 +126,31 @@ describe("ReviewFiltersSection", () => {
     expect(
       screen.getByLabelText("Friendly service, mentioned in 8 reviews"),
     ).toBeTruthy();
+  });
+
+  it("hides stored topics when the generated bundle is invalidated", async () => {
+    const screen = await render(
+      <ReviewFiltersSection
+        insights={{
+          ...insights,
+          state: "outdated",
+          content_available: false,
+          narrative: null,
+        }}
+        insightsLoading={false}
+        insightsError={false}
+        onRetryInsights={jest.fn()}
+        filters={DEFAULT_BUSINESS_REVIEW_FILTERS}
+        onChange={jest.fn()}
+        onClear={jest.fn()}
+        onOpenFilter={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Updating insights…")).toBeTruthy();
+    expect(
+      screen.queryByLabelText("Friendly service, mentioned in 8 reviews"),
+    ).toBeNull();
+    expect(screen.getByText("Mostly positive")).toBeTruthy();
   });
 });

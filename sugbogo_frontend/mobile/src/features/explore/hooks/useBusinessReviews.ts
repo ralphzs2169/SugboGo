@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  type QueryClient,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -15,7 +16,16 @@ import type {
   BusinessReviewPreview,
   BusinessReview,
   LocalReviewPhoto,
+  ReviewCreateResult,
 } from "../types/review.types";
+import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
+import { useReviewDerivedDataSyncActions } from "./ReviewDerivedDataSyncProvider";
+import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
+import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
+import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
+import { MAP_PREVIEW_QUERY_KEY } from "./useMapPreviewBusinesses";
+import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
+import { SIMILAR_BUSINESSES_QUERY_KEY } from "./useSimilarBusinesses";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
@@ -23,21 +33,70 @@ import {
   filteredBusinessReviewsKey,
 } from "./reviewQueryKeys";
 
+type ReviewMutationSync = "create" | "update" | "delete";
+
+type ReviewMutationContext = {
+  baselineGeneratedAt: string | null;
+  baselineInsightsUpdatedAt: string | null;
+  baselineInsightsState:
+    | NonNullable<ExploreBusinessDetail["review_insights"]>["state"]
+    | null;
+  baselineSentimentComputedAt: string | null;
+  startedAt: number;
+};
+
+const BUSINESS_CARD_COLLECTION_QUERY_KEYS = [
+  DISCOVERY_FEED_QUERY_KEY,
+  ["explore-new-businesses"] as const,
+  RECOMMENDATIONS_QUERY_KEY,
+  DISCOVERY_RESULTS_QUERY_KEY,
+  SIMILAR_BUSINESSES_QUERY_KEY,
+  EXPLORE_COLLECTIONS_QUERY_KEY,
+  MAP_PREVIEW_QUERY_KEY,
+] as const;
+
+function invalidateBusinessCardCollections(queryClient: QueryClient) {
+  return Promise.all(
+    BUSINESS_CARD_COLLECTION_QUERY_KEYS.map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey }),
+    ),
+  );
+}
+
 /**
  * Handles review-related mutations and refreshes the affected
  * review and business-detail queries after a successful mutation.
  */
-function useReviewMutation<T>(
+function useReviewMutation<TVariables, TResult>(
   businessId: number,
-  mutationFn: (variables: T) => Promise<unknown>,
+  mutationFn: (variables: TVariables) => Promise<unknown>,
+  sync?: ReviewMutationSync,
 ) {
   const queryClient = useQueryClient();
+  const { startGeneratedInsightsSync, startSentimentSync } =
+    useReviewDerivedDataSyncActions();
 
-  return useMutation({
-    mutationFn: async (variables: T) =>
-      throwOnApiError((await mutationFn(variables)) as never),
+  return useMutation<TResult, Error, TVariables, ReviewMutationContext>({
+    mutationFn: async (variables: TVariables) =>
+      throwOnApiError((await mutationFn(variables)) as never) as TResult,
 
-    onSuccess: async () => {
+    onMutate: () => {
+      const detail = queryClient.getQueryData<ExploreBusinessDetail>(
+        exploreBusinessDetailKey(businessId),
+      );
+
+      return {
+        baselineGeneratedAt: detail?.review_insights?.generated_at ?? null,
+        baselineInsightsUpdatedAt:
+          detail?.review_insights?.updated_at ?? null,
+        baselineInsightsState: detail?.review_insights?.state ?? null,
+        baselineSentimentComputedAt:
+          detail?.review_insights?.sentiment_computed_at ?? null,
+        startedAt: Date.now(),
+      };
+    },
+
+    onSuccess: async (result, variables, context) => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: businessReviewPreviewKey(businessId),
@@ -49,6 +108,45 @@ function useReviewMutation<T>(
           queryKey: exploreBusinessDetailKey(businessId),
         }),
       ]);
+
+      if (sync === "create" || sync === "delete") {
+        await invalidateBusinessCardCollections(queryClient);
+      }
+
+      if (sync === "create") {
+        startSentimentSync({
+          reviewId: (result as ReviewCreateResult).id,
+          baselineComputedAt: context.baselineSentimentComputedAt,
+          baselineGeneratedAt: context.baselineGeneratedAt,
+          baselineInsightsUpdatedAt: context.baselineInsightsUpdatedAt,
+          baselineInsightsState: context.baselineInsightsState,
+          startedAt: context.startedAt,
+        });
+      }
+
+      if (
+        sync === "update" &&
+        (variables as { textChanged: boolean }).textChanged
+      ) {
+        startSentimentSync({
+          reviewId: (variables as { reviewId: number }).reviewId,
+          baselineComputedAt: context.baselineSentimentComputedAt,
+          baselineGeneratedAt: context.baselineGeneratedAt,
+          baselineInsightsUpdatedAt: context.baselineInsightsUpdatedAt,
+          baselineInsightsState: context.baselineInsightsState,
+          startedAt: context.startedAt,
+        });
+      }
+
+      if (sync === "delete") {
+        startGeneratedInsightsSync({
+          baselineGeneratedAt: context.baselineGeneratedAt,
+          baselineUpdatedAt: context.baselineInsightsUpdatedAt,
+          baselineState: context.baselineInsightsState,
+          resultNotBefore: context.startedAt,
+          startedAt: context.startedAt,
+        });
+      }
     },
   });
 }
@@ -165,33 +263,52 @@ export function useMerchantBusinessReviews(businessId: number) {
 }
 
 export function useCreateReview(businessId: number) {
-  return useReviewMutation(
+  return useReviewMutation<
+    { text: string; photos: LocalReviewPhoto[] },
+    ReviewCreateResult
+  >(
     businessId,
     ({ text, photos }: { text: string; photos: LocalReviewPhoto[] }) =>
       reviewService.createReview(businessId, text, photos),
+    "create",
   );
 }
 
 export function useUpdateReview(businessId: number) {
-  return useReviewMutation(
+  return useReviewMutation<
+    {
+      reviewId: number;
+      text: string;
+      photos: LocalReviewPhoto[];
+      keepPhotoIds: number[];
+      textChanged: boolean;
+    },
+    BusinessReview
+  >(
     businessId,
     ({
       reviewId,
       text,
       photos,
       keepPhotoIds,
+      textChanged: _textChanged,
     }: {
       reviewId: number;
       text: string;
       photos: LocalReviewPhoto[];
       keepPhotoIds: number[];
+      textChanged: boolean;
     }) => reviewService.updateReview(reviewId, text, photos, keepPhotoIds),
+    "update",
   );
 }
 
 export function useDeleteReview(businessId: number) {
-  return useReviewMutation(businessId, ({ reviewId }: { reviewId: number }) =>
-    reviewService.deleteReview(reviewId),
+  return useReviewMutation<{ reviewId: number }, { review_id: number }>(
+    businessId,
+    ({ reviewId }: { reviewId: number }) =>
+      reviewService.deleteReview(reviewId),
+    "delete",
   );
 }
 

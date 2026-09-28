@@ -123,6 +123,7 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
                 "narrative",
                 "review_count",
                 "eligible_review_count",
+                "minimum_eligible_review_count",
                 "analyzed_review_count",
                 "classified_review_count",
                 "has_sufficient_sentiment_data",

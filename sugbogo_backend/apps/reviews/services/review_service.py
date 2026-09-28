@@ -49,7 +49,10 @@ class ReviewService:
             try:
                 from apps.reviews.tasks import process_review_sentiment
 
-                process_review_sentiment.delay(review_id)
+                process_review_sentiment.delay(
+                    review_id,
+                    business_id,
+                )
                 logger.info(
                     "Review sentiment task queued.",
                     extra={"review_id": review_id, "business_id": business_id},
@@ -414,11 +417,11 @@ class ReviewService:
             REVW_STATUS=Review.ReviewStatus.PUBLISHED,
         ).count()
 
-        # Get the first 3 reviews for the business, ordered by creation date (most recent first).
+        # Get the first 2 reviews for the business, ordered by creation date (most recent first).
         reviews = ReviewService._get_review_queryset(
             business_id,
             user,
-        )[:3]
+        )[:2]
 
         user_review = (
             ReviewService._annotated_review_queryset(user)

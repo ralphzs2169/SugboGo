@@ -38,7 +38,7 @@ export default function FilterChip({
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={accessibilityLabel ?? label}
-      className={`cursor-pointer flex-row items-center rounded-lg px-4 py-2 ${
+      className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${
         selected ? "bg-surface-muted-strong" : "bg-surface-muted"
       }`}
     >

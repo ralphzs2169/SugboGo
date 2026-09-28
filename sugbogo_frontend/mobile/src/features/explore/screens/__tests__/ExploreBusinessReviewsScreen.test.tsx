@@ -23,10 +23,21 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 jest.mock("../../hooks/useBusinessReviews");
 jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
+  ReviewDerivedDataSyncProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
 }));
+jest.mock(
+  "../../components/business-profile/reviews/review-collection/ReviewFilterBottomSheet",
+  () => ({
+    __esModule: true,
+    default: () => null,
+  }),
+);
 jest.mock("lottie-react-native", () => ({
   __esModule: true,
   default: () => {
@@ -89,6 +100,11 @@ jest.mock(
             onPress={() => onChange({ ...filters, sentiment: "negative" })}
           >
             <Text>Negative filter</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => onChange({ ...filters, ordering: "oldest" })}
+          >
+            <Text>Oldest sort</Text>
           </Pressable>
           <Pressable onPress={onClear}>
             <Text>Clear filters</Text>
@@ -263,12 +279,17 @@ describe("ExploreBusinessReviewsScreen", () => {
 
   it("shows next-page loading", async () => {
     (useBusinessReviews as jest.Mock).mockReturnValue(
-      reviewQuery({ isFetchingNextPage: true, hasNextPage: true }),
+      reviewQuery({
+        isFetching: true,
+        isFetchingNextPage: true,
+        hasNextPage: true,
+      }),
     );
     const screen = await render(
       <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
     );
     expect(screen.getByTestId("reviews-page-loader")).toBeTruthy();
+    expect(screen.queryByTestId("reviews-filter-update-loader")).toBeNull();
   });
 
   it("shows the completed message after enough reviews load", async () => {
@@ -338,7 +359,82 @@ describe("ExploreBusinessReviewsScreen", () => {
     await press(screen.getByText("Negative filter"));
     expect(screen.getAllByTestId("review-card")).toHaveLength(3);
     expect(screen.queryByText("Reviews loading")).toBeNull();
-    expect(screen.getByText("Loading animation")).toBeTruthy();
+    expect(screen.getByTestId("reviews-filter-update-loader")).toBeTruthy();
+    expect(screen.getByTestId("review-result-row-1").props.pointerEvents).toBe(
+      "none",
+    );
+    expect(screen.getByTestId("review-result-row-1").props.className).toContain(
+      "opacity-60",
+    );
+  });
+
+  it("uses the same transition state when sorting changes", async () => {
+    (useBusinessReviews as jest.Mock).mockImplementation(
+      (_businessId, filters) =>
+        filters?.ordering === "oldest"
+          ? reviewQuery({ isFetching: true, isPlaceholderData: true })
+          : reviewQuery(),
+    );
+    const screen = await render(
+      <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+    );
+
+    await press(screen.getByText("Oldest sort"));
+
+    expect(screen.getByTestId("reviews-filter-update-loader")).toBeTruthy();
+    expect(screen.getByTestId("review-result-row-2").props.pointerEvents).toBe(
+      "none",
+    );
+  });
+
+  it("does not treat a like-driven same-key refetch as a filter update", async () => {
+    (useBusinessReviews as jest.Mock).mockReturnValue(
+      reviewQuery({ isFetching: true, isPlaceholderData: false }),
+    );
+    const screen = await render(
+      <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+    );
+
+    expect(screen.queryByTestId("reviews-filter-update-loader")).toBeNull();
+    expect(screen.getByTestId("review-result-row-1").props.pointerEvents).toBe(
+      "auto",
+    );
+    expect(screen.getByTestId("review-result-row-1").props.className).toContain(
+      "opacity-100",
+    );
+  });
+
+  it("does not show filter-transition feedback during pull-to-refresh", async () => {
+    (useBusinessReviews as jest.Mock).mockReturnValue(
+      reviewQuery({
+        isFetching: true,
+        isRefetching: true,
+        isPlaceholderData: false,
+      }),
+    );
+    const screen = await render(
+      <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+    );
+
+    expect(screen.queryByTestId("reviews-filter-update-loader")).toBeNull();
+    expect(screen.getByTestId("review-result-row-1").props.pointerEvents).toBe(
+      "auto",
+    );
+  });
+
+  it("clears transition feedback when a filter request fails", async () => {
+    (useBusinessReviews as jest.Mock).mockReturnValue(
+      reviewQuery({
+        error: new Error("filtered reviews unavailable"),
+        isFetching: false,
+        isPlaceholderData: false,
+      }),
+    );
+    const screen = await render(
+      <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+    );
+
+    expect(screen.queryByTestId("reviews-filter-update-loader")).toBeNull();
   });
 
   it("distinguishes filtered empty results from a truly empty business", async () => {

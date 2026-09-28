@@ -24,12 +24,10 @@ type SpecialtyTagChipProps = {
 };
 
 /**
- * Renders a specialty tag as a reusable visual chip.
+ * Renders a reusable specialty-tag chip across display and selection contexts.
  *
- * Display mode always uses the specialty's assigned color. Selection modes
- * use a white outlined appearance until selected, then apply the specialty's
- * assigned color. The specialty icon and selection indicators can be shown
- * independently depending on the chip's context.
+ * Display chips use a soft version of the specialty color for a lighter visual
+ * treatment, while selected registration and filter chips retain solid colors.
  */
 export default function SpecialtyTagChip({
   tag,
@@ -50,16 +48,35 @@ export default function SpecialtyTagChip({
   const specialtyIcon = getSpecialtyTagIcon(tag.icon);
 
   const isSmall = size === "small";
+  const isDisplayMode = mode === "display";
   const isSelectionMode = mode === "registration" || mode === "filter";
   const isInteractive = Boolean(onPress);
 
-  const useColoredStyle = !isSelectionMode || isSelected;
   const useDisabledStyle = isSelectionMode && isDisabled && showDisabledStyle;
 
-  const textColor = useColoredStyle ? styles.text : "text-black";
-  const iconColor = useColoredStyle
-    ? styles.icon
-    : theme.extends.colors.text.secondary;
+  const textColor = useDisabledStyle
+    ? "text-gray-400"
+    : isDisplayMode
+      ? styles.softText
+      : isSelected
+        ? styles.text
+        : "text-text-secondary";
+
+  const iconColor = useDisabledStyle
+    ? theme.extends.colors.text.tertiary
+    : isDisplayMode
+      ? styles.softIcon
+      : isSelected
+        ? styles.icon
+        : theme.extends.colors.text.secondary;
+
+  const backgroundClassName = useDisabledStyle
+    ? "border border-border-primary bg-gray-200 opacity-40"
+    : isDisplayMode
+      ? styles.softBackground
+      : isSelected
+        ? styles.background
+        : "border border-border-primary bg-white";
 
   return (
     <Pressable
@@ -86,24 +103,16 @@ export default function SpecialtyTagChip({
       })}
       className={`mb-2 mr-2 flex-row items-center justify-center rounded-full ${
         isInteractive ? "cursor-pointer" : ""
-      } ${isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-1.5"} ${
-        useDisabledStyle
-          ? "border border-border-primary bg-gray-200 opacity-40"
-          : isSelectionMode
-            ? isSelected
-              ? styles.background
-              : "border border-border-primary bg-white"
-            : styles.background
-      }`}
+      } ${
+        isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-1.5"
+      } ${backgroundClassName}`}
     >
       {/* Specialty icon */}
       {showIcon && (
         <MaterialCommunityIcons
           name={specialtyIcon}
           size={isSmall ? 13 : 16}
-          color={
-            useDisabledStyle ? theme.extends.colors.text.tertiary : iconColor
-          }
+          color={iconColor}
           style={{ marginRight: 5 }}
         />
       )}
@@ -111,27 +120,21 @@ export default function SpecialtyTagChip({
       {/* Specialty name */}
       <AppText
         weight="semibold"
-        className={`${isSmall ? "text-[10px]" : "text-sm"} ${
-          useDisabledStyle
-            ? "text-gray-400"
-            : isSelectionMode && !isSelected
-              ? "text-text-secondary"
-              : textColor
-        }`}
+        className={`${isSmall ? "text-[10px]" : "text-sm"} ${textColor}`}
         numberOfLines={2}
       >
         {tag.name}
       </AppText>
 
       {/* Selected-state indicator */}
-      {/* {showSelectionIndicator && isSelected && (
+      {showSelectionIndicator && isSelected && (
         <MaterialCommunityIcons
           name="check-circle"
           size={isSmall ? 13 : 16}
           color={iconColor}
           style={{ marginLeft: 5 }}
         />
-      )} */}
+      )}
 
       {/* Vouch indicator */}
       {showVouchIndicator && isSelected && (
@@ -155,16 +158,12 @@ export default function SpecialtyTagChip({
           <MaterialCommunityIcons
             name={isSelected ? "heart" : "heart-outline"}
             size={isSmall ? 13 : 16}
-            color={
-              useDisabledStyle ? theme.extends.colors.text.tertiary : iconColor
-            }
+            color={iconColor}
           />
 
           <AppText
             weight="bold"
-            className={`ml-1 ${isSmall ? "text-[10px]" : "text-xs"} ${
-              useDisabledStyle ? "text-gray-400" : textColor
-            }`}
+            className={`ml-1 ${isSmall ? "text-[10px]" : "text-xs"} ${textColor}`}
           >
             {count}
           </AppText>

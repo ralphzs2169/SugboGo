@@ -88,6 +88,10 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.summary.BRSU_COVERAGE_END, self.reference_time)
         self.assertIsNotNone(self.summary.BRSU_GENERATED_AT)
         self.assertEqual(len(self.summary.BRSU_KEYWORDS_FINGERPRINT), 64)
+        self.assertEqual(
+            self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT,
+            self.summary.BRSU_KEYWORDS_FINGERPRINT,
+        )
 
     def test_legacy_keyword_fingerprint_regenerates_evidence_once(self):
         reviews = ReviewKeywordService._snapshot(
@@ -131,16 +135,70 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.refresh(), "unchanged")
         self.provider.assert_called_once()
 
-    def test_changed_snapshot_waits_until_next_day(self):
+    def test_same_fingerprint_attempted_twice_today_is_blocked(self):
+        self.provider.return_value = "not json"
+
+        self.assertEqual(self.refresh(), "failed")
+        self.assertEqual(self.refresh(), "already_attempted")
+        self.provider.assert_called_once()
+
+    def test_changed_snapshot_can_generate_again_on_same_day(self):
         self.refresh()
         Review.objects.filter(pk=self.reviews[-1].pk).update(
             REVW_TEXT="Friendly staff and nice food.",
         )
 
-        self.assertEqual(self.refresh(), "already_attempted")
-        self.allow_next_day()
         self.assertEqual(self.refresh(), "updated")
         self.assertEqual(self.provider.call_count, 2)
+
+    def test_snapshot_returning_to_previous_input_can_generate_again_same_day(self):
+        self.assertEqual(self.refresh(), "updated")
+
+        added = self.create_review(self.business, 10)
+        self.reference_time = timezone.now()
+        self.provider.return_value = json.dumps({
+            "narrative": "Visitors mention friendly service and a new review.",
+            "narrative_review_ids": [self.reviews[0].pk, added.pk],
+            "tags": [{
+                "text": "friendly service",
+                "count": 2,
+                "review_ids": [self.reviews[0].pk, added.pk],
+            }],
+        })
+
+        self.assertEqual(self.refresh(), "updated")
+        self.summary.refresh_from_db()
+        second_snapshot_attempt = (
+            self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT
+        )
+
+        added_id = added.pk
+        added.delete()
+        ReviewKeywordService.remove_review_evidence(
+            business_id=self.business.pk,
+            review_id=added_id,
+        )
+        self.provider.return_value = self.response()
+
+        current_fingerprint = ReviewKeywordService._fingerprint(
+            ReviewKeywordService._snapshot(
+                self.business.pk,
+                self.reference_time,
+            ),
+        )
+        self.assertNotEqual(current_fingerprint, second_snapshot_attempt)
+
+        self.assertEqual(self.refresh(), "updated")
+        self.summary.refresh_from_db()
+        self.assertNotEqual(
+            self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT,
+            second_snapshot_attempt,
+        )
+        self.assertEqual(
+            self.summary.BRSU_GENERATION_STATE,
+            BusinessReviewSummary.GenerationState.READY,
+        )
+        self.assertEqual(self.provider.call_count, 3)
 
     def test_added_review_is_sent_in_full_snapshot(self):
         self.refresh()
@@ -237,6 +295,8 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
             self.refresh()
         self.summary.refresh_from_db()
         self.assertTrue(self.summary.BRSU_KEYWORDS_RETRYABLE)
+        attempted_fingerprint = self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT
+        self.assertIsNotNone(attempted_fingerprint)
         self.assertEqual(
             self.summary.BRSU_GENERATION_STATE,
             BusinessReviewSummary.GenerationState.OUTDATED,
@@ -247,6 +307,10 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.refresh(), "updated")
         self.summary.refresh_from_db()
         self.assertFalse(self.summary.BRSU_KEYWORDS_RETRYABLE)
+        self.assertEqual(
+            self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT,
+            attempted_fingerprint,
+        )
 
     def test_safe_previous_result_is_retained_and_marked_outdated_on_failure(self):
         self.refresh()

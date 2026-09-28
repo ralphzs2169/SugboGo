@@ -1,6 +1,7 @@
 import { fireEvent, render } from "@testing-library/react-native";
 
 import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
+import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
 import type { BusinessReview } from "../../../../types/review.types";
 import BusinessReviewsSection from "../review-preview-section/BusinessReviewsPreviewSection";
 
@@ -25,6 +26,32 @@ const review = {
   text: "Helpful review",
   is_own_review: false,
 } as BusinessReview;
+
+const reviewInsights: BusinessReviewInsights = {
+  state: "ready",
+  state_message: "Review insights are ready.",
+  content_available: true,
+  narrative: "Customers have mixed opinions about service and value.",
+  review_count: 6,
+  eligible_review_count: 5,
+  minimum_eligible_review_count: 5,
+  analyzed_review_count: 5,
+  classified_review_count: 5,
+  has_sufficient_sentiment_data: true,
+  overall_vibe: "mostly_negative",
+  is_sampled: false,
+  sentiment: {
+    positive: { count: 1, percentage: 20 },
+    neutral: { count: 1, percentage: 20 },
+    negative: { count: 3, percentage: 60 },
+  },
+  frequent_mentions: [{ label: "Slow service", count: 3 }],
+  coverage_start: null,
+  coverage_end: null,
+  generated_at: null,
+  sentiment_computed_at: null,
+  updated_at: null,
+};
 
 const defaultProps = {
   businessId: 20,
@@ -58,6 +85,48 @@ describe("BusinessReviewsSection", () => {
     fireEvent.press(screen.getByText("Write a review"));
 
     expect(defaultProps.onWriteReview).toHaveBeenCalled();
+  });
+
+  it("shows only the compact recent-insights takeaway in the profile preview", async () => {
+    mockPreview([review]);
+    const screen = await render(
+      <BusinessReviewsSection
+        {...defaultProps}
+        reviewInsights={reviewInsights}
+      />,
+    );
+
+    expect(screen.getByText("Recent Review Insights")).toBeTruthy();
+    expect(screen.getByText("Mostly negative")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Based on 5 eligible reviews from the past 30 days.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Vibe Summary")).toBeTruthy();
+    expect(screen.getByText("AI-generated")).toBeTruthy();
+    expect(screen.getByText(reviewInsights.narrative!)).toBeTruthy();
+    expect(screen.queryByText("Recent Sentiment")).toBeNull();
+    expect(screen.queryByText("Positive")).toBeNull();
+    expect(screen.queryByText("Frequently mentioned")).toBeNull();
+    expect(screen.queryByText("Slow service · 3")).toBeNull();
+  });
+
+  it("keeps retained outdated summary content visible in the compact preview", async () => {
+    mockPreview([review]);
+    const screen = await render(
+      <BusinessReviewsSection
+        {...defaultProps}
+        reviewInsights={{
+          ...reviewInsights,
+          state: "outdated",
+          state_message: "Review insights are outdated and awaiting refresh.",
+        }}
+      />,
+    );
+
+    expect(screen.getByText(reviewInsights.narrative!)).toBeTruthy();
+    expect(screen.getByText(/outdated and awaiting refresh/i)).toBeTruthy();
   });
 
   it("offers the same action in the eligible empty state", async () => {

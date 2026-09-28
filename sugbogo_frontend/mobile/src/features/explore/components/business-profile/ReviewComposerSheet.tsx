@@ -190,11 +190,14 @@ export default function ReviewComposerSheet({
 
     try {
       if (review) {
+        const textChanged = trimmedText !== originalText.trim();
+
         await updateReview({
           reviewId: review.id,
           text: trimmedText,
           photos,
           keepPhotoIds: existingPhotos.map((photo) => photo.id),
+          textChanged,
         });
       } else {
         await createReview({
@@ -233,7 +236,10 @@ export default function ReviewComposerSheet({
   }, [isSheetOpen, sheetRef]);
 
   useEffect(() => {
+    // The form intentionally mirrors the review selected by the parent screen.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [review]);
 
   useEffect(() => {

@@ -3,6 +3,7 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import { shadows } from "@/shared/styles/shadows";
 
 type Props = {
   reviewCount: number | null;
@@ -15,8 +16,8 @@ type Props = {
 /**
  * Displays the business's primary quick-glance information.
  *
- * Presents reviews, operating status, and distance in a compact floating
- * three-column card with inset separators for easier visual scanning.
+ * Presents reviews, operating status, and distance in a compact elevated
+ * three-column surface with inset separators for easy visual scanning.
  */
 export default function BusinessProfileQuickInfo({
   reviewCount,
@@ -30,86 +31,81 @@ export default function BusinessProfileQuickInfo({
     : theme.extends.colors.error;
 
   return (
-    <View
-      className="flex-row items-stretch overflow-hidden rounded-xl border border-border-primary bg-surface"
-      style={{
-        shadowColor: "#000000",
-        shadowOffset: {
-          width: 0,
-          height: 4,
-        },
-        shadowOpacity: 1,
-        shadowRadius: 4,
-      }}
-    >
-      {/* Review summary */}
-      <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
-        <MaterialCommunityIcons
-          name="message-text-outline"
-          size={18}
-          color={theme.extends.colors.text.secondary}
-        />
+    <View className="rounded-xl bg-surface" style={shadows.elevated}>
+      {/* Quick information surface */}
+      <View className="flex-row items-stretch overflow-hidden rounded-xl border border-border-primary bg-surface">
+        {/* Review summary */}
+        <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+          <MaterialCommunityIcons
+            name="message-text-outline"
+            size={18}
+            color={theme.extends.colors.text.secondary}
+          />
 
-        <AppText weight="bold" className="mt-0.5 text-[13px] text-text-primary">
-          {reviewCount ?? "—"}
-        </AppText>
+          <AppText
+            weight="bold"
+            className="mt-0.5 text-[13px] text-text-primary"
+          >
+            {reviewCount ?? "—"}
+          </AppText>
 
-        <AppText className="text-[11px] text-text-secondary">
-          {reviewCount === 1 ? "review" : "reviews"}
-        </AppText>
-      </View>
+          <AppText className="text-[11px] text-text-secondary">
+            {reviewCount === 1 ? "review" : "reviews"}
+          </AppText>
+        </View>
 
-      {/* Review/status divider */}
-      <View className="my-3 w-px bg-border-primary" />
+        {/* Review and status divider */}
+        <View className="my-3 w-px bg-border-primary" />
 
-      {/* Operating status */}
-      <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
-        <MaterialCommunityIcons
-          name="clock-outline"
-          size={18}
-          color={statusColor}
-        />
+        {/* Operating status */}
+        <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+          <MaterialCommunityIcons
+            name="clock-outline"
+            size={18}
+            color={statusColor}
+          />
 
-        <AppText
-          weight="bold"
-          className={`mt-0.5 text-[13px] ${
-            isOpenNow ? "text-success" : "text-text-error"
-          }`}
-          numberOfLines={1}
-        >
-          {statusLabel}
-        </AppText>
+          <AppText
+            weight="bold"
+            className={`mt-0.5 text-[13px] ${
+              isOpenNow ? "text-success" : "text-text-error"
+            }`}
+            numberOfLines={1}
+          >
+            {statusLabel}
+          </AppText>
 
-        <AppText
-          className="text-center text-[11px] text-text-secondary"
-          numberOfLines={1}
-        >
-          {statusDetail}
-        </AppText>
-      </View>
+          <AppText
+            className="text-center text-[11px] text-text-secondary"
+            numberOfLines={1}
+          >
+            {statusDetail}
+          </AppText>
+        </View>
 
-      {/* Status/distance divider */}
-      <View className="my-3 w-px bg-border-primary" />
+        {/* Status and distance divider */}
+        <View className="my-3 w-px bg-border-primary" />
 
-      {/* Distance summary */}
-      <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
-        <MaterialCommunityIcons
-          name="map-marker-outline"
-          size={18}
-          color={theme.extends.colors.text.secondary}
-        />
+        {/* Distance summary */}
+        <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+          <MaterialCommunityIcons
+            name="map-marker-outline"
+            size={18}
+            color={theme.extends.colors.text.secondary}
+          />
 
-        <AppText
-          weight="bold"
-          className="mt-0.5 text-[13px] text-text-primary"
-          numberOfLines={1}
-        >
-          {distance ?? "—"}
-        </AppText>
+          <AppText
+            weight="bold"
+            className="mt-0.5 text-[13px] text-text-primary"
+            numberOfLines={1}
+          >
+            {distance ?? "—"}
+          </AppText>
 
-        <AppText className="text-[11px] text-text-secondary">
-          {distance !== null ? "away" : "distance"}
-        </AppText>
+          <AppText className="text-[11px] text-text-secondary">
+            {distance !== null ? "away" : "distance"}
+          </AppText>
+        </View>
       </View>
     </View>
   );

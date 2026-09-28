@@ -42,7 +42,7 @@ export default function Button({
 
   const variantClass = {
     primary: "bg-brand",
-    secondary: "bg-brand/20",
+    secondary: "bg-brand/70",
     outline: "border border-border-primary bg-white",
     soft: "border border-brand bg-white",
     danger: "bg-red-500",
@@ -51,7 +51,7 @@ export default function Button({
 
   const textColorClass = {
     primary: "text-white",
-    secondary: "text-text-secondary",
+    secondary: "text-white",
     outline: "text-text-primary",
     soft: "text-brand",
     danger: "text-white",

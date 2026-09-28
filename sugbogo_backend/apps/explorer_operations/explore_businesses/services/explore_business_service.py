@@ -11,6 +11,8 @@ from apps.reviews.models import (
 from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework.exceptions import NotFound
 
+from .published_review_count import published_review_count
+
 
 class ExploreBusinessService:
     """Service class for Explorer-facing business discovery queries."""
@@ -82,6 +84,7 @@ class ExploreBusinessService:
                     is_pocketed=Exists(
                         user_pocket_exists,
                     ),
+                    published_review_count=published_review_count(),
                 )
                 .prefetch_related(
                     Prefetch(

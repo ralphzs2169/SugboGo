@@ -4,8 +4,8 @@ import { Animated, Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
-import { handleSystemError } from "@/shared/utils/apiErrors";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import useBusinessPocket from "../../hooks/useBusinessPocket";
 
@@ -17,11 +17,8 @@ type Props = {
 /**
  * Provides the business Pocket action with optimistic state feedback.
  *
- * Pocketing triggers a brief bookmark pop and circular pulse animation,
- * while removing a business from Pocket transitions quietly back to the
- * outlined bookmark state. Successful actions display a lightweight
- * confirmation toast, while failed requests are handled without leaving
- * the business profile in a failed state.
+ * Pocketing triggers a brief bookmark pop and pulse animation, while removing
+ * a business from Pocket transitions quietly back to the outlined state.
  */
 export default function BusinessPocketButton({
   businessId,
@@ -46,7 +43,6 @@ export default function BusinessPocketButton({
       return;
     }
 
-    // Bookmark pop animation
     bookmarkScale.setValue(1);
 
     Animated.sequence([
@@ -64,7 +60,6 @@ export default function BusinessPocketButton({
       }),
     ]).start();
 
-    // Circular pulse animation
     pulseScale.setValue(1);
     pulseOpacity.setValue(0.45);
 
@@ -118,13 +113,17 @@ export default function BusinessPocketButton({
     <Pressable
       onPress={handlePress}
       disabled={isPending}
-      className="h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
+      accessibilityRole="button"
+      accessibilityLabel={
+        isPocketed ? "Remove business from Pocket" : "Add business to Pocket"
+      }
+      className="relative h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
       android_ripple={{
         color: "rgba(0,0,0,0.08)",
         borderless: true,
       }}
     >
-      {/* Circular pulse behind the button */}
+      {/* Pocket pulse */}
       <Animated.View
         pointerEvents="none"
         style={{
@@ -138,13 +137,13 @@ export default function BusinessPocketButton({
         }}
       />
 
-      {/* White circular button background */}
+      {/* White button surface */}
       <View
         pointerEvents="none"
         className="absolute h-10 w-10 rounded-full bg-white/95"
       />
 
-      {/* Bookmark icon */}
+      {/* Bookmark */}
       <Animated.View
         style={{
           transform: [{ scale: bookmarkScale }],
@@ -153,7 +152,6 @@ export default function BusinessPocketButton({
         <MaterialCommunityIcons
           name={isPocketed ? "bookmark" : "bookmark-outline"}
           size={22}
-          color={theme.extends.colors.brand}
         />
       </Animated.View>
     </Pressable>

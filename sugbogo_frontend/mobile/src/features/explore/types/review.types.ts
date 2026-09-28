@@ -39,6 +39,8 @@ export type BusinessReview = {
   status: string;
   like_count: number;
   report_count: number;
+  sentiment_label: ReviewSentiment | null;
+  sentiment_score: number | null;
   is_liked: boolean;
   is_liked_by_owner: boolean;
   is_own_review: boolean;
@@ -49,6 +51,12 @@ export type BusinessReview = {
   vouched_specialties: ReviewVouchedSpecialty[];
   reply: ReviewReply | null;
   active_dispute_id: number | null;
+};
+
+export type ReviewCreateResult = {
+  id: number;
+  business_id: number;
+  user_id: number;
 };
 
 export type LocalReviewPhoto = {

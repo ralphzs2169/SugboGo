@@ -29,6 +29,7 @@ import SimilarPlacesSection from "../components/business-profile/SimilarPlacesSe
 import useBusinessProfileVisit from "../hooks/useBusinessProfileVisit";
 import { useBusinessReviewPreview } from "../hooks/useBusinessReviews";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
+import { ReviewDerivedDataSyncProvider } from "../hooks/ReviewDerivedDataSyncProvider";
 import type { BusinessReview } from "../types/review.types";
 import {
   getBusinessHoursSummary,
@@ -48,7 +49,7 @@ type Props = {
  * refresh behavior, photo gallery, review composer, and contextual visit
  * actions while keeping the scroll shell stable during profile loading.
  */
-export default function ExploreBusinessProfileScreen({
+function ExploreBusinessProfileScreenContent({
   businessId,
   distance,
   distanceAccuracy,
@@ -160,6 +161,7 @@ export default function ExploreBusinessProfileScreen({
               <ExploreBusinessHero
                 business={business}
                 isOwnBusiness={business.is_own_business}
+                onShare={() => {}}
               />
 
               <View className="relative z-10 -mt-8 px-4">
@@ -289,5 +291,14 @@ export default function ExploreBusinessProfileScreen({
         <RideProviderSheet sheetRef={rideProviderRef} />
       )}
     </SafeAreaView>
+  );
+}
+
+/** Mounts review synchronization for the lifetime of the business profile. */
+export default function ExploreBusinessProfileScreen(props: Props) {
+  return (
+    <ReviewDerivedDataSyncProvider businessId={props.businessId}>
+      <ExploreBusinessProfileScreenContent {...props} />
+    </ReviewDerivedDataSyncProvider>
   );
 }

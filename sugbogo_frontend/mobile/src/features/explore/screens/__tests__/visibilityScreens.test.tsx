@@ -34,6 +34,10 @@ jest.mock("../../api/exploreBusiness.service", () => ({
   recordBusinessProfileVisit: jest.fn(),
 }));
 jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
+  ReviewDerivedDataSyncProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
 jest.mock("../../hooks/useDiscoveryFeed", () => ({
   __esModule: true,
   DISCOVERY_FEED_QUERY_KEY: ["explore-discovery"],

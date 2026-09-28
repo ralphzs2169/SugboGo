@@ -445,6 +445,11 @@ class BusinessReviewSummary(models.Model):
         null=True,
         blank=True,
     )
+    BRSU_KEYWORDS_ATTEMPT_FINGERPRINT = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+    )
     BRSU_KEYWORDS_RETRYABLE = models.BooleanField(
         default=False,
     )

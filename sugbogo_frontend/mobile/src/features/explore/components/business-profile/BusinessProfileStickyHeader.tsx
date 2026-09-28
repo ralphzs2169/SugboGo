@@ -21,6 +21,7 @@ type Props = {
   navOpacity: Animated.Value;
   identityOpacity: Animated.Value;
   translateY: Animated.Value;
+  onShare: () => void;
 };
 
 /**
@@ -45,6 +46,7 @@ export default function BusinessProfileStickyHeader({
   identityOpacity,
   translateY,
   isOwnBusiness,
+  onShare,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -73,9 +75,16 @@ export default function BusinessProfileStickyHeader({
         }}
       >
         <View className="h-10 flex-row items-center justify-between px-4">
+          {/* Back */}
           <Pressable
             onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
             className="h-10 w-10 cursor-pointer items-center justify-center rounded-full active:opacity-80"
+            android_ripple={{
+              color: "rgba(0,0,0,0.08)",
+              borderless: true,
+            }}
           >
             <MaterialCommunityIcons
               name="chevron-left"
@@ -84,10 +93,32 @@ export default function BusinessProfileStickyHeader({
             />
           </Pressable>
 
-          <BusinessPocketButton
-            businessId={businessId}
-            isPocketed={isPocketed}
-          />
+          {/* Business actions */}
+          <View className="flex-row items-center gap-2">
+            {/* Share */}
+            <Pressable
+              onPress={onShare}
+              accessibilityRole="button"
+              accessibilityLabel={`Share ${businessName}`}
+              className="h-10 w-10 cursor-pointer items-center justify-center rounded-full active:opacity-80"
+              android_ripple={{
+                color: "rgba(0,0,0,0.08)",
+                borderless: true,
+              }}
+            >
+              <MaterialCommunityIcons
+                name="share-variant"
+                size={20}
+                color={theme.extends.colors.text.primary}
+              />
+            </Pressable>
+
+            {/* Pocket */}
+            <BusinessPocketButton
+              businessId={businessId}
+              isPocketed={isPocketed}
+            />
+          </View>
         </View>
       </Animated.View>
 

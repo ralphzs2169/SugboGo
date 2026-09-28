@@ -30,6 +30,7 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 
 const insights = {
+  content_available: true,
   frequent_mentions: [{ label: "Friendly service", count: 8 }],
 } as BusinessReviewInsights;
 

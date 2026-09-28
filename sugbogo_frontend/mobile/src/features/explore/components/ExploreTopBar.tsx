@@ -46,7 +46,7 @@ export default function ExploreTopBar({
 
   return (
     <View
-      className="bg-surface px-4 pb-3"
+      className="bg-surface px-4 pb-4"
       style={{ paddingTop: insets.top + 8 }}
     >
       {/* Exploration context */}

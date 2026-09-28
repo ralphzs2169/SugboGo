@@ -65,7 +65,7 @@ export default function ExploreBusinessCarousel({
   return (
     <View
       testID={sectionTestID}
-      className="py-6"
+      className="py-6 bg-surface"
       onLayout={impressions.onSectionLayout}
     >
       {/* Section heading */}

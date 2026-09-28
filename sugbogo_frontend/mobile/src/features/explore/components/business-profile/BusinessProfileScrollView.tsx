@@ -100,6 +100,7 @@ export default function BusinessProfileScrollView({
           identityOpacity={identityOpacity}
           translateY={stickyHeaderTranslateY}
           isOwnBusiness={isOwnBusiness}
+          onShare={() => {}}
         />
       )}
 

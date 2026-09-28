@@ -20,12 +20,14 @@ type Props = {
   disabled?: boolean;
 };
 
+const REACTION_SIZE = 54;
+const REACTION_WRAPPER_SIZE = 62;
+
 /**
- * Displays a merchant-defined specialty as an Explorer-vouchable tile.
+ * Displays a compact specialty vouch reaction.
  *
- * Uses a bordered specialty treatment when inactive and switches to a solid
- * specialty color with reversed white content when the Explorer has vouched.
- * A short heart pulse reinforces successful vouch interactions.
+ * Keeps inactive and vouched states visually distinct while preserving a
+ * lightweight social-reaction feel and animated feedback.
  */
 export default function BusinessSpecialtyVouchCard({
   name,
@@ -39,6 +41,7 @@ export default function BusinessSpecialtyVouchCard({
   const styles = getSpecialtyTagColor(color);
   const iconName = getSpecialtyTagIcon(icon);
 
+  const reactionScale = useRef(new Animated.Value(1)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
   const pulseScale = useRef(new Animated.Value(1)).current;
   const pulseOpacity = useRef(new Animated.Value(0)).current;
@@ -55,111 +58,164 @@ export default function BusinessSpecialtyVouchCard({
       return;
     }
 
+    reactionScale.setValue(1);
     heartScale.setValue(1);
     pulseScale.setValue(1);
-    pulseOpacity.setValue(0.45);
-
-    Animated.sequence([
-      Animated.spring(heartScale, {
-        toValue: 1.35,
-        speed: 25,
-        bounciness: 10,
-        useNativeDriver: true,
-      }),
-      Animated.spring(heartScale, {
-        toValue: 1,
-        speed: 20,
-        bounciness: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    pulseOpacity.setValue(0.24);
 
     Animated.parallel([
-      Animated.timing(pulseScale, {
-        toValue: 2.2,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(pulseOpacity, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }),
+      Animated.sequence([
+        Animated.spring(reactionScale, {
+          toValue: 1.1,
+          speed: 24,
+          bounciness: 8,
+          useNativeDriver: true,
+        }),
+        Animated.spring(reactionScale, {
+          toValue: 1,
+          speed: 20,
+          bounciness: 6,
+          useNativeDriver: true,
+        }),
+      ]),
+
+      Animated.sequence([
+        Animated.spring(heartScale, {
+          toValue: 1.25,
+          speed: 25,
+          bounciness: 9,
+          useNativeDriver: true,
+        }),
+        Animated.spring(heartScale, {
+          toValue: 1,
+          speed: 20,
+          bounciness: 7,
+          useNativeDriver: true,
+        }),
+      ]),
+
+      Animated.parallel([
+        Animated.timing(pulseScale, {
+          toValue: 1.5,
+          duration: 360,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseOpacity, {
+          toValue: 0,
+          duration: 360,
+          useNativeDriver: true,
+        }),
+      ]),
     ]).start();
-  }, [heartScale, isVouched, pulseOpacity, pulseScale]);
+  }, [heartScale, isVouched, pulseOpacity, pulseScale, reactionScale]);
 
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={`${name}, ${vouchCount} vouches`}
+      accessibilityLabel={`${name}, ${vouchCount} ${
+        vouchCount === 1 ? "vouch" : "vouches"
+      }`}
       accessibilityState={{
         disabled,
         selected: isVouched,
       }}
-      className="relative flex-1 cursor-pointer overflow-hidden rounded-xl px-3 py-2.5 active:opacity-80 disabled:opacity-60"
-      style={{
-        borderWidth: 1.5,
-        borderColor: styles.borderColor,
-        backgroundColor: isVouched ? styles.borderColor : "#FFFFFF",
-      }}
+      className="flex-1 cursor-pointer items-center px-0.5 py-1 active:opacity-75 disabled:opacity-50"
     >
-      {/* Specialty identity */}
-      <View className="items-center">
-        <MaterialCommunityIcons
-          name={iconName}
-          size={20}
-          color={foregroundColor}
-          accessibilityElementsHidden
-          importantForAccessibility="no"
+      {/* Specialty reaction */}
+      <View
+        className="relative items-center justify-center"
+        style={{
+          width: REACTION_WRAPPER_SIZE,
+          height: REACTION_WRAPPER_SIZE,
+        }}
+      >
+        {isVouched && (
+          <View
+            pointerEvents="none"
+            className="absolute rounded-full"
+            style={{
+              width: REACTION_SIZE + 8,
+              height: REACTION_SIZE + 8,
+              backgroundColor: styles.borderColor,
+              opacity: 0.1,
+            }}
+          />
+        )}
+
+        <Animated.View
+          pointerEvents="none"
+          className="absolute rounded-full"
+          style={{
+            width: REACTION_SIZE,
+            height: REACTION_SIZE,
+            borderWidth: 2,
+            borderColor: styles.borderColor,
+            opacity: pulseOpacity,
+            transform: [{ scale: pulseScale }],
+          }}
         />
 
+        <Animated.View
+          className="items-center justify-center rounded-full"
+          style={{
+            width: REACTION_SIZE,
+            height: REACTION_SIZE,
+            borderWidth: isVouched ? 0 : 1.5,
+            borderColor: isVouched ? "transparent" : styles.borderColor,
+            backgroundColor: isVouched ? styles.borderColor : "#FFFFFF",
+            transform: [{ scale: reactionScale }],
+          }}
+        >
+          <MaterialCommunityIcons
+            name={iconName}
+            size={24}
+            color={foregroundColor}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+        </Animated.View>
+      </View>
+
+      {/* Specialty label */}
+      <View className="h-8 w-full items-center justify-center px-1">
         <AppText
-          weight={isVouched ? "bold" : "regular"}
-          className={`mt-1 text-center text-xs ${
-            isVouched ? "text-white" : styles.accentText
-          }`}
+          weight="semibold"
+          className="w-full text-center text-[11px] leading-[14px] text-text-primary"
           numberOfLines={2}
         >
           {name}
         </AppText>
       </View>
 
-      {/* Vouch interaction */}
-      <View className="mt-1.5 flex-row items-center justify-center">
-        <View className="h-5 w-5 items-center justify-center">
-          {/* Vouch pulse */}
-          <Animated.View
-            pointerEvents="none"
-            className="absolute h-5 w-5 rounded-full"
-            style={{
-              backgroundColor: foregroundColor,
-              opacity: pulseOpacity,
-              transform: [{ scale: pulseScale }],
-            }}
+      {/* Vouch state */}
+      <View
+        className="mt-0.5 flex-row items-center justify-center rounded-full px-2 py-0.5"
+        style={{
+          backgroundColor: isVouched
+            ? styles.borderColor
+            : `${styles.borderColor}14`,
+        }}
+      >
+        <Animated.View
+          style={{
+            transform: [{ scale: heartScale }],
+          }}
+        >
+          <MaterialCommunityIcons
+            name={isVouched ? "heart" : "heart-outline"}
+            size={14}
+            color={isVouched ? "#FFFFFF" : styles.borderColor}
           />
+        </Animated.View>
 
-          {/* Vouch heart */}
-          <Animated.View
-            style={{
-              transform: [{ scale: heartScale }],
-            }}
-          >
-            <MaterialCommunityIcons
-              name={isVouched ? "heart" : "heart-outline"}
-              size={19}
-              color={foregroundColor}
-            />
-          </Animated.View>
-        </View>
-
-        {/* Vouch count */}
         <AppText
           weight="bold"
-          className={`ml-1 text-xs ${
-            isVouched ? "text-white" : styles.accentText
-          }`}
+          className="ml-1 text-[10px]"
+          style={{
+            color: isVouched ? "#FFFFFF" : styles.borderColor,
+          }}
         >
           {vouchCount}
         </AppText>

@@ -113,14 +113,14 @@ export default function BusinessVisitInfoContent({
 
         {!isOwnBusiness && (
           <View className="mt-4">
-            <AppText
+            {/* <AppText
               weight="semibold"
-              className="mb-2 text-xs text-text-secondary"
+              className="mb-2 text-xs text-text-secondary text-center"
             >
               Ways to get there
-            </AppText>
+            </AppText> */}
 
-            <View className="flex-row gap-2 bg-background rounded-lg">
+            <View className="flex-row gap-2  rounded-lg">
               <TransportAction
                 SvgIcon={MapRouteOptionIcon}
                 label="Road Route"

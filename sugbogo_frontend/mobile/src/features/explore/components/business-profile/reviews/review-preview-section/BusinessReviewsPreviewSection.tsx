@@ -11,9 +11,9 @@ import ErrorState from "@/shared/components/ErrorState";
 import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
 import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
 import type { BusinessReview } from "../../../../types/review.types";
-import ReviewVibeSection from "../ReviewVibeSection";
-import BusinessReviewCard from "../BusinessReviewCard";
 import BusinessReviewCardSkeleton from "../../state/BusinessReviewCardSkeleton";
+import BusinessReviewCard from "../BusinessReviewCard";
+import ReviewInsightsPreview from "./ReviewInsightsPreview";
 
 const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
 
@@ -28,15 +28,13 @@ type Props = {
 };
 
 /**
- * Displays a compact preview of the business's reviews and review-derived insights.
+ * Displays a compact preview of the business's reviews and recent review insights.
  *
- * Shows the stored sentiment summary above the review collection and surfaces
- * the most frequent review themes immediately before the previewed reviews.
- * Empty and failure states remain localized to the review collection.
+ * Keeps the profile focused on review discovery while placing review creation
+ * after the previewed reviews as a secondary section action.
  */
 export default function BusinessReviewsPreviewSection({
   businessId,
-  businessName,
   isOwnBusiness,
   hasOwnReview: businessHasOwnReview,
   reviewInsights,
@@ -55,9 +53,6 @@ export default function BusinessReviewsPreviewSection({
   const reviewCount = totalCount ?? 0;
   const hasOwnReview = businessHasOwnReview || previewHasOwnReview;
   const canWriteReview = !isOwnBusiness && !hasOwnReview;
-
-  const frequentMentions = reviewInsights?.frequent_mentions.slice(0, 3) ?? [];
-  const hasFrequentMentions = frequentMentions.length > 0;
 
   const openReviews = () => {
     router.push({
@@ -105,8 +100,8 @@ export default function BusinessReviewsPreviewSection({
         )}
       </View>
 
-      {/* Review sentiment summary */}
-      <ReviewVibeSection insights={reviewInsights} />
+      {/* Compact review insights */}
+      <ReviewInsightsPreview insights={reviewInsights} />
 
       {/* Loading state */}
       {isLoading && <BusinessReviewCardSkeleton />}
@@ -148,7 +143,7 @@ export default function BusinessReviewsPreviewSection({
               title="Write a review"
               onPress={onWriteReview}
               rounded="full"
-              className="mt-5 min-w-44 py-3"
+              className="mt-5 min-w-44 cursor-pointer py-3"
               fontClassName="text-sm"
             />
           )}
@@ -158,46 +153,20 @@ export default function BusinessReviewsPreviewSection({
       {/* Review preview */}
       {!isLoading && !error && reviews.length > 0 && (
         <View>
-          {/* Frequently mentioned themes */}
-          {hasFrequentMentions && (
-            <View className="mb-4 gap-3">
-              <AppText weight="semibold" className="text-sm text-text-primary">
-                Frequently mentioned
-              </AppText>
-
-              <View className="flex-row flex-wrap gap-2">
-                {frequentMentions.map((mention) => (
-                  <View
-                    key={mention.label}
-                    className="max-w-full rounded-tag bg-background px-3 py-2"
-                  >
-                    <AppText
-                      accessibilityLabel={`${mention.label}, mentioned in ${
-                        mention.count
-                      } ${mention.count === 1 ? "review" : "reviews"}`}
-                      className="text-sm text-text-secondary"
-                    >
-                      {mention.label} · {mention.count}
-                    </AppText>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
           {/* Latest reviews */}
           <View className="gap-2 pb-4">
-            {reviews.map((review) => (
+            {reviews.map((review, index) => (
               <BusinessReviewCard
                 key={review.id}
                 businessId={businessId}
                 review={review}
+                isLast={index === reviews.length - 1}
                 onEdit={onEditReview}
               />
             ))}
           </View>
 
-          {/* Review action */}
+          {/* Review creation action */}
           {canWriteReview && (
             <View className="items-center">
               <Button
@@ -205,7 +174,8 @@ export default function BusinessReviewsPreviewSection({
                 onPress={onWriteReview}
                 variant="soft"
                 rounded="full"
-                className="mt-1 min-w-44 py-3"
+                size="sm"
+                className="min-w-40 cursor-pointer py-2.5"
                 fontClassName="text-sm"
               />
             </View>

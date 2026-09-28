@@ -66,7 +66,7 @@ module.exports = {
       borderRadius: {
         tag: "999px", // for interest tags (fully rounded)
         btn: "12px", // for buttons
-        card: "16px", // for cards
+        card: "12px", // for cards
         input: "8px", // for input fields
       },
 

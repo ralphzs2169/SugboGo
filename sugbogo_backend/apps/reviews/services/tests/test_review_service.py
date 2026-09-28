@@ -393,7 +393,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(reviews[0].vouched_specialties[0].TAG_ID_id, tag.TAG_ID)
 
 
-    def test_get_review_preview_limits_results_to_three_reviews(self):
+    def test_get_review_preview_limits_results_to_two_reviews(self):
         review_users = [
             self.user,
             self.second_user,
@@ -425,7 +425,7 @@ class ReviewServiceTests(TestCase):
 
         reviews = preview["reviews"]
 
-        self.assertEqual(len(reviews), 3)
+        self.assertEqual(len(reviews), 2)
 
     def test_list_reviews_excludes_non_published_reviews(self):
         published_review = ReviewService.create_review(
@@ -1375,7 +1375,7 @@ class ReviewServiceTests(TestCase):
             ).exists(),
         )
 
-    def test_get_review_preview_returns_three_most_recent_reviews(self):
+    def test_get_review_preview_returns_two_most_recent_reviews(self):
         reviews = []
 
         for index in range(4):
@@ -1403,12 +1403,12 @@ class ReviewServiceTests(TestCase):
 
         preview_reviews = preview["reviews"]
 
-        self.assertEqual(len(preview_reviews), 3)
+        self.assertEqual(len(preview_reviews), 2)
 
-        # The preview should contain the three most recent reviews.
+        # The preview should contain the two most recent reviews.
         self.assertEqual(
             [review.REVW_ID for review in preview_reviews],
-            [review.REVW_ID for review in reviews[-3:][::-1]],
+            [review.REVW_ID for review in reviews[-2:][::-1]],
         )
 
         # Ownership is metadata, not a sorting priority.
@@ -1679,7 +1679,10 @@ class ReviewServiceTests(TestCase):
                 self.score_review.assert_not_called()
 
         self.assertEqual(len(callbacks), 1)
-        enqueue.assert_called_once_with(review.pk)
+        enqueue.assert_called_once_with(
+            review.pk,
+            self.business.pk,
+        )
         review.refresh_from_db()
         self.assertIsNone(review.REVW_SENTIMENT_SCORE)
         self.assertIsNone(review.REVW_SENTIMENT_LABEL)
@@ -1704,7 +1707,10 @@ class ReviewServiceTests(TestCase):
                 self.score_review.assert_not_called()
 
         self.assertEqual(len(callbacks), 1)
-        enqueue.assert_called_once_with(review.pk)
+        enqueue.assert_called_once_with(
+            review.pk,
+            self.business.pk,
+        )
         review.refresh_from_db()
         self.assertEqual(review.REVW_TEXT, "Edited text.")
         self.assertIsNone(review.REVW_SENTIMENT_SCORE)
