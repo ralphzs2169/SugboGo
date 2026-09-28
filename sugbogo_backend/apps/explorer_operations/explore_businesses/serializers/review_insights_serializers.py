@@ -69,6 +69,11 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    sentiment_computed_at = serializers.DateTimeField(
+        source="BRSU_SENTIMENT_COMPUTED_AT",
+        read_only=True,
+        allow_null=True,
+    )
     updated_at = serializers.DateTimeField(
         source="BRSU_UPDATED_AT",
         read_only=True,
@@ -155,5 +160,6 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             "coverage_start",
             "coverage_end",
             "generated_at",
+            "sentiment_computed_at",
             "updated_at",
         )

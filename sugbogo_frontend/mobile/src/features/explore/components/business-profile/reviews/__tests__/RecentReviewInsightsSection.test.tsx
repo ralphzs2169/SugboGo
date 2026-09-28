@@ -24,6 +24,7 @@ const insights: BusinessReviewInsights = {
   coverage_start: null,
   coverage_end: null,
   generated_at: null,
+  sentiment_computed_at: null,
   updated_at: null,
 };
 

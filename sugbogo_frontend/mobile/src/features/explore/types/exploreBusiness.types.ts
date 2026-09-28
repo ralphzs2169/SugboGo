@@ -194,6 +194,7 @@ export type BusinessReviewInsights = {
   coverage_start: string | null;
   coverage_end: string | null;
   generated_at: string | null;
+  sentiment_computed_at: string | null;
   updated_at: string | null;
 };
 

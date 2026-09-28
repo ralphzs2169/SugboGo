@@ -6,7 +6,9 @@ import type {
   BusinessReviewFilters,
   BusinessReviewListResponse,
   BusinessReviewPreview,
+  BusinessReview,
   LocalReviewPhoto,
+  ReviewCreateResult,
 } from "../types/review.types";
 
 function appendPhotos(form: FormData, photos: LocalReviewPhoto[]) {
@@ -81,7 +83,7 @@ export function createReview(
   businessId: number,
   text: string,
   photos: LocalReviewPhoto[],
-) {
+): Promise<ApiResponse<ReviewCreateResult>> {
   return request(
     apiClient.post(
       `/reviews/business/${businessId}/`,
@@ -95,7 +97,7 @@ export function updateReview(
   text: string,
   photos: LocalReviewPhoto[],
   keepPhotoIds: number[],
-) {
+): Promise<ApiResponse<BusinessReview>> {
   return request(
     apiClient.patch(
       `/reviews/${reviewId}/`,
@@ -104,7 +106,9 @@ export function updateReview(
   );
 }
 
-export function deleteReview(reviewId: number) {
+export function deleteReview(
+  reviewId: number,
+): Promise<ApiResponse<{ review_id: number }>> {
   return request(apiClient.delete(`/reviews/${reviewId}/`));
 }
 

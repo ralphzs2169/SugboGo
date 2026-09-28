@@ -13,6 +13,10 @@ jest.mock("expo-router", () => ({
   },
 }));
 jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
+  ReviewDerivedDataSyncProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
 jest.mock("../../hooks/useBusinessProfileVisit", () => jest.fn());
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),

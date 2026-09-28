@@ -23,6 +23,10 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 jest.mock("../../hooks/useBusinessReviews");
 jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
+  ReviewDerivedDataSyncProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),

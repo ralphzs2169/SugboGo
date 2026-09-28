@@ -369,6 +369,7 @@ class ReviewKeywordService:
         if (
             attempted is not None
             and attempted.astimezone(UTC).date() == now.astimezone(UTC).date()
+            and summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT == fingerprint
             and not summary.BRSU_KEYWORDS_RETRYABLE
         ):
             return "already_attempted"
@@ -382,6 +383,7 @@ class ReviewKeywordService:
         selected = cls._select_reviews(reviews)
         BusinessReviewSummary.objects.filter(pk=summary.pk).update(
             BRSU_KEYWORDS_ATTEMPTED_AT=now,
+            BRSU_KEYWORDS_ATTEMPT_FINGERPRINT=fingerprint,
             BRSU_KEYWORDS_RETRYABLE=False,
             BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.PENDING,
             BRSU_UPDATED_AT=now,

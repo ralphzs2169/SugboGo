@@ -40,6 +40,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         "coverage_start",
         "coverage_end",
         "generated_at",
+        "sentiment_computed_at",
         "updated_at",
     }
 
@@ -77,6 +78,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             BRSU_COVERAGE_END=generated_at,
             BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
             BRSU_GENERATED_AT=generated_at,
+            BRSU_SENTIMENT_COMPUTED_AT=generated_at,
             BRSU_SUPPORTING_REVIEW_REFERENCES={
                 "narrative_review_ids": [1, 2, 3],
                 "themes": [{
@@ -136,6 +138,10 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         )
         self.assertEqual(
             insights["generated_at"],
+            generated_at.isoformat().replace("+00:00", "Z"),
+        )
+        self.assertEqual(
+            insights["sentiment_computed_at"],
             generated_at.isoformat().replace("+00:00", "Z"),
         )
         self.assertIsNotNone(insights["updated_at"])

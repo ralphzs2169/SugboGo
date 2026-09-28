@@ -88,6 +88,10 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.summary.BRSU_COVERAGE_END, self.reference_time)
         self.assertIsNotNone(self.summary.BRSU_GENERATED_AT)
         self.assertEqual(len(self.summary.BRSU_KEYWORDS_FINGERPRINT), 64)
+        self.assertEqual(
+            self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT,
+            self.summary.BRSU_KEYWORDS_FINGERPRINT,
+        )
 
     def test_legacy_keyword_fingerprint_regenerates_evidence_once(self):
         reviews = ReviewKeywordService._snapshot(
@@ -131,14 +135,19 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.refresh(), "unchanged")
         self.provider.assert_called_once()
 
-    def test_changed_snapshot_waits_until_next_day(self):
+    def test_same_fingerprint_attempted_twice_today_is_blocked(self):
+        self.provider.return_value = "not json"
+
+        self.assertEqual(self.refresh(), "failed")
+        self.assertEqual(self.refresh(), "already_attempted")
+        self.provider.assert_called_once()
+
+    def test_changed_snapshot_can_generate_again_on_same_day(self):
         self.refresh()
         Review.objects.filter(pk=self.reviews[-1].pk).update(
             REVW_TEXT="Friendly staff and nice food.",
         )
 
-        self.assertEqual(self.refresh(), "already_attempted")
-        self.allow_next_day()
         self.assertEqual(self.refresh(), "updated")
         self.assertEqual(self.provider.call_count, 2)
 
@@ -237,6 +246,8 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
             self.refresh()
         self.summary.refresh_from_db()
         self.assertTrue(self.summary.BRSU_KEYWORDS_RETRYABLE)
+        attempted_fingerprint = self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT
+        self.assertIsNotNone(attempted_fingerprint)
         self.assertEqual(
             self.summary.BRSU_GENERATION_STATE,
             BusinessReviewSummary.GenerationState.OUTDATED,
@@ -247,6 +258,10 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.refresh(), "updated")
         self.summary.refresh_from_db()
         self.assertFalse(self.summary.BRSU_KEYWORDS_RETRYABLE)
+        self.assertEqual(
+            self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT,
+            attempted_fingerprint,
+        )
 
     def test_safe_previous_result_is_retained_and_marked_outdated_on_failure(self):
         self.refresh()

@@ -3,9 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import {
+  createReview,
   deleteReview,
   getAllBusinessReviews,
   getBusinessReviewPreview,
+  reportReview,
+  updateReview,
 } from "../../api/reviewBusiness.service";
 import {
   DEFAULT_BUSINESS_REVIEW_FILTERS,
@@ -16,8 +19,11 @@ import {
 import {
   useBusinessReviewPreview,
   useBusinessReviews,
+  useCreateReview,
   useDeleteReview,
   useMerchantBusinessReviews,
+  useReportReview,
+  useUpdateReview,
 } from "../useBusinessReviews";
 import {
   businessReviewPreviewKey,
@@ -25,10 +31,23 @@ import {
   exploreBusinessDetailKey,
 } from "../reviewQueryKeys";
 
+const mockStartSentimentSync = jest.fn();
+const mockStartGeneratedInsightsSync = jest.fn();
+
 jest.mock("../../api/reviewBusiness.service", () => ({
+  createReview: jest.fn(),
   deleteReview: jest.fn(),
   getAllBusinessReviews: jest.fn(),
   getBusinessReviewPreview: jest.fn(),
+  reportReview: jest.fn(),
+  updateReview: jest.fn(),
+}));
+
+jest.mock("../ReviewDerivedDataSyncProvider", () => ({
+  useReviewDerivedDataSyncActions: () => ({
+    startSentimentSync: mockStartSentimentSync,
+    startGeneratedInsightsSync: mockStartGeneratedInsightsSync,
+  }),
 }));
 
 function setupClient() {
@@ -38,7 +57,9 @@ function setupClient() {
 
   /** Supplies review hooks with isolated query state. */
   function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
   }
 
   return { client, Wrapper };
@@ -81,7 +102,9 @@ describe("useBusinessReviews", () => {
       { wrapper: Wrapper },
     );
 
-    await waitFor(() => expect(result.current.reviews.map((review) => review.id)).toEqual([8, 5]));
+    await waitFor(() =>
+      expect(result.current.reviews.map((review) => review.id)).toEqual([8, 5]),
+    );
     expect(getAllBusinessReviews).toHaveBeenCalledWith(20, filters, 1);
     expect(result.current.totalCount).toBe(3);
     expect(result.current.hasNextPage).toBe(true);
@@ -129,7 +152,9 @@ describe("useBusinessReviews", () => {
     await act(async () => {
       resolveFiltered({ success: true, data: page([3], 1, false) });
     });
-    await waitFor(() => expect(result.current.reviews.map((review) => review.id)).toEqual([3]));
+    await waitFor(() =>
+      expect(result.current.reviews.map((review) => review.id)).toEqual([3]),
+    );
     unmount();
     client.clear();
   });
@@ -198,10 +223,9 @@ describe("useBusinessReviews", () => {
     });
     const { client, Wrapper } = setupClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
-    const { result, unmount } = await renderHook(
-      () => useDeleteReview(20),
-      { wrapper: Wrapper },
-    );
+    const { result, unmount } = await renderHook(() => useDeleteReview(20), {
+      wrapper: Wrapper,
+    });
 
     await act(async () => {
       await result.current.mutateAsync({ reviewId: 8 });
@@ -217,6 +241,103 @@ describe("useBusinessReviews", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: exploreBusinessDetailKey(20),
     });
+    expect(mockStartSentimentSync).not.toHaveBeenCalled();
+    expect(mockStartGeneratedInsightsSync).toHaveBeenCalledWith({
+      baselineGeneratedAt: null,
+      startedAt: expect.any(Number),
+    });
+    unmount();
+    client.clear();
+  });
+
+  it("starts sentiment synchronization after review creation", async () => {
+    (createReview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { id: 18, business_id: 20, user_id: 4 },
+    });
+    const { client, Wrapper } = setupClient();
+    const { result, unmount } = await renderHook(() => useCreateReview(20), {
+      wrapper: Wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        text: "A detailed review for sentiment processing.",
+        photos: [],
+      });
+    });
+
+    expect(mockStartSentimentSync).toHaveBeenCalledWith({
+      reviewId: 18,
+      baselineComputedAt: null,
+      startedAt: expect.any(Number),
+    });
+    expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
+    unmount();
+    client.clear();
+  });
+
+  it("starts sentiment synchronization only when edited text changed", async () => {
+    (updateReview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { id: 8 },
+    });
+    const { client, Wrapper } = setupClient();
+    const { result, unmount } = await renderHook(() => useUpdateReview(20), {
+      wrapper: Wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        reviewId: 8,
+        text: "The same review text.",
+        photos: [{ uri: "file:///photo.jpg" }],
+        keepPhotoIds: [],
+        textChanged: false,
+      });
+    });
+    expect(mockStartSentimentSync).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        reviewId: 8,
+        text: "A changed review text for new sentiment.",
+        photos: [],
+        keepPhotoIds: [],
+        textChanged: true,
+      });
+    });
+
+    expect(mockStartSentimentSync).toHaveBeenCalledWith({
+      reviewId: 8,
+      baselineComputedAt: null,
+      startedAt: expect.any(Number),
+    });
+    expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
+    unmount();
+    client.clear();
+  });
+
+  it("does not start synchronization for unrelated review mutations", async () => {
+    (reportReview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: null,
+    });
+    const { client, Wrapper } = setupClient();
+    const { result, unmount } = await renderHook(
+      () => useReportReview(20),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        reviewId: 8,
+        reportType: "spam",
+      });
+    });
+
+    expect(mockStartSentimentSync).not.toHaveBeenCalled();
+    expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
     unmount();
     client.clear();
   });

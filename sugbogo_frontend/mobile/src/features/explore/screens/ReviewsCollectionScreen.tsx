@@ -36,6 +36,7 @@ import {
   useBusinessReviews,
 } from "../hooks/useBusinessReviews";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
+import { ReviewDerivedDataSyncProvider } from "../hooks/ReviewDerivedDataSyncProvider";
 import {
   DEFAULT_BUSINESS_REVIEW_FILTERS,
   type BusinessReview,
@@ -55,7 +56,7 @@ type Props = {
  * Keeps Review Insights scrollable while promoting the filter and sort controls
  * into an animated sticky header once their inline position reaches the top.
  */
-export default function ReviewsCollectionScreen({
+function ReviewsCollectionScreenContent({
   businessId,
   businessName,
   isOwnBusiness = false,
@@ -446,5 +447,14 @@ export default function ReviewsCollectionScreen({
         review={editingReview}
       />
     </View>
+  );
+}
+
+/** Mounts review synchronization for the lifetime of the collection screen. */
+export default function ReviewsCollectionScreen(props: Props) {
+  return (
+    <ReviewDerivedDataSyncProvider businessId={props.businessId}>
+      <ReviewsCollectionScreenContent {...props} />
+    </ReviewDerivedDataSyncProvider>
   );
 }
