@@ -312,6 +312,30 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
             attempted_fingerprint,
         )
 
+    def test_exhausted_transient_attempt_is_non_retryable_and_guarded(self):
+        self.provider.side_effect = RetryableKeywordError("unavailable")
+        with self.assertRaises(RetryableKeywordError):
+            self.refresh()
+
+        ReviewKeywordService.mark_retry_exhausted(
+            self.business.pk,
+            reference_time=self.reference_time,
+        )
+        self.summary.refresh_from_db()
+
+        self.assertEqual(
+            self.summary.BRSU_GENERATION_STATE,
+            BusinessReviewSummary.GenerationState.OUTDATED,
+        )
+        self.assertFalse(self.summary.BRSU_KEYWORDS_RETRYABLE)
+
+        self.provider.reset_mock()
+        self.provider.side_effect = None
+        self.provider.return_value = self.response()
+
+        self.assertEqual(self.refresh(), "already_attempted")
+        self.provider.assert_not_called()
+
     def test_safe_previous_result_is_retained_and_marked_outdated_on_failure(self):
         self.refresh()
         self.summary.refresh_from_db()

@@ -6,7 +6,10 @@ from django.test import SimpleTestCase
 from apps.reviews.services.business_review_insights_service import (
     BusinessReviewInsightsService,
 )
-from apps.reviews.services.review_keyword_service import RetryableKeywordError
+from apps.reviews.services.review_keyword_service import (
+    ReviewKeywordService,
+    RetryableKeywordError,
+)
 from apps.reviews.tasks import refresh_business_review_insights
 
 
@@ -63,3 +66,32 @@ class BusinessReviewInsightsTaskTests(SimpleTestCase):
                 refresh_business_review_insights.run(business_id=12)
 
         retry.assert_not_called()
+
+    @patch.object(ReviewKeywordService, "mark_retry_exhausted")
+    @patch.object(
+        BusinessReviewInsightsService,
+        "refresh",
+        side_effect=RetryableKeywordError("temporary"),
+    )
+    def test_exhausted_keyword_retries_mark_non_retryable_without_retrying(
+        self,
+        refresh,
+        mark_retry_exhausted,
+    ):
+        refresh_business_review_insights.push_request(retries=3)
+        try:
+            with (
+                patch.object(refresh_business_review_insights, "retry") as retry,
+                patch("apps.reviews.tasks.logger.error") as log,
+                self.assertRaises(RetryableKeywordError),
+            ):
+                refresh_business_review_insights.run(business_id=12)
+        finally:
+            refresh_business_review_insights.pop_request()
+
+        retry.assert_not_called()
+        mark_retry_exhausted.assert_called_once_with(
+            12,
+            reference_time=ANY,
+        )
+        self.assertIn("exhausted", log.call_args.args[0])

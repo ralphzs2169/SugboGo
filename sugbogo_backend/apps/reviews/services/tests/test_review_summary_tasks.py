@@ -6,7 +6,10 @@ from celery.exceptions import Retry
 from django.conf import settings
 from django.test import SimpleTestCase
 
-from apps.reviews.services.review_keyword_service import RetryableKeywordError
+from apps.reviews.services.review_keyword_service import (
+    ReviewKeywordService,
+    RetryableKeywordError,
+)
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
 from apps.reviews.tasks import recompute_review_summaries
 
@@ -101,10 +104,24 @@ class ReviewSummaryTaskTests(SimpleTestCase):
         batch.return_value = self.result(keywords_updated=1, retry_business_ids=[8])
         recompute_review_summaries.push_request(retries=3, called_directly=False)
         try:
-            with patch.object(recompute_review_summaries, "apply_async") as enqueue:
+            with (
+                patch.object(recompute_review_summaries, "apply_async") as enqueue,
+                patch.object(
+                    ReviewKeywordService,
+                    "mark_retry_exhausted",
+                ) as mark_retry_exhausted,
+                patch("apps.reviews.tasks.logger.error") as log,
+            ):
                 with self.assertRaises(RetryableKeywordError):
-                    recompute_review_summaries.run()
+                    recompute_review_summaries.run(
+                        reference_time_iso=self.reference_time.isoformat(),
+                    )
                 enqueue.assert_not_called()
+                mark_retry_exhausted.assert_called_once_with(
+                    8,
+                    reference_time=self.reference_time,
+                )
+                self.assertIn("exhausted", log.call_args.args[0])
         finally:
             recompute_review_summaries.pop_request()
 
