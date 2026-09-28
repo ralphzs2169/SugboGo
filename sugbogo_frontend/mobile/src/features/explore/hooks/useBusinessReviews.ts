@@ -30,6 +30,10 @@ type ReviewMutationSync = "create" | "update" | "delete";
 
 type ReviewMutationContext = {
   baselineGeneratedAt: string | null;
+  baselineInsightsUpdatedAt: string | null;
+  baselineInsightsState:
+    | NonNullable<ExploreBusinessDetail["review_insights"]>["state"]
+    | null;
   baselineSentimentComputedAt: string | null;
   startedAt: number;
 };
@@ -58,6 +62,9 @@ function useReviewMutation<TVariables, TResult>(
 
       return {
         baselineGeneratedAt: detail?.review_insights?.generated_at ?? null,
+        baselineInsightsUpdatedAt:
+          detail?.review_insights?.updated_at ?? null,
+        baselineInsightsState: detail?.review_insights?.state ?? null,
         baselineSentimentComputedAt:
           detail?.review_insights?.sentiment_computed_at ?? null,
         startedAt: Date.now(),
@@ -81,6 +88,9 @@ function useReviewMutation<TVariables, TResult>(
         startSentimentSync({
           reviewId: (result as ReviewCreateResult).id,
           baselineComputedAt: context.baselineSentimentComputedAt,
+          baselineGeneratedAt: context.baselineGeneratedAt,
+          baselineInsightsUpdatedAt: context.baselineInsightsUpdatedAt,
+          baselineInsightsState: context.baselineInsightsState,
           startedAt: context.startedAt,
         });
       }
@@ -92,6 +102,9 @@ function useReviewMutation<TVariables, TResult>(
         startSentimentSync({
           reviewId: (variables as { reviewId: number }).reviewId,
           baselineComputedAt: context.baselineSentimentComputedAt,
+          baselineGeneratedAt: context.baselineGeneratedAt,
+          baselineInsightsUpdatedAt: context.baselineInsightsUpdatedAt,
+          baselineInsightsState: context.baselineInsightsState,
           startedAt: context.startedAt,
         });
       }
@@ -99,6 +112,9 @@ function useReviewMutation<TVariables, TResult>(
       if (sync === "delete") {
         startGeneratedInsightsSync({
           baselineGeneratedAt: context.baselineGeneratedAt,
+          baselineUpdatedAt: context.baselineInsightsUpdatedAt,
+          baselineState: context.baselineInsightsState,
+          resultNotBefore: context.startedAt,
           startedAt: context.startedAt,
         });
       }

@@ -42,6 +42,9 @@ describe("review-derived data synchronization", () => {
   const sentimentSession: SentimentSyncSession = {
     reviewId: 18,
     baselineComputedAt: "2026-09-28T01:00:00Z",
+    baselineGeneratedAt: "2026-09-28T01:00:00Z",
+    baselineInsightsUpdatedAt: "2026-09-28T01:00:00Z",
+    baselineInsightsState: "ready",
     startedAt: Date.parse("2026-09-28T01:00:01Z"),
   };
 
@@ -133,6 +136,38 @@ describe("review-derived data synchronization", () => {
     expect(
       shouldStopGeneratedInsightsSync(session, unchanged, false),
     ).toBe(false);
+  });
+
+  it("waits for a post-mutation insufficient result", () => {
+    const session: GeneratedInsightsSyncSession = {
+      baselineGeneratedAt: "2026-09-28T01:00:00Z",
+      baselineUpdatedAt: "2026-09-28T01:00:00Z",
+      baselineState: "insufficient_reviews",
+      resultNotBefore: Date.parse("2026-09-28T01:00:01Z"),
+      requiresPostMutationUpdate: true,
+      startedAt: Date.parse("2026-09-28T01:00:05Z"),
+    };
+
+    expect(
+      shouldStopGeneratedInsightsSync(
+        session,
+        {
+          ...insights("insufficient_reviews", null, null),
+          updated_at: "2026-09-28T01:00:00Z",
+        },
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      shouldStopGeneratedInsightsSync(
+        session,
+        {
+          ...insights("insufficient_reviews", null, null),
+          updated_at: "2026-09-28T01:00:04Z",
+        },
+        false,
+      ),
+    ).toBe(true);
   });
 
   it("does not treat an old ready result as new when no baseline was cached", () => {

@@ -29,11 +29,18 @@ const GENERATED_INSIGHTS_TIMEOUT_MS = 60_000;
 export type SentimentSyncSession = {
   reviewId: number;
   baselineComputedAt: string | null;
+  baselineGeneratedAt: string | null;
+  baselineInsightsUpdatedAt: string | null;
+  baselineInsightsState: BusinessReviewInsights["state"] | null;
   startedAt: number;
 };
 
 export type GeneratedInsightsSyncSession = {
   baselineGeneratedAt: string | null;
+  baselineUpdatedAt?: string | null;
+  baselineState?: BusinessReviewInsights["state"] | null;
+  resultNotBefore?: number;
+  requiresPostMutationUpdate?: boolean;
   startedAt: number;
 };
 
@@ -103,7 +110,21 @@ export function shouldStopGeneratedInsightsSync(
   }
 
   if (insights.state === "insufficient_reviews") {
-    return true;
+    if (!session.requiresPostMutationUpdate) {
+      return true;
+    }
+
+    const baselineStateChanged = Boolean(
+      session.baselineState &&
+        session.baselineState !== "insufficient_reviews",
+    );
+    const hasNewUpdate = hasAdvancedTimestamp(
+      insights.updated_at,
+      session.baselineUpdatedAt ?? null,
+      session.resultNotBefore ?? session.startedAt,
+    );
+
+    return sawTransition || baselineStateChanged || hasNewUpdate;
   }
 
   if (insights.state !== "ready") {
@@ -113,7 +134,7 @@ export function shouldStopGeneratedInsightsSync(
   const hasNewGeneration = hasAdvancedTimestamp(
     insights.generated_at,
     session.baselineGeneratedAt,
-    session.startedAt,
+    session.resultNotBefore ?? session.startedAt,
   );
   return hasNewGeneration || sawTransition;
 }
@@ -185,6 +206,14 @@ export function ReviewDerivedDataSyncProvider({
     // Query data is the external completion signal for this polling session.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSentimentSession(null);
+    startGeneratedInsightsSync({
+      baselineGeneratedAt: sentimentSession.baselineGeneratedAt,
+      baselineUpdatedAt: sentimentSession.baselineInsightsUpdatedAt,
+      baselineState: sentimentSession.baselineInsightsState,
+      resultNotBefore: sentimentSession.startedAt,
+      requiresPostMutationUpdate: true,
+      startedAt: Date.now(),
+    });
 
     void Promise.all([
       queryClient.invalidateQueries({
@@ -200,6 +229,7 @@ export function ReviewDerivedDataSyncProvider({
     previewQuery.data,
     queryClient,
     sentimentSession,
+    startGeneratedInsightsSync,
   ]);
 
   useEffect(() => {

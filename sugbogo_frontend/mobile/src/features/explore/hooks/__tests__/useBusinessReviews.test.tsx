@@ -244,6 +244,9 @@ describe("useBusinessReviews", () => {
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     expect(mockStartGeneratedInsightsSync).toHaveBeenCalledWith({
       baselineGeneratedAt: null,
+      baselineUpdatedAt: null,
+      baselineState: null,
+      resultNotBefore: expect.any(Number),
       startedAt: expect.any(Number),
     });
     unmount();
@@ -270,6 +273,9 @@ describe("useBusinessReviews", () => {
     expect(mockStartSentimentSync).toHaveBeenCalledWith({
       reviewId: 18,
       baselineComputedAt: null,
+      baselineGeneratedAt: null,
+      baselineInsightsUpdatedAt: null,
+      baselineInsightsState: null,
       startedAt: expect.any(Number),
     });
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
@@ -311,6 +317,9 @@ describe("useBusinessReviews", () => {
     expect(mockStartSentimentSync).toHaveBeenCalledWith({
       reviewId: 8,
       baselineComputedAt: null,
+      baselineGeneratedAt: null,
+      baselineInsightsUpdatedAt: null,
+      baselineInsightsState: null,
       startedAt: expect.any(Number),
     });
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
