@@ -1,6 +1,5 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRef, useState } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { View } from "react-native";
 import Toast from "react-native-toast-message";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 
@@ -26,6 +25,7 @@ type Props = {
   review: BusinessReview;
   onEdit?: (review: BusinessReview) => void;
   isLast?: boolean;
+  highlightedTopic?: string | null;
 };
 
 /**
@@ -40,6 +40,7 @@ export default function BusinessReviewCard({
   review,
   onEdit,
   isLast = false,
+  highlightedTopic,
 }: Props) {
   const { mutateAsync: like, isPending: isLikePending } =
     useReviewLike(businessId);
@@ -136,6 +137,7 @@ export default function BusinessReviewCard({
         onLike={toggleLike}
         isLikePending={isLikePending}
         onActions={() => presentBottomSheet(actionSheetRef)}
+        highlightedTopic={highlightedTopic}
       />
 
       {/* Merchant response */}

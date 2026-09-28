@@ -151,6 +151,55 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.refresh(), "updated")
         self.assertEqual(self.provider.call_count, 2)
 
+    def test_snapshot_returning_to_previous_input_can_generate_again_same_day(self):
+        self.assertEqual(self.refresh(), "updated")
+
+        added = self.create_review(self.business, 10)
+        self.reference_time = timezone.now()
+        self.provider.return_value = json.dumps({
+            "narrative": "Visitors mention friendly service and a new review.",
+            "narrative_review_ids": [self.reviews[0].pk, added.pk],
+            "tags": [{
+                "text": "friendly service",
+                "count": 2,
+                "review_ids": [self.reviews[0].pk, added.pk],
+            }],
+        })
+
+        self.assertEqual(self.refresh(), "updated")
+        self.summary.refresh_from_db()
+        second_snapshot_attempt = (
+            self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT
+        )
+
+        added_id = added.pk
+        added.delete()
+        ReviewKeywordService.remove_review_evidence(
+            business_id=self.business.pk,
+            review_id=added_id,
+        )
+        self.provider.return_value = self.response()
+
+        current_fingerprint = ReviewKeywordService._fingerprint(
+            ReviewKeywordService._snapshot(
+                self.business.pk,
+                self.reference_time,
+            ),
+        )
+        self.assertNotEqual(current_fingerprint, second_snapshot_attempt)
+
+        self.assertEqual(self.refresh(), "updated")
+        self.summary.refresh_from_db()
+        self.assertNotEqual(
+            self.summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT,
+            second_snapshot_attempt,
+        )
+        self.assertEqual(
+            self.summary.BRSU_GENERATION_STATE,
+            BusinessReviewSummary.GenerationState.READY,
+        )
+        self.assertEqual(self.provider.call_count, 3)
+
     def test_added_review_is_sent_in_full_snapshot(self):
         self.refresh()
         added = self.create_review(self.business, 10)

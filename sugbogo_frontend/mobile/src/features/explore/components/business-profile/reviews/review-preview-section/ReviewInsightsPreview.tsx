@@ -26,8 +26,11 @@ export default function ReviewInsightsPreview({ insights }: Props) {
     insights?.content_available && insights.narrative,
   );
 
-  const isUpdating =
-    insights?.state === "outdated" && !insights.content_available;
+  const isUpdating = Boolean(
+    insights &&
+      (insights.state === "pending" || insights.state === "outdated") &&
+      !insights.content_available,
+  );
 
   const overallVibe =
     insights?.has_sufficient_sentiment_data && insights.overall_vibe
@@ -59,7 +62,10 @@ export default function ReviewInsightsPreview({ insights }: Props) {
         <ReviewInsightsStateCard
           icon="refresh"
           title="Updating insights…"
-          description="We’re refreshing these insights based on the latest reviews."
+          description={
+            insights.state_message ||
+            "Recent reviews changed, so we’re refreshing this summary."
+          }
         />
       ) : hasGeneratedSummary ? (
         /* Generated Vibe Summary */

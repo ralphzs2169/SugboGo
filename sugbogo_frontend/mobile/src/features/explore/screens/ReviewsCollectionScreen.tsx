@@ -271,6 +271,7 @@ function ReviewsCollectionScreenContent({
         review={item}
         isLast={index === displayedReviews.length - 1}
         onEdit={editReview}
+        highlightedTopic={filters.topic}
       />
     </View>
   );

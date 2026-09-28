@@ -117,20 +117,27 @@ describe("RecentReviewInsightsSection", () => {
     expect(screen.getByText(/outdated and awaiting refresh/)).toBeTruthy();
   });
 
-  it("shows updating while invalidated content is unavailable", async () => {
-    const screen = await render(
-      <RecentReviewInsightsSection
-        insights={{
-          ...insights,
-          state: "outdated",
-          content_available: false,
-          narrative: null,
-        }}
-      />,
-    );
-    expect(screen.getByText("Updating insights…")).toBeTruthy();
-    expect(screen.queryByText("Vibe Summary")).toBeNull();
-  });
+  it.each(["pending", "outdated"] as const)(
+    "shows updating while %s content is unavailable",
+    async (state) => {
+      const screen = await render(
+        <RecentReviewInsightsSection
+          insights={{
+            ...insights,
+            state,
+            state_message: "Recent reviews changed. Refreshing insights.",
+            content_available: false,
+            narrative: null,
+          }}
+        />,
+      );
+      expect(screen.getByText("Updating insights…")).toBeTruthy();
+      expect(
+        screen.getByText("Recent reviews changed. Refreshing insights."),
+      ).toBeTruthy();
+      expect(screen.queryByText("Vibe Summary")).toBeNull();
+    },
+  );
 
   it("discloses sampling without rendering internal review IDs", async () => {
     const screen = await render(

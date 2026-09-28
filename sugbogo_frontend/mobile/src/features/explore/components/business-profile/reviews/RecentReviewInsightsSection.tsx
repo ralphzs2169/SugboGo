@@ -49,7 +49,11 @@ export default function RecentReviewInsightsSection({
     insights.overall_vibe,
   );
 
-  const isUpdating = insights?.state === "outdated" && !showGeneratedContent;
+  const isUpdating = Boolean(
+    insights &&
+      (insights.state === "pending" || insights.state === "outdated") &&
+      !showGeneratedContent,
+  );
 
   const showSectionHeader = showGeneratedContent || showSentiment;
 
@@ -109,12 +113,15 @@ export default function RecentReviewInsightsSection({
             <ReviewInsightsStateCard
               icon="refresh"
               title="Updating insights…"
-              description="We’re refreshing these insights based on the latest reviews."
+              description={
+                insights.state_message ||
+                "Recent reviews changed, so we’re refreshing this summary."
+              }
             />
           )}
 
           {/* Generation freshness messages */}
-          {insights.state === "pending" && (
+          {insights.state === "pending" && !isUpdating && (
             <View className="flex-row items-start gap-2">
               <MaterialCommunityIcons
                 name="clock-outline"

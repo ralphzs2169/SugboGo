@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -37,6 +37,7 @@ type Props = {
   perspective?: "explorer" | "merchant";
   showEngagement?: boolean;
   showSpecialtyVouches?: boolean;
+  highlightedTopic?: string | null;
 };
 
 const MAX_REVIEW_LINES = 5;
@@ -48,6 +49,35 @@ function relativeDate(value: string) {
   );
 
   return days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
+}
+
+function escapeRegularExpression(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderReviewText(text: string, highlightedTopic?: string | null) {
+  const topic = highlightedTopic?.trim();
+
+  if (!topic) {
+    return text;
+  }
+
+  const matcher = new RegExp(`(${escapeRegularExpression(topic)})`, "gi");
+
+  return text.split(matcher).map((part, index) =>
+    part.toLocaleLowerCase() === topic.toLocaleLowerCase() ? (
+      <AppText
+        key={`${index}-${part}`}
+        testID="review-topic-highlight"
+        weight="semibold"
+        className="bg-brand/15 text-text-primary"
+      >
+        {part}
+      </AppText>
+    ) : (
+      part
+    ),
+  );
 }
 
 /**
@@ -66,13 +96,14 @@ export default function ReviewContent({
   perspective = "explorer",
   showEngagement = true,
   showSpecialtyVouches = true,
+  highlightedTopic,
 }: Props) {
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
 
-  const scale = useRef(new Animated.Value(1)).current;
+  const [scale] = useState(() => new Animated.Value(1));
 
   const vouchedSpecialties = review.vouched_specialties ?? [];
   const likeCount = review.like_count ?? 0;
@@ -168,7 +199,7 @@ export default function ReviewContent({
             }
           }}
         >
-          {review.text}
+          {renderReviewText(review.text, highlightedTopic)}
         </AppText>
 
         {isTruncated && (
