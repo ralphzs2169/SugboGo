@@ -417,11 +417,11 @@ class ReviewService:
             REVW_STATUS=Review.ReviewStatus.PUBLISHED,
         ).count()
 
-        # Get the first 3 reviews for the business, ordered by creation date (most recent first).
+        # Get the first 2 reviews for the business, ordered by creation date (most recent first).
         reviews = ReviewService._get_review_queryset(
             business_id,
             user,
-        )[:3]
+        )[:2]
 
         user_review = (
             ReviewService._annotated_review_queryset(user)

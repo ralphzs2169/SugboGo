@@ -34,6 +34,7 @@ const reviewInsights: BusinessReviewInsights = {
   narrative: "Customers have mixed opinions about service and value.",
   review_count: 6,
   eligible_review_count: 5,
+  minimum_eligible_review_count: 5,
   analyzed_review_count: 5,
   classified_review_count: 5,
   has_sufficient_sentiment_data: true,

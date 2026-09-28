@@ -17,6 +17,7 @@ from apps.reviews.models import BusinessReviewSummary, Review
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
+from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.services.tests.test_business_review_summary_service import (
     SummaryFixtureMixin,
 )
@@ -30,6 +31,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         "narrative",
         "review_count",
         "eligible_review_count",
+        "minimum_eligible_review_count",
         "analyzed_review_count",
         "classified_review_count",
         "has_sufficient_sentiment_data",
@@ -122,6 +124,10 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         )
         self.assertEqual(insights["review_count"], 9)
         self.assertEqual(insights["eligible_review_count"], 8)
+        self.assertEqual(
+            insights["minimum_eligible_review_count"],
+            ReviewKeywordService.MIN_ELIGIBLE_REVIEWS,
+        )
         self.assertEqual(insights["analyzed_review_count"], 8)
         self.assertEqual(insights["classified_review_count"], 6)
         self.assertTrue(insights["has_sufficient_sentiment_data"])

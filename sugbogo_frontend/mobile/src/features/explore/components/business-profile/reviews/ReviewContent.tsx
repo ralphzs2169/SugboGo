@@ -328,15 +328,18 @@ export default function ReviewContent({
           </Pressable>
 
           {perspective === "explorer" && isLikedByOwner && (
-            <View className="ml-2 flex-row items-center rounded-full bg-brand/10 px-2 py-1">
+            <View className="ml-4 flex-row items-end">
               <MaterialCommunityIcons
                 name="heart"
-                size={12}
+                size={15}
                 color={theme.extends.colors.brand}
               />
 
-              <AppText weight="medium" className="ml-1 text-[10px] text-brand">
-                Merchant liked
+              <AppText
+                weight="medium"
+                className="ml-1 text-xs text-text-secondary"
+              >
+                Liked by merchant
               </AppText>
             </View>
           )}

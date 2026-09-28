@@ -10,6 +10,7 @@ const insights: BusinessReviewInsights = {
   narrative: "Visitors praise friendly service.",
   review_count: 6,
   eligible_review_count: 5,
+  minimum_eligible_review_count: 5,
   analyzed_review_count: 5,
   classified_review_count: 5,
   has_sufficient_sentiment_data: true,
@@ -55,6 +56,7 @@ describe("RecentReviewInsightsSection", () => {
         insights={{
           ...insights,
           eligible_review_count: 0,
+          minimum_eligible_review_count: 7,
           content_available: false,
           narrative: null,
           has_sufficient_sentiment_data: false,
@@ -62,6 +64,11 @@ describe("RecentReviewInsightsSection", () => {
       />,
     );
     expect(screen.getByText("No recent insights yet")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "At least 7 eligible reviews from the past 30 days are needed to generate insights.",
+      ),
+    ).toBeTruthy();
     expect(screen.queryByText("Vibe Summary")).toBeNull();
     expect(screen.queryByText("Positive")).toBeNull();
   });

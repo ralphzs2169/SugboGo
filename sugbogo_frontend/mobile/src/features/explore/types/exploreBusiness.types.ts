@@ -180,6 +180,7 @@ export type BusinessReviewInsights = {
   narrative: string | null;
   review_count: number;
   eligible_review_count: number;
+  minimum_eligible_review_count: number;
   analyzed_review_count: number;
   classified_review_count: number;
   has_sufficient_sentiment_data: boolean;

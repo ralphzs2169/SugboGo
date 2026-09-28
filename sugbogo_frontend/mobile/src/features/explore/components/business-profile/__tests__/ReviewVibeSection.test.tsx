@@ -10,6 +10,7 @@ const insights: BusinessReviewInsights = {
   narrative: "Friendly visits are common.",
   review_count: 10,
   eligible_review_count: 10,
+  minimum_eligible_review_count: 5,
   analyzed_review_count: 10,
   classified_review_count: 3,
   has_sufficient_sentiment_data: true,

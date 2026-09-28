@@ -220,7 +220,7 @@ class ReviewViewTests(APITestCase):
         self.assertIsNone(review.REVW_SENTIMENT_SCORE)
         self.assertIsNone(review.REVW_SENTIMENT_LABEL)
 
-    def test_get_review_preview_returns_maximum_three_reviews(self):
+    def test_get_review_preview_returns_maximum_two_reviews(self):
         for index in range(5):
             user = self.explorer
 
@@ -260,7 +260,7 @@ class ReviewViewTests(APITestCase):
 
         self.assertEqual(
             len(response.data["data"]["reviews"]),
-            3,
+            2,
         )
 
     def test_get_all_reviews_returns_all_business_reviews(self):

@@ -95,7 +95,7 @@ export default function RecentReviewInsightsSection({
         <ReviewInsightsStateCard
           icon="chart-box-outline"
           title="No recent insights yet"
-          description="At least 5 eligible reviews from the past 30 days are needed to generate insights."
+          description={`At least ${insights.minimum_eligible_review_count} eligible reviews from the past 30 days are needed to generate insights.`}
         />
       ) : (
         <>

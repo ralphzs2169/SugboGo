@@ -29,7 +29,7 @@ export default function ExploreBusinessHero({
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
   return (
-    <View className="relative h-80 w-full bg-surface-secondary">
+    <View className="relative h-80 w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
       {/* Cover photo */}
       {business.cover_photo_url ? (
         <Image

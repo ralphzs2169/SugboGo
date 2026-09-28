@@ -19,6 +19,7 @@ function insights(
     narrative: state === "ready" ? "A current summary." : null,
     review_count: 5,
     eligible_review_count: 5,
+    minimum_eligible_review_count: 5,
     analyzed_review_count: 5,
     classified_review_count: 5,
     has_sufficient_sentiment_data: true,

@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
 from apps.reviews.models import BusinessReviewSummary
+from apps.reviews.services.review_keyword_service import ReviewKeywordService
 
 
 class FrequentMentionSerializer(serializers.Serializer):
@@ -39,6 +40,7 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         source="BRSU_ELIGIBLE_REVIEW_COUNT",
         read_only=True,
     )
+    minimum_eligible_review_count = serializers.SerializerMethodField()
     analyzed_review_count = serializers.IntegerField(
         source="BRSU_ANALYZED_REVIEW_COUNT",
         read_only=True,
@@ -141,6 +143,10 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             >= MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
         )
 
+    @staticmethod
+    def get_minimum_eligible_review_count(_instance):
+        return ReviewKeywordService.MIN_ELIGIBLE_REVIEWS
+
     class Meta:
         model = BusinessReviewSummary
         fields = (
@@ -150,6 +156,7 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             "narrative",
             "review_count",
             "eligible_review_count",
+            "minimum_eligible_review_count",
             "analyzed_review_count",
             "classified_review_count",
             "has_sufficient_sentiment_data",
