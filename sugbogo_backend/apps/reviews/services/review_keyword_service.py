@@ -332,6 +332,16 @@ class ReviewKeywordService:
                 cursor.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", [lock_name])
 
     @classmethod
+    def mark_retry_exhausted(cls, business_id, reference_time=None):
+        """Makes the current failed generation attempt non-retryable."""
+        reference_time = reference_time or timezone.now()
+        cls._mark_failed_generation(
+            business_id,
+            reference_time,
+            retryable=False,
+        )
+
+    @classmethod
     def _refresh_locked(cls, business_id, reference_time):
         summary = BusinessReviewSummaryService.get_summary(business_id)
         reviews = cls._snapshot(business_id, reference_time)
@@ -370,6 +380,7 @@ class ReviewKeywordService:
         if (
             attempted is not None
             and attempted.astimezone(UTC).date() == now.astimezone(UTC).date()
+            and summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT == fingerprint
             and not summary.BRSU_KEYWORDS_RETRYABLE
         ):
             return "already_attempted"
@@ -383,6 +394,7 @@ class ReviewKeywordService:
         selected = cls._select_reviews(reviews)
         BusinessReviewSummary.objects.filter(pk=summary.pk).update(
             BRSU_KEYWORDS_ATTEMPTED_AT=now,
+            BRSU_KEYWORDS_ATTEMPT_FINGERPRINT=fingerprint,
             BRSU_KEYWORDS_RETRYABLE=False,
             BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.PENDING,
             BRSU_UPDATED_AT=now,

@@ -7,7 +7,10 @@ from django.utils import timezone
 from apps.reviews.services.business_review_insights_service import (
     BusinessReviewInsightsService,
 )
-from apps.reviews.services.review_keyword_service import RetryableKeywordError
+from apps.reviews.services.review_keyword_service import (
+    ReviewKeywordService,
+    RetryableKeywordError,
+)
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
 
@@ -100,6 +103,17 @@ def refresh_business_review_insights(
             reference_time=reference_time,
         )
     except RetryableKeywordError as exc:
+        if task.request.retries >= task.max_retries:
+            ReviewKeywordService.mark_retry_exhausted(
+                business_id,
+                reference_time=reference_time,
+            )
+            logger.error(
+                "Business review insights keyword retries were exhausted.",
+                extra={"business_id": business_id},
+            )
+            raise
+
         countdown = min(
             TRANSIENT_RETRY_BASE_SECONDS * (2 ** task.request.retries),
             TRANSIENT_RETRY_MAX_SECONDS,
@@ -168,6 +182,20 @@ def recompute_review_summaries(
     summary["failed"] = len(summary["failed_business_ids"]) + len(summary["retry_business_ids"])
 
     if summary["retry_business_ids"]:
+        if task.request.retries >= task.max_retries:
+            for business_id in summary["retry_business_ids"]:
+                ReviewKeywordService.mark_retry_exhausted(
+                    business_id,
+                    reference_time=reference_time,
+                )
+            logger.error(
+                "Review summary keyword retries were exhausted.",
+                extra=summary,
+            )
+            raise RetryableKeywordError(
+                "Some business keyword requests exhausted their retries."
+            )
+
         countdown = min(
             TRANSIENT_RETRY_BASE_SECONDS * (2 ** task.request.retries),
             TRANSIENT_RETRY_MAX_SECONDS,
