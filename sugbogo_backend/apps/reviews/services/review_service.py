@@ -49,7 +49,10 @@ class ReviewService:
             try:
                 from apps.reviews.tasks import process_review_sentiment
 
-                process_review_sentiment.delay(review_id)
+                process_review_sentiment.delay(
+                    review_id,
+                    business_id,
+                )
                 logger.info(
                     "Review sentiment task queued.",
                     extra={"review_id": review_id, "business_id": business_id},

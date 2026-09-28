@@ -19,8 +19,11 @@ TRANSIENT_RETRY_MAX_SECONDS = 300
 
 
 @shared_task(name="apps.reviews.tasks.process_review_sentiment")
-def process_review_sentiment(review_id: int) -> str:
-    """Scores one review and updates its business sentiment summary."""
+def process_review_sentiment(
+    review_id: int,
+    business_id: int,
+) -> str:
+    """Scores one review, updates sentiment, then queues generated insights."""
     try:
         outcome = ReviewSentimentService.process_review(review_id)
     except Exception as exc:
@@ -43,8 +46,31 @@ def process_review_sentiment(review_id: int) -> str:
     elif outcome == "updated":
         logger.info(
             "Review sentiment updated.",
-            extra={"review_id": review_id},
+            extra={
+                "review_id": review_id,
+                "business_id": business_id,
+            },
         )
+        try:
+            refresh_business_review_insights.delay(
+                business_id,
+            )
+            logger.info(
+                "Business review insights refresh queued after sentiment update.",
+                extra={
+                    "review_id": review_id,
+                    "business_id": business_id,
+                },
+            )
+        except Exception as exc:
+            logger.error(
+                "Business review insights refresh enqueue failed after sentiment update.",
+                extra={
+                    "review_id": review_id,
+                    "business_id": business_id,
+                    "error_type": type(exc).__name__,
+                },
+            )
     return outcome
 
 

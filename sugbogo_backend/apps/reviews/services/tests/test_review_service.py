@@ -1679,7 +1679,10 @@ class ReviewServiceTests(TestCase):
                 self.score_review.assert_not_called()
 
         self.assertEqual(len(callbacks), 1)
-        enqueue.assert_called_once_with(review.pk)
+        enqueue.assert_called_once_with(
+            review.pk,
+            self.business.pk,
+        )
         review.refresh_from_db()
         self.assertIsNone(review.REVW_SENTIMENT_SCORE)
         self.assertIsNone(review.REVW_SENTIMENT_LABEL)
@@ -1704,7 +1707,10 @@ class ReviewServiceTests(TestCase):
                 self.score_review.assert_not_called()
 
         self.assertEqual(len(callbacks), 1)
-        enqueue.assert_called_once_with(review.pk)
+        enqueue.assert_called_once_with(
+            review.pk,
+            self.business.pk,
+        )
         review.refresh_from_db()
         self.assertEqual(review.REVW_TEXT, "Edited text.")
         self.assertIsNone(review.REVW_SENTIMENT_SCORE)
