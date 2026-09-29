@@ -1,4 +1,3 @@
-from django.contrib.auth.tokens import default_token_generator
 from django.db import transaction
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import (
@@ -10,6 +9,7 @@ import logging
 
 from apps.authentication.services.session_service import SessionService
 from apps.authentication.constants import Platform
+from apps.authentication.tokens import password_reset_token_generator
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class PasswordResetService:
             A signed reset URL containing the user's encoded ID and token.
         """
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
+        token = password_reset_token_generator.make_token(user)
 
         if platform == Platform.WEB:
             return (
@@ -82,7 +82,7 @@ class PasswordResetService:
             )
             return None
 
-        if default_token_generator.check_token(
+        if password_reset_token_generator.check_token(
             user,
             token,
         ):

@@ -92,6 +92,7 @@ export default function ResetPasswordScreen() {
         uid.toString(),
         token.toString(),
         password,
+        confirmPassword,
       );
 
       if (!response.success) {

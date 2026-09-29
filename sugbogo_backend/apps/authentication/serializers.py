@@ -1,6 +1,10 @@
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from apps.authentication.services.password_reset_service import (
+    PasswordResetService,
+)
 from apps.users.models import User
 from apps.users.serializers.profile_serializers import UserSerializer
 
@@ -52,11 +56,31 @@ class ResetPasswordSerializer(serializers.Serializer):
     uid = serializers.CharField()
     token = serializers.CharField()
     password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
 
-    def validate_password(self, value):
-        # Reuse Django's AUTH_PASSWORD_VALIDATORS
-        validate_password(value)
-        return value
+    def validate(self, attrs):
+        """Validate matching passwords with the target user's context."""
+        if attrs["password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+
+        user = PasswordResetService.verify_token(
+            attrs["uid"],
+            attrs["token"],
+        )
+
+        try:
+            validate_password(
+                attrs["password"],
+                user=user,
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                {"password": exc.messages}
+            ) from exc
+
+        return attrs
     
 
 class ValidateResetTokenSerializer(serializers.Serializer):

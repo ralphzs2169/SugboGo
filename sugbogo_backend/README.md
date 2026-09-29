@@ -318,6 +318,19 @@ python manage.py migrate
 
 This creates all required database tables.
 
+### 7.1.) Provision a Super Administrator
+
+SugboGo does not include a default privileged credential. Create the first
+Super Administrator interactively:
+
+```bash
+python manage.py createsuperuser
+```
+
+The command prompts for the account identity and a password, which Django
+stores using the configured password hasher. The security-remediation migration
+disables the retired bootstrap identity in databases that previously created it.
+
 ---
 
 ## 8.) Run the Development Server

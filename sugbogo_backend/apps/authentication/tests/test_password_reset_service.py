@@ -1,4 +1,3 @@
-from django.contrib.auth.tokens import default_token_generator
 from django.test import TestCase
 from django.utils.encoding import force_bytes
 from django.utils.http import (
@@ -10,6 +9,7 @@ from unittest.mock import patch
 from apps.authentication.services.password_reset_service import (
     PasswordResetService,
 )
+from apps.authentication.tokens import password_reset_token_generator
 from apps.users.models import User
 from apps.authentication.constants import Platform
 from config import settings
@@ -94,7 +94,7 @@ class PasswordResetServiceTests(TestCase):
             force_bytes(self.user.pk),
         )
 
-        token = default_token_generator.make_token(
+        token = password_reset_token_generator.make_token(
             self.user,
         )
 
@@ -160,7 +160,7 @@ class PasswordResetServiceTests(TestCase):
             force_bytes(self.user.pk),
         )
 
-        token = default_token_generator.make_token(
+        token = password_reset_token_generator.make_token(
             self.user,
         )
 
@@ -236,7 +236,7 @@ class PasswordResetServiceTests(TestCase):
             force_bytes(self.user.pk),
         )
 
-        token = default_token_generator.make_token(
+        token = password_reset_token_generator.make_token(
             self.user,
         )
 
@@ -287,3 +287,21 @@ class PasswordResetServiceTests(TestCase):
 
         # Sessions should only have been revoked once.
         mock_revoke_sessions.assert_called_once()
+
+    def test_changing_email_invalidates_reset_token(self):
+        uid = urlsafe_base64_encode(
+            force_bytes(self.user.pk),
+        )
+        token = password_reset_token_generator.make_token(
+            self.user,
+        )
+
+        self.user.USER_EMAIL = "changed@example.com"
+        self.user.save(update_fields=["USER_EMAIL"])
+
+        self.assertIsNone(
+            PasswordResetService.verify_token(
+                uid,
+                token,
+            )
+        )
