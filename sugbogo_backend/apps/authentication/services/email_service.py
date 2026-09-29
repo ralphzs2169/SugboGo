@@ -5,6 +5,9 @@ from typing import Any
 import logging
 
 from apps.authentication.constants import Platform
+from apps.authentication.services.admin_invitation_service import (
+    AdminInvitationService,
+)
 from apps.authentication.services.verification_service import EmailVerificationService
 from apps.authentication.services.password_reset_service import PasswordResetService
 
@@ -118,4 +121,25 @@ class EmailService:
             html_template_name="emails/reset_password.html",
             text_template_name="emails/reset_password.txt",
             context=context,
+        )
+
+    @staticmethod
+    def send_admin_invitation_email(user):
+        """Sends the dedicated Web Admin account-setup invitation."""
+        invitation_link = (
+            AdminInvitationService.generate_invitation_link(user)
+        )
+
+        return EmailService.send_email(
+            subject="Complete your SugboGo Admin account setup",
+            recipient=user.USER_EMAIL,
+            html_template_name="emails/admin_invitation.html",
+            text_template_name="emails/admin_invitation.txt",
+            context={
+                "user": user,
+                "invitation_link": invitation_link,
+                "expiry_hours": (
+                    AdminInvitationService.get_invitation_expiry_hours()
+                ),
+            },
         )

@@ -20,6 +20,17 @@ urlpatterns = [
     path("reset-password/", views.reset_password_view, name="reset_password"),
     path("password-reset-config/",views.password_reset_config_view,name="password_reset_config"),
 
+    path(
+        "admin-invitation/validate/",
+        views.validate_admin_invitation_view,
+        name="validate_admin_invitation",
+    ),
+    path(
+        "admin-invitation/complete/",
+        views.complete_admin_invitation_view,
+        name="complete_admin_invitation",
+    ),
+
     path("google-login/", views.google_login_view, name="google_login"),
     path("facebook-login/",views.facebook_login_view,name="facebook_login"),
 ]

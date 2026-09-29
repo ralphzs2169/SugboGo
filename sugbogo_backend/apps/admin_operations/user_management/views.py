@@ -1,5 +1,6 @@
 from core.pagination import StandardPagination
-from core.responses import success_response
+from core.responses import error_response, success_response
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -13,6 +14,7 @@ from apps.admin_operations.user_management.activity_service import (
     UserActivityService,
 )
 from apps.admin_operations.user_management.serializers import (
+    AdminCreateSerializer,
     AdminUserActivityQuerySerializer,
     AdminUserActivitySerializer,
     AdminUserDetailSerializer,
@@ -24,6 +26,7 @@ from apps.admin_operations.user_management.services import (
     UserManagementService,
 )
 from apps.authentication.permissions import HasRole
+from apps.authentication.services.email_service import EmailService
 from apps.users.models import User
 
 
@@ -34,6 +37,95 @@ ADMIN_USER_PERMISSIONS = (
         User.UserRole.SUPER_ADMIN,
     ),
 )
+
+SUPER_ADMIN_USER_PERMISSIONS = (
+    IsAuthenticated,
+    HasRole(User.UserRole.SUPER_ADMIN),
+)
+
+
+class AdminCreateView(APIView):
+    """Handles Super Admin creation of invited Admin accounts."""
+
+    permission_classes = SUPER_ADMIN_USER_PERMISSIONS
+
+    def post(self, request):
+        """Creates a pending Admin and attempts invitation delivery."""
+        serializer = AdminCreateSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        invited_admin = UserManagementService.create_admin(
+            actor=request.user,
+            **serializer.validated_data,
+        )
+
+        invitation_email_sent = True
+
+        try:
+            EmailService.send_admin_invitation_email(
+                invited_admin,
+            )
+        except Exception:
+            invitation_email_sent = False
+
+        message = "Admin account created and invitation sent successfully."
+
+        if not invitation_email_sent:
+            message = (
+                "Admin account created, but the invitation email could not "
+                "be sent. Please resend the invitation."
+            )
+
+        return success_response(
+            data={
+                "id": invited_admin.USER_ID,
+                "email": invited_admin.USER_EMAIL,
+                "first_name": invited_admin.USER_FNAME,
+                "last_name": invited_admin.USER_LNAME,
+                "role": invited_admin.USER_ROLE,
+                "status": invited_admin.USER_STATUS,
+                "email_verified": invited_admin.EMAIL_VERIFIED,
+                "invitation_email_sent": invitation_email_sent,
+            },
+            message=message,
+            status_code=status.HTTP_201_CREATED,
+        )
+
+
+class AdminInvitationResendView(APIView):
+    """Handles Super Admin resending of incomplete Admin invitations."""
+
+    permission_classes = SUPER_ADMIN_USER_PERMISSIONS
+
+    def post(self, request, user_id):
+        """Sends a new invitation for an eligible pending Admin."""
+        invited_admin = UserManagementService.get_invited_admin(
+            actor=request.user,
+            user_id=user_id,
+        )
+
+        try:
+            EmailService.send_admin_invitation_email(
+                invited_admin,
+            )
+        except Exception:
+            return error_response(
+                message="The Admin invitation email could not be sent.",
+                code="INVITATION_DELIVERY_FAILED",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return success_response(
+            data={
+                "id": invited_admin.USER_ID,
+                "email": invited_admin.USER_EMAIL,
+            },
+            message="Admin invitation sent successfully.",
+        )
 
 
 class AdminUserListView(APIView):

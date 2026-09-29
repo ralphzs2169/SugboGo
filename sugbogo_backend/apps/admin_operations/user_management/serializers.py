@@ -4,6 +4,33 @@ from rest_framework import serializers
 from apps.users.models import User
 
 
+class AdminCreateSerializer(serializers.Serializer):
+    """Validates identity fields accepted when inviting a new Admin."""
+
+    email = serializers.EmailField()
+    first_name = serializers.CharField(
+        max_length=50,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+    last_name = serializers.CharField(
+        max_length=50,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+
+    def validate_email(self, value):
+        """Normalizes email and rejects every existing account conflict."""
+        email = User.objects.normalize_email(value).casefold()
+
+        if User.objects.filter(USER_EMAIL__iexact=email).exists():
+            raise serializers.ValidationError(
+                "An account with this email already exists.",
+            )
+
+        return email
+
+
 class AdminUserListQuerySerializer(serializers.Serializer):
     """Validates administrator user-list query parameters."""
 

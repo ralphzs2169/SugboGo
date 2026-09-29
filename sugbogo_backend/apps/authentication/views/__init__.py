@@ -2,6 +2,12 @@ from .admin_forgot_password import (
     admin_forgot_password_view as admin_forgot_password_view,
 )
 from .admin_login_view import admin_login_view as admin_login_view
+from .admin_invitation import (
+    complete_admin_invitation_view as complete_admin_invitation_view,
+)
+from .admin_invitation import (
+    validate_admin_invitation_view as validate_admin_invitation_view,
+)
 from .email_verification import (
     resend_verification_view as resend_verification_view,
 )

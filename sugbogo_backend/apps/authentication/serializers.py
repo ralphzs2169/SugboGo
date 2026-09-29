@@ -87,6 +87,26 @@ class ValidateResetTokenSerializer(serializers.Serializer):
     uid = serializers.CharField()
     token = serializers.CharField()
 
+
+class AdminInvitationTokenSerializer(serializers.Serializer):
+    """Validates the public Admin invitation token request shape."""
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+
+class CompleteAdminInvitationSerializer(AdminInvitationTokenSerializer):
+    """Validates the Admin invitation completion request shape."""
+
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+    confirm_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
     
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField()

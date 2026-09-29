@@ -9,6 +9,11 @@ urlpatterns = [
         name="admin-user-list",
     ),
     path(
+        "create-admin/",
+        views.AdminCreateView.as_view(),
+        name="admin-create",
+    ),
+    path(
         "<int:user_id>/",
         views.AdminUserDetailView.as_view(),
         name="admin-user-detail",
@@ -22,6 +27,11 @@ urlpatterns = [
         "<int:user_id>/reactivate/",
         views.AdminUserReactivateView.as_view(),
         name="admin-user-reactivate",
+    ),
+    path(
+        "<int:user_id>/resend-invitation/",
+        views.AdminInvitationResendView.as_view(),
+        name="admin-invitation-resend",
     ),
     path(
         "<int:user_id>/activity/",
