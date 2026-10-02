@@ -4,6 +4,7 @@ from apps.merchant_operations.business_profile.views.business_profile_views impo
     BusinessCoverPhotoView,
     BusinessInformationView,
     BusinessOperatingHoursView,
+    BusinessPhotosView,
     BusinessProfileView,
 )
 
@@ -19,5 +20,10 @@ urlpatterns = [
         "operating-hours/",
         BusinessOperatingHoursView.as_view(),
         name="business-operating-hours",
+    ),
+    path(
+        "photos/",
+        BusinessPhotosView.as_view(),
+        name="business-photos",
     ),
 ]

@@ -1,5 +1,6 @@
 from core.responses import success_response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.views import APIView
 
 from apps.authentication.permissions import HasRole
@@ -8,8 +9,13 @@ from apps.merchant_operations.business_profile.serializers.business_profile_seri
     BusinessCoverPhotoSerializer,
     BusinessInformationSerializer,
     BusinessOperatingHoursUpdateSerializer,
+    BusinessPhotosUpdateSerializer,
     BusinessProfileResponseSerializer,
     MerchantBusinessHoursSerializer,
+    MerchantBusinessPhotoSerializer,
+)
+from apps.merchant_operations.business_profile.services.business_photo_service import (
+    BusinessPhotoService,
 )
 from apps.merchant_operations.business_profile.services.business_profile_service import (
     BusinessProfileService,
@@ -100,6 +106,30 @@ class BusinessOperatingHoursView(APIView):
         return success_response(
             data=MerchantBusinessHoursSerializer(hours, many=True).data,
             message="Operating hours updated successfully.",
+        )
+
+
+class BusinessPhotosView(APIView):
+    """Save additions and removals to the authenticated business gallery."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.MERCHANT),
+    )
+    parser_classes = (MultiPartParser, FormParser)
+
+    def patch(self, request):
+        serializer = BusinessPhotosUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        photos = BusinessPhotoService.save_photos(
+            user=request.user,
+            validated_data=serializer.validated_data,
+        )
+
+        return success_response(
+            data=MerchantBusinessPhotoSerializer(photos, many=True).data,
+            message="Business photos updated successfully.",
         )
 
 

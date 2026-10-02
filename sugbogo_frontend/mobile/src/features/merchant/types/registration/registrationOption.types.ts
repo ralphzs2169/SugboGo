@@ -3,6 +3,7 @@ import {
   SpecialtyTagColor,
   SpecialtyTagIcon,
 } from "@/shared/types/specialtyTag.types";
+import type { BusinessPhotoDraft } from "../businessPhotoDraft.types";
 
 export interface ClusterOption {
   id: number;
@@ -16,12 +17,7 @@ export interface CategoryOption {
   cluster_id: number;
 }
 
-export type BusinessPhoto = {
-  id?: number;
-  uri: string;
-  fileName?: string | null;
-  mimeType?: string | null;
-};
+export type BusinessPhoto = BusinessPhotoDraft;
 
 export type BusinessDocument = {
   id?: number;

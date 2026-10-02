@@ -8,6 +8,7 @@ import type {
   MerchantCoverPhotoUpdateResponse,
   MerchantBusinessOperatingHours,
   MerchantBusinessOperatingHoursUpdate,
+  MerchantBusinessPhoto,
 } from "../types/merchantBusinessProfile.types";
 
 export async function getMerchantBusinessProfile(): Promise<
@@ -37,5 +38,13 @@ export async function updateMerchantBusinessOperatingHours(
 ): Promise<ApiResponse<MerchantBusinessOperatingHours[]>> {
   return request(
     apiClient.put("/merchant/business-profile/operating-hours/", schedule),
+  );
+}
+
+export async function updateMerchantBusinessPhotos(
+  formData: FormData,
+): Promise<ApiResponse<MerchantBusinessPhoto[]>> {
+  return request(
+    apiClient.patch("/merchant/business-profile/photos/", formData),
   );
 }

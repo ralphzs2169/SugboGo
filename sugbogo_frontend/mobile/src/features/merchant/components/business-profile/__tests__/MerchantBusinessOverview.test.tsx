@@ -73,7 +73,9 @@ const business: MerchantBusinessProfileResponse = {
 
 describe("MerchantBusinessOverview", () => {
   it("shows approved listing facts and original verification metadata", async () => {
-    const screen = await render(<MerchantBusinessOverview business={business} />);
+    const screen = await render(
+      <MerchantBusinessOverview business={business} />,
+    );
 
     expect(screen.getByText("Local Cebu food")).toBeTruthy();
     expect(screen.getByText("Restaurants")).toBeTruthy();
@@ -128,6 +130,35 @@ describe("MerchantBusinessOverview", () => {
     expect(onEditOperatingHours).toHaveBeenCalledTimes(1);
   });
 
+  it("offers photo management only for an active business", async () => {
+    const onManagePhotos = jest.fn();
+    const active = await render(
+      <MerchantBusinessOverview
+        business={business}
+        onManagePhotos={onManagePhotos}
+      />,
+    );
+
+    fireEvent.press(active.getByLabelText("Manage business photos"));
+    expect(onManagePhotos).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides photo management for a suspended business", async () => {
+    const onManagePhotos = jest.fn();
+    const suspended = await render(
+      <MerchantBusinessOverview
+        business={{ ...business, status: "suspended" }}
+        onManagePhotos={onManagePhotos}
+      />,
+    );
+    expect(suspended.queryByLabelText("Manage business photos")).toBeNull();
+    expect(
+      suspended.getByText(
+        "Photos cannot be edited while your business is suspended.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("hides operating-hours editing for a suspended business", async () => {
     const suspended = await render(
       <MerchantBusinessOverview
@@ -148,7 +179,11 @@ describe("MerchantBusinessOverview", () => {
     );
 
     expect(screen.queryByLabelText("Edit business information")).toBeNull();
-    expect(screen.getByText(/cannot be edited while/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Business information cannot be edited while your business is suspended.",
+      ),
+    ).toBeTruthy();
     expect(onEditInformation).not.toHaveBeenCalled();
   });
 });

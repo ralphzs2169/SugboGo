@@ -168,9 +168,7 @@ export default function MerchantProfileScreen() {
           </AppText>
           <View
             className={`self-start rounded-full px-3 py-1 ${
-              business.status === "active"
-                ? "bg-success/10"
-                : "bg-error/10"
+              business.status === "active" ? "bg-success/10" : "bg-error/10"
             }`}
           >
             <AppText
@@ -185,8 +183,13 @@ export default function MerchantProfileScreen() {
         </View>
         <MerchantBusinessOverview
           business={business}
-          onEditInformation={() => router.push("/(merchant)/business-information")}
-          onEditOperatingHours={() => router.push("/(merchant)/operating-hours")}
+          onEditInformation={() =>
+            router.push("/(merchant)/business-information")
+          }
+          onEditOperatingHours={() =>
+            router.push("/(merchant)/operating-hours")
+          }
+          onManagePhotos={() => router.push("/(merchant)/business-photos")}
         />
 
         {/* Merchant actions */}

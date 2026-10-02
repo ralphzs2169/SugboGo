@@ -20,6 +20,78 @@ from apps.merchant_operations.business_profile.helpers import (
 )
 
 MAX_COVER_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_BUSINESS_PHOTO_SIZE = 10 * 1024 * 1024
+
+
+class BusinessPhotoUploadSerializer(serializers.ImageField):
+    """Validate the received image before it reaches Cloudinary."""
+
+    def to_internal_value(self, data):
+        if getattr(data, "size", 0) > MAX_BUSINESS_PHOTO_SIZE:
+            raise serializers.ValidationError(
+                "Each photo must be 10 MB or smaller."
+            )
+
+        file_name = getattr(data, "name", "").lower()
+        if not file_name.endswith((".jpg", ".jpeg", ".png")):
+            raise serializers.ValidationError(
+                "Only JPG, JPEG, and PNG photos are supported."
+            )
+
+        image = super().to_internal_value(data)
+
+        if image.image.format not in ("JPEG", "PNG"):
+            raise serializers.ValidationError(
+                "Only JPG, JPEG, and PNG photos are supported."
+            )
+
+        if file_name.endswith(".png") and image.image.format != "PNG":
+            raise serializers.ValidationError(
+                "The photo extension does not match its image format."
+            )
+
+        if file_name.endswith((".jpg", ".jpeg")) and image.image.format != "JPEG":
+            raise serializers.ValidationError(
+                "The photo extension does not match its image format."
+            )
+
+        return image
+
+
+class BusinessPhotosUpdateSerializer(serializers.Serializer):
+    """New files by category and IDs to remove from the live collection."""
+
+    storefront = serializers.ListField(
+        child=BusinessPhotoUploadSerializer(),
+        required=False,
+        max_length=3,
+    )
+    interior = serializers.ListField(
+        child=BusinessPhotoUploadSerializer(),
+        required=False,
+        max_length=5,
+    )
+    products = serializers.ListField(
+        child=BusinessPhotoUploadSerializer(),
+        required=False,
+        max_length=5,
+    )
+    additional = serializers.ListField(
+        child=BusinessPhotoUploadSerializer(),
+        required=False,
+        max_length=5,
+    )
+    deleted_photo_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        allow_empty=True,
+    )
+
+    def validate_deleted_photo_ids(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError("Duplicate photo IDs are not allowed.")
+
+        return value
 
 
 class BusinessCoverPhotoSerializer(serializers.Serializer):

@@ -33,6 +33,16 @@ export default function MerchantLayout() {
         }}
       />
 
+      <Stack.Screen
+        name="business-photos"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Manage Business Photos",
+        }}
+      />
+
       {/* Reply templates */}
       <Stack.Screen
         name="reply-templates"

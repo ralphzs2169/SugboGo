@@ -116,10 +116,12 @@ export default function MerchantBusinessOverview({
   business,
   onEditInformation,
   onEditOperatingHours,
+  onManagePhotos,
 }: {
   business: MerchantBusinessProfileResponse;
   onEditInformation?: () => void;
   onEditOperatingHours?: () => void;
+  onManagePhotos?: () => void;
 }) {
   const location = business.location;
   const verification = business.verification;
@@ -151,7 +153,8 @@ export default function MerchantBusinessOverview({
       >
         {business.status === "suspended" ? (
           <AppText className="mb-4 text-xs text-text-secondary">
-            Business information cannot be edited while your business is suspended.
+            Business information cannot be edited while your business is
+            suspended.
           </AppText>
         ) : null}
         <BusinessField label="Description" value={business.description} />
@@ -255,7 +258,33 @@ export default function MerchantBusinessOverview({
       </BusinessSection>
 
       {/* Approved business photos */}
-      <BusinessSection title="Photos">
+      <BusinessSection
+        title="Photos"
+        action={
+          business.status === "active" && onManagePhotos ? (
+            <Pressable
+              onPress={onManagePhotos}
+              accessibilityRole="button"
+              accessibilityLabel="Manage business photos"
+              className="min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Manage
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null
+        }
+      >
+        {business.status === "suspended" ? (
+          <AppText className="mb-4 text-xs text-text-secondary">
+            Photos cannot be edited while your business is suspended.
+          </AppText>
+        ) : null}
         {PHOTO_CATEGORIES.map((category) => {
           const photos = business.photos.filter(
             (photo) => photo.category === category,
