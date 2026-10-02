@@ -2,7 +2,10 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
+from django.db import close_old_connections, transaction
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from threading import Event
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -16,15 +19,22 @@ from apps.business.models import (
     Location,
 )
 from apps.review_disputes.models import MerchantReviewDispute
-from apps.reviews.models import Review
+from apps.reviews.models import BusinessReviewSummary, Review
 from apps.users.models import ReputationEvent, User
 from apps.users.services.reputation_service import ReputationService
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.review_disputes.services.review_dispute_service import ReviewDisputeService
 
 
 class ManageReviewDisputeServiceTests(TestCase):
     """Tests for administrator-facing review dispute moderation."""
 
     def setUp(self):
+        self.admin = User.objects.create_user(
+            email="moderation-admin@example.com", password=None,
+            USER_FNAME="Admin", USER_LNAME="Moderator",
+            USER_ROLE=User.UserRole.ADMIN, USER_STATUS=User.UserStatus.ACTIVE,
+        )
         self.merchant = User.objects.create_user(
             email="moderation-merchant@example.com",
             password="StrongPassword123!",
@@ -145,6 +155,71 @@ class ManageReviewDisputeServiceTests(TestCase):
             MRDSP_DESCRIPTION=description,
             MRDSP_STATUS=status,
         )
+
+    def test_uphold_refreshes_sentiment_and_removes_generated_evidence(self):
+        self.review.REVW_SENTIMENT_LABEL = "positive"
+        self.review.REVW_SENTIMENT_SCORE = 0.75
+        self.review.save()
+        summary = BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business, BRSU_POSITIVE_COUNT=1,
+            BRSU_REVIEW_COUNT=1, BRSU_CLASSIFIED_REVIEW_COUNT=1,
+            BRSU_NARRATIVE="Visitors mention friendly staff.",
+            BRSU_SUPPORTING_REVIEW_REFERENCES={"narrative_review_ids": [self.review.pk]},
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+        )
+        dispute = self.create_dispute()
+        with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                ManageReviewDisputeService.uphold_dispute(
+                    dispute.pk,
+                    actor=self.admin,
+                )
+                enqueue.assert_not_called()
+            enqueue.assert_called_once_with(self.business.pk)
+        summary.refresh_from_db()
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_NARRATIVE, "")
+        event = AdminActivity.objects.get()
+        self.assertEqual(event.ACTOR_ID_id, self.admin.pk)
+        self.assertEqual(event.AACT_CONTEXT["previous_review_status"], "published")
+        self.assertEqual(event.AACT_CONTEXT["review_status"], "rejected")
+
+    def test_dismiss_audits_actor_without_changing_review_or_refreshing_insights(self):
+        dispute = self.create_dispute()
+        with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                ManageReviewDisputeService.dismiss_dispute(
+                    dispute.pk,
+                    "No violation found.",
+                    actor=self.admin,
+                )
+            enqueue.assert_not_called()
+        event = AdminActivity.objects.get()
+        self.assertEqual(event.ACTOR_ID_id, self.admin.pk)
+        self.assertEqual(event.TARGET_USER_ID_id, self.explorer.pk)
+        self.assertEqual(event.AACT_CONTEXT["dispute_status"], "dismissed")
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, "published")
+
+    def test_audit_failure_rolls_back_resolution_and_discards_refresh(self):
+        dispute = self.create_dispute()
+        with (
+            patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue,
+            patch.object(ManageReviewDisputeService, "_record_resolution", side_effect=RuntimeError("Audit failed")),
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                with self.assertRaises(RuntimeError):
+                    ManageReviewDisputeService.uphold_dispute(
+                        dispute.pk,
+                        actor=self.admin,
+                    )
+            enqueue.assert_not_called()
+        dispute.refresh_from_db()
+        self.review.refresh_from_db()
+        self.assertEqual(dispute.MRDSP_STATUS, "pending")
+        self.assertEqual(self.review.REVW_STATUS, "published")
+        self.assertFalse(ReputationEvent.objects.exists())
 
     # list_disputes
 
@@ -368,6 +443,7 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.uphold_dispute(
             dispute.MRDSP_ID,
             "Violates policy.",
+            actor=self.admin,
         )
 
         dispute.refresh_from_db()
@@ -399,6 +475,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
         ManageReviewDisputeService.uphold_dispute(
             dispute.MRDSP_ID,
+            actor=self.admin,
         )
 
         dispute.refresh_from_db()
@@ -421,6 +498,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
         ManageReviewDisputeService.uphold_dispute(
             dispute.MRDSP_ID,
+            actor=self.admin,
         )
 
         after = timezone.now()
@@ -441,7 +519,7 @@ class ManageReviewDisputeServiceTests(TestCase):
             after,
         )
 
-  
+
     def test_uphold_dispute_rejects_already_resolved_dispute(self):
         dispute = self.create_dispute(
             status=MerchantReviewDispute.DisputeStatus.DISMISSED,
@@ -453,6 +531,7 @@ class ManageReviewDisputeServiceTests(TestCase):
         ):
             ManageReviewDisputeService.uphold_dispute(
                 dispute.MRDSP_ID,
+                actor=self.admin,
             )
 
         self.review.refresh_from_db()
@@ -469,6 +548,7 @@ class ManageReviewDisputeServiceTests(TestCase):
         ):
             ManageReviewDisputeService.uphold_dispute(
                 999999,
+                actor=self.admin,
             )
 
     def test_uphold_dispute_creates_confirmed_violation_event_for_review_author(self):
@@ -476,7 +556,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         author_reputation_before = self.explorer.USER_REPUTATION
         merchant_reputation_before = self.merchant.USER_REPUTATION
 
-        ManageReviewDisputeService.uphold_dispute(dispute.pk)
+        ManageReviewDisputeService.uphold_dispute(
+            dispute.pk,
+            actor=self.admin,
+        )
 
         event = ReputationEvent.objects.get(
             REVT_EVENT_TYPE=ReputationEvent.EventType.CONFIRMED_VIOLATION_PENALTY,
@@ -502,7 +585,10 @@ class ManageReviewDisputeServiceTests(TestCase):
 
     def test_second_uphold_raises_before_penalty_call_and_does_not_double_penalize(self):
         dispute = self.create_dispute()
-        ManageReviewDisputeService.uphold_dispute(dispute.pk)
+        ManageReviewDisputeService.uphold_dispute(
+            dispute.pk,
+            actor=self.admin,
+        )
         self.explorer.refresh_from_db()
         reputation_after_first_uphold = self.explorer.USER_REPUTATION
 
@@ -515,7 +601,10 @@ class ManageReviewDisputeServiceTests(TestCase):
                 ValidationError,
                 "Only pending review disputes can be upheld.",
             ):
-                ManageReviewDisputeService.uphold_dispute(dispute.pk)
+                ManageReviewDisputeService.uphold_dispute(
+                    dispute.pk,
+                    actor=self.admin,
+                )
             penalty.assert_not_called()
 
         self.explorer.refresh_from_db()
@@ -545,7 +634,11 @@ class ManageReviewDisputeServiceTests(TestCase):
             "ReputationService.apply_confirmed_violation_penalty",
             side_effect=apply_penalty_then_fail,
         ), self.assertRaisesRegex(RuntimeError, "Failure after penalty"):
-            ManageReviewDisputeService.uphold_dispute(dispute.pk, "Violates policy.")
+            ManageReviewDisputeService.uphold_dispute(
+                dispute.pk,
+                "Violates policy.",
+                actor=self.admin,
+            )
 
         dispute.refresh_from_db()
         self.review.refresh_from_db()
@@ -571,6 +664,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
         result = ManageReviewDisputeService.dismiss_dispute(
             dispute.MRDSP_ID,
+            actor=self.admin,
         )
 
         self.assertEqual(
@@ -593,6 +687,7 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.dismiss_dispute(
             dispute.MRDSP_ID,
             "Insufficient evidence.",
+            actor=self.admin,
         )
 
         dispute.refresh_from_db()
@@ -611,6 +706,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
         ManageReviewDisputeService.dismiss_dispute(
             dispute.MRDSP_ID,
+            actor=self.admin,
         )
 
         after = timezone.now()
@@ -638,6 +734,7 @@ class ManageReviewDisputeServiceTests(TestCase):
 
         ManageReviewDisputeService.dismiss_dispute(
             dispute.MRDSP_ID,
+            actor=self.admin,
         )
 
         self.review.refresh_from_db()
@@ -647,7 +744,7 @@ class ManageReviewDisputeServiceTests(TestCase):
             Review.ReviewStatus.PUBLISHED,
         )
 
-  
+
     def test_dismiss_dispute_rejects_already_upheld_dispute(self):
         dispute = self.create_dispute(
             status=MerchantReviewDispute.DisputeStatus.UPHELD,
@@ -659,6 +756,7 @@ class ManageReviewDisputeServiceTests(TestCase):
         ):
             ManageReviewDisputeService.dismiss_dispute(
                 dispute.MRDSP_ID,
+                actor=self.admin,
             )
 
     def test_dismiss_dispute_raises_not_found_for_missing_dispute(self):
@@ -668,4 +766,57 @@ class ManageReviewDisputeServiceTests(TestCase):
         ):
             ManageReviewDisputeService.dismiss_dispute(
                 999999,
+                actor=self.admin,
             )
+
+
+class ConcurrentDisputeResolutionTests(TransactionTestCase):
+    """Exercises competing decisions using separate PostgreSQL connections."""
+
+    setUp = ManageReviewDisputeServiceTests.setUp
+    create_dispute = ManageReviewDisputeServiceTests.create_dispute
+
+    def test_dismiss_waits_for_uphold_and_rejects_resolved_dispute(self):
+        self._assert_competing_decision_is_rejected(withdraw=False)
+
+    def test_withdraw_waits_for_uphold_and_rejects_resolved_dispute(self):
+        self._assert_competing_decision_is_rejected(withdraw=True)
+
+    def _assert_competing_decision_is_rejected(self, withdraw):
+        dispute = self.create_dispute()
+        started = Event()
+
+        def dismiss():
+            close_old_connections()
+            try:
+                started.set()
+                try:
+                    if withdraw:
+                        ReviewDisputeService.withdraw_dispute(self.merchant, dispute.pk)
+                    else:
+                        ManageReviewDisputeService.dismiss_dispute(
+                            dispute.pk,
+                            actor=self.admin,
+                        )
+                except ValidationError:
+                    return "rejected"
+                return "dismissed"
+            finally:
+                close_old_connections()
+
+        with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                with transaction.atomic():
+                    ManageReviewDisputeService.uphold_dispute(
+                        dispute.pk,
+                        actor=self.admin,
+                    )
+                    future = executor.submit(dismiss)
+                    self.assertTrue(started.wait(5))
+                    with self.assertRaises(TimeoutError):
+                        future.result(timeout=0.2)
+                self.assertEqual(future.result(timeout=10), "rejected")
+            enqueue.assert_called_once_with(self.business.pk)
+        dispute.refresh_from_db()
+        self.assertEqual(dispute.MRDSP_STATUS, "upheld")
+        self.assertEqual(AdminActivity.objects.count(), 1)
