@@ -1,7 +1,15 @@
 from django.db import transaction
+from django.db.models import Case, IntegerField, Prefetch, Value, When
 from rest_framework.exceptions import NotFound
 
-from apps.business.models import Business
+from apps.business.models import (
+    Business,
+    BusinessLandmark,
+    BusinessOperatingHours,
+    BusinessPhoto,
+    BusinessSpecialtyTag,
+)
+from apps.merchant_application.models import MerchantApplicationDocument
 from apps.shared.services.cloudinary_service import CloudinaryService
 
 
@@ -12,11 +20,58 @@ class BusinessProfileService:
     def get_business_for_merchant(user):
         """Retrieve the business owned by the authenticated merchant."""
 
+        day_order = Case(
+            *[
+                When(BOHR_DAY=day, then=Value(index))
+                for index, day in enumerate(BusinessOperatingHours.Day.values)
+            ],
+            output_field=IntegerField(),
+        )
+
         try:
             return (
                 Business.objects
                 .select_related(
                     "USER_ID",
+                    "CTGRY_ID",
+                    "CTGRY_ID__CLUS_ID",
+                    "LOCT_ID",
+                    "merchant_application",
+                    "merchant_application__identity",
+                )
+                .prefetch_related(
+                    Prefetch(
+                        "specialty_tag_links",
+                        queryset=(
+                            BusinessSpecialtyTag.objects
+                            .filter(BST_IS_ACTIVE=True)
+                            .select_related("TAG_ID")
+                            .order_by("TAG_ID__TAG_NAME")
+                        ),
+                        to_attr="active_specialty_tag_links",
+                    ),
+                    Prefetch(
+                        "LOCT_ID__landmarks",
+                        queryset=BusinessLandmark.objects.order_by("BLMK_ID"),
+                    ),
+                    Prefetch(
+                        "operating_hours",
+                        queryset=(
+                            BusinessOperatingHours.objects
+                            .annotate(day_order=day_order)
+                            .order_by("day_order")
+                        ),
+                    ),
+                    Prefetch(
+                        "photos",
+                        queryset=BusinessPhoto.objects.order_by("BPHO_ID"),
+                    ),
+                    Prefetch(
+                        "merchant_application__documents",
+                        queryset=MerchantApplicationDocument.objects.order_by(
+                            "MDOC_ID",
+                        ),
+                    ),
                 )
                 .get(
                     USER_ID=user,

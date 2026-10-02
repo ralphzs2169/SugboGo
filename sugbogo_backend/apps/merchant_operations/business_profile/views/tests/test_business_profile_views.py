@@ -1,7 +1,22 @@
 from io import BytesIO
 from unittest.mock import patch
 
-from apps.business.models import Business, Category, Cluster, Location
+from apps.business.models import (
+    Business,
+    BusinessLandmark,
+    BusinessOperatingHours,
+    BusinessPhoto,
+    BusinessSpecialtyTag,
+    Category,
+    Cluster,
+    Location,
+    SpecialtyTag,
+)
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationDocument,
+    MerchantApplicationIdentity,
+)
 from apps.users.models import User
 from django.contrib.gis.geos import Point
 from django.core.cache import cache
@@ -311,3 +326,143 @@ class BusinessCoverPhotoViewTests(TestCase):
         )
         self.business.refresh_from_db()
         self.assertIsNone(self.business.BUSN_COVER_PHOTO_URL)
+
+    def test_profile_returns_approved_business_and_application_evidence(self):
+        self.business.BUSN_CONTACT_NUMBER = "+639171234567"
+        self.business.BUSN_EMAIL = "hello@sugbobistro.com"
+        self.business.BUSN_WEBSITE = "https://sugbobistro.com"
+        self.business.BUSN_STATUS = Business.BusinessStatus.SUSPENDED
+        self.business.save()
+
+        active_tag = SpecialtyTag.objects.create(TAG_NAME="Lechon")
+        inactive_tag = SpecialtyTag.objects.create(TAG_NAME="Seafood")
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=active_tag,
+            BST_IS_ACTIVE=True,
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=inactive_tag,
+            BST_IS_ACTIVE=False,
+        )
+        BusinessLandmark.objects.create(
+            LOCT_ID=self.business.LOCT_ID,
+            BLMK_NAME="Ayala Center",
+            BLMK_ADDRESS="Cebu Business Park",
+            BLMK_POINT=Point(123.89, 10.32, srid=4326),
+            BLMK_SOURCE=BusinessLandmark.LandmarkSource.CUSTOM,
+        )
+        for day in BusinessOperatingHours.Day.values:
+            BusinessOperatingHours.objects.create(
+                BUSN_ID=self.business,
+                BOHR_DAY=day,
+                BOHR_IS_OPEN=day != "sunday",
+                BOHR_OPEN_TIME="09:00" if day != "sunday" else None,
+                BOHR_CLOSE_TIME="18:00" if day != "sunday" else None,
+            )
+        BusinessPhoto.objects.create(
+            BUSN_ID=self.business,
+            BPHO_CATEGORY=BusinessPhoto.PhotoCategory.STOREFRONT,
+            BPHO_PHOTO_URL="https://example.com/storefront.jpg",
+            BPHO_PHOTO_PUBLIC_ID="storefront",
+            BPHO_FILE_NAME="storefront.jpg",
+        )
+        application = MerchantApplication.objects.create(
+            USER_ID=self.merchant,
+            BUSN_ID=self.business,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.APPROVED,
+        )
+        MerchantApplicationIdentity.objects.create(
+            MAPP_ID=application,
+            MIDN_BUSINESS_NAME="Sugbo Bistro",
+            MIDN_CONTACT_NUMBER="+639171234567",
+            MIDN_REPRESENTATIVE_NAME="Juan Dela Cruz",
+            MIDN_REPRESENTATIVE_ROLE="owner",
+            CLUS_ID=self.business.CTGRY_ID.CLUS_ID,
+            CTGRY_ID=self.business.CTGRY_ID,
+        )
+        MerchantApplicationDocument.objects.create(
+            MAPP_ID=application,
+            MDOC_DOCUMENT_TYPE="business_registration",
+            MDOC_DOCUMENT_URL="https://example.com/private.pdf",
+            MDOC_DOCUMENT_PUBLIC_ID="private-document",
+            MDOC_CLOUDINARY_VERSION=1,
+            MDOC_FILE_NAME="registration.pdf",
+        )
+
+        self.client.force_authenticate(user=self.merchant)
+
+        with self.assertNumQueries(6):
+            response = self.client.get("/api/merchant/business-profile/")
+
+        self.assertEqual(response.status_code, 200)
+        profile = response.data["data"]
+        self.assertEqual(profile["id"], self.business.pk)
+        self.assertEqual(profile["description"], self.business.BUSN_DESCRIPTION)
+        self.assertEqual(profile["contact_number"], "+639171234567")
+        self.assertEqual(profile["business_email"], "hello@sugbobistro.com")
+        self.assertEqual(profile["website"], "https://sugbobistro.com")
+        self.assertEqual(profile["status"], "suspended")
+        self.assertEqual(profile["category"]["name"], "Restaurants")
+        self.assertEqual(profile["cluster"]["name"], "Food and Dining")
+        self.assertEqual(
+            [tag["name"] for tag in profile["specialty_tags"]],
+            ["Lechon"],
+        )
+        self.assertEqual(
+            profile["location"]["address"],
+            "Gorordo Avenue, Lahug, Cebu City",
+        )
+        self.assertEqual(profile["location"]["latitude"], 10.3157)
+        self.assertEqual(
+            profile["location"]["landmarks"][0]["name"],
+            "Ayala Center",
+        )
+        self.assertEqual(len(profile["operating_hours"]), 7)
+        self.assertEqual(profile["operating_hours"][0]["day"], "monday")
+        self.assertEqual(profile["operating_hours"][-1]["day"], "sunday")
+        self.assertEqual(profile["photos"][0]["category"], "storefront")
+        self.assertEqual(
+            profile["verification"]["representative_name"],
+            "Juan Dela Cruz",
+        )
+        self.assertEqual(
+            profile["verification"]["representative_role"],
+            "owner",
+        )
+        self.assertEqual(
+            profile["verification"]["documents"][0]["file_name"],
+            "registration.pdf",
+        )
+        self.assertNotIn("MDOC_DOCUMENT_URL", str(profile))
+        self.assertEqual(profile["cover_photo_update"]["limit"], 3)
+
+    def test_profile_is_scoped_to_authenticated_merchant(self):
+        other_merchant = User.objects.create_user(
+            email="other-read@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Other",
+            USER_LNAME="Merchant",
+            USER_ROLE=User.UserRole.MERCHANT,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        self.client.force_authenticate(user=other_merchant)
+
+        response = self.client.get("/api/merchant/business-profile/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.data["message"],
+            "Your business could not be found.",
+        )
+
+    def test_profile_requires_authentication_and_merchant_role(self):
+        profile_url = "/api/merchant/business-profile/"
+
+        unauthenticated = self.client.get(profile_url)
+        self.assertEqual(unauthenticated.status_code, 401)
+
+        self.client.force_authenticate(user=self.explorer)
+        explorer_response = self.client.get(profile_url)
+        self.assertEqual(explorer_response.status_code, 403)

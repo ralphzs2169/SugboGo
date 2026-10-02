@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshControl, ScrollView } from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
@@ -10,7 +10,11 @@ import ProfileMenuSection from "@/features/profile/components/ProfileMenuSection
 
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
+import AppText from "@/shared/components/AppText";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
+import MerchantBusinessOverview from "../../components/business-profile/MerchantBusinessOverview";
 import MerchantProfileHeader from "../../components/business-profile/MerchantProfileHeader";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
@@ -19,16 +23,24 @@ import { ApiResponse } from "@/shared/types/apiResponse.types";
 import { formatRetryTime } from "@/shared/utils/date.utils";
 
 /**
- * Displays the authenticated merchant's business profile and provides
- * controls for managing the business cover photo and switching modes.
+ * Displays the authenticated merchant's approved business and retained
+ * verification details alongside the existing cover-photo control.
  *
  * Pulling down refreshes the latest business profile data, including
  * the current server-provided cover-photo allowance.
  */
 export default function MerchantProfileScreen() {
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
+  const bottomSpacing = useTabBarSpacing();
 
-  const { business, isLoading, refetch } = useMerchantBusinessProfile();
+  const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+
+  useQueryErrorNotification({
+    error,
+    toastId: "merchant-business-profile-error",
+    title: "Unable to load business profile",
+    fallbackMessage: "Please try again.",
+  });
 
   const { updateCoverPhoto, isUploading } = useUpdateBusinessCoverPhoto(
     business?.id,
@@ -92,20 +104,10 @@ export default function MerchantProfileScreen() {
     }
   };
 
-  const handleEditBusiness = () => {
-    // Wire to business profile editing next.
-  };
-
   const checkCoverAllowance = async () => {
     const result = await refetch();
 
     if (result.error || !result.data) {
-      Toast.show({
-        type: "error",
-        text1: "Unable to check cover photo updates",
-        text2: "Please try again.",
-      });
-
       return null;
     }
 
@@ -144,6 +146,7 @@ export default function MerchantProfileScreen() {
       <ScrollView
         className="flex-1"
         contentContainerClassName="flex-grow"
+        contentContainerStyle={{ paddingBottom: bottomSpacing }}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
@@ -156,8 +159,31 @@ export default function MerchantProfileScreen() {
           coverPhotoUpdate={business.cover_photo_update}
           onCheckCoverAllowance={checkCoverAllowance}
           onEditCover={handleEditCover}
-          onEditBusiness={handleEditBusiness}
         />
+
+        {/* Current approved listing */}
+        <View className="mb-2 bg-surface px-5 pb-4">
+          <AppText weight="bold" className="mb-2 text-lg text-text-primary">
+            My Business
+          </AppText>
+          <View
+            className={`self-start rounded-full px-3 py-1 ${
+              business.status === "active"
+                ? "bg-success/10"
+                : "bg-error/10"
+            }`}
+          >
+            <AppText
+              weight="semibold"
+              className={`text-xs ${
+                business.status === "active" ? "text-success" : "text-error"
+              }`}
+            >
+              {business.status === "active" ? "Active" : "Suspended"}
+            </AppText>
+          </View>
+        </View>
+        <MerchantBusinessOverview business={business} />
 
         {/* Merchant actions */}
         <ProfileMenuSection>

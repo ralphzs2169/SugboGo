@@ -15,15 +15,13 @@ type MerchantProfileHeaderProps = {
   businessName: string;
   coverPhotoUrl?: string | null;
   onEditCover: (imageUri: string) => void;
-  onEditBusiness: () => void;
   isUploading?: boolean;
   coverPhotoUpdate: CoverPhotoUpdateAllowance;
   onCheckCoverAllowance: () => Promise<CoverPhotoUpdateAllowance | null>;
 };
 
 /**
- * Displays the merchant's business identity and provides controls for
- * changing the cover photo and opening business profile editing.
+ * Displays the merchant's business identity and cover-photo control.
  *
  * The cover photo can be replaced through the gallery or device camera.
  * A confirmation is required before consuming the merchant's cover-photo
@@ -33,7 +31,6 @@ export default function MerchantProfileHeader({
   businessName,
   coverPhotoUrl,
   onEditCover,
-  onEditBusiness,
   isUploading = false,
   coverPhotoUpdate,
   onCheckCoverAllowance,
@@ -239,7 +236,7 @@ export default function MerchantProfileHeader({
       </View>
 
       {/* Business identity */}
-      <View className="flex-row items-center justify-between px-4 py-3">
+      <View className="flex-row items-center px-4 py-3">
         <Text
           className="mr-3 flex-1 text-lg font-bold text-text-primary"
           numberOfLines={1}
@@ -247,18 +244,6 @@ export default function MerchantProfileHeader({
           {businessName}
         </Text>
 
-        {/* Edit business action */}
-        <TouchableOpacity
-          onPress={onEditBusiness}
-          activeOpacity={0.7}
-          className="cursor-pointer p-1"
-        >
-          <MaterialCommunityIcons
-            name="square-edit-outline"
-            size={19}
-            color="#F27A24"
-          />
-        </TouchableOpacity>
       </View>
 
       {/* Cover photo picker */}

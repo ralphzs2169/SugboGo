@@ -55,7 +55,6 @@ async function renderHeader(remaining: number) {
       coverPhotoUpdate={allowance}
       onCheckCoverAllowance={onCheckCoverAllowance}
       onEditCover={jest.fn()}
-      onEditBusiness={jest.fn()}
     />,
   );
 
