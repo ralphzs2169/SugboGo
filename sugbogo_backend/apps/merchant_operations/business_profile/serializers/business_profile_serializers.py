@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.business.models import Business
 from apps.merchant_operations.business_profile.helpers import (
     get_cover_photo_retry_after,
+    get_cover_photo_update_allowance,
 )
 
 MAX_COVER_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -36,16 +37,24 @@ class BusinessCoverPhotoResponseSerializer(serializers.ModelSerializer):
     )
 
     cover_photo_retry_after = serializers.SerializerMethodField()
+    cover_photo_update = serializers.SerializerMethodField()
 
     class Meta:
         model = Business
         fields = (
             "cover_photo_url",
             "cover_photo_retry_after",
+            "cover_photo_update",
         )
 
     def get_cover_photo_retry_after(self, obj):
         return get_cover_photo_retry_after(
+            self.context.get("request"),
+        )
+
+    def get_cover_photo_update(self, obj):
+        """Return the current server-side update allowance."""
+        return get_cover_photo_update_allowance(
             self.context.get("request"),
         )
 
@@ -70,6 +79,7 @@ class BusinessProfileResponseSerializer(serializers.ModelSerializer):
     )
 
     cover_photo_retry_after = serializers.SerializerMethodField()
+    cover_photo_update = serializers.SerializerMethodField()
 
     class Meta:
         model = Business
@@ -78,9 +88,16 @@ class BusinessProfileResponseSerializer(serializers.ModelSerializer):
             "business_name",
             "cover_photo_url",
             "cover_photo_retry_after",
+            "cover_photo_update",
         )
 
     def get_cover_photo_retry_after(self, obj):
         return get_cover_photo_retry_after(
+            self.context.get("request"),
+        )
+
+    def get_cover_photo_update(self, obj):
+        """Return the current server-side update allowance."""
+        return get_cover_photo_update_allowance(
             self.context.get("request"),
         )

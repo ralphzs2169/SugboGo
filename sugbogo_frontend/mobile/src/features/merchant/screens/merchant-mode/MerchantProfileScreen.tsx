@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { useState } from "react";
+import { RefreshControl, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
@@ -23,33 +23,18 @@ import { formatRetryTime } from "@/shared/utils/date.utils";
  * controls for managing the business cover photo and switching modes.
  *
  * Pulling down refreshes the latest business profile data, including
- * the current cover-photo editing cooldown.
+ * the current server-provided cover-photo allowance.
  */
 export default function MerchantProfileScreen() {
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
 
-  const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const { business, isLoading, refetch } = useMerchantBusinessProfile();
 
-  const { updateCoverPhoto, isUploading } = useUpdateBusinessCoverPhoto();
+  const { updateCoverPhoto, isUploading } = useUpdateBusinessCoverPhoto(
+    business?.id,
+  );
 
-  const [retryAfter, setRetryAfter] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    setRetryAfter(business?.cover_photo_retry_after ?? 0);
-  }, [business?.cover_photo_retry_after]);
-
-  useEffect(() => {
-    if (retryAfter <= 0) {
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setRetryAfter((previous) => Math.max(previous - 1, 0));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [retryAfter]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -67,10 +52,6 @@ export default function MerchantProfileScreen() {
   };
 
   const handleEditCover = async (imageUri: string) => {
-    if (retryAfter > 0) {
-      return;
-    }
-
     try {
       await updateCoverPhoto(imageUri);
 
@@ -84,17 +65,15 @@ export default function MerchantProfileScreen() {
 
       if (!response.success) {
         if (response.code === "RATE_LIMIT_EXCEEDED") {
-          const seconds = Number(response.errors?.retry_after ?? 0);
-
-          setRetryAfter(seconds);
+          const retryAfter = Number(response.errors?.retry_after ?? 0);
 
           Toast.show({
             type: "error",
-            text1: "Too many cover photo updates",
+            text1: "Cover photo update limit reached",
             text2:
-              seconds > 0
-                ? `Please try again in ${formatRetryTime(seconds)}.`
-                : "Please try again later.",
+              retryAfter > 0
+                ? `You can update your cover photo again in ${formatRetryTime(retryAfter)}.`
+                : response.message || "Please try again later.",
           });
 
           return;
@@ -115,6 +94,22 @@ export default function MerchantProfileScreen() {
 
   const handleEditBusiness = () => {
     // Wire to business profile editing next.
+  };
+
+  const checkCoverAllowance = async () => {
+    const result = await refetch();
+
+    if (result.error || !result.data) {
+      Toast.show({
+        type: "error",
+        text1: "Unable to check cover photo updates",
+        text2: "Please try again.",
+      });
+
+      return null;
+    }
+
+    return result.data.cover_photo_update;
   };
 
   if (isLoading && !business) {
@@ -158,7 +153,8 @@ export default function MerchantProfileScreen() {
           businessName={business.business_name}
           coverPhotoUrl={business.cover_photo_url}
           isUploading={isUploading}
-          retryAfter={retryAfter}
+          coverPhotoUpdate={business.cover_photo_update}
+          onCheckCoverAllowance={checkCoverAllowance}
           onEditCover={handleEditCover}
           onEditBusiness={handleEditBusiness}
         />
