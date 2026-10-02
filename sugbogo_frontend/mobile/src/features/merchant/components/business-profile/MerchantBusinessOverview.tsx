@@ -1,9 +1,11 @@
 import { Image } from "expo-image";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import AppText from "@/shared/components/AppText";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { formatTime } from "@/features/explore/utils/businessHours.utils";
+import { theme } from "@/constants/theme";
 import type {
   MerchantBusinessOperatingHours,
   MerchantBusinessProfileResponse,
@@ -72,15 +74,20 @@ function formatHours(hours: MerchantBusinessOperatingHours | undefined) {
 function BusinessSection({
   title,
   children,
+  action,
 }: {
   title: string;
   children: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   return (
     <View className="mb-2 bg-surface px-5 py-5">
-      <AppText weight="bold" className="mb-4 text-base text-text-primary">
-        {title}
-      </AppText>
+      <View className="mb-4 flex-row items-center justify-between">
+        <AppText weight="bold" className="text-base text-text-primary">
+          {title}
+        </AppText>
+        {action}
+      </View>
       <View className="border-t border-border-primary pt-4">{children}</View>
     </View>
   );
@@ -107,8 +114,10 @@ function BusinessField({
 /** Displays the approved listing and retained onboarding evidence as read-only sections. */
 export default function MerchantBusinessOverview({
   business,
+  onEditInformation,
 }: {
   business: MerchantBusinessProfileResponse;
+  onEditInformation?: () => void;
 }) {
   const location = business.location;
   const verification = business.verification;
@@ -116,7 +125,33 @@ export default function MerchantBusinessOverview({
   return (
     <View>
       {/* Business information */}
-      <BusinessSection title="Business Information">
+      <BusinessSection
+        title="Business Information"
+        action={
+          business.status === "active" && onEditInformation ? (
+            <Pressable
+              onPress={onEditInformation}
+              accessibilityRole="button"
+              accessibilityLabel="Edit business information"
+              className="min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Edit
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null
+        }
+      >
+        {business.status === "suspended" ? (
+          <AppText className="mb-4 text-xs text-text-secondary">
+            Business information cannot be edited while your business is suspended.
+          </AppText>
+        ) : null}
         <BusinessField label="Description" value={business.description} />
         <BusinessField label="Contact number" value={business.contact_number} />
         <BusinessField label="Business email" value={business.business_email} />

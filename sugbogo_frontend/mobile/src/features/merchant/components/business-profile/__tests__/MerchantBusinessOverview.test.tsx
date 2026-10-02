@@ -1,5 +1,5 @@
 import React from "react";
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 
 import type { MerchantBusinessProfileResponse } from "../../../types/merchantBusinessProfile.types";
 import MerchantBusinessOverview from "../MerchantBusinessOverview";
@@ -100,5 +100,32 @@ describe("MerchantBusinessOverview", () => {
     expect(screen.getAllByText("Not provided").length).toBeGreaterThan(0);
     expect(screen.getByText("No active specialties")).toBeTruthy();
     expect(screen.queryByText("Closed")).toBeNull();
+  });
+
+  it("opens only information editing for active businesses", async () => {
+    const onEditInformation = jest.fn();
+    const screen = await render(
+      <MerchantBusinessOverview
+        business={business}
+        onEditInformation={onEditInformation}
+      />,
+    );
+
+    fireEvent.press(screen.getByLabelText("Edit business information"));
+    expect(onEditInformation).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains why a suspended business cannot open editing", async () => {
+    const onEditInformation = jest.fn();
+    const screen = await render(
+      <MerchantBusinessOverview
+        business={{ ...business, status: "suspended" }}
+        onEditInformation={onEditInformation}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Edit business information")).toBeNull();
+    expect(screen.getByText(/cannot be edited while/)).toBeTruthy();
+    expect(onEditInformation).not.toHaveBeenCalled();
   });
 });

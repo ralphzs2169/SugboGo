@@ -20,6 +20,20 @@ export type MerchantBusinessProfileResponse = {
   id: number;
 };
 
+export type MerchantBusinessInformationUpdate = {
+  description?: string;
+  contact_number?: string;
+  business_email?: string | null;
+  website?: string | null;
+};
+
+export type MerchantBusinessInformationResponse = {
+  description: string | null;
+  contact_number: string;
+  business_email: string | null;
+  website: string | null;
+};
+
 export type MerchantBusinessClassification = {
   id: number;
   name: string;

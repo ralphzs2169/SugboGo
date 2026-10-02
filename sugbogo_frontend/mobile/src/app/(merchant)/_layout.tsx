@@ -12,6 +12,17 @@ export default function MerchantLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
 
+      {/* Business information */}
+      <Stack.Screen
+        name="business-information"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Edit Business Information",
+        }}
+      />
+
       {/* Reply templates */}
       <Stack.Screen
         name="reply-templates"

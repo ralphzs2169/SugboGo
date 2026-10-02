@@ -183,7 +183,10 @@ export default function MerchantProfileScreen() {
             </AppText>
           </View>
         </View>
-        <MerchantBusinessOverview business={business} />
+        <MerchantBusinessOverview
+          business={business}
+          onEditInformation={() => router.push("/(merchant)/business-information")}
+        />
 
         {/* Merchant actions */}
         <ProfileMenuSection>

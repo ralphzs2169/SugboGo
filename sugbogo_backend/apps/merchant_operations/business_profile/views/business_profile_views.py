@@ -6,6 +6,7 @@ from apps.authentication.permissions import HasRole
 from apps.merchant_operations.business_profile.serializers.business_profile_serializers import (
     BusinessCoverPhotoResponseSerializer,
     BusinessCoverPhotoSerializer,
+    BusinessInformationSerializer,
     BusinessProfileResponseSerializer,
 )
 from apps.merchant_operations.business_profile.services.business_profile_service import (
@@ -40,6 +41,38 @@ class BusinessProfileView(APIView):
         return success_response(
             data=serializer.data,
             message="Business profile retrieved successfully.",
+        )
+
+
+class BusinessInformationView(APIView):
+    """Update basic information on the authenticated merchant's business."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.MERCHANT),
+    )
+
+    def patch(self, request):
+        business = BusinessProfileService.get_business_for_merchant(
+            request.user,
+        )
+
+        serializer = BusinessInformationSerializer(
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        business = BusinessProfileService.update_information(
+            business=business,
+            validated_data=serializer.validated_data,
+        )
+
+        return success_response(
+            data=BusinessInformationSerializer(business).data,
+            message="Business information updated successfully.",
         )
 
 

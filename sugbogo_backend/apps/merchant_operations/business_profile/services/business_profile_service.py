@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db.models import Case, IntegerField, Prefetch, Value, When
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, PermissionDenied
 
 from apps.business.models import (
     Business,
@@ -81,6 +81,30 @@ class BusinessProfileService:
             raise NotFound(
                 "Your business could not be found.",
             )
+
+    @staticmethod
+    def update_information(business, validated_data):
+        """Persist only validated operational fields on the live business."""
+
+        if business.BUSN_STATUS != Business.BusinessStatus.ACTIVE:
+            raise PermissionDenied(
+                "Business information cannot be edited while your business is suspended.",
+            )
+
+        if not validated_data:
+            return business
+
+        for field, value in validated_data.items():
+            setattr(business, field, value)
+
+        business.save(
+            update_fields=[
+                *validated_data.keys(),
+                "BUSN_UPDATED_AT",
+            ],
+        )
+
+        return business
 
     @staticmethod
     @transaction.atomic

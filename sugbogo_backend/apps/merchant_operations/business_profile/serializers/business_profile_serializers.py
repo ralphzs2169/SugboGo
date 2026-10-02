@@ -37,6 +37,55 @@ class BusinessCoverPhotoSerializer(serializers.Serializer):
         return value
 
 
+class BusinessInformationSerializer(serializers.Serializer):
+    """Validates the merchant-editable business information allowlist."""
+
+    description = serializers.CharField(
+        source="BUSN_DESCRIPTION",
+        trim_whitespace=True,
+        min_length=10,
+        max_length=500,
+        error_messages={
+            "blank": "Business description is required.",
+            "min_length": "Business description must be at least 10 characters.",
+        },
+    )
+    contact_number = serializers.RegexField(
+        regex=r"^(09\d{9}|\+639\d{9})$",
+        source="BUSN_CONTACT_NUMBER",
+        error_messages={
+            "blank": "Contact number is required.",
+            "invalid": "Enter a valid Philippine mobile number.",
+        },
+    )
+    business_email = serializers.EmailField(
+        source="BUSN_EMAIL",
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    website = serializers.URLField(
+        source="BUSN_WEBSITE",
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+
+    def validate(self, attrs):
+        allowed_fields = set(self.fields)
+        unexpected_fields = set(self.initial_data) - allowed_fields
+
+        if unexpected_fields:
+            raise serializers.ValidationError(
+                {
+                    field: ["This field cannot be updated."]
+                    for field in sorted(unexpected_fields)
+                }
+            )
+
+        return attrs
+
+
 class BusinessCoverPhotoResponseSerializer(serializers.ModelSerializer):
     """Serializes the current business cover photo."""
 
