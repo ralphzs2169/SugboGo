@@ -115,9 +115,11 @@ function BusinessField({
 export default function MerchantBusinessOverview({
   business,
   onEditInformation,
+  onEditOperatingHours,
 }: {
   business: MerchantBusinessProfileResponse;
   onEditInformation?: () => void;
+  onEditOperatingHours?: () => void;
 }) {
   const location = business.location;
   const verification = business.verification;
@@ -212,7 +214,28 @@ export default function MerchantBusinessOverview({
       </BusinessSection>
 
       {/* Current operating hours */}
-      <BusinessSection title="Operating Hours">
+      <BusinessSection
+        title="Operating Hours"
+        action={
+          business.status === "active" && onEditOperatingHours ? (
+            <Pressable
+              onPress={onEditOperatingHours}
+              accessibilityRole="button"
+              accessibilityLabel="Edit operating hours"
+              className="min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Edit
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null
+        }
+      >
         {DAYS.map((day) => {
           const hours = business.operating_hours.find(
             (item) => item.day === day,

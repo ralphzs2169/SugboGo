@@ -5,15 +5,15 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import { shadows } from "@/shared/styles/shadows";
 
-import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
+import type { OperatingHoursForm } from "../../validation/operatingHours.schema";
 import OperatingHoursSummary from "./OperatingHoursSummary";
 import OperatingHoursStatusBadge from "./StatusBadge";
 
-type Day = keyof MerchantRegistrationForm["operatingHours"];
+type Day = keyof OperatingHoursForm["operatingHours"];
 
 type DaySectionCardProps = {
   day: Day;
-  schedule: MerchantRegistrationForm["operatingHours"][Day];
+  schedule: OperatingHoursForm["operatingHours"][Day];
   isExpanded: boolean;
   hasError: boolean;
   onPress: () => void;
@@ -47,6 +47,7 @@ export default function DaySectionCard({
         <Pressable
           onPress={onPress}
           accessibilityRole="button"
+          accessibilityLabel={`Edit ${day} hours`}
           accessibilityState={{ expanded: isExpanded }}
           className="cursor-pointer flex-row items-center justify-between px-4 py-4 active:bg-surface-secondary"
         >

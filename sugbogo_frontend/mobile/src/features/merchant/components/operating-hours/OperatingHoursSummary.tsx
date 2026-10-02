@@ -2,13 +2,13 @@ import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 
-import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
-import { formatTime } from "../../../utils/merchant-application/operatingHours.utils";
+import type { OperatingHoursForm } from "../../validation/operatingHours.schema";
+import { formatTime } from "../../utils/operatingHours.utils";
 
-type Day = keyof MerchantRegistrationForm["operatingHours"];
+type Day = keyof OperatingHoursForm["operatingHours"];
 
 type OperatingHoursSummaryProps = {
-  schedule: MerchantRegistrationForm["operatingHours"][Day];
+  schedule: OperatingHoursForm["operatingHours"][Day];
 };
 
 /**

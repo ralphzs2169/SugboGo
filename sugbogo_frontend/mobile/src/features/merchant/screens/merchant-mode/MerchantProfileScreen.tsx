@@ -186,6 +186,7 @@ export default function MerchantProfileScreen() {
         <MerchantBusinessOverview
           business={business}
           onEditInformation={() => router.push("/(merchant)/business-information")}
+          onEditOperatingHours={() => router.push("/(merchant)/operating-hours")}
         />
 
         {/* Merchant actions */}

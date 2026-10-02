@@ -66,6 +66,16 @@ export type MerchantBusinessOperatingHours = {
   close_time: string | null;
 };
 
+export type MerchantBusinessOperatingHoursUpdate = {
+  hours: {
+    day: string;
+    is_open: boolean;
+    is_24_hours: boolean;
+    open_time: string | null;
+    close_time: string | null;
+  }[];
+};
+
 export type MerchantBusinessPhoto = {
   id: number;
   category: "storefront" | "interior" | "products" | "additional";

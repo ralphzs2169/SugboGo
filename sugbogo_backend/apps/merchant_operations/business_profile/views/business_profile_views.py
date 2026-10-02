@@ -7,7 +7,9 @@ from apps.merchant_operations.business_profile.serializers.business_profile_seri
     BusinessCoverPhotoResponseSerializer,
     BusinessCoverPhotoSerializer,
     BusinessInformationSerializer,
+    BusinessOperatingHoursUpdateSerializer,
     BusinessProfileResponseSerializer,
+    MerchantBusinessHoursSerializer,
 )
 from apps.merchant_operations.business_profile.services.business_profile_service import (
     BusinessProfileService,
@@ -73,6 +75,31 @@ class BusinessInformationView(APIView):
         return success_response(
             data=BusinessInformationSerializer(business).data,
             message="Business information updated successfully.",
+        )
+
+
+class BusinessOperatingHoursView(APIView):
+    """Replace the authenticated merchant's approved weekly schedule."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.MERCHANT),
+    )
+
+    def put(self, request):
+        """Validate and persist all seven days in one operation."""
+
+        serializer = BusinessOperatingHoursUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        hours = BusinessProfileService.update_operating_hours(
+            user=request.user,
+            hours=serializer.validated_data["hours"],
+        )
+
+        return success_response(
+            data=MerchantBusinessHoursSerializer(hours, many=True).data,
+            message="Operating hours updated successfully.",
         )
 
 

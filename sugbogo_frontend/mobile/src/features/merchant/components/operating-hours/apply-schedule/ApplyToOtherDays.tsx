@@ -6,7 +6,7 @@ import { theme } from "@/constants/theme";
 import {
   DAYS,
   type Day,
-} from "@/features/merchant/constants/registration/operatingHours.constants";
+} from "@/features/merchant/constants/operatingHours.constants";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 

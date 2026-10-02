@@ -6,13 +6,13 @@ import Toast from "react-native-toast-message";
 
 import AppText from "@/shared/components/AppText";
 
-import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
-import { dateToTimeString } from "../../../utils/merchant-application/operatingHours.utils";
+import type { OperatingHoursForm } from "../../validation/operatingHours.schema";
+import { dateToTimeString } from "../../utils/operatingHours.utils";
 import ApplyToOtherDays from "./apply-schedule/ApplyToOtherDays";
 import OperatingHoursControls from "./OperatingHoursControls";
 import TimeFields from "./TimeFields";
 
-type Day = keyof MerchantRegistrationForm["operatingHours"];
+type Day = keyof OperatingHoursForm["operatingHours"];
 type TimeField = "openTime" | "closeTime";
 
 type OperatingHoursEditorProps = {
@@ -36,7 +36,7 @@ export default function OperatingHoursEditor({
     trigger,
     getValues,
     formState: { errors },
-  } = useFormContext<MerchantRegistrationForm>();
+  } = useFormContext<OperatingHoursForm>();
 
   const schedule = useWatch({
     control,

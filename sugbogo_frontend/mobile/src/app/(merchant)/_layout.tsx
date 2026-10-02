@@ -23,6 +23,16 @@ export default function MerchantLayout() {
         }}
       />
 
+      <Stack.Screen
+        name="operating-hours"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Edit Operating Hours",
+        }}
+      />
+
       {/* Reply templates */}
       <Stack.Screen
         name="reply-templates"

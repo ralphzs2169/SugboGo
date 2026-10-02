@@ -6,7 +6,7 @@ import { merchantRegistrationSchema } from "@/features/merchant/validation/merch
 
 import ReviewSection from "../ReviewSection";
 import ReviewRow from "../ReviewRow";
-import StatusBadge from "../../operating-hours/StatusBadge";
+import StatusBadge from "../../../operating-hours/StatusBadge";
 import { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import ReviewSectionFeedback from "../ReviewSectionFeedback";
 import AppText from "@/shared/components/AppText";

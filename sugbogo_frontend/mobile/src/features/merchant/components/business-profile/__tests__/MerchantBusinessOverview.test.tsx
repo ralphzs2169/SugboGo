@@ -115,6 +115,29 @@ describe("MerchantBusinessOverview", () => {
     expect(onEditInformation).toHaveBeenCalledTimes(1);
   });
 
+  it("offers operating-hours editing only for an active business", async () => {
+    const onEditOperatingHours = jest.fn();
+    const active = await render(
+      <MerchantBusinessOverview
+        business={business}
+        onEditOperatingHours={onEditOperatingHours}
+      />,
+    );
+
+    fireEvent.press(active.getByLabelText("Edit operating hours"));
+    expect(onEditOperatingHours).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides operating-hours editing for a suspended business", async () => {
+    const suspended = await render(
+      <MerchantBusinessOverview
+        business={{ ...business, status: "suspended" }}
+        onEditOperatingHours={jest.fn()}
+      />,
+    );
+    expect(suspended.queryByLabelText("Edit operating hours")).toBeNull();
+  });
+
   it("explains why a suspended business cannot open editing", async () => {
     const onEditInformation = jest.fn();
     const screen = await render(

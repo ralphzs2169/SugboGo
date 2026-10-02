@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import { formatTime } from "@/features/merchant/utils/merchant-application/operatingHours.utils";
+import { formatTime } from "@/features/merchant/utils/operatingHours.utils";
 
 type TimeInputProps = {
   label: string;

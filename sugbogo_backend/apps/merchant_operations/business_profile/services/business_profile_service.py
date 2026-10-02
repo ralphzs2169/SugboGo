@@ -108,6 +108,53 @@ class BusinessProfileService:
 
     @staticmethod
     @transaction.atomic
+    def update_operating_hours(user, hours):
+        """Update the authenticated merchant's complete approved schedule atomically."""
+
+        try:
+            business = Business.objects.select_for_update().get(USER_ID=user)
+        except Business.DoesNotExist:
+            raise NotFound("Your business could not be found.")
+
+        if business.BUSN_STATUS != Business.BusinessStatus.ACTIVE:
+            raise PermissionDenied(
+                "Operating hours cannot be edited while your business is suspended."
+            )
+
+        existing_hours = {
+            item.BOHR_DAY: item
+            for item in BusinessOperatingHours.objects.filter(BUSN_ID=business)
+        }
+
+        for item in hours:
+            day = item["day"]
+            schedule = existing_hours.get(day)
+
+            if schedule is None:
+                schedule = BusinessOperatingHours(
+                    BUSN_ID=business,
+                    BOHR_DAY=day,
+                )
+
+            schedule.BOHR_IS_OPEN = item["is_open"]
+            schedule.BOHR_IS_24_HOURS = item["is_24_hours"]
+            schedule.BOHR_OPEN_TIME = item.get("open_time")
+            schedule.BOHR_CLOSE_TIME = item.get("close_time")
+            schedule.save()
+
+        saved_hours = list(
+            BusinessOperatingHours.objects.filter(BUSN_ID=business)
+        )
+
+        return sorted(
+            saved_hours,
+            key=lambda schedule: BusinessOperatingHours.Day.values.index(
+                schedule.BOHR_DAY
+            ),
+        )
+
+    @staticmethod
+    @transaction.atomic
     def update_cover_photo(business, photo):
         """
         Replace the business cover photo with a newly uploaded image.

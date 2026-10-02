@@ -11,6 +11,9 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.merchant_application.models import MerchantApplicationDocument
+from apps.shared.serializers.operating_hours_serializers import (
+    OperatingHoursWeekSerializer,
+)
 from apps.merchant_operations.business_profile.helpers import (
     get_cover_photo_retry_after,
     get_cover_photo_update_allowance,
@@ -195,6 +198,25 @@ class MerchantBusinessHoursSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessOperatingHours
         fields = ("day", "is_open", "is_24_hours", "open_time", "close_time")
+
+
+class BusinessOperatingHoursUpdateSerializer(OperatingHoursWeekSerializer):
+    """Validate a complete approved schedule with shared domain rules."""
+
+    def validate(self, attrs):
+        """Reject fields that could suggest an arbitrary target business."""
+
+        unexpected_fields = set(self.initial_data) - {"hours"}
+
+        if unexpected_fields:
+            raise serializers.ValidationError(
+                {
+                    field: ["This field cannot be updated."]
+                    for field in sorted(unexpected_fields)
+                }
+            )
+
+        return attrs
 
 
 class MerchantBusinessPhotoSerializer(serializers.ModelSerializer):
