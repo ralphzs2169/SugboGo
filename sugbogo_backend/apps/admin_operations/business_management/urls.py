@@ -1,5 +1,12 @@
 from django.urls import path
 
+from apps.admin_operations.business_management.views.manage_business_name_change_views import (
+    AdminBusinessNameChangeApproveView,
+    AdminBusinessNameChangeDetailView,
+    AdminBusinessNameChangeListView,
+    AdminBusinessNameChangeRejectView,
+)
+
 from apps.admin_operations.business_management.views.manage_application_views import (
     MerchantApplicationApproveView,
     MerchantApplicationDetailView,
@@ -16,6 +23,26 @@ from apps.admin_operations.business_management.views.manage_business_views impor
 )
 
 urlpatterns = [
+    path(
+        "update-requests/",
+        AdminBusinessNameChangeListView.as_view(),
+        name="admin-business-name-change-list",
+    ),
+    path(
+        "update-requests/<int:request_id>/",
+        AdminBusinessNameChangeDetailView.as_view(),
+        name="admin-business-name-change-detail",
+    ),
+    path(
+        "update-requests/<int:request_id>/approve/",
+        AdminBusinessNameChangeApproveView.as_view(),
+        name="admin-business-name-change-approve",
+    ),
+    path(
+        "update-requests/<int:request_id>/reject/",
+        AdminBusinessNameChangeRejectView.as_view(),
+        name="admin-business-name-change-reject",
+    ),
   
     path("", BusinessListView.as_view(), name="business-list"),
     path("map/", BusinessMapView.as_view(), name="business-map"),
