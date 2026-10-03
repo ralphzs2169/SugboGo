@@ -19,6 +19,7 @@ import BusinessNameChangeEntry from "../../components/business-name-change/Busin
 import MerchantProfileHeader from "../../components/business-profile/MerchantProfileHeader";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import { useMerchantBusinessNameChangeRequests } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
+import { useMerchantClassificationChangeRequests } from "../../hooks/classification-change/useMerchantClassificationChanges";
 import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -42,6 +43,12 @@ export default function MerchantProfileScreen() {
     error: requestsError,
     refetch: refetchRequests,
   } = useMerchantBusinessNameChangeRequests();
+  const {
+    pendingRequest: pendingClassificationRequest,
+    isLoading: isCheckingClassification,
+    error: classificationError,
+    refetch: refetchClassification,
+  } = useMerchantClassificationChangeRequests();
 
   useQueryErrorNotification({
     error,
@@ -60,7 +67,11 @@ export default function MerchantProfileScreen() {
     setIsRefreshing(true);
 
     try {
-      await Promise.all([refetch(), refetchRequests()]);
+      await Promise.all([
+        refetch(),
+        refetchRequests(),
+        refetchClassification(),
+      ]);
     } finally {
       setIsRefreshing(false);
     }
@@ -204,6 +215,20 @@ export default function MerchantProfileScreen() {
         </View>
         <MerchantBusinessOverview
           business={business}
+          pendingClassificationRequest={pendingClassificationRequest}
+          isCheckingClassification={isCheckingClassification}
+          hasClassificationError={Boolean(classificationError)}
+          onRequestClassification={() =>
+            router.push("/(merchant)/classification-change" as Href)
+          }
+          onClassificationHistory={() =>
+            router.push(
+              pendingClassificationRequest
+                ? (`/(merchant)/business-update-requests/classification/${pendingClassificationRequest.id}` as Href)
+                : ("/(merchant)/business-update-requests/classification" as Href),
+            )
+          }
+          onRetryClassification={() => void refetchClassification()}
           onEditInformation={() =>
             router.push("/(merchant)/business-information")
           }

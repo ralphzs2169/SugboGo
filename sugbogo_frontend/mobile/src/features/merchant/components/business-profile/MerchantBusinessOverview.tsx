@@ -10,6 +10,7 @@ import type {
   MerchantBusinessOperatingHours,
   MerchantBusinessProfileResponse,
 } from "../../types/merchantBusinessProfile.types";
+import type { ClassificationChangeRequest } from "../../types/classificationChange.types";
 
 const DAYS = [
   "monday",
@@ -117,11 +118,23 @@ export default function MerchantBusinessOverview({
   onEditInformation,
   onEditOperatingHours,
   onManagePhotos,
+  pendingClassificationRequest,
+  isCheckingClassification,
+  hasClassificationError,
+  onRequestClassification,
+  onClassificationHistory,
+  onRetryClassification,
 }: {
   business: MerchantBusinessProfileResponse;
   onEditInformation?: () => void;
   onEditOperatingHours?: () => void;
   onManagePhotos?: () => void;
+  pendingClassificationRequest?: ClassificationChangeRequest | null;
+  isCheckingClassification?: boolean;
+  hasClassificationError?: boolean;
+  onRequestClassification?: () => void;
+  onClassificationHistory?: () => void;
+  onRetryClassification?: () => void;
 }) {
   const location = business.location;
   const verification = business.verification;
@@ -181,6 +194,72 @@ export default function MerchantBusinessOverview({
             No active specialties
           </AppText>
         )}
+        {/* Reviewed classification change entry */}
+        {business.status === "suspended" ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Classification changes cannot be requested while your business is
+            suspended.
+          </AppText>
+        ) : pendingClassificationRequest ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Classification change pending Admin review. Your live category and
+            specialties remain visible.
+          </AppText>
+        ) : isCheckingClassification ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Checking classification requests...
+          </AppText>
+        ) : hasClassificationError ? (
+          <Pressable
+            onPress={onRetryClassification}
+            accessibilityRole="button"
+            className="cursor-pointer mt-2 min-h-11 justify-center active:opacity-75"
+          >
+            <AppText weight="semibold" className="text-sm text-brand">
+              Retry request status
+            </AppText>
+          </Pressable>
+        ) : null}
+        <View className="mt-3 flex-row flex-wrap gap-3">
+          {business.status === "active" &&
+          !pendingClassificationRequest &&
+          !isCheckingClassification &&
+          !hasClassificationError &&
+          onRequestClassification ? (
+            <Pressable
+              onPress={onRequestClassification}
+              accessibilityRole="button"
+              className="cursor-pointer min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Request classification change
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null}
+          {onClassificationHistory ? (
+            <Pressable
+              onPress={onClassificationHistory}
+              accessibilityRole="button"
+              className="cursor-pointer min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                {pendingClassificationRequest
+                  ? "View pending request"
+                  : "Classification requests"}
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null}
+        </View>
       </BusinessSection>
 
       {/* Approved location */}

@@ -186,4 +186,64 @@ describe("MerchantBusinessOverview", () => {
     ).toBeTruthy();
     expect(onEditInformation).not.toHaveBeenCalled();
   });
+
+  it("offers a classification request without being blocked by name requests", async () => {
+    const onRequestClassification = jest.fn();
+    const active = await render(
+      <MerchantBusinessOverview
+        business={business}
+        onRequestClassification={onRequestClassification}
+        onClassificationHistory={jest.fn()}
+      />,
+    );
+    fireEvent.press(active.getByText("Request classification change"));
+    expect(onRequestClassification).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps live classification visible while a classification request is pending", async () => {
+    const pending = await render(
+      <MerchantBusinessOverview
+        business={business}
+        pendingClassificationRequest={{
+          id: 9,
+          request_type: "classification",
+          status: "pending",
+          previous: {
+            category: business.category,
+            cluster: business.cluster,
+            specialty_tags: business.specialty_tags,
+          },
+          proposed: {
+            category: { id: 4, name: "Creative Arts" },
+            cluster: { id: 5, name: "Culture" },
+            specialty_tags: [],
+          },
+          submitted_at: "2026-10-03T10:00:00Z",
+          resolved_at: null,
+          rejection_reason: null,
+        }}
+        onRequestClassification={jest.fn()}
+        onClassificationHistory={jest.fn()}
+      />,
+    );
+    expect(pending.getByText("Restaurants")).toBeTruthy();
+    expect(pending.getByText("Food and Dining")).toBeTruthy();
+    expect(pending.queryByText("Creative Arts")).toBeNull();
+    expect(pending.queryByText("Request classification change")).toBeNull();
+    expect(pending.getByText("View pending request")).toBeTruthy();
+  });
+
+  it("prevents suspended businesses from opening classification submission", async () => {
+    const suspended = await render(
+      <MerchantBusinessOverview
+        business={{ ...business, status: "suspended" }}
+        onRequestClassification={jest.fn()}
+        onClassificationHistory={jest.fn()}
+      />,
+    );
+    expect(suspended.queryByText("Request classification change")).toBeNull();
+    expect(
+      suspended.getByText(/Classification changes cannot be requested/),
+    ).toBeTruthy();
+  });
 });

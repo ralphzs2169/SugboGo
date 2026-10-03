@@ -70,6 +70,33 @@ export default function MerchantLayout() {
           title: "Name Change Request",
         }}
       />
+      <Stack.Screen
+        name="classification-change"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Request Classification Change",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/classification/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Classification Requests",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/classification/[requestId]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Classification Request",
+        }}
+      />
 
       {/* Reply templates */}
       <Stack.Screen

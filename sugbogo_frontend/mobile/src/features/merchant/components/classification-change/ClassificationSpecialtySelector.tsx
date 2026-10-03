@@ -1,0 +1,123 @@
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
+import { useRef } from "react";
+import { Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
+
+type TagOption = SpecialtyTag & { id: number; name: string };
+
+/** Selects up to three specialty tags in a scrollable sheet, independent of registration form state. */
+export default function ClassificationSpecialtySelector({
+  tags,
+  selectedIds,
+  onChange,
+  error,
+}: {
+  tags: TagOption[];
+  selectedIds: number[];
+  onChange: (ids: number[]) => void;
+  error?: string;
+}) {
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const insets = useSafeAreaInsets();
+
+  function toggleTag(tagId: number) {
+    if (selectedIds.includes(tagId)) {
+      onChange(selectedIds.filter((id) => id !== tagId));
+    } else if (selectedIds.length < 3) {
+      onChange([...selectedIds, tagId]);
+    }
+  }
+
+  return (
+    <View>
+      {/* Selected tags and count */}
+      <AppText weight="semibold" className="text-sm text-text-primary">
+        Specialty tags
+      </AppText>
+      <AppText className="mt-1 text-xs text-text-secondary">
+        {selectedIds.length} of 3 selected
+      </AppText>
+      <View className="mt-3 flex-row flex-wrap">
+        {selectedIds.map((id) => {
+          const tag = tags.find((item) => item.id === id);
+          return tag ? (
+            <SpecialtyTagChip key={id} tag={tag} size="small" showIcon />
+          ) : null;
+        })}
+      </View>
+      <Pressable
+        onPress={() => sheetRef.current?.present()}
+        accessibilityRole="button"
+        accessibilityLabel="Choose specialty tags"
+        className="cursor-pointer min-h-12 items-center justify-center rounded-xl border border-border-primary bg-surface active:bg-brand/10"
+      >
+        <AppText weight="semibold" className="text-sm text-brand">
+          Choose specialty tags
+        </AppText>
+      </Pressable>
+      {error ? (
+        <AppText className="mt-2 text-xs text-text-error">{error}</AppText>
+      ) : null}
+
+      {/* Full tag selection */}
+      <BottomSheetModal
+        ref={sheetRef}
+        snapPoints={["70%", "85%"]}
+        enablePanDownToClose
+        backdropComponent={(props) => (
+          <BottomSheetBackdrop
+            {...props}
+            appearsOnIndex={0}
+            disappearsOnIndex={-1}
+            opacity={0.35}
+          />
+        )}
+      >
+        <BottomSheetView className="px-6 pt-3">
+          <AppText weight="bold" className="text-lg text-text-primary">
+            Choose 3 Specialties
+          </AppText>
+          <AppText className="mt-1 text-sm text-text-secondary">
+            {selectedIds.length} of 3 selected
+          </AppText>
+        </BottomSheetView>
+        <BottomSheetScrollView
+          contentContainerClassName="flex-row flex-wrap px-6 pt-5"
+          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 32) }}
+        >
+          {tags.map((tag) => {
+            const isSelected = selectedIds.includes(tag.id);
+            return (
+              <SpecialtyTagChip
+                key={tag.id}
+                tag={tag}
+                mode="registration"
+                isSelected={isSelected}
+                isDisabled={!isSelected && selectedIds.length >= 3}
+                onPress={() => toggleTag(tag.id)}
+                showIcon
+                showSelectionIndicator
+              />
+            );
+          })}
+        </BottomSheetScrollView>
+        <BottomSheetView
+          className="border-t border-border-primary bg-surface px-6 pt-3"
+          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+        >
+          <Button title="Done" onPress={() => sheetRef.current?.dismiss()} />
+        </BottomSheetView>
+      </BottomSheetModal>
+    </View>
+  );
+}

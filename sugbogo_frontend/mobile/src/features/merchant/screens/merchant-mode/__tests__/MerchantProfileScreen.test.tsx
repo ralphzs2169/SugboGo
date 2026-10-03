@@ -7,6 +7,7 @@ const mockRefetch = jest.fn();
 const mockProfile = jest.fn();
 const mockNotify = jest.fn();
 const mockRequestState = jest.fn();
+const mockClassificationState = jest.fn();
 
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
@@ -17,6 +18,12 @@ jest.mock(
   "../../../hooks/business-name-change/useMerchantBusinessNameChanges",
   () => ({
     useMerchantBusinessNameChangeRequests: () => mockRequestState(),
+  }),
+);
+jest.mock(
+  "../../../hooks/classification-change/useMerchantClassificationChanges",
+  () => ({
+    useMerchantClassificationChangeRequests: () => mockClassificationState(),
   }),
 );
 
@@ -69,6 +76,12 @@ describe("MerchantProfileScreen", () => {
     jest.clearAllMocks();
     mockRefetch.mockResolvedValue({ data: null, error: null });
     mockRequestState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    mockClassificationState.mockReturnValue({
       pendingRequest: null,
       isLoading: false,
       error: null,
