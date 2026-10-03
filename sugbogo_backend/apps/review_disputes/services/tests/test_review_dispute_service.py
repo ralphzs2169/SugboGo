@@ -1,4 +1,5 @@
 from io import BytesIO
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
@@ -229,10 +230,16 @@ class ReviewDisputeServiceTests(TestCase):
 
     def test_create_dispute_rejects_review_after_upheld_dispute(self):
         previous_dispute = self.create_dispute()
+        admin = User.objects.create_user(
+            email="resolution-admin@example.com", password=None,
+            USER_FNAME="Admin", USER_LNAME="Moderator",
+            USER_ROLE=User.UserRole.ADMIN, USER_STATUS=User.UserStatus.ACTIVE,
+        )
 
         ManageReviewDisputeService.uphold_dispute(
             previous_dispute.MRDSP_ID,
             admin_notes="The review violates policy.",
+            actor=admin,
         )
 
         with self.assertRaisesMessage(
@@ -1030,6 +1037,11 @@ class ReviewDisputeServiceTests(TestCase):
 
     def test_create_dispute_increments_attempt_number_after_resubmission(self):
         first_dispute = self.create_dispute()
+
+        # Explicit chronology avoids identical timestamps on fast Windows runs.
+        MerchantReviewDispute.objects.filter(pk=first_dispute.pk).update(
+            MRDSP_CREATED_AT=first_dispute.MRDSP_CREATED_AT - timedelta(seconds=1),
+        )
 
         first_dispute.MRDSP_STATUS = (
             MerchantReviewDispute.DisputeStatus.DISMISSED

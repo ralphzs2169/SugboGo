@@ -91,6 +91,7 @@ class AdminReviewDisputeUpholdView(APIView):
 
         dispute = ManageReviewDisputeService.uphold_dispute(
             dispute_id,
+            actor=request.user,
             **serializer.validated_data,
         )
 
@@ -120,6 +121,7 @@ class AdminReviewDisputeDismissView(APIView):
 
         dispute = ManageReviewDisputeService.dismiss_dispute(
             dispute_id,
+            actor=request.user,
             **serializer.validated_data,
         )
 

@@ -4,8 +4,14 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.business.models import BusinessSpecialtyTag
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.activity_management.services import AdminActivityService
+from apps.users.models import User
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import Review
+from apps.reviews.services.review_moderation_consistency_service import (
+    ReviewModerationConsistencyService,
+)
 from apps.users.services.reputation_service import ReputationService
 
 
@@ -93,15 +99,15 @@ class ManageReviewDisputeService:
     @staticmethod
     def get_dispute(
         dispute_id: int,
+        *,
+        for_update: bool = False,
     ) -> MerchantReviewDispute:
+        """Retrieves dispute details and optionally locks its decision state."""
         try:
-            return (
-                ManageReviewDisputeService
-                ._detail_queryset()
-                .get(
-                    MRDSP_ID=dispute_id,
-                )
-            )
+            queryset = ManageReviewDisputeService._detail_queryset()
+            if for_update:
+                queryset = queryset.select_for_update(of=("self",))
+            return queryset.get(MRDSP_ID=dispute_id)
         except MerchantReviewDispute.DoesNotExist:
             raise NotFound(
                 "The review dispute could not be found.",
@@ -159,10 +165,13 @@ class ManageReviewDisputeService:
     def uphold_dispute(
         dispute_id: int,
         admin_notes: str | None = None,
+        *,
+        actor: User,
     ) -> MerchantReviewDispute:
         """Uphold a dispute and penalize the review author in one transaction."""
         dispute = ManageReviewDisputeService.get_dispute(
             dispute_id,
+            for_update=True,
         )
 
         if (
@@ -172,6 +181,8 @@ class ManageReviewDisputeService:
             raise ValidationError(
                 "Only pending review disputes can be upheld.",
             )
+
+        previous_review_status = dispute.REVW_ID.REVW_STATUS
 
         dispute.MRDSP_STATUS = (
             MerchantReviewDispute.DisputeStatus.UPHELD
@@ -199,6 +210,16 @@ class ManageReviewDisputeService:
             review_id=dispute.REVW_ID_id,
         )
 
+        ReviewModerationConsistencyService.refresh_excluded_review(
+            business_id=dispute.REVW_ID.BUSN_ID_id,
+            review_id=dispute.REVW_ID_id,
+        )
+
+        ManageReviewDisputeService._record_resolution(
+            actor, dispute, AdminActivity.Action.REVIEW_DISPUTE_UPHELD,
+            previous_review_status, Review.ReviewStatus.REJECTED,
+        )
+
         return dispute
 
     @staticmethod
@@ -206,9 +227,13 @@ class ManageReviewDisputeService:
     def dismiss_dispute(
         dispute_id: int,
         admin_notes: str | None = None,
+        *,
+        actor: User,
     ) -> MerchantReviewDispute:
+        """Dismisses a pending dispute and records its administrator decision."""
         dispute = ManageReviewDisputeService.get_dispute(
             dispute_id,
+            for_update=True,
         )
 
         if (
@@ -234,4 +259,34 @@ class ManageReviewDisputeService:
             ],
         )
 
+        ManageReviewDisputeService._record_resolution(
+            actor, dispute, AdminActivity.Action.REVIEW_DISPUTE_DISMISSED,
+            dispute.REVW_ID.REVW_STATUS, dispute.REVW_ID.REVW_STATUS,
+        )
         return dispute
+
+    @staticmethod
+    def _record_resolution(
+        actor,
+        dispute,
+        action,
+        previous_review_status,
+        review_status,
+    ):
+        """Records the administrator and state transition for a dispute decision."""
+        AdminActivityService.record_user_action(
+            actor=actor,
+            target_user=dispute.REVW_ID.USER_ID,
+            action=action,
+            context={
+                "dispute_id": dispute.MRDSP_ID,
+                "review_id": dispute.REVW_ID_id,
+                "business_id": dispute.REVW_ID.BUSN_ID_id,
+                "reason": dispute.MRDSP_REASON,
+                "admin_notes": dispute.MRDSP_ADMIN_NOTES,
+                "previous_dispute_status": MerchantReviewDispute.DisputeStatus.PENDING,
+                "dispute_status": dispute.MRDSP_STATUS,
+                "previous_review_status": previous_review_status,
+                "review_status": review_status,
+            },
+        )

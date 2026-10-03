@@ -71,9 +71,11 @@ class ReviewDisputeService:
     def _get_owned_dispute(
         user: User,
         dispute_id: int,
+        *,
+        for_update: bool = False,
     ) -> MerchantReviewDispute:
         try:
-            dispute = (
+            queryset = (
                 MerchantReviewDispute.objects
                 .select_related(
                     "BUSN_ID",
@@ -85,8 +87,10 @@ class ReviewDisputeService:
                     "evidence",
                     "REVW_ID__photos",
                 )
-                .get(MRDSP_ID=dispute_id)
             )
+            if for_update:
+                queryset = queryset.select_for_update(of=("self",))
+            dispute = queryset.get(MRDSP_ID=dispute_id)
         except MerchantReviewDispute.DoesNotExist:
             raise NotFound(
                 "The review dispute could not be found.",
@@ -321,6 +325,7 @@ class ReviewDisputeService:
         dispute = ReviewDisputeService._get_owned_dispute(
             user,
             dispute_id,
+            for_update=True,
         )
 
         if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.PENDING:

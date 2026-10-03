@@ -9,6 +9,8 @@ class AdminActivity(models.Model):
     class Action(models.TextChoices):
         USER_SUSPENDED = "user_suspended", "User suspended"
         USER_REACTIVATED = "user_reactivated", "User reactivated"
+        REVIEW_DISPUTE_UPHELD = "review_dispute_upheld", "Review dispute upheld"
+        REVIEW_DISPUTE_DISMISSED = "review_dispute_dismissed", "Review dispute dismissed"
 
     AACT_ID = models.AutoField(
         primary_key=True,

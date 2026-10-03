@@ -10,7 +10,7 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import ReviewReport
+from apps.reviews.models import BusinessReviewSummary, Review, ReviewReport
 from apps.reviews.services.review_report_service import ReviewReportService
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
@@ -265,6 +265,30 @@ class ReviewReportServiceTests(TestCase):
             self.assertIs(review.REVW_IS_SPAM_FLAGGED, index == 3)
             self.assertEqual(review.REVW_STATUS, review.ReviewStatus.PUBLISHED)
         self.assertEqual(review.reports.count(), 3)
+
+    def test_threshold_refreshes_sentiment_and_invalidates_evidence_after_commit(self):
+        review = Review.objects.create(
+            USER_ID=self.second_user, BUSN_ID=self.business,
+            REVW_TEXT="Friendly staff", REVW_REPORT_COUNT=2,
+            REVW_SENTIMENT_SCORE=0.75, REVW_SENTIMENT_LABEL="positive",
+        )
+        summary = BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business, BRSU_POSITIVE_COUNT=1,
+            BRSU_REVIEW_COUNT=1, BRSU_CLASSIFIED_REVIEW_COUNT=1,
+            BRSU_NARRATIVE="Visitors mention friendly staff.",
+            BRSU_SUPPORTING_REVIEW_REFERENCES={"narrative_review_ids": [review.pk]},
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+        )
+        with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                ReviewReportService.create_report(self.user, review.pk, "spam")
+                enqueue.assert_not_called()
+            enqueue.assert_called_once_with(self.business.pk)
+        summary.refresh_from_db()
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_NARRATIVE, "")
+        self.assertEqual(summary.BRSU_GENERATION_STATE, "outdated")
 
     def test_existing_spam_flag_is_preserved_below_threshold(self):
         review = ReviewService.create_review(
