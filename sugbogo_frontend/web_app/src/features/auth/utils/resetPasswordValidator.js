@@ -1,4 +1,4 @@
-import { validatePassword } from "./passwordValidator";
+import { validatePassword } from "./passwordValidator.js";
 
 export function validateResetPassword(password, confirmPassword) {
   const errors = {};

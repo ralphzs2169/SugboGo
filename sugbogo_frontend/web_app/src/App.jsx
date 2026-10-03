@@ -27,6 +27,7 @@ import ReviewDisputeDetailPage from "@/features/admin-panel/pages/ReviewDisputeD
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
 import EmailSentPage from "@/features/auth/pages/EmailSentPage";
+import AdminInvitationSetupPage from "@/features/auth/pages/AdminInvitationSetupPage";
 import NotFound from "@/shared/components/errors/NotFound";
 
 import PageLoader from "@/shared/components/loading/PageLoader";
@@ -53,6 +54,10 @@ function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/forgot-password/sent" element={<EmailSentPage />} />
+        <Route
+          path="/admin/setup-account"
+          element={<AdminInvitationSetupPage />}
+        />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/admin-panel" element={<AdminPanelLayout />}>
