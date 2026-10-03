@@ -23,6 +23,10 @@ import BusinessApplicationReviewPage from "@/features/admin-panel/pages/Business
 import BusinessDetailPage from "@/features/admin-panel/pages/BusinessDetailPage";
 import ReviewDisputesPage from "@/features/admin-panel/pages/ReviewDisputesPage";
 import ReviewDisputeDetailPage from "@/features/admin-panel/pages/ReviewDisputeDetailPage";
+import UpdateRequestsPage from "@/features/admin-panel/pages/UpdateRequestsPage";
+import UpdateRequestReviewPage from "@/features/admin-panel/pages/UpdateRequestReviewPage";
+import ClassificationUpdateRequestReviewPage from "@/features/admin-panel/pages/ClassificationUpdateRequestReviewPage";
+import LocationUpdateRequestReviewPage from "@/features/admin-panel/pages/LocationUpdateRequestReviewPage";
 
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -69,6 +73,22 @@ function App() {
 
             {/* Business Management */}
             <Route path="businesses" element={<Businesses />} />
+            <Route
+              path="businesses/update-requests"
+              element={<UpdateRequestsPage />}
+            />
+            <Route
+              path="businesses/update-requests/:requestId"
+              element={<UpdateRequestReviewPage />}
+            />
+            <Route
+              path="businesses/update-requests/classification/:requestId"
+              element={<ClassificationUpdateRequestReviewPage />}
+            />
+            <Route
+              path="businesses/update-requests/location/:requestId"
+              element={<LocationUpdateRequestReviewPage />}
+            />
             <Route
               path="businesses/:businessId"
               element={<BusinessDetailPage />}

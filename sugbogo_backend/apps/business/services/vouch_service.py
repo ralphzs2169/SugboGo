@@ -36,8 +36,10 @@ class VouchService:
             )
 
         try:
-            business = Business.objects.get(
-                BUSN_ID=business_id,
+            business = (
+                Business.objects
+                .select_for_update()
+                .get(BUSN_ID=business_id)
             )
         except Business.DoesNotExist:
             raise NotFound(

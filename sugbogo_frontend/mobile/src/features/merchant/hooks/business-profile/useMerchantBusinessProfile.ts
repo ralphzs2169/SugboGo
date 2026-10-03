@@ -4,11 +4,13 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getMerchantBusinessProfile } from "@/features/merchant/api/merchantBusinessProfile.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
+import { merchantBusinessProfileKey } from "./merchantBusinessProfileQueryKeys";
+
 export default function useMerchantBusinessProfile() {
   const userId = useAuthStore((state) => state.user?.id);
 
   const query = useQuery({
-    queryKey: ["merchant-business-profile", userId],
+    queryKey: merchantBusinessProfileKey(userId),
     queryFn: async () => {
       const response = await getMerchantBusinessProfile();
 

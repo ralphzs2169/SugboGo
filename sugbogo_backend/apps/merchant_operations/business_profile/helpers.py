@@ -14,3 +14,10 @@ def get_cover_photo_retry_after(request: Request) -> int | None:
     return BusinessCoverPhotoThrottle.get_retry_after(
         request.user,
     )
+
+
+def get_cover_photo_update_allowance(request: Request) -> dict:
+    """Return the server-enforced rolling cover-photo allowance."""
+    return BusinessCoverPhotoThrottle.get_allowance(
+        request.user if request else None,
+    )

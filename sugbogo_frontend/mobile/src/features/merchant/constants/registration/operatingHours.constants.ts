@@ -1,11 +1,2 @@
-export const DAYS = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-] as const;
-
-export type Day = (typeof DAYS)[number];
+export { DAYS } from "../operatingHours.constants";
+export type { Day } from "../operatingHours.constants";

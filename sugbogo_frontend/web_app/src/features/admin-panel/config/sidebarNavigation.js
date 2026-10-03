@@ -148,6 +148,17 @@ const navigation = [
       },
       {
         type: "link",
+        to: "/admin-panel/businesses/update-requests",
+        label: "Update Requests",
+        Icon: FiFileText,
+        roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/businesses/update-requests",
+          "/admin-panel/businesses/update-requests/[requestId]",
+        ],
+      },
+      {
+        type: "link",
         to: "/admin-panel/cluster-category",
         label: "Clusters & Categories",
         Icon: FiLayers,

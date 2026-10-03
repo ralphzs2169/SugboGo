@@ -1,7 +1,15 @@
 from django.db import transaction
-from rest_framework.exceptions import NotFound
+from django.db.models import Case, IntegerField, Prefetch, Value, When
+from rest_framework.exceptions import NotFound, PermissionDenied
 
-from apps.business.models import Business
+from apps.business.models import (
+    Business,
+    BusinessLandmark,
+    BusinessOperatingHours,
+    BusinessPhoto,
+    BusinessSpecialtyTag,
+)
+from apps.merchant_application.models import MerchantApplicationDocument
 from apps.shared.services.cloudinary_service import CloudinaryService
 
 
@@ -12,11 +20,58 @@ class BusinessProfileService:
     def get_business_for_merchant(user):
         """Retrieve the business owned by the authenticated merchant."""
 
+        day_order = Case(
+            *[
+                When(BOHR_DAY=day, then=Value(index))
+                for index, day in enumerate(BusinessOperatingHours.Day.values)
+            ],
+            output_field=IntegerField(),
+        )
+
         try:
             return (
                 Business.objects
                 .select_related(
                     "USER_ID",
+                    "CTGRY_ID",
+                    "CTGRY_ID__CLUS_ID",
+                    "LOCT_ID",
+                    "merchant_application",
+                    "merchant_application__identity",
+                )
+                .prefetch_related(
+                    Prefetch(
+                        "specialty_tag_links",
+                        queryset=(
+                            BusinessSpecialtyTag.objects
+                            .filter(BST_IS_ACTIVE=True)
+                            .select_related("TAG_ID")
+                            .order_by("TAG_ID__TAG_NAME")
+                        ),
+                        to_attr="active_specialty_tag_links",
+                    ),
+                    Prefetch(
+                        "LOCT_ID__landmarks",
+                        queryset=BusinessLandmark.objects.order_by("BLMK_ID"),
+                    ),
+                    Prefetch(
+                        "operating_hours",
+                        queryset=(
+                            BusinessOperatingHours.objects
+                            .annotate(day_order=day_order)
+                            .order_by("day_order")
+                        ),
+                    ),
+                    Prefetch(
+                        "photos",
+                        queryset=BusinessPhoto.objects.order_by("BPHO_ID"),
+                    ),
+                    Prefetch(
+                        "merchant_application__documents",
+                        queryset=MerchantApplicationDocument.objects.order_by(
+                            "MDOC_ID",
+                        ),
+                    ),
                 )
                 .get(
                     USER_ID=user,
@@ -26,6 +81,77 @@ class BusinessProfileService:
             raise NotFound(
                 "Your business could not be found.",
             )
+
+    @staticmethod
+    def update_information(business, validated_data):
+        """Persist only validated operational fields on the live business."""
+
+        if business.BUSN_STATUS != Business.BusinessStatus.ACTIVE:
+            raise PermissionDenied(
+                "Business information cannot be edited while your business is suspended.",
+            )
+
+        if not validated_data:
+            return business
+
+        for field, value in validated_data.items():
+            setattr(business, field, value)
+
+        business.save(
+            update_fields=[
+                *validated_data.keys(),
+                "BUSN_UPDATED_AT",
+            ],
+        )
+
+        return business
+
+    @staticmethod
+    @transaction.atomic
+    def update_operating_hours(user, hours):
+        """Update the authenticated merchant's complete approved schedule atomically."""
+
+        try:
+            business = Business.objects.select_for_update().get(USER_ID=user)
+        except Business.DoesNotExist:
+            raise NotFound("Your business could not be found.")
+
+        if business.BUSN_STATUS != Business.BusinessStatus.ACTIVE:
+            raise PermissionDenied(
+                "Operating hours cannot be edited while your business is suspended."
+            )
+
+        existing_hours = {
+            item.BOHR_DAY: item
+            for item in BusinessOperatingHours.objects.filter(BUSN_ID=business)
+        }
+
+        for item in hours:
+            day = item["day"]
+            schedule = existing_hours.get(day)
+
+            if schedule is None:
+                schedule = BusinessOperatingHours(
+                    BUSN_ID=business,
+                    BOHR_DAY=day,
+                )
+
+            schedule.BOHR_IS_OPEN = item["is_open"]
+            schedule.BOHR_IS_24_HOURS = item["is_24_hours"]
+            schedule.BOHR_OPEN_TIME = item.get("open_time")
+            schedule.BOHR_CLOSE_TIME = item.get("close_time")
+            schedule.save()
+
+        saved_hours = list(
+            BusinessOperatingHours.objects.filter(BUSN_ID=business)
+        )
+
+        return sorted(
+            saved_hours,
+            key=lambda schedule: BusinessOperatingHours.Day.values.index(
+                schedule.BOHR_DAY
+            ),
+        )
 
     @staticmethod
     @transaction.atomic

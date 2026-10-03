@@ -3,11 +3,11 @@ import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { Toast } from "react-native-toast-message/lib/src/Toast";
+import Toast from "react-native-toast-message";
 
 import { useImagePicker } from "@/features/profile/hooks/useImagePicker";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
-import { formatRetryTime } from "@/shared/utils/date.utils";
+import type { CoverPhotoUpdateAllowance } from "../../types/merchantBusinessProfile.types";
 
 import MerchantCoverPhotoBottomSheet from "./MerchantCoverPhotoBottomSheet";
 
@@ -15,14 +15,13 @@ type MerchantProfileHeaderProps = {
   businessName: string;
   coverPhotoUrl?: string | null;
   onEditCover: (imageUri: string) => void;
-  onEditBusiness: () => void;
   isUploading?: boolean;
-  retryAfter?: number;
+  coverPhotoUpdate: CoverPhotoUpdateAllowance;
+  onCheckCoverAllowance: () => Promise<CoverPhotoUpdateAllowance | null>;
 };
 
 /**
- * Displays the merchant's business identity and provides controls for
- * changing the cover photo and opening business profile editing.
+ * Displays the merchant's business identity and cover-photo control.
  *
  * The cover photo can be replaced through the gallery or device camera.
  * A confirmation is required before consuming the merchant's cover-photo
@@ -32,9 +31,9 @@ export default function MerchantProfileHeader({
   businessName,
   coverPhotoUrl,
   onEditCover,
-  onEditBusiness,
   isUploading = false,
-  retryAfter = 0,
+  coverPhotoUpdate,
+  onCheckCoverAllowance,
 }: MerchantProfileHeaderProps) {
   const { pickFromGallery, takePhoto } = useImagePicker();
 
@@ -43,16 +42,60 @@ export default function MerchantProfileHeader({
   const [isImageLoading, setIsImageLoading] = useState(Boolean(coverPhotoUrl));
   const [pendingCoverUri, setPendingCoverUri] = useState<string | null>(null);
   const [isConfirmVisible, setIsConfirmVisible] = useState(false);
+  const [isCheckingAllowance, setIsCheckingAllowance] = useState(false);
+  const [checkedAllowance, setCheckedAllowance] = useState<
+    CoverPhotoUpdateAllowance | null
+  >(null);
 
-  const isRateLimited = retryAfter > 0;
-  const isCoverActionDisabled = isUploading || isRateLimited;
+  const isCoverActionDisabled = isUploading || isCheckingAllowance;
 
-  function handlePickCover() {
+  async function handlePickCover() {
     if (isCoverActionDisabled) {
       return;
     }
 
-    coverPhotoSheetRef.current?.present();
+    setIsCheckingAllowance(true);
+
+    try {
+      const allowance = await onCheckCoverAllowance();
+
+      if (!allowance) {
+        return;
+      }
+
+      setCheckedAllowance(allowance);
+
+      if (allowance.remaining === 0) {
+        const resetText = allowance.resets_at
+          ? new Date(allowance.resets_at).toLocaleString("en-US", {
+              month: "long",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })
+          : null;
+
+        Toast.show({
+          type: "error",
+          text1: "Cover photo update limit reached",
+          text2: resetText
+            ? `You can update your cover photo again at ${resetText}.`
+            : "Please try again later.",
+        });
+
+        return;
+      }
+
+      coverPhotoSheetRef.current?.present();
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to check cover photo updates",
+        text2: "Please try again.",
+      });
+    } finally {
+      setIsCheckingAllowance(false);
+    }
   }
 
   function handleCoverSelected(imageUri: string) {
@@ -162,26 +205,19 @@ export default function MerchantProfileHeader({
           </View>
         )}
 
-        {/* Cover photo action / cooldown */}
+        {/* Cover photo action */}
         <View className="absolute right-4 top-4">
-          {isUploading ? (
+          {isUploading || isCheckingAllowance ? (
             <View className="flex-row items-center rounded-full bg-black/55 px-3 py-1.5">
               <ActivityIndicator size="small" color="#FFFFFF" />
 
               <Text className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                Updating...
-              </Text>
-            </View>
-          ) : isRateLimited ? (
-            <View className="rounded-full bg-black/60 px-3 py-1.5">
-              <Text className="text-[10px] font-semibold text-white">
-                You can edit your cover photo again in{" "}
-                {formatRetryTime(retryAfter)}
+                {isUploading ? "Updating..." : "Checking..."}
               </Text>
             </View>
           ) : (
             <TouchableOpacity
-              onPress={handlePickCover}
+              onPress={() => void handlePickCover()}
               activeOpacity={0.75}
               className="cursor-pointer flex-row items-center rounded-full bg-white/90 px-3 py-1.5"
             >
@@ -200,7 +236,7 @@ export default function MerchantProfileHeader({
       </View>
 
       {/* Business identity */}
-      <View className="flex-row items-center justify-between px-4 py-3">
+      <View className="flex-row items-center px-4 py-3">
         <Text
           className="mr-3 flex-1 text-lg font-bold text-text-primary"
           numberOfLines={1}
@@ -208,18 +244,6 @@ export default function MerchantProfileHeader({
           {businessName}
         </Text>
 
-        {/* Edit business action */}
-        <TouchableOpacity
-          onPress={onEditBusiness}
-          activeOpacity={0.7}
-          className="cursor-pointer p-1"
-        >
-          <MaterialCommunityIcons
-            name="square-edit-outline"
-            size={19}
-            color="#F27A24"
-          />
-        </TouchableOpacity>
       </View>
 
       {/* Cover photo picker */}
@@ -234,13 +258,26 @@ export default function MerchantProfileHeader({
         visible={isConfirmVisible}
         title="Update cover photo?"
         message={
-          <Text className="text-sm leading-5 text-text-secondary">
-            You can only change your business cover photo{" "}
-            <Text className="font-bold text-text-primary">
-              once every 24 hours
+          <View>
+            {pendingCoverUri && (
+              <Image
+                source={{ uri: pendingCoverUri }}
+                contentFit="cover"
+                className="mb-4 h-36 w-full rounded-xl"
+              />
+            )}
+            <Text className="text-sm leading-5 text-text-secondary">
+              Choose a clear photo that represents your business.
             </Text>
-            . Are you sure you want to update it?
-          </Text>
+            <Text className="mt-3 text-sm font-semibold text-text-primary">
+              {checkedAllowance?.remaining ?? coverPhotoUpdate.remaining} cover
+              photo update
+              {(checkedAllowance?.remaining ?? coverPhotoUpdate.remaining) === 1
+                ? ""
+                : "s"}{" "}
+              remaining.
+            </Text>
+          </View>
         }
         confirmText="Update Cover Photo"
         cancelText="Cancel"
