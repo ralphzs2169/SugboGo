@@ -12,6 +12,7 @@ type ConfirmLocationSheetProps = {
   isResolvingAddress: boolean;
   isConfirming: boolean;
   isWithinServiceArea: boolean;
+  serviceAreaFeedback?: "outside" | "unavailable" | null;
   onConfirm: () => void;
 };
 
@@ -27,6 +28,7 @@ export default function ConfirmLocationSheet({
   onConfirm,
   isConfirming,
   isWithinServiceArea,
+  serviceAreaFeedback,
 }: ConfirmLocationSheetProps) {
   const insets = useSafeAreaInsets();
 
@@ -124,8 +126,9 @@ export default function ConfirmLocationSheet({
           />
 
           <AppText className="ml-2 flex-1 text-xs leading-4 text-text-error">
-            This location is outside SugboGo's current business service area in
-            Cebu City.
+            {serviceAreaFeedback === "unavailable"
+              ? "We couldn't verify this location's service area. Tap the map again or try later."
+              : "This location is outside SugboGo's current business service area in Cebu City."}
           </AppText>
         </View>
       )}

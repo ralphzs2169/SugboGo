@@ -45,6 +45,9 @@ export default function BusinessLocationPickerScreen({
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
   const [addressLoadFailed, setAddressLoadFailed] = useState(false);
+  const [serviceAreaFeedback, setServiceAreaFeedback] = useState<
+    "outside" | "unavailable" | null
+  >(null);
   const { resolveCoordinates } = useBusinessReverseGeocode();
 
   // Tracks each location selection attempt with a growing number, so if an
@@ -56,6 +59,7 @@ export default function BusinessLocationPickerScreen({
     ++selectionRequestId.current; // invalidate any in-flight map selection
     setIsResolvingAddress(false);
     setAddressLoadFailed(false);
+    setServiceAreaFeedback(null);
     setSelectedLocation(location);
   }
 
@@ -73,6 +77,7 @@ export default function BusinessLocationPickerScreen({
       }
 
       setAddressLoadFailed(false);
+      setServiceAreaFeedback(data.is_within_service_area ? null : "outside");
 
       setSelectedLocation({
         latitude,
@@ -101,6 +106,9 @@ export default function BusinessLocationPickerScreen({
 
         // An unresolved address cannot be confirmed as inside the service area.
         setAddressLoadFailed(true);
+        setServiceAreaFeedback(
+          response?.code === "OUTSIDE_SERVICE_AREA" ? "outside" : "unavailable",
+        );
         setSelectedLocation({
           latitude,
           longitude,
@@ -155,6 +163,7 @@ export default function BusinessLocationPickerScreen({
           address={selectedLocation?.formattedAddress || "Address unavailable"}
           isResolvingAddress={isResolvingAddress}
           isWithinServiceArea={selectedLocation?.isWithinServiceArea ?? false}
+          serviceAreaFeedback={serviceAreaFeedback}
           onConfirm={handleConfirm}
           isConfirming={isConfirming}
         />
