@@ -120,24 +120,14 @@ The application will be available at:
 http://localhost:5173
 ```
 
-## 4.) Default Administrator Account
+## 4.) Super Administrator Account
 
-During the backend database migration, an initial Super Administrator account is automatically created.
+The project does not ship with a default administrator credential. After the
+backend migrations are applied, provision a Super Administrator interactively
+from the backend directory:
 
-Use the following credentials to sign in to the admin panel:
-
-**Email**
-
-```text
-superadmin@gmail.com
+```bash
+python manage.py createsuperuser
 ```
 
-**Password**
-
-```text
-admin1234
-```
-
-> **Note**
->
-> This account is intended for local development only. Change the password or create additional administrator accounts as needed.
+Supply an administrator-controlled email address and password when prompted.

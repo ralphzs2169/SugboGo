@@ -8,6 +8,7 @@ from apps.users.models import User
 class LoginService:
     @staticmethod
     def authenticate(email: str, password: str):
+        """Authenticate an active user whose email ownership is verified."""
         try:
             user = User.objects.get(USER_EMAIL=email)
         except User.DoesNotExist:
@@ -52,12 +53,21 @@ class LoginService:
                 None,
             )
 
-       
+        if not user.EMAIL_VERIFIED:
+            return (
+                error_response(
+                    message="Please verify your email address before logging in.",
+                    code="EMAIL_NOT_VERIFIED",
+                    status_code=status.HTTP_403_FORBIDDEN,
+                ),
+                None,
+            )
 
         return None, user
 
     @staticmethod
     def require_roles(user: User, allowed_roles: set[str]):
+        """Reject users whose application role is not explicitly allowed."""
         if user.USER_ROLE not in allowed_roles:
             return error_response(
                 message="You do not have permission to access this application.",

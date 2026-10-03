@@ -63,3 +63,20 @@ class EmailVerificationServiceTests(TestCase):
         )
 
         self.assertIsNone(result)
+
+    def test_changing_email_invalidates_verification_token(self):
+        link = EmailVerificationService.generate_verification_link(
+            self.user
+        )
+        uid = link.split("uid=")[1].split("&")[0]
+        token = link.split("token=")[1]
+
+        self.user.USER_EMAIL = "changed@example.com"
+        self.user.save(update_fields=["USER_EMAIL"])
+
+        self.assertIsNone(
+            EmailVerificationService.verify_token(
+                uid,
+                token,
+            )
+        )

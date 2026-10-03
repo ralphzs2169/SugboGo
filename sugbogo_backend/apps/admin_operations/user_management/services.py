@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Prefetch, Q, Value
 from django.db.models.functions import Concat
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -14,6 +14,88 @@ from apps.users.models import User
 
 class UserManagementService:
     """Handles administrator-facing user queries and account transitions."""
+
+    @staticmethod
+    def _validate_super_admin_actor(actor: User) -> None:
+        """Restricts Admin provisioning operations to Super Admins."""
+        if actor.USER_ROLE != User.UserRole.SUPER_ADMIN:
+            raise PermissionDenied(
+                "Only Super Admins can manage Admin invitations.",
+            )
+
+    @staticmethod
+    @transaction.atomic
+    def create_admin(
+        *,
+        actor: User,
+        email: str,
+        first_name: str,
+        last_name: str,
+    ) -> User:
+        """Creates and audits one pending Admin account without a password."""
+        UserManagementService._validate_super_admin_actor(actor)
+        # Canonicalizing the complete address lets the database's existing
+        # unique constraint close same-email races without a new CI index.
+        normalized_email = User.objects.normalize_email(email).casefold()
+
+        if User.objects.filter(
+            USER_EMAIL__iexact=normalized_email,
+        ).exists():
+            raise ValidationError(
+                {
+                    "email": "An account with this email already exists.",
+                },
+            )
+
+        try:
+            invited_admin = User.objects.create_user(
+                email=normalized_email,
+                password=None,
+                USER_FNAME=first_name,
+                USER_LNAME=last_name,
+                USER_ROLE=User.UserRole.ADMIN,
+                USER_STATUS=User.UserStatus.PENDING,
+                EMAIL_VERIFIED=False,
+                EMAIL_VERIFIED_AT=None,
+                is_staff=False,
+                is_superuser=False,
+            )
+        except IntegrityError as exc:
+            raise ValidationError(
+                {
+                    "email": "An account with this email already exists.",
+                },
+            ) from exc
+
+        AdminActivityService.record_user_action(
+            actor=actor,
+            target_user=invited_admin,
+            action=AdminActivity.Action.ADMIN_CREATED,
+        )
+
+        return invited_admin
+
+    @staticmethod
+    def get_invited_admin(
+        *,
+        actor: User,
+        user_id: int,
+    ) -> User:
+        """Returns an Admin account that remains eligible for invitation resend."""
+        UserManagementService._validate_super_admin_actor(actor)
+        invited_admin = UserManagementService.get_user(user_id)
+
+        if not (
+            invited_admin.USER_ROLE == User.UserRole.ADMIN
+            and invited_admin.USER_STATUS == User.UserStatus.PENDING
+            and not invited_admin.EMAIL_VERIFIED
+            and not invited_admin.has_usable_password()
+        ):
+            raise ValidationError(
+                "Invitation can only be resent to an incomplete pending Admin.",
+            )
+
+        return invited_admin
 
     @staticmethod
     def list_users(

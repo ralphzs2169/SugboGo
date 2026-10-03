@@ -125,6 +125,72 @@ class AdminLoginViewTests(
             User.UserRole.SUPER_ADMIN,
         )
 
+    def test_admin_login_rejects_unverified_admin(self):
+        self.user.EMAIL_VERIFIED = False
+        self.user.save(update_fields=["EMAIL_VERIFIED"])
+
+        response = self.client.post(
+            self.url,
+            {
+                "email": self.user.USER_EMAIL,
+                "password": self.password,
+            },
+            format="json",
+        )
+
+        self.assertErrorResponse(
+            response,
+            message="Please verify your email address before logging in.",
+            code="EMAIL_NOT_VERIFIED",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_admin_login_rejects_unverified_super_admin(self):
+        self.user.USER_ROLE = User.UserRole.SUPER_ADMIN
+        self.user.EMAIL_VERIFIED = False
+        self.user.save(
+            update_fields=[
+                "USER_ROLE",
+                "EMAIL_VERIFIED",
+            ]
+        )
+
+        response = self.client.post(
+            self.url,
+            {
+                "email": self.user.USER_EMAIL,
+                "password": self.password,
+            },
+            format="json",
+        )
+
+        self.assertErrorResponse(
+            response,
+            message="Please verify your email address before logging in.",
+            code="EMAIL_NOT_VERIFIED",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_admin_login_rejects_pending_admin(self):
+        self.user.USER_STATUS = User.UserStatus.PENDING
+        self.user.save(update_fields=["USER_STATUS"])
+
+        response = self.client.post(
+            self.url,
+            {
+                "email": self.user.USER_EMAIL,
+                "password": self.password,
+            },
+            format="json",
+        )
+
+        self.assertErrorResponse(
+            response,
+            message="Account is pending. Please contact support.",
+            code="ACCOUNT_INACTIVE",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
 
     def test_admin_login_fails_with_wrong_password(self):
         response = self.client.post(
@@ -178,6 +244,26 @@ class AdminLoginViewTests(
         self.assertErrorResponse(
             response,
             message="Account is suspended. Please contact support.",
+            code="ACCOUNT_INACTIVE",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_admin_login_fails_when_account_is_disabled(self):
+        self.user.USER_STATUS = User.UserStatus.DISABLED
+        self.user.save(update_fields=["USER_STATUS"])
+
+        response = self.client.post(
+            self.url,
+            {
+                "email": "admin@example.com",
+                "password": self.password,
+            },
+            format="json",
+        )
+
+        self.assertErrorResponse(
+            response,
+            message="Account is disabled. Please contact support.",
             code="ACCOUNT_INACTIVE",
             status_code=status.HTTP_403_FORBIDDEN,
         )

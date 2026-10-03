@@ -59,4 +59,5 @@ export interface ResetPasswordRequest {
   uid: string;
   token: string;
   password: string;
+  confirm_password: string;
 }

@@ -1,0 +1,16 @@
+SugboGo Admin invitation
+
+Hello {{ user.USER_FNAME }},
+
+You have been invited to join SugboGo as an Admin.
+
+Complete your account setup using the link below. You will verify ownership of this email address and create your own password during setup.
+
+{{ invitation_link }}
+
+This invitation link expires in {{ expiry_hours }} hours.
+
+If you were not expecting this invitation, you can safely ignore this email.
+
+—
+The SugboGo Team

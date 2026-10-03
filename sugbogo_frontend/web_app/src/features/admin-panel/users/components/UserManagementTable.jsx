@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShieldCheck, UsersRound } from "lucide-react";
+import { Plus, ShieldCheck, UsersRound } from "lucide-react";
 import toast from "react-hot-toast";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
+import Button from "@/shared/components/Button";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 import getUserColumns from "../columns/userColumns";
@@ -14,14 +15,21 @@ import {
   USER_STATUS_OPTIONS,
 } from "../constants/userManagement";
 import useUsers from "../hooks/useUsers";
+import useResendAdminInvitation from "../hooks/useResendAdminInvitation";
 import useUserStatusMutations from "../hooks/useUserStatusMutations";
 import useUserTableState from "../hooks/useUserTableState";
+import {
+  canCreateAdmin,
+  getCreateAdminFeedback,
+} from "../utils/adminInvitationUi";
+import CreateAdminModal from "./CreateAdminModal";
 import ReactivateUserModal from "./ReactivateUserModal";
 import SuspendUserModal from "./SuspendUserModal";
 
 export default function UserManagementTable() {
   const navigate = useNavigate();
   const currentUser = useAuthStore((state) => state.user);
+  const [isCreateAdminOpen, setIsCreateAdminOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [activeAction, setActiveAction] = useState(null);
 
@@ -35,6 +43,11 @@ export default function UserManagementTable() {
     suspendError,
     reactivateError,
   } = useUserStatusMutations();
+  const {
+    resendInvitation,
+    isResending,
+    error: resendInvitationError,
+  } = useResendAdminInvitation();
 
   useApiErrorNotification(usersQuery.error, {
     toastId: "admin-users-load-error",
@@ -47,6 +60,10 @@ export default function UserManagementTable() {
   useApiErrorNotification(reactivateError, {
     toastId: "admin-user-reactivate-error",
     fallbackMessage: "Unable to reactivate the user. Please try again.",
+  });
+  useApiErrorNotification(resendInvitationError, {
+    toastId: "admin-invitation-resend-error",
+    fallbackMessage: "Unable to resend the Admin invitation. Please try again.",
   });
 
   function openAction(action, user) {
@@ -78,11 +95,36 @@ export default function UserManagementTable() {
     closeAction(true);
   }
 
+  function handleAdminCreated(result) {
+    const feedback = getCreateAdminFeedback(result);
+
+    if (feedback.kind === "success") {
+      toast.success(feedback.message);
+      return;
+    }
+
+    toast(feedback.message, {
+      id: "admin-invitation-delivery-warning",
+      duration: 6000,
+    });
+  }
+
+  async function handleResendInvitation(user) {
+    try {
+      await resendInvitation(user.id);
+      toast.success("Invitation email sent.");
+    } catch {
+      // The mutation error is formatted by the shared API notification hook.
+    }
+  }
+
   const columns = getUserColumns({
     currentUser,
     onViewUser: (user) => navigate(`/admin-panel/users/${user.id}`),
     onSuspendUser: (user) => openAction("suspend", user),
     onReactivateUser: (user) => openAction("reactivate", user),
+    onResendInvitation: handleResendInvitation,
+    isResendingInvitation: isResending,
   });
 
   function renderFilters() {
@@ -107,6 +149,18 @@ export default function UserManagementTable() {
           },
         ]}
       />
+    );
+  }
+
+  function renderHeaderActions() {
+    if (!canCreateAdmin(currentUser)) {
+      return null;
+    }
+
+    return (
+      <Button icon={Plus} onClick={() => setIsCreateAdminOpen(true)}>
+        Add Admin
+      </Button>
     );
   }
 
@@ -147,7 +201,16 @@ export default function UserManagementTable() {
             message: "The requested users could not be loaded.",
           },
         }}
-        slots={{ renderFilters }}
+        slots={{
+          renderFilters,
+          renderHeaderActions,
+        }}
+      />
+
+      <CreateAdminModal
+        isOpen={isCreateAdminOpen}
+        onClose={() => setIsCreateAdminOpen(false)}
+        onCreated={handleAdminCreated}
       />
 
       <SuspendUserModal

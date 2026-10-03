@@ -4,11 +4,13 @@ from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 # Custom user manager to handle user creation and superuser creation.
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
+        """Create a user with the supplied application account attributes."""
         if not email:
             raise ValueError("Users must have an email address")
 
@@ -33,9 +35,23 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault("USER_ROLE", User.UserRole.ADMIN)
-        extra_fields.setdefault("is_staff", True)
-        extra_fields.setdefault("is_superuser", True)
+        """Create a fully active and verified SugboGo Super Admin."""
+        required_values = {
+            "USER_ROLE": User.UserRole.SUPER_ADMIN,
+            "USER_STATUS": User.UserStatus.ACTIVE,
+            "EMAIL_VERIFIED": True,
+            "is_staff": True,
+            "is_superuser": True,
+        }
+
+        for field_name, required_value in required_values.items():
+            extra_fields.setdefault(field_name, required_value)
+            if extra_fields[field_name] != required_value:
+                raise ValueError(
+                    f"Superuser must have {field_name}={required_value!r}."
+                )
+
+        extra_fields["EMAIL_VERIFIED_AT"] = timezone.now()
         return self.create_user(email, password, **extra_fields)
 
 
@@ -141,6 +157,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "USER_EMAIL"
+    EMAIL_FIELD = "USER_EMAIL"
     REQUIRED_FIELDS = ("USER_FNAME", "USER_LNAME")
 
     class Meta:

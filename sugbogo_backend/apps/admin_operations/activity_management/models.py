@@ -7,6 +7,7 @@ class AdminActivity(models.Model):
     """Records a persistent administrative action performed on a user."""
 
     class Action(models.TextChoices):
+        ADMIN_CREATED = "admin_created", "Admin created"
         USER_SUSPENDED = "user_suspended", "User suspended"
         USER_REACTIVATED = "user_reactivated", "User reactivated"
         REVIEW_DISPUTE_UPHELD = "review_dispute_upheld", "Review dispute upheld"

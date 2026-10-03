@@ -14,6 +14,7 @@ export function useResetPassword() {
     uid: string,
     token: string,
     password: string,
+    confirmPassword: string,
   ): Promise<ApiMessageResponse> => {
     setLoading(true);
 
@@ -22,6 +23,7 @@ export function useResetPassword() {
         uid,
         token,
         password,
+        confirm_password: confirmPassword,
       });
     } finally {
       setLoading(false);

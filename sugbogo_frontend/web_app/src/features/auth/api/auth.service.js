@@ -54,3 +54,21 @@ export async function getPasswordResetConfig() {
 
   return response.data;
 }
+
+export async function validateAdminInvitation(payload) {
+  const response = await authClient.post(
+    "/auth/admin-invitation/validate/",
+    payload,
+  );
+
+  return response.data;
+}
+
+export async function completeAdminInvitation(payload) {
+  const response = await authClient.post(
+    "/auth/admin-invitation/complete/",
+    payload,
+  );
+
+  return response.data;
+}

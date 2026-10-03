@@ -1,5 +1,5 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { CalendarDays, Eye, UserCheck, UserX } from "lucide-react";
+import { CalendarDays, Eye, Send, UserCheck, UserX } from "lucide-react";
 
 import ActionMenu from "@/features/admin-panel/components/ActionMenu";
 import StatusBadge from "@/shared/components/StatusBadge";
@@ -11,6 +11,7 @@ import {
   canManageUserStatus,
   USER_STATUS_BADGE_VARIANT,
 } from "../constants/userManagement";
+import { canResendAdminInvitation } from "../utils/adminInvitationUi";
 
 const columnHelper = createColumnHelper();
 
@@ -19,6 +20,8 @@ export default function getUserColumns({
   onViewUser,
   onSuspendUser,
   onReactivateUser,
+  onResendInvitation,
+  isResendingInvitation = false,
 }) {
   return [
     columnHelper.accessor((user) => user.name, {
@@ -147,6 +150,21 @@ export default function getUserColumns({
             label: "Reactivate User",
             icon: UserCheck,
             onClick: () => onReactivateUser(user),
+          });
+        }
+
+        if (canResendAdminInvitation(currentUser, user)) {
+          items.push({
+            separator: true,
+          });
+          items.push({
+            key: "resend-invitation",
+            label: isResendingInvitation
+              ? "Sending Invitation..."
+              : "Resend Invitation",
+            icon: Send,
+            disabled: isResendingInvitation,
+            onClick: () => onResendInvitation(user),
           });
         }
 

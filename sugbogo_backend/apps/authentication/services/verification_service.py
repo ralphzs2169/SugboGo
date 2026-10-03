@@ -1,10 +1,10 @@
-from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import (
     urlsafe_base64_encode,
     urlsafe_base64_decode,
 )
 from apps.authentication.constants import Platform
+from apps.authentication.tokens import email_verification_token_generator
 from apps.users.models import User
 import logging
 
@@ -29,7 +29,7 @@ class EmailVerificationService:
         """
         uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-        token = default_token_generator.make_token(user)
+        token = email_verification_token_generator.make_token(user)
 
         if platform == Platform.WEB:
             return (
@@ -76,7 +76,7 @@ class EmailVerificationService:
             )
             return None
 
-        if default_token_generator.check_token(
+        if email_verification_token_generator.check_token(
             user,
             token,
         ):

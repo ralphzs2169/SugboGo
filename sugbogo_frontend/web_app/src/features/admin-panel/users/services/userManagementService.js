@@ -48,3 +48,17 @@ export async function reactivateUser(userId) {
 
   return response.data;
 }
+
+export async function createAdmin(payload) {
+  const response = await apiClient.post(`${BASE_URL}create-admin/`, payload);
+
+  return response.data;
+}
+
+export async function resendAdminInvitation(userId) {
+  const response = await apiClient.post(
+    `${BASE_URL}${userId}/resend-invitation/`,
+  );
+
+  return response.data;
+}

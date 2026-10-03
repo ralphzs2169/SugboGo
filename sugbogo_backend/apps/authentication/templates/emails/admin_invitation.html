@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SugboGo Admin invitation</title>
+</head>
+<body style="margin: 0; padding: 40px 20px; background: #f8fafc; font-family: Arial, Helvetica, sans-serif; color: #1f2937;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="background: #ffffff; border-radius: 16px; padding: 48px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);">
+          <tr>
+            <td align="center">
+              <h1 style="margin: 0 0 12px; font-size: 36px; color: #f27f0d;">Sugbo<span style="color: #111827;">Go</span></h1>
+              <p style="margin: 0 0 36px; font-size: 15px; color: #6b7280;">Discover the hidden gems of Cebu.</p>
+
+              <h2 style="margin: 0 0 20px; font-size: 28px; color: #111827;">You’re invited as an Admin</h2>
+
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.7; color: #4b5563;">
+                Hello <strong>{{ user.USER_FNAME }}</strong>,
+              </p>
+
+              <p style="margin: 0 0 30px; font-size: 16px; line-height: 1.7; color: #4b5563;">
+                You have been invited to join SugboGo as an Admin. Complete account setup to verify this email address and create your own password.
+              </p>
+
+              <a href="{{ invitation_link }}" style="display: inline-block; background: #f27f0d; color: #ffffff; text-decoration: none; padding: 16px 36px; border-radius: 10px; font-weight: 600; font-size: 16px;">
+                Complete Account Setup
+              </a>
+
+              <p style="margin: 36px 0 12px; font-size: 14px; color: #6b7280;">Or copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; font-size: 13px; color: #f27f0d; margin-bottom: 32px;">{{ invitation_link }}</p>
+
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
+              <p style="font-size: 13px; color: #6b7280; line-height: 1.7; margin: 0;">
+                This invitation link expires in <strong>{{ expiry_hours }} hours</strong>.
+              </p>
+              <p style="font-size: 13px; color: #6b7280; line-height: 1.7; margin-top: 12px;">
+                If you were not expecting this invitation, you can safely ignore this email.
+              </p>
+              <p style="margin-top: 36px; font-size: 13px; color: #9ca3af;">© {% now "Y" %} SugboGo. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

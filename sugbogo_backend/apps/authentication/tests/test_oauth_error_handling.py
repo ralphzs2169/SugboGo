@@ -201,6 +201,24 @@ class OAuthErrorHandlingTests(APITestCase):
                         self.assertFalse(OutstandingToken.objects.filter(user=user).exists())
                         self.assertEqual(OAuthAccount.objects.filter(USER=user).count(), int(linked))
 
+    def test_pending_admin_cannot_be_activated_through_oauth(self):
+        user = User.objects.create_user(
+            email="pending-admin@example.com",
+            password=None,
+            USER_ROLE=User.UserRole.ADMIN,
+            USER_STATUS=User.UserStatus.PENDING,
+            EMAIL_VERIFIED=False,
+        )
+
+        for provider in ("google", "facebook"):
+            with self.subTest(provider=provider):
+                response = self._login_as(provider, user, linked=False)
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.data["code"], "OAUTH_LOGIN_DENIED")
+                user.refresh_from_db()
+                self.assertEqual(user.USER_STATUS, User.UserStatus.PENDING)
+                self.assertFalse(user.EMAIL_VERIFIED)
+
     def test_linked_pending_users_are_activated_and_can_login(self):
         for provider in ("google", "facebook"):
             with self.subTest(provider=provider):
