@@ -4,10 +4,11 @@ import { fetchBusinessUpdateRequests } from "../services/businessUpdateRequestSe
 import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
 
 /** Loads one server-paginated, status-filtered Admin request queue page. */
-export default function useBusinessUpdateRequests(filters) {
+export default function useBusinessUpdateRequests(filters, options = {}) {
   const query = useQuery({
     queryKey: adminBusinessUpdateRequestKeys.list(filters),
     queryFn: () => fetchBusinessUpdateRequests(filters),
+    enabled: options.enabled ?? true,
   });
 
   return {

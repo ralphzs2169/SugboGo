@@ -10,13 +10,15 @@ export default function RejectUpdateRequestModal({
   onReasonChange,
   onClose,
   onConfirm,
+  title = "Reject business name change",
+  description = "The reason will be shown to the merchant.",
 }) {
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Reject business name change"
-      description="The reason will be shown to the merchant."
+      title={title}
+      description={description}
       showCloseButton={!loading}
     >
       {/* Merchant-facing feedback */}

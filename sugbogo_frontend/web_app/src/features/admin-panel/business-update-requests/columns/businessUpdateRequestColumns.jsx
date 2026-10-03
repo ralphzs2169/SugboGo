@@ -9,7 +9,12 @@ import { UPDATE_REQUEST_STATUS_VARIANTS } from "../constants/businessUpdateReque
 
 const columnHelper = createColumnHelper();
 
-/** Builds the compact Admin queue columns for business name proposals. */
+const REQUEST_TYPE_LABELS = {
+  business_name: "Business Name Change",
+  classification: "Classification & Specialties",
+};
+
+/** Builds the compact Admin queue columns for the selected update-request type. */
 export default function businessUpdateRequestColumns(onView) {
   return [
     columnHelper.display({
@@ -33,7 +38,8 @@ export default function businessUpdateRequestColumns(onView) {
       header: "Request Type",
       size: 190,
       enableSorting: false,
-      cell: () => "Business Name Change",
+      cell: ({ row }) =>
+        REQUEST_TYPE_LABELS[row.original.request_type] || "Update Request",
     }),
     columnHelper.display({
       id: "merchant",
