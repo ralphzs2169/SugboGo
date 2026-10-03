@@ -160,7 +160,7 @@ describe("ClassificationChangeRequestScreen", () => {
 
   it("passes all live specialties as selected options even when lookup omits two", async () => {
     mockSpecialtyTags.mockReturnValue(
-      [3, 4, 5].map((id) => ({
+      [3, 4, 5, 6].map((id) => ({
         id,
         name: `Tag ${id}`,
         color: "blue",
@@ -177,13 +177,14 @@ describe("ClassificationChangeRequestScreen", () => {
           expect.objectContaining({ id: 3, name: "Tag 3" }),
           expect.objectContaining({ id: 4, name: "Tag 4" }),
           expect.objectContaining({ id: 5, name: "Tag 5" }),
+          expect.objectContaining({ id: 6, name: "Tag 6" }),
         ]),
         selectedIds: [1, 2, 3],
       }),
     );
     const latestProps = mockSelectorProps.mock.lastCall?.[0];
     expect(latestProps.tags.map((tag: { id: number }) => tag.id)).toEqual([
-      1, 2, 3, 4, 5,
+      1, 2, 3, 4, 5, 6,
     ]);
   });
 

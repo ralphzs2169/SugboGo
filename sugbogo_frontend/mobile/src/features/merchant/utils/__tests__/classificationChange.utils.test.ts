@@ -40,11 +40,11 @@ describe("mergeClassificationSpecialtyOptions", () => {
 
   it("shows all current live tags first when the lookup contains only one of them", () => {
     const options = mergeClassificationSpecialtyOptions(
-      [tag(3, "Lookup C"), tag(4), tag(5)],
+      [tag(3, "Lookup C"), tag(4), tag(5), tag(6)],
       [tag(1), tag(2), tag(3, "Current C")],
     );
 
-    expect(options.map((option) => option.id)).toEqual([1, 2, 3, 4, 5]);
+    expect(options.map((option) => option.id)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(options.find((option) => option.id === 3)?.name).toBe("Current C");
   });
 

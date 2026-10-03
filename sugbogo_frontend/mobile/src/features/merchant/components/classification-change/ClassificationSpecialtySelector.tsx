@@ -1,10 +1,12 @@
 import {
   BottomSheetBackdrop,
+  BottomSheetFooter,
   BottomSheetModal,
   BottomSheetScrollView,
   BottomSheetView,
+  type BottomSheetFooterProps,
 } from "@gorhom/bottom-sheet";
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -37,6 +39,17 @@ export default function ClassificationSpecialtySelector({
       onChange([...selectedIds, tagId]);
     }
   }
+
+  const renderFooter = useCallback(
+    (props: BottomSheetFooterProps) => (
+      <BottomSheetFooter {...props} bottomInset={insets.bottom}>
+        <View className="border-t border-border-primary bg-surface px-6 py-3">
+          <Button title="Done" onPress={() => sheetRef.current?.dismiss()} />
+        </View>
+      </BottomSheetFooter>
+    ),
+    [insets.bottom],
+  );
 
   return (
     <View>
@@ -76,6 +89,7 @@ export default function ClassificationSpecialtySelector({
         index={1}
         enableDynamicSizing={false}
         enablePanDownToClose
+        footerComponent={renderFooter}
         backdropComponent={(props) => (
           <BottomSheetBackdrop
             {...props}
@@ -95,38 +109,36 @@ export default function ClassificationSpecialtySelector({
             </AppText>
           </View>
           <AppText className="mt-1 text-sm text-text-secondary">
-            Select exactly 3 tags that describe your business.
+            {selectedIds.length >= 3
+              ? "Deselect a specialty to choose a different one."
+              : "Select exactly 3 tags that describe your business."}
           </AppText>
         </BottomSheetView>
         <BottomSheetScrollView
-          style={{ flex: 1 }}
-          contentContainerClassName="flex-row flex-wrap px-6"
+          contentContainerClassName="px-6"
           contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 32) }}
+          enableFooterMarginAdjustment
           showsVerticalScrollIndicator={false}
           testID="classification-specialty-options"
         >
-          {tags.map((tag) => {
-            const isSelected = selectedIds.includes(tag.id);
-            return (
-              <SpecialtyTagChip
-                key={tag.id}
-                tag={tag}
-                mode="registration"
-                isSelected={isSelected}
-                isDisabled={!isSelected && selectedIds.length >= 3}
-                onPress={() => toggleTag(tag.id)}
-                showIcon
-                showSelectionIndicator
-              />
-            );
-          })}
+          <View className="flex-row flex-wrap justify-center gap-2">
+            {tags.map((tag) => {
+              const isSelected = selectedIds.includes(tag.id);
+              return (
+                <SpecialtyTagChip
+                  key={tag.id}
+                  tag={tag}
+                  mode="registration"
+                  isSelected={isSelected}
+                  isDisabled={!isSelected && selectedIds.length >= 3}
+                  onPress={() => toggleTag(tag.id)}
+                  showIcon
+                  showSelectionIndicator
+                />
+              );
+            })}
+          </View>
         </BottomSheetScrollView>
-        <BottomSheetView
-          className="border-t border-border-primary bg-surface px-6 pt-3"
-          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
-        >
-          <Button title="Done" onPress={() => sheetRef.current?.dismiss()} />
-        </BottomSheetView>
       </BottomSheetModal>
     </View>
   );
