@@ -16,4 +16,5 @@ export const UPDATE_REQUEST_STATUS_VARIANTS = {
 export const UPDATE_REQUEST_TYPE_OPTIONS = [
   { id: "business_name", label: "Business Name" },
   { id: "classification", label: "Classification & Specialties" },
+  { id: "location", label: "Location & Landmarks" },
 ];

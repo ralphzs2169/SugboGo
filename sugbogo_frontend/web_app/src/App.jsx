@@ -26,6 +26,7 @@ import ReviewDisputeDetailPage from "@/features/admin-panel/pages/ReviewDisputeD
 import UpdateRequestsPage from "@/features/admin-panel/pages/UpdateRequestsPage";
 import UpdateRequestReviewPage from "@/features/admin-panel/pages/UpdateRequestReviewPage";
 import ClassificationUpdateRequestReviewPage from "@/features/admin-panel/pages/ClassificationUpdateRequestReviewPage";
+import LocationUpdateRequestReviewPage from "@/features/admin-panel/pages/LocationUpdateRequestReviewPage";
 
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -83,6 +84,10 @@ function App() {
             <Route
               path="businesses/update-requests/classification/:requestId"
               element={<ClassificationUpdateRequestReviewPage />}
+            />
+            <Route
+              path="businesses/update-requests/location/:requestId"
+              element={<LocationUpdateRequestReviewPage />}
             />
             <Route
               path="businesses/:businessId"

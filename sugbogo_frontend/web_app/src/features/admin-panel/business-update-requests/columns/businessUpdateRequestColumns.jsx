@@ -12,6 +12,7 @@ const columnHelper = createColumnHelper();
 const REQUEST_TYPE_LABELS = {
   business_name: "Business Name Change",
   classification: "Classification & Specialties",
+  location: "Location & Landmarks",
 };
 
 /** Builds the compact Admin queue columns for the selected update-request type. */
@@ -28,7 +29,10 @@ export default function businessUpdateRequestColumns(onView) {
             {row.original.current_business_name}
           </p>
           <p className="text-xs text-text-secondary">
-            Business #{row.original.business_id}
+            {row.original.request_type === "location"
+              ? row.original.proposed?.location?.address ||
+                "Address unavailable"
+              : `Business #${row.original.business_id}`}
           </p>
         </div>
       ),

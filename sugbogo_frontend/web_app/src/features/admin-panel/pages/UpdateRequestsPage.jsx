@@ -13,6 +13,7 @@ import {
 } from "../business-update-requests/constants/businessUpdateRequestStatus";
 import useBusinessUpdateRequests from "../business-update-requests/hooks/useBusinessUpdateRequests";
 import useClassificationUpdateRequests from "../business-update-requests/hooks/useClassificationUpdateRequests";
+import useLocationUpdateRequests from "../business-update-requests/hooks/useLocationUpdateRequests";
 
 const VALID_STATUSES = new Set(UPDATE_REQUEST_STATUS_TABS.map((tab) => tab.id));
 const VALID_TYPES = new Set(UPDATE_REQUEST_TYPE_OPTIONS.map((type) => type.id));
@@ -47,11 +48,17 @@ export default function UpdateRequestsPage() {
   const classificationQuery = useClassificationUpdateRequests(filters, {
     enabled: requestType === "classification",
   });
-  const query =
-    requestType === "classification" ? classificationQuery : nameQuery;
+  const locationQuery = useLocationUpdateRequests(filters, {
+    enabled: requestType === "location",
+  });
+  const query = {
+    business_name: nameQuery,
+    classification: classificationQuery,
+    location: locationQuery,
+  }[requestType];
 
   useApiErrorNotification(query.error, {
-    toastId: "admin-update-requests-load-error",
+    toastId: `admin-update-requests-${requestType}-load-error`,
     fallbackMessage: "Unable to load update requests. Please try again.",
   });
 
@@ -89,13 +96,28 @@ export default function UpdateRequestsPage() {
       />
 
       {/* Status queue */}
+      {query.error && query.hasData && (
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+        >
+          The latest request queue could not be loaded.
+          <button
+            type="button"
+            className="ml-2 cursor-pointer font-semibold underline"
+            onClick={() => query.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      )}
       <DataTable
         data={query.requests}
         columns={businessUpdateRequestColumns((request) =>
           navigate(
-            request.request_type === "classification"
-              ? `/admin-panel/businesses/update-requests/classification/${request.id}`
-              : `/admin-panel/businesses/update-requests/${request.id}`,
+            request.request_type === "business_name"
+              ? `/admin-panel/businesses/update-requests/${request.id}`
+              : `/admin-panel/businesses/update-requests/${request.request_type}/${request.id}`,
           ),
         )}
         isLoading={query.isLoading}
@@ -113,7 +135,7 @@ export default function UpdateRequestsPage() {
               <legend className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
                 Request Type
               </legend>
-              <div className="inline-flex rounded-lg border border-stroke bg-surface p-1">
+              <div className="flex flex-wrap rounded-lg border border-stroke bg-surface p-1">
                 {UPDATE_REQUEST_TYPE_OPTIONS.map((option) => {
                   const isActive = option.id === requestType;
                   return (
