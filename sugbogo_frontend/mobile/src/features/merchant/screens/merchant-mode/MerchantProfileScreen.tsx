@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import Toast from "react-native-toast-message";
 
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
@@ -15,8 +15,10 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
 import MerchantBusinessOverview from "../../components/business-profile/MerchantBusinessOverview";
+import BusinessNameChangeEntry from "../../components/business-name-change/BusinessNameChangeEntry";
 import MerchantProfileHeader from "../../components/business-profile/MerchantProfileHeader";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
+import { useMerchantBusinessNameChangeRequests } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
 import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -34,6 +36,12 @@ export default function MerchantProfileScreen() {
   const bottomSpacing = useTabBarSpacing();
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const {
+    pendingRequest,
+    isLoading: isRequestsLoading,
+    error: requestsError,
+    refetch: refetchRequests,
+  } = useMerchantBusinessNameChangeRequests();
 
   useQueryErrorNotification({
     error,
@@ -52,7 +60,7 @@ export default function MerchantProfileScreen() {
     setIsRefreshing(true);
 
     try {
-      await refetch();
+      await Promise.all([refetch(), refetchRequests()]);
     } finally {
       setIsRefreshing(false);
     }
@@ -159,6 +167,19 @@ export default function MerchantProfileScreen() {
           coverPhotoUpdate={business.cover_photo_update}
           onCheckCoverAllowance={checkCoverAllowance}
           onEditCover={handleEditCover}
+        />
+
+        <BusinessNameChangeEntry
+          businessName={business.business_name}
+          businessStatus={business.status}
+          pendingRequest={pendingRequest}
+          isChecking={isRequestsLoading}
+          hasError={Boolean(requestsError)}
+          onRequest={() => router.push("/(merchant)/business-name-change")}
+          onHistory={() =>
+            router.push("/(merchant)/business-update-requests" as Href)
+          }
+          onRetry={() => void refetchRequests()}
         />
 
         {/* Current approved listing */}

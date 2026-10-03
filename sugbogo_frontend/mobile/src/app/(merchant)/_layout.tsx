@@ -43,6 +43,34 @@ export default function MerchantLayout() {
         }}
       />
 
+      <Stack.Screen
+        name="business-name-change"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Request Name Change",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Requested Changes",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/[requestId]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Name Change Request",
+        }}
+      />
+
       {/* Reply templates */}
       <Stack.Screen
         name="reply-templates"
