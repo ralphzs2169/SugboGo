@@ -13,6 +13,8 @@ const mockRequests = jest.fn();
 const mockSubmit = jest.fn();
 const mockReplace = jest.fn();
 const mockRefetchRequests = jest.fn();
+const mockSpecialtyTags = jest.fn();
+const mockSelectorProps = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: {
@@ -62,12 +64,7 @@ jest.mock("../../../hooks/registration/useCategories", () => ({
 jest.mock("../../../hooks/registration/useSpecialtyTags", () => ({
   __esModule: true,
   default: () => ({
-    specialtyTags: [1, 2, 3, 4].map((id) => ({
-      id,
-      name: `Tag ${id}`,
-      color: "blue",
-      icon: "tag",
-    })),
+    specialtyTags: mockSpecialtyTags(),
     isLoading: false,
     error: null,
     refetch: jest.fn(),
@@ -95,7 +92,8 @@ jest.mock(
   "../../../components/classification-change/ClassificationSpecialtySelector",
   () => {
     const { Pressable, Text, View } = jest.requireActual("react-native");
-    return function MockSelector({ selectedIds, onChange, error }: any) {
+    return function MockSelector({ tags, selectedIds, onChange, error }: any) {
+      mockSelectorProps({ tags, selectedIds });
       return (
         <View>
           <Text>{selectedIds.length} of 3 selected</Text>
@@ -137,6 +135,14 @@ describe("ClassificationChangeRequestScreen", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSpecialtyTags.mockReturnValue(
+      [1, 2, 3, 4].map((id) => ({
+        id,
+        name: `Tag ${id}`,
+        color: "blue",
+        icon: "tag",
+      })),
+    );
     mockProfile.mockReturnValue({
       business,
       isLoading: false,
@@ -150,6 +156,35 @@ describe("ClassificationChangeRequestScreen", () => {
       refetch: mockRefetchRequests,
     });
     mockSubmit.mockResolvedValue({ id: 7, status: "pending" });
+  });
+
+  it("passes all live specialties as selected options even when lookup omits two", async () => {
+    mockSpecialtyTags.mockReturnValue(
+      [3, 4, 5].map((id) => ({
+        id,
+        name: `Tag ${id}`,
+        color: "blue",
+        icon: "tag",
+      })),
+    );
+
+    await render(<ClassificationChangeRequestScreen />);
+    await waitFor(() =>
+      expect(mockSelectorProps).toHaveBeenCalledWith({
+        tags: expect.arrayContaining([
+          expect.objectContaining({ id: 1, name: "Tag 1" }),
+          expect.objectContaining({ id: 2, name: "Tag 2" }),
+          expect.objectContaining({ id: 3, name: "Tag 3" }),
+          expect.objectContaining({ id: 4, name: "Tag 4" }),
+          expect.objectContaining({ id: 5, name: "Tag 5" }),
+        ]),
+        selectedIds: [1, 2, 3],
+      }),
+    );
+    const latestProps = mockSelectorProps.mock.lastCall?.[0];
+    expect(latestProps.tags.map((tag: { id: number }) => tag.id)).toEqual([
+      1, 2, 3, 4, 5,
+    ]);
   });
 
   it("prefills current values and rejects an unchanged proposal", async () => {

@@ -3,15 +3,27 @@ import { fireEvent, render } from "@testing-library/react-native";
 
 import ClassificationSpecialtySelector from "../ClassificationSpecialtySelector";
 
+const mockSheetProps = jest.fn();
+
 jest.mock("@gorhom/bottom-sheet", () => {
   const { View } = jest.requireActual("react-native");
   return {
-    BottomSheetModal: ({ children }: { children: React.ReactNode }) => (
-      <View>{children}</View>
-    ),
-    BottomSheetScrollView: ({ children }: { children: React.ReactNode }) => (
-      <View>{children}</View>
-    ),
+    BottomSheetModal: ({
+      children,
+      ...props
+    }: {
+      children: React.ReactNode;
+    }) => {
+      mockSheetProps(props);
+      return <View>{children}</View>;
+    },
+    BottomSheetScrollView: ({
+      children,
+      testID,
+    }: {
+      children: React.ReactNode;
+      testID?: string;
+    }) => <View testID={testID}>{children}</View>,
     BottomSheetView: ({ children }: { children: React.ReactNode }) => (
       <View>{children}</View>
     ),
@@ -42,6 +54,29 @@ function SelectorHarness() {
 }
 
 describe("ClassificationSpecialtySelector", () => {
+  beforeEach(() => mockSheetProps.mockClear());
+
+  it("opens at Registration's tall snap with a visible scrollable list and selected count", async () => {
+    const screen = await render(<SelectorHarness />);
+
+    expect(mockSheetProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        index: 1,
+        enableDynamicSizing: false,
+        snapPoints: ["70%", "85%"],
+      }),
+    );
+    expect(screen.getByText("Specialty Tags")).toBeTruthy();
+    expect(
+      screen.getByText("Select exactly 3 tags that describe your business."),
+    ).toBeTruthy();
+    expect(screen.getByTestId("classification-specialty-options")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Tag 1").props.accessibilityState.selected,
+    ).toBe(true);
+    expect(screen.getByText("Done")).toBeTruthy();
+  });
+
   it("prevents more than three tags and allows replacing one", async () => {
     const screen = await render(<SelectorHarness />);
     expect(screen.getAllByText("3 of 3 selected").length).toBeGreaterThan(0);

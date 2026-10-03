@@ -26,7 +26,10 @@ import useCategories from "../../hooks/registration/useCategories";
 import useClusters from "../../hooks/registration/useClusters";
 import useSpecialtyTags from "../../hooks/registration/useSpecialtyTags";
 import type { ClassificationSnapshot } from "../../types/classificationChange.types";
-import { classificationHasChanged } from "../../utils/classificationChange.utils";
+import {
+  classificationHasChanged,
+  mergeClassificationSpecialtyOptions,
+} from "../../utils/classificationChange.utils";
 
 /** Builds a reviewed classification proposal from live defaults while keeping the live profile unchanged. */
 export default function ClassificationChangeRequestScreen() {
@@ -83,7 +86,7 @@ export default function ClassificationChangeRequestScreen() {
     initializedBusinessId.current = business.id;
     setClusterId(business.cluster.id);
     setCategoryId(business.category.id);
-    setSpecialtyTagIds(business.specialty_tags.map((tag) => tag.id));
+    setSpecialtyTagIds(business.specialty_tags.map((tag) => Number(tag.id)));
   }, [business]);
 
   const loadError =
@@ -121,13 +124,14 @@ export default function ClassificationChangeRequestScreen() {
   const selectedCluster = clusters.find(
     (item) => item.id === selectedCategory?.cluster_id,
   );
-  const availableTags = useMemo(() => {
-    const missingLiveTags =
-      business?.specialty_tags.filter(
-        (tag) => !specialtyTags.some((option) => option.id === tag.id),
-      ) ?? [];
-    return [...specialtyTags, ...missingLiveTags];
-  }, [business?.specialty_tags, specialtyTags]);
+  const availableTags = useMemo(
+    () =>
+      mergeClassificationSpecialtyOptions(
+        specialtyTags,
+        business?.specialty_tags ?? [],
+      ),
+    [business?.specialty_tags, specialtyTags],
+  );
 
   function selectCluster(value: string) {
     const nextClusterId = Number(value);

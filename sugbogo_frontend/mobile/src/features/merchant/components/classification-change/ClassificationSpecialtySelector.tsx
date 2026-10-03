@@ -73,6 +73,8 @@ export default function ClassificationSpecialtySelector({
       <BottomSheetModal
         ref={sheetRef}
         snapPoints={["70%", "85%"]}
+        index={1}
+        enableDynamicSizing={false}
         enablePanDownToClose
         backdropComponent={(props) => (
           <BottomSheetBackdrop
@@ -83,17 +85,25 @@ export default function ClassificationSpecialtySelector({
           />
         )}
       >
-        <BottomSheetView className="px-6 pt-3">
-          <AppText weight="bold" className="text-lg text-text-primary">
-            Choose 3 Specialties
-          </AppText>
+        <BottomSheetView className="mb-4 border-b border-border-primary px-6 pb-3">
+          <View className="flex-row items-center justify-between">
+            <AppText weight="bold" className="text-xl text-text-primary">
+              Specialty Tags
+            </AppText>
+            <AppText className="text-sm text-text-secondary">
+              {selectedIds.length} of 3 selected
+            </AppText>
+          </View>
           <AppText className="mt-1 text-sm text-text-secondary">
-            {selectedIds.length} of 3 selected
+            Select exactly 3 tags that describe your business.
           </AppText>
         </BottomSheetView>
         <BottomSheetScrollView
-          contentContainerClassName="flex-row flex-wrap px-6 pt-5"
+          style={{ flex: 1 }}
+          contentContainerClassName="flex-row flex-wrap px-6"
           contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 32) }}
+          showsVerticalScrollIndicator={false}
+          testID="classification-specialty-options"
         >
           {tags.map((tag) => {
             const isSelected = selectedIds.includes(tag.id);
