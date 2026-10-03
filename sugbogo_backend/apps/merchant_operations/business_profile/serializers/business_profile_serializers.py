@@ -226,10 +226,30 @@ class MerchantBusinessLandmarkSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="BLMK_ID")
     name = serializers.CharField(source="BLMK_NAME")
     address = serializers.CharField(source="BLMK_ADDRESS")
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
+    source = serializers.CharField(source="BLMK_SOURCE")
+    place_id = serializers.CharField(source="BLMK_PLACE_ID")
 
     class Meta:
         model = BusinessLandmark
-        fields = ("id", "name", "address")
+        fields = (
+            "id",
+            "name",
+            "address",
+            "latitude",
+            "longitude",
+            "source",
+            "place_id",
+        )
+
+    def get_latitude(self, obj):
+        """Expose the live landmark's WGS84 latitude to its owner."""
+        return obj.BLMK_POINT.y
+
+    def get_longitude(self, obj):
+        """Expose the live landmark's WGS84 longitude to its owner."""
+        return obj.BLMK_POINT.x
 
 
 class MerchantBusinessLocationSerializer(serializers.ModelSerializer):

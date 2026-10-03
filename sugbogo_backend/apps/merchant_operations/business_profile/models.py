@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.gis.db import models as gis_models
 from django.db import models
 
 from apps.business.models import Business, Category, SpecialtyTag
@@ -169,3 +170,106 @@ class BusinessClassificationSpecialtySnapshot(models.Model):
                 name="unique_classification_snapshot_tag",
             ),
         ]
+
+
+class BusinessLocationChangeRequest(models.Model):
+    """Retains a reviewed location proposal and its captured live baseline."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+
+    BLCR_ID = models.AutoField(primary_key=True)
+    BUSN_ID = models.ForeignKey(
+        Business,
+        on_delete=models.PROTECT,
+        db_column="BUSN_ID",
+        related_name="location_change_requests",
+    )
+    USER_ID = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        db_column="USER_ID",
+        related_name="business_location_change_requests",
+    )
+    BLCR_PREVIOUS_LOCT_ID = models.PositiveIntegerField()
+    BLCR_PREVIOUS_POINT = gis_models.PointField(srid=4326)
+    BLCR_PREVIOUS_ADDRESS = models.CharField(max_length=255)
+    BLCR_PREVIOUS_CITY = models.CharField(max_length=100)
+    BLCR_PREVIOUS_PROVINCE = models.CharField(max_length=100)
+    BLCR_PREVIOUS_POSTAL_CODE = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+    )
+    BLCR_PROPOSED_POINT = gis_models.PointField(srid=4326)
+    BLCR_PROPOSED_ADDRESS = models.CharField(max_length=255)
+    BLCR_PROPOSED_CITY = models.CharField(max_length=100)
+    BLCR_PROPOSED_PROVINCE = models.CharField(max_length=100)
+    BLCR_PROPOSED_POSTAL_CODE = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+    )
+    BLCR_STATUS = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    BLCR_SUBMITTED_AT = models.DateTimeField()
+    BLCR_RESOLVED_AT = models.DateTimeField(blank=True, null=True)
+    REVIEWER_ID = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        db_column="REVIEWER_ID",
+        related_name="business_location_changes_reviewed",
+        blank=True,
+        null=True,
+    )
+    BLCR_REJECTION_REASON = models.TextField(blank=True, null=True)
+    BLCR_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    BLCR_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "BUSINESS_LOCATION_CHANGE_REQUEST"
+        ordering = ["-BLCR_SUBMITTED_AT", "-BLCR_ID"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["BUSN_ID"],
+                condition=models.Q(BLCR_STATUS="pending"),
+                name="unique_pending_business_location_change",
+            ),
+        ]
+
+    def __str__(self):
+        """Identify the location request in Django displays."""
+        return f"Location change #{self.BLCR_ID} ({self.BLCR_STATUS})"
+
+
+class BusinessLocationLandmarkSnapshot(models.Model):
+    """Preserves one landmark on either side of a location request."""
+
+    class Side(models.TextChoices):
+        PREVIOUS = "previous", "Previous"
+        PROPOSED = "proposed", "Proposed"
+
+    BLLS_ID = models.AutoField(primary_key=True)
+    BLCR_ID = models.ForeignKey(
+        BusinessLocationChangeRequest,
+        on_delete=models.CASCADE,
+        db_column="BLCR_ID",
+        related_name="landmark_snapshots",
+    )
+    BLLS_SIDE = models.CharField(max_length=10, choices=Side.choices)
+    BLLS_PREVIOUS_BLMK_ID = models.PositiveIntegerField(blank=True, null=True)
+    BLLS_NAME = models.CharField(max_length=150)
+    BLLS_ADDRESS = models.CharField(max_length=255)
+    BLLS_POINT = gis_models.PointField(srid=4326)
+    BLLS_SOURCE = models.CharField(max_length=10)
+    BLLS_PLACE_ID = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        db_table = "BUSINESS_LOCATION_LANDMARK_SNAPSHOT"
+        ordering = ["BLLS_SIDE", "BLLS_ID"]

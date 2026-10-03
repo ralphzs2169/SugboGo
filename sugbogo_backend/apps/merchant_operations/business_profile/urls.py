@@ -11,6 +11,11 @@ from apps.merchant_operations.business_profile.views.business_name_change_views 
     MerchantBusinessNameChangeListView,
     MerchantBusinessNameChangeWithdrawView,
 )
+from apps.merchant_operations.business_profile.views.business_location_change_views import (
+    MerchantBusinessLocationChangeDetailView,
+    MerchantBusinessLocationChangeListCreateView,
+    MerchantBusinessLocationChangeWithdrawView,
+)
 
 from apps.merchant_operations.business_profile.views.business_profile_views import (
     BusinessCoverPhotoView,
@@ -21,6 +26,21 @@ from apps.merchant_operations.business_profile.views.business_profile_views impo
 )
 
 urlpatterns = [
+    path(
+        "update-requests/location/",
+        MerchantBusinessLocationChangeListCreateView.as_view(),
+        name="business-location-change-list-create",
+    ),
+    path(
+        "update-requests/location/<int:request_id>/",
+        MerchantBusinessLocationChangeDetailView.as_view(),
+        name="business-location-change-detail",
+    ),
+    path(
+        "update-requests/location/<int:request_id>/withdraw/",
+        MerchantBusinessLocationChangeWithdrawView.as_view(),
+        name="business-location-change-withdraw",
+    ),
     path(
         "update-requests/classification/",
         MerchantBusinessClassificationChangeListCreateView.as_view(),
