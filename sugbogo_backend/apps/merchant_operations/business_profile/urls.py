@@ -1,5 +1,10 @@
 from django.urls import path
 
+from apps.merchant_operations.business_profile.views.business_classification_change_views import (
+    MerchantBusinessClassificationChangeDetailView,
+    MerchantBusinessClassificationChangeListCreateView,
+    MerchantBusinessClassificationChangeWithdrawView,
+)
 from apps.merchant_operations.business_profile.views.business_name_change_views import (
     MerchantBusinessNameChangeCreateView,
     MerchantBusinessNameChangeDetailView,
@@ -16,6 +21,21 @@ from apps.merchant_operations.business_profile.views.business_profile_views impo
 )
 
 urlpatterns = [
+    path(
+        "update-requests/classification/",
+        MerchantBusinessClassificationChangeListCreateView.as_view(),
+        name="business-classification-change-list-create",
+    ),
+    path(
+        "update-requests/classification/<int:request_id>/",
+        MerchantBusinessClassificationChangeDetailView.as_view(),
+        name="business-classification-change-detail",
+    ),
+    path(
+        "update-requests/classification/<int:request_id>/withdraw/",
+        MerchantBusinessClassificationChangeWithdrawView.as_view(),
+        name="business-classification-change-withdraw",
+    ),
     path(
         "update-requests/",
         MerchantBusinessNameChangeListView.as_view(),
