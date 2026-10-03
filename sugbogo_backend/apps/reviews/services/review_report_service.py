@@ -3,6 +3,9 @@ from django.db import IntegrityError, models, transaction
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.reviews.models import Review, ReviewReport
+from apps.reviews.services.review_moderation_consistency_service import (
+    ReviewModerationConsistencyService,
+)
 from apps.users.models import User
 
 
@@ -21,7 +24,7 @@ class ReviewReportService:
     ) -> ReviewReport:
         """Record a report and flag reviews whose report count reaches three."""
         try:
-            review = Review.objects.get(
+            review = Review.objects.select_for_update().get(
                 REVW_ID=review_id,
             )
         except Review.DoesNotExist:
@@ -50,11 +53,18 @@ class ReviewReportService:
         )
 
         # Read the incremented count in SQL; never clear an existing flag.
-        Review.objects.filter(
+        newly_flagged = Review.objects.filter(
             REVW_ID=review.REVW_ID,
             REVW_REPORT_COUNT__gte=ReviewReportService.SPAM_REPORT_THRESHOLD,
+            REVW_IS_SPAM_FLAGGED=False,
         ).update(
             REVW_IS_SPAM_FLAGGED=True,
         )
+
+        if newly_flagged:
+            ReviewModerationConsistencyService.refresh_excluded_review(
+                business_id=review.BUSN_ID_id,
+                review_id=review.REVW_ID,
+            )
 
         return report

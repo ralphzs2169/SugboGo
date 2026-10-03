@@ -10,6 +10,10 @@ class AdminActivity(models.Model):
         ADMIN_CREATED = "admin_created", "Admin created"
         USER_SUSPENDED = "user_suspended", "User suspended"
         USER_REACTIVATED = "user_reactivated", "User reactivated"
+        REVIEW_DISPUTE_UPHELD = "review_dispute_upheld", "Review dispute upheld"
+        REVIEW_DISPUTE_DISMISSED = "review_dispute_dismissed", "Review dispute dismissed"
+        REVIEW_REPORT_APPROVED = "review_report_approved", "Review report approved"
+        REVIEW_REPORT_REJECTED = "review_report_rejected", "Review report rejected"
 
     AACT_ID = models.AutoField(
         primary_key=True,

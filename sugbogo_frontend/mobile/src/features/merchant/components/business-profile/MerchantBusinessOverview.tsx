@@ -1,0 +1,532 @@
+import { Image } from "expo-image";
+import { Pressable, ScrollView, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+
+import AppText from "@/shared/components/AppText";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { formatTime } from "@/features/explore/utils/businessHours.utils";
+import { theme } from "@/constants/theme";
+import type {
+  MerchantBusinessOperatingHours,
+  MerchantBusinessProfileResponse,
+} from "../../types/merchantBusinessProfile.types";
+import type { ClassificationChangeRequest } from "../../types/classificationChange.types";
+import type { LocationChangeRequest } from "../../types/locationChange.types";
+
+const DAYS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
+const PHOTO_CATEGORIES = [
+  "storefront",
+  "interior",
+  "products",
+  "additional",
+] as const;
+
+const DOCUMENT_LABELS = {
+  business_registration: "Business Registration",
+  authorization_document: "Authorization Document",
+  additional_documents: "Additional Document",
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Owner",
+  manager: "Manager",
+  authorized_representative: "Authorized Representative",
+  other: "Other",
+};
+
+function displayValue(value: string | null | undefined) {
+  return value?.trim() || "Not provided";
+}
+
+function formatHours(hours: MerchantBusinessOperatingHours | undefined) {
+  if (!hours) {
+    return "Not provided";
+  }
+
+  if (!hours.is_open) {
+    return "Closed";
+  }
+
+  if (hours.is_24_hours) {
+    return "Open 24 hours";
+  }
+
+  if (!hours.open_time || !hours.close_time) {
+    return "Hours not provided";
+  }
+
+  const overnight = hours.close_time <= hours.open_time;
+  const closeLabel = formatTime(hours.close_time);
+
+  return `${formatTime(hours.open_time)} – ${closeLabel}${
+    overnight ? " (next day)" : ""
+  }`;
+}
+
+/** Groups read-only business facts in the established profile card style. */
+function BusinessSection({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <View className="mb-2 bg-surface px-5 py-5">
+      <View className="mb-4 flex-row items-center justify-between">
+        <AppText weight="bold" className="text-base text-text-primary">
+          {title}
+        </AppText>
+        {action}
+      </View>
+      <View className="border-t border-border-primary pt-4">{children}</View>
+    </View>
+  );
+}
+
+/** Renders one labeled profile value without implying that it can be edited. */
+function BusinessField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  return (
+    <View className="mb-4">
+      <AppText className="mb-1 text-xs text-text-secondary">{label}</AppText>
+      <AppText className="text-sm leading-5 text-text-primary">
+        {displayValue(value)}
+      </AppText>
+    </View>
+  );
+}
+
+/** Displays the approved listing and retained onboarding evidence as read-only sections. */
+export default function MerchantBusinessOverview({
+  business,
+  onEditInformation,
+  onEditOperatingHours,
+  onManagePhotos,
+  pendingClassificationRequest,
+  isCheckingClassification,
+  hasClassificationError,
+  onRequestClassification,
+  onClassificationHistory,
+  onRetryClassification,
+  pendingLocationRequest,
+  isCheckingLocation,
+  hasLocationError,
+  onRequestLocation,
+  onLocationHistory,
+  onRetryLocation,
+}: {
+  business: MerchantBusinessProfileResponse;
+  onEditInformation?: () => void;
+  onEditOperatingHours?: () => void;
+  onManagePhotos?: () => void;
+  pendingClassificationRequest?: ClassificationChangeRequest | null;
+  isCheckingClassification?: boolean;
+  hasClassificationError?: boolean;
+  onRequestClassification?: () => void;
+  onClassificationHistory?: () => void;
+  onRetryClassification?: () => void;
+  pendingLocationRequest?: LocationChangeRequest | null;
+  isCheckingLocation?: boolean;
+  hasLocationError?: boolean;
+  onRequestLocation?: () => void;
+  onLocationHistory?: () => void;
+  onRetryLocation?: () => void;
+}) {
+  const location = business.location;
+  const verification = business.verification;
+
+  return (
+    <View>
+      {/* Business information */}
+      <BusinessSection
+        title="Business Information"
+        action={
+          business.status === "active" && onEditInformation ? (
+            <Pressable
+              onPress={onEditInformation}
+              accessibilityRole="button"
+              accessibilityLabel="Edit business information"
+              className="min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Edit
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null
+        }
+      >
+        {business.status === "suspended" ? (
+          <AppText className="mb-4 text-xs text-text-secondary">
+            Business information cannot be edited while your business is
+            suspended.
+          </AppText>
+        ) : null}
+        <BusinessField label="Description" value={business.description} />
+        <BusinessField label="Contact number" value={business.contact_number} />
+        <BusinessField label="Business email" value={business.business_email} />
+        <BusinessField label="Website" value={business.website} />
+      </BusinessSection>
+
+      {/* Classification */}
+      <BusinessSection title="Classification">
+        <BusinessField label="Cluster" value={business.cluster.name} />
+        <BusinessField label="Category" value={business.category.name} />
+        <AppText className="mb-2 text-xs text-text-secondary">
+          Specialty tags
+        </AppText>
+        {business.specialty_tags.length > 0 ? (
+          <View className="flex-row flex-wrap">
+            {business.specialty_tags.map((tag) => (
+              <SpecialtyTagChip key={tag.id} tag={tag} size="small" />
+            ))}
+          </View>
+        ) : (
+          <AppText className="text-sm text-text-secondary">
+            No active specialties
+          </AppText>
+        )}
+        {/* Reviewed classification change entry */}
+        {business.status === "suspended" ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Classification changes cannot be requested while your business is
+            suspended.
+          </AppText>
+        ) : pendingClassificationRequest ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Classification change pending Admin review. Your live category and
+            specialties remain visible.
+          </AppText>
+        ) : isCheckingClassification ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Checking classification requests...
+          </AppText>
+        ) : hasClassificationError ? (
+          <Pressable
+            onPress={onRetryClassification}
+            accessibilityRole="button"
+            className="cursor-pointer mt-2 min-h-11 justify-center active:opacity-75"
+          >
+            <AppText weight="semibold" className="text-sm text-brand">
+              Retry request status
+            </AppText>
+          </Pressable>
+        ) : null}
+        <View className="mt-3 flex-row flex-wrap gap-3">
+          {business.status === "active" &&
+          !pendingClassificationRequest &&
+          !isCheckingClassification &&
+          !hasClassificationError &&
+          onRequestClassification ? (
+            <Pressable
+              onPress={onRequestClassification}
+              accessibilityRole="button"
+              className="cursor-pointer min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Request classification change
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null}
+          {onClassificationHistory ? (
+            <Pressable
+              onPress={onClassificationHistory}
+              accessibilityRole="button"
+              className="cursor-pointer min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                {pendingClassificationRequest
+                  ? "View pending request"
+                  : "Classification requests"}
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+      </BusinessSection>
+
+      {/* Approved location */}
+      <BusinessSection title="Location">
+        <BusinessField label="Address" value={location.address} />
+        <BusinessField
+          label="City / Province"
+          value={`${location.city}, ${location.province}`}
+        />
+        <BusinessField label="Postal code" value={location.postal_code} />
+        <BusinessField
+          label="Coordinates"
+          value={`${location.latitude}, ${location.longitude}`}
+        />
+        <AppText className="mb-2 text-xs text-text-secondary">
+          Landmarks
+        </AppText>
+        {location.landmarks.length > 0 ? (
+          location.landmarks.map((landmark) => (
+            <View key={landmark.id} className="mb-3">
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                {landmark.name}
+              </AppText>
+              <AppText className="text-xs text-text-secondary">
+                {landmark.address}
+              </AppText>
+            </View>
+          ))
+        ) : (
+          <AppText className="text-sm text-text-secondary">
+            No landmarks listed
+          </AppText>
+        )}
+        {/* Reviewed location change entry */}
+        {business.status === "suspended" ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Location changes cannot be requested while your business is
+            suspended.
+          </AppText>
+        ) : pendingLocationRequest ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Location change pending Admin review. Your live location and
+            landmarks remain visible.
+          </AppText>
+        ) : isCheckingLocation ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Checking location requests...
+          </AppText>
+        ) : hasLocationError ? (
+          <Pressable
+            onPress={onRetryLocation}
+            accessibilityRole="button"
+            className="cursor-pointer mt-2 min-h-11 justify-center active:opacity-75"
+          >
+            <AppText weight="semibold" className="text-sm text-brand">
+              Retry request status
+            </AppText>
+          </Pressable>
+        ) : null}
+        <View className="mt-3 flex-row flex-wrap gap-3">
+          {business.status === "active" &&
+          !pendingLocationRequest &&
+          !isCheckingLocation &&
+          !hasLocationError &&
+          onRequestLocation ? (
+            <Pressable
+              onPress={onRequestLocation}
+              accessibilityRole="button"
+              className="cursor-pointer min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Request location change
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null}
+          {onLocationHistory ? (
+            <Pressable
+              onPress={onLocationHistory}
+              accessibilityRole="button"
+              className="cursor-pointer min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                {pendingLocationRequest
+                  ? "Location change pending"
+                  : "Location requests"}
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+      </BusinessSection>
+
+      {/* Current operating hours */}
+      <BusinessSection
+        title="Operating Hours"
+        action={
+          business.status === "active" && onEditOperatingHours ? (
+            <Pressable
+              onPress={onEditOperatingHours}
+              accessibilityRole="button"
+              accessibilityLabel="Edit operating hours"
+              className="min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Edit
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null
+        }
+      >
+        {DAYS.map((day) => {
+          const hours = business.operating_hours.find(
+            (item) => item.day === day,
+          );
+
+          return (
+            <View key={day} className="flex-row justify-between py-2">
+              <AppText className="w-24 text-sm capitalize text-text-secondary">
+                {day}
+              </AppText>
+              <AppText className="flex-1 text-right text-sm text-text-primary">
+                {formatHours(hours)}
+              </AppText>
+            </View>
+          );
+        })}
+      </BusinessSection>
+
+      {/* Approved business photos */}
+      <BusinessSection
+        title="Photos"
+        action={
+          business.status === "active" && onManagePhotos ? (
+            <Pressable
+              onPress={onManagePhotos}
+              accessibilityRole="button"
+              accessibilityLabel="Manage business photos"
+              className="min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Manage
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null
+        }
+      >
+        {business.status === "suspended" ? (
+          <AppText className="mb-4 text-xs text-text-secondary">
+            Photos cannot be edited while your business is suspended.
+          </AppText>
+        ) : null}
+        {PHOTO_CATEGORIES.map((category) => {
+          const photos = business.photos.filter(
+            (photo) => photo.category === category,
+          );
+
+          return (
+            <View key={category} className="mb-4">
+              <AppText
+                weight="semibold"
+                className="mb-2 text-sm capitalize text-text-primary"
+              >
+                {category}
+              </AppText>
+              {photos.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {photos.map((photo) => (
+                    <View key={photo.id} className="mr-3 w-28">
+                      <Image
+                        source={{ uri: photo.url }}
+                        contentFit="cover"
+                        className="h-28 w-28 rounded-xl bg-surface-secondary"
+                        accessibilityLabel={`${category} photo ${photo.id}`}
+                      />
+                      {photo.file_name ? (
+                        <AppText
+                          className="mt-1 text-xs text-text-secondary"
+                          numberOfLines={1}
+                        >
+                          {photo.file_name}
+                        </AppText>
+                      ) : null}
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <AppText className="text-sm text-text-secondary">
+                  No photos listed
+                </AppText>
+              )}
+            </View>
+          );
+        })}
+      </BusinessSection>
+
+      {/* Retained onboarding evidence */}
+      <BusinessSection title="Verification Information">
+        <AppText className="mb-4 text-xs leading-5 text-text-secondary">
+          These details were submitted during your original application.
+        </AppText>
+        <BusinessField
+          label="Business representative"
+          value={verification?.representative_name}
+        />
+        <BusinessField
+          label="Representative role"
+          value={
+            verification?.representative_role
+              ? ROLE_LABELS[verification.representative_role] ||
+                verification.representative_role
+              : null
+          }
+        />
+        <AppText className="mb-2 text-xs text-text-secondary">
+          Submitted documents
+        </AppText>
+        {verification?.documents.length ? (
+          verification.documents.map((document) => (
+            <View key={document.id} className="mb-3">
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                {DOCUMENT_LABELS[document.document_type]}
+              </AppText>
+              {document.file_name ? (
+                <AppText className="text-xs text-text-secondary">
+                  {document.file_name}
+                </AppText>
+              ) : null}
+            </View>
+          ))
+        ) : (
+          <AppText className="text-sm text-text-secondary">
+            No documents listed
+          </AppText>
+        )}
+      </BusinessSection>
+    </View>
+  );
+}

@@ -10,7 +10,7 @@ import ConfirmLocationSheet from "../components/registration/location/ConfirmLoc
 import LocationPickerMap from "../components/registration/location/LocationPickerMap";
 import BottomSelectionInfoSheet from "../components/registration/location/BottomSelectionInfoSheet";
 import BusinessLocationSearchSheet from "../components/registration/location/BusinessLocationSearchSheet";
-import useRegistrationReverseGeocode from "../hooks/registration/useRegistrationReverseGeocode";
+import useBusinessReverseGeocode from "../hooks/location-selection/useBusinessReverseGeocode";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import Toast from "react-native-toast-message";
@@ -28,7 +28,7 @@ type BusinessLocationPickerScreenProps = {
  * a business location through search or map interaction.
  *
  * The picker manages its selection locally and only commits
- * the location to the registration form after confirmation.
+ * the location to its caller after confirmation.
  */
 export default function BusinessLocationPickerScreen({
   initialLocation,
@@ -45,7 +45,10 @@ export default function BusinessLocationPickerScreen({
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
   const [addressLoadFailed, setAddressLoadFailed] = useState(false);
-  const { resolveCoordinates } = useRegistrationReverseGeocode();
+  const [serviceAreaFeedback, setServiceAreaFeedback] = useState<
+    "outside" | "unavailable" | null
+  >(null);
+  const { resolveCoordinates } = useBusinessReverseGeocode();
 
   // Tracks each location selection attempt with a growing number, so if an
   // older request's data comes back after a newer one, we can tell it's stale and ignore it.
@@ -56,6 +59,7 @@ export default function BusinessLocationPickerScreen({
     ++selectionRequestId.current; // invalidate any in-flight map selection
     setIsResolvingAddress(false);
     setAddressLoadFailed(false);
+    setServiceAreaFeedback(null);
     setSelectedLocation(location);
   }
 
@@ -73,6 +77,7 @@ export default function BusinessLocationPickerScreen({
       }
 
       setAddressLoadFailed(false);
+      setServiceAreaFeedback(data.is_within_service_area ? null : "outside");
 
       setSelectedLocation({
         latitude,
@@ -101,6 +106,9 @@ export default function BusinessLocationPickerScreen({
 
         // An unresolved address cannot be confirmed as inside the service area.
         setAddressLoadFailed(true);
+        setServiceAreaFeedback(
+          response?.code === "OUTSIDE_SERVICE_AREA" ? "outside" : "unavailable",
+        );
         setSelectedLocation({
           latitude,
           longitude,
@@ -155,6 +163,7 @@ export default function BusinessLocationPickerScreen({
           address={selectedLocation?.formattedAddress || "Address unavailable"}
           isResolvingAddress={isResolvingAddress}
           isWithinServiceArea={selectedLocation?.isWithinServiceArea ?? false}
+          serviceAreaFeedback={serviceAreaFeedback}
           onConfirm={handleConfirm}
           isConfirming={isConfirming}
         />

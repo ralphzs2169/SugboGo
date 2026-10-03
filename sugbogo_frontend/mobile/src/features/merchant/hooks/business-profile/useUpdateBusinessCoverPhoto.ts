@@ -4,6 +4,10 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { updateMerchantBusinessCoverPhoto } from "@/features/merchant/api/merchantBusinessProfile.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
+
+import { merchantBusinessProfileKey } from "./merchantBusinessProfileQueryKeys";
 
 const COVER_IMAGE_WIDTH = 1600;
 const COVER_IMAGE_COMPRESSION = 0.8;
@@ -15,7 +19,9 @@ const COVER_IMAGE_COMPRESSION = 0.8;
  * processing failures are separated from API failures so the UI can
  * provide an appropriate user-facing message for each case.
  */
-export default function useUpdateBusinessCoverPhoto() {
+export default function useUpdateBusinessCoverPhoto(
+  businessId: number | undefined,
+) {
   const queryClient = useQueryClient();
   const userId = useAuthStore((state) => state.user?.id);
 
@@ -57,10 +63,31 @@ export default function useUpdateBusinessCoverPhoto() {
       return throwOnApiError(response);
     },
 
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["merchant-business-profile", userId],
-      });
+    onSuccess: async () => {
+      const invalidations = [
+        queryClient.invalidateQueries({
+          queryKey: merchantBusinessProfileKey(userId),
+        }),
+      ];
+
+      if (businessId) {
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: exploreBusinessDetailKey(businessId),
+          }),
+        );
+      }
+
+      await Promise.all(invalidations);
+    },
+    onError: (error) => {
+      const response = error as unknown as ApiResponse<unknown>;
+
+      if (!response.success && response.code === "RATE_LIMIT_EXCEEDED") {
+        void queryClient.invalidateQueries({
+          queryKey: merchantBusinessProfileKey(userId),
+        });
+      }
     },
   });
 

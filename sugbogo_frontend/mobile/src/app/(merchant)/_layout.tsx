@@ -12,6 +12,121 @@ export default function MerchantLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
 
+      {/* Business information */}
+      <Stack.Screen
+        name="business-information"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Edit Business Information",
+        }}
+      />
+
+      <Stack.Screen
+        name="operating-hours"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Edit Operating Hours",
+        }}
+      />
+
+      <Stack.Screen
+        name="business-photos"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Manage Business Photos",
+        }}
+      />
+
+      <Stack.Screen
+        name="business-name-change"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Request Name Change",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Requested Changes",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/[requestId]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Name Change Request",
+        }}
+      />
+      <Stack.Screen
+        name="classification-change"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Request Classification Change",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/classification/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Classification Requests",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/classification/[requestId]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Classification Request",
+        }}
+      />
+      <Stack.Screen
+        name="location-change/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Request Location Change",
+        }}
+      />
+      <Stack.Screen name="location-change/picker" />
+      <Stack.Screen name="location-change/landmarks-picker" />
+      <Stack.Screen
+        name="business-update-requests/location/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Location Requests",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/location/[requestId]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Location Request",
+        }}
+      />
+
       {/* Reply templates */}
       <Stack.Screen
         name="reply-templates"

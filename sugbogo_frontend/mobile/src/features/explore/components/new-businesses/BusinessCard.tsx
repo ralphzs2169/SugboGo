@@ -41,7 +41,7 @@ const COMPACT_PARENT_HORIZONTAL_PADDING = 32;
 const COMPACT_CARD_HORIZONTAL_PADDING = 20;
 const COMPACT_CONTENT_GAP = 12;
 
-const STANDARD_CARD_PADDING = 10;
+const STANDARD_CONTENT_HORIZONTAL_PADDING = 12;
 const COMPACT_VISIBLE_TAG_COUNT = 2;
 
 /** Returns the card width for horizontal card presentations. */
@@ -62,12 +62,9 @@ export function getBusinessCardWidth(
 /**
  * Displays a business using reusable discovery-card presentations.
  *
- * Horizontal variants prioritize the business image, identity, specialties,
- * and review vibe. Category and distance are presented over the image to keep
- * the content surface easy to scan.
- *
- * The compact variant provides a denser row with secondary metadata and a
- * maximum of two visible specialty tags.
+ * Standard and featured variants use an edge-to-edge cover image followed by
+ * padded business details, while the compact variant provides a denser row
+ * presentation with secondary metadata and limited specialty tags.
  */
 export default function BusinessCard({
   business,
@@ -93,7 +90,7 @@ export default function BusinessCard({
     COMPACT_CONTENT_GAP;
 
   const standardTagAvailableWidth =
-    standardCardWidth - STANDARD_CARD_PADDING * 2;
+    standardCardWidth - STANDARD_CONTENT_HORIZONTAL_PADDING * 2;
 
   const tagAvailableWidth =
     variant === "compact"
@@ -166,7 +163,6 @@ export default function BusinessCard({
             </View>
           )}
 
-          {/* Pocket indicator */}
           {business.is_pocketed && (
             <View className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-md bg-black/65">
               <MaterialCommunityIcons
@@ -181,7 +177,6 @@ export default function BusinessCard({
         {/* Business details */}
         <View className="min-w-0 flex-1 justify-between py-0.5 pl-3">
           <View>
-            {/* Business identity */}
             <AppText
               weight="bold"
               className="text-[15px] leading-5 text-text-primary"
@@ -190,7 +185,6 @@ export default function BusinessCard({
               {business.business_name}
             </AppText>
 
-            {/* Business metadata */}
             <View className="mt-1 flex-row items-center">
               <MaterialCommunityIcons
                 name={clusterIconName}
@@ -224,7 +218,6 @@ export default function BusinessCard({
               )}
             </View>
 
-            {/* Personalized recommendation context */}
             {recommendationReason && (
               <View className="mt-1.5 min-w-0 flex-row items-center">
                 <MaterialCommunityIcons
@@ -280,181 +273,183 @@ export default function BusinessCard({
   const cardWidth = getBusinessCardWidth(screenWidth, standardVariant);
 
   return (
-    <SafePressable
-      onPress={onPress}
+    <View
+      className="mb-2 mr-3 rounded-card bg-surface"
       style={[
         {
           width: cardWidth,
         },
         shadows.subtle,
       ]}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${business.business_name} business profile`}
-      className="mb-2 mr-3 cursor-pointer rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
-      android_ripple={{
-        color: "rgba(0,0,0,0.05)",
-      }}
     >
-      {/* Business photo */}
-      <View
-        style={{
-          height: HERO_HEIGHT,
+      <SafePressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${business.business_name} business profile`}
+        className="w-full cursor-pointer overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
+        android_ripple={{
+          color: "rgba(0,0,0,0.05)",
         }}
-        className="relative overflow-hidden rounded-xl bg-surface-secondary"
       >
-        {business.cover_photo_url ? (
-          <Image
-            source={{ uri: business.cover_photo_url }}
-            style={{
-              width: "100%",
-              height: "100%",
-            }}
-            contentFit="cover"
-            transition={150}
-          />
-        ) : (
-          <View className="h-full w-full items-center justify-center bg-brand/8">
-            <MaterialCommunityIcons
-              name={clusterIconName}
-              size={48}
-              color={theme.extends.colors.brand}
-              style={{ opacity: 0.4 }}
+        {/* Edge-to-edge business photo */}
+        <View
+          style={{
+            height: HERO_HEIGHT,
+          }}
+          className="relative w-full bg-surface-secondary"
+        >
+          {business.cover_photo_url ? (
+            <Image
+              source={{ uri: business.cover_photo_url }}
+              style={{
+                width: "100%",
+                height: "100%",
+              }}
+              contentFit="cover"
+              transition={150}
             />
-          </View>
-        )}
-
-        {/* Pocket indicator */}
-        {business.is_pocketed && (
-          <View className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-md bg-black/65">
-            <MaterialCommunityIcons name="bookmark" size={16} color="#FFFFFF" />
-          </View>
-        )}
-
-        {/* Image metadata */}
-        <View className="absolute bottom-0 left-0 right-0 h-9 flex-row items-center justify-between bg-black/65">
-          {/* Category */}
-          <View className="ml-2.5 min-w-0 flex-1 flex-row items-center">
-            <MaterialCommunityIcons
-              name={clusterIconName}
-              size={13}
-              color={theme.extends.colors.brand}
-            />
-
-            <AppText
-              weight="semibold"
-              className="ml-1.5 min-w-0 flex-1 text-[11px] text-white"
-              numberOfLines={1}
-            >
-              {business.category.name}
-            </AppText>
-          </View>
-
-          {/* Distance */}
-          {distance !== null && (
-            <View className="mr-2.5 ml-2 shrink-0 flex-row items-center">
+          ) : (
+            <View className="h-full w-full items-center justify-center bg-brand/8">
               <MaterialCommunityIcons
-                name="map-marker-outline"
-                size={13}
+                name={clusterIconName}
+                size={48}
+                color={theme.extends.colors.brand}
+                style={{ opacity: 0.4 }}
+              />
+            </View>
+          )}
+
+          {business.is_pocketed && (
+            <View className="absolute right-2.5 top-2.5 h-7 w-7 items-center justify-center rounded-md bg-black/65">
+              <MaterialCommunityIcons
+                name="bookmark"
+                size={16}
                 color="#FFFFFF"
+              />
+            </View>
+          )}
+
+          {/* Image metadata */}
+          <View className="absolute bottom-0 left-0 right-0 h-9 flex-row items-center justify-between bg-black/65">
+            <View className="ml-3 min-w-0 flex-1 flex-row items-center">
+              <MaterialCommunityIcons
+                name={clusterIconName}
+                size={13}
+                color={theme.extends.colors.brand}
               />
 
               <AppText
                 weight="semibold"
-                className="ml-1 text-[11px] text-white"
+                className="ml-1.5 min-w-0 flex-1 text-[11px] text-white"
                 numberOfLines={1}
               >
-                {formatDistance(distance, distanceAccuracy)}
+                {business.category.name}
               </AppText>
             </View>
-          )}
-        </View>
-      </View>
 
-      {/* Business content */}
-      <View className="pb-1 pt-3">
-        {/* Business identity */}
-        <AppText
-          weight="bold"
-          className="text-base leading-5 text-text-primary"
-          numberOfLines={2}
-        >
-          {business.business_name}
-        </AppText>
-
-        {/* Specialty tags */}
-        {displayTags.length > 0 && (
-          <View
-            className="mt-2 flex-row flex-wrap content-start overflow-hidden"
-            style={{
-              height: TAG_SECTION_HEIGHT,
-            }}
-          >
-            {displayTags.map((tag) => (
-              <SpecialtyTagChip
-                key={tag.id}
-                tag={tag}
-                size="small"
-                isSelected={tag.is_vouched}
-                showVouchIndicator={tag.is_vouched}
-                showIcon
-              />
-            ))}
-          </View>
-        )}
-
-        {/* Review metadata */}
-        <View className="mt-2 flex-row items-center border-t border-border-primary pt-2.5">
-          {business.review_count === 0 ? (
-            <View className="flex-row items-center">
-              <MaterialCommunityIcons
-                name="message-text-outline"
-                size={13}
-                color={theme.extends.colors.text.tertiary}
-              />
-
-              <AppText className="ml-1.5 text-xs text-text-tertiary">
-                No reviews yet
-              </AppText>
-            </View>
-          ) : (
-            <>
-              {/* Review count */}
-              <View className="flex-row items-center">
+            {distance !== null && (
+              <View className="ml-2 mr-3 shrink-0 flex-row items-center">
                 <MaterialCommunityIcons
-                  name="message-text-outline"
+                  name="map-marker-outline"
                   size={13}
-                  color={theme.extends.colors.text.secondary}
+                  color="#FFFFFF"
                 />
 
                 <AppText
                   weight="semibold"
-                  className="ml-1.5 text-xs text-text-secondary"
+                  className="ml-1 text-[11px] text-white"
+                  numberOfLines={1}
                 >
-                  {business.review_count}{" "}
-                  {business.review_count === 1 ? "review" : "reviews"}
+                  {formatDistance(distance, distanceAccuracy)}
                 </AppText>
               </View>
+            )}
+          </View>
+        </View>
 
-              {/* Overall visitor vibe */}
-              {overallVibeLabel && overallVibeStyle && (
-                <View className="ml-2 min-w-0 shrink flex-row items-center">
-                  <View
-                    className={`h-2 w-2 shrink-0 rounded-full ${overallVibeStyle.containerClassName}`}
+        {/* Business content */}
+        <View className="px-3 pb-3 pt-3">
+          <AppText
+            weight="bold"
+            className="text-base leading-5 text-text-primary"
+            numberOfLines={2}
+          >
+            {business.business_name}
+          </AppText>
+
+          {/* Specialty tags */}
+          {displayTags.length > 0 && (
+            <View
+              className="mt-2 flex-row flex-wrap content-start overflow-hidden"
+              style={{
+                height: TAG_SECTION_HEIGHT,
+              }}
+            >
+              {displayTags.map((tag) => (
+                <SpecialtyTagChip
+                  key={tag.id}
+                  tag={tag}
+                  size="small"
+                  isSelected={tag.is_vouched}
+                  showVouchIndicator={tag.is_vouched}
+                  showIcon
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Review metadata */}
+          <View className="mt-2 flex-row items-center border-t border-border-primary pt-2.5">
+            {business.review_count === 0 ? (
+              <View className="flex-row items-center">
+                <MaterialCommunityIcons
+                  name="message-text-outline"
+                  size={13}
+                  color={theme.extends.colors.text.tertiary}
+                />
+
+                <AppText className="ml-1.5 text-xs text-text-tertiary">
+                  No reviews yet
+                </AppText>
+              </View>
+            ) : (
+              <>
+                <View className="flex-row items-center">
+                  <MaterialCommunityIcons
+                    name="message-text-outline"
+                    size={13}
+                    color={theme.extends.colors.text.secondary}
                   />
 
                   <AppText
-                    weight="medium"
-                    className="ml-1.5 shrink text-[11px] text-text-secondary"
-                    numberOfLines={1}
+                    weight="semibold"
+                    className="ml-1.5 text-xs text-text-secondary"
                   >
-                    {overallVibeLabel}
+                    {business.review_count}{" "}
+                    {business.review_count === 1 ? "review" : "reviews"}
                   </AppText>
                 </View>
-              )}
-            </>
-          )}
+
+                {overallVibeLabel && overallVibeStyle && (
+                  <View className="ml-2 min-w-0 shrink flex-row items-center">
+                    <View
+                      className={`h-2 w-2 shrink-0 rounded-full ${overallVibeStyle.containerClassName}`}
+                    />
+
+                    <AppText
+                      weight="medium"
+                      className="ml-1.5 shrink text-[11px] text-text-secondary"
+                      numberOfLines={1}
+                    >
+                      {overallVibeLabel}
+                    </AppText>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
         </View>
-      </View>
-    </SafePressable>
+      </SafePressable>
+    </View>
   );
 }

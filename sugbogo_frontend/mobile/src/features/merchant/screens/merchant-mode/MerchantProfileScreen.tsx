@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import Toast from "react-native-toast-message";
 
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
@@ -10,52 +10,76 @@ import ProfileMenuSection from "@/features/profile/components/ProfileMenuSection
 
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
+import AppText from "@/shared/components/AppText";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
+import MerchantBusinessOverview from "../../components/business-profile/MerchantBusinessOverview";
+import BusinessNameChangeEntry from "../../components/business-name-change/BusinessNameChangeEntry";
 import MerchantProfileHeader from "../../components/business-profile/MerchantProfileHeader";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
+import { useMerchantBusinessNameChangeRequests } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
+import { useMerchantClassificationChangeRequests } from "../../hooks/classification-change/useMerchantClassificationChanges";
+import { useMerchantLocationChangeRequests } from "../../hooks/location-change/useMerchantLocationChanges";
 import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
 import { formatRetryTime } from "@/shared/utils/date.utils";
 
 /**
- * Displays the authenticated merchant's business profile and provides
- * controls for managing the business cover photo and switching modes.
+ * Displays the authenticated merchant's approved business and retained
+ * verification details alongside the existing cover-photo control.
  *
  * Pulling down refreshes the latest business profile data, including
- * the current cover-photo editing cooldown.
+ * the current server-provided cover-photo allowance.
  */
 export default function MerchantProfileScreen() {
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
+  const bottomSpacing = useTabBarSpacing();
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const {
+    pendingRequest,
+    isLoading: isRequestsLoading,
+    error: requestsError,
+    refetch: refetchRequests,
+  } = useMerchantBusinessNameChangeRequests();
+  const {
+    pendingRequest: pendingClassificationRequest,
+    isLoading: isCheckingClassification,
+    error: classificationError,
+    refetch: refetchClassification,
+  } = useMerchantClassificationChangeRequests();
+  const {
+    pendingRequest: pendingLocationRequest,
+    isLoading: isCheckingLocation,
+    error: locationError,
+    refetch: refetchLocation,
+  } = useMerchantLocationChangeRequests();
 
-  const { updateCoverPhoto, isUploading } = useUpdateBusinessCoverPhoto();
+  useQueryErrorNotification({
+    error,
+    toastId: "merchant-business-profile-error",
+    title: "Unable to load business profile",
+    fallbackMessage: "Please try again.",
+  });
 
-  const [retryAfter, setRetryAfter] = useState(0);
+  const { updateCoverPhoto, isUploading } = useUpdateBusinessCoverPhoto(
+    business?.id,
+  );
+
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    setRetryAfter(business?.cover_photo_retry_after ?? 0);
-  }, [business?.cover_photo_retry_after]);
-
-  useEffect(() => {
-    if (retryAfter <= 0) {
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setRetryAfter((previous) => Math.max(previous - 1, 0));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [retryAfter]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
 
     try {
-      await refetch();
+      await Promise.all([
+        refetch(),
+        refetchRequests(),
+        refetchClassification(),
+        refetchLocation(),
+      ]);
     } finally {
       setIsRefreshing(false);
     }
@@ -67,10 +91,6 @@ export default function MerchantProfileScreen() {
   };
 
   const handleEditCover = async (imageUri: string) => {
-    if (retryAfter > 0) {
-      return;
-    }
-
     try {
       await updateCoverPhoto(imageUri);
 
@@ -84,17 +104,15 @@ export default function MerchantProfileScreen() {
 
       if (!response.success) {
         if (response.code === "RATE_LIMIT_EXCEEDED") {
-          const seconds = Number(response.errors?.retry_after ?? 0);
-
-          setRetryAfter(seconds);
+          const retryAfter = Number(response.errors?.retry_after ?? 0);
 
           Toast.show({
             type: "error",
-            text1: "Too many cover photo updates",
+            text1: "Cover photo update limit reached",
             text2:
-              seconds > 0
-                ? `Please try again in ${formatRetryTime(seconds)}.`
-                : "Please try again later.",
+              retryAfter > 0
+                ? `You can update your cover photo again in ${formatRetryTime(retryAfter)}.`
+                : response.message || "Please try again later.",
           });
 
           return;
@@ -113,8 +131,14 @@ export default function MerchantProfileScreen() {
     }
   };
 
-  const handleEditBusiness = () => {
-    // Wire to business profile editing next.
+  const checkCoverAllowance = async () => {
+    const result = await refetch();
+
+    if (result.error || !result.data) {
+      return null;
+    }
+
+    return result.data.cover_photo_update;
   };
 
   if (isLoading && !business) {
@@ -149,6 +173,7 @@ export default function MerchantProfileScreen() {
       <ScrollView
         className="flex-1"
         contentContainerClassName="flex-grow"
+        contentContainerStyle={{ paddingBottom: bottomSpacing }}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
@@ -158,9 +183,81 @@ export default function MerchantProfileScreen() {
           businessName={business.business_name}
           coverPhotoUrl={business.cover_photo_url}
           isUploading={isUploading}
-          retryAfter={retryAfter}
+          coverPhotoUpdate={business.cover_photo_update}
+          onCheckCoverAllowance={checkCoverAllowance}
           onEditCover={handleEditCover}
-          onEditBusiness={handleEditBusiness}
+        />
+
+        <BusinessNameChangeEntry
+          businessName={business.business_name}
+          businessStatus={business.status}
+          pendingRequest={pendingRequest}
+          isChecking={isRequestsLoading}
+          hasError={Boolean(requestsError)}
+          onRequest={() => router.push("/(merchant)/business-name-change")}
+          onHistory={() =>
+            router.push("/(merchant)/business-update-requests" as Href)
+          }
+          onRetry={() => void refetchRequests()}
+        />
+
+        {/* Current approved listing */}
+        <View className="mb-2 bg-surface px-5 pb-4">
+          <AppText weight="bold" className="mb-2 text-lg text-text-primary">
+            My Business
+          </AppText>
+          <View
+            className={`self-start rounded-full px-3 py-1 ${
+              business.status === "active" ? "bg-success/10" : "bg-error/10"
+            }`}
+          >
+            <AppText
+              weight="semibold"
+              className={`text-xs ${
+                business.status === "active" ? "text-success" : "text-error"
+              }`}
+            >
+              {business.status === "active" ? "Active" : "Suspended"}
+            </AppText>
+          </View>
+        </View>
+        <MerchantBusinessOverview
+          business={business}
+          pendingClassificationRequest={pendingClassificationRequest}
+          isCheckingClassification={isCheckingClassification}
+          hasClassificationError={Boolean(classificationError)}
+          onRequestClassification={() =>
+            router.push("/(merchant)/classification-change" as Href)
+          }
+          onClassificationHistory={() =>
+            router.push(
+              pendingClassificationRequest
+                ? (`/(merchant)/business-update-requests/classification/${pendingClassificationRequest.id}` as Href)
+                : ("/(merchant)/business-update-requests/classification" as Href),
+            )
+          }
+          onRetryClassification={() => void refetchClassification()}
+          pendingLocationRequest={pendingLocationRequest}
+          isCheckingLocation={isCheckingLocation}
+          hasLocationError={Boolean(locationError)}
+          onRequestLocation={() =>
+            router.push("/(merchant)/location-change" as Href)
+          }
+          onLocationHistory={() =>
+            router.push(
+              pendingLocationRequest
+                ? (`/(merchant)/business-update-requests/location/${pendingLocationRequest.id}` as Href)
+                : ("/(merchant)/business-update-requests/location" as Href),
+            )
+          }
+          onRetryLocation={() => void refetchLocation()}
+          onEditInformation={() =>
+            router.push("/(merchant)/business-information")
+          }
+          onEditOperatingHours={() =>
+            router.push("/(merchant)/operating-hours")
+          }
+          onManagePhotos={() => router.push("/(merchant)/business-photos")}
         />
 
         {/* Merchant actions */}

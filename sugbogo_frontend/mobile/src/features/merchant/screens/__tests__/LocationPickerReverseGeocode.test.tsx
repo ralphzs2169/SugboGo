@@ -9,6 +9,10 @@ import BusinessLocationSearchSheet from "../../components/registration/location/
 import LocationPickerHeader from "../../components/registration/location/LocationPickerHeader";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import LocationPickerScreen from "../LocationPickerScreen";
+import { toPickerLocation } from "../../utils/locationChange.utils";
+import { useLocationChangeDraftStore } from "../../stores/locationChangeDraftStore";
+import type { MerchantBusinessProfileResponse } from "../../types/merchantBusinessProfile.types";
+import type { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 
 jest.mock("@/shared/api/googlePlaces.service", () => ({
   reverseGeocode: jest.fn(),
@@ -237,6 +241,133 @@ describe("LocationPickerScreen reverse-geocode ordering", () => {
     expect(map.mock.lastCall[0].latitude).toBe(10.32);
     expect(map.mock.lastCall[0].longitude).toBe(123.89);
 
+    screen.unmount();
+    client.clear();
+  });
+
+  it("uses Business 1's persisted coordinate identically in Registration and Location Change", async () => {
+    // Business 1 / LOCT_ID 2 in the local database: Point(x=longitude, y=latitude).
+    const latitude = 10.299255281007682;
+    const longitude = 123.90291843563318;
+    const registrationLocation: BusinessLocation = {
+      latitude,
+      longitude,
+      formattedAddress: "Existing flat address",
+      city: "Cebu City",
+      province: "Cebu",
+      barangay: "",
+      streetAddress: "",
+      isWithinServiceArea: true,
+    };
+    const profileLocation = {
+      latitude,
+      longitude,
+      address: "Existing flat address",
+      city: "Cebu City",
+      province: "Cebu",
+      postal_code: null,
+      landmarks: [],
+    };
+    useLocationChangeDraftStore.getState().reset();
+    useLocationChangeDraftStore.getState().initialize({
+      id: 1,
+      location: profileLocation,
+    } as unknown as MerchantBusinessProfileResponse);
+    const draft = useLocationChangeDraftStore.getState().location!;
+    expect(draft).toMatchObject({ latitude, longitude });
+    const locationChangeLocation = toPickerLocation(draft);
+    expect(locationChangeLocation).toMatchObject({ latitude, longitude });
+    (reverseGeocode as jest.Mock).mockResolvedValue({
+      success: true,
+      message: "Location resolved successfully.",
+      data: {
+        address: {
+          formattedAddress: "Existing flat address",
+          city: "Cebu City",
+          province: "Cebu",
+          barangay: "",
+          streetAddress: "",
+        },
+        is_within_service_area: true,
+      },
+    });
+
+    for (const initialLocation of [
+      registrationLocation,
+      locationChangeLocation,
+    ]) {
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      function Wrapper({ children }: PropsWithChildren) {
+        return (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        );
+      }
+      const screen = await render(
+        <LocationPickerScreen
+          initialLocation={initialLocation}
+          onConfirm={jest.fn()}
+          onClose={jest.fn()}
+          isConfirming={false}
+        />,
+        { wrapper: Wrapper },
+      );
+      const map = LocationPickerMap as jest.Mock;
+      expect(map.mock.lastCall[0]).toMatchObject({ latitude, longitude });
+      await act(async () => {
+        await map.mock.lastCall[0].onLocationSelect(latitude, longitude);
+      });
+      expect(reverseGeocode).toHaveBeenLastCalledWith(latitude, longitude);
+      expect(
+        (ConfirmLocationSheet as jest.Mock).mock.lastCall[0],
+      ).toMatchObject({
+        isWithinServiceArea: true,
+        serviceAreaFeedback: null,
+      });
+      await act(async () => {
+        screen.unmount();
+        client.clear();
+      });
+    }
+    expect(reverseGeocode).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps verification failures distinct from an outside-area result", async () => {
+    (reverseGeocode as jest.Mock).mockResolvedValue({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Unable to connect to the location service.",
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    function Wrapper({ children }: PropsWithChildren) {
+      return (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+    }
+    const screen = await render(
+      <LocationPickerScreen
+        initialLocation={null}
+        onConfirm={jest.fn()}
+        onClose={jest.fn()}
+        isConfirming={false}
+      />,
+      { wrapper: Wrapper },
+    );
+    const map = LocationPickerMap as jest.Mock;
+    expect(map).toHaveBeenCalled();
+    await act(async () => {
+      await map.mock.lastCall[0].onLocationSelect(
+        10.299255281007682,
+        123.90291843563318,
+      );
+    });
+    expect((ConfirmLocationSheet as jest.Mock).mock.lastCall[0]).toMatchObject({
+      isWithinServiceArea: false,
+      serviceAreaFeedback: "unavailable",
+    });
     screen.unmount();
     client.clear();
   });

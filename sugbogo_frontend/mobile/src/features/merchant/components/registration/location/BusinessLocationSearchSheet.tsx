@@ -10,7 +10,7 @@ import { ActivityIndicator, BackHandler, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
-import useRegistrationPlaceSearch from "@/features/merchant/hooks/registration/useRegistrationPlaceSearch";
+import useBusinessPlaceSearch from "@/features/merchant/hooks/location-selection/useBusinessPlaceSearch";
 import AppText from "@/shared/components/AppText";
 import PlaceSearchFeedback from "@/shared/components/place-search/PlaceSearchFeedback";
 import PlaceSuggestionRow from "@/shared/components/place-search/PlaceSuggestionRow";
@@ -25,9 +25,9 @@ type Props = {
 };
 
 /**
- * Provides a keyboard-friendly place search for business registration.
+ * Provides a keyboard-friendly place search for business location selection.
  *
- * Preserves registration-specific search and service-area behavior while
+ * Preserves Registration's search and service-area behavior while
  * sharing SugboGo's established place-search presentation and feedback states.
  */
 export default function BusinessLocationSearchSheet({
@@ -51,7 +51,7 @@ export default function BusinessLocationSearchSheet({
     searchPlaces,
     getPlaceDetails,
     clearSuggestions,
-  } = useRegistrationPlaceSearch();
+  } = useBusinessPlaceSearch();
 
   const hasSearchQuery = query.trim().length >= 2;
   const isSearchPending = isLoading || isDebouncing;
