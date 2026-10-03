@@ -1,5 +1,6 @@
 import Button from "@/shared/components/Button";
 import Modal from "@/shared/components/modals/Modal";
+import { getClassificationDiff } from "../utils/classificationDiff";
 
 /** Confirms that approval will atomically apply the requested live classification. */
 export default function ApproveClassificationRequestModal({
@@ -9,6 +10,8 @@ export default function ApproveClassificationRequestModal({
   onClose,
   onConfirm,
 }) {
+  const diff = getClassificationDiff(request?.previous, request?.proposed);
+
   return (
     <Modal
       isOpen={isOpen}
@@ -17,26 +20,53 @@ export default function ApproveClassificationRequestModal({
       description="This will immediately update the business category and active specialties."
       showCloseButton={!loading}
     >
-      {/* Decision summary */}
+      {/* Requested change summary */}
       <dl className="space-y-3 rounded-lg border border-stroke bg-surface p-4 text-sm">
         <div>
-          <dt className="text-text-secondary">Current category</dt>
+          <dt className="text-text-secondary">Category</dt>
           <dd className="mt-1 font-semibold text-text-primary">
-            {request?.current?.category?.name}
+            {request?.previous?.category?.name || "—"}
+            {diff.categoryChanged ? (
+              <>
+                {" "}
+                <span aria-hidden="true">→</span>{" "}
+                {request?.proposed?.category?.name || "—"}
+              </>
+            ) : (
+              <span className="ml-2 text-xs font-normal text-text-secondary">
+                Unchanged
+              </span>
+            )}
           </dd>
         </div>
         <div>
-          <dt className="text-text-secondary">Requested category</dt>
+          <dt className="text-text-secondary">Cluster</dt>
           <dd className="mt-1 font-semibold text-text-primary">
-            {request?.proposed?.category?.name}
+            {request?.previous?.cluster?.name || "—"}
+            {diff.clusterChanged ? (
+              <>
+                {" "}
+                <span aria-hidden="true">→</span>{" "}
+                {request?.proposed?.cluster?.name || "—"}
+              </>
+            ) : (
+              <span className="ml-2 text-xs font-normal text-text-secondary">
+                Unchanged
+              </span>
+            )}
           </dd>
         </div>
         <div>
-          <dt className="text-text-secondary">Requested specialties</dt>
-          <dd className="mt-1 text-text-primary">
-            {request?.proposed?.specialty_tags
-              ?.map((tag) => tag.name)
-              .join(", ")}
+          <dt className="text-text-secondary">Specialties to remove</dt>
+          <dd className="mt-1 font-medium text-text-primary">
+            {diff.removedSpecialties.map((tag) => tag.name).join(", ") ||
+              "None"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-text-secondary">Specialties to add</dt>
+          <dd className="mt-1 font-medium text-text-primary">
+            {diff.addedSpecialties.map((tag) => tag.name).join(", ") || "None"}
           </dd>
         </div>
       </dl>

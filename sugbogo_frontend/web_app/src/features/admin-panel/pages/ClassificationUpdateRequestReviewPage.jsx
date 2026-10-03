@@ -12,35 +12,15 @@ import useNavigateBack from "@/shared/hooks/useNavigateBack";
 import { formatDateTime } from "@/shared/utils/dateUtils";
 
 import ApproveClassificationRequestModal from "../business-update-requests/components/ApproveClassificationRequestModal";
+import ClassificationRequestedChanges from "../business-update-requests/components/ClassificationRequestedChanges";
 import ClassificationSnapshotCard from "../business-update-requests/components/ClassificationSnapshotCard";
-import ClassificationSpecialtyDiff from "../business-update-requests/components/ClassificationSpecialtyDiff";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
 import { UPDATE_REQUEST_STATUS_VARIANTS } from "../business-update-requests/constants/businessUpdateRequestStatus";
 import useClassificationUpdateRequestDecisions from "../business-update-requests/hooks/useClassificationUpdateRequestDecisions";
 import useClassificationUpdateRequestDetail from "../business-update-requests/hooks/useClassificationUpdateRequestDetail";
+import { hasStalePendingBaseline } from "../business-update-requests/utils/classificationDiff";
 
-function specialtyIds(classification) {
-  return new Set(
-    (classification?.specialty_tags ?? []).map((tag) => Number(tag.id)),
-  );
-}
-
-function classificationMatches(first, second) {
-  if (
-    first?.category?.id !== second?.category?.id ||
-    first?.cluster?.id !== second?.cluster?.id
-  ) {
-    return false;
-  }
-  const firstIds = specialtyIds(first);
-  const secondIds = specialtyIds(second);
-  return (
-    firstIds.size === secondIds.size &&
-    [...firstIds].every((id) => secondIds.has(id))
-  );
-}
-
-/** Reviews current, submitted, and requested classification before an Admin decision. */
+/** Reviews a concise requested diff, expanding to full snapshots for a stale pending request. */
 export default function ClassificationUpdateRequestReviewPage() {
   const { requestId } = useParams();
   const handleBack = useNavigateBack(
@@ -139,8 +119,7 @@ export default function ClassificationUpdateRequestReviewPage() {
     }
   }
 
-  const isStale =
-    request && !classificationMatches(request.current, request.previous);
+  const isStalePendingRequest = hasStalePendingBaseline(request);
 
   return (
     <>
@@ -221,48 +200,47 @@ export default function ClassificationUpdateRequestReviewPage() {
               </dl>
             </section>
 
-            {/* Current, captured, and requested comparison */}
-            <section className="rounded-xl border border-stroke bg-background p-5">
-              <h2 className="text-base font-semibold text-text-primary">
-                Classification Comparison
-              </h2>
-              <p className="mt-1 text-sm text-text-secondary">
-                Compare the live classification with the immutable submission
-                snapshots before deciding.
-              </p>
-              <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                <ClassificationSnapshotCard
-                  title="Current Live Classification"
-                  classification={request.current}
-                  tone="live"
-                />
-                <ClassificationSnapshotCard
-                  title="Classification When Submitted"
-                  classification={request.previous}
-                />
-                <ClassificationSnapshotCard
-                  title="Requested Classification"
-                  classification={request.proposed}
-                  tone="proposed"
-                />
-              </div>
-              {isStale && request.status === "pending" && (
-                <p className="mt-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            {/* Requested diff or stale comparison */}
+            {isStalePendingRequest ? (
+              <section className="rounded-xl border border-stroke bg-background p-5">
+                <p
+                  role="alert"
+                  className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                >
                   <AlertTriangle
                     className="mt-0.5 h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
-                  The live classification differs from the values captured at
-                  submission. Approval will be blocked until this request is
-                  resolved.
+                  The business classification has changed since this request was
+                  submitted. Approval is blocked until this request is resolved.
                 </p>
-              )}
-            </section>
-
-            <ClassificationSpecialtyDiff
-              previous={request.previous}
-              proposed={request.proposed}
-            />
+                <h2 className="mt-5 text-base font-semibold text-text-primary">
+                  Classification Comparison
+                </h2>
+                <div className="mt-4 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                  <ClassificationSnapshotCard
+                    title="Current Live Classification"
+                    classification={request.current}
+                    tone="live"
+                  />
+                  <ClassificationSnapshotCard
+                    title="Classification When Submitted"
+                    classification={request.previous}
+                  />
+                  <ClassificationSnapshotCard
+                    title="Requested Classification"
+                    classification={request.proposed}
+                    tone="proposed"
+                  />
+                </div>
+              </section>
+            ) : (
+              <ClassificationRequestedChanges
+                previous={request.previous}
+                proposed={request.proposed}
+                applied={request.status === "approved"}
+              />
+            )}
 
             {/* Resolution and review controls */}
             {request.status === "approved" && (
