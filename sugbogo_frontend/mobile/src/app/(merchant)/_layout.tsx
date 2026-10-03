@@ -97,6 +97,35 @@ export default function MerchantLayout() {
           title: "Classification Request",
         }}
       />
+      <Stack.Screen
+        name="location-change/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Request Location Change",
+        }}
+      />
+      <Stack.Screen name="location-change/picker" />
+      <Stack.Screen name="location-change/landmarks-picker" />
+      <Stack.Screen
+        name="business-update-requests/location/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Location Requests",
+        }}
+      />
+      <Stack.Screen
+        name="business-update-requests/location/[requestId]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Location Request",
+        }}
+      />
 
       {/* Reply templates */}
       <Stack.Screen

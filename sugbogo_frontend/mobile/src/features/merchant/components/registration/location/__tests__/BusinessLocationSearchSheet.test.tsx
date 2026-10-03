@@ -3,7 +3,7 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import { BackHandler } from "react-native";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 
-import useRegistrationPlaceSearch from "@/features/merchant/hooks/registration/useRegistrationPlaceSearch";
+import useBusinessPlaceSearch from "@/features/merchant/hooks/location-selection/useBusinessPlaceSearch";
 import type { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 import BusinessLocationSearchSheet from "../BusinessLocationSearchSheet";
 
@@ -28,7 +28,7 @@ let mockSearchState = {
 };
 
 jest.mock(
-  "@/features/merchant/hooks/registration/useRegistrationPlaceSearch",
+  "@/features/merchant/hooks/location-selection/useBusinessPlaceSearch",
   () => ({
     __esModule: true,
     default: jest.fn(() => mockSearchState),
@@ -119,8 +119,8 @@ describe("BusinessLocationSearchSheet", () => {
     const input = screen.getByLabelText("Search your business location");
 
     await act(async () => fireEvent.changeText(input, "C"));
-    expect(screen.getByText(/at least two characters/)).toBeTruthy();
-    expect(screen.queryByText("No matching places found")).toBeNull();
+    expect(screen.getByText("Find your business location")).toBeTruthy();
+    expect(screen.queryByText("No matching places")).toBeNull();
 
     await act(async () => sheetRef.current?.dismiss());
     expect(mockClearSuggestions).toHaveBeenCalled();
@@ -141,8 +141,7 @@ describe("BusinessLocationSearchSheet", () => {
       ),
     );
     expect(mockSearchPlaces).toHaveBeenCalledWith("Cebu");
-    expect(screen.getByText("Searching places...")).toBeTruthy();
-    expect(screen.queryByText("No matching places found")).toBeNull();
+    expect(screen.queryByText("No matching places")).toBeNull();
 
     mockSearchState.isDebouncing = false;
     mockSearchState.isLoading = true;
@@ -154,7 +153,7 @@ describe("BusinessLocationSearchSheet", () => {
         />,
       );
     });
-    expect(screen.queryByText("No matching places found")).toBeNull();
+    expect(screen.queryByText("No matching places")).toBeNull();
     screen.unmount();
   });
 
@@ -167,7 +166,7 @@ describe("BusinessLocationSearchSheet", () => {
         "Cebu",
       ),
     );
-    expect(screen.getByText("No matching places found")).toBeTruthy();
+    expect(screen.getByText("No matching places")).toBeTruthy();
     screen.unmount();
   });
 
@@ -182,7 +181,7 @@ describe("BusinessLocationSearchSheet", () => {
         "Cebu",
       ),
     );
-    expect(screen.queryByText("No matching places found")).toBeNull();
+    expect(screen.queryByText("No matching places")).toBeNull();
     await act(async () => fireEvent.press(screen.getByText("Try again")));
     expect(mockSearchPlaces).toHaveBeenLastCalledWith("Cebu");
     screen.unmount();
@@ -199,8 +198,8 @@ describe("BusinessLocationSearchSheet", () => {
         "Cebu",
       ),
     );
-    expect(screen.getByText("You're searching too quickly.")).toBeTruthy();
-    expect(screen.queryByText("No matching places found")).toBeNull();
+    expect(screen.getByText("Search paused")).toBeTruthy();
+    expect(screen.queryByText("No matching places")).toBeNull();
     screen.unmount();
   });
 
@@ -277,7 +276,7 @@ describe("BusinessLocationSearchSheet", () => {
     expect(mockDismiss).toHaveBeenCalledTimes(1);
     expect(handleBack?.()).toBe(false);
     jest.restoreAllMocks();
-    expect(useRegistrationPlaceSearch).toHaveBeenCalled();
+    expect(useBusinessPlaceSearch).toHaveBeenCalled();
     screen.unmount();
   });
 });

@@ -46,6 +46,10 @@ export type MerchantBusinessLandmark = {
   id: number;
   name: string;
   address: string;
+  latitude: number;
+  longitude: number;
+  source: "google" | "custom";
+  place_id: string | null;
 };
 
 export type MerchantBusinessLocation = {
@@ -86,9 +90,7 @@ export type MerchantBusinessPhoto = {
 export type MerchantBusinessDocument = {
   id: number;
   document_type:
-    | "business_registration"
-    | "authorization_document"
-    | "additional_documents";
+    "business_registration" | "authorization_document" | "additional_documents";
   file_name: string | null;
 };
 

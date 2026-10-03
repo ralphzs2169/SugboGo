@@ -11,6 +11,7 @@ import type {
   MerchantBusinessProfileResponse,
 } from "../../types/merchantBusinessProfile.types";
 import type { ClassificationChangeRequest } from "../../types/classificationChange.types";
+import type { LocationChangeRequest } from "../../types/locationChange.types";
 
 const DAYS = [
   "monday",
@@ -124,6 +125,12 @@ export default function MerchantBusinessOverview({
   onRequestClassification,
   onClassificationHistory,
   onRetryClassification,
+  pendingLocationRequest,
+  isCheckingLocation,
+  hasLocationError,
+  onRequestLocation,
+  onLocationHistory,
+  onRetryLocation,
 }: {
   business: MerchantBusinessProfileResponse;
   onEditInformation?: () => void;
@@ -135,6 +142,12 @@ export default function MerchantBusinessOverview({
   onRequestClassification?: () => void;
   onClassificationHistory?: () => void;
   onRetryClassification?: () => void;
+  pendingLocationRequest?: LocationChangeRequest | null;
+  isCheckingLocation?: boolean;
+  hasLocationError?: boolean;
+  onRequestLocation?: () => void;
+  onLocationHistory?: () => void;
+  onRetryLocation?: () => void;
 }) {
   const location = business.location;
   const verification = business.verification;
@@ -293,6 +306,72 @@ export default function MerchantBusinessOverview({
             No landmarks listed
           </AppText>
         )}
+        {/* Reviewed location change entry */}
+        {business.status === "suspended" ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Location changes cannot be requested while your business is
+            suspended.
+          </AppText>
+        ) : pendingLocationRequest ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Location change pending Admin review. Your live location and
+            landmarks remain visible.
+          </AppText>
+        ) : isCheckingLocation ? (
+          <AppText className="mt-3 text-xs text-text-secondary">
+            Checking location requests...
+          </AppText>
+        ) : hasLocationError ? (
+          <Pressable
+            onPress={onRetryLocation}
+            accessibilityRole="button"
+            className="cursor-pointer mt-2 min-h-11 justify-center active:opacity-75"
+          >
+            <AppText weight="semibold" className="text-sm text-brand">
+              Retry request status
+            </AppText>
+          </Pressable>
+        ) : null}
+        <View className="mt-3 flex-row flex-wrap gap-3">
+          {business.status === "active" &&
+          !pendingLocationRequest &&
+          !isCheckingLocation &&
+          !hasLocationError &&
+          onRequestLocation ? (
+            <Pressable
+              onPress={onRequestLocation}
+              accessibilityRole="button"
+              className="cursor-pointer min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Request location change
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null}
+          {onLocationHistory ? (
+            <Pressable
+              onPress={onLocationHistory}
+              accessibilityRole="button"
+              className="cursor-pointer min-h-11 flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                {pendingLocationRequest
+                  ? "Location change pending"
+                  : "Location requests"}
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.brand}
+              />
+            </Pressable>
+          ) : null}
+        </View>
       </BusinessSection>
 
       {/* Current operating hours */}

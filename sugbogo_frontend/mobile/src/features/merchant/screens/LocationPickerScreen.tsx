@@ -10,7 +10,7 @@ import ConfirmLocationSheet from "../components/registration/location/ConfirmLoc
 import LocationPickerMap from "../components/registration/location/LocationPickerMap";
 import BottomSelectionInfoSheet from "../components/registration/location/BottomSelectionInfoSheet";
 import BusinessLocationSearchSheet from "../components/registration/location/BusinessLocationSearchSheet";
-import useRegistrationReverseGeocode from "../hooks/registration/useRegistrationReverseGeocode";
+import useBusinessReverseGeocode from "../hooks/location-selection/useBusinessReverseGeocode";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import Toast from "react-native-toast-message";
@@ -28,7 +28,7 @@ type BusinessLocationPickerScreenProps = {
  * a business location through search or map interaction.
  *
  * The picker manages its selection locally and only commits
- * the location to the registration form after confirmation.
+ * the location to its caller after confirmation.
  */
 export default function BusinessLocationPickerScreen({
   initialLocation,
@@ -45,7 +45,7 @@ export default function BusinessLocationPickerScreen({
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
   const [addressLoadFailed, setAddressLoadFailed] = useState(false);
-  const { resolveCoordinates } = useRegistrationReverseGeocode();
+  const { resolveCoordinates } = useBusinessReverseGeocode();
 
   // Tracks each location selection attempt with a growing number, so if an
   // older request's data comes back after a newer one, we can tell it's stale and ignore it.

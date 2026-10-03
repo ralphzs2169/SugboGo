@@ -8,6 +8,7 @@ const mockProfile = jest.fn();
 const mockNotify = jest.fn();
 const mockRequestState = jest.fn();
 const mockClassificationState = jest.fn();
+const mockLocationState = jest.fn();
 
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
@@ -26,6 +27,9 @@ jest.mock(
     useMerchantClassificationChangeRequests: () => mockClassificationState(),
   }),
 );
+jest.mock("../../../hooks/location-change/useMerchantLocationChanges", () => ({
+  useMerchantLocationChangeRequests: () => mockLocationState(),
+}));
 
 jest.mock(
   "../../../hooks/business-profile/useUpdateBusinessCoverPhoto",
@@ -82,6 +86,12 @@ describe("MerchantProfileScreen", () => {
       refetch: jest.fn(),
     });
     mockClassificationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    mockLocationState.mockReturnValue({
       pendingRequest: null,
       isLoading: false,
       error: null,

@@ -20,6 +20,7 @@ import MerchantProfileHeader from "../../components/business-profile/MerchantPro
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import { useMerchantBusinessNameChangeRequests } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
 import { useMerchantClassificationChangeRequests } from "../../hooks/classification-change/useMerchantClassificationChanges";
+import { useMerchantLocationChangeRequests } from "../../hooks/location-change/useMerchantLocationChanges";
 import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -49,6 +50,12 @@ export default function MerchantProfileScreen() {
     error: classificationError,
     refetch: refetchClassification,
   } = useMerchantClassificationChangeRequests();
+  const {
+    pendingRequest: pendingLocationRequest,
+    isLoading: isCheckingLocation,
+    error: locationError,
+    refetch: refetchLocation,
+  } = useMerchantLocationChangeRequests();
 
   useQueryErrorNotification({
     error,
@@ -71,6 +78,7 @@ export default function MerchantProfileScreen() {
         refetch(),
         refetchRequests(),
         refetchClassification(),
+        refetchLocation(),
       ]);
     } finally {
       setIsRefreshing(false);
@@ -229,6 +237,20 @@ export default function MerchantProfileScreen() {
             )
           }
           onRetryClassification={() => void refetchClassification()}
+          pendingLocationRequest={pendingLocationRequest}
+          isCheckingLocation={isCheckingLocation}
+          hasLocationError={Boolean(locationError)}
+          onRequestLocation={() =>
+            router.push("/(merchant)/location-change" as Href)
+          }
+          onLocationHistory={() =>
+            router.push(
+              pendingLocationRequest
+                ? (`/(merchant)/business-update-requests/location/${pendingLocationRequest.id}` as Href)
+                : ("/(merchant)/business-update-requests/location" as Href),
+            )
+          }
+          onRetryLocation={() => void refetchLocation()}
           onEditInformation={() =>
             router.push("/(merchant)/business-information")
           }

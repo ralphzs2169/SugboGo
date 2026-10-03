@@ -25,7 +25,17 @@ const business: MerchantBusinessProfileResponse = {
     postal_code: "6000",
     latitude: 10.3157,
     longitude: 123.8854,
-    landmarks: [{ id: 1, name: "Ayala Center", address: "Cebu Business Park" }],
+    landmarks: [
+      {
+        id: 1,
+        name: "Ayala Center",
+        address: "Cebu Business Park",
+        latitude: 10.318,
+        longitude: 123.905,
+        source: "google",
+        place_id: "ayala-place",
+      },
+    ],
   },
   operating_hours: [
     {
@@ -245,5 +255,64 @@ describe("MerchantBusinessOverview", () => {
     expect(
       suspended.getByText(/Classification changes cannot be requested/),
     ).toBeTruthy();
+  });
+
+  it("offers location requests alongside another pending request", async () => {
+    const onRequestLocation = jest.fn();
+    const screen = await render(
+      <MerchantBusinessOverview
+        business={business}
+        onRequestLocation={onRequestLocation}
+        onLocationHistory={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByText("Request location change"));
+    expect(onRequestLocation).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Location requests")).toBeTruthy();
+  });
+
+  it("keeps live location visible and hides submission while location review is pending", async () => {
+    const screen = await render(
+      <MerchantBusinessOverview
+        business={business}
+        pendingLocationRequest={{
+          id: 11,
+          request_type: "location",
+          status: "pending",
+          previous: { location: business.location, landmarks: [] },
+          proposed: {
+            location: {
+              ...business.location,
+              address: "Proposed address",
+            },
+            landmarks: [],
+          },
+          submitted_at: "2026-10-03T10:00:00Z",
+          resolved_at: null,
+          rejection_reason: null,
+        }}
+        onRequestLocation={jest.fn()}
+        onLocationHistory={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Gorordo Avenue")).toBeTruthy();
+    expect(screen.queryByText("Proposed address")).toBeNull();
+    expect(screen.queryByText("Request location change")).toBeNull();
+    expect(screen.getByText("Location change pending")).toBeTruthy();
+  });
+
+  it("keeps location history while a suspended business cannot submit", async () => {
+    const screen = await render(
+      <MerchantBusinessOverview
+        business={{ ...business, status: "suspended" }}
+        onRequestLocation={jest.fn()}
+        onLocationHistory={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Request location change")).toBeNull();
+    expect(screen.getByText("Location requests")).toBeTruthy();
   });
 });
