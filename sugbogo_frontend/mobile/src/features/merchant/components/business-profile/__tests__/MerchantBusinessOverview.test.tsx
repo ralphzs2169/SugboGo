@@ -4,12 +4,22 @@ import { fireEvent, render } from "@testing-library/react-native";
 import type { MerchantBusinessProfileResponse } from "../../../types/merchantBusinessProfile.types";
 import MerchantBusinessOverview from "../MerchantBusinessOverview";
 
+jest.mock(
+  "@/features/merchant/components/registration/location/LocationPickerMap",
+  () => {
+    const { Text } = jest.requireActual("react-native");
+    return function MockMap() {
+      return <Text>Location map preview</Text>;
+    };
+  },
+);
+
 const business: MerchantBusinessProfileResponse = {
   id: 7,
   business_name: "Sugbo Bistro",
   description: "Local Cebu food",
   contact_number: "+639171234567",
-  business_email: "hello@sugbogogo.test",
+  business_email: "hello@example.com",
   website: "https://example.com",
   status: "active",
   cover_photo_url: null,
@@ -40,24 +50,10 @@ const business: MerchantBusinessProfileResponse = {
   operating_hours: [
     {
       day: "monday",
-      is_open: false,
-      is_24_hours: false,
-      open_time: null,
-      close_time: null,
-    },
-    {
-      day: "tuesday",
-      is_open: true,
-      is_24_hours: true,
-      open_time: null,
-      close_time: null,
-    },
-    {
-      day: "wednesday",
       is_open: true,
       is_24_hours: false,
-      open_time: "22:00:00",
-      close_time: "02:00:00",
+      open_time: "09:00:00",
+      close_time: "18:00:00",
     },
   ],
   photos: [
@@ -82,237 +78,69 @@ const business: MerchantBusinessProfileResponse = {
 };
 
 describe("MerchantBusinessOverview", () => {
-  it("shows approved listing facts and original verification metadata", async () => {
+  it("shows live summaries without raw fields or reviewed-change actions", async () => {
     const screen = await render(
       <MerchantBusinessOverview business={business} />,
     );
 
     expect(screen.getByText("Local Cebu food")).toBeTruthy();
     expect(screen.getByText("Restaurants")).toBeTruthy();
-    expect(screen.getByText("Food and Dining")).toBeTruthy();
-    expect(screen.getByText("Lechon")).toBeTruthy();
     expect(screen.getByText("Gorordo Avenue")).toBeTruthy();
-    expect(screen.getByText("Ayala Center")).toBeTruthy();
-    expect(screen.getByText("Closed")).toBeTruthy();
-    expect(screen.getByText("Open 24 hours")).toBeTruthy();
-    expect(screen.getByText(/next day/)).toBeTruthy();
-    expect(screen.getByText("storefront.jpg")).toBeTruthy();
+    expect(screen.getByText("1 landmark")).toBeTruthy();
+    expect(screen.getByText("Location map preview")).toBeTruthy();
+    expect(screen.getByLabelText("Business photo 1")).toBeTruthy();
+    expect(screen.queryByText("storefront.jpg")).toBeNull();
+    expect(screen.queryByText("10.3157, 123.8854")).toBeNull();
+    expect(screen.queryByText("Request classification change")).toBeNull();
+    expect(screen.queryByText("Request location change")).toBeNull();
+    expect(screen.queryByText("Juan Dela Cruz")).toBeNull();
+  });
+
+  it("expands hours and read-only verification details on demand", async () => {
+    const screen = await render(
+      <MerchantBusinessOverview business={business} />,
+    );
+
+    expect(screen.getByText("Today")).toBeTruthy();
+    expect(screen.queryByText("monday")).toBeNull();
+    await fireEvent.press(screen.getByText("View weekly schedule"));
+    expect(screen.getByText("monday")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Business Verification"));
     expect(screen.getByText("Juan Dela Cruz")).toBeTruthy();
     expect(screen.getByText("registration.pdf")).toBeTruthy();
-    expect(screen.queryByText("2 cover photo updates remaining.")).toBeNull();
   });
 
-  it("distinguishes missing hours from a closed day", async () => {
-    const screen = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, operating_hours: [], specialty_tags: [] }}
-      />,
-    );
-
-    expect(screen.getAllByText("Not provided").length).toBeGreaterThan(0);
-    expect(screen.getByText("No active specialties")).toBeTruthy();
-    expect(screen.queryByText("Closed")).toBeNull();
-  });
-
-  it("opens only information editing for active businesses", async () => {
+  it("keeps direct edits and pending details available while restricting suspended edits", async () => {
     const onEditInformation = jest.fn();
-    const screen = await render(
-      <MerchantBusinessOverview
-        business={business}
-        onEditInformation={onEditInformation}
-      />,
-    );
-
-    fireEvent.press(screen.getByLabelText("Edit business information"));
-    expect(onEditInformation).toHaveBeenCalledTimes(1);
-  });
-
-  it("offers operating-hours editing only for an active business", async () => {
     const onEditOperatingHours = jest.fn();
-    const active = await render(
-      <MerchantBusinessOverview
-        business={business}
-        onEditOperatingHours={onEditOperatingHours}
-      />,
-    );
-
-    fireEvent.press(active.getByLabelText("Edit operating hours"));
-    expect(onEditOperatingHours).toHaveBeenCalledTimes(1);
-  });
-
-  it("offers photo management only for an active business", async () => {
     const onManagePhotos = jest.fn();
-    const active = await render(
-      <MerchantBusinessOverview
-        business={business}
-        onManagePhotos={onManagePhotos}
-      />,
-    );
-
-    fireEvent.press(active.getByLabelText("Manage business photos"));
-    expect(onManagePhotos).toHaveBeenCalledTimes(1);
-  });
-
-  it("hides photo management for a suspended business", async () => {
-    const onManagePhotos = jest.fn();
-    const suspended = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, status: "suspended" }}
-        onManagePhotos={onManagePhotos}
-      />,
-    );
-    expect(suspended.queryByLabelText("Manage business photos")).toBeNull();
-    expect(
-      suspended.getByText(
-        "Photos cannot be edited while your business is suspended.",
-      ),
-    ).toBeTruthy();
-  });
-
-  it("hides operating-hours editing for a suspended business", async () => {
-    const suspended = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, status: "suspended" }}
-        onEditOperatingHours={jest.fn()}
-      />,
-    );
-    expect(suspended.queryByLabelText("Edit operating hours")).toBeNull();
-  });
-
-  it("explains why a suspended business cannot open editing", async () => {
-    const onEditInformation = jest.fn();
+    const onPending = jest.fn();
     const screen = await render(
+      <MerchantBusinessOverview
+        business={business}
+        onEditInformation={onEditInformation}
+        onEditOperatingHours={onEditOperatingHours}
+        onManagePhotos={onManagePhotos}
+        pendingClassificationRequest={{ id: 4 } as never}
+        onClassificationHistory={onPending}
+      />,
+    );
+
+    await fireEvent.press(screen.getByLabelText("Edit business information"));
+    await fireEvent.press(screen.getByLabelText("Edit operating hours"));
+    await fireEvent.press(screen.getByLabelText("Manage photos"));
+    await fireEvent.press(screen.getByLabelText("Pending classification"));
+    expect(onEditInformation).toHaveBeenCalledTimes(1);
+    expect(onEditOperatingHours).toHaveBeenCalledTimes(1);
+    expect(onManagePhotos).toHaveBeenCalledTimes(1);
+    expect(onPending).toHaveBeenCalledTimes(1);
+
+    const suspended = await render(
       <MerchantBusinessOverview
         business={{ ...business, status: "suspended" }}
         onEditInformation={onEditInformation}
       />,
     );
-
-    expect(screen.queryByLabelText("Edit business information")).toBeNull();
-    expect(
-      screen.getByText(
-        "Business information cannot be edited while your business is suspended.",
-      ),
-    ).toBeTruthy();
-    expect(onEditInformation).not.toHaveBeenCalled();
-  });
-
-  it("offers a classification request without being blocked by name requests", async () => {
-    const onRequestClassification = jest.fn();
-    const active = await render(
-      <MerchantBusinessOverview
-        business={business}
-        onRequestClassification={onRequestClassification}
-        onClassificationHistory={jest.fn()}
-      />,
-    );
-    fireEvent.press(active.getByText("Request classification change"));
-    expect(onRequestClassification).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps live classification visible while a classification request is pending", async () => {
-    const pending = await render(
-      <MerchantBusinessOverview
-        business={business}
-        pendingClassificationRequest={{
-          id: 9,
-          request_type: "classification",
-          status: "pending",
-          previous: {
-            category: business.category,
-            cluster: business.cluster,
-            specialty_tags: business.specialty_tags,
-          },
-          proposed: {
-            category: { id: 4, name: "Creative Arts" },
-            cluster: { id: 5, name: "Culture" },
-            specialty_tags: [],
-          },
-          submitted_at: "2026-10-03T10:00:00Z",
-          resolved_at: null,
-          rejection_reason: null,
-        }}
-        onRequestClassification={jest.fn()}
-        onClassificationHistory={jest.fn()}
-      />,
-    );
-    expect(pending.getByText("Restaurants")).toBeTruthy();
-    expect(pending.getByText("Food and Dining")).toBeTruthy();
-    expect(pending.queryByText("Creative Arts")).toBeNull();
-    expect(pending.queryByText("Request classification change")).toBeNull();
-    expect(pending.getByText("View pending request")).toBeTruthy();
-  });
-
-  it("prevents suspended businesses from opening classification submission", async () => {
-    const suspended = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, status: "suspended" }}
-        onRequestClassification={jest.fn()}
-        onClassificationHistory={jest.fn()}
-      />,
-    );
-    expect(suspended.queryByText("Request classification change")).toBeNull();
-    expect(
-      suspended.getByText(/Classification changes cannot be requested/),
-    ).toBeTruthy();
-  });
-
-  it("offers location requests alongside another pending request", async () => {
-    const onRequestLocation = jest.fn();
-    const screen = await render(
-      <MerchantBusinessOverview
-        business={business}
-        onRequestLocation={onRequestLocation}
-        onLocationHistory={jest.fn()}
-      />,
-    );
-
-    fireEvent.press(screen.getByText("Request location change"));
-    expect(onRequestLocation).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Location requests")).toBeTruthy();
-  });
-
-  it("keeps live location visible and hides submission while location review is pending", async () => {
-    const screen = await render(
-      <MerchantBusinessOverview
-        business={business}
-        pendingLocationRequest={{
-          id: 11,
-          request_type: "location",
-          status: "pending",
-          previous: { location: business.location, landmarks: [] },
-          proposed: {
-            location: {
-              ...business.location,
-              address: "Proposed address",
-            },
-            landmarks: [],
-          },
-          submitted_at: "2026-10-03T10:00:00Z",
-          resolved_at: null,
-          rejection_reason: null,
-        }}
-        onRequestLocation={jest.fn()}
-        onLocationHistory={jest.fn()}
-      />,
-    );
-
-    expect(screen.getByText("Gorordo Avenue")).toBeTruthy();
-    expect(screen.queryByText("Proposed address")).toBeNull();
-    expect(screen.queryByText("Request location change")).toBeNull();
-    expect(screen.getByText("Location change pending")).toBeTruthy();
-  });
-
-  it("keeps location history while a suspended business cannot submit", async () => {
-    const screen = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, status: "suspended" }}
-        onRequestLocation={jest.fn()}
-        onLocationHistory={jest.fn()}
-      />,
-    );
-
-    expect(screen.queryByText("Request location change")).toBeNull();
-    expect(screen.getByText("Location requests")).toBeTruthy();
+    expect(suspended.queryByLabelText("Edit business information")).toBeNull();
   });
 });

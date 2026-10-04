@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import AppText from "@/shared/components/AppText";
+import { theme } from "@/constants/theme";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import Toast from "react-native-toast-message";
 
@@ -13,6 +15,8 @@ import MerchantCoverPhotoBottomSheet from "./MerchantCoverPhotoBottomSheet";
 
 type MerchantProfileHeaderProps = {
   businessName: string;
+  classification: string;
+  status: "active" | "suspended";
   coverPhotoUrl?: string | null;
   onEditCover: (imageUri: string) => void;
   isUploading?: boolean;
@@ -29,6 +33,8 @@ type MerchantProfileHeaderProps = {
  */
 export default function MerchantProfileHeader({
   businessName,
+  classification,
+  status,
   coverPhotoUrl,
   onEditCover,
   isUploading = false,
@@ -43,9 +49,8 @@ export default function MerchantProfileHeader({
   const [pendingCoverUri, setPendingCoverUri] = useState<string | null>(null);
   const [isConfirmVisible, setIsConfirmVisible] = useState(false);
   const [isCheckingAllowance, setIsCheckingAllowance] = useState(false);
-  const [checkedAllowance, setCheckedAllowance] = useState<
-    CoverPhotoUpdateAllowance | null
-  >(null);
+  const [checkedAllowance, setCheckedAllowance] =
+    useState<CoverPhotoUpdateAllowance | null>(null);
 
   const isCoverActionDisabled = isUploading || isCheckingAllowance;
 
@@ -161,7 +166,7 @@ export default function MerchantProfileHeader({
   return (
     <View className="bg-surface">
       {/* Business cover photo */}
-      <View className="relative h-56 w-full overflow-hidden">
+      <View className="relative h-52 w-full overflow-hidden rounded-b-3xl">
         {coverPhotoUrl ? (
           <Image
             source={{ uri: coverPhotoUrl }}
@@ -179,7 +184,7 @@ export default function MerchantProfileHeader({
             <MaterialCommunityIcons
               name="image-outline"
               size={42}
-              color="#8A9691"
+              color={theme.extends.colors.brand}
             />
 
             <Text className="mt-2 text-sm font-medium text-text-secondary">
@@ -219,7 +224,9 @@ export default function MerchantProfileHeader({
             <TouchableOpacity
               onPress={() => void handlePickCover()}
               activeOpacity={0.75}
-              className="cursor-pointer flex-row items-center rounded-full bg-white/90 px-3 py-1.5"
+              accessibilityRole="button"
+              accessibilityLabel="Edit cover photo"
+              className="min-h-11 cursor-pointer flex-row items-center rounded-full bg-white/90 px-3 py-1.5"
             >
               <MaterialCommunityIcons
                 name="pencil-outline"
@@ -236,14 +243,32 @@ export default function MerchantProfileHeader({
       </View>
 
       {/* Business identity */}
-      <View className="flex-row items-center px-4 py-3">
-        <Text
-          className="mr-3 flex-1 text-lg font-bold text-text-primary"
-          numberOfLines={1}
+      <View className="flex-row items-start gap-3 px-5 pb-4 pt-5">
+        <View className="flex-1">
+          <AppText
+            weight="bold"
+            className="text-2xl text-text-primary"
+            numberOfLines={2}
+          >
+            {businessName}
+          </AppText>
+          <AppText
+            className="mt-1 text-sm text-text-secondary"
+            numberOfLines={2}
+          >
+            {classification}
+          </AppText>
+        </View>
+        <View
+          className={`rounded-full px-3 py-1 ${status === "active" ? "bg-success/10" : "bg-error/10"}`}
         >
-          {businessName}
-        </Text>
-
+          <AppText
+            weight="semibold"
+            className={`text-xs ${status === "active" ? "text-success" : "text-error"}`}
+          >
+            {status === "active" ? "Active" : "Suspended"}
+          </AppText>
+        </View>
       </View>
 
       {/* Cover photo picker */}

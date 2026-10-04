@@ -12,6 +12,25 @@ export default function MerchantLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
 
+      <Stack.Screen
+        name="manage-business"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Manage Business",
+        }}
+      />
+      <Stack.Screen
+        name="change-requests"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Change Requests",
+        }}
+      />
+
       {/* Business information */}
       <Stack.Screen
         name="business-information"

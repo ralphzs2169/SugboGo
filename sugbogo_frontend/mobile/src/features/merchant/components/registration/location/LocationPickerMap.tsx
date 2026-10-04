@@ -21,6 +21,7 @@ type LocationPickerMapProps = {
   fullScreen?: boolean;
   interactionEnabled?: boolean;
   showLocationPreviewOverlay?: boolean;
+  previewHeight?: number;
 };
 
 const PREVIEW_MAP_HEIGHT = 256;
@@ -55,6 +56,7 @@ export default function LocationPickerMap({
   fullScreen = false,
   interactionEnabled = true,
   showLocationPreviewOverlay = true,
+  previewHeight = PREVIEW_MAP_HEIGHT,
 }: LocationPickerMapProps) {
   // Forces the preview map to remount (fresh native surface) each time
   // this screen regains focus — see the `key` prop below.
@@ -149,7 +151,7 @@ export default function LocationPickerMap({
       pointerEvents={interactionEnabled ? "auto" : "none"}
       style={{
         width: "100%",
-        height: fullScreen ? "100%" : PREVIEW_MAP_HEIGHT,
+        height: fullScreen ? "100%" : previewHeight,
       }}
       onMapReady={() => setIsMapReady(true)}
       onPress={interactionEnabled ? handleMapPress : undefined}

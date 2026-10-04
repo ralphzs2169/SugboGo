@@ -51,6 +51,8 @@ async function renderHeader(remaining: number) {
   const screen = await render(
     <MerchantProfileHeader
       businessName="Sugbo Bistro"
+      classification="Restaurant · Culinary"
+      status="active"
       coverPhotoUrl={null}
       coverPhotoUpdate={allowance}
       onCheckCoverAllowance={onCheckCoverAllowance}
@@ -65,6 +67,14 @@ describe("MerchantProfileHeader cover allowance", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPickFromGallery.mockResolvedValue("file:///selected.jpg");
+  });
+
+  it("shows business identity once with its classification and status", async () => {
+    const screen = await renderHeader(2);
+
+    expect(screen.getAllByText("Sugbo Bistro")).toHaveLength(1);
+    expect(screen.getByText("Restaurant · Culinary")).toBeTruthy();
+    expect(screen.getByText("Active")).toBeTruthy();
   });
 
   it("blocks the picker and shows the rolling reset when exhausted", async () => {
