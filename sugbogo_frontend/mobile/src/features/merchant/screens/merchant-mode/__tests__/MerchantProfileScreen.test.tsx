@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import MerchantProfileScreen from "../MerchantProfileScreen";
@@ -80,9 +80,38 @@ jest.mock("../../../components/business-profile/MerchantProfileHeader", () => {
 jest.mock(
   "../../../components/business-profile/MerchantBusinessOverview",
   () => {
-    const { Text } = jest.requireActual("react-native");
-    return function MockOverview() {
-      return <Text>Business details</Text>;
+    const { Pressable, Text, View } = jest.requireActual("react-native");
+    return function MockOverview({
+      pendingClassificationRequest,
+      pendingLocationRequest,
+      onClassificationHistory,
+      onLocationHistory,
+      onSwitchToExplorer,
+    }: {
+      pendingClassificationRequest?: { id: number };
+      pendingLocationRequest?: { id: number };
+      onClassificationHistory?: () => void;
+      onLocationHistory?: () => void;
+      onSwitchToExplorer?: () => void;
+    }) {
+      return (
+        <View>
+          <Text>Business details</Text>
+          {pendingClassificationRequest ? (
+            <Pressable onPress={onClassificationHistory}>
+              <Text>Classification Pending</Text>
+            </Pressable>
+          ) : null}
+          {pendingLocationRequest ? (
+            <Pressable onPress={onLocationHistory}>
+              <Text>Location Pending</Text>
+            </Pressable>
+          ) : null}
+          <Pressable onPress={onSwitchToExplorer}>
+            <Text>Switch to Explorer</Text>
+          </Pressable>
+        </View>
+      );
     };
   },
 );
@@ -156,11 +185,15 @@ describe("MerchantProfileScreen", () => {
 
     const screen = await render(<MerchantProfileScreen />);
     expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
+    expect(screen.getAllByText("Sugbo Bistro")).toHaveLength(1);
+    expect(screen.getByText("Pending change")).toBeTruthy();
     expect(screen.getByText("Business name")).toBeTruthy();
     expect(screen.queryByText("Request name change")).toBeNull();
     expect(screen.getByText("Manage Business")).toBeTruthy();
-    expect(screen.getByText("Change Requests")).toBeTruthy();
-    fireEvent.press(screen.getByText("Business name"));
+    expect(screen.queryByText("Change Requests")).toBeNull();
+    await fireEvent.press(
+      screen.getByLabelText("View pending Business name request"),
+    );
     expect(router.push).toHaveBeenCalledWith(
       "/(merchant)/business-update-requests/9",
     );
@@ -188,10 +221,39 @@ describe("MerchantProfileScreen", () => {
     expect(screen.getByText("Suspended")).toBeTruthy();
     expect(screen.queryByText("Request name change")).toBeNull();
     expect(screen.getByText("Manage Business")).toBeTruthy();
+    expect(screen.queryByText("Pending change")).toBeNull();
     expect(mockNotify).toHaveBeenCalledTimes(1);
   });
 
-  it("opens classification and location pending details and shared history", async () => {
+  it("keeps the two primary actions in one compact row", async () => {
+    mockProfile.mockReturnValue({
+      business: {
+        id: 7,
+        business_name: "Sugbo Bistro",
+        category: { id: 1, name: "Restaurant" },
+        cluster: { id: 1, name: "Culinary" },
+        status: "active",
+        cover_photo_url: null,
+        cover_photo_update: { limit: 3, remaining: 1, resets_at: null },
+      },
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+    const actions = screen.getByTestId("merchant-profile-actions");
+    expect(within(actions).getByText("Preview as Explorer")).toBeTruthy();
+    expect(within(actions).getByText("Manage Business")).toBeTruthy();
+    expect(screen.queryByText("Pending change")).toBeNull();
+    expect(screen.queryByText("Change Requests")).toBeNull();
+    await fireEvent.press(screen.getByText("Manage Business"));
+    expect(router.push).toHaveBeenCalledWith("/(merchant)/manage-business");
+    await fireEvent.press(screen.getByText("Switch to Explorer"));
+    expect(router.replace).toHaveBeenCalledWith("/(explorer)/(tabs)/explore");
+  });
+
+  it("consolidates multiple pending changes while keeping section detail links", async () => {
     mockProfile.mockReturnValue({
       business: {
         id: 7,
@@ -220,15 +282,17 @@ describe("MerchantProfileScreen", () => {
     });
 
     const screen = await render(<MerchantProfileScreen />);
-    await fireEvent.press(screen.getByText("Classification"));
+    expect(screen.getByText("2 pending changes")).toBeTruthy();
+    expect(screen.queryByText("Change Requests")).toBeNull();
+    await fireEvent.press(screen.getByText("Classification Pending"));
     expect(router.push).toHaveBeenCalledWith(
       "/(merchant)/business-update-requests/classification/11",
     );
-    await fireEvent.press(screen.getByText("Location"));
+    await fireEvent.press(screen.getByText("Location Pending"));
     expect(router.push).toHaveBeenCalledWith(
       "/(merchant)/business-update-requests/location/22",
     );
-    await fireEvent.press(screen.getByText("Change Requests"));
+    await fireEvent.press(screen.getByLabelText("View 2 pending changes"));
     expect(router.push).toHaveBeenCalledWith("/(merchant)/change-requests");
     await fireEvent.press(screen.getByText("Preview as Explorer"));
     expect(router.push).toHaveBeenCalledWith({

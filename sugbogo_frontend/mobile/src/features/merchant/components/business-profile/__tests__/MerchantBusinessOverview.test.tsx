@@ -84,7 +84,7 @@ describe("MerchantBusinessOverview", () => {
     );
 
     expect(screen.getByText("Local Cebu food")).toBeTruthy();
-    expect(screen.getByText("Restaurants")).toBeTruthy();
+    expect(screen.getByText("Restaurants · Food and Dining")).toBeTruthy();
     expect(screen.getByText("Gorordo Avenue")).toBeTruthy();
     expect(screen.getByText("1 landmark")).toBeTruthy();
     expect(screen.getByText("Location map preview")).toBeTruthy();
@@ -92,8 +92,10 @@ describe("MerchantBusinessOverview", () => {
     expect(screen.queryByText("storefront.jpg")).toBeNull();
     expect(screen.queryByText("10.3157, 123.8854")).toBeNull();
     expect(screen.queryByText("Request classification change")).toBeNull();
+    expect(screen.queryByLabelText("Edit classification")).toBeNull();
     expect(screen.queryByText("Request location change")).toBeNull();
     expect(screen.queryByText("Juan Dela Cruz")).toBeNull();
+    expect(screen.getByText("More")).toBeTruthy();
   });
 
   it("expands hours and read-only verification details on demand", async () => {
@@ -142,5 +144,42 @@ describe("MerchantBusinessOverview", () => {
       />,
     );
     expect(suspended.queryByLabelText("Edit business information")).toBeNull();
+  });
+
+  it("keeps location pending contextual and the mode switch in More", async () => {
+    const onPendingLocation = jest.fn();
+    const onSwitchToExplorer = jest.fn();
+    const screen = await render(
+      <MerchantBusinessOverview
+        business={business}
+        pendingLocationRequest={{ id: 22 } as never}
+        onLocationHistory={onPendingLocation}
+        onSwitchToExplorer={onSwitchToExplorer}
+      />,
+    );
+
+    await fireEvent.press(screen.getByLabelText("Pending location"));
+    await fireEvent.press(screen.getByText("Switch to Explorer"));
+    expect(onPendingLocation).toHaveBeenCalledTimes(1);
+    expect(onSwitchToExplorer).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Request location change")).toBeNull();
+    expect(screen.queryByText("Change Requests")).toBeNull();
+  });
+
+  it("limits the photo preview to thumbnails without filenames", async () => {
+    const photos = [1, 2, 3, 4].map((id) => ({
+      id,
+      category: "additional" as const,
+      url: `https://example.com/${id}.jpg`,
+      file_name: `upload-${id}.jpg`,
+    }));
+    const screen = await render(
+      <MerchantBusinessOverview business={{ ...business, photos }} />,
+    );
+
+    expect(screen.getAllByLabelText(/Business photo/)).toHaveLength(3);
+    expect(screen.getByText("4 business photos")).toBeTruthy();
+    expect(screen.getByText("+1")).toBeTruthy();
+    expect(screen.queryByText("upload-1.jpg")).toBeNull();
   });
 });

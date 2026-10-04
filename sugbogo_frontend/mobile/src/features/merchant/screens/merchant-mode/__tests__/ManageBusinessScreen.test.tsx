@@ -67,12 +67,23 @@ describe("ManageBusinessScreen", () => {
   it("opens existing direct-edit and reviewed-change routes", async () => {
     const screen = await render(<ManageBusinessScreen />);
 
+    expect(screen.getByText("Business information")).toBeTruthy();
+    expect(screen.getByText("Business name")).toBeTruthy();
+    expect(screen.getByText("Classification")).toBeTruthy();
+    expect(screen.getByText("Location & landmarks")).toBeTruthy();
+    expect(screen.getByText("Operating hours")).toBeTruthy();
+    expect(screen.getByText("Photos")).toBeTruthy();
+    expect(screen.getByText("Change Requests")).toBeTruthy();
+
     await fireEvent.press(screen.getByText("Business information"));
     expect(mockPush).toHaveBeenCalledWith("/(merchant)/business-information");
 
     await fireEvent.press(screen.getByText("Business name"));
     await fireEvent.press(screen.getByText("Request change ›"));
     expect(mockPush).toHaveBeenCalledWith("/(merchant)/business-name-change");
+
+    await fireEvent.press(screen.getByText("Change Requests"));
+    expect(mockPush).toHaveBeenCalledWith("/(merchant)/change-requests");
   });
 
   it("shows the active request instead of a new request action", async () => {

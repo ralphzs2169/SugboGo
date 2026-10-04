@@ -64,9 +64,11 @@ function SummarySection({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const isPending = actionLabel === "Pending";
+
   return (
-    <View className="mb-2 bg-surface px-5 py-5">
-      <View className="mb-3 flex-row items-center justify-between gap-2">
+    <View className="mb-2 bg-surface px-5 py-4">
+      <View className="mb-2 flex-row items-center justify-between gap-2">
         <AppText weight="bold" className="flex-1 text-base text-text-primary">
           {title}
         </AppText>
@@ -75,15 +77,18 @@ function SummarySection({
             onPress={onAction}
             accessibilityRole="button"
             accessibilityLabel={`${actionLabel} ${title.toLowerCase()}`}
-            className="min-h-11 cursor-pointer flex-row items-center rounded-lg px-2 active:bg-brand/10"
+            className="min-h-11 cursor-pointer flex-row items-center rounded-lg px-2 active:bg-background"
           >
-            <AppText weight="semibold" className="text-sm text-brand">
+            <AppText
+              weight="semibold"
+              className={`text-sm ${isPending ? "text-text-secondary" : "text-brand"}`}
+            >
               {actionLabel}
             </AppText>
             <MaterialCommunityIcons
               name="chevron-right"
               size={18}
-              color={theme.extends.colors.brand}
+              color={theme.extends.colors.text.secondary}
             />
           </Pressable>
         ) : null}
@@ -99,6 +104,7 @@ export default function MerchantBusinessOverview({
   onEditInformation,
   onEditOperatingHours,
   onManagePhotos,
+  onSwitchToExplorer,
   pendingClassificationRequest,
   isCheckingClassification,
   hasClassificationError,
@@ -114,6 +120,7 @@ export default function MerchantBusinessOverview({
   onEditInformation?: () => void;
   onEditOperatingHours?: () => void;
   onManagePhotos?: () => void;
+  onSwitchToExplorer?: () => void;
   pendingClassificationRequest?: ClassificationChangeRequest | null;
   isCheckingClassification?: boolean;
   hasClassificationError?: boolean;
@@ -187,13 +194,10 @@ export default function MerchantBusinessOverview({
         onAction={onClassificationHistory}
       >
         <AppText weight="semibold" className="text-sm text-text-primary">
-          {business.category.name}
-        </AppText>
-        <AppText className="mt-0.5 text-sm text-text-secondary">
-          {business.cluster.name}
+          {business.category.name} · {business.cluster.name}
         </AppText>
         {business.specialty_tags.length > 0 ? (
-          <View className="mt-3 flex-row flex-wrap gap-2">
+          <View className="mt-2 flex-row flex-wrap gap-2">
             {business.specialty_tags.map((tag) => (
               <SpecialtyTagChip key={tag.id} tag={tag} size="small" />
             ))}
@@ -260,12 +264,19 @@ export default function MerchantBusinessOverview({
         actionLabel={canEdit ? "Edit" : undefined}
         onAction={onEditOperatingHours}
       >
-        <AppText
-          weight="semibold"
-          className={`text-sm ${hoursSummary.isOpen ? "text-success" : "text-text-secondary"}`}
-        >
-          {hoursSummary.label}
-        </AppText>
+        <View className="flex-row flex-wrap items-center gap-2">
+          <View
+            className={`h-2 w-2 rounded-full ${
+              hoursSummary.isOpen ? "bg-success" : "bg-text-error"
+            }`}
+          />
+          <AppText
+            weight="semibold"
+            className="flex-1 text-sm text-text-primary"
+          >
+            {hoursSummary.label}
+          </AppText>
+        </View>
         <View className="mt-3 flex-row justify-between gap-3">
           <AppText className="text-sm text-text-secondary">Today</AppText>
           <AppText className="flex-1 text-right text-sm text-text-primary">
@@ -318,7 +329,7 @@ export default function MerchantBusinessOverview({
             {business.photos.slice(0, 3).map((photo, index) => (
               <View
                 key={photo.id}
-                className="aspect-square flex-1 overflow-hidden rounded-xl bg-surface-secondary"
+                className="aspect-square w-[31%] overflow-hidden rounded-xl bg-surface-secondary"
               >
                 <Image
                   source={{ uri: photo.url }}
@@ -347,8 +358,11 @@ export default function MerchantBusinessOverview({
         </AppText>
       </SummarySection>
 
-      {/* Historical verification, revealed on demand */}
-      <View className="mb-2 bg-surface px-5 py-3">
+      {/* Quieter secondary information and mode switch */}
+      <View className="mb-2 bg-surface px-5 pb-2 pt-4">
+        <AppText weight="bold" className="mb-1 text-base text-text-primary">
+          More
+        </AppText>
         <Pressable
           onPress={() => setVerificationVisible((visible) => !visible)}
           accessibilityRole="button"
@@ -370,7 +384,7 @@ export default function MerchantBusinessOverview({
           />
         </Pressable>
         {verificationVisible ? (
-          <View className="border-t border-border-primary/60 pt-3">
+          <View className="border-t border-border-primary/60 py-3">
             <AppText className="text-xs text-text-secondary">
               Representative
             </AppText>
@@ -406,6 +420,27 @@ export default function MerchantBusinessOverview({
               </AppText>
             )}
           </View>
+        ) : null}
+        {onSwitchToExplorer ? (
+          <Pressable
+            onPress={onSwitchToExplorer}
+            accessibilityRole="button"
+            className="min-h-12 cursor-pointer flex-row items-center border-t border-border-primary/60 active:opacity-70"
+          >
+            <MaterialCommunityIcons
+              name="compass-outline"
+              size={19}
+              color={theme.extends.colors.text.secondary}
+            />
+            <AppText className="ml-3 flex-1 text-sm text-text-primary">
+              Switch to Explorer
+            </AppText>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
+          </Pressable>
         ) : null}
       </View>
     </View>

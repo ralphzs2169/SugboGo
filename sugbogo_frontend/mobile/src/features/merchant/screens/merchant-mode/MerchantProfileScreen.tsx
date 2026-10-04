@@ -6,9 +6,6 @@ import { router, type Href } from "expo-router";
 import Toast from "react-native-toast-message";
 
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
-import ProfileMenuItem from "@/features/profile/components/ProfileMenuItem";
-import ProfileMenuSection from "@/features/profile/components/ProfileMenuSection";
-
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 import AppText from "@/shared/components/AppText";
@@ -168,6 +165,31 @@ export default function MerchantProfileScreen() {
     );
   }
 
+  const pendingChanges: { label: string; href: Href }[] = [];
+
+  if (pendingRequest) {
+    pendingChanges.push({
+      label: "Business name",
+      href: `/(merchant)/business-update-requests/${pendingRequest.id}` as Href,
+    });
+  }
+
+  if (pendingClassificationRequest) {
+    pendingChanges.push({
+      label: "Classification",
+      href: `/(merchant)/business-update-requests/classification/${pendingClassificationRequest.id}` as Href,
+    });
+  }
+
+  if (pendingLocationRequest) {
+    pendingChanges.push({
+      label: "Location & landmarks",
+      href: `/(merchant)/business-update-requests/location/${pendingLocationRequest.id}` as Href,
+    });
+  }
+
+  const pendingCount = pendingChanges.length;
+
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -194,115 +216,91 @@ export default function MerchantProfileScreen() {
         />
 
         {/* Primary profile actions */}
-        <View className="mb-2 gap-2 bg-surface px-5 pb-5">
+        <View
+          testID="merchant-profile-actions"
+          className="mb-2 flex-row gap-2 bg-surface px-5 py-3"
+        >
           <Pressable
             onPress={handlePreview}
             accessibilityRole="button"
-            className="min-h-12 cursor-pointer flex-row items-center justify-center rounded-xl border border-brand active:bg-brand/10"
+            className="min-h-12 min-w-0 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl border border-border-primary px-2 active:bg-background"
           >
             <MaterialCommunityIcons
               name="eye-outline"
-              size={19}
-              color={theme.extends.colors.brand}
+              size={17}
+              color={theme.extends.colors.text.primary}
             />
-            <AppText weight="semibold" className="ml-2 text-sm text-brand">
+            <AppText
+              weight="semibold"
+              className="ml-1.5 flex-shrink text-center text-xs text-text-primary"
+              numberOfLines={2}
+            >
               Preview as Explorer
             </AppText>
           </Pressable>
           <Pressable
             onPress={() => router.push("/(merchant)/manage-business" as Href)}
             accessibilityRole="button"
-            className="min-h-12 cursor-pointer flex-row items-center justify-center rounded-xl bg-brand active:opacity-80"
+            className="min-h-12 min-w-0 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl bg-brand px-2 active:opacity-80"
           >
             <MaterialCommunityIcons
               name="cog-outline"
-              size={19}
+              size={17}
               color="#FFFFFF"
             />
-            <AppText weight="semibold" className="ml-2 text-sm text-white">
+            <AppText
+              weight="semibold"
+              className="ml-1.5 flex-shrink text-center text-xs text-white"
+              numberOfLines={2}
+            >
               Manage Business
             </AppText>
           </Pressable>
         </View>
 
-        {/* Pending reviewed changes and one history entry */}
-        {pendingRequest ||
-        pendingClassificationRequest ||
-        pendingLocationRequest ? (
-          <View className="mb-2 bg-surface px-5 py-4">
-            <AppText weight="bold" className="mb-2 text-base text-text-primary">
-              Pending Changes
-            </AppText>
-            {pendingRequest ? (
-              <Pressable
-                onPress={() =>
-                  router.push(
-                    `/(merchant)/business-update-requests/${pendingRequest.id}` as Href,
-                  )
-                }
-                accessibilityRole="button"
-                className="min-h-11 cursor-pointer flex-row items-center justify-between"
-              >
-                <AppText className="flex-1 text-sm text-text-primary">
-                  Business name
-                </AppText>
-                <AppText weight="semibold" className="text-xs text-brand">
-                  Pending ›
-                </AppText>
-              </Pressable>
-            ) : null}
-            {pendingClassificationRequest ? (
-              <Pressable
-                onPress={() =>
-                  router.push(
-                    `/(merchant)/business-update-requests/classification/${pendingClassificationRequest.id}` as Href,
-                  )
-                }
-                accessibilityRole="button"
-                className="min-h-11 cursor-pointer flex-row items-center justify-between"
-              >
-                <AppText className="flex-1 text-sm text-text-primary">
-                  Classification
-                </AppText>
-                <AppText weight="semibold" className="text-xs text-brand">
-                  Pending ›
-                </AppText>
-              </Pressable>
-            ) : null}
-            {pendingLocationRequest ? (
-              <Pressable
-                onPress={() =>
-                  router.push(
-                    `/(merchant)/business-update-requests/location/${pendingLocationRequest.id}` as Href,
-                  )
-                }
-                accessibilityRole="button"
-                className="min-h-11 cursor-pointer flex-row items-center justify-between"
-              >
-                <AppText className="flex-1 text-sm text-text-primary">
-                  Location
-                </AppText>
-                <AppText weight="semibold" className="text-xs text-brand">
-                  Pending ›
-                </AppText>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-        <ProfileMenuSection>
-          <ProfileMenuItem
-            title="Change Requests"
-            icon="history"
-            badge={
-              pendingRequest ||
-              pendingClassificationRequest ||
-              pendingLocationRequest
-                ? `${Number(Boolean(pendingRequest)) + Number(Boolean(pendingClassificationRequest)) + Number(Boolean(pendingLocationRequest))} pending`
-                : undefined
+        {/* Compact reviewed-change summary */}
+        {pendingCount > 0 ? (
+          <Pressable
+            onPress={() =>
+              router.push(
+                pendingCount === 1
+                  ? pendingChanges[0].href
+                  : ("/(merchant)/change-requests" as Href),
+              )
             }
-            onPress={() => router.push("/(merchant)/change-requests" as Href)}
-          />
-        </ProfileMenuSection>
+            accessibilityRole="button"
+            accessibilityLabel={
+              pendingCount === 1
+                ? `View pending ${pendingChanges[0].label} request`
+                : `View ${pendingCount} pending changes`
+            }
+            className="mb-2 min-h-16 cursor-pointer flex-row items-center bg-surface px-5 py-3 active:bg-background"
+          >
+            <View className="flex-1">
+              <AppText weight="bold" className="text-sm text-text-primary">
+                {pendingCount === 1
+                  ? "Pending change"
+                  : `${pendingCount} pending changes`}
+              </AppText>
+              {pendingCount === 1 ? (
+                <AppText
+                  weight="semibold"
+                  className="mt-0.5 text-sm text-text-primary"
+                >
+                  {pendingChanges[0].label}
+                </AppText>
+              ) : null}
+              <AppText className="mt-0.5 text-xs text-text-secondary">
+                Awaiting Admin review
+              </AppText>
+            </View>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
+          </Pressable>
+        ) : null}
         <MerchantBusinessOverview
           business={business}
           pendingClassificationRequest={pendingClassificationRequest}
@@ -334,22 +332,8 @@ export default function MerchantProfileScreen() {
             router.push("/(merchant)/operating-hours")
           }
           onManagePhotos={() => router.push("/(merchant)/business-photos")}
+          onSwitchToExplorer={handleSwitchToExplorer}
         />
-
-        {/* Merchant actions */}
-        <AppText
-          weight="bold"
-          className="px-5 pb-2 pt-4 text-base text-text-primary"
-        >
-          Account & Mode
-        </AppText>
-        <ProfileMenuSection>
-          <ProfileMenuItem
-            title="Switch to Explorer"
-            icon="compass-outline"
-            onPress={handleSwitchToExplorer}
-          />
-        </ProfileMenuSection>
       </ScrollView>
     </SafeAreaView>
   );

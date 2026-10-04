@@ -241,6 +241,32 @@ export default function ManageBusinessScreen() {
             );
           })}
         </View>
+
+        {/* Consolidated reviewed-change history */}
+        <View className="mt-3 bg-surface px-5">
+          <Pressable
+            onPress={() => router.push("/(merchant)/change-requests" as Href)}
+            accessibilityRole="button"
+            className="min-h-14 cursor-pointer flex-row items-center active:opacity-70"
+          >
+            <MaterialCommunityIcons
+              name="history"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
+            <AppText
+              weight="semibold"
+              className="ml-3 flex-1 text-sm text-text-primary"
+            >
+              Change Requests
+            </AppText>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
