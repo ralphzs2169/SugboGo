@@ -716,7 +716,7 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
 
         self.assertEqual(
             response.status_code,
-            status.HTTP_200_OK,
+            status.HTTP_400_BAD_REQUEST,
             response.data,
         )
 
@@ -724,7 +724,7 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
 
         self.assertEqual(
             dispute.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.UPHELD,
+            MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         self.assertIsNone(
@@ -739,7 +739,7 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
 
         response = self.client.post(
             self.uphold_url(dispute.MRDSP_ID),
-            {},
+            {"admin_notes": "Evidence inspected and decision recorded."},
         )
 
         self.assertEqual(
@@ -751,7 +751,7 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
     def test_uphold_rejects_nonexistent_dispute(self):
         response = self.client.post(
             self.uphold_url(999999),
-            {},
+            {"admin_notes": "Evidence inspected and decision recorded."},
         )
 
         self.assertEqual(
@@ -859,7 +859,7 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
 
         self.assertEqual(
             response.status_code,
-            status.HTTP_200_OK,
+            status.HTTP_400_BAD_REQUEST,
             response.data,
         )
 
@@ -867,7 +867,7 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
 
         self.assertEqual(
             dispute.MRDSP_STATUS,
-            MerchantReviewDispute.DisputeStatus.DISMISSED,
+            MerchantReviewDispute.DisputeStatus.PENDING,
         )
 
         self.assertIsNone(
@@ -882,7 +882,7 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
 
         response = self.client.post(
             self.dismiss_url(dispute.MRDSP_ID),
-            {},
+            {"admin_notes": "Evidence inspected and decision recorded."},
         )
 
         self.assertEqual(
@@ -894,7 +894,7 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
     def test_dismiss_rejects_nonexistent_dispute(self):
         response = self.client.post(
             self.dismiss_url(999999),
-            {},
+            {"admin_notes": "Evidence inspected and decision recorded."},
         )
 
         self.assertEqual(

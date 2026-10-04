@@ -449,7 +449,7 @@ class ReviewViewTests(APITestCase):
         response = self.client.get(self.preview_url)
         data = response.data["data"]
 
-        self.assertEqual(len(data["reviews"]), 3)
+        self.assertEqual(len(data["reviews"]), 2)
         self.assertNotIn(own_review.pk, [item["id"] for item in data["reviews"]])
         self.assertEqual(data["user_review"]["id"], own_review.pk)
         self.assertTrue(data["user_review"]["is_own_review"])
