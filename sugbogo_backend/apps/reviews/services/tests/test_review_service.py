@@ -1687,6 +1687,94 @@ class ReviewServiceTests(TestCase):
         self.assertIsNone(review.REVW_SENTIMENT_SCORE)
         self.assertIsNone(review.REVW_SENTIMENT_LABEL)
 
+    def _review_with_generated_insights(self):
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Friendly staff.",
+            REVW_SENTIMENT_SCORE=0.7,
+            REVW_SENTIMENT_LABEL="positive",
+        )
+        summary = BusinessReviewSummary.objects.create(
+            BUSN_ID=self.business,
+            BRSU_POSITIVE_COUNT=1,
+            BRSU_REVIEW_COUNT=1,
+            BRSU_CLASSIFIED_REVIEW_COUNT=1,
+            BRSU_NARRATIVE="Visitors mention friendly staff.",
+            BRSU_KEYWORD_TAGS=[{"text": "Friendly staff", "count": 1, "review_ids": [review.pk]}],
+            BRSU_SUPPORTING_REVIEW_REFERENCES={"narrative_review_ids": [review.pk]},
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
+        )
+        return review, summary
+
+    def test_text_edit_immediately_removes_previous_sentiment_and_generated_evidence(self):
+        review, summary = self._review_with_generated_insights()
+        with patch("apps.reviews.tasks.process_review_sentiment.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                ReviewService.update_review(self.user, review.pk, text="Unfriendly staff.")
+                summary.refresh_from_db()
+                self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+                self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+                self.assertEqual(summary.BRSU_NARRATIVE, "")
+                self.assertEqual(summary.BRSU_KEYWORD_TAGS, [])
+                self.assertEqual(summary.BRSU_GENERATION_STATE, "outdated")
+                enqueue.assert_not_called()
+            enqueue.assert_called_once_with(review.pk, self.business.pk)
+
+    def test_text_edit_rollback_restores_insights_and_discards_rescoring(self):
+        review, summary = self._review_with_generated_insights()
+        with patch("apps.reviews.tasks.process_review_sentiment.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                with self.assertRaises(RuntimeError):
+                    with transaction.atomic():
+                        ReviewService.update_review(self.user, review.pk, text="Unfriendly staff.")
+                        raise RuntimeError("Roll back edit")
+            enqueue.assert_not_called()
+        review.refresh_from_db()
+        summary.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Friendly staff.")
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_NARRATIVE, "Visitors mention friendly staff.")
+
+    def test_unchanged_text_preserves_generated_insights(self):
+        review, summary = self._review_with_generated_insights()
+        with patch("apps.reviews.tasks.process_review_sentiment.delay") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                ReviewService.update_review(self.user, review.pk, text=review.REVW_TEXT)
+            enqueue.assert_not_called()
+        summary.refresh_from_db()
+        self.assertEqual(summary.BRSU_NARRATIVE, "Visitors mention friendly staff.")
+        self.assertEqual(summary.BRSU_GENERATION_STATE, "ready")
+
+    def test_photo_only_edit_preserves_generated_insights(self):
+        review, summary = self._review_with_generated_insights()
+        ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://example.com/photo.jpg",
+            RPHO_PHOTO_PUBLIC_ID="review-photo",
+        )
+        with (
+            patch("apps.reviews.services.review_service.CloudinaryService.delete_image"),
+            patch("apps.reviews.tasks.process_review_sentiment.delay") as enqueue,
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                ReviewService.update_review(self.user, review.pk, keep_photo_ids=[])
+            enqueue.assert_not_called()
+        summary.refresh_from_db()
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_NARRATIVE, "Visitors mention friendly staff.")
+        self.assertEqual(summary.BRSU_GENERATION_STATE, "ready")
+
+    def test_rescoring_edited_text_replaces_previous_sentiment(self):
+        review, summary = self._review_with_generated_insights()
+        ReviewService.update_review(self.user, review.pk, text="Unfriendly staff.")
+        self.score_review.return_value = (-0.6, "Negative", "vader")
+        self.assertEqual(ReviewSentimentService.process_review(review.pk), "updated")
+        summary.refresh_from_db()
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+
     def test_text_edit_clears_sentiment_and_queues_after_commit(self):
         review = Review.objects.create(
             USER_ID=self.user,

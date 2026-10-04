@@ -688,6 +688,13 @@ class ReviewService:
             raise
 
         if text_changed:
+            BusinessReviewSummaryService.recompute_sentiment(
+                review.BUSN_ID_id,
+            )
+            ReviewKeywordService.remove_review_evidence(
+                business_id=review.BUSN_ID_id,
+                review_id=review.REVW_ID,
+            )
             ReviewService._queue_sentiment_after_commit(
                 review.REVW_ID,
                 review.BUSN_ID_id,
