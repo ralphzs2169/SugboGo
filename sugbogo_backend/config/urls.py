@@ -21,6 +21,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('apps.authentication.urls')),
     path('api/users/', include('apps.users.urls')),
+    path('api/notifications/', include('apps.notifications.urls')),
     # path('merchant/', include('apps.merchant_operations.urls')),
 
     # Explorer Operations
