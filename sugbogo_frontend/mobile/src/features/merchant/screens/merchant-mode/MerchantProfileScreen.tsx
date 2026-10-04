@@ -89,7 +89,7 @@ export default function MerchantProfileScreen() {
   const handlePreview = () => {
     router.push({
       pathname: "/(explorer)/business/[businessId]",
-      params: { businessId: String(business!.id) },
+      params: { businessId: String(business!.id), previewAsExplorer: "1" },
     });
   };
 

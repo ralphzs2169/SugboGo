@@ -21,6 +21,7 @@ type Props = {
   businessId: number;
   businessName: string;
   isOwnBusiness: boolean;
+  displayAsExplorer?: boolean;
   hasOwnReview: boolean;
   reviewInsights?: BusinessReviewInsights | null;
   onWriteReview: () => void;
@@ -36,6 +37,7 @@ type Props = {
 export default function BusinessReviewsPreviewSection({
   businessId,
   isOwnBusiness,
+  displayAsExplorer = false,
   hasOwnReview: businessHasOwnReview,
   reviewInsights,
   onWriteReview,
@@ -60,6 +62,7 @@ export default function BusinessReviewsPreviewSection({
       params: {
         businessId: String(businessId),
         isOwnBusiness: isOwnBusiness ? "1" : "0",
+        ...(displayAsExplorer ? { previewAsExplorer: "1" } : {}),
       },
     });
   };
@@ -133,7 +136,7 @@ export default function BusinessReviewsPreviewSection({
           </AppText>
 
           <AppText className="mt-1 max-w-64 text-center text-xs leading-5 text-text-secondary">
-            {isOwnBusiness
+            {isOwnBusiness && !displayAsExplorer
               ? "Reviews from Explorers will show up here."
               : "Be the first to share your experience."}
           </AppText>

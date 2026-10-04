@@ -233,7 +233,7 @@ describe("MerchantProfileScreen", () => {
     await fireEvent.press(screen.getByText("Preview as Explorer"));
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]",
-      params: { businessId: "7" },
+      params: { businessId: "7", previewAsExplorer: "1" },
     });
   });
 });

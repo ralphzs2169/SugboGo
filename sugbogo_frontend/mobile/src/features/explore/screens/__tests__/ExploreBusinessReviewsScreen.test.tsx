@@ -24,8 +24,11 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("../../hooks/useBusinessReviews");
 jest.mock("../../hooks/useExploreBusinessProfile");
 jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
-  ReviewDerivedDataSyncProvider: ({ children }: { children: React.ReactNode }) =>
+  ReviewDerivedDataSyncProvider: ({
     children,
+  }: {
+    children: React.ReactNode;
+  }) => children,
 }));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
@@ -518,5 +521,18 @@ describe("ExploreBusinessReviewsScreen", () => {
     );
     expect(screen.queryByText("Write a review")).toBeNull();
     expect(screen.getByText("Manage My Business")).toBeTruthy();
+  });
+
+  it("hides owner controls in Explorer preview while still preventing a review", async () => {
+    const screen = await render(
+      <ExploreBusinessReviewsScreen
+        businessId={20}
+        isOwnBusiness
+        previewAsExplorer
+      />,
+    );
+
+    expect(screen.queryByText("Manage My Business")).toBeNull();
+    expect(screen.queryByText("Write review")).toBeNull();
   });
 });

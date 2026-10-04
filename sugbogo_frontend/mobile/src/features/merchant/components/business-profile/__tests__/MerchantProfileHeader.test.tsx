@@ -1,5 +1,10 @@
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
 
 import MerchantProfileHeader from "../MerchantProfileHeader";
@@ -75,6 +80,9 @@ describe("MerchantProfileHeader cover allowance", () => {
     expect(screen.getAllByText("Sugbo Bistro")).toHaveLength(1);
     expect(screen.getByText("Restaurant · Culinary")).toBeTruthy();
     expect(screen.getByText("Active")).toBeTruthy();
+    const hero = screen.getByTestId("merchant-cover-hero");
+    expect(within(hero).getByText("Sugbo Bistro")).toBeTruthy();
+    expect(within(hero).getByText("Restaurant · Culinary")).toBeTruthy();
   });
 
   it("blocks the picker and shows the rolling reset when exhausted", async () => {

@@ -48,6 +48,7 @@ type Props = {
   businessId: number;
   businessName?: string;
   isOwnBusiness: boolean;
+  previewAsExplorer?: boolean;
 };
 
 /**
@@ -60,6 +61,7 @@ function ReviewsCollectionScreenContent({
   businessId,
   businessName,
   isOwnBusiness = false,
+  previewAsExplorer = false,
 }: Props) {
   const [filters, setFilters] = useState<BusinessReviewFilters>(
     DEFAULT_BUSINESS_REVIEW_FILTERS,
@@ -342,7 +344,7 @@ function ReviewsCollectionScreenContent({
             hasListError={hasListError}
             hasContentFilters={hasContentFilters}
             canWriteReview={canWriteReview}
-            isOwnBusiness={isOwnBusiness}
+            isOwnBusiness={isOwnBusiness && !previewAsExplorer}
             onCreateReview={createReview}
             onClearFilters={clearFilters}
             onRetry={() => void reviewQuery.refetch()}
@@ -373,9 +375,10 @@ function ReviewsCollectionScreenContent({
           ) : null
         }
         contentContainerStyle={{
-          paddingBottom: isOwnBusiness
-            ? 128
-            : insets.bottom + (showWriteReviewFab ? 112 : 32),
+          paddingBottom:
+            isOwnBusiness && !previewAsExplorer
+              ? 128
+              : insets.bottom + (showWriteReviewFab ? 112 : 32),
         }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
@@ -429,7 +432,9 @@ function ReviewsCollectionScreenContent({
       )}
 
       {/* Owner action */}
-      {isOwnBusiness && <BusinessProfileFooter isOwnBusiness />}
+      {isOwnBusiness && !previewAsExplorer && (
+        <BusinessProfileFooter isOwnBusiness />
+      )}
 
       {/* Full review filter controls */}
       <ReviewFilterBottomSheet

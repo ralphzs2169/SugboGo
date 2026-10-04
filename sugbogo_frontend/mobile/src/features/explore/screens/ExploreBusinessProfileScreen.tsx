@@ -40,6 +40,7 @@ type Props = {
   businessId: number;
   distance: number | null;
   distanceAccuracy: number | null;
+  previewAsExplorer?: boolean;
 };
 
 /**
@@ -53,6 +54,7 @@ function ExploreBusinessProfileScreenContent({
   businessId,
   distance,
   distanceAccuracy,
+  previewAsExplorer = false,
 }: Props) {
   const { business, error, refetch } = useExploreBusinessProfile(businessId);
 
@@ -145,6 +147,8 @@ function ExploreBusinessProfileScreenContent({
   const quickInfoStatus = hoursSummary
     ? getQuickInfoStatus(hoursSummary)
     : null;
+  const showOwnerIndicators =
+    (business?.is_own_business ?? false) && !previewAsExplorer;
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -152,7 +156,7 @@ function ExploreBusinessProfileScreenContent({
         business={business}
         isRefreshing={isRefreshing}
         onRefresh={handleRefresh}
-        isOwnBusiness={business?.is_own_business ?? false}
+        isOwnBusiness={showOwnerIndicators}
       >
         {business && quickInfoStatus ? (
           <>
@@ -160,7 +164,7 @@ function ExploreBusinessProfileScreenContent({
             <View className=" bg-surface">
               <ExploreBusinessHero
                 business={business}
-                isOwnBusiness={business.is_own_business}
+                isOwnBusiness={showOwnerIndicators}
                 onShare={() => {}}
               />
 
@@ -184,6 +188,7 @@ function ExploreBusinessProfileScreenContent({
               businessId={business.id}
               specialtyTags={business.specialty_tags}
               isOwnBusiness={business.is_own_business}
+              displayAsExplorer={previewAsExplorer}
             />
 
             {/* Business about */}
@@ -220,7 +225,7 @@ function ExploreBusinessProfileScreenContent({
                 onViewRoute={handleViewRoute}
                 onJeepneyGuide={handleJeepneyGuide}
                 onRide={handleRide}
-                isOwnBusiness={business.is_own_business}
+                isOwnBusiness={showOwnerIndicators}
               />
             </BusinessProfileSection>
 
@@ -257,6 +262,7 @@ function ExploreBusinessProfileScreenContent({
                 businessId={business.id}
                 businessName={business.business_name}
                 isOwnBusiness={business.is_own_business}
+                displayAsExplorer={previewAsExplorer}
                 hasOwnReview={business.has_own_review}
                 reviewInsights={business.review_insights}
                 onWriteReview={handleCreateReview}
@@ -273,7 +279,7 @@ function ExploreBusinessProfileScreenContent({
       </BusinessProfileScrollView>
 
       {/* Owner management action */}
-      {business?.is_own_business && <BusinessProfileFooter isOwnBusiness />}
+      {showOwnerIndicators && <BusinessProfileFooter isOwnBusiness />}
 
       {/* Review composer */}
       {business && (
@@ -287,7 +293,7 @@ function ExploreBusinessProfileScreenContent({
       )}
 
       {/* Ride-provider selection */}
-      {business && !business.is_own_business && (
+      {business && !showOwnerIndicators && (
         <RideProviderSheet sheetRef={rideProviderRef} />
       )}
     </SafeAreaView>

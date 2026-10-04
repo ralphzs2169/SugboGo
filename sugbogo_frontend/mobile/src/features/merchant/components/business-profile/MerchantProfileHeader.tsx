@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import AppText from "@/shared/components/AppText";
 import { theme } from "@/constants/theme";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
@@ -166,7 +167,10 @@ export default function MerchantProfileHeader({
   return (
     <View className="bg-surface">
       {/* Business cover photo */}
-      <View className="relative h-52 w-full overflow-hidden rounded-b-3xl">
+      <View
+        testID="merchant-cover-hero"
+        className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary"
+      >
         {coverPhotoUrl ? (
           <Image
             source={{ uri: coverPhotoUrl }}
@@ -198,6 +202,50 @@ export default function MerchantProfileHeader({
             <ActivityIndicator size="small" color="#8A9691" />
           </View>
         )}
+
+        {/* Photo readability gradient and business identity */}
+        <LinearGradient
+          colors={[
+            "transparent",
+            "rgba(0,0,0,0.05)",
+            "rgba(0,0,0,0.3)",
+            "rgba(0,0,0,0.78)",
+          ]}
+          locations={[0, 0.4, 0.7, 1]}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 280,
+          }}
+          pointerEvents="none"
+        />
+        <View className="absolute bottom-9 left-5 right-5">
+          <View
+            className={`mb-2 self-start rounded-full px-3 py-1 ${
+              status === "active" ? "bg-success" : "bg-text-error"
+            }`}
+          >
+            <AppText weight="semibold" className="text-xs text-white">
+              {status === "active" ? "Active" : "Suspended"}
+            </AppText>
+          </View>
+          <AppText
+            weight="bold"
+            className="text-2xl text-white"
+            numberOfLines={2}
+          >
+            {businessName}
+          </AppText>
+          <AppText
+            weight="medium"
+            className="mt-1.5 text-sm text-white/90"
+            numberOfLines={2}
+          >
+            {classification}
+          </AppText>
+        </View>
 
         {/* Upload loading state */}
         {isUploading && (
@@ -239,35 +287,6 @@ export default function MerchantProfileHeader({
               </Text>
             </TouchableOpacity>
           )}
-        </View>
-      </View>
-
-      {/* Business identity */}
-      <View className="flex-row items-start gap-3 px-5 pb-4 pt-5">
-        <View className="flex-1">
-          <AppText
-            weight="bold"
-            className="text-2xl text-text-primary"
-            numberOfLines={2}
-          >
-            {businessName}
-          </AppText>
-          <AppText
-            className="mt-1 text-sm text-text-secondary"
-            numberOfLines={2}
-          >
-            {classification}
-          </AppText>
-        </View>
-        <View
-          className={`rounded-full px-3 py-1 ${status === "active" ? "bg-success/10" : "bg-error/10"}`}
-        >
-          <AppText
-            weight="semibold"
-            className={`text-xs ${status === "active" ? "text-success" : "text-error"}`}
-          >
-            {status === "active" ? "Active" : "Suspended"}
-          </AppText>
         </View>
       </View>
 
