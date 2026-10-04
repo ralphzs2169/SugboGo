@@ -141,4 +141,3 @@ class NotificationViewTests(NotificationFixtures, TestCase):
         self.assertEqual(self.client.get(self.count_url).data["data"]["unread_count"], 0)
         self.assertEqual(self.client.get(self.list_url).data["data"]["items"], [])
         self.assertEqual(self.client.post(self.all_url).data["data"]["updated_count"], 0)
-

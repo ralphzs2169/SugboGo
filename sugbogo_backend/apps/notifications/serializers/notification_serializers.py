@@ -32,4 +32,3 @@ class NotificationResponseSerializer(serializers.ModelSerializer):
             "id", "type", "title", "body", "target_type", "target_id",
             "is_read", "read_at", "created_at",
         )
-

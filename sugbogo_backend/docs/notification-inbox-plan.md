@@ -1,7 +1,7 @@
 # Notification inbox implementation and validation
 
 Branch: `feat/notification-inbox`
-Status: schema/API approved and implemented locally; awaiting final staging/commit approval.
+Status: schema/API approved, implemented, tested, and approved for commit/push.
 
 ## Scope
 

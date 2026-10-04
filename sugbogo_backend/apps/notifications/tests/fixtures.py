@@ -34,4 +34,3 @@ class NotificationFixtures:
         }
         values.update(overrides)
         return NotificationService.create(**values)
-
