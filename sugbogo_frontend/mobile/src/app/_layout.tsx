@@ -6,6 +6,15 @@ import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import {
+  NunitoSans_400Regular,
+  NunitoSans_500Medium,
+  NunitoSans_600SemiBold,
+  NunitoSans_700Bold,
+  NunitoSans_800ExtraBold,
+  NunitoSans_900Black,
+  useFonts,
+} from "@expo-google-fonts/nunito-sans";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -25,7 +34,20 @@ import "../../global.css";
 export default function RootLayout() {
   useRestoreSession();
 
+  const [fontsLoaded] = useFonts({
+    NunitoSans_400Regular,
+    NunitoSans_500Medium,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
+    NunitoSans_800ExtraBold,
+    NunitoSans_900Black,
+  });
+
   const isLoading = useAuthStore((state) => state.isLoading);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   if (isLoading) {
     return <AppSplash />;
