@@ -169,7 +169,7 @@ export default function MerchantProfileHeader({
       {/* Business cover photo */}
       <View
         testID="merchant-cover-hero"
-        className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary"
+        className="relative h-[23rem] w-full overflow-hidden bg-surface-secondary"
       >
         {coverPhotoUrl ? (
           <Image
@@ -221,7 +221,12 @@ export default function MerchantProfileHeader({
           }}
           pointerEvents="none"
         />
-        <View className="absolute bottom-9 left-5 right-5">
+        {/* The sheet edge covers the image before its bottom boundary. */}
+        <View
+          pointerEvents="none"
+          className="absolute bottom-0 left-0 right-0 h-12 rounded-t-3xl bg-surface"
+        />
+        <View className="absolute bottom-[4.5rem] left-5 right-5">
           <View
             className={`mb-2 self-start rounded-full px-3 py-1 ${
               status === "active" ? "bg-success" : "bg-text-error"
