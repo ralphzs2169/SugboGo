@@ -19,7 +19,9 @@ import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchant
 import useUpdateMerchantBusinessInformation from "../../hooks/business-profile/useUpdateMerchantBusinessInformation";
 import { merchantBusinessInformationSchema } from "../../validation/merchantBusinessInformation.schema";
 
-type BusinessInformationForm = z.infer<typeof merchantBusinessInformationSchema>;
+type BusinessInformationForm = z.infer<
+  typeof merchantBusinessInformationSchema
+>;
 
 /** Edits the live business description and contact details with server-backed feedback. */
 export default function MerchantBusinessInformationEditScreen() {
@@ -134,10 +136,12 @@ export default function MerchantBusinessInformationEditScreen() {
 
   if (!business) {
     return (
-      <View className="flex-1 bg-background">
+      <View className="flex-1 bg-surface">
         <ErrorState
           title="Unable to load business information"
-          description={error ? "Please try again." : "Business information is unavailable."}
+          description={
+            error ? "Please try again." : "Business information is unavailable."
+          }
           primaryActionTitle="Retry"
           onPrimaryAction={refetch}
           secondaryActionTitle="Go Back"
@@ -149,7 +153,7 @@ export default function MerchantBusinessInformationEditScreen() {
 
   if (business.status === "suspended") {
     return (
-      <View className="flex-1 bg-background">
+      <View className="flex-1 bg-surface">
         <ErrorState
           title="Editing unavailable"
           description="Business information cannot be edited while your business is suspended."
@@ -163,7 +167,7 @@ export default function MerchantBusinessInformationEditScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      className="flex-1 bg-background"
+      className="flex-1 bg-surface"
     >
       {/* Operational information form */}
       <ScrollView
@@ -250,12 +254,14 @@ export default function MerchantBusinessInformationEditScreen() {
           className="flex-1"
           onPress={() => router.back()}
           disabled={isSaving || form.formState.isSubmitting}
+          rounded="full"
         />
         <Button
           title="Save Changes"
           className="flex-1"
           onPress={() => void form.handleSubmit(submitValues)()}
           loading={isSaving || form.formState.isSubmitting}
+          rounded="full"
         />
       </View>
     </KeyboardAvoidingView>

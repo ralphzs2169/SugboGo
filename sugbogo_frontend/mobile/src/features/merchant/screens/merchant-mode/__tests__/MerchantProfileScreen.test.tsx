@@ -69,15 +69,18 @@ jest.mock("../../../components/business-profile/MerchantProfileHeader", () => {
   return function MockHeader({
     businessName,
     status,
+    clusterIcon,
     onPendingNameChange,
   }: {
     businessName: string;
     status: string;
+    clusterIcon?: string;
     onPendingNameChange?: () => void;
   }) {
     return (
       <>
         <Text>{businessName}</Text>
+        <Text testID="cluster-icon-key">{clusterIcon ?? ""}</Text>
         <Text>{status === "active" ? "Active" : "Suspended"}</Text>
         {onPendingNameChange ? (
           <Pressable
@@ -93,36 +96,75 @@ jest.mock("../../../components/business-profile/MerchantProfileHeader", () => {
 });
 
 jest.mock(
+  "../../../components/business-profile/MerchantProfileStickyHeader",
+  () => {
+    const { Pressable, Text, View } = jest.requireActual("react-native");
+    return function MockStickyHeader({
+      visible,
+      businessName,
+      onManageBusiness,
+    }: {
+      visible: boolean;
+      businessName: string;
+      onManageBusiness: () => void;
+    }) {
+      return (
+        <View
+          testID="merchant-profile-sticky-header"
+          pointerEvents={visible ? "auto" : "none"}
+        >
+          {visible ? (
+            <Pressable
+              onPress={onManageBusiness}
+              accessibilityLabel="Manage business from sticky header"
+            >
+              <Text>{businessName}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      );
+    };
+  },
+);
+
+jest.mock("../../../components/business-profile/MerchantBusinessStory", () => {
+  const { Pressable, Text } = jest.requireActual("react-native");
+  return function MockStory({
+    pendingClassificationRequest,
+    onClassificationHistory,
+  }: {
+    pendingClassificationRequest?: { id: number };
+    onClassificationHistory?: () => void;
+  }) {
+    return pendingClassificationRequest ? (
+      <Pressable
+        onPress={onClassificationHistory}
+        accessibilityLabel="View pending classification request"
+      >
+        <Text>Classification Pending review</Text>
+      </Pressable>
+    ) : null;
+  };
+});
+
+jest.mock(
   "../../../components/business-profile/MerchantBusinessOverview",
   () => {
     const { Pressable, Text, View } = jest.requireActual("react-native");
     return function MockOverview({
-      pendingClassificationRequest,
-      clusterIcon,
       pendingLocationRequest,
-      onClassificationHistory,
       onLocationHistory,
       onSwitchToExplorer,
+      isSwitchingToExplorer,
     }: {
-      pendingClassificationRequest?: { id: number };
-      clusterIcon?: string;
       pendingLocationRequest?: { id: number };
-      onClassificationHistory?: () => void;
       onLocationHistory?: () => void;
       onSwitchToExplorer?: () => void;
+      isSwitchingToExplorer?: boolean;
     }) {
       return (
         <View>
           <Text>Business details</Text>
-          <Text testID="cluster-icon-key">{clusterIcon ?? ""}</Text>
-          {pendingClassificationRequest ? (
-            <Pressable
-              onPress={onClassificationHistory}
-              accessibilityLabel="View pending classification request"
-            >
-              <Text>Classification Pending review</Text>
-            </Pressable>
-          ) : null}
           {pendingLocationRequest ? (
             <Pressable
               onPress={onLocationHistory}
@@ -131,8 +173,20 @@ jest.mock(
               <Text>Location Pending review</Text>
             </Pressable>
           ) : null}
-          <Pressable onPress={onSwitchToExplorer}>
-            <Text>Switch to Explorer</Text>
+          <Pressable
+            onPress={onSwitchToExplorer}
+            disabled={isSwitchingToExplorer}
+            accessibilityState={{
+              disabled: isSwitchingToExplorer,
+              busy: isSwitchingToExplorer,
+            }}
+            testID="merchant-switch-to-explorer"
+          >
+            <Text>
+              {isSwitchingToExplorer
+                ? "Switching to Explorer..."
+                : "Switch to Explorer"}
+            </Text>
           </Pressable>
         </View>
       );
@@ -283,6 +337,63 @@ describe("MerchantProfileScreen", () => {
     expect(router.push).toHaveBeenCalledWith("/(merchant)/manage-business");
     await fireEvent.press(screen.getByText("Switch to Explorer"));
     expect(router.replace).toHaveBeenCalledWith("/(explorer)/(tabs)/explore");
+    expect(screen.getByText("Switching to Explorer...")).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-switch-to-explorer").props
+        .accessibilityState,
+    ).toEqual({ disabled: true, busy: true });
+    await fireEvent.press(screen.getByTestId("merchant-switch-to-explorer"));
+    expect(router.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("reveals compact business identity after the hero scrolls away", async () => {
+    mockProfile.mockReturnValue({
+      business: {
+        id: 7,
+        business_name: "Sugbo Bistro",
+        category: { id: 1, name: "Restaurant" },
+        cluster: { id: 1, name: "Culinary" },
+        status: "active",
+        cover_photo_url: null,
+        cover_photo_update: { limit: 3, remaining: 1, resets_at: null },
+      },
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+    const sticky = screen.getByTestId("merchant-profile-sticky-header");
+    const scroll = screen.getByTestId("merchant-profile-scroll");
+
+    expect(sticky.props.pointerEvents).toBe("none");
+    await fireEvent(
+      screen.getByTestId("merchant-profile-hero-container"),
+      "onLayout",
+      {
+        nativeEvent: { layout: { height: 304 } },
+      },
+    );
+    await fireEvent.scroll(scroll, {
+      nativeEvent: { contentOffset: { y: 200 } },
+    });
+    expect(sticky.props.pointerEvents).toBe("none");
+    await fireEvent.scroll(scroll, {
+      nativeEvent: { contentOffset: { y: 250 } },
+    });
+    expect(
+      screen.getByTestId("merchant-profile-sticky-header").props.pointerEvents,
+    ).toBe("auto");
+    await fireEvent.press(
+      screen.getByLabelText("Manage business from sticky header"),
+    );
+    expect(router.push).toHaveBeenCalledWith("/(merchant)/manage-business");
+    await fireEvent.scroll(scroll, {
+      nativeEvent: { contentOffset: { y: 0 } },
+    });
+    expect(
+      screen.getByTestId("merchant-profile-sticky-header").props.pointerEvents,
+    ).toBe("none");
   });
 
   it("consolidates multiple pending changes while keeping section detail links", async () => {

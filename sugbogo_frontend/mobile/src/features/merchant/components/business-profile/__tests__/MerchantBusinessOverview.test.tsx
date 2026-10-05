@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Linking } from "react-native";
 
 import type { MerchantBusinessProfileResponse } from "../../../types/merchantBusinessProfile.types";
 import MerchantBusinessOverview from "../MerchantBusinessOverview";
@@ -14,6 +14,25 @@ jest.mock(
     };
   },
 );
+
+jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => {
+  const { Pressable, Text } = jest.requireActual("react-native");
+  return function MockPhotoViewer({
+    visible,
+    initialIndex,
+    onClose,
+  }: {
+    visible: boolean;
+    initialIndex: number;
+    onClose: () => void;
+  }) {
+    return visible ? (
+      <Pressable onPress={onClose}>
+        <Text>Photo viewer {initialIndex + 1}</Text>
+      </Pressable>
+    ) : null;
+  };
+});
 
 const business: MerchantBusinessProfileResponse = {
   id: 7,
@@ -85,25 +104,11 @@ const business: MerchantBusinessProfileResponse = {
 describe("MerchantBusinessOverview", () => {
   it("shows live summaries without raw fields or reviewed-change actions", async () => {
     const screen = await render(
-      <MerchantBusinessOverview business={business} clusterIcon="utensils" />,
+      <MerchantBusinessOverview business={business} />,
     );
 
-    expect(screen.getByText("Local Cebu food")).toBeTruthy();
-    expect(screen.getByText("Restaurants")).toBeTruthy();
-    expect(screen.getByText("Food and Dining")).toBeTruthy();
-    expect(screen.queryByText("Restaurants · Food and Dining")).toBeNull();
-    const clusterGlyph = String.fromCodePoint(
-      Number(MaterialCommunityIcons.glyphMap["silverware-fork-knife"]),
-    );
-    expect(screen.getAllByText(clusterGlyph).length).toBeGreaterThan(0);
-    expect(screen.getByText("Specialties")).toBeTruthy();
-    expect(screen.getByText("Lechon")).toBeTruthy();
-    expect(screen.getByText("Local Food")).toBeTruthy();
-    expect(screen.getByText("Coffee")).toBeTruthy();
-    const specialtyGlyph = String.fromCodePoint(
-      Number(MaterialCommunityIcons.glyphMap["tag-outline"]),
-    );
-    expect(screen.getByText(specialtyGlyph)).toBeTruthy();
+    expect(screen.queryByText("Classification")).toBeNull();
+    expect(screen.getByText("Business details")).toBeTruthy();
     expect(screen.queryByText(/vouches?/i)).toBeNull();
     expect(screen.getByText("Gorordo Avenue")).toBeTruthy();
     expect(screen.getByText("1 landmark")).toBeTruthy();
@@ -132,30 +137,77 @@ describe("MerchantBusinessOverview", () => {
     expect(screen.getByText("registration.pdf")).toBeTruthy();
   });
 
+  it("shows 24-hour opening once in the collapsed hours summary", async () => {
+    const today = new Date()
+      .toLocaleDateString("en-US", { weekday: "long" })
+      .toLowerCase();
+    const screen = await render(
+      <MerchantBusinessOverview
+        business={{
+          ...business,
+          operating_hours: [
+            {
+              day: today,
+              is_open: true,
+              is_24_hours: true,
+              open_time: null,
+              close_time: null,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText("Open 24 hours")).toHaveLength(1);
+    expect(screen.queryByText("Today")).toBeNull();
+    await fireEvent.press(screen.getByText("View weekly schedule"));
+    expect(screen.getAllByText("Open 24 hours")).toHaveLength(2);
+  });
+
+  it("keeps contact details available without expanding them by default", async () => {
+    const openUrl = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const screen = await render(
+      <MerchantBusinessOverview business={business} />,
+    );
+
+    expect(screen.queryByText("hello@example.com")).toBeNull();
+    await fireEvent.press(screen.getByText("Contact details"));
+    expect(screen.getByText("+639171234567")).toBeTruthy();
+    expect(screen.getByText("hello@example.com")).toBeTruthy();
+    expect(screen.getByText("https://example.com")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Open phone: +639171234567"));
+    expect(openUrl).toHaveBeenCalledWith("tel:+639171234567");
+    await fireEvent.press(
+      screen.getByLabelText("Open email: hello@example.com"),
+    );
+    expect(openUrl).toHaveBeenCalledWith("mailto:hello@example.com");
+    await fireEvent.press(
+      screen.getByLabelText("Open website: https://example.com"),
+    );
+    expect(openUrl).toHaveBeenCalledWith("https://example.com");
+    openUrl.mockRestore();
+  });
+
   it("keeps direct edits and pending details available while restricting suspended edits", async () => {
-    const onEditInformation = jest.fn();
     const onEditOperatingHours = jest.fn();
     const onManagePhotos = jest.fn();
     const onPending = jest.fn();
     const screen = await render(
       <MerchantBusinessOverview
         business={business}
-        onEditInformation={onEditInformation}
         onEditOperatingHours={onEditOperatingHours}
         onManagePhotos={onManagePhotos}
-        pendingClassificationRequest={{ id: 4 } as never}
-        onClassificationHistory={onPending}
+        pendingLocationRequest={{ id: 4 } as never}
+        onLocationHistory={onPending}
       />,
     );
 
-    await fireEvent.press(screen.getByLabelText("Edit business information"));
     await fireEvent.press(screen.getByLabelText("Edit operating hours"));
     await fireEvent.press(screen.getByLabelText("Manage photos"));
     expect(screen.getByText("Pending review")).toBeTruthy();
     await fireEvent.press(
-      screen.getByLabelText("View pending classification request"),
+      screen.getByLabelText("View pending location request"),
     );
-    expect(onEditInformation).toHaveBeenCalledTimes(1);
     expect(onEditOperatingHours).toHaveBeenCalledTimes(1);
     expect(onManagePhotos).toHaveBeenCalledTimes(1);
     expect(onPending).toHaveBeenCalledTimes(1);
@@ -163,10 +215,10 @@ describe("MerchantBusinessOverview", () => {
     const suspended = await render(
       <MerchantBusinessOverview
         business={{ ...business, status: "suspended" }}
-        onEditInformation={onEditInformation}
+        onEditOperatingHours={onEditOperatingHours}
       />,
     );
-    expect(suspended.queryByLabelText("Edit business information")).toBeNull();
+    expect(suspended.queryByLabelText("Edit operating hours")).toBeNull();
   });
 
   it("keeps location pending contextual and the mode switch in More", async () => {
@@ -192,24 +244,26 @@ describe("MerchantBusinessOverview", () => {
     expect(screen.queryByText("Change Requests")).toBeNull();
   });
 
-  it("retains classification request-status loading feedback", async () => {
-    const loading = await render(
-      <MerchantBusinessOverview business={business} isCheckingClassification />,
-    );
-    expect(loading.getByText("Checking request status...")).toBeTruthy();
-  });
-
-  it("retains classification request-status retry feedback", async () => {
-    const onRetryClassification = jest.fn();
-    const failed = await render(
+  it("shows switching feedback and disables the Explorer mode row", async () => {
+    const onSwitchToExplorer = jest.fn();
+    const screen = await render(
       <MerchantBusinessOverview
         business={business}
-        hasClassificationError
-        onRetryClassification={onRetryClassification}
+        onSwitchToExplorer={onSwitchToExplorer}
+        isSwitchingToExplorer
       />,
     );
-    await fireEvent.press(failed.getByText("Retry request status"));
-    expect(onRetryClassification).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByText("Switching to Explorer...")).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-switch-loading-indicator"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-switch-to-explorer").props
+        .accessibilityState,
+    ).toEqual({ disabled: true, busy: true });
+    await fireEvent.press(screen.getByTestId("merchant-switch-to-explorer"));
+    expect(onSwitchToExplorer).not.toHaveBeenCalled();
   });
 
   it("limits the photo preview to thumbnails without filenames", async () => {
@@ -227,5 +281,9 @@ describe("MerchantBusinessOverview", () => {
     expect(screen.getByText("4 business photos")).toBeTruthy();
     expect(screen.getByText("+1")).toBeTruthy();
     expect(screen.queryByText("upload-1.jpg")).toBeNull();
+    await fireEvent.press(screen.getByLabelText("View business photo 2"));
+    expect(screen.getByText("Photo viewer 2")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Photo viewer 2"));
+    expect(screen.queryByText("Photo viewer 2")).toBeNull();
   });
 });

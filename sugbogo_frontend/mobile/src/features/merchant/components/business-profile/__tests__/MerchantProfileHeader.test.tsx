@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import MerchantProfileHeader from "../MerchantProfileHeader";
 
@@ -57,6 +58,7 @@ async function renderHeader(remaining: number) {
     <MerchantProfileHeader
       businessName="Sugbo Bistro"
       classification="Restaurant · Culinary"
+      clusterIcon="utensils"
       status="active"
       coverPhotoUrl={null}
       coverPhotoUpdate={allowance}
@@ -83,6 +85,10 @@ describe("MerchantProfileHeader cover allowance", () => {
     const hero = screen.getByTestId("merchant-cover-hero");
     expect(within(hero).getByText("Sugbo Bistro")).toBeTruthy();
     expect(within(hero).getByText("Restaurant · Culinary")).toBeTruthy();
+    const clusterGlyph = String.fromCodePoint(
+      Number(MaterialCommunityIcons.glyphMap["silverware-fork-knife"]),
+    );
+    expect(within(hero).getByText(clusterGlyph)).toBeTruthy();
     expect(screen.queryByText("Name change pending")).toBeNull();
   });
 

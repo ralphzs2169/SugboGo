@@ -7,6 +7,8 @@ import AppText from "@/shared/components/AppText";
 import { theme } from "@/constants/theme";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import Toast from "react-native-toast-message";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
+import type { ClusterIcon } from "@/shared/types/cluster.types";
 
 import { useImagePicker } from "@/features/profile/hooks/useImagePicker";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
@@ -17,6 +19,7 @@ import MerchantCoverPhotoBottomSheet from "./MerchantCoverPhotoBottomSheet";
 type MerchantProfileHeaderProps = {
   businessName: string;
   classification: string;
+  clusterIcon?: ClusterIcon;
   status: "active" | "suspended";
   coverPhotoUrl?: string | null;
   onEditCover: (imageUri: string) => void;
@@ -36,6 +39,7 @@ type MerchantProfileHeaderProps = {
 export default function MerchantProfileHeader({
   businessName,
   classification,
+  clusterIcon,
   status,
   coverPhotoUrl,
   onEditCover,
@@ -171,7 +175,9 @@ export default function MerchantProfileHeader({
       {/* Business cover photo */}
       <View
         testID="merchant-cover-hero"
-        className="relative h-[23rem] w-full overflow-hidden bg-surface-secondary"
+        className={`relative w-full overflow-hidden bg-surface-secondary ${
+          onPendingNameChange ? "h-[22rem]" : "h-[19rem]"
+        }`}
       >
         {coverPhotoUrl ? (
           <Image
@@ -226,9 +232,9 @@ export default function MerchantProfileHeader({
         {/* The sheet edge covers the image before its bottom boundary. */}
         <View
           pointerEvents="none"
-          className="absolute bottom-0 left-0 right-0 h-12 rounded-t-3xl bg-surface"
+          className="absolute bottom-0 left-0 right-0 h-10 rounded-t-3xl bg-surface"
         />
-        <View className="absolute bottom-[4.5rem] left-5 right-5">
+        <View className="absolute bottom-[3.5rem] left-5 right-5">
           <View
             className={`mb-2 self-start rounded-full px-3 py-1 ${
               status === "active" ? "bg-success" : "bg-text-error"
@@ -245,13 +251,22 @@ export default function MerchantProfileHeader({
           >
             {businessName}
           </AppText>
-          <AppText
-            weight="medium"
-            className="mt-1.5 text-sm text-white/90"
-            numberOfLines={2}
-          >
-            {classification}
-          </AppText>
+          <View className="mt-1.5 flex-row items-center gap-1.5">
+            {clusterIcon ? (
+              <MaterialCommunityIcons
+                name={CLUSTER_ICONS[clusterIcon]}
+                size={16}
+                color="#FFFFFF"
+              />
+            ) : null}
+            <AppText
+              weight="medium"
+              className="min-w-0 flex-1 text-sm text-white/90"
+              numberOfLines={2}
+            >
+              {classification}
+            </AppText>
+          </View>
           {onPendingNameChange ? (
             <TouchableOpacity
               onPress={onPendingNameChange}

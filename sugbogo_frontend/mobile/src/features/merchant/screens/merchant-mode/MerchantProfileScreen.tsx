@@ -1,5 +1,12 @@
-import { useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  Animated,
+  RefreshControl,
+  ScrollView,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
@@ -18,13 +25,17 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 import { formatRetryTime } from "@/shared/utils/date.utils";
 
 import MerchantBusinessOverview from "../../components/business-profile/MerchantBusinessOverview";
+import MerchantBusinessStory from "../../components/business-profile/MerchantBusinessStory";
 import MerchantProfileHeader from "../../components/business-profile/MerchantProfileHeader";
+import MerchantProfileStickyHeader from "../../components/business-profile/MerchantProfileStickyHeader";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
 import { useMerchantBusinessNameChangeRequests } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
 import { useMerchantClassificationChangeRequests } from "../../hooks/classification-change/useMerchantClassificationChanges";
 import { useMerchantLocationChangeRequests } from "../../hooks/location-change/useMerchantLocationChanges";
 import useClusters from "../../hooks/registration/useClusters";
+
+const STICKY_REVEAL_INSET = 64;
 
 /**
  * Displays the merchant's live business profile and its primary management
@@ -59,6 +70,12 @@ export default function MerchantProfileScreen() {
   } = useMerchantLocationChangeRequests();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSwitchingMode, setIsSwitchingMode] = useState(false);
+  const heroHeightRef = useRef(0);
+  const [isStickyVisible, setIsStickyVisible] = useState(false);
+  const stickyVisibleRef = useRef(false);
+  const [stickyOpacity] = useState(() => new Animated.Value(0));
+  const [stickyTranslateY] = useState(() => new Animated.Value(-16));
 
   useQueryErrorNotification({
     error,
@@ -87,8 +104,51 @@ export default function MerchantProfileScreen() {
   };
 
   const handleSwitchToExplorer = () => {
+    if (isSwitchingMode) {
+      return;
+    }
+
+    setIsSwitchingMode(true);
     setActiveMode("explorer");
     router.replace("/(explorer)/(tabs)/explore");
+
+    Toast.show({
+      type: "info",
+      text1: "Switched to Explorer Mode",
+    });
+  };
+
+  const handleManageBusiness = () => {
+    router.push("/(merchant)/manage-business" as Href);
+  };
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (heroHeightRef.current === 0) {
+      return;
+    }
+
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const shouldShow = offsetY >= heroHeightRef.current - STICKY_REVEAL_INSET;
+
+    if (shouldShow === stickyVisibleRef.current) {
+      return;
+    }
+
+    stickyVisibleRef.current = shouldShow;
+    setIsStickyVisible(shouldShow);
+
+    Animated.parallel([
+      Animated.timing(stickyOpacity, {
+        toValue: shouldShow ? 1 : 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(stickyTranslateY, {
+        toValue: shouldShow ? 0 : -16,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   const handlePreview = () => {
@@ -202,163 +262,192 @@ export default function MerchantProfileScreen() {
   }
 
   const pendingCount = pendingChanges.length;
+  const clusterIcon = clusters.find(
+    (cluster) => cluster.id === business.cluster.id,
+  )?.icon;
 
   const handlePendingChangesPress = () => {
     router.push("/(merchant)/change-requests" as Href);
   };
 
   return (
-    <SafeAreaView
-      edges={["top", "left", "right"]}
-      className="flex-1 bg-background"
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="flex-grow"
-        contentContainerStyle={{
-          paddingBottom: bottomSpacing,
-        }}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
-        }
+    <View className="flex-1 bg-background">
+      <SafeAreaView
+        edges={["top", "left", "right"]}
+        className="flex-1 bg-background"
       >
-        {/* Business identity hero */}
-        <MerchantProfileHeader
-          businessName={business.business_name}
-          classification={`${business.category.name} · ${business.cluster.name}`}
-          status={business.status}
-          coverPhotoUrl={business.cover_photo_url}
-          isUploading={isUploading}
-          coverPhotoUpdate={business.cover_photo_update}
-          onCheckCoverAllowance={checkCoverAllowance}
-          onEditCover={handleEditCover}
-          onPendingNameChange={
-            pendingRequest
-              ? () => router.push(pendingChanges[0].href)
-              : undefined
+        <ScrollView
+          testID="merchant-profile-scroll"
+          className="flex-1"
+          contentContainerClassName="flex-grow"
+          contentContainerStyle={{
+            paddingBottom: bottomSpacing,
+          }}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+            />
           }
-        />
-
-        {/* Profile content */}
-        <View className="relative z-10 -mt-8">
-          {/* Overlapping profile action sheet */}
-          <View className="rounded-t-[28px] bg-surface pt-3">
-            {/* Primary profile actions */}
-            <View
-              testID="merchant-profile-actions"
-              className="flex-row gap-2 px-5 py-3"
-            >
-              <SafePressable
-                onPress={handlePreview}
-                accessibilityRole="button"
-                className="min-h-12 min-w-0 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl border border-border-primary bg-surface px-2 active:bg-background"
-              >
-                <MaterialCommunityIcons
-                  name="eye-outline"
-                  size={18}
-                  color={theme.extends.colors.text.primary}
-                />
-
-                <AppText
-                  weight="semibold"
-                  className="ml-2 flex-shrink text-center text-xs text-text-primary"
-                  numberOfLines={2}
-                >
-                  Preview as Explorer
-                </AppText>
-              </SafePressable>
-
-              <SafePressable
-                onPress={() =>
-                  router.push("/(merchant)/manage-business" as Href)
-                }
-                accessibilityRole="button"
-                className="min-h-12 min-w-0 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl bg-brand px-2 active:opacity-80"
-              >
-                <MaterialCommunityIcons
-                  name="cog-outline"
-                  size={18}
-                  color="#FFFFFF"
-                />
-
-                <AppText
-                  weight="semibold"
-                  className="ml-2 flex-shrink text-center text-xs text-white"
-                  numberOfLines={2}
-                >
-                  Manage Business
-                </AppText>
-              </SafePressable>
-            </View>
-
-            {/* Multiple pending requests share one quiet history shortcut. */}
-            {pendingCount > 1 ? (
-              <SafePressable
-                onPress={handlePendingChangesPress}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${pendingCount} changes under review`}
-                className="mx-5 min-h-12 cursor-pointer flex-row items-center border-t border-border-primary active:bg-background"
-              >
-                <MaterialCommunityIcons
-                  name="clock-outline"
-                  size={18}
-                  color={theme.extends.colors.text.secondary}
-                />
-                <AppText
-                  weight="medium"
-                  className="ml-3 flex-1 text-sm text-text-secondary"
-                >
-                  {pendingCount} changes under review
-                </AppText>
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={20}
-                  color={theme.extends.colors.text.secondary}
-                />
-              </SafePressable>
-            ) : null}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Business identity hero */}
+          <View
+            testID="merchant-profile-hero-container"
+            onLayout={(event) => {
+              heroHeightRef.current = event.nativeEvent.layout.height;
+            }}
+          >
+            <MerchantProfileHeader
+              businessName={business.business_name}
+              classification={`${business.category.name} · ${business.cluster.name}`}
+              clusterIcon={clusterIcon}
+              status={business.status}
+              coverPhotoUrl={business.cover_photo_url}
+              isUploading={isUploading}
+              coverPhotoUpdate={business.cover_photo_update}
+              onCheckCoverAllowance={checkCoverAllowance}
+              onEditCover={handleEditCover}
+              onPendingNameChange={
+                pendingRequest
+                  ? () => router.push(pendingChanges[0].href)
+                  : undefined
+              }
+            />
           </View>
 
-          {/* Keep existing overview section styling intact */}
-          <MerchantBusinessOverview
-            business={business}
-            clusterIcon={
-              clusters.find((cluster) => cluster.id === business.cluster.id)
-                ?.icon
-            }
-            pendingClassificationRequest={pendingClassificationRequest}
-            isCheckingClassification={isCheckingClassification}
-            hasClassificationError={Boolean(classificationError)}
-            onClassificationHistory={() =>
-              router.push(
-                pendingClassificationRequest
-                  ? (`/(merchant)/business-update-requests/classification/${pendingClassificationRequest.id}` as Href)
-                  : ("/(merchant)/business-update-requests/classification" as Href),
-              )
-            }
-            onRetryClassification={() => void refetchClassification()}
-            pendingLocationRequest={pendingLocationRequest}
-            isCheckingLocation={isCheckingLocation}
-            hasLocationError={Boolean(locationError)}
-            onLocationHistory={() =>
-              router.push(
-                pendingLocationRequest
-                  ? (`/(merchant)/business-update-requests/location/${pendingLocationRequest.id}` as Href)
-                  : ("/(merchant)/business-update-requests/location" as Href),
-              )
-            }
-            onRetryLocation={() => void refetchLocation()}
-            onEditInformation={() =>
-              router.push("/(merchant)/business-information")
-            }
-            onEditOperatingHours={() =>
-              router.push("/(merchant)/operating-hours")
-            }
-            onManagePhotos={() => router.push("/(merchant)/business-photos")}
-            onSwitchToExplorer={handleSwitchToExplorer}
-          />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          {/* Profile content */}
+          <View className="relative z-10 -mt-8">
+            {/* Overlapping profile action sheet */}
+            <View className="rounded-t-[28px] bg-surface pt-3">
+              <MerchantBusinessStory
+                business={business}
+                pendingClassificationRequest={pendingClassificationRequest}
+                isCheckingClassification={isCheckingClassification}
+                hasClassificationError={Boolean(classificationError)}
+                onClassificationHistory={() =>
+                  router.push(
+                    pendingClassificationRequest
+                      ? (`/(merchant)/business-update-requests/classification/${pendingClassificationRequest.id}` as Href)
+                      : ("/(merchant)/business-update-requests/classification" as Href),
+                  )
+                }
+                onRetryClassification={() => void refetchClassification()}
+                onEditInformation={() =>
+                  router.push("/(merchant)/business-information")
+                }
+              />
+
+              {/* Primary profile actions */}
+              <View
+                testID="merchant-profile-actions"
+                className="flex-row gap-2 px-5 py-3"
+              >
+                <SafePressable
+                  onPress={handlePreview}
+                  accessibilityRole="button"
+                  className="min-h-12 min-w-0 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl border border-border-primary bg-surface px-2 active:bg-background"
+                >
+                  <MaterialCommunityIcons
+                    name="eye-outline"
+                    size={18}
+                    color={theme.extends.colors.text.primary}
+                  />
+
+                  <AppText
+                    weight="semibold"
+                    className="ml-2 flex-shrink text-center text-xs text-text-primary"
+                    numberOfLines={2}
+                  >
+                    Preview as Explorer
+                  </AppText>
+                </SafePressable>
+
+                <SafePressable
+                  onPress={handleManageBusiness}
+                  accessibilityRole="button"
+                  className="min-h-12 min-w-0 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl bg-brand px-2 active:opacity-80"
+                >
+                  <MaterialCommunityIcons
+                    name="cog-outline"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+
+                  <AppText
+                    weight="semibold"
+                    className="ml-2 flex-shrink text-center text-xs text-white"
+                    numberOfLines={2}
+                  >
+                    Manage Business
+                  </AppText>
+                </SafePressable>
+              </View>
+
+              {/* Multiple pending requests share one quiet history shortcut. */}
+              {pendingCount > 1 ? (
+                <SafePressable
+                  onPress={handlePendingChangesPress}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${pendingCount} changes under review`}
+                  className="mx-5 min-h-12 cursor-pointer flex-row items-center border-t border-border-primary active:bg-background"
+                >
+                  <MaterialCommunityIcons
+                    name="clock-outline"
+                    size={18}
+                    color={theme.extends.colors.text.secondary}
+                  />
+                  <AppText
+                    weight="medium"
+                    className="ml-3 flex-1 text-sm text-text-secondary"
+                  >
+                    {pendingCount} changes under review
+                  </AppText>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={20}
+                    color={theme.extends.colors.text.secondary}
+                  />
+                </SafePressable>
+              ) : null}
+            </View>
+
+            {/* Business story, photos, and practical details */}
+            <MerchantBusinessOverview
+              business={business}
+              pendingLocationRequest={pendingLocationRequest}
+              isCheckingLocation={isCheckingLocation}
+              hasLocationError={Boolean(locationError)}
+              onLocationHistory={() =>
+                router.push(
+                  pendingLocationRequest
+                    ? (`/(merchant)/business-update-requests/location/${pendingLocationRequest.id}` as Href)
+                    : ("/(merchant)/business-update-requests/location" as Href),
+                )
+              }
+              onRetryLocation={() => void refetchLocation()}
+              onEditOperatingHours={() =>
+                router.push("/(merchant)/operating-hours")
+              }
+              onManagePhotos={() => router.push("/(merchant)/business-photos")}
+              onSwitchToExplorer={handleSwitchToExplorer}
+              isSwitchingToExplorer={isSwitchingMode}
+            />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+      <MerchantProfileStickyHeader
+        businessName={business.business_name}
+        classification={`${business.category.name} · ${business.cluster.name}`}
+        coverPhotoUrl={business.cover_photo_url}
+        clusterIcon={clusterIcon}
+        visible={isStickyVisible}
+        opacity={stickyOpacity}
+        translateY={stickyTranslateY}
+        onManageBusiness={handleManageBusiness}
+      />
+    </View>
   );
 }

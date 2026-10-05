@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Image } from "expo-image";
-import { Pressable, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
-import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
-import type { ClusterIcon } from "@/shared/types/cluster.types";
+import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 import LocationPickerMap from "@/features/merchant/components/registration/location/LocationPickerMap";
 import { getBusinessAddressDisplay } from "@/features/explore/utils/businessLocation.utils";
 import {
@@ -18,7 +17,6 @@ import type {
   MerchantBusinessOperatingHours,
   MerchantBusinessProfileResponse,
 } from "../../types/merchantBusinessProfile.types";
-import type { ClassificationChangeRequest } from "../../types/classificationChange.types";
 import type { LocationChangeRequest } from "../../types/locationChange.types";
 
 const DAYS = [
@@ -70,7 +68,7 @@ function SummarySection({
 
   return (
     <View className="mb-2 bg-surface px-5 py-4">
-      <View className="mb-2 flex-row items-center justify-between gap-2">
+      <View className="mb-3 flex-row items-center justify-between gap-2 border-b border-border-primary pb-2">
         <AppText weight="bold" className="flex-1 text-base text-text-primary">
           {title}
         </AppText>
@@ -115,16 +113,10 @@ function SummarySection({
 /** Shows the live merchant listing as concise, glanceable sections. */
 export default function MerchantBusinessOverview({
   business,
-  clusterIcon,
-  onEditInformation,
   onEditOperatingHours,
   onManagePhotos,
   onSwitchToExplorer,
-  pendingClassificationRequest,
-  isCheckingClassification,
-  hasClassificationError,
-  onClassificationHistory,
-  onRetryClassification,
+  isSwitchingToExplorer = false,
   pendingLocationRequest,
   isCheckingLocation,
   hasLocationError,
@@ -132,16 +124,10 @@ export default function MerchantBusinessOverview({
   onRetryLocation,
 }: {
   business: MerchantBusinessProfileResponse;
-  clusterIcon?: ClusterIcon;
-  onEditInformation?: () => void;
   onEditOperatingHours?: () => void;
   onManagePhotos?: () => void;
   onSwitchToExplorer?: () => void;
-  pendingClassificationRequest?: ClassificationChangeRequest | null;
-  isCheckingClassification?: boolean;
-  hasClassificationError?: boolean;
-  onClassificationHistory?: () => void;
-  onRetryClassification?: () => void;
+  isSwitchingToExplorer?: boolean;
   pendingLocationRequest?: LocationChangeRequest | null;
   isCheckingLocation?: boolean;
   hasLocationError?: boolean;
@@ -149,7 +135,10 @@ export default function MerchantBusinessOverview({
   onRetryLocation?: () => void;
 }) {
   const [weeklyHoursVisible, setWeeklyHoursVisible] = useState(false);
+  const [contactDetailsVisible, setContactDetailsVisible] = useState(false);
   const [verificationVisible, setVerificationVisible] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
   const today = new Date()
     .toLocaleDateString("en-US", {
       weekday: "long",
@@ -164,175 +153,172 @@ export default function MerchantBusinessOverview({
       id: index,
     })),
   );
+  const todayHoursLabel = formatHours(todayHours);
   const address = getBusinessAddressDisplay(business.location);
-  const clusterIconName = clusterIcon ? CLUSTER_ICONS[clusterIcon] : undefined;
   const canEdit = business.status === "active";
+  const contactDetails = [
+    ["phone", "phone-outline", business.contact_number],
+    ["email", "email-outline", business.business_email],
+    ["website", "web", business.website],
+  ] as const;
+  const hasContactDetails = contactDetails.some(([, , value]) =>
+    Boolean(value),
+  );
+  const viewerPhotos = business.photos.map((photo) => ({
+    uri: photo.url,
+    category: photo.category,
+  }));
+
+  function handlePhotoPress(index: number) {
+    setSelectedPhotoIndex(index);
+    setPhotoViewerVisible(true);
+  }
+
+  function handleContactPress(
+    kind: "phone" | "email" | "website",
+    value: string,
+  ) {
+    const url =
+      kind === "phone"
+        ? `tel:${value}`
+        : kind === "email"
+          ? `mailto:${value}`
+          : /^https?:\/\//i.test(value)
+            ? value
+            : `https://${value}`;
+
+    void Linking.openURL(url).catch(() => {
+      Toast.show({
+        type: "error",
+        text1: "Unable to open contact detail",
+        text2: "Please try again.",
+      });
+    });
+  }
 
   return (
     <View>
-      {/* Live business information */}
+      {/* Business photo preview */}
       <SummarySection
-        title="Business Information"
-        actionLabel={canEdit ? "Edit" : undefined}
-        onAction={onEditInformation}
+        title="Photos"
+        actionLabel={canEdit ? "Manage" : undefined}
+        onAction={onManagePhotos}
       >
-        <AppText className="mb-3 text-sm leading-5 text-text-primary">
-          {business.description?.trim() || "No description added yet"}
-        </AppText>
-        {(
-          [
-            ["phone-outline", business.contact_number],
-            ["email-outline", business.business_email],
-            ["web", business.website],
-          ] as const
-        ).map(([icon, value]) =>
-          value ? (
-            <View key={icon} className="min-h-9 flex-row items-center py-1">
-              <MaterialCommunityIcons
-                name={icon}
-                size={18}
-                color={theme.extends.colors.text.secondary}
+        {business.photos.length > 0 ? (
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={() => handlePhotoPress(0)}
+              accessibilityRole="button"
+              accessibilityLabel="View business photo 1"
+              className="aspect-[4/3] min-w-0 flex-[2] cursor-pointer overflow-hidden rounded-xl bg-surface-secondary active:opacity-90"
+            >
+              <Image
+                source={{ uri: business.photos[0].url }}
+                contentFit="cover"
+                style={{ width: "100%", height: "100%" }}
+                accessibilityLabel="Business photo 1"
               />
-              <AppText
-                className="ml-3 flex-1 text-sm text-text-primary"
-                numberOfLines={2}
-              >
-                {value}
-              </AppText>
-            </View>
-          ) : null,
+            </Pressable>
+            {business.photos.length > 1 ? (
+              <View className="min-w-0 flex-1 gap-2">
+                {business.photos.slice(1, 3).map((photo, index) => (
+                  <Pressable
+                    key={photo.id}
+                    onPress={() => handlePhotoPress(index + 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View business photo ${index + 2}`}
+                    className="min-h-0 flex-1 cursor-pointer overflow-hidden rounded-xl bg-surface-secondary active:opacity-90"
+                  >
+                    <Image
+                      source={{ uri: photo.url }}
+                      contentFit="cover"
+                      style={{ width: "100%", height: "100%" }}
+                      accessibilityLabel={`Business photo ${index + 2}`}
+                    />
+                    {index === 1 && business.photos.length > 3 ? (
+                      <View className="absolute inset-0 items-center justify-center bg-black/45">
+                        <AppText weight="bold" className="text-lg text-white">
+                          +{business.photos.length - 3}
+                        </AppText>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <AppText className="text-sm text-text-secondary">
+            No photos yet
+          </AppText>
         )}
-      </SummarySection>
-
-      {/* Approved classification */}
-      <SummarySection
-        title="Classification"
-        actionLabel={
-          pendingClassificationRequest ? "Pending review" : undefined
-        }
-        onAction={onClassificationHistory}
-      >
-        <View className="flex-row items-center gap-3">
-          {clusterIconName ? (
-            <View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-secondary">
-              <MaterialCommunityIcons
-                name={clusterIconName}
-                size={20}
-                color={theme.extends.colors.text.secondary}
-              />
-            </View>
-          ) : null}
-          <View className="min-w-0 flex-1">
-            <AppText weight="bold" className="text-base text-text-primary">
-              {business.category.name}
-            </AppText>
-            <AppText className="text-sm text-text-secondary">
-              {business.cluster.name}
-            </AppText>
-          </View>
-        </View>
-        {business.specialty_tags.length > 0 ? (
-          <View className="mt-4">
-            <AppText weight="semibold" className="text-xs text-text-secondary">
-              Specialties
-            </AppText>
-            <View className="mt-2 flex-row flex-wrap">
-              {business.specialty_tags.map((tag) => (
-                <SpecialtyTagChip
-                  key={tag.id}
-                  tag={tag}
-                  size="small"
-                  showIcon
-                />
-              ))}
-            </View>
-          </View>
-        ) : null}
-        {isCheckingClassification ? (
-          <AppText className="mt-2 text-xs text-text-secondary">
-            Checking request status...
-          </AppText>
-        ) : hasClassificationError ? (
-          <Pressable onPress={onRetryClassification} accessibilityRole="button">
-            <AppText className="mt-2 text-sm text-brand">
-              Retry request status
-            </AppText>
-          </Pressable>
-        ) : null}
-      </SummarySection>
-
-      {/* Approved location */}
-      <SummarySection
-        title="Location"
-        actionLabel={pendingLocationRequest ? "Pending review" : undefined}
-        onAction={onLocationHistory}
-      >
-        <View className="overflow-hidden rounded-xl bg-surface-secondary">
-          <LocationPickerMap
-            latitude={business.location.latitude}
-            longitude={business.location.longitude}
-            interactionEnabled={false}
-            showLocationPreviewOverlay={false}
-            previewHeight={156}
-          />
-        </View>
-        {address.addressLine ? (
-          <AppText weight="semibold" className="mt-3 text-sm text-text-primary">
-            {address.addressLine}
-          </AppText>
-        ) : null}
-        {address.cityLine ? (
-          <AppText className="mt-0.5 text-sm text-text-secondary">
-            {address.cityLine}
-          </AppText>
-        ) : null}
         <AppText className="mt-2 text-xs text-text-secondary">
-          {business.location.landmarks.length} landmark
-          {business.location.landmarks.length === 1 ? "" : "s"}
+          {business.photos.length} business photo
+          {business.photos.length === 1 ? "" : "s"}
         </AppText>
-        {isCheckingLocation ? (
-          <AppText className="mt-2 text-xs text-text-secondary">
-            Checking request status...
-          </AppText>
-        ) : hasLocationError ? (
-          <Pressable onPress={onRetryLocation} accessibilityRole="button">
-            <AppText className="mt-2 text-sm text-brand">
-              Retry request status
-            </AppText>
-          </Pressable>
-        ) : null}
+        <FullScreenPhotoViewer
+          photos={viewerPhotos}
+          visible={photoViewerVisible}
+          initialIndex={selectedPhotoIndex}
+          onClose={() => setPhotoViewerVisible(false)}
+        />
       </SummarySection>
 
-      {/* Today's hours and optional weekly schedule */}
-      <SummarySection
-        title="Operating Hours"
-        actionLabel={canEdit ? "Edit" : undefined}
-        onAction={onEditOperatingHours}
-      >
-        <View className="flex-row flex-wrap items-center gap-2">
-          <View
-            className={`h-2 w-2 rounded-full ${
-              hoursSummary.isOpen ? "bg-success" : "bg-text-error"
-            }`}
+      {/* Practical business details */}
+      <SummarySection title="Business details">
+        <View className="flex-row items-center gap-2">
+          <MaterialCommunityIcons
+            name="clock-outline"
+            size={19}
+            color={theme.extends.colors.text.secondary}
           />
           <AppText
             weight="semibold"
             className="flex-1 text-sm text-text-primary"
           >
+            Operating hours
+          </AppText>
+          {canEdit && onEditOperatingHours ? (
+            <Pressable
+              onPress={onEditOperatingHours}
+              accessibilityRole="button"
+              accessibilityLabel="Edit operating hours"
+              className="min-h-11 cursor-pointer flex-row items-center px-2 active:opacity-70"
+            >
+              <AppText weight="semibold" className="text-sm text-brand">
+                Edit
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color={theme.extends.colors.text.secondary}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+        <View className="mt-1 flex-row items-center gap-2 pl-7">
+          <View
+            className={`h-2 w-2 rounded-full ${
+              hoursSummary.isOpen ? "bg-success" : "bg-text-error"
+            }`}
+          />
+          <AppText className="min-w-0 flex-1 text-sm text-text-primary">
             {hoursSummary.label}
           </AppText>
         </View>
-        <View className="mt-3 flex-row justify-between gap-3">
-          <AppText className="text-sm text-text-secondary">Today</AppText>
-          <AppText className="flex-1 text-right text-sm text-text-primary">
-            {formatHours(todayHours)}
-          </AppText>
-        </View>
+        {todayHoursLabel !== hoursSummary.label ? (
+          <View className="mt-2 flex-row justify-between gap-3 pl-7">
+            <AppText className="text-sm text-text-secondary">Today</AppText>
+            <AppText className="min-w-0 flex-1 text-right text-sm text-text-primary">
+              {todayHoursLabel}
+            </AppText>
+          </View>
+        ) : null}
         <Pressable
           onPress={() => setWeeklyHoursVisible((visible) => !visible)}
           accessibilityRole="button"
           accessibilityState={{ expanded: weeklyHoursVisible }}
-          className="mt-2 min-h-11 cursor-pointer flex-row items-center active:opacity-70"
+          className="mt-1 min-h-11 cursor-pointer flex-row items-center pl-7 active:opacity-70"
         >
           <AppText weight="semibold" className="text-sm text-brand">
             {weeklyHoursVisible
@@ -346,13 +332,13 @@ export default function MerchantBusinessOverview({
           />
         </Pressable>
         {weeklyHoursVisible ? (
-          <View className="border-t border-border-primary/60 pt-2">
+          <View className="pl-7 pt-1">
             {DAYS.map((day) => (
               <View key={day} className="flex-row justify-between gap-3 py-2">
                 <AppText className="text-sm capitalize text-text-secondary">
                   {day}
                 </AppText>
-                <AppText className="flex-1 text-right text-sm text-text-primary">
+                <AppText className="min-w-0 flex-1 text-right text-sm text-text-primary">
                   {formatHours(
                     business.operating_hours.find((hours) => hours.day === day),
                   )}
@@ -361,46 +347,143 @@ export default function MerchantBusinessOverview({
             ))}
           </View>
         ) : null}
-      </SummarySection>
 
-      {/* Visual photo preview */}
-      <SummarySection
-        title="Photos"
-        actionLabel={canEdit ? "Manage" : undefined}
-        onAction={onManagePhotos}
-      >
-        {business.photos.length > 0 ? (
-          <View className="flex-row gap-2">
-            {business.photos.slice(0, 3).map((photo, index) => (
-              <View
-                key={photo.id}
-                className="aspect-square w-[31%] overflow-hidden rounded-xl bg-surface-secondary"
+        <View className="mt-4 border-t border-border-primary/60 pt-4">
+          <View className="flex-row items-center gap-2">
+            <MaterialCommunityIcons
+              name="map-marker-outline"
+              size={19}
+              color={theme.extends.colors.text.secondary}
+            />
+            <AppText
+              weight="semibold"
+              className="flex-1 text-sm text-text-primary"
+            >
+              Location
+            </AppText>
+            {pendingLocationRequest ? (
+              <Pressable
+                onPress={onLocationHistory}
+                accessibilityRole="button"
+                accessibilityLabel="View pending location request"
+                className="min-h-11 cursor-pointer flex-row items-center active:opacity-70"
               >
-                <Image
-                  source={{ uri: photo.url }}
-                  contentFit="cover"
-                  style={{ width: "100%", height: "100%" }}
-                  accessibilityLabel={`Business photo ${index + 1}`}
+                <MaterialCommunityIcons
+                  name="clock-outline"
+                  size={16}
+                  color={theme.extends.colors.text.secondary}
                 />
-                {index === 2 && business.photos.length > 3 ? (
-                  <View className="absolute inset-0 items-center justify-center bg-black/45">
-                    <AppText weight="bold" className="text-lg text-white">
-                      +{business.photos.length - 3}
-                    </AppText>
-                  </View>
-                ) : null}
-              </View>
-            ))}
+                <AppText className="ml-1 text-xs text-text-secondary">
+                  Pending review
+                </AppText>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={16}
+                  color={theme.extends.colors.text.secondary}
+                />
+              </Pressable>
+            ) : null}
           </View>
-        ) : (
-          <AppText className="text-sm text-text-secondary">
-            No photos yet
+          <View className="mt-2 overflow-hidden rounded-xl bg-surface-secondary">
+            <LocationPickerMap
+              latitude={business.location.latitude}
+              longitude={business.location.longitude}
+              interactionEnabled={false}
+              showLocationPreviewOverlay={false}
+              previewHeight={156}
+            />
+          </View>
+          {address.addressLine ? (
+            <AppText
+              weight="semibold"
+              className="mt-3 text-sm text-text-primary"
+            >
+              {address.addressLine}
+            </AppText>
+          ) : null}
+          {address.cityLine ? (
+            <AppText className="mt-0.5 text-sm text-text-secondary">
+              {address.cityLine}
+            </AppText>
+          ) : null}
+          <AppText className="mt-2 text-xs text-text-secondary">
+            {business.location.landmarks.length} landmark
+            {business.location.landmarks.length === 1 ? "" : "s"}
           </AppText>
-        )}
-        <AppText className="mt-2 text-xs text-text-secondary">
-          {business.photos.length} business photo
-          {business.photos.length === 1 ? "" : "s"}
-        </AppText>
+          {isCheckingLocation ? (
+            <AppText className="mt-2 text-xs text-text-secondary">
+              Checking request status...
+            </AppText>
+          ) : hasLocationError ? (
+            <Pressable
+              onPress={onRetryLocation}
+              accessibilityRole="button"
+              className="min-h-11 cursor-pointer justify-center"
+            >
+              <AppText className="text-sm text-brand">
+                Retry request status
+              </AppText>
+            </Pressable>
+          ) : null}
+        </View>
+
+        {hasContactDetails ? (
+          <View className="mt-4 border-t border-border-primary/60 pt-2">
+            <Pressable
+              onPress={() => setContactDetailsVisible((visible) => !visible)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: contactDetailsVisible }}
+              className="min-h-12 cursor-pointer flex-row items-center gap-2 active:opacity-70"
+            >
+              <MaterialCommunityIcons
+                name="phone-outline"
+                size={19}
+                color={theme.extends.colors.text.secondary}
+              />
+              <AppText
+                weight="semibold"
+                className="flex-1 text-sm text-text-primary"
+              >
+                Contact details
+              </AppText>
+              <MaterialCommunityIcons
+                name={contactDetailsVisible ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={theme.extends.colors.text.secondary}
+              />
+            </Pressable>
+            {contactDetailsVisible
+              ? contactDetails.map(([kind, icon, value]) =>
+                  value ? (
+                    <Pressable
+                      key={kind}
+                      onPress={() => handleContactPress(kind, value)}
+                      accessibilityRole="link"
+                      accessibilityLabel={`Open ${kind}: ${value}`}
+                      className="min-h-11 cursor-pointer flex-row items-center gap-3 pl-7 active:opacity-70"
+                    >
+                      <MaterialCommunityIcons
+                        name={icon}
+                        size={18}
+                        color={theme.extends.colors.text.secondary}
+                      />
+                      <AppText
+                        className="min-w-0 flex-1 text-sm text-text-primary"
+                        numberOfLines={1}
+                      >
+                        {value}
+                      </AppText>
+                      <MaterialCommunityIcons
+                        name="open-in-new"
+                        size={15}
+                        color={theme.extends.colors.text.secondary}
+                      />
+                    </Pressable>
+                  ) : null,
+                )
+              : null}
+          </View>
+        ) : null}
       </SummarySection>
 
       {/* Quieter secondary information and mode switch */}
@@ -412,10 +495,15 @@ export default function MerchantBusinessOverview({
           onPress={() => setVerificationVisible((visible) => !visible)}
           accessibilityRole="button"
           accessibilityState={{ expanded: verificationVisible }}
-          className="min-h-14 cursor-pointer flex-row items-center active:opacity-70"
+          className="min-h-14 cursor-pointer flex-row items-center gap-3 active:opacity-70"
         >
+          <MaterialCommunityIcons
+            name="shield-check-outline"
+            size={19}
+            color={theme.extends.colors.text.secondary}
+          />
           <View className="flex-1">
-            <AppText weight="bold" className="text-base text-text-primary">
+            <AppText weight="semibold" className="text-sm text-text-primary">
               Business Verification
             </AppText>
             <AppText className="mt-0.5 text-xs text-text-secondary">
@@ -468,9 +556,17 @@ export default function MerchantBusinessOverview({
         ) : null}
         {onSwitchToExplorer ? (
           <Pressable
+            testID="merchant-switch-to-explorer"
             onPress={onSwitchToExplorer}
+            disabled={isSwitchingToExplorer}
             accessibilityRole="button"
-            className="min-h-12 cursor-pointer flex-row items-center border-t border-border-primary/60 active:opacity-70"
+            accessibilityState={{
+              disabled: isSwitchingToExplorer,
+              busy: isSwitchingToExplorer,
+            }}
+            className={`min-h-12 cursor-pointer flex-row items-center border-t border-border-primary/60 active:opacity-70 ${
+              isSwitchingToExplorer ? "opacity-60" : ""
+            }`}
           >
             <MaterialCommunityIcons
               name="compass-outline"
@@ -478,13 +574,23 @@ export default function MerchantBusinessOverview({
               color={theme.extends.colors.text.secondary}
             />
             <AppText className="ml-3 flex-1 text-sm text-text-primary">
-              Switch to Explorer
+              {isSwitchingToExplorer
+                ? "Switching to Explorer..."
+                : "Switch to Explorer"}
             </AppText>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
-              color={theme.extends.colors.text.secondary}
-            />
+            {isSwitchingToExplorer ? (
+              <ActivityIndicator
+                testID="merchant-switch-loading-indicator"
+                size="small"
+                color={theme.extends.colors.brand}
+              />
+            ) : (
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.extends.colors.text.secondary}
+              />
+            )}
           </Pressable>
         ) : null}
       </View>
