@@ -60,18 +60,28 @@ jest.mock("expo-router", () => ({
 }));
 
 jest.mock("../../../components/business-profile/MerchantProfileHeader", () => {
-  const { Text } = jest.requireActual("react-native");
+  const { Pressable, Text } = jest.requireActual("react-native");
   return function MockHeader({
     businessName,
     status,
+    onPendingNameChange,
   }: {
     businessName: string;
     status: string;
+    onPendingNameChange?: () => void;
   }) {
     return (
       <>
         <Text>{businessName}</Text>
         <Text>{status === "active" ? "Active" : "Suspended"}</Text>
+        {onPendingNameChange ? (
+          <Pressable
+            onPress={onPendingNameChange}
+            accessibilityLabel="View pending business name request"
+          >
+            <Text>Name change pending</Text>
+          </Pressable>
+        ) : null}
       </>
     );
   };
@@ -98,13 +108,19 @@ jest.mock(
         <View>
           <Text>Business details</Text>
           {pendingClassificationRequest ? (
-            <Pressable onPress={onClassificationHistory}>
-              <Text>Classification Pending</Text>
+            <Pressable
+              onPress={onClassificationHistory}
+              accessibilityLabel="View pending classification request"
+            >
+              <Text>Classification Pending review</Text>
             </Pressable>
           ) : null}
           {pendingLocationRequest ? (
-            <Pressable onPress={onLocationHistory}>
-              <Text>Location Pending</Text>
+            <Pressable
+              onPress={onLocationHistory}
+              accessibilityLabel="View pending location request"
+            >
+              <Text>Location Pending review</Text>
             </Pressable>
           ) : null}
           <Pressable onPress={onSwitchToExplorer}>
@@ -158,7 +174,7 @@ describe("MerchantProfileScreen", () => {
     expect(mockRefetch).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a pending request without replacing the live business name", async () => {
+  it("shows one name request only beside the live business name", async () => {
     mockProfile.mockReturnValue({
       business: {
         id: 7,
@@ -186,13 +202,14 @@ describe("MerchantProfileScreen", () => {
     const screen = await render(<MerchantProfileScreen />);
     expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
     expect(screen.getAllByText("Sugbo Bistro")).toHaveLength(1);
-    expect(screen.getByText("Pending change")).toBeTruthy();
-    expect(screen.getByText("Business name")).toBeTruthy();
+    expect(screen.getByText("Name change pending")).toBeTruthy();
+    expect(screen.queryByText(/changes under review/)).toBeNull();
+    expect(screen.queryByText("Awaiting Admin review")).toBeNull();
     expect(screen.queryByText("Request name change")).toBeNull();
     expect(screen.getByText("Manage Business")).toBeTruthy();
     expect(screen.queryByText("Change Requests")).toBeNull();
     await fireEvent.press(
-      screen.getByLabelText("View pending Business name request"),
+      screen.getByLabelText("View pending business name request"),
     );
     expect(router.push).toHaveBeenCalledWith(
       "/(merchant)/business-update-requests/9",
@@ -221,7 +238,7 @@ describe("MerchantProfileScreen", () => {
     expect(screen.getByText("Suspended")).toBeTruthy();
     expect(screen.queryByText("Request name change")).toBeNull();
     expect(screen.getByText("Manage Business")).toBeTruthy();
-    expect(screen.queryByText("Pending change")).toBeNull();
+    expect(screen.queryByText(/changes under review/)).toBeNull();
     expect(mockNotify).toHaveBeenCalledTimes(1);
   });
 
@@ -245,7 +262,8 @@ describe("MerchantProfileScreen", () => {
     const actions = screen.getByTestId("merchant-profile-actions");
     expect(within(actions).getByText("Preview as Explorer")).toBeTruthy();
     expect(within(actions).getByText("Manage Business")).toBeTruthy();
-    expect(screen.queryByText("Pending change")).toBeNull();
+    expect(screen.queryByText(/changes under review/)).toBeNull();
+    expect(screen.queryByText("Name change pending")).toBeNull();
     expect(screen.queryByText("Change Requests")).toBeNull();
     await fireEvent.press(screen.getByText("Manage Business"));
     expect(router.push).toHaveBeenCalledWith("/(merchant)/manage-business");
@@ -282,22 +300,114 @@ describe("MerchantProfileScreen", () => {
     });
 
     const screen = await render(<MerchantProfileScreen />);
-    expect(screen.getByText("2 pending changes")).toBeTruthy();
+    expect(screen.getByText("2 changes under review")).toBeTruthy();
+    expect(screen.getByText("Classification Pending review")).toBeTruthy();
+    expect(screen.getByText("Location Pending review")).toBeTruthy();
+    expect(screen.queryByText("Awaiting Admin review")).toBeNull();
     expect(screen.queryByText("Change Requests")).toBeNull();
-    await fireEvent.press(screen.getByText("Classification Pending"));
+    await fireEvent.press(
+      screen.getByLabelText("View pending classification request"),
+    );
     expect(router.push).toHaveBeenCalledWith(
       "/(merchant)/business-update-requests/classification/11",
     );
-    await fireEvent.press(screen.getByText("Location Pending"));
+    await fireEvent.press(
+      screen.getByLabelText("View pending location request"),
+    );
     expect(router.push).toHaveBeenCalledWith(
       "/(merchant)/business-update-requests/location/22",
     );
-    await fireEvent.press(screen.getByLabelText("View 2 pending changes"));
+    await fireEvent.press(screen.getByLabelText("View 2 changes under review"));
     expect(router.push).toHaveBeenCalledWith("/(merchant)/change-requests");
     await fireEvent.press(screen.getByText("Preview as Explorer"));
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]",
       params: { businessId: "7", previewAsExplorer: "1" },
     });
+  });
+
+  it.each([
+    [
+      "classification",
+      11,
+      "/(merchant)/business-update-requests/classification/11",
+    ],
+    ["location", 22, "/(merchant)/business-update-requests/location/22"],
+  ])("keeps one %s request contextual", async (type, id, href) => {
+    mockProfile.mockReturnValue({
+      business: {
+        id: 7,
+        business_name: "Sugbo Bistro",
+        category: { id: 1, name: "Restaurant" },
+        cluster: { id: 1, name: "Culinary" },
+        status: "active",
+        cover_photo_url: null,
+        cover_photo_update: { limit: 3, remaining: 1, resets_at: null },
+      },
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+    const requestState = {
+      pendingRequest: { id },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    };
+    if (type === "classification") {
+      mockClassificationState.mockReturnValue(requestState);
+    } else {
+      mockLocationState.mockReturnValue(requestState);
+    }
+
+    const screen = await render(<MerchantProfileScreen />);
+    expect(screen.queryByText(/changes under review/)).toBeNull();
+    expect(screen.queryByText("Awaiting Admin review")).toBeNull();
+    expect(
+      screen.getByText(
+        `${type === "location" ? "Location" : "Classification"} Pending review`,
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(
+      screen.getByLabelText(`View pending ${type} request`),
+    );
+    expect(router.push).toHaveBeenCalledWith(href);
+  });
+
+  it("shows the actual count when all three changes are pending", async () => {
+    mockProfile.mockReturnValue({
+      business: {
+        id: 7,
+        business_name: "Sugbo Bistro",
+        category: { id: 1, name: "Restaurant" },
+        cluster: { id: 1, name: "Culinary" },
+        status: "active",
+        cover_photo_url: null,
+        cover_photo_update: { limit: 3, remaining: 1, resets_at: null },
+      },
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+    mockRequestState.mockReturnValue({
+      pendingRequest: { id: 9 },
+      refetch: jest.fn(),
+    });
+    mockClassificationState.mockReturnValue({
+      pendingRequest: { id: 11 },
+      refetch: jest.fn(),
+    });
+    mockLocationState.mockReturnValue({
+      pendingRequest: { id: 22 },
+      refetch: jest.fn(),
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+    expect(screen.getByText("3 changes under review")).toBeTruthy();
+    expect(screen.getByText("Name change pending")).toBeTruthy();
+    expect(screen.getByText("Classification Pending review")).toBeTruthy();
+    expect(screen.getByText("Location Pending review")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("View 3 changes under review"));
+    expect(router.push).toHaveBeenCalledWith("/(merchant)/change-requests");
   });
 });

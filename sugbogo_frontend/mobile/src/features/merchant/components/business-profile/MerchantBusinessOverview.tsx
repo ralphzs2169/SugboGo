@@ -64,7 +64,7 @@ function SummarySection({
   actionLabel?: string;
   onAction?: () => void;
 }) {
-  const isPending = actionLabel === "Pending";
+  const isPending = actionLabel === "Pending review";
 
   return (
     <View className="mb-2 bg-surface px-5 py-4">
@@ -76,12 +76,24 @@ function SummarySection({
           <Pressable
             onPress={onAction}
             accessibilityRole="button"
-            accessibilityLabel={`${actionLabel} ${title.toLowerCase()}`}
+            accessibilityLabel={
+              isPending
+                ? `View pending ${title.toLowerCase()} request`
+                : `${actionLabel} ${title.toLowerCase()}`
+            }
             className="min-h-11 cursor-pointer flex-row items-center rounded-lg px-2 active:bg-background"
           >
+            {isPending ? (
+              <MaterialCommunityIcons
+                name="clock-outline"
+                size={16}
+                color={theme.extends.colors.text.secondary}
+              />
+            ) : null}
             <AppText
               weight="semibold"
-              className={`text-sm ${isPending ? "text-text-secondary" : "text-brand"}`}
+              className={`text-sm ${isPending ? "ml-1 text-text-secondary" : "text-brand"}`}
+              numberOfLines={1}
             >
               {actionLabel}
             </AppText>
@@ -190,7 +202,9 @@ export default function MerchantBusinessOverview({
       {/* Approved classification */}
       <SummarySection
         title="Classification"
-        actionLabel={pendingClassificationRequest ? "Pending" : undefined}
+        actionLabel={
+          pendingClassificationRequest ? "Pending review" : undefined
+        }
         onAction={onClassificationHistory}
       >
         <AppText weight="semibold" className="text-sm text-text-primary">
@@ -219,7 +233,7 @@ export default function MerchantBusinessOverview({
       {/* Approved location */}
       <SummarySection
         title="Location"
-        actionLabel={pendingLocationRequest ? "Pending" : undefined}
+        actionLabel={pendingLocationRequest ? "Pending review" : undefined}
         onAction={onLocationHistory}
       >
         <View className="overflow-hidden rounded-xl bg-surface-secondary">

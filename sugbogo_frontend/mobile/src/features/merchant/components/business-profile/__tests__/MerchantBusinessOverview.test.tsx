@@ -131,7 +131,10 @@ describe("MerchantBusinessOverview", () => {
     await fireEvent.press(screen.getByLabelText("Edit business information"));
     await fireEvent.press(screen.getByLabelText("Edit operating hours"));
     await fireEvent.press(screen.getByLabelText("Manage photos"));
-    await fireEvent.press(screen.getByLabelText("Pending classification"));
+    expect(screen.getByText("Pending review")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByLabelText("View pending classification request"),
+    );
     expect(onEditInformation).toHaveBeenCalledTimes(1);
     expect(onEditOperatingHours).toHaveBeenCalledTimes(1);
     expect(onManagePhotos).toHaveBeenCalledTimes(1);
@@ -158,7 +161,10 @@ describe("MerchantBusinessOverview", () => {
       />,
     );
 
-    await fireEvent.press(screen.getByLabelText("Pending location"));
+    expect(screen.getByText("Pending review")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByLabelText("View pending location request"),
+    );
     await fireEvent.press(screen.getByText("Switch to Explorer"));
     expect(onPendingLocation).toHaveBeenCalledTimes(1);
     expect(onSwitchToExplorer).toHaveBeenCalledTimes(1);

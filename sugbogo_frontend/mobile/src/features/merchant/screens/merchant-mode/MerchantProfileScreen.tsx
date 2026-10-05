@@ -202,11 +202,7 @@ export default function MerchantProfileScreen() {
   const pendingCount = pendingChanges.length;
 
   const handlePendingChangesPress = () => {
-    router.push(
-      pendingCount === 1
-        ? pendingChanges[0].href
-        : ("/(merchant)/change-requests" as Href),
-    );
+    router.push("/(merchant)/change-requests" as Href);
   };
 
   return (
@@ -234,6 +230,11 @@ export default function MerchantProfileScreen() {
           coverPhotoUpdate={business.cover_photo_update}
           onCheckCoverAllowance={checkCoverAllowance}
           onEditCover={handleEditCover}
+          onPendingNameChange={
+            pendingRequest
+              ? () => router.push(pendingChanges[0].href)
+              : undefined
+          }
         />
 
         {/* Profile content */}
@@ -288,72 +289,31 @@ export default function MerchantProfileScreen() {
               </SafePressable>
             </View>
 
-            {/* Pending reviewed changes */}
-            {pendingCount > 0 ? (
-              <View className="px-5 pb-5 pt-2">
-                <SafePressable
-                  onPress={handlePendingChangesPress}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    pendingCount === 1
-                      ? `View pending ${pendingChanges[0].label} request`
-                      : `View ${pendingCount} pending changes`
-                  }
-                  className="cursor-pointer flex-row items-center rounded-2xl border border-border-info bg-surface p-4 active:bg-background"
+            {/* Multiple pending requests share one quiet history shortcut. */}
+            {pendingCount > 1 ? (
+              <SafePressable
+                onPress={handlePendingChangesPress}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${pendingCount} changes under review`}
+                className="mx-5 min-h-12 cursor-pointer flex-row items-center border-t border-border-primary active:bg-background"
+              >
+                <MaterialCommunityIcons
+                  name="clock-outline"
+                  size={18}
+                  color={theme.extends.colors.text.secondary}
+                />
+                <AppText
+                  weight="medium"
+                  className="ml-3 flex-1 text-sm text-text-secondary"
                 >
-                  {/* Status icon */}
-                  <View className="mr-3 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-info">
-                    <MaterialCommunityIcons
-                      name="clock-outline"
-                      size={21}
-                      color={theme.extends.colors.text.info}
-                    />
-                  </View>
-
-                  {/* Request summary */}
-                  <View className="min-w-0 flex-1">
-                    <View className="flex-row items-center gap-2">
-                      <AppText
-                        weight="semibold"
-                        className="min-w-0 flex-1 text-sm text-text-primary"
-                        numberOfLines={1}
-                      >
-                        {pendingCount === 1
-                          ? pendingChanges[0].label
-                          : `${pendingCount} pending changes`}
-                      </AppText>
-
-                      {pendingCount === 1 ? (
-                        <View className="rounded-full bg-info px-2.5 py-1">
-                          <AppText
-                            weight="semibold"
-                            className="text-[11px] text-text-info"
-                          >
-                            Pending
-                          </AppText>
-                        </View>
-                      ) : null}
-                    </View>
-
-                    <AppText
-                      className="mt-1 text-xs text-text-secondary"
-                      numberOfLines={1}
-                    >
-                      {pendingCount === 1
-                        ? "Awaiting Admin review"
-                        : "View your submitted change requests"}
-                    </AppText>
-                  </View>
-
-                  {/* Navigation */}
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={21}
-                    color={theme.extends.colors.text.secondary}
-                    style={{ marginLeft: 8 }}
-                  />
-                </SafePressable>
-              </View>
+                  {pendingCount} changes under review
+                </AppText>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={20}
+                  color={theme.extends.colors.text.secondary}
+                />
+              </SafePressable>
             ) : null}
           </View>
 

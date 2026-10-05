@@ -83,6 +83,30 @@ describe("MerchantProfileHeader cover allowance", () => {
     const hero = screen.getByTestId("merchant-cover-hero");
     expect(within(hero).getByText("Sugbo Bistro")).toBeTruthy();
     expect(within(hero).getByText("Restaurant · Culinary")).toBeTruthy();
+    expect(screen.queryByText("Name change pending")).toBeNull();
+  });
+
+  it("opens the pending business name request from the hero", async () => {
+    const onPendingNameChange = jest.fn();
+    const allowance = { limit: 3, remaining: 2, resets_at: null };
+    const screen = await render(
+      <MerchantProfileHeader
+        businessName="Sugbo Bistro"
+        classification="Restaurant · Culinary"
+        status="active"
+        coverPhotoUrl={null}
+        coverPhotoUpdate={allowance}
+        onCheckCoverAllowance={jest.fn(async () => allowance)}
+        onEditCover={jest.fn()}
+        onPendingNameChange={onPendingNameChange}
+      />,
+    );
+
+    expect(screen.getByText("Name change pending")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByLabelText("View pending business name request"),
+    );
+    expect(onPendingNameChange).toHaveBeenCalledTimes(1);
   });
 
   it("blocks the picker and shows the rolling reset when exhausted", async () => {

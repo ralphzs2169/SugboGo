@@ -23,6 +23,7 @@ type MerchantProfileHeaderProps = {
   isUploading?: boolean;
   coverPhotoUpdate: CoverPhotoUpdateAllowance;
   onCheckCoverAllowance: () => Promise<CoverPhotoUpdateAllowance | null>;
+  onPendingNameChange?: () => void;
 };
 
 /**
@@ -41,6 +42,7 @@ export default function MerchantProfileHeader({
   isUploading = false,
   coverPhotoUpdate,
   onCheckCoverAllowance,
+  onPendingNameChange,
 }: MerchantProfileHeaderProps) {
   const { pickFromGallery, takePhoto } = useImagePicker();
 
@@ -250,6 +252,29 @@ export default function MerchantProfileHeader({
           >
             {classification}
           </AppText>
+          {onPendingNameChange ? (
+            <TouchableOpacity
+              onPress={onPendingNameChange}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="View pending business name request"
+              className="mt-1.5 min-h-11 self-start flex-row items-center"
+            >
+              <MaterialCommunityIcons
+                name="clock-outline"
+                size={16}
+                color="#FFFFFF"
+              />
+              <AppText weight="medium" className="ml-1.5 text-xs text-white/90">
+                Name change pending
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={16}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Upload loading state */}
