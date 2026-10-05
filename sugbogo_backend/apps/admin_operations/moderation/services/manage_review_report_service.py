@@ -10,6 +10,9 @@ from apps.reviews.services.review_moderation_consistency_service import (
 )
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
+from apps.notifications.services.notification_event_service import (
+    NotificationEventService,
+)
 
 
 class ManageReviewReportService:
@@ -109,4 +112,5 @@ class ManageReviewReportService:
                 "review_status": review.REVW_STATUS,
             },
         )
+        NotificationEventService.review_report_resolved(report, review, previous_status)
         return ManageReviewReportService.get_report(report_id)

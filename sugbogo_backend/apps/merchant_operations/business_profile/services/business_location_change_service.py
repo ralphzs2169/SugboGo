@@ -6,6 +6,10 @@ from django.db.models import Case, IntegerField, Prefetch, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.notifications.services.notification_event_service import (
+    NotificationEventService,
+)
+
 from apps.business.models import Business, BusinessLandmark, Location
 from apps.business.services.serviceable_boundary_service import (
     ServiceableBoundaryService,
@@ -550,6 +554,12 @@ class BusinessLocationChangeService:
         )
         if not Business.objects.filter(LOCT_ID=old_location).exists():
             old_location.delete()
+        NotificationEventService.merchant_request_resolved(
+            recipient=change_request.USER_ID,
+            request_id=change_request.pk,
+            request_type="business_location_change",
+            outcome=change_request.BLCR_STATUS,
+        )
         return BusinessLocationChangeService.get_for_admin(request_id)
 
     @staticmethod
@@ -584,5 +594,11 @@ class BusinessLocationChangeService:
                 "BLCR_RESOLVED_AT",
                 "BLCR_UPDATED_AT",
             ],
+        )
+        NotificationEventService.merchant_request_resolved(
+            recipient=change_request.USER_ID,
+            request_id=change_request.pk,
+            request_type="business_location_change",
+            outcome=change_request.BLCR_STATUS,
         )
         return BusinessLocationChangeService.get_for_admin(request_id)

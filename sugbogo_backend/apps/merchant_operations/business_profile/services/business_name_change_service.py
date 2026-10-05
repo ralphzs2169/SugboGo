@@ -3,6 +3,10 @@ from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.notifications.services.notification_event_service import (
+    NotificationEventService,
+)
+
 from apps.business.models import Business
 from apps.merchant_operations.business_profile.models import (
     BusinessNameChangeRequest,
@@ -237,6 +241,12 @@ class BusinessNameChangeService:
                 "BNCR_UPDATED_AT",
             ],
         )
+        NotificationEventService.merchant_request_resolved(
+            recipient=change_request.USER_ID,
+            request_id=change_request.pk,
+            request_type="business_name_change",
+            outcome=change_request.BNCR_STATUS,
+        )
         return change_request
 
     @staticmethod
@@ -272,5 +282,11 @@ class BusinessNameChangeService:
                 "BNCR_RESOLVED_AT",
                 "BNCR_UPDATED_AT",
             ],
+        )
+        NotificationEventService.merchant_request_resolved(
+            recipient=change_request.USER_ID,
+            request_id=change_request.pk,
+            request_type="business_name_change",
+            outcome=change_request.BNCR_STATUS,
         )
         return change_request

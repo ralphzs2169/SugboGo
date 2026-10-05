@@ -135,6 +135,55 @@ class BusinessNameChangeViewTests(TestCase):
         """Build an Admin request detail URL."""
         return f"{self.admin_list_url}{request_id}/"
 
+    def test_decision_notifications_reach_only_request_submitter(self):
+        from apps.notifications.models import Notification
+
+        for outcome in ("rejected", "approved"):
+            response = self._submit()
+            self.assertEqual(response.status_code, 201, response.data)
+            request = BusinessNameChangeRequest.objects.order_by("-pk").first()
+            self.assertEqual(Notification.objects.count(), int(outcome == "approved"))
+            if outcome == "approved":
+                BusinessNameChangeService.approve(request.pk, self.admin)
+            else:
+                BusinessNameChangeService.reject(request.pk, self.admin, "Private rejection reason.")
+            notification = Notification.objects.get(
+                NOTF_DEDUP_KEY=f"business_name_change:{request.pk}:resolved",
+            )
+            self.assertEqual(notification.USER_ID_id, self.merchant.pk)
+            self.assertEqual(notification.NOTF_TYPE, f"business_name_change_{outcome}")
+            self.assertEqual(notification.NOTF_TARGET_ID, request.pk)
+            self.assertEqual(notification.NOTF_TARGET_TYPE, "business_name_change")
+            self.assertNotIn("Private rejection reason", notification.NOTF_BODY)
+        self.assertEqual(Notification.objects.count(), 2)
+
+    def test_notification_failure_rolls_back_both_request_decisions(self):
+        from apps.notifications.models import Notification
+
+        response = self._submit()
+        self.assertEqual(response.status_code, 201, response.data)
+        request = BusinessNameChangeRequest.objects.get()
+        previous_business = dict(type(self.business).objects.values().get(pk=self.business.pk))
+        for outcome in ("approved", "rejected"):
+            with self.subTest(outcome=outcome):
+                with patch(
+                    "apps.notifications.services.notification_event_service.NotificationService.create",
+                    side_effect=RuntimeError("Inbox storage unavailable"),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        if outcome == "approved":
+                            BusinessNameChangeService.approve(request.pk, self.admin)
+                        else:
+                            BusinessNameChangeService.reject(request.pk, self.admin, "Private rejection reason.")
+                request.refresh_from_db()
+                self.assertEqual(request.BNCR_STATUS, "pending")
+                self.assertIsNone(request.REVIEWER_ID_id)
+                self.assertEqual(
+                    dict(type(self.business).objects.values().get(pk=self.business.pk)),
+                    previous_business,
+                )
+                self.assertFalse(Notification.objects.exists())
+
     def test_submission_preserves_live_business_and_application(self):
         """Persist a pending proposal and captured baseline only."""
         response = self._submit("  Sugbo Heritage Bistro  ")

@@ -5,6 +5,10 @@ from django.db.models import Case, IntegerField, Prefetch, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.notifications.services.notification_event_service import (
+    NotificationEventService,
+)
+
 from apps.business.models import Business, BusinessSpecialtyTag, Category, SpecialtyTag
 from apps.business.tasks import recompute_discovery_scores
 from apps.merchant_operations.business_profile.models import (
@@ -451,6 +455,12 @@ class BusinessClassificationChangeService:
         transaction.on_commit(
             BusinessClassificationChangeService._queue_discovery_refresh,
         )
+        NotificationEventService.merchant_request_resolved(
+            recipient=change_request.USER_ID,
+            request_id=change_request.pk,
+            request_type="business_classification_change",
+            outcome=change_request.BCCR_STATUS,
+        )
         return BusinessClassificationChangeService.get_for_admin(request_id)
 
     @staticmethod
@@ -487,5 +497,11 @@ class BusinessClassificationChangeService:
                 "BCCR_RESOLVED_AT",
                 "BCCR_UPDATED_AT",
             ],
+        )
+        NotificationEventService.merchant_request_resolved(
+            recipient=change_request.USER_ID,
+            request_id=change_request.pk,
+            request_type="business_classification_change",
+            outcome=change_request.BCCR_STATUS,
         )
         return BusinessClassificationChangeService.get_for_admin(request_id)

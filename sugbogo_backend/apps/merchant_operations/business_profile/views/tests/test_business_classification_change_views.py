@@ -142,6 +142,55 @@ class BusinessClassificationChangeViewTests(TestCase):
         self.client.force_authenticate(user=reviewer or self.admin)
         return self.client.post(f"{self._detail(request_id, admin=True)}approve/")
 
+    def test_decision_notifications_reach_only_request_submitter(self):
+        from apps.notifications.models import Notification
+
+        for outcome in ("rejected", "approved"):
+            response = self._submit()
+            self.assertEqual(response.status_code, 201, response.data)
+            request = BusinessClassificationChangeRequest.objects.order_by("-pk").first()
+            self.assertEqual(Notification.objects.count(), int(outcome == "approved"))
+            if outcome == "approved":
+                BusinessClassificationChangeService.approve(request.pk, self.admin)
+            else:
+                BusinessClassificationChangeService.reject(request.pk, self.admin, "Private rejection reason.")
+            notification = Notification.objects.get(
+                NOTF_DEDUP_KEY=f"business_classification_change:{request.pk}:resolved",
+            )
+            self.assertEqual(notification.USER_ID_id, self.merchant.pk)
+            self.assertEqual(notification.NOTF_TYPE, f"business_classification_change_{outcome}")
+            self.assertEqual(notification.NOTF_TARGET_ID, request.pk)
+            self.assertEqual(notification.NOTF_TARGET_TYPE, "business_classification_change")
+            self.assertNotIn("Private rejection reason", notification.NOTF_BODY)
+        self.assertEqual(Notification.objects.count(), 2)
+
+    def test_notification_failure_rolls_back_both_request_decisions(self):
+        from apps.notifications.models import Notification
+
+        response = self._submit()
+        self.assertEqual(response.status_code, 201, response.data)
+        request = BusinessClassificationChangeRequest.objects.get()
+        previous_business = dict(type(self.business).objects.values().get(pk=self.business.pk))
+        for outcome in ("approved", "rejected"):
+            with self.subTest(outcome=outcome):
+                with patch(
+                    "apps.notifications.services.notification_event_service.NotificationService.create",
+                    side_effect=RuntimeError("Inbox storage unavailable"),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        if outcome == "approved":
+                            BusinessClassificationChangeService.approve(request.pk, self.admin)
+                        else:
+                            BusinessClassificationChangeService.reject(request.pk, self.admin, "Private rejection reason.")
+                request.refresh_from_db()
+                self.assertEqual(request.BCCR_STATUS, "pending")
+                self.assertIsNone(request.REVIEWER_ID_id)
+                self.assertEqual(
+                    dict(type(self.business).objects.values().get(pk=self.business.pk)),
+                    previous_business,
+                )
+                self.assertFalse(Notification.objects.exists())
+
     def test_submission_captures_snapshots_without_changing_live_or_application(self):
         """Keep classification and historical application intact while pending."""
         response = self._submit()
