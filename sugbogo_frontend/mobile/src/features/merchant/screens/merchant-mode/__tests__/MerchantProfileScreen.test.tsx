@@ -10,6 +10,7 @@ const mockNotify = jest.fn();
 const mockRequestState = jest.fn();
 const mockClassificationState = jest.fn();
 const mockLocationState = jest.fn();
+const mockClusters = jest.fn();
 
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
@@ -30,6 +31,10 @@ jest.mock(
 );
 jest.mock("../../../hooks/location-change/useMerchantLocationChanges", () => ({
   useMerchantLocationChangeRequests: () => mockLocationState(),
+}));
+jest.mock("../../../hooks/registration/useClusters", () => ({
+  __esModule: true,
+  default: () => mockClusters(),
 }));
 
 jest.mock(
@@ -93,12 +98,14 @@ jest.mock(
     const { Pressable, Text, View } = jest.requireActual("react-native");
     return function MockOverview({
       pendingClassificationRequest,
+      clusterIcon,
       pendingLocationRequest,
       onClassificationHistory,
       onLocationHistory,
       onSwitchToExplorer,
     }: {
       pendingClassificationRequest?: { id: number };
+      clusterIcon?: string;
       pendingLocationRequest?: { id: number };
       onClassificationHistory?: () => void;
       onLocationHistory?: () => void;
@@ -107,6 +114,7 @@ jest.mock(
       return (
         <View>
           <Text>Business details</Text>
+          <Text testID="cluster-icon-key">{clusterIcon ?? ""}</Text>
           {pendingClassificationRequest ? (
             <Pressable
               onPress={onClassificationHistory}
@@ -153,6 +161,9 @@ describe("MerchantProfileScreen", () => {
       isLoading: false,
       error: null,
       refetch: jest.fn(),
+    });
+    mockClusters.mockReturnValue({
+      clusters: [{ id: 1, name: "Culinary", icon: "utensils" }],
     });
   });
 
@@ -208,6 +219,9 @@ describe("MerchantProfileScreen", () => {
     expect(screen.queryByText("Request name change")).toBeNull();
     expect(screen.getByText("Manage Business")).toBeTruthy();
     expect(screen.queryByText("Change Requests")).toBeNull();
+    expect(screen.getByTestId("cluster-icon-key").props.children).toBe(
+      "utensils",
+    );
     await fireEvent.press(
       screen.getByLabelText("View pending business name request"),
     );

@@ -6,6 +6,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
+import type { ClusterIcon } from "@/shared/types/cluster.types";
 import LocationPickerMap from "@/features/merchant/components/registration/location/LocationPickerMap";
 import { getBusinessAddressDisplay } from "@/features/explore/utils/businessLocation.utils";
 import {
@@ -113,6 +115,7 @@ function SummarySection({
 /** Shows the live merchant listing as concise, glanceable sections. */
 export default function MerchantBusinessOverview({
   business,
+  clusterIcon,
   onEditInformation,
   onEditOperatingHours,
   onManagePhotos,
@@ -129,6 +132,7 @@ export default function MerchantBusinessOverview({
   onRetryLocation,
 }: {
   business: MerchantBusinessProfileResponse;
+  clusterIcon?: ClusterIcon;
   onEditInformation?: () => void;
   onEditOperatingHours?: () => void;
   onManagePhotos?: () => void;
@@ -161,6 +165,7 @@ export default function MerchantBusinessOverview({
     })),
   );
   const address = getBusinessAddressDisplay(business.location);
+  const clusterIconName = clusterIcon ? CLUSTER_ICONS[clusterIcon] : undefined;
   const canEdit = business.status === "active";
 
   return (
@@ -207,14 +212,40 @@ export default function MerchantBusinessOverview({
         }
         onAction={onClassificationHistory}
       >
-        <AppText weight="semibold" className="text-sm text-text-primary">
-          {business.category.name} · {business.cluster.name}
-        </AppText>
+        <View className="flex-row items-center gap-3">
+          {clusterIconName ? (
+            <View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-secondary">
+              <MaterialCommunityIcons
+                name={clusterIconName}
+                size={20}
+                color={theme.extends.colors.text.secondary}
+              />
+            </View>
+          ) : null}
+          <View className="min-w-0 flex-1">
+            <AppText weight="bold" className="text-base text-text-primary">
+              {business.category.name}
+            </AppText>
+            <AppText className="text-sm text-text-secondary">
+              {business.cluster.name}
+            </AppText>
+          </View>
+        </View>
         {business.specialty_tags.length > 0 ? (
-          <View className="mt-2 flex-row flex-wrap gap-2">
-            {business.specialty_tags.map((tag) => (
-              <SpecialtyTagChip key={tag.id} tag={tag} size="small" />
-            ))}
+          <View className="mt-4">
+            <AppText weight="semibold" className="text-xs text-text-secondary">
+              Specialties
+            </AppText>
+            <View className="mt-2 flex-row flex-wrap">
+              {business.specialty_tags.map((tag) => (
+                <SpecialtyTagChip
+                  key={tag.id}
+                  tag={tag}
+                  size="small"
+                  showIcon
+                />
+              ))}
+            </View>
           </View>
         ) : null}
         {isCheckingClassification ? (

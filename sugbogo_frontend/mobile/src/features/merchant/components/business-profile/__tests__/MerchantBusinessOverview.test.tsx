@@ -1,5 +1,6 @@
 import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import type { MerchantBusinessProfileResponse } from "../../../types/merchantBusinessProfile.types";
 import MerchantBusinessOverview from "../MerchantBusinessOverview";
@@ -27,7 +28,11 @@ const business: MerchantBusinessProfileResponse = {
   cover_photo_update: { limit: 3, remaining: 2, resets_at: null },
   category: { id: 2, name: "Restaurants" },
   cluster: { id: 1, name: "Food and Dining" },
-  specialty_tags: [{ id: 3, name: "Lechon", color: "blue", icon: "tag" }],
+  specialty_tags: [
+    { id: 3, name: "Lechon", color: "blue", icon: "tag" },
+    { id: 4, name: "Local Food", color: "green", icon: "chef_hat" },
+    { id: 5, name: "Coffee", color: "yellow", icon: "coffee" },
+  ],
   location: {
     address: "Gorordo Avenue",
     city: "Cebu City",
@@ -80,11 +85,26 @@ const business: MerchantBusinessProfileResponse = {
 describe("MerchantBusinessOverview", () => {
   it("shows live summaries without raw fields or reviewed-change actions", async () => {
     const screen = await render(
-      <MerchantBusinessOverview business={business} />,
+      <MerchantBusinessOverview business={business} clusterIcon="utensils" />,
     );
 
     expect(screen.getByText("Local Cebu food")).toBeTruthy();
-    expect(screen.getByText("Restaurants · Food and Dining")).toBeTruthy();
+    expect(screen.getByText("Restaurants")).toBeTruthy();
+    expect(screen.getByText("Food and Dining")).toBeTruthy();
+    expect(screen.queryByText("Restaurants · Food and Dining")).toBeNull();
+    const clusterGlyph = String.fromCodePoint(
+      Number(MaterialCommunityIcons.glyphMap["silverware-fork-knife"]),
+    );
+    expect(screen.getAllByText(clusterGlyph).length).toBeGreaterThan(0);
+    expect(screen.getByText("Specialties")).toBeTruthy();
+    expect(screen.getByText("Lechon")).toBeTruthy();
+    expect(screen.getByText("Local Food")).toBeTruthy();
+    expect(screen.getByText("Coffee")).toBeTruthy();
+    const specialtyGlyph = String.fromCodePoint(
+      Number(MaterialCommunityIcons.glyphMap["tag-outline"]),
+    );
+    expect(screen.getByText(specialtyGlyph)).toBeTruthy();
+    expect(screen.queryByText(/vouches?/i)).toBeNull();
     expect(screen.getByText("Gorordo Avenue")).toBeTruthy();
     expect(screen.getByText("1 landmark")).toBeTruthy();
     expect(screen.getByText("Location map preview")).toBeTruthy();
@@ -170,6 +190,26 @@ describe("MerchantBusinessOverview", () => {
     expect(onSwitchToExplorer).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Request location change")).toBeNull();
     expect(screen.queryByText("Change Requests")).toBeNull();
+  });
+
+  it("retains classification request-status loading feedback", async () => {
+    const loading = await render(
+      <MerchantBusinessOverview business={business} isCheckingClassification />,
+    );
+    expect(loading.getByText("Checking request status...")).toBeTruthy();
+  });
+
+  it("retains classification request-status retry feedback", async () => {
+    const onRetryClassification = jest.fn();
+    const failed = await render(
+      <MerchantBusinessOverview
+        business={business}
+        hasClassificationError
+        onRetryClassification={onRetryClassification}
+      />,
+    );
+    await fireEvent.press(failed.getByText("Retry request status"));
+    expect(onRetryClassification).toHaveBeenCalledTimes(1);
   });
 
   it("limits the photo preview to thumbnails without filenames", async () => {

@@ -24,6 +24,7 @@ import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateB
 import { useMerchantBusinessNameChangeRequests } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
 import { useMerchantClassificationChangeRequests } from "../../hooks/classification-change/useMerchantClassificationChanges";
 import { useMerchantLocationChangeRequests } from "../../hooks/location-change/useMerchantLocationChanges";
+import useClusters from "../../hooks/registration/useClusters";
 
 /**
  * Displays the merchant's live business profile and its primary management
@@ -38,6 +39,7 @@ export default function MerchantProfileScreen() {
   const bottomSpacing = useTabBarSpacing();
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const { clusters } = useClusters();
 
   const { pendingRequest, refetch: refetchRequests } =
     useMerchantBusinessNameChangeRequests();
@@ -320,6 +322,10 @@ export default function MerchantProfileScreen() {
           {/* Keep existing overview section styling intact */}
           <MerchantBusinessOverview
             business={business}
+            clusterIcon={
+              clusters.find((cluster) => cluster.id === business.cluster.id)
+                ?.icon
+            }
             pendingClassificationRequest={pendingClassificationRequest}
             isCheckingClassification={isCheckingClassification}
             hasClassificationError={Boolean(classificationError)}
