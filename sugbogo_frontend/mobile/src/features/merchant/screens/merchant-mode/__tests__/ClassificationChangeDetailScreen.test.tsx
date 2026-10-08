@@ -12,6 +12,13 @@ const mockDetail = jest.fn();
 const mockWithdraw = jest.fn();
 const mockRefetch = jest.fn();
 
+jest.mock("@expo/vector-icons", () => ({
+  MaterialCommunityIcons: ({ name }: { name: string }) => {
+    const { Text } = jest.requireActual("react-native");
+    return <Text>{name}</Text>;
+  },
+}));
+
 jest.mock("expo-router", () => ({ router: { back: jest.fn() } }));
 jest.mock(
   "../../../hooks/classification-change/useMerchantClassificationChanges",
@@ -26,6 +33,19 @@ jest.mock(
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => ({
   __esModule: true,
   default: jest.fn(),
+}));
+jest.mock("../../../hooks/registration/useClusters", () => ({
+  __esModule: true,
+  default: () => ({
+    clusters: [
+      { id: 1, name: "Food", icon: "utensils" },
+      { id: 5, name: "Culture", icon: "landmark" },
+    ],
+  }),
+}));
+jest.mock("../../../hooks/registration/useSpecialtyTags", () => ({
+  __esModule: true,
+  default: () => ({ specialtyTags: [] }),
 }));
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -72,11 +92,13 @@ describe("ClassificationChangeDetailScreen", () => {
     const screen = await render(
       <ClassificationChangeDetailScreen requestId={7} />,
     );
-    expect(screen.getByText("Current at Submission")).toBeTruthy();
+    expect(screen.getByText("At submission")).toBeTruthy();
     expect(screen.getByText("Restaurants")).toBeTruthy();
     expect(screen.getByText("Creative Arts")).toBeTruthy();
+    expect(screen.getByText("silverware-fork-knife")).toBeTruthy();
+    expect(screen.getByText("city")).toBeTruthy();
     expect(screen.getByText("Handmade Crafts")).toBeTruthy();
-    expect(screen.getByText("Pending Admin review")).toBeTruthy();
+    expect(screen.getByText("Under Review")).toBeTruthy();
     await fireEvent.press(screen.getByText("Withdraw Request"));
     expect(mockWithdraw).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByText("Withdraw"));
@@ -101,6 +123,9 @@ describe("ClassificationChangeDetailScreen", () => {
     expect(
       screen.getByText("The name does not match the category."),
     ).toBeTruthy();
+    expect(screen.getByText("Administrator notes")).toBeTruthy();
+    expect(screen.getByText("shield-account-outline")).toBeTruthy();
+    expect(screen.getByText("format-quote-open")).toBeTruthy();
     expect(screen.queryByText("Withdraw Request")).toBeNull();
   });
 

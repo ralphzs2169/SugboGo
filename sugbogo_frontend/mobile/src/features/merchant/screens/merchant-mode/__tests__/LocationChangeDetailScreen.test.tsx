@@ -1,5 +1,11 @@
 import React from "react";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import LocationChangeDetailScreen from "../LocationChangeDetailScreen";
@@ -60,6 +66,10 @@ const request = {
 };
 
 describe("Location change detail", () => {
+  afterEach(async () => {
+    await cleanup();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     useLocationChangeReviewStore.getState().clearPreview();
@@ -73,32 +83,92 @@ describe("Location change detail", () => {
     mockWithdraw.mockResolvedValue({ ...request, status: "withdrawn" });
   });
 
-  it("keeps the historical location expandable and confirms pending withdrawal", async () => {
+  it("shows a moved pin and retains full-map navigation", async () => {
     const screen = await render(<LocationChangeDetailScreen requestId={11} />);
-    expect(screen.getByText("Requested location")).toBeTruthy();
-    expect(screen.getByText("Location when submitted")).toBeTruthy();
-    expect(screen.queryByLabelText("View Location when submitted")).toBeNull();
-    await act(async () => {
-      fireEvent.press(screen.getByText("Location when submitted"));
-    });
-    expect(screen.getByLabelText("View Location when submitted")).toBeTruthy();
-    fireEvent.press(screen.getByLabelText("View Requested location"));
+    expect(
+      screen.getAllByText("Requested business pin").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Business pin at submission")).toBeTruthy();
+    expect(
+      screen.queryByLabelText("View Business pin at submission"),
+    ).toBeNull();
+    await fireEvent.press(screen.getByLabelText("Business pin at submission"));
+    expect(
+      screen.getByLabelText("View Business pin at submission"),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("View Requested business pin"));
     expect(router.push).toHaveBeenCalledWith(
       "/(merchant)/location-change/review-landmarks",
     );
     expect(
       useLocationChangeReviewStore.getState().businessLocation?.latitude,
     ).toBe(10.32);
+  });
 
-    await act(async () => {
-      fireEvent.press(screen.getByLabelText("Withdraw Request"));
+  it("shows only the changed address field for an address-only request", async () => {
+    mockDetail.mockReturnValue({
+      request: {
+        ...request,
+        proposed: {
+          location: {
+            ...request.previous.location,
+            address: "New",
+          },
+          landmarks: [],
+        },
+      },
+      isLoading: false,
+      isRefetching: false,
+      error: null,
+      refetch: jest.fn(),
     });
-    expect((mockConfirmModal as jest.Mock).mock.lastCall[0].visible).toBe(true);
-    await act(async () => {
-      (mockConfirmModal as jest.Mock).mock.lastCall[0].onConfirm();
+
+    const screen = await render(<LocationChangeDetailScreen requestId={11} />);
+    expect(screen.getByText("Address changes")).toBeTruthy();
+    expect(screen.getByText("At submission")).toBeTruthy();
+    expect(screen.getByText("Old")).toBeTruthy();
+    expect(screen.getByText("Requested")).toBeTruthy();
+    expect(screen.getByText("New")).toBeTruthy();
+    expect(screen.queryByText("Requested business pin")).toBeNull();
+    expect(screen.queryByText("Business pin at submission")).toBeNull();
+    expect(screen.queryByText("View full map")).toBeNull();
+    expect(screen.queryByText("View requested landmarks on map")).toBeNull();
+  });
+
+  it("shows landmark changes without a pin map when only landmarks changed", async () => {
+    mockDetail.mockReturnValue({
+      request: {
+        ...request,
+        proposed: {
+          location: request.previous.location,
+          landmarks: [
+            {
+              id: 3,
+              name: "Nearby cafe",
+              address: "Cebu City",
+              latitude: 10.32,
+              longitude: 123.89,
+              source: "google",
+              place_id: null,
+            },
+          ],
+        },
+      },
+      isLoading: false,
+      isRefetching: false,
+      error: null,
+      refetch: jest.fn(),
     });
-    expect(mockWithdraw).toHaveBeenCalledWith(11);
-    await screen.unmount();
+
+    const screen = await render(<LocationChangeDetailScreen requestId={11} />);
+    expect(screen.getByText("Landmark changes")).toBeTruthy();
+    expect(screen.getByText("Requested to add (1)")).toBeTruthy();
+    expect(screen.getByText("Nearby cafe")).toBeTruthy();
+    expect(screen.queryByText("Requested business pin")).toBeNull();
+    expect(screen.queryByText("View full map")).toBeNull();
+    expect(
+      screen.getByLabelText("View requested landmarks on map"),
+    ).toBeTruthy();
   });
 
   it("retains rejected history and explains the decision", async () => {
@@ -122,6 +192,15 @@ describe("Location change detail", () => {
       ).toBeTruthy(),
     );
     expect(screen.queryByLabelText("Withdraw Request")).toBeNull();
-    await screen.unmount();
+  });
+
+  it("confirms pending withdrawal", async () => {
+    const screen = await render(<LocationChangeDetailScreen requestId={11} />);
+    await fireEvent.press(screen.getByLabelText("Withdraw Request"));
+    expect((mockConfirmModal as jest.Mock).mock.lastCall[0].visible).toBe(true);
+    await act(async () => {
+      await (mockConfirmModal as jest.Mock).mock.lastCall[0].onConfirm();
+    });
+    expect(mockWithdraw).toHaveBeenCalledWith(11);
   });
 });

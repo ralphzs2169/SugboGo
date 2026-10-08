@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, type Href } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -22,7 +22,7 @@ import rejectedApplicationAnimation from "../../assets/animations/changes-requir
 import approvedApplicationAnimation from "../../assets/animations/approved-application.json";
 
 import BusinessNameChangeStatusBadge from "../../components/business-name-change/BusinessNameChangeStatusBadge";
-import LocationChangeComparison from "../../components/location-change/LocationChangeComparison";
+import LocationChangeReviewSections from "../../components/location-change/LocationChangeReviewSections";
 import { useLocationChangeReviewStore } from "../../stores/locationChangeReviewStore";
 import {
   useMerchantLocationChangeRequest,
@@ -33,9 +33,8 @@ import {
  * Displays a merchant's submitted location change request and review status.
  *
  * Uses animated status presentations for pending and rejected requests,
- * displays the proposed location, and provides an expandable snapshot
- * of the location at submission. Pending requests can be withdrawn
- * through a confirmation modal.
+ * displays only the changed address, pin, and landmark details. Pending
+ * requests can be withdrawn through a confirmation modal.
  */
 export default function LocationChangeDetailScreen({
   requestId,
@@ -45,7 +44,6 @@ export default function LocationChangeDetailScreen({
   const withdrawingRef = useRef(false);
 
   const [confirmVisible, setConfirmVisible] = useState(false);
-  const [showPrevious, setShowPrevious] = useState(false);
 
   const setReviewPreview = useLocationChangeReviewStore(
     (state) => state.setPreview,
@@ -174,7 +172,7 @@ export default function LocationChangeDetailScreen({
                 weight="bold"
                 className="mt-3 text-center text-xl text-text-primary"
               >
-                We're reviewing your location change
+                We&apos;re reviewing your location change
               </AppText>
 
               <AppText className="mt-2 text-center text-xs text-text-secondary">
@@ -203,11 +201,11 @@ export default function LocationChangeDetailScreen({
                 weight="bold"
                 className="mt-3 text-center text-xl text-text-primary"
               >
-                Your location change wasn't approved
+                Your location change wasn&apos;t approved
               </AppText>
 
               <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
-                Review the administrator's feedback below.
+                Review the administrator&apos;s feedback below.
               </AppText>
 
               {request.resolved_at ? (
@@ -310,15 +308,17 @@ export default function LocationChangeDetailScreen({
           )}
         </View>
 
-        {/* Requested location */}
-        <View className="mb-4">
-          <LocationChangeComparison
-            title="Requested location"
-            location={request.proposed.location}
-            landmarks={request.proposed.landmarks}
-            onView={() => {
+        {/* Changes captured in this request */}
+        <View className="-mx-4 mb-4">
+          <LocationChangeReviewSections
+            currentLocation={request.previous.location}
+            proposedLocation={request.proposed.location}
+            currentLandmarks={request.previous.landmarks}
+            proposedLandmarks={request.proposed.landmarks}
+            status={request.status}
+            onViewProposed={() => {
               setReviewPreview(
-                "Requested location",
+                "Requested location and landmarks",
                 request.proposed.location,
                 request.proposed.landmarks,
               );
@@ -327,59 +327,17 @@ export default function LocationChangeDetailScreen({
                 "/(merchant)/location-change/review-landmarks" as Href,
               );
             }}
+            onViewCurrent={() => {
+              setReviewPreview(
+                "Location at submission",
+                request.previous.location,
+                request.previous.landmarks,
+              );
+              router.push(
+                "/(merchant)/location-change/review-landmarks" as Href,
+              );
+            }}
           />
-        </View>
-
-        {/* Location at submission */}
-        <View className="mb-5 overflow-hidden rounded-2xl border border-border-primary/70 bg-surface">
-          <Pressable
-            onPress={() => setShowPrevious((value) => !value)}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: showPrevious }}
-            className="min-h-[60px] cursor-pointer flex-row items-center px-4 py-3 active:bg-background"
-          >
-            <MaterialCommunityIcons
-              name="history"
-              size={20}
-              color={theme.extends.colors.text.secondary}
-            />
-
-            <AppText
-              weight="semibold"
-              className="ml-3 flex-1 text-sm text-text-primary"
-            >
-              Location at submission
-            </AppText>
-
-            <MaterialCommunityIcons
-              name={showPrevious ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={theme.extends.colors.text.secondary}
-            />
-          </Pressable>
-
-          {showPrevious ? (
-            <View className="border-t border-border-primary/60 px-4 pb-4 pt-3">
-              <LocationChangeComparison
-                title="Location at submission"
-                location={request.previous.location}
-                landmarks={request.previous.landmarks}
-                compact
-                embedded
-                onView={() => {
-                  setReviewPreview(
-                    "Location at submission",
-                    request.previous.location,
-                    request.previous.landmarks,
-                  );
-
-                  router.push(
-                    "/(merchant)/location-change/review-landmarks" as Href,
-                  );
-                }}
-              />
-            </View>
-          ) : null}
         </View>
 
         {/* Administrator rejection feedback */}

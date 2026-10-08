@@ -8,14 +8,9 @@ import {
 
 import BusinessNameChangeDetailScreen from "../BusinessNameChangeDetailScreen";
 
-const mockProfile = jest.fn();
 const mockDetail = jest.fn();
 const mockWithdraw = jest.fn();
 
-jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
-  __esModule: true,
-  default: () => mockProfile(),
-}));
 jest.mock(
   "../../../hooks/business-name-change/useMerchantBusinessNameChanges",
   () => ({
@@ -60,9 +55,6 @@ describe("BusinessNameChangeDetailScreen", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockProfile.mockReturnValue({
-      business: { id: 10, business_name: "Sugbo Bistro", status: "active" },
-    });
     mockDetail.mockReturnValue({
       request,
       isLoading: false,
@@ -72,19 +64,25 @@ describe("BusinessNameChangeDetailScreen", () => {
     mockWithdraw.mockResolvedValue({ ...request, status: "withdrawn" });
   });
 
-  it("confirms withdrawal while keeping the live name visible", async () => {
+  it("shows the saved before-and-after names and confirms withdrawal", async () => {
     const screen = await render(
       <BusinessNameChangeDetailScreen requestId={7} />,
     );
     expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
     expect(screen.getByText("Sugbo Heritage Bistro")).toBeTruthy();
-    expect(screen.getByText("Pending Admin review")).toBeTruthy();
+    expect(screen.getByText("At submission")).toBeTruthy();
+    expect(screen.getByText("Requested")).toBeTruthy();
+    expect(screen.getByText("Under Review")).toBeTruthy();
     await fireEvent.press(screen.getByText("Withdraw Request"));
     await waitFor(() =>
-      expect(screen.getByText("Withdraw this request?")).toBeTruthy(),
+      expect(
+        screen.getByText("Withdraw this name change request?"),
+      ).toBeTruthy(),
     );
     expect(mockWithdraw).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByText("Withdraw this request?"));
+    await fireEvent.press(
+      screen.getByText("Withdraw this name change request?"),
+    );
     await waitFor(() => expect(mockWithdraw).toHaveBeenCalledWith(7));
   });
 
@@ -103,6 +101,8 @@ describe("BusinessNameChangeDetailScreen", () => {
       <BusinessNameChangeDetailScreen requestId={7} />,
     );
     expect(screen.getByText("Name unclear.")).toBeTruthy();
+    expect(screen.getByText("Request Rejected")).toBeTruthy();
+    expect(screen.getByText("Administrator notes")).toBeTruthy();
     expect(screen.queryByText("Withdraw Request")).toBeNull();
   });
 
@@ -116,7 +116,23 @@ describe("BusinessNameChangeDetailScreen", () => {
     const screen = await render(
       <BusinessNameChangeDetailScreen requestId={7} />,
     );
+    expect(screen.getByText("Name Approved")).toBeTruthy();
+    expect(screen.getByText("At submission")).toBeTruthy();
     expect(screen.getByText("Approved")).toBeTruthy();
+    expect(screen.queryByText("Withdraw Request")).toBeNull();
+  });
+
+  it("keeps withdrawn requests read-only", async () => {
+    mockDetail.mockReturnValue({
+      request: { ...request, status: "withdrawn" },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(
+      <BusinessNameChangeDetailScreen requestId={7} />,
+    );
+    expect(screen.getByText("Withdrawn")).toBeTruthy();
     expect(screen.queryByText("Withdraw Request")).toBeNull();
   });
 

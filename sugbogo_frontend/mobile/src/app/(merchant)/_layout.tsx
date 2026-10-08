@@ -69,6 +69,7 @@ export default function MerchantLayout() {
           ...slideFromRight,
           headerShown: true,
           title: "Request Name Change",
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
@@ -96,6 +97,7 @@ export default function MerchantLayout() {
           ...slideFromRight,
           headerShown: true,
           title: "Request Classification Change",
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen

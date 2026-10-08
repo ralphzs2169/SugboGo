@@ -1,8 +1,21 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { router, type Href } from "expo-router";
-import { useRef } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { router, useFocusEffect, useNavigation, type Href } from "expo-router";
+import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
+import {
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { z } from "zod";
@@ -12,10 +25,13 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
 import LoadingScreen from "@/shared/components/LoadingScreen";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 
+import BusinessNameChangeComparison from "../../components/business-name-change/BusinessNameChangeComparison";
+import RegistrationSection from "../../components/registration/RegistrationSection";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import {
   useMerchantBusinessNameChangeRequests,
@@ -25,10 +41,17 @@ import { businessNameChangeSchema } from "../../validation/businessNameChange.sc
 
 type NameChangeForm = z.infer<typeof businessNameChangeSchema>;
 
-/** Submits one name proposal while keeping the approved business name visible. */
+/** Reviews one changed business name and protects an unfinished request on exit. */
 export default function BusinessNameChangeRequestScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const submittingRef = useRef(false);
+  const submittedRef = useRef(false);
+  const hasChangesRef = useRef(false);
+  const initializedBusinessId = useRef<number | null>(null);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [discardVisible, setDiscardVisible] = useState(false);
   const {
     business,
     isLoading: isProfileLoading,
@@ -46,6 +69,57 @@ export default function BusinessNameChangeRequestScreen() {
     resolver: zodResolver(businessNameChangeSchema),
     defaultValues: { proposedBusinessName: "" },
   });
+  const proposedBusinessName = useWatch({
+    control: form.control,
+    name: "proposedBusinessName",
+  });
+  const hasChanges = Boolean(
+    business &&
+    form.formState.isDirty &&
+    proposedBusinessName.trim() !== business.business_name.trim(),
+  );
+
+  useEffect(() => {
+    if (!business || initializedBusinessId.current === business.id) {
+      return;
+    }
+    initializedBusinessId.current = business.id;
+    form.reset({ proposedBusinessName: business.business_name });
+  }, [business, form]);
+
+  useLayoutEffect(() => {
+    hasChangesRef.current = hasChanges;
+  }, [hasChanges]);
+
+  const requestExit = useCallback(() => {
+    if (submittingRef.current || submittedRef.current) {
+      return;
+    }
+    if (hasChangesRef.current) {
+      setDiscardVisible(true);
+      return;
+    }
+    router.back();
+  }, []);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => <HeaderBackButton onPress={requestExit} />,
+    });
+  }, [navigation, requestExit]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          requestExit();
+          return true;
+        },
+      );
+      return () => subscription.remove();
+    }, [requestExit]),
+  );
 
   useQueryErrorNotification({
     error: requestsError ?? profileError,
@@ -55,7 +129,13 @@ export default function BusinessNameChangeRequestScreen() {
   });
 
   async function submitValues(values: NameChangeForm) {
-    if (submittingRef.current || submitRequest.isPending || pendingRequest) {
+    if (
+      submittingRef.current ||
+      submitRequest.isPending ||
+      pendingRequest ||
+      !business ||
+      !isReviewing
+    ) {
       return;
     }
 
@@ -68,15 +148,22 @@ export default function BusinessNameChangeRequestScreen() {
     }
 
     submittingRef.current = true;
+    setIsSubmittingRequest(true);
     try {
-      await submitRequest.mutateAsync(values.proposedBusinessName);
+      const created = await submitRequest.mutateAsync(
+        values.proposedBusinessName,
+      );
       Toast.show({
         type: "success",
         text1: "Name change requested",
         text2: "Your current name stays visible until Admin approval.",
       });
-      router.replace("/(merchant)/business-update-requests" as Href);
+      submittedRef.current = true;
+      router.replace(
+        `/(merchant)/business-update-requests/${created.id}` as Href,
+      );
     } catch (error) {
+      setIsSubmittingRequest(false);
       const response = error as ApiError;
       const fieldMessage = getFieldError(response, "proposed_business_name");
       if (fieldMessage) {
@@ -84,6 +171,7 @@ export default function BusinessNameChangeRequestScreen() {
           type: "server",
           message: fieldMessage,
         });
+        setIsReviewing(false);
       } else if (
         response.code === "VALIDATION_ERROR" &&
         response.message.toLowerCase().includes("already pending")
@@ -105,6 +193,20 @@ export default function BusinessNameChangeRequestScreen() {
     } finally {
       submittingRef.current = false;
     }
+  }
+
+  function reviewRequest(values: NameChangeForm) {
+    if (!business || !hasChanges) {
+      return;
+    }
+    if (values.proposedBusinessName === business.business_name.trim()) {
+      form.setError("proposedBusinessName", {
+        type: "manual",
+        message: "Choose a different business name.",
+      });
+      return;
+    }
+    setIsReviewing(true);
   }
 
   if ((isProfileLoading && !business) || isRequestsLoading) {
@@ -146,7 +248,7 @@ export default function BusinessNameChangeRequestScreen() {
     );
   }
 
-  if (pendingRequest) {
+  if (pendingRequest && !isSubmittingRequest) {
     return (
       <View className="flex-1 bg-background">
         <ErrorState
@@ -168,42 +270,55 @@ export default function BusinessNameChangeRequestScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       className="flex-1 bg-background"
     >
-      {/* Current name and proposed change */}
+      {/* Name edit and change review */}
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerClassName="px-5 pt-5"
+        contentContainerClassName="pt-2"
         contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
       >
-        <View className="rounded-card border border-border-primary bg-surface p-4">
-          <AppText className="text-xs text-text-secondary">
-            Current Business Name
-          </AppText>
-          <AppText weight="bold" className="mt-1 text-base text-text-primary">
-            {business.business_name}
-          </AppText>
-        </View>
-        <View className="mt-5">
-          <Controller
-            control={form.control}
-            name="proposedBusinessName"
-            render={({ field, fieldState }) => (
-              <FormInput
-                label="Requested New Name"
-                required
-                minLength={2}
-                maxLength={150}
-                placeholder="Enter your proposed business name"
-                value={field.value}
-                onChangeText={field.onChange}
-                onBlur={field.onBlur}
-                error={fieldState.error?.message}
-              />
-            )}
+        {isReviewing ? (
+          <BusinessNameChangeComparison
+            previousName={business.business_name}
+            proposedName={proposedBusinessName.trim()}
           />
-        </View>
-        <AppText className="mt-3 text-sm leading-5 text-text-secondary">
-          Your current business name will remain visible until an Admin approves
-          this request.
+        ) : (
+          <RegistrationSection
+            title="Business name"
+            icon="store-edit-outline"
+            description="Choose the name customers should see after approval."
+          >
+            <AppText className="text-xs text-text-secondary">
+              Currently live
+            </AppText>
+            <AppText
+              weight="semibold"
+              className="mt-1 mb-5 text-base text-text-primary"
+            >
+              {business.business_name}
+            </AppText>
+            <Controller
+              control={form.control}
+              name="proposedBusinessName"
+              render={({ field, fieldState }) => (
+                <FormInput
+                  label="Proposed business name"
+                  required
+                  minLength={2}
+                  maxLength={150}
+                  placeholder="Enter your proposed business name"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  onBlur={field.onBlur}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+          </RegistrationSection>
+        )}
+        <AppText className="mx-6 mt-3 text-sm leading-5 text-text-secondary">
+          Your current business name stays visible until an Admin approves the
+          request.
         </AppText>
       </ScrollView>
 
@@ -213,19 +328,42 @@ export default function BusinessNameChangeRequestScreen() {
         style={{ paddingBottom: Math.max(insets.bottom, 12) }}
       >
         <Button
-          title="Cancel"
+          title={isReviewing ? "Edit" : "Cancel"}
           variant="outline"
           className="flex-1"
-          onPress={() => router.back()}
-          disabled={submitRequest.isPending}
+          onPress={() => (isReviewing ? setIsReviewing(false) : requestExit())}
+          disabled={submitRequest.isPending || isSubmittingRequest}
+          rounded="full"
         />
         <Button
-          title="Submit Request"
+          title={isReviewing ? "Submit Request" : "Review Changes"}
           className="flex-1"
-          onPress={() => void form.handleSubmit(submitValues)()}
-          loading={submitRequest.isPending || form.formState.isSubmitting}
+          onPress={() =>
+            void form.handleSubmit(isReviewing ? submitValues : reviewRequest)()
+          }
+          disabled={
+            submitRequest.isPending ||
+            isSubmittingRequest ||
+            (!isReviewing && !hasChanges)
+          }
+          loading={submitRequest.isPending || isSubmittingRequest}
+          rounded="full"
         />
       </View>
+
+      {/* Discard confirmation */}
+      <ConfirmModal
+        visible={discardVisible}
+        title="Discard name change?"
+        message="Your current business name will remain unchanged."
+        confirmText="Discard"
+        destructive
+        onCancel={() => setDiscardVisible(false)}
+        onConfirm={() => {
+          setDiscardVisible(false);
+          router.back();
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

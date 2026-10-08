@@ -42,9 +42,9 @@ describe("Location change review sections", () => {
     );
 
     expect(screen.getByText("Address changes")).toBeTruthy();
-    expect(screen.getByText("Current")).toBeTruthy();
+    expect(screen.getByText("Currently live")).toBeTruthy();
     expect(screen.getByText("Old address")).toBeTruthy();
-    expect(screen.getByText("Requested")).toBeTruthy();
+    expect(screen.getByText("Proposed")).toBeTruthy();
     expect(screen.getByText("New address")).toBeTruthy();
     expect(screen.queryByText("View location on map")).toBeNull();
     expect(screen.queryByText("Map preview")).toBeNull();
@@ -89,7 +89,7 @@ describe("Location change review sections", () => {
     );
 
     expect(screen.getByText("Landmark changes")).toBeTruthy();
-    expect(screen.getByText("Added (1)")).toBeTruthy();
+    expect(screen.getByText("To be added (1)")).toBeTruthy();
     expect(screen.getByText("Nearby cafe")).toBeTruthy();
     expect(screen.getByText("Cebu City")).toBeTruthy();
     await act(async () => {
@@ -130,10 +130,10 @@ describe("Location change review sections", () => {
       />,
     );
 
-    expect(screen.getByText("Added (1)")).toBeTruthy();
+    expect(screen.getByText("To be added (1)")).toBeTruthy();
     expect(screen.getByText("New landmark")).toBeTruthy();
     expect(screen.getByText("Osmeña Boulevard")).toBeTruthy();
-    expect(screen.getByText("Removed (1)")).toBeTruthy();
+    expect(screen.getByText("To be removed (1)")).toBeTruthy();
     expect(screen.getByText("Old landmark")).toBeTruthy();
     expect(screen.getByText("Colon Street")).toBeTruthy();
     await screen.unmount();

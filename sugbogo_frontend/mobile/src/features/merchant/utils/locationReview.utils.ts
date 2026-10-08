@@ -1,7 +1,10 @@
 import type { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 
 import type { MerchantBusinessLandmark } from "../types/merchantBusinessProfile.types";
-import type { LocationChangeLocation } from "../types/locationChange.types";
+import type {
+  LocationChangeLandmark,
+  LocationChangeLocation,
+} from "../types/locationChange.types";
 
 type AddressField = "address" | "city" | "province" | "postal_code";
 
@@ -13,7 +16,8 @@ const ADDRESS_FIELDS: { key: AddressField; label: string }[] = [
 ];
 
 function landmarkSignature(
-  landmark: MerchantBusinessLandmark | BusinessLandmark,
+  landmark:
+    MerchantBusinessLandmark | BusinessLandmark | LocationChangeLandmark,
 ) {
   return JSON.stringify([
     landmark.name.trim(),
@@ -25,12 +29,12 @@ function landmarkSignature(
   ]);
 }
 
-/** Finds the visible address, pin, and landmark changes in a request draft. */
+/** Finds the visible address, pin, and landmark differences between two snapshots. */
 export function getLocationReviewChanges(
   current: LocationChangeLocation,
   proposed: LocationChangeLocation,
-  currentLandmarks: MerchantBusinessLandmark[],
-  proposedLandmarks: BusinessLandmark[],
+  currentLandmarks: (MerchantBusinessLandmark | LocationChangeLandmark)[],
+  proposedLandmarks: (BusinessLandmark | LocationChangeLandmark)[],
 ) {
   const addressChanges = ADDRESS_FIELDS.flatMap(({ key, label }) => {
     const previous = current[key]?.trim() ?? "";
@@ -44,7 +48,7 @@ export function getLocationReviewChanges(
   });
 
   const remaining = [...currentLandmarks];
-  const addedLandmarks: BusinessLandmark[] = [];
+  const addedLandmarks: (BusinessLandmark | LocationChangeLandmark)[] = [];
 
   proposedLandmarks.forEach((landmark) => {
     const matchIndex = remaining.findIndex(
