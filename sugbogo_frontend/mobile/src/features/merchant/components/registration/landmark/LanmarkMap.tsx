@@ -16,7 +16,7 @@ import type {
 } from "@/shared/types/BusinessLocation.types";
 
 type LandmarkMapProps = {
-  businessLocation: BusinessLocation;
+  businessLocation: Omit<BusinessLocation, "isWithinServiceArea">;
   selectedLandmarks: BusinessLandmark[];
   onLandmarkPress?: (landmark: BusinessLandmark) => void;
   onMapPress?: (event: MapPressEvent) => void;

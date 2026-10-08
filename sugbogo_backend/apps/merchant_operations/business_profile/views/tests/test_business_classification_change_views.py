@@ -447,12 +447,18 @@ class BusinessClassificationChangeViewTests(TestCase):
 
     def test_rejection_and_admin_permissions(self):
         """Require Admin role and reason; never mutate live classification."""
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/classification-cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
         request_id = self._submit().data["data"]["id"]
         self.assertEqual(self.client.get(self.admin_url).status_code, 403)
         self.client.force_authenticate(user=self.admin)
         queue = self.client.get(f"{self.admin_url}?status=pending")
         self.assertEqual(queue.status_code, 200)
         self.assertEqual(queue.data["data"]["items"][0]["id"], request_id)
+        self.assertEqual(
+            queue.data["data"]["items"][0]["cover_photo_url"],
+            "https://example.com/classification-cover.jpg",
+        )
         detail = self.client.get(self._detail(request_id, admin=True))
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.data["data"]["current"]["category"]["id"], self.old_category.pk)

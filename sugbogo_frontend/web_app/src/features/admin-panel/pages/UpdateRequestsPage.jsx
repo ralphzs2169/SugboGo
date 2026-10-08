@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FileText } from "lucide-react";
+import { FileText, Tag } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
+import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu";
 import PageHeader from "@/features/admin-panel/components/PageHeader";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import useDebounce from "@/shared/hooks/useDebounce";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 import businessUpdateRequestColumns from "../business-update-requests/columns/businessUpdateRequestColumns";
@@ -12,22 +15,28 @@ import {
   UPDATE_REQUEST_TYPE_OPTIONS,
 } from "../business-update-requests/constants/businessUpdateRequestStatus";
 import useBusinessUpdateRequests from "../business-update-requests/hooks/useBusinessUpdateRequests";
+import useCombinedUpdateRequests from "../business-update-requests/hooks/useCombinedUpdateRequests";
 import useClassificationUpdateRequests from "../business-update-requests/hooks/useClassificationUpdateRequests";
 import useLocationUpdateRequests from "../business-update-requests/hooks/useLocationUpdateRequests";
 
 const VALID_STATUSES = new Set(UPDATE_REQUEST_STATUS_TABS.map((tab) => tab.id));
-const VALID_TYPES = new Set(UPDATE_REQUEST_TYPE_OPTIONS.map((type) => type.id));
+const VALID_TYPES = new Set([
+  "all",
+  ...UPDATE_REQUEST_TYPE_OPTIONS.map((type) => type.id),
+]);
 
-/** Shows a server-filtered, paginated Admin queue for sensitive update requests. */
+/** Shows the Admin update-request queue with shared filters and pagination. */
 export default function UpdateRequestsPage() {
   useDocumentTitle("Update Requests | SugboGo Admin");
 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedType = searchParams.get("type") || "business_name";
-  const requestType = VALID_TYPES.has(selectedType)
-    ? selectedType
-    : "business_name";
+  const [globalFilter, setGlobalFilter] = useState(
+    () => searchParams.get("search") || "",
+  );
+  const debouncedGlobalFilter = useDebounce(globalFilter, 400);
+  const selectedType = searchParams.get("type") || "all";
+  const requestType = VALID_TYPES.has(selectedType) ? selectedType : "all";
   const selectedStatus = searchParams.get("status") || "pending";
   const status = VALID_STATUSES.has(selectedStatus)
     ? selectedStatus
@@ -43,19 +52,33 @@ export default function UpdateRequestsPage() {
     page_size: pagination.pageSize,
   };
   const nameQuery = useBusinessUpdateRequests(filters, {
-    enabled: requestType === "business_name",
+    enabled: requestType === "business_name" && !debouncedGlobalFilter,
   });
   const classificationQuery = useClassificationUpdateRequests(filters, {
-    enabled: requestType === "classification",
+    enabled: requestType === "classification" && !debouncedGlobalFilter,
   });
   const locationQuery = useLocationUpdateRequests(filters, {
-    enabled: requestType === "location",
+    enabled: requestType === "location" && !debouncedGlobalFilter,
   });
-  const query = {
-    business_name: nameQuery,
-    classification: classificationQuery,
-    location: locationQuery,
-  }[requestType];
+  const useCombinedQueue =
+    requestType === "all" || Boolean(debouncedGlobalFilter);
+  const combinedQuery = useCombinedUpdateRequests(
+    {
+      status,
+      requestType,
+      page,
+      pageSize: pagination.pageSize,
+      search: debouncedGlobalFilter,
+    },
+    { enabled: useCombinedQueue },
+  );
+  const query = useCombinedQueue
+    ? combinedQuery
+    : {
+        business_name: nameQuery,
+        classification: classificationQuery,
+        location: locationQuery,
+      }[requestType];
 
   useApiErrorNotification(query.error, {
     toastId: `admin-update-requests-${requestType}-load-error`,
@@ -63,17 +86,36 @@ export default function UpdateRequestsPage() {
   });
 
   function selectStatus(nextStatus) {
-    setSearchParams({ type: requestType, status: nextStatus });
+    setSearchParams({
+      type: requestType,
+      status: nextStatus || "all",
+      search: globalFilter,
+    });
   }
 
   function selectRequestType(nextType) {
-    setSearchParams({ type: nextType, status });
+    setSearchParams({
+      type: nextType || "all",
+      status,
+      search: globalFilter,
+    });
+  }
+
+  function changeSearch(value) {
+    setGlobalFilter(value);
+    setSearchParams({ type: requestType, status, search: value });
+  }
+
+  function resetFilters() {
+    setGlobalFilter("");
+    setSearchParams({ type: "all", status: "all" });
   }
 
   function changePagination(nextPagination) {
     setSearchParams({
       type: requestType,
       status,
+      search: globalFilter,
       page: String(nextPagination.pageIndex + 1),
     });
   }
@@ -95,7 +137,7 @@ export default function UpdateRequestsPage() {
         title="Update Requests"
       />
 
-      {/* Status queue */}
+      {/* Request queue */}
       {query.error && query.hasData && (
         <div
           role="alert"
@@ -124,49 +166,64 @@ export default function UpdateRequestsPage() {
         isFetching={query.isFetching}
         error={query.hasData ? null : query.error}
         onRetry={query.refetch}
-        state={{ globalFilter: "", sorting: [] }}
+        state={{ globalFilter, sorting: [] }}
         pagination={pagination}
         pageCount={query.pageCount}
         totalItems={query.totalItems}
         onPaginationChange={changePagination}
+        onGlobalFilterChange={changeSearch}
+        hasActiveFilters={
+          status !== "all" || requestType !== "all" || Boolean(globalFilter)
+        }
+        onResetFilters={resetFilters}
+        isSearching={globalFilter !== debouncedGlobalFilter}
         slots={{
           renderFilters: () => (
-            <fieldset className="flex flex-wrap items-center gap-2">
-              <legend className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                Request Type
-              </legend>
-              <div className="flex flex-wrap rounded-lg border border-stroke bg-surface p-1">
-                {UPDATE_REQUEST_TYPE_OPTIONS.map((option) => {
-                  const isActive = option.id === requestType;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={isActive}
-                      onClick={() => selectRequestType(option.id)}
-                      className={`cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-stroke-active/20 ${
-                        isActive
-                          ? "bg-background text-text-primary shadow-sm"
-                          : "text-text-secondary hover:bg-interaction-hover hover:text-text-primary"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
+            <FilterMenu
+              filters={[
+                {
+                  key: "status",
+                  label: "Status",
+                  icon: Tag,
+                  options: [
+                    { value: "", label: "All statuses" },
+                    ...UPDATE_REQUEST_STATUS_TABS.filter(
+                      (option) => option.id !== "all",
+                    ).map((option) => ({
+                      value: option.id,
+                      label: option.label,
+                    })),
+                  ],
+                  value: status === "all" ? "" : status,
+                  onChange: selectStatus,
+                },
+                {
+                  key: "type",
+                  label: "Request Type",
+                  icon: FileText,
+                  options: [
+                    { value: "", label: "All request types" },
+                    ...UPDATE_REQUEST_TYPE_OPTIONS.map((option) => ({
+                      value: option.id,
+                      label: option.label,
+                    })),
+                  ],
+                  value: requestType === "all" ? "" : requestType,
+                  onChange: selectRequestType,
+                },
+              ]}
+            />
           ),
         }}
         config={{
-          tabs: UPDATE_REQUEST_STATUS_TABS,
-          activeTab: status,
-          onTabChange: selectStatus,
-          showSearch: false,
+          searchPlaceholder: "Search update requests...",
           emptyState: {
             title: emptyLabel,
             description: "Requests in this state will appear here.",
             icon: <FileText className="h-10 w-10 text-text-secondary" />,
+          },
+          noResultsState: {
+            title: "No update requests found",
           },
           errorState: {
             title: "Unable to load update requests",

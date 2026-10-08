@@ -123,10 +123,12 @@ export default function MerchantLayout() {
           ...slideFromRight,
           headerShown: true,
           title: "Request Location Change",
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen name="location-change/picker" />
       <Stack.Screen name="location-change/landmarks-picker" />
+      <Stack.Screen name="location-change/review-landmarks" />
       <Stack.Screen
         name="business-update-requests/location/index"
         options={{

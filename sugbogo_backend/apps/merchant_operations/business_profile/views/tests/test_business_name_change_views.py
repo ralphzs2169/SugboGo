@@ -247,6 +247,8 @@ class BusinessNameChangeViewTests(TestCase):
 
     def test_admin_queue_detail_permissions_and_resolution_fields(self):
         """Provide review context to Admin and Super Admin only."""
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/name-cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
         request_id = self._submit().data["data"]["id"]
         self.client.force_authenticate(user=self.explorer)
         self.assertEqual(self.client.get(self.admin_list_url).status_code, 403)
@@ -256,8 +258,16 @@ class BusinessNameChangeViewTests(TestCase):
         queue = self.client.get(self.admin_list_url)
         self.assertEqual(queue.status_code, 200)
         self.assertEqual(queue.data["data"]["items"][0]["id"], request_id)
+        self.assertEqual(
+            queue.data["data"]["items"][0]["cover_photo_url"],
+            "https://example.com/name-cover.jpg",
+        )
         detail = self.client.get(self._admin_detail_url(request_id))
         self.assertEqual(detail.data["data"]["current_business_name"], "Sugbo Bistro")
+        self.assertEqual(
+            detail.data["data"]["cover_photo_url"],
+            "https://example.com/name-cover.jpg",
+        )
         self.assertEqual(detail.data["data"]["previous_business_name"], "Sugbo Bistro")
         self.assertEqual(detail.data["data"]["proposed_business_name"], "Sugbo Heritage Bistro")
         self.assertEqual(detail.data["data"]["merchant"]["email"], self.merchant.USER_EMAIL)

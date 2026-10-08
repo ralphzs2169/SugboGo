@@ -82,10 +82,21 @@ class BusinessNameChangeUserSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="USER_ID", read_only=True)
     name = serializers.CharField(source="full_name", read_only=True)
     email = serializers.EmailField(source="USER_EMAIL", read_only=True)
+    avatar_url = serializers.ReadOnlyField()
+    avatar_key = serializers.CharField(
+        source="USER_AVATAR_KEY",
+        read_only=True,
+    )
 
     class Meta:
         model = User
-        fields = ("id", "name", "email")
+        fields = (
+            "id",
+            "name",
+            "email",
+            "avatar_url",
+            "avatar_key",
+        )
 
 
 class AdminBusinessNameChangeSerializer(MerchantBusinessNameChangeSerializer):
@@ -97,6 +108,10 @@ class AdminBusinessNameChangeSerializer(MerchantBusinessNameChangeSerializer):
     )
     current_business_name = serializers.CharField(
         source="BUSN_ID.BUSN_NAME",
+        read_only=True,
+    )
+    cover_photo_url = serializers.URLField(
+        source="BUSN_ID.BUSN_COVER_PHOTO_URL",
         read_only=True,
     )
     merchant = BusinessNameChangeUserSerializer(
@@ -112,6 +127,7 @@ class AdminBusinessNameChangeSerializer(MerchantBusinessNameChangeSerializer):
         fields = MerchantBusinessNameChangeSerializer.Meta.fields + (
             "business_id",
             "current_business_name",
+            "cover_photo_url",
             "merchant",
             "reviewer",
         )

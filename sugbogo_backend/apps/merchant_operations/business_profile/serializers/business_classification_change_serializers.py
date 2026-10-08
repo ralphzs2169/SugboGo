@@ -136,6 +136,10 @@ class AdminBusinessClassificationChangeSerializer(
         source="BUSN_ID.BUSN_NAME",
         read_only=True,
     )
+    cover_photo_url = serializers.URLField(
+        source="BUSN_ID.BUSN_COVER_PHOTO_URL",
+        read_only=True,
+    )
     current = serializers.SerializerMethodField()
     merchant = BusinessNameChangeUserSerializer(source="USER_ID", read_only=True)
     reviewer = BusinessNameChangeUserSerializer(source="REVIEWER_ID", read_only=True)
@@ -144,6 +148,7 @@ class AdminBusinessClassificationChangeSerializer(
         fields = MerchantBusinessClassificationChangeSerializer.Meta.fields + (
             "business_id",
             "current_business_name",
+            "cover_photo_url",
             "current",
             "merchant",
             "reviewer",

@@ -1,14 +1,16 @@
 import React from "react";
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { router } from "expo-router";
 
 import LocationChangeDetailScreen from "../LocationChangeDetailScreen";
+import { useLocationChangeReviewStore } from "../../../stores/locationChangeReviewStore";
 
 const mockDetail = jest.fn();
 const mockWithdraw = jest.fn();
 const mockConfirmModal = jest.fn((_props: unknown) => null);
 
 jest.mock("expo-router", () => ({
-  router: { back: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn() },
 }));
 jest.mock("../../../hooks/location-change/useMerchantLocationChanges", () => ({
   useMerchantLocationChangeRequest: () => mockDetail(),
@@ -25,9 +27,13 @@ jest.mock(
   "../../../components/location-change/LocationChangeComparison",
   () => ({
     __esModule: true,
-    default: ({ title }: { title: string }) => {
-      const { Text } = jest.requireActual("react-native");
-      return <Text>{title}</Text>;
+    default: ({ title, onView }: { title: string; onView: () => void }) => {
+      const { Pressable, Text } = jest.requireActual("react-native");
+      return (
+        <Pressable onPress={onView} accessibilityLabel={`View ${title}`}>
+          <Text>{title}</Text>
+        </Pressable>
+      );
     },
   }),
 );
@@ -56,6 +62,7 @@ const request = {
 describe("Location change detail", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useLocationChangeReviewStore.getState().clearPreview();
     mockDetail.mockReturnValue({
       request,
       isLoading: false,
@@ -66,10 +73,22 @@ describe("Location change detail", () => {
     mockWithdraw.mockResolvedValue({ ...request, status: "withdrawn" });
   });
 
-  it("shows both snapshots and confirms pending withdrawal", async () => {
+  it("keeps the historical location expandable and confirms pending withdrawal", async () => {
     const screen = await render(<LocationChangeDetailScreen requestId={11} />);
-    expect(screen.getByText("Current at Submission")).toBeTruthy();
-    expect(screen.getByText("Requested Location")).toBeTruthy();
+    expect(screen.getByText("Requested location")).toBeTruthy();
+    expect(screen.getByText("Location when submitted")).toBeTruthy();
+    expect(screen.queryByLabelText("View Location when submitted")).toBeNull();
+    await act(async () => {
+      fireEvent.press(screen.getByText("Location when submitted"));
+    });
+    expect(screen.getByLabelText("View Location when submitted")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("View Requested location"));
+    expect(router.push).toHaveBeenCalledWith(
+      "/(merchant)/location-change/review-landmarks",
+    );
+    expect(
+      useLocationChangeReviewStore.getState().businessLocation?.latitude,
+    ).toBe(10.32);
 
     await act(async () => {
       fireEvent.press(screen.getByLabelText("Withdraw Request"));
@@ -79,7 +98,7 @@ describe("Location change detail", () => {
       (mockConfirmModal as jest.Mock).mock.lastCall[0].onConfirm();
     });
     expect(mockWithdraw).toHaveBeenCalledWith(11);
-    screen.unmount();
+    await screen.unmount();
   });
 
   it("retains rejected history and explains the decision", async () => {
@@ -97,8 +116,12 @@ describe("Location change detail", () => {
     });
     const screen = await render(<LocationChangeDetailScreen requestId={11} />);
 
-    expect(screen.getByText("Outside the current service area.")).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        screen.getByText("Outside the current service area."),
+      ).toBeTruthy(),
+    );
     expect(screen.queryByLabelText("Withdraw Request")).toBeNull();
-    screen.unmount();
+    await screen.unmount();
   });
 });

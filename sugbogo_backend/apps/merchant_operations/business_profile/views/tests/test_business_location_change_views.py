@@ -578,8 +578,15 @@ class BusinessLocationChangeViewTests(TestCase):
 
     def test_reject_and_owner_profile_landmark_fields(self):
         """Rejection preserves live state and owner profile supports editor prefill."""
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/location-cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
         request_id = self._submit().data["data"]["id"]
         self.client.force_authenticate(user=self.super_admin)
+        queue = self.client.get(self.admin_url)
+        self.assertEqual(
+            queue.data["data"]["items"][0]["cover_photo_url"],
+            "https://example.com/location-cover.jpg",
+        )
         detail = self.client.get(f"{self.admin_url}{request_id}/")
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.data["data"]["current"]["location"]["id"], self.old_location.pk)
