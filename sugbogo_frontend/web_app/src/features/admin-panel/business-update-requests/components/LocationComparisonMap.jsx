@@ -26,23 +26,57 @@ export class LocationMapBoundary extends Component {
 
   render() {
     if (this.state.failed) {
-      return (
-        <div className="flex h-64 items-center justify-center rounded-lg border border-stroke bg-surface-muted px-4 text-center text-sm text-text-secondary">
-          Map unavailable. Addresses and coordinates remain available below.
-        </div>
-      );
+      return <MapUnavailable states={this.props.states} />;
     }
     return this.props.children;
   }
 }
 
+function MapUnavailable({ states }) {
+  return (
+    <div
+      role="status"
+      className="rounded-lg border border-stroke bg-surface p-4 text-sm text-text-secondary"
+    >
+      <p className="font-medium text-text-primary">Map unavailable</p>
+      <p className="mt-1">Review the captured positions below.</p>
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+        {states.map((state) => (
+          <div key={state.id} className="min-w-0">
+            <dt className="text-xs font-semibold text-text-primary">
+              {state.label}
+            </dt>
+            <dd className="break-words">
+              {state.location?.address || "Address unavailable"}
+            </dd>
+            <dd className="font-mono text-xs">
+              {state.location?.latitude ?? "—"},{" "}
+              {state.location?.longitude ?? "—"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function validPosition(location) {
-  if (location?.latitude == null || location?.longitude == null) {
+  if (
+    location?.latitude == null ||
+    location?.longitude == null ||
+    String(location.latitude).trim() === "" ||
+    String(location.longitude).trim() === ""
+  ) {
     return null;
   }
   const lat = Number(location?.latitude);
   const lng = Number(location?.longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lng) > 180
+  ) {
     return null;
   }
   return { lat, lng };
@@ -94,11 +128,7 @@ export default function LocationComparisonMap({ states }) {
     apiStatus === APILoadingStatus.AUTH_FAILURE ||
     !mapId
   ) {
-    return (
-      <div className="flex h-64 items-center justify-center rounded-lg border border-stroke bg-surface-muted px-4 text-center text-sm text-text-secondary">
-        Map unavailable. Addresses and coordinates remain available below.
-      </div>
-    );
+    return <MapUnavailable states={states} />;
   }
 
   if (apiStatus !== APILoadingStatus.LOADED) {

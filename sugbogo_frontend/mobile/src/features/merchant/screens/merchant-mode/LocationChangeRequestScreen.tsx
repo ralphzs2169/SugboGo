@@ -23,7 +23,7 @@ import { theme } from "@/constants/theme";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import MerchantChangeRequestSkeleton from "../../components/change-requests/MerchantChangeRequestSkeleton";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { ApiError } from "@/shared/types/apiResponse.types";
@@ -350,17 +350,12 @@ export default function LocationChangeRequestScreen() {
     router.push("/(merchant)/location-change/review-landmarks" as Href);
   }
 
-  if (!business || profileError || requestsError) {
+  if (!business || (!hasRequestsData && !isRequestsLoading)) {
     if (
       (isProfileLoading && !profileError) ||
-      (isRequestsLoading && !requestsError)
+      (isRequestsLoading && !hasRequestsData && !requestsError)
     ) {
-      return (
-        <LoadingScreen
-          title="Loading Location"
-          description="Preparing your request..."
-        />
-      );
+      return <MerchantChangeRequestSkeleton variant="location" />;
     }
 
     return (
@@ -377,13 +372,8 @@ export default function LocationChangeRequestScreen() {
     );
   }
 
-  if (isRequestsLoading || !hasRequestsData) {
-    return (
-      <LoadingScreen
-        title="Loading Location"
-        description="Preparing your request..."
-      />
-    );
+  if (isRequestsLoading && !hasRequestsData) {
+    return <MerchantChangeRequestSkeleton variant="location" />;
   }
 
   if (pendingRequest && !isSubmittingRequest) {
@@ -438,12 +428,7 @@ export default function LocationChangeRequestScreen() {
   }
 
   if (!location) {
-    return (
-      <LoadingScreen
-        title="Loading Location"
-        description="Preparing your request..."
-      />
-    );
+    return <MerchantChangeRequestSkeleton variant="location" />;
   }
 
   const currentLiveLocation = liveLocationProposal(business.location);
@@ -460,6 +445,20 @@ export default function LocationChangeRequestScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {profileError || requestsError ? (
+          <ErrorState
+            size="section"
+            title="Unable to refresh location request"
+            description="Showing your current draft."
+            primaryActionTitle="Retry"
+            onPrimaryAction={() =>
+              void Promise.all([
+                ...(profileError ? [refetchProfile()] : []),
+                ...(requestsError ? [refetchRequests()] : []),
+              ])
+            }
+          />
+        ) : null}
         {isReviewing ? (
           <>
             <LocationChangeReviewSections

@@ -10,7 +10,7 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import MerchantChangeDetailSkeleton from "../../components/change-requests/MerchantChangeDetailSkeleton";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { ApiError } from "@/shared/types/apiResponse.types";
@@ -98,12 +98,7 @@ export default function LocationChangeDetailScreen({
   }
 
   if (isLoading && !request) {
-    return (
-      <LoadingScreen
-        title="Loading Request"
-        description="Fetching the latest decision..."
-      />
-    );
+    return <MerchantChangeDetailSkeleton />;
   }
 
   if (!request) {

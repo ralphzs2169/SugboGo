@@ -24,7 +24,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import MerchantChangeRequestSkeleton from "../../components/change-requests/MerchantChangeRequestSkeleton";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { ApiError } from "@/shared/types/apiResponse.types";
@@ -52,7 +52,6 @@ export default function BusinessNameChangeRequestScreen() {
   const submittingRef = useRef(false);
   const submittedRef = useRef(false);
   const hasChangesRef = useRef(false);
-  const initializedBusinessId = useRef<number | null>(null);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [discardVisible, setDiscardVisible] = useState(false);
@@ -64,6 +63,10 @@ export default function BusinessNameChangeRequestScreen() {
     error: profileError,
     refetch: refetchProfile,
   } = useMerchantBusinessProfile();
+  const initializedBusinessId = useRef<number | null>(business?.id ?? null);
+  const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
+    business?.id ?? null,
+  );
   const {
     eligibility,
     pendingRequest,
@@ -76,7 +79,7 @@ export default function BusinessNameChangeRequestScreen() {
   const submitRequest = useSubmitMerchantBusinessNameChange();
   const form = useForm<NameChangeForm>({
     resolver: zodResolver(businessNameChangeSchema),
-    defaultValues: { proposedBusinessName: "" },
+    defaultValues: { proposedBusinessName: business?.business_name ?? "" },
   });
   const proposedBusinessName = useWatch({
     control: form.control,
@@ -94,6 +97,7 @@ export default function BusinessNameChangeRequestScreen() {
     }
     initializedBusinessId.current = business.id;
     form.reset({ proposedBusinessName: business.business_name });
+    setReadyBusinessId(business.id);
   }, [business, form]);
 
   useLayoutEffect(() => {
@@ -245,18 +249,13 @@ export default function BusinessNameChangeRequestScreen() {
 
   if (
     (isProfileLoading && !business) ||
-    isRequestsLoading ||
-    (!hasRequestsData && !requestsError)
+    (isRequestsLoading && !hasRequestsData) ||
+    (business && readyBusinessId !== business.id)
   ) {
-    return (
-      <LoadingScreen
-        title="Loading Name Change"
-        description="Checking your business and requests..."
-      />
-    );
+    return <MerchantChangeRequestSkeleton variant="name" />;
   }
 
-  if (!business || requestsError) {
+  if (!business || !hasRequestsData) {
     return (
       <View className="flex-1 bg-background">
         <ErrorState
@@ -335,6 +334,18 @@ export default function BusinessNameChangeRequestScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       >
+        {profileError || requestsError ? (
+          <ErrorState
+            size="section"
+            title="Unable to refresh name change"
+            description="Showing your current draft."
+            primaryActionTitle="Retry"
+            onPrimaryAction={() => {
+              if (profileError) void refetchProfile();
+              if (requestsError) void refetchRequests();
+            }}
+          />
+        ) : null}
         {isReviewing ? (
           <>
             <BusinessNameChangeComparison

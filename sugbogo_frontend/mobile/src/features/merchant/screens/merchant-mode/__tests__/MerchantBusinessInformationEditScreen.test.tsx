@@ -98,6 +98,82 @@ describe("MerchantBusinessInformationEditScreen", () => {
     });
   });
 
+  it("keeps fields hidden while the business first loads", async () => {
+    mockProfile.mockReturnValue({
+      business: null,
+      isLoading: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    expect(
+      screen.getByTestId("merchant-business-information-skeleton"),
+    ).toBeTruthy();
+    expect(
+      screen.queryByPlaceholderText("Tell explorers about your business..."),
+    ).toBeNull();
+  });
+
+  it("renders cached field values without a skeleton during refetch", async () => {
+    mockProfile.mockReturnValue({
+      business,
+      isLoading: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    expect(
+      screen.queryByTestId("merchant-business-information-skeleton"),
+    ).toBeNull();
+    expect(screen.getByDisplayValue(business.description)).toBeTruthy();
+  });
+
+  it("initializes the fetched fields before revealing the editor", async () => {
+    mockProfile.mockReturnValue({
+      business: null,
+      isLoading: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    expect(
+      screen.getByTestId("merchant-business-information-skeleton"),
+    ).toBeTruthy();
+
+    mockProfile.mockReturnValue({
+      business,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    await act(async () => {
+      screen.rerender(<MerchantBusinessInformationEditScreen />);
+    });
+    expect(
+      screen.queryByTestId("merchant-business-information-skeleton"),
+    ).toBeNull();
+    expect(screen.getByDisplayValue(business.description)).toBeTruthy();
+    expect(screen.getByDisplayValue(business.business_email)).toBeTruthy();
+  });
+
+  it("preserves unsaved fields when the same business refetches", async () => {
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    await fireEvent.changeText(
+      screen.getByDisplayValue(business.description),
+      "My unsaved description",
+    );
+    mockProfile.mockReturnValue({
+      business: { ...business, description: "Updated on server" },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    await act(async () => {
+      screen.rerender(<MerchantBusinessInformationEditScreen />);
+    });
+    expect(screen.getByDisplayValue("My unsaved description")).toBeTruthy();
+  });
+
   it("does not render the form for a suspended business", async () => {
     mockProfile.mockReturnValue({
       business: { ...business, status: "suspended" },

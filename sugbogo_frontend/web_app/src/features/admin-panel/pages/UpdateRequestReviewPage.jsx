@@ -1,20 +1,17 @@
 import { useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, ArrowRight } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 
-import Button from "@/shared/components/Button";
 import DetailPageLayout from "@/shared/components/layout/DetailPageLayout";
-import StatusBadge from "@/shared/components/StatusBadge";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import useNavigateBack from "@/shared/hooks/useNavigateBack";
-import { formatDateTime } from "@/shared/utils/dateUtils";
 
 import ApproveUpdateRequestModal from "../business-update-requests/components/ApproveUpdateRequestModal";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
-import { UPDATE_REQUEST_STATUS_VARIANTS } from "../business-update-requests/constants/businessUpdateRequestStatus";
-import MerchantChangeReason from "../business-update-requests/components/MerchantChangeReason";
+import RequestReviewWorkspace from "../business-update-requests/components/RequestReviewWorkspace";
+import ReviewComparison from "../business-update-requests/components/ReviewComparison";
 import useBusinessUpdateRequestDecisions from "../business-update-requests/hooks/useBusinessUpdateRequestDecisions";
 import useBusinessUpdateRequestDetail from "../business-update-requests/hooks/useBusinessUpdateRequestDetail";
 
@@ -140,161 +137,46 @@ export default function UpdateRequestReviewPage() {
         errorMessage="The update request could not be loaded. Please try again."
       >
         {request && (
-          <div className="max-w-5xl space-y-6 pb-12">
-            {/* Context and decision state */}
-            <section className="rounded-xl border border-stroke bg-background p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold text-text-primary">
-                    Business Name Change
-                  </h2>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    Request #{request.id}
-                  </p>
-                </div>
-                <StatusBadge
-                  variant={UPDATE_REQUEST_STATUS_VARIANTS[request.status]}
-                >
-                  {request.status.charAt(0).toUpperCase() +
-                    request.status.slice(1)}
-                </StatusBadge>
-              </div>
-              <dl className="mt-6 grid gap-5 border-t border-stroke pt-5 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <dt className="text-xs text-text-secondary">Business</dt>
-                  <dd className="mt-1 text-sm font-medium text-text-primary">
-                    {request.current_business_name}
-                  </dd>
-                  <dd className="text-xs text-text-secondary">
-                    Business #{request.business_id}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-secondary">Requested By</dt>
-                  <dd className="mt-1 text-sm font-medium text-text-primary">
-                    {request.merchant?.name || request.merchant?.email || "—"}
-                  </dd>
-                  <dd className="text-xs text-text-secondary">
-                    {request.merchant?.email}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-secondary">Submitted</dt>
-                  <dd className="mt-1 text-sm font-medium text-text-primary">
-                    {formatDateTime(request.submitted_at)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-secondary">Resolved</dt>
-                  <dd className="mt-1 text-sm font-medium text-text-primary">
-                    {formatDateTime(request.resolved_at)}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            {/* Captured baseline and proposal */}
+          <RequestReviewWorkspace
+            request={request}
+            type="Business name change"
+            error={error}
+            onRetry={refetch}
+            decisionError={decisionError}
+            onApprove={() => setActiveDialog("approve")}
+            onReject={() => setActiveDialog("reject")}
+            decisionPending={decisions.isApproving || decisions.isRejecting}
+          >
             <section className="rounded-xl border border-stroke bg-background p-5">
               <h2 className="text-base font-semibold text-text-primary">
-                Proposed Change
+                Requested changes
               </h2>
-              <div className="mt-5 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
-                <div className="rounded-lg border border-stroke bg-surface p-4">
-                  <p className="text-xs font-medium text-text-secondary">
-                    Name When Submitted
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-text-primary">
-                    {request.previous_business_name}
-                  </p>
-                </div>
-                <ArrowRight
-                  className="hidden h-5 w-5 text-text-secondary md:block"
-                  aria-hidden="true"
+              <div className="mt-5">
+                <ReviewComparison
+                  title="Business name"
+                  previous={request.previous_business_name}
+                  proposed={request.proposed_business_name}
+                  status={request.status}
                 />
-                <div className="rounded-lg border border-stroke bg-surface p-4">
-                  <p className="text-xs font-medium text-text-secondary">
-                    Requested Name
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-text-primary">
-                    {request.proposed_business_name}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 rounded-lg border border-stroke bg-background p-4">
-                <p className="text-xs font-medium text-text-secondary">
-                  Current Live Name
-                </p>
-                <p className="mt-2 text-base font-semibold text-text-primary">
-                  {request.current_business_name}
-                </p>
               </div>
               {isStale && request.status === "pending" && (
-                <p className="mt-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <div
+                  role="alert"
+                  className="mt-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                >
                   <AlertTriangle
                     className="mt-0.5 h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
-                  The live name differs from the name captured at submission.
-                  Approval will be blocked until this request is resolved.
-                </p>
+                  <p>
+                    The live name is now {request.current_business_name}. It
+                    differs from the name captured at submission, so approval
+                    will be blocked.
+                  </p>
+                </div>
               )}
             </section>
-
-            <MerchantChangeReason reason={request.reason} />
-
-            {/* Resolution and review controls */}
-            {request.status === "approved" && (
-              <section className="rounded-xl border border-stroke bg-background p-5 text-sm text-text-secondary">
-                Approved by{" "}
-                {request.reviewer?.name || request.reviewer?.email || "Admin"}{" "}
-                on {formatDateTime(request.resolved_at)}. The requested name was
-                applied to the live business.
-              </section>
-            )}
-            {request.status === "rejected" && (
-              <section className="rounded-xl border border-stroke bg-background p-5">
-                <h2 className="text-sm font-semibold text-text-primary">
-                  Rejection Reason
-                </h2>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-text-secondary">
-                  {request.rejection_reason}
-                </p>
-                <p className="mt-4 text-xs text-text-secondary">
-                  Rejected by{" "}
-                  {request.reviewer?.name || request.reviewer?.email || "Admin"}{" "}
-                  on {formatDateTime(request.resolved_at)}.
-                </p>
-              </section>
-            )}
-            {request.status === "withdrawn" && (
-              <section className="rounded-xl border border-stroke bg-background p-5 text-sm text-text-secondary">
-                The merchant withdrew this request on{" "}
-                {formatDateTime(request.resolved_at)}. No Admin action is
-                required.
-              </section>
-            )}
-            {decisionError && (
-              <p role="alert" className="text-sm text-red-600">
-                {decisionError}
-              </p>
-            )}
-            {request.status === "pending" && (
-              <div className="flex flex-wrap justify-end gap-3">
-                <Button
-                  variant="danger"
-                  onClick={() => setActiveDialog("reject")}
-                >
-                  Reject Request
-                </Button>
-                <Button
-                  variant="success"
-                  onClick={() => setActiveDialog("approve")}
-                >
-                  Approve Request
-                </Button>
-              </div>
-            )}
-          </div>
+          </RequestReviewWorkspace>
         )}
       </DetailPageLayout>
 

@@ -8,8 +8,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import LoadingScreen from "@/shared/components/LoadingScreen";
 
+import ManageBusinessSkeleton from "../../components/business-profile/ManageBusinessSkeleton";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import useBusinessChangePendingStatus from "../../hooks/change-requests/useBusinessChangePendingStatus";
 
@@ -39,12 +39,7 @@ export default function ManageBusinessScreen() {
   );
 
   if (isLoading && !business) {
-    return (
-      <LoadingScreen
-        title="Loading Business"
-        description="Fetching your business information..."
-      />
-    );
+    return <ManageBusinessSkeleton />;
   }
 
   if (!business) {

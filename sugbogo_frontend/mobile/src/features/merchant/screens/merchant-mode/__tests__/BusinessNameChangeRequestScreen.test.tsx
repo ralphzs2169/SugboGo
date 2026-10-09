@@ -104,6 +104,49 @@ describe("BusinessNameChangeRequestScreen", () => {
     mockSubmit.mockResolvedValue({ id: 7, status: "pending" });
   });
 
+  it("uses a form-shaped skeleton until profile and eligibility load", async () => {
+    mockProfile.mockReturnValue({
+      ...profile,
+      business: null,
+      isLoading: true,
+    });
+    mockRequests.mockReturnValue({
+      eligibility: null,
+      pendingRequest: null,
+      hasData: false,
+      isLoading: true,
+      error: null,
+      refetch: mockRefetchRequests,
+    });
+    const screen = await render(<BusinessNameChangeRequestScreen />);
+    expect(screen.getByTestId("merchant-change-name-skeleton")).toBeTruthy();
+    expect(
+      screen.queryByPlaceholderText("Enter your proposed business name"),
+    ).toBeNull();
+  });
+
+  it("keeps an initialized draft visible when request refresh fails", async () => {
+    const screen = await render(<BusinessNameChangeRequestScreen />);
+    await fireEvent.changeText(
+      screen.getByPlaceholderText("Enter your proposed business name"),
+      "New business name",
+    );
+    mockRequests.mockReturnValue({
+      eligibility: eligible,
+      pendingRequest: null,
+      hasData: true,
+      isLoading: false,
+      error: new Error("offline"),
+      refetch: mockRefetchRequests,
+    });
+    await act(async () => {
+      screen.rerender(<BusinessNameChangeRequestScreen />);
+    });
+    expect(screen.queryByTestId("merchant-change-name-skeleton")).toBeNull();
+    expect(screen.getByDisplayValue("New business name")).toBeTruthy();
+    expect(screen.getByText("Unable to refresh name change")).toBeTruthy();
+  });
+
   it("shows the live name and submits only the proposed name", async () => {
     const screen = await render(<BusinessNameChangeRequestScreen />);
     expect(screen.getByText("Sugbo Bistro")).toBeTruthy();

@@ -65,6 +65,35 @@ describe("BusinessNameChangeDetailScreen", () => {
     mockWithdraw.mockResolvedValue({ ...request, status: "withdrawn" });
   });
 
+  it("shows a neutral detail skeleton before the request status is known", async () => {
+    mockDetail.mockReturnValue({
+      request: null,
+      isLoading: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(
+      <BusinessNameChangeDetailScreen requestId={7} />,
+    );
+    expect(screen.getByTestId("merchant-change-detail-skeleton")).toBeTruthy();
+    expect(screen.queryByText("Under Review")).toBeNull();
+  });
+
+  it("keeps cached request details visible during a refetch", async () => {
+    mockDetail.mockReturnValue({
+      request,
+      isLoading: true,
+      isRefetching: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(
+      <BusinessNameChangeDetailScreen requestId={7} />,
+    );
+    expect(screen.queryByTestId("merchant-change-detail-skeleton")).toBeNull();
+    expect(screen.getByText("Under Review")).toBeTruthy();
+  });
+
   it("shows the saved before-and-after names and confirms withdrawal", async () => {
     const screen = await render(
       <BusinessNameChangeDetailScreen requestId={7} />,

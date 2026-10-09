@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,7 +12,7 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import MerchantBusinessEditSkeleton from "../../components/business-profile/MerchantBusinessEditSkeleton";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
@@ -40,9 +40,12 @@ const editSchema = z.object({
 export default function MerchantOperatingHoursEditScreen() {
   const insets = useSafeAreaInsets();
   const savingRef = useRef(false);
-  const initializedBusinessId = useRef<number | null>(null);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const initializedBusinessId = useRef<number | null>(business?.id ?? null);
+  const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
+    business?.id ?? null,
+  );
 
   const { updateOperatingHours, isSaving } = useUpdateMerchantOperatingHours(
     business?.id,
@@ -51,7 +54,7 @@ export default function MerchantOperatingHoursEditScreen() {
   const form = useForm<OperatingHoursForm>({
     resolver: zodResolver(editSchema),
     defaultValues: {
-      operatingHours: mapBusinessHoursToForm([]),
+      operatingHours: mapBusinessHoursToForm(business?.operating_hours ?? []),
     },
   });
 
@@ -68,6 +71,7 @@ export default function MerchantOperatingHoursEditScreen() {
     reset({
       operatingHours: mapBusinessHoursToForm(business.operating_hours),
     });
+    setReadyBusinessId(business.id);
   }, [business, reset]);
 
   async function submitValues(values: OperatingHoursForm) {
@@ -114,13 +118,11 @@ export default function MerchantOperatingHoursEditScreen() {
     }
   }
 
-  if (isLoading && !business) {
-    return (
-      <LoadingScreen
-        title="Loading Operating Hours"
-        description="Fetching your current schedule..."
-      />
-    );
+  if (
+    (isLoading && !business) ||
+    (business && readyBusinessId !== business.id)
+  ) {
+    return <MerchantBusinessEditSkeleton variant="hours" />;
   }
 
   if (!business) {

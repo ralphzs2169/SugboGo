@@ -59,6 +59,28 @@ describe("ManageBusinessScreen", () => {
     });
   });
 
+  it("shows grouped navigation placeholders while the profile cold-loads", async () => {
+    mockProfile.mockReturnValue({
+      business: null,
+      isLoading: true,
+      refetch: jest.fn(),
+    });
+    const screen = await render(<ManageBusinessScreen />);
+    expect(screen.getByTestId("manage-business-skeleton")).toBeTruthy();
+    expect(screen.queryByText("Business details")).toBeNull();
+  });
+
+  it("keeps cached navigation available during a profile refetch", async () => {
+    mockProfile.mockReturnValue({
+      business,
+      isLoading: true,
+      refetch: jest.fn(),
+    });
+    const screen = await render(<ManageBusinessScreen />);
+    expect(screen.queryByTestId("manage-business-skeleton")).toBeNull();
+    expect(screen.getByText("Business details")).toBeTruthy();
+  });
+
   it.each([
     ["business_name", "View business name requests"],
     ["classification", "View classification requests"],

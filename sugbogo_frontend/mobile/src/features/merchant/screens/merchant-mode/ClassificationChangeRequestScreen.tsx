@@ -26,7 +26,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormSelect from "@/shared/components/form/FormSelect";
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import MerchantChangeRequestSkeleton from "../../components/change-requests/MerchantChangeRequestSkeleton";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -65,17 +65,32 @@ import { validateMerchantChangeReason } from "../../utils/merchantChangeReason";
 export default function ClassificationChangeRequestScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const {
+    business,
+    isLoading: isProfileLoading,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useMerchantBusinessProfile();
 
   const submittingRef = useRef(false);
   const submittedRef = useRef(false);
   const hasChangesRef = useRef(false);
-  const initializedBusinessId = useRef<number | null>(null);
+  const initializedBusinessId = useRef<number | null>(business?.id ?? null);
+  const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
+    business?.id ?? null,
+  );
   const clusterSheetRef = useRef<BottomSheetModal>(null);
   const categorySheetRef = useRef<BottomSheetModal>(null);
 
-  const [clusterId, setClusterId] = useState<number | null>(null);
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [specialtyTagIds, setSpecialtyTagIds] = useState<number[]>([]);
+  const [clusterId, setClusterId] = useState<number | null>(
+    business?.cluster.id ?? null,
+  );
+  const [categoryId, setCategoryId] = useState<number | null>(
+    business?.category.id ?? null,
+  );
+  const [specialtyTagIds, setSpecialtyTagIds] = useState<number[]>(
+    () => business?.specialty_tags.map((tag) => Number(tag.id)) ?? [],
+  );
   const [categoryError, setCategoryError] = useState<string | undefined>();
   const [specialtyError, setSpecialtyError] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | undefined>();
@@ -84,13 +99,6 @@ export default function ClassificationChangeRequestScreen() {
   const [discardVisible, setDiscardVisible] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string>();
-
-  const {
-    business,
-    isLoading: isProfileLoading,
-    error: profileError,
-    refetch: refetchProfile,
-  } = useMerchantBusinessProfile();
 
   const {
     eligibility,
@@ -134,6 +142,7 @@ export default function ClassificationChangeRequestScreen() {
     setClusterId(business.cluster.id);
     setCategoryId(business.category.id);
     setSpecialtyTagIds(business.specialty_tags.map((tag) => Number(tag.id)));
+    setReadyBusinessId(business.id);
   }, [business]);
 
   const loadError =
@@ -392,18 +401,13 @@ export default function ClassificationChangeRequestScreen() {
 
   if (
     (isProfileLoading && !business) ||
-    isRequestsLoading ||
-    (!hasRequestsData && !requestsError)
+    (isRequestsLoading && !hasRequestsData) ||
+    (business && readyBusinessId !== business.id)
   ) {
-    return (
-      <LoadingScreen
-        title="Loading Classification"
-        description="Checking your business and available choices..."
-      />
-    );
+    return <MerchantChangeRequestSkeleton variant="classification" />;
   }
 
-  const cannotRender = !business || (requestsError && !hasRequestsData);
+  const cannotRender = !business || !hasRequestsData;
 
   if (cannotRender) {
     return (
@@ -474,12 +478,7 @@ export default function ClassificationChangeRequestScreen() {
   }
 
   if (isClustersLoading || isCategoriesLoading || isTagsLoading) {
-    return (
-      <LoadingScreen
-        title="Loading Classification"
-        description="Preparing your classification choices..."
-      />
-    );
+    return <MerchantChangeRequestSkeleton variant="classification" />;
   }
 
   if (

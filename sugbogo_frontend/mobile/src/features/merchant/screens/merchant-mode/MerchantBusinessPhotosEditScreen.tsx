@@ -9,7 +9,7 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import MerchantBusinessEditSkeleton from "../../components/business-profile/MerchantBusinessEditSkeleton";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
@@ -47,16 +47,19 @@ const CATEGORY_LABELS: Record<BusinessPhotoCategory, string> = {
 export default function MerchantBusinessPhotosEditScreen() {
   const insets = useSafeAreaInsets();
   const savingRef = useRef(false);
-  const initializedBusinessId = useRef<number | null>(null);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const initializedBusinessId = useRef<number | null>(business?.id ?? null);
+  const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
+    business?.id ?? null,
+  );
 
   const { savePhotos, isSaving } = useUpdateMerchantBusinessPhotos(
     business?.id,
   );
 
   const [drafts, setDrafts] = useState<BusinessPhotoDrafts>(() =>
-    mapBusinessPhotosToDrafts([]),
+    mapBusinessPhotosToDrafts(business?.photos ?? []),
   );
 
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
@@ -78,6 +81,7 @@ export default function MerchantBusinessPhotosEditScreen() {
     initializedBusinessId.current = business.id;
     setDrafts(mapBusinessPhotosToDrafts(business.photos));
     setDeletedIds([]);
+    setReadyBusinessId(business.id);
   }, [business]);
 
   const hasNewPhotos = BUSINESS_PHOTO_CATEGORIES.some((category) =>
@@ -201,13 +205,11 @@ export default function MerchantBusinessPhotosEditScreen() {
   }
 
   // Initial business loading state
-  if (isLoading && !business) {
-    return (
-      <LoadingScreen
-        title="Loading Business Photos"
-        description="Fetching your current photos..."
-      />
-    );
+  if (
+    (isLoading && !business) ||
+    (business && readyBusinessId !== business.id)
+  ) {
+    return <MerchantBusinessEditSkeleton variant="photos" />;
   }
 
   // Business profile unavailable
@@ -261,7 +263,7 @@ export default function MerchantBusinessPhotosEditScreen() {
               </AppText>
 
               <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-                Photo changes don't require administrator approval and will
+                Photo changes don&apos;t require administrator approval and will
                 appear on your business listing after saving. You can undo photo
                 removals before saving.
               </AppText>

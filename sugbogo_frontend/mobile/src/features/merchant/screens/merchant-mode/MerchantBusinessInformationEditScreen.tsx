@@ -27,11 +27,11 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
 import FormTextArea from "@/shared/components/form/FormTextArea";
-import LoadingScreen from "@/shared/components/LoadingScreen";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 
+import MerchantBusinessEditSkeleton from "../../components/business-profile/MerchantBusinessEditSkeleton";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import useUpdateMerchantBusinessInformation from "../../hooks/business-profile/useUpdateMerchantBusinessInformation";
 import { merchantBusinessInformationSchema } from "../../validation/merchantBusinessInformation.schema";
@@ -54,10 +54,13 @@ export default function MerchantBusinessInformationEditScreen() {
   const savingRef = useRef(false);
   const savedRef = useRef(false);
   const hasChangesRef = useRef(false);
-  const initializedBusinessId = useRef<number | null>(null);
   const [discardVisible, setDiscardVisible] = useState(false);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const initializedBusinessId = useRef<number | null>(business?.id ?? null);
+  const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
+    business?.id ?? null,
+  );
 
   const { updateInformation, isSaving } = useUpdateMerchantBusinessInformation(
     business?.id,
@@ -66,10 +69,10 @@ export default function MerchantBusinessInformationEditScreen() {
   const form = useForm<BusinessInformationForm>({
     resolver: zodResolver(merchantBusinessInformationSchema),
     defaultValues: {
-      businessDescription: "",
-      contactNumber: "",
-      businessEmail: "",
-      website: "",
+      businessDescription: business?.description ?? "",
+      contactNumber: business?.contact_number ?? "",
+      businessEmail: business?.business_email ?? "",
+      website: business?.website ?? "",
     },
   });
 
@@ -89,6 +92,7 @@ export default function MerchantBusinessInformationEditScreen() {
       businessEmail: business.business_email ?? "",
       website: business.website ?? "",
     });
+    setReadyBusinessId(business.id);
   }, [business, reset]);
 
   useLayoutEffect(() => {
@@ -199,13 +203,11 @@ export default function MerchantBusinessInformationEditScreen() {
   }
 
   // Initial business loading state
-  if (isLoading && !business) {
-    return (
-      <LoadingScreen
-        title="Loading Business Information"
-        description="Fetching your current details..."
-      />
-    );
+  if (
+    (isLoading && !business) ||
+    (business && readyBusinessId !== business.id)
+  ) {
+    return <MerchantBusinessEditSkeleton variant="information" />;
   }
 
   // Business profile unavailable
