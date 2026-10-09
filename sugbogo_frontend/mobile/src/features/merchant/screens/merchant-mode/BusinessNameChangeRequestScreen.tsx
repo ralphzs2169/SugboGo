@@ -31,6 +31,7 @@ import type { ApiError } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 
 import BusinessNameChangeComparison from "../../components/business-name-change/BusinessNameChangeComparison";
+import MerchantChangeReasonCard from "../../components/change-requests/MerchantChangeReasonCard";
 import MerchantChangeCooldownState from "../../components/change-requests/MerchantChangeCooldownState";
 import RegistrationSection from "../../components/registration/RegistrationSection";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
@@ -40,6 +41,7 @@ import {
 } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
 import useMerchantChangeEligibilityRefresh from "../../hooks/change-requests/useMerchantChangeEligibilityRefresh";
 import { businessNameChangeSchema } from "../../validation/businessNameChange.schema";
+import { validateMerchantChangeReason } from "../../utils/merchantChangeReason";
 
 type NameChangeForm = z.infer<typeof businessNameChangeSchema>;
 
@@ -54,6 +56,8 @@ export default function BusinessNameChangeRequestScreen() {
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [discardVisible, setDiscardVisible] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string>();
   const {
     business,
     isLoading: isProfileLoading,
@@ -152,12 +156,19 @@ export default function BusinessNameChangeRequestScreen() {
       return;
     }
 
+    const validationError = validateMerchantChangeReason(reason);
+    if (validationError) {
+      setReasonError(validationError);
+      return;
+    }
+
     submittingRef.current = true;
     setIsSubmittingRequest(true);
     try {
-      const created = await submitRequest.mutateAsync(
-        values.proposedBusinessName,
-      );
+      const created = await submitRequest.mutateAsync({
+        proposed_business_name: values.proposedBusinessName,
+        reason: reason.trim(),
+      });
       Toast.show({
         type: "success",
         text1: "Name change requested",
@@ -179,6 +190,12 @@ export default function BusinessNameChangeRequestScreen() {
           text1: "Name change temporarily unavailable",
           text2: response.message,
         });
+        return;
+      }
+
+      const serverReasonError = getFieldError(response, "reason");
+      if (serverReasonError) {
+        setReasonError(serverReasonError);
         return;
       }
 
@@ -319,10 +336,23 @@ export default function BusinessNameChangeRequestScreen() {
         showsVerticalScrollIndicator={false}
       >
         {isReviewing ? (
-          <BusinessNameChangeComparison
-            previousName={business.business_name}
-            proposedName={proposedBusinessName.trim()}
-          />
+          <>
+            <BusinessNameChangeComparison
+              previousName={business.business_name}
+              proposedName={proposedBusinessName.trim()}
+            />
+            <View className="mt-4">
+              <MerchantChangeReasonCard
+                value={reason}
+                onChangeText={(value) => {
+                  setReason(value);
+                  setReasonError(undefined);
+                }}
+                placeholder="e.g., We're rebranding our business under a new name."
+                error={reasonError}
+              />
+            </View>
+          </>
         ) : (
           <RegistrationSection
             title="Business name"

@@ -31,6 +31,7 @@ const pendingRequest: BusinessNameChangeRequest = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "We are updating our business identity.",
 };
 
 function page(
@@ -130,10 +131,14 @@ describe("business name change React Query hooks", () => {
     );
 
     await act(async () => {
-      await result.current.mutateAsync("Sugbo Heritage Bistro");
+      await result.current.mutateAsync({
+        proposed_business_name: "Sugbo Heritage Bistro",
+        reason: "We are updating our business identity.",
+      });
     });
     expect(service.submitBusinessNameChange).toHaveBeenCalledWith({
       proposed_business_name: "Sugbo Heritage Bistro",
+      reason: "We are updating our business identity.",
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: merchantBusinessNameChangeKeys.list(42),

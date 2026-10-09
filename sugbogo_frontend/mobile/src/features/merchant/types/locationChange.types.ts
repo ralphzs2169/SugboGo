@@ -37,6 +37,7 @@ export type LocationChangeRequest = {
   submitted_at: string;
   resolved_at: string | null;
   rejection_reason: string | null;
+  reason: string | null;
 };
 
 export type LocationChangeRequestPage = {
@@ -55,4 +56,5 @@ export type LocationChangeRequestPage = {
 export type SubmitLocationChangePayload = {
   proposed_location: Omit<LocationChangeLocation, "id">;
   proposed_landmarks: Omit<LocationChangeLandmark, "id">[];
+  reason: string;
 };

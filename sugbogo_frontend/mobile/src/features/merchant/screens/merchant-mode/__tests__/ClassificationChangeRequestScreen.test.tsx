@@ -237,17 +237,38 @@ describe("ClassificationChangeRequestScreen", () => {
     expect(mockSubmit).not.toHaveBeenCalled();
   });
 
+  it("requires a valid explanation during review", async () => {
+    const screen = await render(<ClassificationChangeRequestScreen />);
+    expect(screen.queryByLabelText("Reason for change")).toBeNull();
+    await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
+    await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "short",
+    );
+    await fireEvent.press(screen.getByText("Submit Request"));
+    expect(
+      screen.getByText("Please enter at least 10 characters."),
+    ).toBeTruthy();
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
   it("submits category-only changes with no cluster ID and keeps live data visible", async () => {
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
     await fireEvent.press(screen.getByText("Review Changes"));
     expect(screen.getByText("Category change")).toBeTruthy();
     expect(screen.queryByText("Specialty changes")).toBeNull();
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "  Our business focus has changed.  ",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(mockSubmit).toHaveBeenCalledWith({
         proposed_category_id: 6,
         proposed_specialty_tag_ids: [1, 2, 3],
+        reason: "Our business focus has changed.",
       }),
     );
     expect(screen.getAllByText("Currently live").length).toBeGreaterThan(0);
@@ -264,11 +285,16 @@ describe("ClassificationChangeRequestScreen", () => {
     );
     await fireEvent.press(screen.getByText("Review Changes"));
     expect(screen.getAllByText("Culture").length).toBeGreaterThan(0);
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(mockSubmit).toHaveBeenCalledWith({
         proposed_category_id: 4,
         proposed_specialty_tag_ids: [1, 2, 3],
+        reason: "Our business focus has changed.",
       }),
     );
   });
@@ -284,6 +310,10 @@ describe("ClassificationChangeRequestScreen", () => {
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
     await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     const button = screen.getByRole("button", { name: "Submit Request" });
     await fireEvent.press(button);
     await fireEvent.press(button);
@@ -304,6 +334,10 @@ describe("ClassificationChangeRequestScreen", () => {
     await fireEvent.press(screen.getByText("Review Changes"));
     expect(screen.getByText("Specialty changes")).toBeTruthy();
     expect(screen.queryByText("Category change")).toBeNull();
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText("Choose valid specialty tags.")).toBeTruthy(),
@@ -311,6 +345,7 @@ describe("ClassificationChangeRequestScreen", () => {
     expect(mockSubmit).toHaveBeenCalledWith({
       proposed_category_id: 2,
       proposed_specialty_tag_ids: [1, 2, 4],
+      reason: "Our business focus has changed.",
     });
     expect(mockReplace).not.toHaveBeenCalled();
   });
@@ -325,6 +360,10 @@ describe("ClassificationChangeRequestScreen", () => {
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
     await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(
@@ -344,6 +383,10 @@ describe("ClassificationChangeRequestScreen", () => {
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
     await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() => expect(mockRefetchRequests).toHaveBeenCalledTimes(1));
     expect(screen.getByText(/already pending/)).toBeTruthy();

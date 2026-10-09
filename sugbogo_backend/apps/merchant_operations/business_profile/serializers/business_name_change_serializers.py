@@ -3,6 +3,9 @@ from rest_framework import serializers
 from apps.merchant_operations.business_profile.models import (
     BusinessNameChangeRequest,
 )
+from apps.merchant_operations.business_profile.serializers.merchant_change_reason_serializers import (
+    MerchantChangeReasonField,
+)
 from apps.users.models import User
 
 
@@ -19,6 +22,7 @@ class BusinessNameChangeCreateSerializer(serializers.Serializer):
             "min_length": "Business name must be at least 2 characters.",
         },
     )
+    reason = MerchantChangeReasonField(required=False)
 
 
 class BusinessNameChangeRejectSerializer(serializers.Serializer):
@@ -57,6 +61,7 @@ class MerchantBusinessNameChangeSerializer(serializers.ModelSerializer):
         source="BNCR_REJECTION_REASON",
         read_only=True,
     )
+    reason = serializers.CharField(source="BNCR_MERCHANT_REASON", read_only=True)
 
     class Meta:
         model = BusinessNameChangeRequest
@@ -69,6 +74,7 @@ class MerchantBusinessNameChangeSerializer(serializers.ModelSerializer):
             "submitted_at",
             "resolved_at",
             "rejection_reason",
+            "reason",
         )
 
     def get_request_type(self, obj):

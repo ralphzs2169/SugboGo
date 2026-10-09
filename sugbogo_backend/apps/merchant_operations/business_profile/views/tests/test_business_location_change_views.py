@@ -169,6 +169,7 @@ class BusinessLocationChangeViewTests(TestCase):
                 "postal_code": "6000",
             },
             "proposed_landmarks": landmarks,
+            "reason": "Our business location has changed.",
         }
 
     def _submit(
@@ -212,6 +213,11 @@ class BusinessLocationChangeViewTests(TestCase):
         data = response.data["data"]
         self.assertEqual(data["request_type"], "location")
         self.assertEqual(data["status"], "pending")
+        self.assertEqual(data["reason"], "Our business location has changed.")
+        self.assertEqual(
+            BusinessLocationChangeRequest.objects.get(pk=data["id"]).BLCR_MERCHANT_REASON,
+            "Our business location has changed.",
+        )
         self.assertEqual(data["previous"]["location"]["id"], self.old_location.pk)
         self.assertEqual(data["previous"]["landmarks"][0]["id"], self.old_landmark.pk)
         self.assertEqual(data["proposed"]["location"]["longitude"], 123.891)
@@ -628,6 +634,10 @@ class BusinessLocationChangeViewTests(TestCase):
         )
         detail = self.client.get(f"{self.admin_url}{request_id}/")
         self.assertEqual(detail.status_code, 200)
+        self.assertEqual(
+            detail.data["data"]["reason"],
+            "Our business location has changed.",
+        )
         self.assertEqual(detail.data["data"]["current"]["location"]["id"], self.old_location.pk)
         rejected = self.client.post(
             f"{self.admin_url}{request_id}/reject/",
@@ -636,6 +646,10 @@ class BusinessLocationChangeViewTests(TestCase):
         )
         self.assertEqual(rejected.status_code, 200)
         self.assertEqual(rejected.data["data"]["status"], "rejected")
+        self.assertEqual(
+            rejected.data["data"]["reason"],
+            "Our business location has changed.",
+        )
         self._assert_live_old()
         self.client.force_authenticate(user=self.merchant)
         profile = self.client.get("/api/merchant/business-profile/")
@@ -696,6 +710,7 @@ class BusinessLocationChangeConcurrencyTests(TransactionTestCase):
                 "province": "Cebu",
             },
             proposed_landmarks=[],
+            reason="Our business location has changed.",
         )
         self.request_id = request.pk
 

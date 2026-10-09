@@ -53,6 +53,7 @@ class MerchantBusinessClassificationChangeListCreateView(APIView):
             proposed_specialty_tag_ids=(
                 serializer.validated_data["proposed_specialty_tag_ids"]
             ),
+            reason=serializer.validated_data.get("reason"),
         )
         return success_response(
             data=MerchantBusinessClassificationChangeSerializer(change_request).data,

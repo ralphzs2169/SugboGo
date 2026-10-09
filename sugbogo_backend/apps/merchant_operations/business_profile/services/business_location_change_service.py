@@ -17,6 +17,9 @@ from apps.merchant_operations.business_profile.models import (
 from apps.merchant_operations.business_profile.services.business_change_request_eligibility_service import (
     BusinessChangeRequestEligibilityService,
 )
+from apps.merchant_operations.business_profile.services.merchant_change_reason import (
+    validate_merchant_change_reason,
+)
 from apps.merchant_operations.business_profile.serializers.business_location_change_serializers import (
     BusinessLocationChangeCreateSerializer,
 )
@@ -214,8 +217,10 @@ class BusinessLocationChangeService:
         user,
         proposed_location,
         proposed_landmarks,
+        reason,
     ):
         """Capture live baseline and complete proposal without changing live data."""
+        merchant_reason = validate_merchant_change_reason(reason)
         try:
             with transaction.atomic():
                 try:
@@ -289,6 +294,7 @@ class BusinessLocationChangeService:
                     BLCR_PROPOSED_CITY=location_data["city"],
                     BLCR_PROPOSED_PROVINCE=location_data["province"],
                     BLCR_PROPOSED_POSTAL_CODE=location_data.get("postal_code"),
+                    BLCR_MERCHANT_REASON=merchant_reason,
                     BLCR_SUBMITTED_AT=timezone.now(),
                 )
                 BusinessLocationChangeService._create_snapshots(

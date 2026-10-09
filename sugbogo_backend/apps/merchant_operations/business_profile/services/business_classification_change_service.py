@@ -14,6 +14,9 @@ from apps.merchant_operations.business_profile.models import (
 from apps.merchant_operations.business_profile.services.business_change_request_eligibility_service import (
     BusinessChangeRequestEligibilityService,
 )
+from apps.merchant_operations.business_profile.services.merchant_change_reason import (
+    validate_merchant_change_reason,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +113,12 @@ class BusinessClassificationChangeService:
         return list(queryset)
 
     @staticmethod
-    def submit(user, proposed_category_id, proposed_specialty_tag_ids):
+    def submit(user, proposed_category_id, proposed_specialty_tag_ids, reason):
         """Capture the live baseline and proposal without changing classification."""
         BusinessClassificationChangeService._validate_proposed_ids(
             proposed_specialty_tag_ids,
         )
+        merchant_reason = validate_merchant_change_reason(reason)
         try:
             with transaction.atomic():
                 try:
@@ -177,6 +181,7 @@ class BusinessClassificationChangeService:
                     BCCR_PROPOSED_CATEGORY_NAME=category.CTGRY_NAME,
                     BCCR_PROPOSED_CLUSTER_ID=category.CLUS_ID_id,
                     BCCR_PROPOSED_CLUSTER_NAME=category.CLUS_ID.CLUS_NAME,
+                    BCCR_MERCHANT_REASON=merchant_reason,
                     BCCR_SUBMITTED_AT=timezone.now(),
                 )
                 snapshots = [

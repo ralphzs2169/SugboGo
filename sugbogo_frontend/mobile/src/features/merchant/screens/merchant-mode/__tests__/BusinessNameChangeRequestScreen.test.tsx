@@ -117,14 +117,66 @@ describe("BusinessNameChangeRequestScreen", () => {
     await fireEvent.press(screen.getByText("Review Changes"));
     expect(screen.getByText("Business name change")).toBeTruthy();
     expect(screen.getByText("Proposed")).toBeTruthy();
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "  We are rebranding our business.  ",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() => {
-      expect(mockSubmit).toHaveBeenCalledWith("Sugbo Heritage Bistro");
+      expect(mockSubmit).toHaveBeenCalledWith({
+        proposed_business_name: "Sugbo Heritage Bistro",
+        reason: "We are rebranding our business.",
+      });
       expect(mockReplace).toHaveBeenCalledWith(
         "/(merchant)/business-update-requests/7",
       );
     });
     expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
+  });
+
+  it("requires a reason only at review and preserves it after Edit", async () => {
+    const screen = await render(<BusinessNameChangeRequestScreen />);
+    expect(screen.queryByLabelText("Reason for change")).toBeNull();
+    await fireEvent.changeText(
+      screen.getByPlaceholderText("Enter your proposed business name"),
+      "Sugbo Heritage Bistro",
+    );
+    await fireEvent.press(screen.getByText("Review Changes"));
+    expect(screen.getByLabelText("Reason for change")).toBeTruthy();
+    expect(screen.getByText("0/10")).toBeTruthy();
+    expect(
+      screen.queryByText("Please provide a reason for this change."),
+    ).toBeNull();
+    await fireEvent.press(screen.getByText("Submit Request"));
+    expect(
+      screen.getByText("Please provide a reason for this change."),
+    ).toBeTruthy();
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Short",
+    );
+    expect(
+      screen.queryByText("Please provide a reason for this change."),
+    ).toBeNull();
+    await fireEvent.press(screen.getByText("Submit Request"));
+    expect(
+      screen.getByText("Please enter at least 10 characters."),
+    ).toBeTruthy();
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "We are rebranding our business.",
+    );
+    expect(screen.getByText("31/10")).toBeTruthy();
+    expect(
+      screen.queryByText("Please provide a reason for this change."),
+    ).toBeNull();
+    await fireEvent.press(screen.getByText("Edit"));
+    await fireEvent.press(screen.getByText("Review Changes"));
+    expect(screen.getByLabelText("Reason for change").props.value).toBe(
+      "We are rebranding our business.",
+    );
   });
 
   it("keeps a backend field error on the input", async () => {
@@ -140,6 +192,10 @@ describe("BusinessNameChangeRequestScreen", () => {
       "Other Name",
     );
     await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "We are rebranding our business.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText("Business name is invalid.")).toBeTruthy(),
@@ -161,6 +217,10 @@ describe("BusinessNameChangeRequestScreen", () => {
       "Sugbo Heritage Bistro",
     );
     await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "We are rebranding our business.",
+    );
     const submitButton = screen.getByRole("button", { name: "Submit Request" });
     await fireEvent.press(submitButton);
     await fireEvent.press(submitButton);

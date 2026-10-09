@@ -162,6 +162,12 @@ describe("Location change request form", () => {
     expect(screen.queryByText("Map preview")).toBeNull();
     expect(screen.queryByText("View location on map")).toBeNull();
     await act(async () => {
+      fireEvent.changeText(
+        screen.getByLabelText("Reason for change"),
+        "  We have relocated our business.  ",
+      );
+    });
+    await act(async () => {
       fireEvent.press(screen.getByLabelText("Submit Request"));
     });
 
@@ -175,6 +181,7 @@ describe("Location change request form", () => {
         postal_code: "6000",
       },
       proposed_landmarks: [],
+      reason: "We have relocated our business.",
     });
     expect(business.location.address).toBe("Current flat address");
     await waitFor(() =>
@@ -188,6 +195,37 @@ describe("Location change request form", () => {
     );
     await screen.unmount();
     expect(useLocationChangeDraftStore.getState().location).toBeNull();
+  });
+
+  it("keeps a review-only reason when returning to address editing", async () => {
+    const screen = await render(<LocationChangeRequestScreen />);
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Current flat address")).toBeTruthy(),
+    );
+    expect(screen.queryByLabelText("Reason for change")).toBeNull();
+    await act(async () =>
+      fireEvent.changeText(
+        screen.getByDisplayValue("Current flat address"),
+        "New flat address",
+      ),
+    );
+    await act(async () =>
+      fireEvent.press(screen.getByLabelText("Review Changes")),
+    );
+    await act(async () =>
+      fireEvent.changeText(
+        screen.getByLabelText("Reason for change"),
+        "We moved to a new storefront.",
+      ),
+    );
+    await act(async () => fireEvent.press(screen.getByLabelText("Edit")));
+    await act(async () =>
+      fireEvent.press(screen.getByLabelText("Review Changes")),
+    );
+    expect(screen.getByLabelText("Reason for change").props.value).toBe(
+      "We moved to a new storefront.",
+    );
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 
   it("navigates once when the request list observes the new pending request", async () => {
@@ -213,6 +251,12 @@ describe("Location change request form", () => {
       fireEvent.press(screen.getByLabelText("Review Changes"));
     });
     const headerConfigurationCount = mockSetOptions.mock.calls.length;
+    await act(async () => {
+      fireEvent.changeText(
+        screen.getByLabelText("Reason for change"),
+        "We have relocated our business.",
+      );
+    });
     await act(async () => {
       fireEvent.press(screen.getByLabelText("Submit Request"));
     });
@@ -274,6 +318,12 @@ describe("Location change request form", () => {
     });
     await act(async () => {
       fireEvent.press(screen.getByLabelText("Review Changes"));
+    });
+    await act(async () => {
+      fireEvent.changeText(
+        screen.getByLabelText("Reason for change"),
+        "We have relocated our business.",
+      );
     });
     await act(async () => {
       fireEvent.press(screen.getByLabelText("Submit Request"));

@@ -21,6 +21,7 @@ import underReviewAnimation from "../../assets/animations/under-review.json";
 import rejectedApplicationAnimation from "../../assets/animations/changes-required.json";
 import approvedApplicationAnimation from "../../assets/animations/approved-application.json";
 import BusinessNameChangeComparison from "../../components/business-name-change/BusinessNameChangeComparison";
+import MerchantChangeReasonCard from "../../components/change-requests/MerchantChangeReasonCard";
 import {
   useMerchantBusinessNameChangeRequest,
   useWithdrawMerchantBusinessNameChange,
@@ -260,6 +261,12 @@ export default function BusinessNameChangeDetailScreen({
         />
 
         {/* Administrator rejection feedback */}
+        {request.reason ? (
+          <View className="mb-4">
+            <MerchantChangeReasonCard value={request.reason} />
+          </View>
+        ) : null}
+
         {isRejected && request.rejection_reason ? (
           <View className="mb-4 rounded-2xl border border-border-primary/70 bg-surface p-4">
             <View className="flex-row items-center justify-between border-b border-border-primary/60 pb-3">

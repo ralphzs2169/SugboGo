@@ -29,6 +29,7 @@ class BusinessNameChangeRequest(models.Model):
     )
     BNCR_PREVIOUS_BUSINESS_NAME = models.CharField(max_length=150)
     BNCR_PROPOSED_BUSINESS_NAME = models.CharField(max_length=150)
+    BNCR_MERCHANT_REASON = models.CharField(max_length=500, blank=True, null=True)
     BNCR_STATUS = models.CharField(
         max_length=20,
         choices=Status.choices,
@@ -103,6 +104,7 @@ class BusinessClassificationChangeRequest(models.Model):
     BCCR_PROPOSED_CATEGORY_NAME = models.CharField(max_length=100)
     BCCR_PROPOSED_CLUSTER_ID = models.PositiveIntegerField()
     BCCR_PROPOSED_CLUSTER_NAME = models.CharField(max_length=100)
+    BCCR_MERCHANT_REASON = models.CharField(max_length=500, blank=True, null=True)
     BCCR_STATUS = models.CharField(
         max_length=20,
         choices=Status.choices,
@@ -213,6 +215,7 @@ class BusinessLocationChangeRequest(models.Model):
         blank=True,
         null=True,
     )
+    BLCR_MERCHANT_REASON = models.CharField(max_length=500, blank=True, null=True)
     BLCR_STATUS = models.CharField(
         max_length=20,
         choices=Status.choices,

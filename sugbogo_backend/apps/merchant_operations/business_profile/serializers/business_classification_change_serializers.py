@@ -7,12 +7,16 @@ from apps.merchant_operations.business_profile.models import (
 from apps.merchant_operations.business_profile.serializers.business_name_change_serializers import (
     BusinessNameChangeUserSerializer,
 )
+from apps.merchant_operations.business_profile.serializers.merchant_change_reason_serializers import (
+    MerchantChangeReasonField,
+)
 
 
 class BusinessClassificationChangeCreateSerializer(serializers.Serializer):
     """Validate the submitted category and complete three-tag proposal."""
 
     proposed_category_id = serializers.IntegerField(min_value=1)
+    reason = MerchantChangeReasonField(required=False)
     proposed_specialty_tag_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         min_length=3,
@@ -67,6 +71,7 @@ class MerchantBusinessClassificationChangeSerializer(serializers.ModelSerializer
         source="BCCR_REJECTION_REASON",
         read_only=True,
     )
+    reason = serializers.CharField(source="BCCR_MERCHANT_REASON", read_only=True)
 
     class Meta:
         model = BusinessClassificationChangeRequest
@@ -79,6 +84,7 @@ class MerchantBusinessClassificationChangeSerializer(serializers.ModelSerializer
             "submitted_at",
             "resolved_at",
             "rejection_reason",
+            "reason",
         )
 
     def get_request_type(self, obj):

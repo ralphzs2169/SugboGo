@@ -69,6 +69,7 @@ const request = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "Our products and services have changed.",
 };
 
 describe("ClassificationChangeDetailScreen", () => {
@@ -99,6 +100,9 @@ describe("ClassificationChangeDetailScreen", () => {
     expect(screen.getByText("city")).toBeTruthy();
     expect(screen.getByText("Handmade Crafts")).toBeTruthy();
     expect(screen.getByText("Under Review")).toBeTruthy();
+    expect(
+      screen.getByText("Our products and services have changed."),
+    ).toBeTruthy();
     await fireEvent.press(screen.getByText("Withdraw Request"));
     expect(mockWithdraw).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByText("Withdraw"));
@@ -125,7 +129,7 @@ describe("ClassificationChangeDetailScreen", () => {
     ).toBeTruthy();
     expect(screen.getByText("Administrator notes")).toBeTruthy();
     expect(screen.getByText("shield-account-outline")).toBeTruthy();
-    expect(screen.getByText("format-quote-open")).toBeTruthy();
+    expect(screen.getAllByText("format-quote-open")).toHaveLength(2);
     expect(screen.queryByText("Withdraw Request")).toBeNull();
   });
 

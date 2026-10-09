@@ -47,6 +47,7 @@ const pendingRequest: ClassificationChangeRequest = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "Our products and services have changed.",
 };
 
 function page(
@@ -153,11 +154,13 @@ describe("classification change React Query hooks", () => {
       await result.current.mutateAsync({
         proposed_category_id: 4,
         proposed_specialty_tag_ids: [2, 3, 4],
+        reason: "Our products and services have changed.",
       });
     });
     expect(service.submitClassificationChange).toHaveBeenCalledWith({
       proposed_category_id: 4,
       proposed_specialty_tag_ids: [2, 3, 4],
+      reason: "Our products and services have changed.",
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: merchantClassificationChangeKeys.list(42),

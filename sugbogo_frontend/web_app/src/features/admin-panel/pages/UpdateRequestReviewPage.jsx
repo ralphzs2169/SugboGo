@@ -14,6 +14,7 @@ import { formatDateTime } from "@/shared/utils/dateUtils";
 import ApproveUpdateRequestModal from "../business-update-requests/components/ApproveUpdateRequestModal";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
 import { UPDATE_REQUEST_STATUS_VARIANTS } from "../business-update-requests/constants/businessUpdateRequestStatus";
+import MerchantChangeReason from "../business-update-requests/components/MerchantChangeReason";
 import useBusinessUpdateRequestDecisions from "../business-update-requests/hooks/useBusinessUpdateRequestDecisions";
 import useBusinessUpdateRequestDetail from "../business-update-requests/hooks/useBusinessUpdateRequestDetail";
 
@@ -238,6 +239,8 @@ export default function UpdateRequestReviewPage() {
                 </p>
               )}
             </section>
+
+            <MerchantChangeReason reason={request.reason} />
 
             {/* Resolution and review controls */}
             {request.status === "approved" && (

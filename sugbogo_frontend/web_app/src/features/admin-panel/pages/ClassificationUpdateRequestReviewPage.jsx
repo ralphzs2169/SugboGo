@@ -16,6 +16,7 @@ import ClassificationRequestedChanges from "../business-update-requests/componen
 import ClassificationSnapshotCard from "../business-update-requests/components/ClassificationSnapshotCard";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
 import { UPDATE_REQUEST_STATUS_VARIANTS } from "../business-update-requests/constants/businessUpdateRequestStatus";
+import MerchantChangeReason from "../business-update-requests/components/MerchantChangeReason";
 import useClassificationUpdateRequestDecisions from "../business-update-requests/hooks/useClassificationUpdateRequestDecisions";
 import useClassificationUpdateRequestDetail from "../business-update-requests/hooks/useClassificationUpdateRequestDetail";
 import { hasStalePendingBaseline } from "../business-update-requests/utils/classificationDiff";
@@ -241,6 +242,8 @@ export default function ClassificationUpdateRequestReviewPage() {
                 applied={request.status === "approved"}
               />
             )}
+
+            <MerchantChangeReason reason={request.reason} />
 
             {/* Resolution and review controls */}
             {request.status === "approved" && (

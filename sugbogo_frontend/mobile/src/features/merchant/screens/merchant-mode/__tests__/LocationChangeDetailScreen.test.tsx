@@ -63,6 +63,7 @@ const request = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "We have relocated our business.",
 };
 
 describe("Location change detail", () => {
@@ -85,6 +86,7 @@ describe("Location change detail", () => {
 
   it("shows a moved pin and retains full-map navigation", async () => {
     const screen = await render(<LocationChangeDetailScreen requestId={11} />);
+    expect(screen.getByText("We have relocated our business.")).toBeTruthy();
     expect(
       screen.getAllByText("Requested business pin").length,
     ).toBeGreaterThan(0);

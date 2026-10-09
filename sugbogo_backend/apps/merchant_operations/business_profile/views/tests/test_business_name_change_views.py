@@ -128,7 +128,10 @@ class BusinessNameChangeViewTests(TestCase):
         """Submit a request through the merchant API."""
         return self.client.post(
             self.submit_url,
-            {"proposed_business_name": name},
+            {
+                "proposed_business_name": name,
+                "reason": "We are updating our business identity.",
+            },
             format="json",
         )
 
@@ -235,6 +238,10 @@ class BusinessNameChangeViewTests(TestCase):
     def test_merchant_history_detail_and_foreign_request_protection(self):
         """Expose own terminal history without revealing another owner's IDs."""
         first = self._submit()
+        self.assertEqual(
+            first.data["data"]["reason"],
+            "We are updating our business identity.",
+        )
         first_id = first.data["data"]["id"]
         withdraw = self.client.post(
             f"{self._merchant_detail_url(first_id)}withdraw/",
@@ -263,6 +270,27 @@ class BusinessNameChangeViewTests(TestCase):
         )
         self.assertEqual(self.client.get(self.merchant_list_url).data["data"]["items"], [])
 
+    def test_historical_request_without_reason_remains_readable(self):
+        """Legacy rows do not acquire fabricated merchant explanations."""
+        request_id = self._submit().data["data"]["id"]
+        BusinessNameChangeRequest.objects.filter(pk=request_id).update(
+            BNCR_MERCHANT_REASON=None,
+        )
+        detail = self.client.get(self._merchant_detail_url(request_id))
+        self.assertEqual(detail.status_code, 200)
+        self.assertIsNone(detail.data["data"]["reason"])
+
+    def test_new_submission_requires_reason_without_creating_request(self):
+        """The endpoint enforces the explanation even when the client omits it."""
+        response = self.client.post(
+            self.submit_url,
+            {"proposed_business_name": "Sugbo Heritage Bistro"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("reason", response.data["errors"])
+        self.assertFalse(BusinessNameChangeRequest.objects.exists())
+
     def test_withdrawal_is_pending_only_and_does_not_change_business(self):
         """Keep withdrawn requests as terminal history."""
         request_id = self._submit().data["data"]["id"]
@@ -271,6 +299,10 @@ class BusinessNameChangeViewTests(TestCase):
         self.assertEqual(self.client.post(url).status_code, 400)
         request = BusinessNameChangeRequest.objects.get(pk=request_id)
         self.assertEqual(request.BNCR_STATUS, "withdrawn")
+        self.assertEqual(
+            request.BNCR_MERCHANT_REASON,
+            "We are updating our business identity.",
+        )
         self.assertIsNotNone(request.BNCR_RESOLVED_AT)
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_NAME, "Sugbo Bistro")
@@ -298,6 +330,10 @@ class BusinessNameChangeViewTests(TestCase):
             "https://example.com/name-cover.jpg",
         )
         detail = self.client.get(self._admin_detail_url(request_id))
+        self.assertEqual(
+            detail.data["data"]["reason"],
+            "We are updating our business identity.",
+        )
         self.assertEqual(detail.data["data"]["current_business_name"], "Sugbo Bistro")
         self.assertEqual(
             detail.data["data"]["cover_photo_url"],
@@ -321,6 +357,10 @@ class BusinessNameChangeViewTests(TestCase):
         self.assertEqual(self.business.BUSN_NAME, "Sugbo Heritage Bistro")
         self.assertEqual(self.identity.MIDN_BUSINESS_NAME, "Sugbo Bistro")
         self.assertEqual(approved.data["data"]["status"], "approved")
+        self.assertEqual(
+            approved.data["data"]["reason"],
+            "We are updating our business identity.",
+        )
         self.assertEqual(approved.data["data"]["reviewer"]["email"], self.admin.USER_EMAIL)
         self.assertIsNotNone(approved.data["data"]["resolved_at"])
         self.assertEqual(self.client.post(url).status_code, 400)
@@ -442,6 +482,10 @@ class BusinessNameChangeViewTests(TestCase):
             format="json",
         )
         self.assertEqual(rejected.status_code, 200)
+        self.assertEqual(
+            rejected.data["data"]["reason"],
+            "We are updating our business identity.",
+        )
         self.assertEqual(rejected.data["data"]["status"], "rejected")
         self.assertEqual(rejected.data["data"]["reviewer"]["email"], self.admin.USER_EMAIL)
         self.assertIsNotNone(rejected.data["data"]["resolved_at"])
@@ -505,6 +549,7 @@ class BusinessNameChangeSubmissionConcurrencyTests(TransactionTestCase):
                     BusinessNameChangeService.submit(
                         self.merchant,
                         name,
+                        "We are updating our business identity.",
                     )
                     return "created"
                 except ValidationError:

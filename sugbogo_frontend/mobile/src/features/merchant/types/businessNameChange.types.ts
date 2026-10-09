@@ -12,6 +12,7 @@ export type BusinessNameChangeRequest = {
   submitted_at: string;
   resolved_at: string | null;
   rejection_reason: string | null;
+  reason: string | null;
 };
 
 export type BusinessNameChangeRequestPage = {
@@ -29,4 +30,5 @@ export type BusinessNameChangeRequestPage = {
 
 export type SubmitBusinessNameChangePayload = {
   proposed_business_name: string;
+  reason: string;
 };

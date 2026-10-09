@@ -22,6 +22,7 @@ import rejectedApplicationAnimation from "../../assets/animations/changes-requir
 import approvedApplicationAnimation from "../../assets/animations/approved-application.json";
 
 import ClassificationChangeReviewSections from "../../components/classification-change/ClassificationChangeReviewSections";
+import MerchantChangeReasonCard from "../../components/change-requests/MerchantChangeReasonCard";
 import {
   useMerchantClassificationChangeRequest,
   useWithdrawMerchantClassificationChange,
@@ -333,6 +334,12 @@ export default function ClassificationChangeDetailScreen({
         />
 
         {/* Administrator rejection feedback */}
+        {request.reason ? (
+          <View className="mb-4">
+            <MerchantChangeReasonCard value={request.reason} />
+          </View>
+        ) : null}
+
         {isRejected && request.rejection_reason ? (
           <View className="mb-4 rounded-2xl border border-border-primary/70 bg-surface p-4">
             {/* Card header */}

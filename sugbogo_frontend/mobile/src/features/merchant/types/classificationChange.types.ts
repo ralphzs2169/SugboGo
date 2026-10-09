@@ -18,6 +18,7 @@ export type ClassificationChangeRequest = {
   submitted_at: string;
   resolved_at: string | null;
   rejection_reason: string | null;
+  reason: string | null;
 };
 
 export type ClassificationChangeRequestPage = {
@@ -36,4 +37,5 @@ export type ClassificationChangeRequestPage = {
 export type SubmitClassificationChangePayload = {
   proposed_category_id: number;
   proposed_specialty_tag_ids: number[];
+  reason: string;
 };

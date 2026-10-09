@@ -47,6 +47,7 @@ const pendingRequest: LocationChangeRequest = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "Our business location has changed.",
 };
 
 function page(
@@ -119,7 +120,11 @@ describe("merchant location change queries", () => {
     await act(async () => {
       await result.current.fetchNextPage();
     });
-    expect(result.current.requests.map((item) => item.id)).toEqual([107, 106]);
+    await waitFor(() =>
+      expect(result.current.requests.map((item) => item.id)).toEqual([
+        107, 106,
+      ]),
+    );
     expect(service.getLocationChangeRequests).toHaveBeenNthCalledWith(2, 2);
     unmount();
     client.clear();
@@ -141,6 +146,7 @@ describe("merchant location change queries", () => {
     const payload = {
       proposed_location: pendingRequest.proposed.location,
       proposed_landmarks: [],
+      reason: "Our business location has changed.",
     };
 
     await act(async () => {

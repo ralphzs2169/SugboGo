@@ -56,6 +56,7 @@ class MerchantBusinessNameChangeCreateView(APIView):
             proposed_business_name=(
                 serializer.validated_data["proposed_business_name"]
             ),
+            reason=serializer.validated_data.get("reason"),
         )
         return success_response(
             data=MerchantBusinessNameChangeSerializer(change_request).data,

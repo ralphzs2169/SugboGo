@@ -61,6 +61,7 @@ class MerchantBusinessLocationChangeListCreateView(APIView):
             user=request.user,
             proposed_location=serializer.validated_data["proposed_location"],
             proposed_landmarks=serializer.validated_data["proposed_landmarks"],
+            reason=serializer.validated_data.get("reason"),
         )
         return success_response(
             data=MerchantBusinessLocationChangeSerializer(change_request).data,

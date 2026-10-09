@@ -24,6 +24,7 @@ type Props = {
   onViewCurrent: () => void;
   onViewProposed: () => void;
   status?: LocationChangeStatus;
+  showApprovalContext?: boolean;
 };
 
 /**
@@ -41,6 +42,7 @@ export default function LocationChangeReviewSections({
   onViewCurrent,
   onViewProposed,
   status,
+  showApprovalContext = true,
 }: Props) {
   const [showCurrentPin, setShowCurrentPin] = useState(false);
 
@@ -334,7 +336,7 @@ export default function LocationChangeReviewSections({
       ) : null}
 
       {/* Approval context */}
-      {!status ? (
+      {!status && showApprovalContext ? (
         <View className="mt-3 flex-row items-start px-6">
           <MaterialCommunityIcons
             name="information-outline"

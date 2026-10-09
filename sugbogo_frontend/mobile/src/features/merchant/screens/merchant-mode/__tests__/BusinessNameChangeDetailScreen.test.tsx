@@ -46,6 +46,7 @@ const request = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "We are rebranding our business.",
 };
 
 describe("BusinessNameChangeDetailScreen", () => {
@@ -73,6 +74,7 @@ describe("BusinessNameChangeDetailScreen", () => {
     expect(screen.getByText("At submission")).toBeTruthy();
     expect(screen.getByText("Requested")).toBeTruthy();
     expect(screen.getByText("Under Review")).toBeTruthy();
+    expect(screen.getByText("We are rebranding our business.")).toBeTruthy();
     await fireEvent.press(screen.getByText("Withdraw Request"));
     await waitFor(() =>
       expect(

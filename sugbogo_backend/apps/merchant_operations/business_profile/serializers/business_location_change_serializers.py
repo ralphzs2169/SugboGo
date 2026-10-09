@@ -10,6 +10,9 @@ from apps.merchant_operations.business_profile.models import (
 from apps.merchant_operations.business_profile.serializers.business_name_change_serializers import (
     BusinessNameChangeUserSerializer,
 )
+from apps.merchant_operations.business_profile.serializers.merchant_change_reason_serializers import (
+    MerchantChangeReasonField,
+)
 
 
 class LocationCoordinateSerializer(serializers.Serializer):
@@ -100,6 +103,7 @@ class BusinessLocationChangeCreateSerializer(serializers.Serializer):
     """Require a complete proposed location and desired landmark set."""
 
     proposed_location = BusinessLocationProposalSerializer()
+    reason = MerchantChangeReasonField(required=False)
     proposed_landmarks = BusinessLocationLandmarkProposalSerializer(
         many=True,
         max_length=5,
@@ -139,6 +143,7 @@ class MerchantBusinessLocationChangeSerializer(serializers.ModelSerializer):
         source="BLCR_REJECTION_REASON",
         read_only=True,
     )
+    reason = serializers.CharField(source="BLCR_MERCHANT_REASON", read_only=True)
 
     class Meta:
         model = BusinessLocationChangeRequest
@@ -151,6 +156,7 @@ class MerchantBusinessLocationChangeSerializer(serializers.ModelSerializer):
             "submitted_at",
             "resolved_at",
             "rejection_reason",
+            "reason",
         )
 
     def get_request_type(

@@ -23,6 +23,7 @@ import approvedApplicationAnimation from "../../assets/animations/approved-appli
 
 import BusinessNameChangeStatusBadge from "../../components/business-name-change/BusinessNameChangeStatusBadge";
 import LocationChangeReviewSections from "../../components/location-change/LocationChangeReviewSections";
+import MerchantChangeReasonCard from "../../components/change-requests/MerchantChangeReasonCard";
 import { useLocationChangeReviewStore } from "../../stores/locationChangeReviewStore";
 import {
   useMerchantLocationChangeRequest,
@@ -339,6 +340,13 @@ export default function LocationChangeDetailScreen({
             }}
           />
         </View>
+
+        {/* Merchant's submitted reason */}
+        {request.reason ? (
+          <View className="mb-5">
+            <MerchantChangeReasonCard value={request.reason} />
+          </View>
+        ) : null}
 
         {/* Administrator rejection feedback */}
         {isRejected && request.rejection_reason ? (

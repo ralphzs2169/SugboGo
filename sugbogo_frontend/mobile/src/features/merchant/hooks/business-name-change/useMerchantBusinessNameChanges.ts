@@ -17,6 +17,7 @@ import * as service from "../../api/businessNameChange.service";
 import type {
   BusinessNameChangeRequest,
   BusinessNameChangeRequestPage,
+  SubmitBusinessNameChangePayload,
 } from "../../types/businessNameChange.types";
 import { merchantBusinessNameChangeKeys } from "./businessNameChangeQueryKeys";
 
@@ -134,12 +135,8 @@ export function useSubmitMerchantBusinessNameChange() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (proposedBusinessName: string) =>
-      throwOnApiError(
-        await service.submitBusinessNameChange({
-          proposed_business_name: proposedBusinessName,
-        }),
-      ),
+    mutationFn: async (payload: SubmitBusinessNameChangePayload) =>
+      throwOnApiError(await service.submitBusinessNameChange(payload)),
     onSuccess: async (changeRequest: BusinessNameChangeRequest) => {
       queryClient.setQueryData(
         merchantBusinessNameChangeKeys.detail(userId, changeRequest.id),

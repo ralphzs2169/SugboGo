@@ -19,6 +19,7 @@ import LocationLandmarkDiff from "../business-update-requests/components/Locatio
 import LocationStateCard from "../business-update-requests/components/LocationStateCard";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
 import { UPDATE_REQUEST_STATUS_VARIANTS } from "../business-update-requests/constants/businessUpdateRequestStatus";
+import MerchantChangeReason from "../business-update-requests/components/MerchantChangeReason";
 import useLocationUpdateRequestDecisions from "../business-update-requests/hooks/useLocationUpdateRequestDecisions";
 import useLocationUpdateRequestDetail from "../business-update-requests/hooks/useLocationUpdateRequestDetail";
 import {
@@ -374,6 +375,8 @@ export default function LocationUpdateRequestReviewPage() {
                 proposed={request.proposed?.landmarks}
               />
             </section>
+
+            <MerchantChangeReason reason={request.reason} />
 
             {/* Resolution and review controls */}
             {request.status === "approved" && (

@@ -129,6 +129,7 @@ class BusinessClassificationChangeViewTests(TestCase):
             {
                 "proposed_category_id": category.CTGRY_ID,
                 "proposed_specialty_tag_ids": [tag.TAG_ID for tag in tags],
+                "reason": "Our products and services have changed.",
             },
             format="json",
         )
@@ -149,6 +150,8 @@ class BusinessClassificationChangeViewTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         request = BusinessClassificationChangeRequest.objects.get()
         self.assertEqual(request.BCCR_STATUS, "pending")
+        self.assertEqual(request.BCCR_MERCHANT_REASON, "Our products and services have changed.")
+        self.assertEqual(response.data["data"]["reason"], "Our products and services have changed.")
         self.assertEqual(request.PREVIOUS_CTGRY_ID_id, self.old_category.pk)
         self.assertEqual(request.PROPOSED_CTGRY_ID_id, self.new_category.pk)
         self.assertEqual(request.BCCR_PREVIOUS_CATEGORY_NAME, "Restaurants")
@@ -384,6 +387,10 @@ class BusinessClassificationChangeViewTests(TestCase):
             self.assertEqual(len(callbacks), 1)
             dispatch.assert_called_once_with()
         self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            response.data["data"]["reason"],
+            "Our products and services have changed.",
+        )
         self.business.refresh_from_db()
         self.assertEqual(self.business.CTGRY_ID_id, self.new_category.pk)
         self.assertEqual(self.business.CTGRY_ID.CLUS_ID_id, self.new_cluster.pk)
@@ -661,6 +668,7 @@ class BusinessClassificationConcurrencyTests(TransactionTestCase):
             user=self.merchant,
             proposed_category_id=category.pk,
             proposed_specialty_tag_ids=[tag.pk for tag in self.tags[1:]],
+            reason="Our products and services have changed.",
         )
         self.request_id = request.pk
 

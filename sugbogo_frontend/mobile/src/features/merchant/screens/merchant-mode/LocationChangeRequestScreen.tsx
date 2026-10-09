@@ -1,4 +1,5 @@
 import { router, useFocusEffect, useNavigation, type Href } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
 import {
   useCallback,
@@ -18,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import AppText from "@/shared/components/AppText";
+import { theme } from "@/constants/theme";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
@@ -28,6 +30,7 @@ import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import LocationChangeReviewSections from "../../components/location-change/LocationChangeReviewSections";
+import MerchantChangeReasonCard from "../../components/change-requests/MerchantChangeReasonCard";
 import MerchantChangeCooldownState from "../../components/change-requests/MerchantChangeCooldownState";
 import SelectedLandmarksSection from "../../components/registration/landmark/SelectedLandmarksSection";
 import LocationPickerMap from "../../components/registration/location/LocationPickerMap";
@@ -46,6 +49,7 @@ import {
   liveLocationProposal,
   locationProposalChanged,
 } from "../../utils/locationChange.utils";
+import { validateMerchantChangeReason } from "../../utils/merchantChangeReason";
 
 /**
  * Allows merchants to prepare and submit a business location change request.
@@ -67,6 +71,8 @@ export default function LocationChangeRequestScreen() {
   const [discardVisible, setDiscardVisible] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string>();
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string>();
 
   const {
     business,
@@ -248,13 +254,20 @@ export default function LocationChangeRequestScreen() {
       return;
     }
 
+    const validationError = validateMerchantChangeReason(reason);
+    if (validationError) {
+      setReasonError(validationError);
+      return;
+    }
+
     submittingRef.current = true;
     setIsSubmittingRequest(true);
 
     try {
-      const result = await submitRequest.mutateAsync(
-        buildLocationChangePayload(location, landmarks),
-      );
+      const result = await submitRequest.mutateAsync({
+        ...buildLocationChangePayload(location, landmarks),
+        reason: reason.trim(),
+      });
 
       Toast.show({
         type: "success",
@@ -277,6 +290,12 @@ export default function LocationChangeRequestScreen() {
           text1: "Location change temporarily unavailable",
           text2: response.message,
         });
+        return;
+      }
+
+      const serverReasonError = response.errors?.reason?.[0];
+      if (serverReasonError) {
+        setReasonError(serverReasonError);
         return;
       }
 
@@ -442,26 +461,51 @@ export default function LocationChangeRequestScreen() {
         showsVerticalScrollIndicator={false}
       >
         {isReviewing ? (
-          <LocationChangeReviewSections
-            currentLocation={currentLiveLocation}
-            proposedLocation={location}
-            currentLandmarks={business.location.landmarks}
-            proposedLandmarks={landmarks}
-            onViewCurrent={() =>
-              viewLocation(
-                "Current business pin",
-                currentLiveLocation,
-                business.location.landmarks,
-              )
-            }
-            onViewProposed={() =>
-              viewLocation(
-                "Requested location and landmarks",
-                location,
-                landmarks,
-              )
-            }
-          />
+          <>
+            <LocationChangeReviewSections
+              currentLocation={currentLiveLocation}
+              proposedLocation={location}
+              currentLandmarks={business.location.landmarks}
+              proposedLandmarks={landmarks}
+              showApprovalContext={false}
+              onViewCurrent={() =>
+                viewLocation(
+                  "Current business pin",
+                  currentLiveLocation,
+                  business.location.landmarks,
+                )
+              }
+              onViewProposed={() =>
+                viewLocation(
+                  "Requested location and landmarks",
+                  location,
+                  landmarks,
+                )
+              }
+            />
+            <View className="mt-4">
+              <MerchantChangeReasonCard
+                value={reason}
+                onChangeText={(value) => {
+                  setReason(value);
+                  setReasonError(undefined);
+                }}
+                placeholder="e.g., We've relocated, or our current location details are inaccurate."
+                error={reasonError}
+              />
+            </View>
+            <View className="mt-3 flex-row items-start px-6">
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={18}
+                color={theme.extends.colors.text.secondary}
+              />
+              <AppText className="ml-2 flex-1 text-xs leading-5 text-text-secondary">
+                Your current business location and landmarks will remain live
+                until this request is approved.
+              </AppText>
+            </View>
+          </>
         ) : (
           <>
             {/* Location selection */}

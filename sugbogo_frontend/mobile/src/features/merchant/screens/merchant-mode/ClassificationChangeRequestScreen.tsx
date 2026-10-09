@@ -10,7 +10,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { BackHandler, ScrollView, View } from "react-native";
+import {
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -28,6 +34,7 @@ import type { ApiError } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 
 import ClassificationChangeReviewSections from "../../components/classification-change/ClassificationChangeReviewSections";
+import MerchantChangeReasonCard from "../../components/change-requests/MerchantChangeReasonCard";
 import ClassificationLiveSummary from "../../components/classification-change/ClassificationLiveSummary";
 import ClassificationSpecialtySelector from "../../components/classification-change/ClassificationSpecialtySelector";
 import MerchantChangeCooldownState from "../../components/change-requests/MerchantChangeCooldownState";
@@ -45,6 +52,7 @@ import {
   classificationHasChanged,
   mergeClassificationSpecialtyOptions,
 } from "../../utils/classificationChange.utils";
+import { validateMerchantChangeReason } from "../../utils/merchantChangeReason";
 
 /**
  * Allows merchants to request changes to their business classification.
@@ -74,6 +82,8 @@ export default function ClassificationChangeRequestScreen() {
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [discardVisible, setDiscardVisible] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string>();
 
   const {
     business,
@@ -303,6 +313,12 @@ export default function ClassificationChangeRequestScreen() {
       return;
     }
 
+    const validationError = validateMerchantChangeReason(reason);
+    if (validationError) {
+      setReasonError(validationError);
+      return;
+    }
+
     submittingRef.current = true;
     setIsSubmittingRequest(true);
 
@@ -310,6 +326,7 @@ export default function ClassificationChangeRequestScreen() {
       const created = await submitRequest.mutateAsync({
         proposed_category_id: categoryId,
         proposed_specialty_tag_ids: specialtyTagIds,
+        reason: reason.trim(),
       });
 
       Toast.show({
@@ -336,6 +353,12 @@ export default function ClassificationChangeRequestScreen() {
           text1: "Classification change temporarily unavailable",
           text2: response.message,
         });
+        return;
+      }
+
+      const serverReasonError = getFieldError(response, "reason");
+      if (serverReasonError) {
+        setReasonError(serverReasonError);
         return;
       }
 
@@ -492,7 +515,10 @@ export default function ClassificationChangeRequestScreen() {
   });
 
   return (
-    <View className="flex-1 bg-background">
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      className="flex-1 bg-background"
+    >
       <ScrollView
         contentContainerClassName="pt-2"
         contentContainerStyle={{ paddingBottom: 24 }}
@@ -517,25 +543,38 @@ export default function ClassificationChangeRequestScreen() {
         ) : null}
 
         {isReviewing ? (
-          /* Current and proposed classification */
-          <ClassificationChangeReviewSections
-            current={{
-              category: business.category,
-              cluster: {
-                ...business.cluster,
-                icon: currentCluster?.icon,
-              },
-            }}
-            proposed={{
-              category: selectedCategory ?? business.category,
-              cluster: {
-                name: selectedCluster?.name ?? business.cluster.name,
-                icon: selectedCluster?.icon,
-              },
-            }}
-            currentTags={business.specialty_tags}
-            proposedTags={requestedTags}
-          />
+          <>
+            {/* Current and proposed classification */}
+            <ClassificationChangeReviewSections
+              current={{
+                category: business.category,
+                cluster: {
+                  ...business.cluster,
+                  icon: currentCluster?.icon,
+                },
+              }}
+              proposed={{
+                category: selectedCategory ?? business.category,
+                cluster: {
+                  name: selectedCluster?.name ?? business.cluster.name,
+                  icon: selectedCluster?.icon,
+                },
+              }}
+              currentTags={business.specialty_tags}
+              proposedTags={requestedTags}
+            />
+            <View className="mt-4">
+              <MerchantChangeReasonCard
+                value={reason}
+                onChangeText={(value) => {
+                  setReason(value);
+                  setReasonError(undefined);
+                }}
+                placeholder="e.g., Our business now focuses on different products and services."
+                error={reasonError}
+              />
+            </View>
+          </>
         ) : (
           <>
             {/* Current classification reference */}
@@ -692,6 +731,6 @@ export default function ClassificationChangeRequestScreen() {
           router.back();
         }}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
