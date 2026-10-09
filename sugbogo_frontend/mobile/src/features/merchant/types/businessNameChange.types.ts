@@ -1,3 +1,5 @@
+import type { BusinessChangeRequestEligibility } from "./businessChangeRequestEligibility.types";
+
 export type BusinessNameChangeStatus =
   "pending" | "approved" | "rejected" | "withdrawn";
 
@@ -14,6 +16,7 @@ export type BusinessNameChangeRequest = {
 
 export type BusinessNameChangeRequestPage = {
   items: BusinessNameChangeRequest[];
+  eligibility: BusinessChangeRequestEligibility;
   pagination: {
     page: number;
     page_size: number;

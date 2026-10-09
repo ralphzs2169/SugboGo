@@ -28,6 +28,7 @@ import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import LocationChangeReviewSections from "../../components/location-change/LocationChangeReviewSections";
+import MerchantChangeCooldownState from "../../components/change-requests/MerchantChangeCooldownState";
 import SelectedLandmarksSection from "../../components/registration/landmark/SelectedLandmarksSection";
 import LocationPickerMap from "../../components/registration/location/LocationPickerMap";
 import RegistrationSection from "../../components/registration/RegistrationSection";
@@ -36,6 +37,7 @@ import {
   useMerchantLocationChangeRequests,
   useSubmitMerchantLocationChange,
 } from "../../hooks/location-change/useMerchantLocationChanges";
+import useMerchantChangeEligibilityRefresh from "../../hooks/change-requests/useMerchantChangeEligibilityRefresh";
 import { useLocationChangeDraftStore } from "../../stores/locationChangeDraftStore";
 import { useLocationChangeReviewStore } from "../../stores/locationChangeReviewStore";
 import type { LocationChangeLocation } from "../../types/locationChange.types";
@@ -74,12 +76,14 @@ export default function LocationChangeRequestScreen() {
   } = useMerchantBusinessProfile();
 
   const {
+    eligibility,
     pendingRequest,
     hasData: hasRequestsData,
     isLoading: isRequestsLoading,
     error: requestsError,
     refetch: refetchRequests,
   } = useMerchantLocationChangeRequests();
+  useMerchantChangeEligibilityRefresh(eligibility, refetchRequests);
 
   const submitRequest = useSubmitMerchantLocationChange();
 
@@ -169,11 +173,18 @@ export default function LocationChangeRequestScreen() {
       business &&
       business.status === "active" &&
       hasRequestsData &&
+      eligibility?.can_submit &&
       !pendingRequest
     ) {
       initialize(business);
     }
-  }, [business, hasRequestsData, initialize, pendingRequest]);
+  }, [
+    business,
+    eligibility?.can_submit,
+    hasRequestsData,
+    initialize,
+    pendingRequest,
+  ]);
 
   function updateAddress(field: keyof LocationChangeLocation, value: string) {
     if (!location) {
@@ -257,6 +268,17 @@ export default function LocationChangeRequestScreen() {
     } catch (error) {
       setIsSubmittingRequest(false);
       const response = error as ApiError;
+      const cooldownBlocked = response.errors?.reason?.[0] === "cooldown";
+
+      if (cooldownBlocked) {
+        await refetchRequests();
+        Toast.show({
+          type: "info",
+          text1: "Location change temporarily unavailable",
+          text2: response.message,
+        });
+        return;
+      }
 
       if (response.message?.includes("already pending")) {
         void refetchRequests();
@@ -345,17 +367,6 @@ export default function LocationChangeRequestScreen() {
     );
   }
 
-  if (business.status !== "active") {
-    return (
-      <ErrorState
-        title="Location changes unavailable"
-        description="Your business must be active to request a location change."
-        primaryActionTitle="Go Back"
-        onPrimaryAction={requestExit}
-      />
-    );
-  }
-
   if (pendingRequest && !isSubmittingRequest) {
     return (
       <ErrorState
@@ -367,6 +378,41 @@ export default function LocationChangeRequestScreen() {
           router.replace(
             `/(merchant)/business-update-requests/location/${pendingRequest.id}` as Href,
           );
+        }}
+      />
+    );
+  }
+
+  if (business.status !== "active") {
+    return (
+      <ErrorState
+        title="Location changes unavailable"
+        description="Your business must be active to request a location change."
+        primaryActionTitle="Go Back"
+        onPrimaryAction={requestExit}
+      />
+    );
+  }
+
+  if (
+    eligibility?.reason === "cooldown" &&
+    eligibility.cooldown_until &&
+    eligibility.last_approved_request_id
+  ) {
+    return (
+      <MerchantChangeCooldownState
+        description="Your recent location and landmarks change was approved. You can submit another request after the waiting period."
+        cooldownDurationHours={eligibility.cooldown_duration_hours}
+        cooldownUntil={eligibility.cooldown_until}
+        onViewApprovedRequest={() => {
+          reset();
+          router.push(
+            `/(merchant)/business-update-requests/location/${eligibility.last_approved_request_id}` as Href,
+          );
+        }}
+        onGoBack={() => {
+          reset();
+          router.back();
         }}
       />
     );

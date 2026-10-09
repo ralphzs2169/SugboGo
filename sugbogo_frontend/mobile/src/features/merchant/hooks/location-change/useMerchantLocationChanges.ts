@@ -106,12 +106,18 @@ export function useMerchantLocationChangeRequests() {
   });
   const requests = query.data?.pages.flatMap((page) => page.items) ?? [];
   const latestRequest = query.data?.pages[0]?.items[0];
+  const eligibility = query.data?.pages[0]?.eligibility ?? null;
+  const pendingRequest =
+    requests.find(
+      (request) => request.id === eligibility?.pending_request_id,
+    ) ?? null;
   useRefreshApprovedLocation(latestRequest, userId);
 
   return {
     requests,
     latestRequest,
-    pendingRequest: latestRequest?.status === "pending" ? latestRequest : null,
+    eligibility,
+    pendingRequest,
     hasData: query.data !== undefined,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,

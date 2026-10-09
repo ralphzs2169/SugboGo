@@ -99,6 +99,15 @@ const business = {
   },
 };
 
+const eligible = {
+  can_submit: true,
+  reason: null,
+  cooldown_duration_hours: 72,
+  cooldown_until: null,
+  last_approved_request_id: null,
+  pending_request_id: null,
+};
+
 describe("Location change request form", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -115,6 +124,7 @@ describe("Location change request form", () => {
       refetch: jest.fn(),
     });
     mockRequests.mockReturnValue({
+      eligibility: eligible,
       pendingRequest: null,
       hasData: true,
       isLoading: false,
@@ -436,6 +446,12 @@ describe("Location change request form", () => {
 
   it("shows an existing pending request without navigating automatically", async () => {
     mockRequests.mockReturnValue({
+      eligibility: {
+        ...eligible,
+        can_submit: false,
+        reason: "pending",
+        pending_request_id: 33,
+      },
       pendingRequest: { id: 33 },
       hasData: true,
       isLoading: false,
@@ -453,6 +469,35 @@ describe("Location change request form", () => {
     });
     expect(router.replace).toHaveBeenCalledWith(
       "/(merchant)/business-update-requests/location/33",
+    );
+    await screen.unmount();
+  });
+
+  it("shows location cooldown and opens the approved request", async () => {
+    mockRequests.mockReturnValue({
+      eligibility: {
+        can_submit: false,
+        reason: "cooldown",
+        cooldown_duration_hours: 72,
+        cooldown_until: "2026-10-12T07:00:00Z",
+        last_approved_request_id: 61,
+        pending_request_id: null,
+      },
+      pendingRequest: null,
+      hasData: true,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    const screen = await render(<LocationChangeRequestScreen />);
+
+    expect(screen.getByText("Change temporarily unavailable")).toBeTruthy();
+    expect(screen.getByText("72 hours")).toBeTruthy();
+    expect(screen.queryByText("Review Changes")).toBeNull();
+    await fireEvent.press(screen.getByText("View Approved Request"));
+    expect(router.push).toHaveBeenCalledWith(
+      "/(merchant)/business-update-requests/location/61",
     );
     await screen.unmount();
   });

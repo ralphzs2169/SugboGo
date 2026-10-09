@@ -11,6 +11,9 @@ from apps.merchant_operations.business_profile.models import (
     BusinessClassificationChangeRequest,
     BusinessClassificationSpecialtySnapshot,
 )
+from apps.merchant_operations.business_profile.services.business_change_request_eligibility_service import (
+    BusinessChangeRequestEligibilityService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,15 +133,18 @@ class BusinessClassificationChangeService:
                         "your business is suspended."
                     )
 
-                if BusinessClassificationChangeRequest.objects.filter(
-                    BUSN_ID=business,
-                    BCCR_STATUS=(
-                        BusinessClassificationChangeRequest.Status.PENDING
-                    ),
-                ).exists():
-                    raise ValidationError(
-                        "A classification change request is already pending."
+                eligibility = (
+                    BusinessChangeRequestEligibilityService.for_classification(
+                        business,
                     )
+                )
+                BusinessChangeRequestEligibilityService.enforce(
+                    eligibility,
+                    request_label="classification change",
+                    pending_message=(
+                        "A classification change request is already pending."
+                    ),
+                )
 
                 category, tags = (
                     BusinessClassificationChangeService._load_proposed_taxonomy(
@@ -220,6 +226,14 @@ class BusinessClassificationChangeService:
             BUSN_ID=business,
             USER_ID=user,
         ).order_by("-BCCR_SUBMITTED_AT", "-BCCR_ID")
+
+    @staticmethod
+    def get_eligibility_for_merchant(user):
+        """Return the merchant's current classification request eligibility."""
+        business = BusinessClassificationChangeService._get_owned_business(user)
+        return BusinessChangeRequestEligibilityService.for_classification(
+            business,
+        )
 
     @staticmethod
     def get_for_merchant(user, request_id):

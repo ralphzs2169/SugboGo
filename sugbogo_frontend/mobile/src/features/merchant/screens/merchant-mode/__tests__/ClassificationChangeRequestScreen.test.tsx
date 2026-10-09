@@ -12,6 +12,7 @@ const mockProfile = jest.fn();
 const mockRequests = jest.fn();
 const mockSubmit = jest.fn();
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 const mockRefetchRequests = jest.fn();
 const mockSpecialtyTags = jest.fn();
 const mockSelectorProps = jest.fn();
@@ -21,6 +22,7 @@ const mockSetOptions = jest.fn();
 jest.mock("expo-router", () => ({
   router: {
     back: () => mockBack(),
+    push: (...args: unknown[]) => mockPush(...args),
     replace: (...args: unknown[]) => mockReplace(...args),
   },
   useNavigation: () => ({ setOptions: mockSetOptions }),
@@ -146,6 +148,15 @@ const business = {
   })),
 };
 
+const eligible = {
+  can_submit: true,
+  reason: null,
+  cooldown_duration_hours: 168,
+  cooldown_until: null,
+  last_approved_request_id: null,
+  pending_request_id: null,
+};
+
 describe("ClassificationChangeRequestScreen", () => {
   afterEach(async () => {
     await cleanup();
@@ -168,7 +179,9 @@ describe("ClassificationChangeRequestScreen", () => {
       refetch: jest.fn(),
     });
     mockRequests.mockReturnValue({
+      eligibility: eligible,
       pendingRequest: null,
+      hasData: true,
       isLoading: false,
       error: null,
       refetch: mockRefetchRequests,
@@ -338,7 +351,14 @@ describe("ClassificationChangeRequestScreen", () => {
 
   it("blocks a second request while one is pending", async () => {
     mockRequests.mockReturnValue({
+      eligibility: {
+        ...eligible,
+        can_submit: false,
+        reason: "pending",
+        pending_request_id: 7,
+      },
       pendingRequest: { id: 7, status: "pending" },
+      hasData: true,
       isLoading: false,
       error: null,
       refetch: mockRefetchRequests,
@@ -346,6 +366,34 @@ describe("ClassificationChangeRequestScreen", () => {
     const pending = await render(<ClassificationChangeRequestScreen />);
     expect(pending.getByText("Pending Admin review")).toBeTruthy();
     expect(pending.queryByText("Submit Request")).toBeNull();
+  });
+
+  it("shows classification cooldown and opens the approved request", async () => {
+    mockRequests.mockReturnValue({
+      eligibility: {
+        can_submit: false,
+        reason: "cooldown",
+        cooldown_duration_hours: 168,
+        cooldown_until: "2026-10-16T07:00:00Z",
+        last_approved_request_id: 52,
+        pending_request_id: null,
+      },
+      pendingRequest: null,
+      hasData: true,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetchRequests,
+    });
+
+    const screen = await render(<ClassificationChangeRequestScreen />);
+
+    expect(screen.getByText("Change temporarily unavailable")).toBeTruthy();
+    expect(screen.getByText("7 days")).toBeTruthy();
+    expect(screen.queryByText("Review Changes")).toBeNull();
+    await fireEvent.press(screen.getByText("View Approved Request"));
+    expect(mockPush).toHaveBeenCalledWith(
+      "/(merchant)/business-update-requests/classification/52",
+    );
   });
 
   it("blocks suspended businesses from submitting", async () => {

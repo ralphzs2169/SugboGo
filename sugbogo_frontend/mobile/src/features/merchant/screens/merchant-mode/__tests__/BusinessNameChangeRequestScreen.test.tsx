@@ -13,6 +13,7 @@ const mockProfile = jest.fn();
 const mockRequests = jest.fn();
 const mockSubmit = jest.fn();
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 const mockRefetchRequests = jest.fn();
 const mockBack = jest.fn();
 const mockSetOptions = jest.fn();
@@ -21,6 +22,7 @@ const mockConfirmModal = jest.fn((_props: unknown) => null);
 jest.mock("expo-router", () => ({
   router: {
     back: () => mockBack(),
+    push: (...args: unknown[]) => mockPush(...args),
     replace: (...args: unknown[]) => mockReplace(...args),
   },
   useNavigation: () => ({ setOptions: mockSetOptions }),
@@ -74,6 +76,15 @@ const profile = {
   refetch: jest.fn(),
 };
 
+const eligible = {
+  can_submit: true,
+  reason: null,
+  cooldown_duration_hours: 168,
+  cooldown_until: null,
+  last_approved_request_id: null,
+  pending_request_id: null,
+};
+
 describe("BusinessNameChangeRequestScreen", () => {
   afterEach(async () => {
     await cleanup();
@@ -83,7 +94,9 @@ describe("BusinessNameChangeRequestScreen", () => {
     jest.clearAllMocks();
     mockProfile.mockReturnValue(profile);
     mockRequests.mockReturnValue({
+      eligibility: eligible,
       pendingRequest: null,
+      hasData: true,
       isLoading: false,
       error: null,
       refetch: mockRefetchRequests,
@@ -158,7 +171,14 @@ describe("BusinessNameChangeRequestScreen", () => {
 
   it("blocks a new request while one is pending or business is suspended", async () => {
     mockRequests.mockReturnValue({
+      eligibility: {
+        ...eligible,
+        can_submit: false,
+        reason: "pending",
+        pending_request_id: 7,
+      },
       pendingRequest: { id: 7, proposed_business_name: "Other Bistro" },
+      hasData: true,
       isLoading: false,
       error: null,
       refetch: mockRefetchRequests,
@@ -169,7 +189,9 @@ describe("BusinessNameChangeRequestScreen", () => {
     await pending.unmount();
 
     mockRequests.mockReturnValue({
+      eligibility: eligible,
       pendingRequest: null,
+      hasData: true,
       isLoading: false,
       error: null,
       refetch: mockRefetchRequests,
@@ -207,6 +229,34 @@ describe("BusinessNameChangeRequestScreen", () => {
       screen.getByRole("button", { name: "Review Changes" }).props
         .accessibilityState.disabled,
     ).toBe(true);
+  });
+
+  it("shows cooldown availability and opens the approved request", async () => {
+    mockRequests.mockReturnValue({
+      eligibility: {
+        can_submit: false,
+        reason: "cooldown",
+        cooldown_duration_hours: 168,
+        cooldown_until: "2026-10-16T07:00:00Z",
+        last_approved_request_id: 42,
+        pending_request_id: null,
+      },
+      pendingRequest: null,
+      hasData: true,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetchRequests,
+    });
+
+    const screen = await render(<BusinessNameChangeRequestScreen />);
+
+    expect(screen.getByText("Change temporarily unavailable")).toBeTruthy();
+    expect(screen.getByText("7 days")).toBeTruthy();
+    expect(screen.queryByText("Review Changes")).toBeNull();
+    await fireEvent.press(screen.getByText("View Approved Request"));
+    expect(mockPush).toHaveBeenCalledWith(
+      "/(merchant)/business-update-requests/42",
+    );
   });
 
   it("confirms discarding a changed name from Cancel and header Back", async () => {

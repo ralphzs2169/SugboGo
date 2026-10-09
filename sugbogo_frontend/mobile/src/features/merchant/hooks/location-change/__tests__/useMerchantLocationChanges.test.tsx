@@ -59,6 +59,17 @@ function page(
     message: "Success.",
     data: {
       items,
+      eligibility: {
+        can_submit: !items.some((item) => item.status === "pending"),
+        reason: items.some((item) => item.status === "pending")
+          ? ("pending" as const)
+          : null,
+        cooldown_duration_hours: 72,
+        cooldown_until: null,
+        last_approved_request_id: null,
+        pending_request_id:
+          items.find((item) => item.status === "pending")?.id ?? null,
+      },
       pagination: {
         page: number,
         page_size: 10,

@@ -31,12 +31,14 @@ import type { ApiError } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 
 import BusinessNameChangeComparison from "../../components/business-name-change/BusinessNameChangeComparison";
+import MerchantChangeCooldownState from "../../components/change-requests/MerchantChangeCooldownState";
 import RegistrationSection from "../../components/registration/RegistrationSection";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import {
   useMerchantBusinessNameChangeRequests,
   useSubmitMerchantBusinessNameChange,
 } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
+import useMerchantChangeEligibilityRefresh from "../../hooks/change-requests/useMerchantChangeEligibilityRefresh";
 import { businessNameChangeSchema } from "../../validation/businessNameChange.schema";
 
 type NameChangeForm = z.infer<typeof businessNameChangeSchema>;
@@ -59,11 +61,14 @@ export default function BusinessNameChangeRequestScreen() {
     refetch: refetchProfile,
   } = useMerchantBusinessProfile();
   const {
+    eligibility,
     pendingRequest,
+    hasData: hasRequestsData,
     isLoading: isRequestsLoading,
     error: requestsError,
     refetch: refetchRequests,
   } = useMerchantBusinessNameChangeRequests();
+  useMerchantChangeEligibilityRefresh(eligibility, refetchRequests);
   const submitRequest = useSubmitMerchantBusinessNameChange();
   const form = useForm<NameChangeForm>({
     resolver: zodResolver(businessNameChangeSchema),
@@ -165,6 +170,18 @@ export default function BusinessNameChangeRequestScreen() {
     } catch (error) {
       setIsSubmittingRequest(false);
       const response = error as ApiError;
+      const cooldownBlocked = response.errors?.reason?.[0] === "cooldown";
+
+      if (cooldownBlocked) {
+        await refetchRequests();
+        Toast.show({
+          type: "info",
+          text1: "Name change temporarily unavailable",
+          text2: response.message,
+        });
+        return;
+      }
+
       const fieldMessage = getFieldError(response, "proposed_business_name");
       if (fieldMessage) {
         form.setError("proposedBusinessName", {
@@ -209,7 +226,11 @@ export default function BusinessNameChangeRequestScreen() {
     setIsReviewing(true);
   }
 
-  if ((isProfileLoading && !business) || isRequestsLoading) {
+  if (
+    (isProfileLoading && !business) ||
+    isRequestsLoading ||
+    (!hasRequestsData && !requestsError)
+  ) {
     return (
       <LoadingScreen
         title="Loading Name Change"
@@ -235,19 +256,6 @@ export default function BusinessNameChangeRequestScreen() {
     );
   }
 
-  if (business.status === "suspended") {
-    return (
-      <View className="flex-1 bg-background">
-        <ErrorState
-          title="Request unavailable"
-          description="Name changes cannot be requested while your business is suspended."
-          primaryActionTitle="Go Back"
-          onPrimaryAction={() => router.back()}
-        />
-      </View>
-    );
-  }
-
   if (pendingRequest && !isSubmittingRequest) {
     return (
       <View className="flex-1 bg-background">
@@ -262,6 +270,39 @@ export default function BusinessNameChangeRequestScreen() {
           }
         />
       </View>
+    );
+  }
+
+  if (business.status === "suspended") {
+    return (
+      <View className="flex-1 bg-background">
+        <ErrorState
+          title="Request unavailable"
+          description="Name changes cannot be requested while your business is suspended."
+          primaryActionTitle="Go Back"
+          onPrimaryAction={() => router.back()}
+        />
+      </View>
+    );
+  }
+
+  if (
+    eligibility?.reason === "cooldown" &&
+    eligibility.cooldown_until &&
+    eligibility.last_approved_request_id
+  ) {
+    return (
+      <MerchantChangeCooldownState
+        description="Your recent business name change was approved. You can submit another request after the waiting period."
+        cooldownDurationHours={eligibility.cooldown_duration_hours}
+        cooldownUntil={eligibility.cooldown_until}
+        onViewApprovedRequest={() =>
+          router.push(
+            `/(merchant)/business-update-requests/${eligibility.last_approved_request_id}` as Href,
+          )
+        }
+        onGoBack={() => router.back()}
+      />
     );
   }
 

@@ -1,3 +1,5 @@
+import type { BusinessChangeRequestEligibility } from "./businessChangeRequestEligibility.types";
+
 export type LocationChangeStatus =
   "pending" | "approved" | "rejected" | "withdrawn";
 
@@ -39,6 +41,7 @@ export type LocationChangeRequest = {
 
 export type LocationChangeRequestPage = {
   items: LocationChangeRequest[];
+  eligibility: BusinessChangeRequestEligibility;
   pagination: {
     page: number;
     page_size: number;

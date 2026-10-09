@@ -1,3 +1,5 @@
+import type { BusinessChangeRequestEligibility } from "./businessChangeRequestEligibility.types";
+
 export type ClassificationChangeStatus =
   "pending" | "approved" | "rejected" | "withdrawn";
 
@@ -20,6 +22,7 @@ export type ClassificationChangeRequest = {
 
 export type ClassificationChangeRequestPage = {
   items: ClassificationChangeRequest[];
+  eligibility: BusinessChangeRequestEligibility;
   pagination: {
     page: number;
     page_size: number;

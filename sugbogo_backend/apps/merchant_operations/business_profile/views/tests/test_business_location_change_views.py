@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from threading import Barrier
 from unittest.mock import patch
 
@@ -220,6 +221,44 @@ class BusinessLocationChangeViewTests(TestCase):
         self.assertEqual(BusinessLandmark.objects.filter(LOCT_ID=self.old_location).count(), 1)
         self.application.refresh_from_db()
         self.assertEqual(self.application.BUSN_ID_id, self.business.pk)
+
+    def test_active_approval_cooldown_blocks_submission_and_is_exposed(self):
+        """Return 72-hour location eligibility and reject submission."""
+        resolved_at = timezone.now()
+        approved = BusinessLocationChangeRequest.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.merchant,
+            BLCR_PREVIOUS_LOCT_ID=self.old_location.pk,
+            BLCR_PREVIOUS_POINT=self.old_location.LOCT_POINT,
+            BLCR_PREVIOUS_ADDRESS=self.old_location.LOCT_ADDRESS,
+            BLCR_PREVIOUS_CITY=self.old_location.LOCT_CITY,
+            BLCR_PREVIOUS_PROVINCE=self.old_location.LOCT_PROVINCE,
+            BLCR_PREVIOUS_POSTAL_CODE=self.old_location.LOCT_POSTAL_CODE,
+            BLCR_PROPOSED_POINT=self.old_location.LOCT_POINT,
+            BLCR_PROPOSED_ADDRESS=self.old_location.LOCT_ADDRESS,
+            BLCR_PROPOSED_CITY=self.old_location.LOCT_CITY,
+            BLCR_PROPOSED_PROVINCE=self.old_location.LOCT_PROVINCE,
+            BLCR_PROPOSED_POSTAL_CODE=self.old_location.LOCT_POSTAL_CODE,
+            BLCR_STATUS=BusinessLocationChangeRequest.Status.APPROVED,
+            BLCR_SUBMITTED_AT=resolved_at - timedelta(days=1),
+            BLCR_RESOLVED_AT=resolved_at,
+        )
+
+        eligibility = self.client.get(
+            self.merchant_url,
+        ).data["data"]["eligibility"]
+        blocked = self._submit()
+
+        self.assertFalse(eligibility["can_submit"])
+        self.assertEqual(eligibility["reason"], "cooldown")
+        self.assertEqual(eligibility["cooldown_duration_hours"], 72)
+        self.assertEqual(
+            eligibility["last_approved_request_id"],
+            approved.pk,
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertEqual(blocked.data["errors"]["reason"], ["cooldown"])
+        self.assertEqual(BusinessLocationChangeRequest.objects.count(), 1)
 
     def test_zero_and_five_landmarks_are_allowed(self):
         """The complete desired set may contain zero through five landmarks."""

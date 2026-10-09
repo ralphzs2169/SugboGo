@@ -30,12 +30,14 @@ import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 import ClassificationChangeReviewSections from "../../components/classification-change/ClassificationChangeReviewSections";
 import ClassificationLiveSummary from "../../components/classification-change/ClassificationLiveSummary";
 import ClassificationSpecialtySelector from "../../components/classification-change/ClassificationSpecialtySelector";
+import MerchantChangeCooldownState from "../../components/change-requests/MerchantChangeCooldownState";
 import RegistrationSection from "../../components/registration/RegistrationSection";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import {
   useMerchantClassificationChangeRequests,
   useSubmitMerchantClassificationChange,
 } from "../../hooks/classification-change/useMerchantClassificationChanges";
+import useMerchantChangeEligibilityRefresh from "../../hooks/change-requests/useMerchantChangeEligibilityRefresh";
 import useCategories from "../../hooks/registration/useCategories";
 import useClusters from "../../hooks/registration/useClusters";
 import useSpecialtyTags from "../../hooks/registration/useSpecialtyTags";
@@ -81,12 +83,14 @@ export default function ClassificationChangeRequestScreen() {
   } = useMerchantBusinessProfile();
 
   const {
+    eligibility,
     pendingRequest,
     hasData: hasRequestsData,
     isLoading: isRequestsLoading,
     error: requestsError,
     refetch: refetchRequests,
   } = useMerchantClassificationChangeRequests();
+  useMerchantChangeEligibilityRefresh(eligibility, refetchRequests);
 
   const {
     clusters,
@@ -323,6 +327,18 @@ export default function ClassificationChangeRequestScreen() {
       setIsSubmittingRequest(false);
 
       const response = error as ApiError;
+      const cooldownBlocked = response.errors?.reason?.[0] === "cooldown";
+
+      if (cooldownBlocked) {
+        await refetchRequests();
+        Toast.show({
+          type: "info",
+          text1: "Classification change temporarily unavailable",
+          text2: response.message,
+        });
+        return;
+      }
+
       const categoryMessage = getFieldError(response, "proposed_category_id");
       const tagsMessage = getFieldError(response, "proposed_specialty_tag_ids");
 
@@ -354,9 +370,7 @@ export default function ClassificationChangeRequestScreen() {
   if (
     (isProfileLoading && !business) ||
     isRequestsLoading ||
-    isClustersLoading ||
-    isCategoriesLoading ||
-    isTagsLoading
+    (!hasRequestsData && !requestsError)
   ) {
     return (
       <LoadingScreen
@@ -366,12 +380,7 @@ export default function ClassificationChangeRequestScreen() {
     );
   }
 
-  const cannotRender =
-    !business ||
-    (requestsError && !hasRequestsData) ||
-    (clustersError && clusters.length === 0) ||
-    (categoriesError && categories.length === 0) ||
-    (tagsError && specialtyTags.length === 0);
+  const cannotRender = !business || (requestsError && !hasRequestsData);
 
   if (cannotRender) {
     return (
@@ -383,12 +392,26 @@ export default function ClassificationChangeRequestScreen() {
           onPrimaryAction={() => {
             if (profileError || !business) void refetchProfile();
             if (requestsError) void refetchRequests();
-            if (clustersError) void refetchClusters();
-            if (categoriesError) void refetchCategories();
-            if (tagsError) void refetchTags();
           }}
           secondaryActionTitle="Go Back"
           onSecondaryAction={() => router.back()}
+        />
+      </View>
+    );
+  }
+
+  if (pendingRequest && !isSubmittingRequest) {
+    return (
+      <View className="flex-1 bg-background">
+        <ErrorState
+          title="Pending Admin review"
+          description="A classification request is already pending. Your current category and specialties remain visible."
+          primaryActionTitle="View Request"
+          onPrimaryAction={() =>
+            router.replace(
+              `/(merchant)/business-update-requests/classification/${pendingRequest.id}` as Href,
+            )
+          }
         />
       </View>
     );
@@ -407,18 +430,53 @@ export default function ClassificationChangeRequestScreen() {
     );
   }
 
-  if (pendingRequest && !isSubmittingRequest) {
+  if (
+    eligibility?.reason === "cooldown" &&
+    eligibility.cooldown_until &&
+    eligibility.last_approved_request_id
+  ) {
+    return (
+      <MerchantChangeCooldownState
+        description="Your recent classification change was approved. You can submit another request after the waiting period."
+        cooldownDurationHours={eligibility.cooldown_duration_hours}
+        cooldownUntil={eligibility.cooldown_until}
+        onViewApprovedRequest={() =>
+          router.push(
+            `/(merchant)/business-update-requests/classification/${eligibility.last_approved_request_id}` as Href,
+          )
+        }
+        onGoBack={() => router.back()}
+      />
+    );
+  }
+
+  if (isClustersLoading || isCategoriesLoading || isTagsLoading) {
+    return (
+      <LoadingScreen
+        title="Loading Classification"
+        description="Preparing your classification choices..."
+      />
+    );
+  }
+
+  if (
+    (clustersError && clusters.length === 0) ||
+    (categoriesError && categories.length === 0) ||
+    (tagsError && specialtyTags.length === 0)
+  ) {
     return (
       <View className="flex-1 bg-background">
         <ErrorState
-          title="Pending Admin review"
-          description="A classification request is already pending. Your current category and specialties remain visible."
-          primaryActionTitle="View Request"
-          onPrimaryAction={() =>
-            router.replace(
-              `/(merchant)/business-update-requests/classification/${pendingRequest.id}` as Href,
-            )
-          }
+          title="Unable to load classification choices"
+          description="Please try again."
+          primaryActionTitle="Retry"
+          onPrimaryAction={() => {
+            if (clustersError) void refetchClusters();
+            if (categoriesError) void refetchCategories();
+            if (tagsError) void refetchTags();
+          }}
+          secondaryActionTitle="Go Back"
+          onSecondaryAction={() => router.back()}
         />
       </View>
     );
