@@ -117,6 +117,7 @@ describe("merchant location change queries", () => {
     );
 
     await waitFor(() => expect(result.current.pendingRequest?.id).toBe(107));
+    expect(result.current.totalRequests).toBe(2);
     await act(async () => {
       await result.current.fetchNextPage();
     });
@@ -125,6 +126,7 @@ describe("merchant location change queries", () => {
         107, 106,
       ]),
     );
+    expect(result.current.totalRequests).toBe(2);
     expect(service.getLocationChangeRequests).toHaveBeenNthCalledWith(2, 2);
     unmount();
     client.clear();

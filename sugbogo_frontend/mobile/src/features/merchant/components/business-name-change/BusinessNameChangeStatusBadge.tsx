@@ -13,7 +13,7 @@ const STATUS: Record<
   }
 > = {
   pending: {
-    label: "Pending Admin review",
+    label: "Pending review",
     color: "bg-blue-500",
     icon: "clock-outline",
   },

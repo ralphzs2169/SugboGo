@@ -78,7 +78,7 @@ export default function MerchantLayout() {
           ...defaultStackScreenOptions,
           ...slideFromRight,
           headerShown: true,
-          title: "Requested Changes",
+          title: "Business Name Requests",
         }}
       />
       <Stack.Screen

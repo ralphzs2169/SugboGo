@@ -341,17 +341,15 @@ export default function BusinessNameChangeRequestScreen() {
               previousName={business.business_name}
               proposedName={proposedBusinessName.trim()}
             />
-            <View className="mt-4">
-              <MerchantChangeReasonCard
-                value={reason}
-                onChangeText={(value) => {
-                  setReason(value);
-                  setReasonError(undefined);
-                }}
-                placeholder="e.g., We're rebranding our business under a new name."
-                error={reasonError}
-              />
-            </View>
+            <MerchantChangeReasonCard
+              value={reason}
+              onChangeText={(value) => {
+                setReason(value);
+                setReasonError(undefined);
+              }}
+              placeholder="e.g., We're rebranding our business under a new name."
+              error={reasonError}
+            />
           </>
         ) : (
           <RegistrationSection

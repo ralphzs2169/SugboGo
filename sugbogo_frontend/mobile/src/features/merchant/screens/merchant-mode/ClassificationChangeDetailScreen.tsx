@@ -330,7 +330,6 @@ export default function ClassificationChangeDetailScreen({
           currentTags={previousTags}
           proposedTags={proposedTags}
           status={request.status}
-          presentation="card"
         />
 
         {/* Administrator rejection feedback */}

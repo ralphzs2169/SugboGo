@@ -7,8 +7,6 @@ import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
 
-import RegistrationSection from "../registration/RegistrationSection";
-
 type ClassificationValue = {
   category: { id: number; name: string };
   cluster: { name: string; icon?: string };
@@ -28,15 +26,14 @@ type Props = {
   currentTags: TagValue[];
   proposedTags: TagValue[];
   status?: RequestStatus;
-  presentation?: "section" | "card";
 };
 
 /**
  * Displays category and specialty differences in a classification request.
  *
- * Supports registration sections for submission review and bordered cards
- * for request details. Historical specialty tags without colors receive
- * neutral styling while preserving their captured names.
+ * Uses bordered comparison cards in submission review and request details.
+ * Specialty additions and removals retain their captured names and use neutral
+ * styling when historical colors are unavailable.
  */
 export default function ClassificationChangeReviewSections({
   current,
@@ -44,7 +41,6 @@ export default function ClassificationChangeReviewSections({
   currentTags,
   proposedTags,
   status,
-  presentation = "section",
 }: Props) {
   const categoryChanged = current.category.id !== proposed.category.id;
 
@@ -60,7 +56,6 @@ export default function ClassificationChangeReviewSections({
 
   const isHistorical = status !== undefined;
   const isApproved = status === "approved";
-  const wasNotApplied = status === "rejected" || status === "withdrawn";
 
   const currentLabel = isHistorical ? "At submission" : "Currently live";
 
@@ -72,13 +67,13 @@ export default function ClassificationChangeReviewSections({
 
   const addedLabel = isApproved
     ? "Added"
-    : wasNotApplied
+    : isHistorical
       ? "Requested to add"
       : "To be added";
 
   const removedLabel = isApproved
     ? "Removed"
-    : wasNotApplied
+    : isHistorical
       ? "Requested to remove"
       : "To be removed";
 
@@ -182,46 +177,62 @@ export default function ClassificationChangeReviewSections({
   );
 
   const specialtyContent = (
-    <View className="gap-5">
-      {/* Specialties being added */}
+    <View className="gap-3">
+      {/* Specialty additions */}
       {addedTags.length > 0 ? (
-        <View>
-          <View className="mb-3 flex-row items-center gap-2">
-            <MaterialCommunityIcons
-              name="plus-circle-outline"
-              size={19}
-              color={theme.extends.colors.text.info}
-            />
+        <View className="rounded-xl bg-background px-4 py-3">
+          <AppText
+            weight="semibold"
+            className="mb-1 text-xs text-text-secondary"
+          >
+            {addedLabel} ({addedTags.length})
+          </AppText>
 
-            <AppText weight="semibold" className="text-sm text-text-primary">
-              {addedLabel}
-            </AppText>
-          </View>
+          {addedTags.map((tag) => (
+            <View
+              key={tag.id}
+              className="flex-row items-center border-b border-border-primary/60 py-3 last:border-b-0 last:pb-0"
+            >
+              <MaterialCommunityIcons
+                name="plus-circle-outline"
+                size={20}
+                color={theme.extends.colors.text.info}
+              />
 
-          <View className="flex-row flex-wrap gap-2">
-            {addedTags.map(renderTagChip)}
-          </View>
+              <View className="ml-3 min-w-0 flex-1 flex-row flex-wrap">
+                {renderTagChip(tag)}
+              </View>
+            </View>
+          ))}
         </View>
       ) : null}
 
-      {/* Specialties being removed */}
+      {/* Specialty removals */}
       {removedTags.length > 0 ? (
-        <View>
-          <View className="mb-3 flex-row items-center gap-2">
-            <MaterialCommunityIcons
-              name="minus-circle-outline"
-              size={19}
-              color={theme.extends.colors.text.secondary}
-            />
+        <View className="rounded-xl bg-background px-4 py-3">
+          <AppText
+            weight="semibold"
+            className="mb-1 text-xs text-text-secondary"
+          >
+            {removedLabel} ({removedTags.length})
+          </AppText>
 
-            <AppText weight="semibold" className="text-sm text-text-primary">
-              {removedLabel}
-            </AppText>
-          </View>
+          {removedTags.map((tag) => (
+            <View
+              key={tag.id}
+              className="flex-row items-center border-b border-border-primary/60 py-3 last:border-b-0 last:pb-0"
+            >
+              <MaterialCommunityIcons
+                name="minus-circle-outline"
+                size={20}
+                color={theme.extends.colors.text.secondary}
+              />
 
-          <View className="flex-row flex-wrap gap-2">
-            {removedTags.map(renderTagChip)}
-          </View>
+              <View className="ml-3 min-w-0 flex-1 flex-row flex-wrap">
+                {renderTagChip(tag)}
+              </View>
+            </View>
+          ))}
         </View>
       ) : null}
     </View>
@@ -229,60 +240,46 @@ export default function ClassificationChangeReviewSections({
 
   return (
     <>
-      <>
-        {/* Category comparison */}
-        {categoryChanged ? (
-          presentation === "card" ? (
-            <View className="mb-4 rounded-2xl border border-border-primary/70 bg-surface p-4">
-              {/* Card header */}
-              <View className="flex-row items-center justify-between border-b border-border-primary/60 pb-3">
-                <AppText weight="bold" className="text-sm text-text-primary">
-                  Category change
-                </AppText>
+      {/* Category comparison */}
+      {categoryChanged ? (
+        <View className="mb-4 rounded-2xl border border-border-primary/70 bg-surface p-4">
+          {/* Card header */}
+          <View className="flex-row items-center justify-between border-b border-border-primary/60 pb-3">
+            <AppText weight="bold" className="text-sm text-text-primary">
+              Category change
+            </AppText>
 
-                <MaterialCommunityIcons
-                  name="shape-outline"
-                  size={20}
-                  color={theme.extends.colors.text.secondary}
-                />
-              </View>
+            <MaterialCommunityIcons
+              name="shape-outline"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
+          </View>
 
-              {/* Category comparison content */}
-              <View className="pt-4">{categoryContent}</View>
-            </View>
-          ) : (
-            <RegistrationSection title="Category change" icon="shape-outline">
-              {categoryContent}
-            </RegistrationSection>
-          )
-        ) : null}
-      </>
+          {/* Category comparison content */}
+          <View className="pt-4">{categoryContent}</View>
+        </View>
+      ) : null}
 
       {/* Specialty additions and removals */}
       {hasSpecialtyChanges ? (
-        presentation === "card" ? (
-          <View className="mb-4 rounded-2xl border border-border-primary/70 bg-surface p-4">
-            {/* Card header */}
-            <View className="flex-row items-center justify-between border-b border-border-primary/60 pb-3">
-              <AppText weight="bold" className="text-sm text-text-primary">
-                Specialty changes
-              </AppText>
+        <View className="mb-4 rounded-2xl border border-border-primary/70 bg-surface p-4">
+          {/* Card header */}
+          <View className="flex-row items-center justify-between border-b border-border-primary/60 pb-3">
+            <AppText weight="bold" className="text-sm text-text-primary">
+              Specialty changes
+            </AppText>
 
-              <MaterialCommunityIcons
-                name="tag-outline"
-                size={20}
-                color={theme.extends.colors.text.secondary}
-              />
-            </View>
-
-            {/* Specialty changes content */}
-            <View className="pt-4">{specialtyContent}</View>
+            <MaterialCommunityIcons
+              name="tag-outline"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
           </View>
-        ) : (
-          <RegistrationSection title="Specialty changes" icon="tag-outline">
-            {specialtyContent}
-          </RegistrationSection>
-        )
+
+          {/* Grouped specialty changes */}
+          <View className="pt-4">{specialtyContent}</View>
+        </View>
       ) : null}
     </>
   );

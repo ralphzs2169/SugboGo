@@ -563,17 +563,15 @@ export default function ClassificationChangeRequestScreen() {
               currentTags={business.specialty_tags}
               proposedTags={requestedTags}
             />
-            <View className="mt-4">
-              <MerchantChangeReasonCard
-                value={reason}
-                onChangeText={(value) => {
-                  setReason(value);
-                  setReasonError(undefined);
-                }}
-                placeholder="e.g., Our business now focuses on different products and services."
-                error={reasonError}
-              />
-            </View>
+            <MerchantChangeReasonCard
+              value={reason}
+              onChangeText={(value) => {
+                setReason(value);
+                setReasonError(undefined);
+              }}
+              placeholder="e.g., Our business now focuses on different products and services."
+              error={reasonError}
+            />
           </>
         ) : (
           <>

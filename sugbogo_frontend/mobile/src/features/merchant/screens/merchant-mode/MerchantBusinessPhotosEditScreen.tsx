@@ -37,23 +37,37 @@ const CATEGORY_LABELS: Record<BusinessPhotoCategory, string> = {
   additional: "Additional",
 };
 
+/**
+ * Allows merchants to manage their approved business photos.
+ *
+ * Displays full-width update guidance, organizes photos by category,
+ * supports adding, removing, and restoring photos, and saves validated
+ * changes without administrator approval. Suspended businesses cannot edit.
+ */
 export default function MerchantBusinessPhotosEditScreen() {
   const insets = useSafeAreaInsets();
   const savingRef = useRef(false);
   const initializedBusinessId = useRef<number | null>(null);
+
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+
   const { savePhotos, isSaving } = useUpdateMerchantBusinessPhotos(
     business?.id,
   );
+
   const [drafts, setDrafts] = useState<BusinessPhotoDrafts>(() =>
     mapBusinessPhotosToDrafts([]),
   );
+
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
+
   const [categoryErrors, setCategoryErrors] = useState<
     Partial<Record<BusinessPhotoCategory, string>>
   >({});
+
   const [pickingCategory, setPickingCategory] =
     useState<BusinessPhotoCategory | null>(null);
+
   const isPicking = pickingCategory !== null;
 
   useEffect(() => {
@@ -69,6 +83,7 @@ export default function MerchantBusinessPhotosEditScreen() {
   const hasNewPhotos = BUSINESS_PHOTO_CATEGORIES.some((category) =>
     drafts[category].some((photo) => photo.id === undefined),
   );
+
   const hasChanges = hasNewPhotos || deletedIds.length > 0;
 
   async function addPhotos(category: BusinessPhotoCategory) {
@@ -77,6 +92,7 @@ export default function MerchantBusinessPhotosEditScreen() {
     }
 
     const count = visiblePhotos(drafts[category], deletedIds).length;
+
     if (count >= BUSINESS_PHOTO_LIMITS[category]) {
       return;
     }
@@ -95,7 +111,11 @@ export default function MerchantBusinessPhotosEditScreen() {
           ...current,
           [category]: [...current[category], ...selected],
         }));
-        setCategoryErrors((current) => ({ ...current, [category]: undefined }));
+
+        setCategoryErrors((current) => ({
+          ...current,
+          [category]: undefined,
+        }));
       }
     } catch (caught) {
       Toast.show({
@@ -110,6 +130,7 @@ export default function MerchantBusinessPhotosEditScreen() {
 
   function removePhoto(category: BusinessPhotoCategory, index: number) {
     const photo = visiblePhotos(drafts[category], deletedIds)[index];
+
     if (!photo) {
       return;
     }
@@ -138,6 +159,7 @@ export default function MerchantBusinessPhotosEditScreen() {
 
     const errors = validateBusinessPhotoDrafts(drafts, deletedIds);
     setCategoryErrors(errors);
+
     if (Object.keys(errors).length > 0) {
       return;
     }
@@ -146,19 +168,23 @@ export default function MerchantBusinessPhotosEditScreen() {
 
     try {
       await savePhotos(buildBusinessPhotosFormData(drafts, deletedIds));
+
       Toast.show({
         type: "success",
         text1: "Business photos updated",
       });
+
       router.back();
     } catch (caught) {
       const response = caught as ApiError;
 
       if (response.code === "VALIDATION_ERROR" && response.errors) {
         const nextErrors: Partial<Record<BusinessPhotoCategory, string>> = {};
+
         for (const category of BUSINESS_PHOTO_CATEGORIES) {
           nextErrors[category] = response.errors[category]?.[0];
         }
+
         setCategoryErrors(nextErrors);
       }
 
@@ -174,6 +200,7 @@ export default function MerchantBusinessPhotosEditScreen() {
     }
   }
 
+  // Initial business loading state
   if (isLoading && !business) {
     return (
       <LoadingScreen
@@ -183,6 +210,7 @@ export default function MerchantBusinessPhotosEditScreen() {
     );
   }
 
+  // Business profile unavailable
   if (!business) {
     return (
       <ErrorState
@@ -198,6 +226,7 @@ export default function MerchantBusinessPhotosEditScreen() {
     );
   }
 
+  // Suspended businesses cannot edit photos
   if (business.status !== "active") {
     return (
       <ErrorState
@@ -210,100 +239,140 @@ export default function MerchantBusinessPhotosEditScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-surface">
       <ScrollView
-        contentContainerClassName="px-5 pt-5"
         contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
       >
-        <AppText className="mb-4 text-sm leading-5 text-text-secondary">
-          Preview your changes, then save the complete photo collection. JPG,
-          JPEG, or PNG. Up to 10 MB per original photo.
-        </AppText>
+        {/* Full-width photo management information banner */}
+        <View className="bg-info px-4 py-4">
+          <View className="flex-row items-start">
+            <View className="mt-0.5 h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={18}
+                color={theme.extends.colors.text.info}
+              />
+            </View>
 
-        {BUSINESS_PHOTO_CATEGORIES.map((category) => {
-          const photos = visiblePhotos(drafts[category], deletedIds);
-          const removed = drafts[category].filter(
-            (photo) => photo.id !== undefined && deletedIds.includes(photo.id),
-          );
-          const limit = BUSINESS_PHOTO_LIMITS[category];
+            <View className="ml-3 flex-1">
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                About photo updates
+              </AppText>
 
-          return (
-            <View
-              key={category}
-              className="mb-4 rounded-xl border border-border-primary bg-surface p-4"
-            >
-              <View className="mb-3 flex-row items-center justify-between">
-                <AppText weight="bold" className="text-base text-text-primary">
-                  {CATEGORY_LABELS[category]}
-                </AppText>
-                <AppText className="text-sm text-text-secondary">
-                  {photos.length} / {limit}
-                </AppText>
-              </View>
+              <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+                Photo changes don't require administrator approval and will
+                appear on your business listing after saving. You can undo photo
+                removals before saving.
+              </AppText>
 
-              <View className="flex-row flex-wrap gap-y-3">
-                {photos.map((photo, index) => (
-                  <PhotoPreview
-                    key={photo.id ?? `${photo.uri}-${index}`}
-                    uri={photo.uri}
-                    onRemove={() => removePhoto(category, index)}
-                  />
+              <AppText className="mt-2 text-xs leading-5 text-text-secondary">
+                JPG, JPEG, or PNG · Maximum 10 MB per original photo
+              </AppText>
+            </View>
+          </View>
+        </View>
+
+        {/* Photo category collections */}
+        <View className="px-5 pt-5">
+          {BUSINESS_PHOTO_CATEGORIES.map((category) => {
+            const photos = visiblePhotos(drafts[category], deletedIds);
+
+            const removed = drafts[category].filter(
+              (photo) =>
+                photo.id !== undefined && deletedIds.includes(photo.id),
+            );
+
+            const limit = BUSINESS_PHOTO_LIMITS[category];
+
+            return (
+              <View
+                key={category}
+                className="mb-4 rounded-xl border border-border-primary bg-surface p-4"
+              >
+                {/* Photo category header */}
+                <View className="mb-3 flex-row items-center justify-between">
+                  <AppText
+                    weight="bold"
+                    className="text-base text-text-primary"
+                  >
+                    {CATEGORY_LABELS[category]}
+                  </AppText>
+
+                  <AppText className="text-sm text-text-secondary">
+                    {photos.length} / {limit}
+                  </AppText>
+                </View>
+
+                {/* Existing photos and add-photo action */}
+                <View className="flex-row flex-wrap gap-y-3">
+                  {photos.map((photo, index) => (
+                    <PhotoPreview
+                      key={photo.id ?? `${photo.uri}-${index}`}
+                      uri={photo.uri}
+                      onRemove={() => removePhoto(category, index)}
+                    />
+                  ))}
+
+                  {photos.length < limit ? (
+                    <Pressable
+                      onPress={() => void addPhotos(category)}
+                      disabled={isPicking || isSaving}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add ${category} photos`}
+                      className="h-24 w-24 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border-secondary"
+                    >
+                      {pickingCategory === category ? (
+                        <ActivityIndicator color={theme.extends.colors.brand} />
+                      ) : (
+                        <>
+                          <MaterialCommunityIcons
+                            name="plus"
+                            size={24}
+                            color={theme.extends.colors.text.primary}
+                          />
+
+                          <AppText className="mt-1 text-xs text-text-secondary">
+                            Add Photo
+                          </AppText>
+                        </>
+                      )}
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {/* Restore previously removed photos */}
+                {removed.map((photo) => (
+                  <Pressable
+                    key={photo.id}
+                    onPress={() =>
+                      setDeletedIds((current) =>
+                        current.filter((id) => id !== photo.id),
+                      )
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`Undo removal of ${photo.fileName ?? category} photo`}
+                    className="mt-3 cursor-pointer self-start rounded-lg bg-surface-secondary px-3 py-2"
+                  >
+                    <AppText className="text-xs text-text-secondary">
+                      {photo.fileName ?? "Photo"} marked for removal · Undo
+                    </AppText>
+                  </Pressable>
                 ))}
 
-                {photos.length < limit ? (
-                  <Pressable
-                    onPress={() => void addPhotos(category)}
-                    disabled={isPicking || isSaving}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Add ${category} photos`}
-                    className="h-24 w-24 items-center justify-center rounded-xl border border-dashed border-border-secondary"
-                  >
-                    {pickingCategory === category ? (
-                      <ActivityIndicator color={theme.extends.colors.brand} />
-                    ) : (
-                      <>
-                        <MaterialCommunityIcons
-                          name="plus"
-                          size={24}
-                          color={theme.extends.colors.text.primary}
-                        />
-                        <AppText className="mt-1 text-xs text-text-secondary">
-                          Add Photo
-                        </AppText>
-                      </>
-                    )}
-                  </Pressable>
+                {/* Category validation feedback */}
+                {categoryErrors[category] ? (
+                  <AppText className="mt-3 text-sm text-text-error">
+                    {categoryErrors[category]}
+                  </AppText>
                 ) : null}
               </View>
-
-              {removed.map((photo) => (
-                <Pressable
-                  key={photo.id}
-                  onPress={() =>
-                    setDeletedIds((current) =>
-                      current.filter((id) => id !== photo.id),
-                    )
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={`Undo removal of ${photo.fileName ?? category} photo`}
-                  className="mt-3 self-start rounded-lg bg-surface-secondary px-3 py-2"
-                >
-                  <AppText className="text-xs text-text-secondary">
-                    {photo.fileName ?? "Photo"} marked for removal · Undo
-                  </AppText>
-                </Pressable>
-              ))}
-
-              {categoryErrors[category] ? (
-                <AppText className="mt-3 text-sm text-text-error">
-                  {categoryErrors[category]}
-                </AppText>
-              ) : null}
-            </View>
-          );
-        })}
+            );
+          })}
+        </View>
       </ScrollView>
 
+      {/* Persistent save and cancel actions */}
       <View
         className="flex-row gap-3 border-t border-border-primary bg-surface px-5 pt-3"
         style={{ paddingBottom: Math.max(insets.bottom, 12) }}
@@ -314,13 +383,16 @@ export default function MerchantBusinessPhotosEditScreen() {
           className="flex-1"
           onPress={() => router.back()}
           disabled={isSaving}
+          rounded="full"
         />
+
         <Button
           title="Save Changes"
           className="flex-1"
           onPress={() => void saveChanges()}
           disabled={!hasChanges || isPicking}
           loading={isSaving}
+          rounded="full"
         />
       </View>
     </View>

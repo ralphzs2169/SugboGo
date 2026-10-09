@@ -310,8 +310,9 @@ export default function LocationChangeDetailScreen({
         </View>
 
         {/* Changes captured in this request */}
-        <View className="-mx-4 mb-4">
+        <View className="mb-4">
           <LocationChangeReviewSections
+            variant="detail"
             currentLocation={request.previous.location}
             proposedLocation={request.proposed.location}
             currentLandmarks={request.previous.landmarks}

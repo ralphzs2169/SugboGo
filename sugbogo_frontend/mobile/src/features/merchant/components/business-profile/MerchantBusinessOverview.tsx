@@ -154,6 +154,23 @@ export default function MerchantBusinessOverview({
     })),
   );
   const todayHoursLabel = formatHours(todayHours);
+
+  const hasOperatingHours = business.operating_hours.length > 0;
+
+  const hoursStatusLabel = !hasOperatingHours
+    ? "Hours unavailable"
+    : hoursSummary.isOpen
+      ? "Open now"
+      : "Closed now";
+
+  const hoursContextLabel =
+    hasOperatingHours &&
+    !/^(open|open now|closed|closed now|hours unavailable)$/i.test(
+      hoursSummary.label.trim(),
+    )
+      ? hoursSummary.label
+      : null;
+
   const address = getBusinessAddressDisplay(business.location);
   const canEdit = business.status === "active";
   const contactDetails = [
@@ -266,87 +283,179 @@ export default function MerchantBusinessOverview({
 
       {/* Practical business details */}
       <SummarySection title="Business details">
-        <View className="flex-row items-center gap-2">
-          <MaterialCommunityIcons
-            name="clock-outline"
-            size={19}
-            color={theme.extends.colors.text.secondary}
-          />
-          <AppText
-            weight="semibold"
-            className="flex-1 text-sm text-text-primary"
-          >
-            Operating hours
-          </AppText>
-          {canEdit && onEditOperatingHours ? (
-            <Pressable
-              onPress={onEditOperatingHours}
-              accessibilityRole="button"
-              accessibilityLabel="Edit operating hours"
-              className="min-h-11 cursor-pointer flex-row items-center px-2 active:opacity-70"
+        {/* Operating hours */}
+        <View>
+          {/* Section heading and edit action */}
+          <View className="flex-row items-center gap-2">
+            <MaterialCommunityIcons
+              name="clock-outline"
+              size={19}
+              color={theme.extends.colors.text.secondary}
+            />
+
+            <AppText
+              weight="semibold"
+              className="flex-1 text-sm text-text-primary"
             >
-              <AppText weight="semibold" className="text-sm text-brand">
-                Edit
-              </AppText>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={18}
-                color={theme.extends.colors.text.secondary}
-              />
-            </Pressable>
-          ) : null}
-        </View>
-        <View className="mt-1 flex-row items-center gap-2 pl-7">
-          <View
-            className={`h-2 w-2 rounded-full ${
-              hoursSummary.isOpen ? "bg-success" : "bg-text-error"
-            }`}
-          />
-          <AppText className="min-w-0 flex-1 text-sm text-text-primary">
-            {hoursSummary.label}
-          </AppText>
-        </View>
-        {todayHoursLabel !== hoursSummary.label ? (
-          <View className="mt-2 flex-row justify-between gap-3 pl-7">
-            <AppText className="text-sm text-text-secondary">Today</AppText>
-            <AppText className="min-w-0 flex-1 text-right text-sm text-text-primary">
-              {todayHoursLabel}
+              Operating hours
             </AppText>
-          </View>
-        ) : null}
-        <Pressable
-          onPress={() => setWeeklyHoursVisible((visible) => !visible)}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: weeklyHoursVisible }}
-          className="mt-1 min-h-11 cursor-pointer flex-row items-center pl-7 active:opacity-70"
-        >
-          <AppText weight="semibold" className="text-sm text-brand">
-            {weeklyHoursVisible
-              ? "Hide weekly schedule"
-              : "View weekly schedule"}
-          </AppText>
-          <MaterialCommunityIcons
-            name={weeklyHoursVisible ? "chevron-up" : "chevron-down"}
-            size={18}
-            color={theme.extends.colors.brand}
-          />
-        </Pressable>
-        {weeklyHoursVisible ? (
-          <View className="pl-7 pt-1">
-            {DAYS.map((day) => (
-              <View key={day} className="flex-row justify-between gap-3 py-2">
-                <AppText className="text-sm capitalize text-text-secondary">
-                  {day}
+
+            {canEdit && onEditOperatingHours ? (
+              <Pressable
+                onPress={onEditOperatingHours}
+                accessibilityRole="button"
+                accessibilityLabel="Edit operating hours"
+                className="min-h-11 cursor-pointer flex-row items-center px-2 active:opacity-70"
+              >
+                <AppText weight="semibold" className="text-sm text-brand">
+                  Edit
                 </AppText>
-                <AppText className="min-w-0 flex-1 text-right text-sm text-text-primary">
-                  {formatHours(
-                    business.operating_hours.find((hours) => hours.day === day),
-                  )}
+
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={18}
+                  color={theme.extends.colors.text.secondary}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <View className="mt-2 pl-7">
+            {/* Current operating status */}
+            <View className="flex-row flex-wrap items-center gap-2">
+              <View
+                className={`flex-row items-center gap-1.5 self-start rounded-full px-2.5 py-1 ${
+                  hasOperatingHours && hoursSummary.isOpen
+                    ? "bg-success/10"
+                    : "bg-background"
+                }`}
+              >
+                <View
+                  className={`h-2 w-2 rounded-full ${
+                    hasOperatingHours && hoursSummary.isOpen
+                      ? "bg-success"
+                      : "bg-text-secondary"
+                  }`}
+                />
+
+                <AppText
+                  weight="semibold"
+                  className={`text-xs ${
+                    hasOperatingHours && hoursSummary.isOpen
+                      ? "text-success"
+                      : "text-text-secondary"
+                  }`}
+                >
+                  {hoursStatusLabel}
                 </AppText>
               </View>
-            ))}
+
+              {hoursContextLabel ? (
+                <AppText className="min-w-0 flex-1 text-xs leading-5 text-text-secondary">
+                  {hoursContextLabel}
+                </AppText>
+              ) : null}
+            </View>
+
+            {/* Today's operating hours */}
+            <View className="mt-3 flex-row items-start justify-between gap-3">
+              <AppText className="text-sm text-text-secondary">Today</AppText>
+
+              <AppText
+                weight="medium"
+                className="min-w-0 flex-1 text-right text-sm leading-5 text-text-primary"
+              >
+                {todayHoursLabel}
+              </AppText>
+            </View>
+
+            {/* Weekly schedule toggle */}
+            <View className="mt-3 border-t border-border-primary/60 pt-1">
+              <Pressable
+                onPress={() => setWeeklyHoursVisible((visible) => !visible)}
+                accessibilityRole="button"
+                accessibilityState={{
+                  expanded: weeklyHoursVisible,
+                }}
+                accessibilityLabel={
+                  weeklyHoursVisible
+                    ? "Hide weekly operating schedule"
+                    : "View weekly operating schedule"
+                }
+                className="min-h-11 cursor-pointer flex-row items-center justify-between active:opacity-70"
+              >
+                <AppText weight="semibold" className="text-sm text-brand">
+                  {weeklyHoursVisible
+                    ? "Hide weekly schedule"
+                    : "View weekly schedule"}
+                </AppText>
+
+                <MaterialCommunityIcons
+                  name={weeklyHoursVisible ? "chevron-up" : "chevron-down"}
+                  size={19}
+                  color={theme.extends.colors.brand}
+                />
+              </Pressable>
+            </View>
+
+            {/* Expanded weekly schedule */}
+            {weeklyHoursVisible ? (
+              <View className="mt-2 gap-1">
+                {DAYS.map((day) => {
+                  const isToday = day === today;
+
+                  const dayHours = business.operating_hours.find(
+                    (hours) => hours.day.toLowerCase() === day,
+                  );
+
+                  return (
+                    <View
+                      key={day}
+                      className={`flex-row items-center justify-between gap-3 rounded-lg px-3 py-2.5 ${
+                        isToday ? "bg-brand/10" : ""
+                      }`}
+                    >
+                      {/* Day label */}
+                      <View className="flex-row items-center gap-2">
+                        <AppText
+                          weight={isToday ? "semibold" : "regular"}
+                          className={`text-sm capitalize ${
+                            isToday
+                              ? "text-text-primary"
+                              : "text-text-secondary"
+                          }`}
+                        >
+                          {day.slice(0, 3)}
+                        </AppText>
+
+                        {isToday ? (
+                          <AppText
+                            weight="medium"
+                            className="text-xs text-brand"
+                          >
+                            Today
+                          </AppText>
+                        ) : null}
+                      </View>
+
+                      {/* Scheduled operating hours */}
+                      <AppText
+                        weight={isToday ? "semibold" : "regular"}
+                        className={`min-w-0 flex-1 text-right text-sm leading-5 ${
+                          dayHours?.is_open
+                            ? "text-text-primary"
+                            : "text-text-secondary"
+                        }`}
+                      >
+                        {formatHours(dayHours)}
+                      </AppText>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
-        ) : null}
+        </View>
 
         <View className="mt-4 border-t border-border-primary/60 pt-4">
           <View className="flex-row items-center gap-2">

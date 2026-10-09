@@ -483,17 +483,15 @@ export default function LocationChangeRequestScreen() {
                 )
               }
             />
-            <View className="mt-4">
-              <MerchantChangeReasonCard
-                value={reason}
-                onChangeText={(value) => {
-                  setReason(value);
-                  setReasonError(undefined);
-                }}
-                placeholder="e.g., We've relocated, or our current location details are inaccurate."
-                error={reasonError}
-              />
-            </View>
+            <MerchantChangeReasonCard
+              value={reason}
+              onChangeText={(value) => {
+                setReason(value);
+                setReasonError(undefined);
+              }}
+              placeholder="e.g., We've relocated, or our current location details are inaccurate."
+              error={reasonError}
+            />
             <View className="mt-3 flex-row items-start px-6">
               <MaterialCommunityIcons
                 name="information-outline"

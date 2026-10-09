@@ -84,6 +84,7 @@ export function useMerchantBusinessNameChangeRequests() {
   });
 
   const requests = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const totalRequests = query.data?.pages[0]?.pagination.total_items;
   const latestRequest = query.data?.pages[0]?.items[0];
   const eligibility = query.data?.pages[0]?.eligibility ?? null;
   const pendingRequest =
@@ -94,6 +95,7 @@ export function useMerchantBusinessNameChangeRequests() {
 
   return {
     requests,
+    totalRequests,
     latestRequest,
     eligibility,
     pendingRequest,

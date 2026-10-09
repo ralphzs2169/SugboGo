@@ -101,6 +101,7 @@ describe("business name change React Query hooks", () => {
     );
 
     await waitFor(() => expect(result.current.requests).toHaveLength(1));
+    expect(result.current.totalRequests).toBe(2);
     expect(result.current.pendingRequest?.id).toBe(7);
     await act(async () => {
       await result.current.fetchNextPage();
@@ -108,6 +109,7 @@ describe("business name change React Query hooks", () => {
     await waitFor(() =>
       expect(result.current.requests.map((item) => item.id)).toEqual([7, 6]),
     );
+    expect(result.current.totalRequests).toBe(2);
     expect(service.getBusinessNameChangeRequests).toHaveBeenNthCalledWith(2, 2);
     unmount();
     client.clear();

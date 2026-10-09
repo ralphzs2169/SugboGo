@@ -16,6 +16,10 @@ import { getLocationReviewChanges } from "../../utils/locationReview.utils";
 import RegistrationSection from "../registration/RegistrationSection";
 import LocationChangeComparison from "./LocationChangeComparison";
 
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+
+type LocationChangePresentation = "review" | "detail";
+
 type Props = {
   currentLocation: LocationChangeLocation;
   proposedLocation: LocationChangeLocation;
@@ -25,14 +29,61 @@ type Props = {
   onViewProposed: () => void;
   status?: LocationChangeStatus;
   showApprovalContext?: boolean;
+  variant?: LocationChangePresentation;
+};
+
+type ChangeSectionProps = {
+  title: string;
+  icon: IconName;
+  variant: LocationChangePresentation;
+  children: React.ReactNode;
 };
 
 /**
- * Displays only changed address, pin, and landmark details in a location request.
+ * Presents a location change section using the appropriate screen layout.
  *
- * Uses before-and-after address comparisons, expandable map details,
- * and separate landmark additions and removals to support review
- * before submission.
+ * Preserves registration-style sections during review and uses compact
+ * bordered cards when displaying an existing request's details.
+ */
+function ChangeSection({ title, icon, variant, children }: ChangeSectionProps) {
+  if (variant === "review") {
+    return (
+      <RegistrationSection title={title} icon={icon}>
+        {children}
+      </RegistrationSection>
+    );
+  }
+
+  return (
+    <View className="mb-3 rounded-2xl border border-border-primary/70 bg-surface p-4">
+      {/* Detail card heading */}
+      <View className="mb-4 flex-row items-center gap-2 border-b border-border-primary/60 pb-3">
+        <MaterialCommunityIcons
+          name={icon}
+          size={20}
+          color={theme.extends.colors.text.secondary}
+        />
+
+        <AppText
+          weight="semibold"
+          className="min-w-0 flex-1 text-sm text-text-primary"
+        >
+          {title}
+        </AppText>
+      </View>
+
+      {/* Section contents */}
+      {children}
+    </View>
+  );
+}
+
+/**
+ * Displays changed address fields, business pin, and landmarks.
+ *
+ * Uses registration-style sections before submission and bordered cards for
+ * submitted request details. Keeps changed-field detection, map navigation,
+ * approval-aware labels, and the expandable original business pin.
  */
 export default function LocationChangeReviewSections({
   currentLocation,
@@ -43,8 +94,11 @@ export default function LocationChangeReviewSections({
   onViewProposed,
   status,
   showApprovalContext = true,
+  variant = "review",
 }: Props) {
   const [showCurrentPin, setShowCurrentPin] = useState(false);
+
+  const isDetail = variant === "detail";
 
   const { addressChanges, pinMoved, addedLandmarks, removedLandmarks } =
     getLocationReviewChanges(
@@ -56,33 +110,43 @@ export default function LocationChangeReviewSections({
 
   const landmarksChanged =
     addedLandmarks.length > 0 || removedLandmarks.length > 0;
+
   const currentLabel = status ? "At submission" : "Currently live";
+
   const proposedLabel =
     status === "approved" ? "Approved" : status ? "Requested" : "Proposed";
+
   const requestedPinTitle =
     status === "approved"
       ? "Approved business pin"
       : status
         ? "Requested business pin"
         : "New business pin";
+
   const addedLabel =
     status === "approved"
       ? "Added"
       : status
         ? "Requested to add"
         : "To be added";
+
   const removedLabel =
     status === "approved"
       ? "Removed"
       : status
         ? "Requested to remove"
         : "To be removed";
+
   const mapLinkLabel =
     status === "approved"
       ? "View approved landmarks on map"
       : status
         ? "View requested landmarks on map"
         : "View updated landmarks on map";
+
+  const originalPinLabel = status
+    ? "Business pin at submission"
+    : "Current business pin";
 
   function renderMapLink() {
     return (
@@ -114,21 +178,90 @@ export default function LocationChangeReviewSections({
     );
   }
 
+  function renderOriginalPin() {
+    return (
+      <View
+        className={
+          isDetail
+            ? "mt-4 border-t border-border-primary/60"
+            : "mb-2 bg-surface"
+        }
+      >
+        {/* Expandable original pin heading */}
+        <Pressable
+          onPress={() => setShowCurrentPin((value) => !value)}
+          accessibilityRole="button"
+          accessibilityLabel={originalPinLabel}
+          accessibilityState={{ expanded: showCurrentPin }}
+          className={`min-h-12 cursor-pointer flex-row items-center active:bg-background ${
+            isDetail ? "py-3" : "min-h-[60px] px-6 py-3"
+          }`}
+        >
+          <MaterialCommunityIcons
+            name="map-marker-outline"
+            size={18}
+            color={theme.extends.colors.text.secondary}
+          />
+
+          <AppText
+            weight="semibold"
+            className="ml-2 min-w-0 flex-1 text-sm text-text-primary"
+          >
+            {originalPinLabel}
+          </AppText>
+
+          <MaterialCommunityIcons
+            name={showCurrentPin ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={theme.extends.colors.text.secondary}
+          />
+        </Pressable>
+
+        {/* Original map pin comparison */}
+        {showCurrentPin ? (
+          <View
+            className={
+              isDetail
+                ? "border-t border-border-primary/60 pt-3"
+                : "border-t border-border-primary px-6 pb-4 pt-3"
+            }
+          >
+            <LocationChangeComparison
+              title={originalPinLabel}
+              location={currentLocation}
+              landmarks={currentLandmarks}
+              compact
+              embedded
+              onView={onViewCurrent}
+            />
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <>
       {/* Address before-and-after comparisons */}
       {addressChanges.length > 0 ? (
-        <RegistrationSection
+        <ChangeSection
           title="Address changes"
           icon="map-marker-radius-outline"
+          variant={variant}
         >
-          <View className="gap-3">
-            {addressChanges.map(({ label, previous, requested }) => (
+          <View className={isDetail ? "" : "gap-3"}>
+            {addressChanges.map(({ label, previous, requested }, index) => (
               <View
                 key={label}
-                className="rounded-xl border border-border-primary/70 bg-surface p-4"
+                className={
+                  isDetail
+                    ? index > 0
+                      ? "mt-4 border-t border-border-primary/60 pt-4"
+                      : ""
+                    : "rounded-xl border border-border-primary/70 bg-surface p-4"
+                }
               >
-                {/* Address field heading */}
+                {/* Changed address field */}
                 <AppText
                   weight="semibold"
                   className="mb-4 text-sm text-text-primary"
@@ -136,7 +269,7 @@ export default function LocationChangeReviewSections({
                   {label}
                 </AppText>
 
-                {/* Currently live value */}
+                {/* Original address value */}
                 <View>
                   <AppText className="text-xs text-text-secondary">
                     {currentLabel}
@@ -147,7 +280,7 @@ export default function LocationChangeReviewSections({
                   </AppText>
                 </View>
 
-                {/* Change direction */}
+                {/* Direction of change */}
                 <View className="my-3 flex-row items-center gap-3">
                   <View className="h-8 w-10 items-center justify-center">
                     <MaterialCommunityIcons
@@ -160,7 +293,7 @@ export default function LocationChangeReviewSections({
                   <View className="h-px flex-1 bg-border-primary" />
                 </View>
 
-                {/* Proposed value */}
+                {/* Requested or approved address value */}
                 <View>
                   <AppText className="text-xs text-text-secondary">
                     {proposedLabel}
@@ -176,16 +309,18 @@ export default function LocationChangeReviewSections({
               </View>
             ))}
           </View>
-        </RegistrationSection>
+        </ChangeSection>
       ) : null}
 
-      {/* Proposed map pin */}
+      {/* Business pin comparison */}
       {pinMoved ? (
         <>
-          <RegistrationSection
+          <ChangeSection
             title={requestedPinTitle}
             icon="map-marker-outline"
+            variant={variant}
           >
+            {/* Requested or approved map pin */}
             <LocationChangeComparison
               title={requestedPinTitle}
               location={proposedLocation}
@@ -193,60 +328,24 @@ export default function LocationChangeReviewSections({
               embedded
               onView={onViewProposed}
             />
-          </RegistrationSection>
 
-          {/* Expandable original map pin */}
-          <View className="mb-2 bg-surface">
-            <Pressable
-              onPress={() => setShowCurrentPin((value) => !value)}
-              accessibilityRole="button"
-              accessibilityLabel={
-                status ? "Business pin at submission" : "Current business pin"
-              }
-              accessibilityState={{ expanded: showCurrentPin }}
-              className="min-h-[60px] cursor-pointer flex-row items-center px-6 py-3 active:bg-background"
-            >
-              <AppText
-                weight="semibold"
-                className="flex-1 text-sm text-text-primary"
-              >
-                {status ? "Business pin at submission" : "Current business pin"}
-              </AppText>
+            {/* Original pin stays inside the detail card */}
+            {isDetail ? renderOriginalPin() : null}
+          </ChangeSection>
 
-              <MaterialCommunityIcons
-                name={showCurrentPin ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.extends.colors.text.secondary}
-              />
-            </Pressable>
-
-            {showCurrentPin ? (
-              <View className="border-t border-border-primary px-6 pb-4 pt-3">
-                <LocationChangeComparison
-                  title={
-                    status
-                      ? "Business pin at submission"
-                      : "Current business pin"
-                  }
-                  location={currentLocation}
-                  landmarks={currentLandmarks}
-                  compact
-                  embedded
-                  onView={onViewCurrent}
-                />
-              </View>
-            ) : null}
-          </View>
+          {/* Registration review retains its separate original pin */}
+          {!isDetail ? renderOriginalPin() : null}
         </>
       ) : null}
 
       {/* Landmark additions and removals */}
       {landmarksChanged ? (
-        <RegistrationSection
+        <ChangeSection
           title="Landmark changes"
           icon="map-marker-radius-outline"
+          variant={variant}
         >
-          {/* Landmarks to be added */}
+          {/* Added landmarks */}
           {addedLandmarks.length > 0 ? (
             <View className="rounded-xl bg-background px-4 py-3">
               <AppText
@@ -286,7 +385,7 @@ export default function LocationChangeReviewSections({
             </View>
           ) : null}
 
-          {/* Landmarks to be removed */}
+          {/* Removed landmarks */}
           {removedLandmarks.length > 0 ? (
             <View
               className={`rounded-xl bg-background px-4 py-3 ${
@@ -330,13 +429,13 @@ export default function LocationChangeReviewSections({
             </View>
           ) : null}
 
-          {/* Map preview for landmark-only changes */}
+          {/* Map action for landmark-only changes */}
           {!pinMoved ? renderMapLink() : null}
-        </RegistrationSection>
+        </ChangeSection>
       ) : null}
 
-      {/* Approval context */}
-      {!status && showApprovalContext ? (
+      {/* Pre-submission approval explanation */}
+      {!isDetail && !status && showApprovalContext ? (
         <View className="mt-3 flex-row items-start px-6">
           <MaterialCommunityIcons
             name="information-outline"

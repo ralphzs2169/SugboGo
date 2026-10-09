@@ -187,10 +187,29 @@ export default function ManageBusinessScreen() {
               </AppText>
             </View>
 
-            <AppText className="mt-1 text-xs leading-5 text-text-secondary">
-              These changes are reviewed by SugboGo before appearing on your
-              live listing.
-            </AppText>
+            {/* Approval process information */}
+            <View className="mt-3 flex-row items-start rounded-xl bg-info px-3 py-3">
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={20}
+                color={theme.extends.colors.text.info}
+              />
+
+              <View className="ml-2 flex-1">
+                <AppText
+                  weight="semibold"
+                  className="text-sm text-text-primary"
+                >
+                  How approval works
+                </AppText>
+
+                <AppText className="mt-1 text-xs leading-5 text-text-secondary">
+                  Changes to your business name, classification, or location
+                  require SugboGo approval. Your current listing remains
+                  unchanged until the request is approved.
+                </AppText>
+              </View>
+            </View>
           </View>
 
           <View className="overflow-hidden rounded-2xl border border-border-primary/70 bg-surface">
