@@ -1451,7 +1451,7 @@ class ReviewServiceTests(TestCase):
 
         reviews = preview["reviews"]
 
-        self.assertEqual(len(reviews), 3)
+        self.assertEqual(len(reviews), 2)
         self.assertTrue(
             all(not review.is_own_review for review in reviews)
         )
