@@ -1,124 +1,94 @@
 import React from "react";
-import { fireEvent, render } from "@testing-library/react-native";
+import { cleanup, fireEvent, render } from "@testing-library/react-native";
 
 import ManageBusinessScreen from "../ManageBusinessScreen";
 
 const mockPush = jest.fn();
 const mockProfile = jest.fn();
-const mockName = jest.fn();
-const mockClassification = jest.fn();
-const mockLocation = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
+}));
+jest.mock("react-native-safe-area-context", () => ({
+  SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => mockProfile(),
 }));
-jest.mock(
-  "../../../hooks/business-name-change/useMerchantBusinessNameChanges",
-  () => ({
-    useMerchantBusinessNameChangeRequests: () => mockName(),
-  }),
-);
-jest.mock(
-  "../../../hooks/classification-change/useMerchantClassificationChanges",
-  () => ({
-    useMerchantClassificationChangeRequests: () => mockClassification(),
-  }),
-);
-jest.mock("../../../hooks/location-change/useMerchantLocationChanges", () => ({
-  useMerchantLocationChangeRequests: () => mockLocation(),
-}));
 
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockProfile.mockReturnValue({
-    business: {
-      status: "active",
-      business_name: "Sugbo Bistro",
-      category: { name: "Cafe" },
-      cluster: { name: "Culinary" },
-      location: { address: "Osmeña Boulevard" },
-      photos: [],
-    },
-    isLoading: false,
-    refetch: jest.fn(),
-  });
-  mockName.mockReturnValue({
-    pendingRequest: null,
-    isLoading: false,
-    error: null,
-  });
-  mockClassification.mockReturnValue({
-    pendingRequest: null,
-    isLoading: false,
-    error: null,
-  });
-  mockLocation.mockReturnValue({
-    pendingRequest: null,
-    isLoading: false,
-    error: null,
-  });
-});
+const business = {
+  status: "active",
+  business_name: "Sugbo Bistro",
+  category: { name: "Cafe" },
+  cluster: { name: "Culinary" },
+  location: { address: "Osmeña Boulevard" },
+  photos: [],
+};
 
 describe("ManageBusinessScreen", () => {
-  it("opens existing direct-edit and reviewed-change routes", async () => {
-    const screen = await render(<ManageBusinessScreen />);
-
-    expect(screen.getByText("Business information")).toBeTruthy();
-    expect(screen.getByText("Business name")).toBeTruthy();
-    expect(screen.getByText("Classification")).toBeTruthy();
-    expect(screen.getByText("Location & landmarks")).toBeTruthy();
-    expect(screen.getByText("Operating hours")).toBeTruthy();
-    expect(screen.getByText("Photos")).toBeTruthy();
-    expect(screen.getByText("Change Requests")).toBeTruthy();
-
-    await fireEvent.press(screen.getByText("Business information"));
-    expect(mockPush).toHaveBeenCalledWith("/(merchant)/business-information");
-
-    await fireEvent.press(screen.getByText("Business name"));
-    await fireEvent.press(screen.getByText("Request change ›"));
-    expect(mockPush).toHaveBeenCalledWith("/(merchant)/business-name-change");
-
-    await fireEvent.press(screen.getByText("Change Requests"));
-    expect(mockPush).toHaveBeenCalledWith("/(merchant)/change-requests");
+  afterEach(async () => {
+    await cleanup();
   });
 
-  it("shows the active request instead of a new request action", async () => {
-    mockName.mockReturnValue({
-      pendingRequest: { id: 9 },
-      isLoading: false,
-      error: null,
-    });
-    const screen = await render(<ManageBusinessScreen />);
-
-    await fireEvent.press(screen.getByText("Business name"));
-    expect(screen.queryByText("Request change ›")).toBeNull();
-    await fireEvent.press(screen.getByText("View pending request ›"));
-    expect(mockPush).toHaveBeenCalledWith(
-      "/(merchant)/business-update-requests/9",
-    );
-  });
-
-  it("disables changes for a suspended business", async () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
     mockProfile.mockReturnValue({
-      business: {
-        status: "suspended",
-        business_name: "Sugbo Bistro",
-        category: { name: "Cafe" },
-        cluster: { name: "Culinary" },
-        location: { address: "Osmeña Boulevard" },
-        photos: [],
-      },
+      business,
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+  });
+
+  it("opens each reviewed-change history directly", async () => {
+    const screen = await render(<ManageBusinessScreen />);
+
+    await fireEvent.press(screen.getByLabelText("View business name requests"));
+    await fireEvent.press(
+      screen.getByLabelText("View classification requests"),
+    );
+    await fireEvent.press(
+      screen.getByLabelText("View location & landmarks requests"),
+    );
+
+    expect(mockPush.mock.calls.map(([route]) => route)).toEqual([
+      "/(merchant)/business-update-requests",
+      "/(merchant)/business-update-requests/classification",
+      "/(merchant)/business-update-requests/location",
+    ]);
+    expect(screen.queryByText("Updates")).toBeNull();
+    expect(screen.queryByText("Request history")).toBeNull();
+  });
+
+  it("preserves direct editing routes", async () => {
+    const screen = await render(<ManageBusinessScreen />);
+    await fireEvent.press(screen.getByText("Business information"));
+    await fireEvent.press(screen.getByText("Operating hours"));
+    await fireEvent.press(screen.getByText("Photos"));
+    expect(mockPush.mock.calls.map(([route]) => route)).toEqual([
+      "/(merchant)/business-information",
+      "/(merchant)/operating-hours",
+      "/(merchant)/business-photos",
+    ]);
+  });
+
+  it("allows suspended merchants to view history while direct editing stays disabled", async () => {
+    mockProfile.mockReturnValue({
+      business: { ...business, status: "suspended" },
       isLoading: false,
       refetch: jest.fn(),
     });
     const screen = await render(<ManageBusinessScreen />);
-
-    await fireEvent.press(screen.getByText("Business name"));
-    expect(screen.queryByText("Request change ›")).toBeNull();
     expect(screen.getByText(/Changes are unavailable/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("View business name requests"));
+    await fireEvent.press(
+      screen.getByLabelText("View classification requests"),
+    );
+    await fireEvent.press(
+      screen.getByLabelText("View location & landmarks requests"),
+    );
+    expect(mockPush).toHaveBeenCalledTimes(3);
+    await fireEvent.press(screen.getByText("Business information"));
+    expect(mockPush).toHaveBeenCalledTimes(3);
   });
 });
