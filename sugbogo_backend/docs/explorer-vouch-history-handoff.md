@@ -1,13 +1,14 @@
-# Explorer specialty vouch history handoff
+# Explorer business-grouped vouch history handoff
 
-Date: 2026-10-09 (Asia/Manila)
+Date: 2026-10-10 (Asia/Manila)
 
 ## Scope and confirmed decisions
 
-The user selected one history entry per active **specialty vouch**, preserving
-the existing multiple-specialty behavior. A business can appear more than once.
-This feature adds a read-only list; it changes no models, constraints, migrations,
-vouch mutations, scoring, or frontend files.
+Task 1 changes history to one entry per eligible **business**, containing all of
+the requesting user's currently visible specialty endorsements. Businesses are
+paginated before their endorsements are loaded. Individual vouch rows, multiple
+specialty endorsements, mutations, constraints, scoring and frontend files remain
+unchanged. No models or migrations are added.
 
 ## Files
 
@@ -15,15 +16,15 @@ Paths below are relative to `sugbogo_backend/`.
 
 | File | Change and responsibility |
 | --- | --- |
-| `apps/explorer_operations/explore_businesses/services/vouch_history_service.py` | Created: user-scoped visible-vouch queryset, chronology, eager loading and tag annotations. |
-| `apps/explorer_operations/explore_businesses/serializers/vouch_history_serializers.py` | Created: ordering validation and history response mapping. |
-| `apps/explorer_operations/explore_businesses/views/vouch_history_views.py` | Created: permissions, query validation, standard pagination and serialization. |
-| `apps/explorer_operations/explore_businesses/urls.py` | Modified: registers `vouch-history`, under the existing Explorer prefix. |
-| `apps/explorer_operations/explore_businesses/views/tests/test_vouch_history_views.py` | Created: API, mutation compatibility, visibility, pagination and query-count tests. |
-| `docs/explorer-vouch-history-handoff.md` | Created: API contract, implementation findings and developer handoff. |
+| `apps/explorer_operations/explore_businesses/services/vouch_history_service.py` | Modified: shared eligible-vouch filter, unique business queryset, latest endorsement annotation, page-scoped prefetches and full-history aggregate totals. |
+| `apps/explorer_operations/explore_businesses/serializers/vouch_history_serializers.py` | Modified: business row mapping and nested original endorsements, retaining ordering validation and reused category/tag serializers. |
+| `apps/explorer_operations/explore_businesses/views/vouch_history_views.py` | Modified: paginates businesses and adds full-history summary to the existing response envelope. |
+| `apps/explorer_operations/explore_businesses/views/tests/test_vouch_history_views.py` | Modified: grouping, ordering, totals, pagination, visibility, mutation compatibility and query-efficiency coverage. |
+| `docs/explorer-vouch-history-handoff.md` | Modified: current API contract, implementation findings and frontend handoff. |
 
 No files were deleted. The pre-existing frontend `MapView.tsx` working-tree change
-was left untouched.
+was left untouched. `urls.py` is unchanged: the existing `vouch-history` route is
+reused. The original endpoint was introduced in commit `4d44a7d`.
 
 ## Reused implementation
 
@@ -44,6 +45,13 @@ was left untouched.
   locations, photos or other unused detail data.
 - Tests reuse `core.tests.assertions.APIResponseAssertionsMixin`.
 
+`VouchHistoryService._eligible_vouches` is reused for selecting businesses,
+prefetching their endorsements and calculating the complete summary. A correlated
+subquery supplies each business's latest eligible endorsement timestamp, avoiding
+duplicate rows from joins. Prefetching runs only after the business page is sliced;
+neither the complete business history nor its complete endorsement set is loaded
+into Python to perform grouping.
+
 ## Endpoint and response contract
 
 `GET /api/explorer/explore/vouch-history/`
@@ -55,13 +63,16 @@ Super Admin roles do not grant access.
 
 | Query parameter | Behavior |
 | --- | --- |
-| `ordering` | `newest` by default; accepts `oldest`. Other values return HTTP 400 with `VALIDATION_ERROR` and `errors.ordering`. |
+| `ordering` | `newest` by default; accepts `oldest`. Both sort businesses by their most recent eligible endorsement. Other values return HTTP 400 with `VALIDATION_ERROR` and `errors.ordering`. |
 | `page` | Existing page-number pagination, starting at 1. Invalid or out-of-range pages return HTTP 404. |
 | `page_size` | Existing default 10 and maximum 100; uses `StandardPagination` parsing and fallback behavior. |
 
 There is no user-selection parameter: the query always uses `request.user`.
-Newest orders by creation timestamp descending, then vouch ID descending;
-oldest uses both fields ascending. This resolves equal timestamps deterministically.
+Newest orders by `last_vouched_at` descending, then business ID descending;
+oldest uses both fields ascending. `last_vouched_at` always means the latest
+eligible endorsement, including when ordering is `oldest`. Within every business,
+`vouches` is always ordered by original creation timestamp descending, then vouch
+ID descending, regardless of the business ordering parameter.
 
 The following example uses illustrative IDs and timestamps. All returned keys
 are shown; there is no separate top-level count or `business` wrapper.
@@ -73,41 +84,66 @@ are shown; there is no separate top-level count or `business` wrapper.
   "data": {
     "items": [
       {
-        "id": 101,
+        "id": 12,
         "business_id": 12,
         "business_name": "History Bistro",
         "cover_photo_url": "https://example.com/history-cover.jpg",
         "category": {"id": 3, "name": "History Restaurants"},
-        "specialty": {
-          "id": 7,
-          "name": "History Spicy",
-          "color": "red",
-          "icon": "utensils"
-        },
-        "created_at": "2026-10-09T01:00:00Z",
+        "last_vouched_at": "2026-10-10T01:00:00Z",
+        "vouches": [
+          {
+            "id": 101,
+            "specialty": {"id": 7, "name": "History Spicy", "color": "red", "icon": "utensils"},
+            "created_at": "2026-10-10T01:00:00Z"
+          },
+          {
+            "id": 100,
+            "specialty": {"id": 8, "name": "History Traditional", "color": "blue", "icon": "chef_hat"},
+            "created_at": "2026-10-09T01:00:00Z"
+          }
+        ],
         "specialty_tags": [
           {"id": 7, "name": "History Spicy", "color": "red", "icon": "utensils", "vouch_count": 2, "is_vouched": true},
-          {"id": 8, "name": "History Traditional", "color": "blue", "icon": "chef_hat", "vouch_count": 0, "is_vouched": false},
+          {"id": 8, "name": "History Traditional", "color": "blue", "icon": "chef_hat", "vouch_count": 1, "is_vouched": true},
           {"id": 9, "name": "History Cozy", "color": "green", "icon": "heart", "vouch_count": 0, "is_vouched": false}
         ]
       }
     ],
     "pagination": {
       "page": 1,
-      "page_size": 10,
-      "total_items": 1,
-      "total_pages": 1,
-      "has_next": false,
+      "page_size": 1,
+      "total_items": 2,
+      "total_pages": 2,
+      "has_next": true,
       "has_previous": false
+    },
+    "summary": {
+      "total_businesses": 2,
+      "total_specialty_vouches": 3
     }
   }
 }
 ```
 
-`id` identifies the vouch row, not the business or specialty. `total_items` counts
-all matching currently visible specialty vouches, including those outside this
-page. Empty history returns `items: []`, page 1, `total_items: 0`, `total_pages: 0`
-and both navigation flags false, following the existing paginator.
+In this example `page_size=1` and the second eligible business, with one
+endorsement, is on page 2. Summary totals include it even though it is not shown.
+
+The row's `id` and `business_id` both identify the business; `vouches[].id`
+identifies the unchanged individual vouch. Original timestamps are preserved in
+`vouches[].created_at`; no replacement vouch or grouped record is stored.
+
+Exact full-history summary paths:
+
+- `data.summary.total_businesses`: unique eligible businesses.
+- `data.summary.total_specialty_vouches`: eligible endorsements across all those
+  businesses, not just the page.
+- `data.pagination.total_items`: unique eligible businesses, equal to
+  `total_businesses` for unchanged data.
+
+Empty history returns `items: []`, page 1, `total_items: 0`, `total_pages: 0`, both
+navigation flags false and both summary totals zero. The `items`/`pagination`
+envelope is preserved; only this endpoint adds `data.summary`. Shared pagination
+code is unchanged.
 
 ## Confirmed existing mutation and scoring behavior
 
@@ -149,7 +185,10 @@ and in the existing tag `is_vouched` state. This distinction is tested.
 
 Business/category/specialty details are current values, not snapshots from the
 creation time. Suspended businesses and retired specialties disappear from both
-the list and `total_items`. Their vouches are not deleted by this read endpoint.
+the grouped endorsements and summary totals. A business appears only while it has
+at least one eligible endorsement by the requesting user. Their vouches are not
+deleted by this read endpoint. Removing or retiring the newest endorsement makes
+`last_vouched_at` fall back to the newest remaining eligible endorsement.
 
 Normal merchant submission/classification flows require three active specialty
 tags. History serializes the actual active assignment set, ordered by assignment
@@ -159,26 +198,38 @@ count or a value recalculated during this request.
 
 Pagination is deterministic for unchanged data, but uses the existing page-number
 contract. Concurrent additions/removals can shift pages; no snapshot/cursor
-guarantee is introduced. Query-count tests exclude authentication database reads
+guarantee is introduced. Page selection, prefetches and summary aggregation are
+separate reads, so totals and rows are not an atomic snapshot during concurrent
+mutations. Query-count tests exclude authentication database reads
 by using forced authentication; a separate test exercises actual bearer JWT.
 
-No critical product questions remain after the user selected per-specialty
-entries. No live frontend, external service or worker validation is included.
+The user approved business grouping, latest-eligible-timestamp ordering and
+preservation of individual endorsements. No live frontend, external service or
+worker validation is included. The original per-specialty response contract is
+superseded; clients consuming that shape need an integration update.
 
 ## Frontend handoff and documentation
 
-- Use the vouch `id` as the row key, since `business_id` can repeat.
-- Read the history badge total from `data.pagination.total_items`.
-- Render `specialty` as the entry's endorsement, and `specialty_tags` as the
-  business's current selection with user-specific flags and stored counts.
-  Multiple tags may have `is_vouched: true`.
+- Use the row's business `id` as the key; each eligible business appears once.
+- Read business badge totals from `data.summary.total_businesses` or
+  `data.pagination.total_items`. Read endorsement totals from
+  `data.summary.total_specialty_vouches`; do not derive either from page length.
+- Render `vouches` as the user's endorsements, retaining each `vouches[].id` as
+  its key. There is no longer a top-level singular `specialty` or `created_at`.
+- Render `specialty_tags` as the business's current selection with user-specific
+  flags and stored counts. Multiple tags may have `is_vouched: true`.
 - Resolve icon and color tokens through the existing frontend mapping; icon
   values are names such as `chef_hat`, and color values are names such as `red`.
 - Provide the existing image fallback for null or blank `cover_photo_url`.
 - Continue using the existing POST/DELETE endpoint with the entry's
-  `business_id` and `specialty.id` as `tag_id`. DELETE requires its JSON body.
+  `business_id` and the selected `vouches[].specialty.id` or `specialty_tags[].id`
+  as `tag_id`. DELETE requires its JSON body; there is no bulk remove mutation.
+- Removing one endorsement retains the row when another eligible endorsement
+  remains. Removing the last removes the row. Re-vouching creates a new nested
+  vouch ID/timestamp while preserving the business row ID and can move the row.
 - Refresh history/counts after mutations and reset pagination when ordering
-  changes. Treat `created_at` as an ISO timestamp and format it for the user.
+  changes. Format `last_vouched_at` for the business row and nested `created_at`
+  for individual endorsements as ISO timestamps in the user's timezone.
 
 This document adds the backend API contract and handoff. Any maintained external
 API collection/catalog and frontend integration documentation should add this
@@ -194,24 +245,50 @@ environment and configured test database:
 .\venv\Scripts\python.exe manage.py test apps.explorer_operations.explore_businesses.views.tests.test_vouch_history_views apps.business.services.tests.test_vouch_service apps.explorer_operations.explore_businesses.views.tests.test_business_vouch_views --noinput
 ```
 
-Result: **43 tests passed**, 0 failures, 0 errors, in 78.914 seconds. This includes
-19 new history tests and all 24 existing vouch service/API tests. The runner
-created and destroyed its separate test database; the development database was
-not migrated or overwritten. No application configuration or dependencies changed.
+Task 1 result: **51 tests passed**, 0 failures, 0 errors, in **78.383 seconds**.
+This comprises 27 updated/expanded history tests and all 24 existing vouch
+service/API regression tests. The runner created and destroyed a separate test
+database; no development database migration or data update was performed.
 
-New coverage includes unauthenticated requests and bearer JWT; role/status access;
-request-user isolation even with a supplied user ID; exact business, specialty,
-timestamp, count and flag payloads; null cover photos; multiple specialties and
-duplicate rejection through existing POST; timestamp/ID ordering across pages;
-default/max page size and complete pagination totals; empty results and invalid
-input; existing DELETE/recreation; business suspension/deletion; assignment
-deactivation/reactivation; scoring-invalid evidence visibility; and constant
-query counts with multiple businesses and vouches.
+Verified coverage includes:
 
-Both populated-page query assertions passed at **3 database queries** (count,
-joined vouch page, annotated active-specialty prefetch). An empty page need not
-perform the prefetch. The pre-implementation vouch baseline also passed all 24
-tests, and Django's system check reported no issues.
+- One business row for multiple specialty endorsements, preserving duplicate
+  rejection, individual IDs/timestamps, reaction flags and stored counters.
+- Full-history business/endorsement totals, including off-page businesses, empty
+  results and exclusion of other users, suspended businesses and retired tags.
+- Latest eligible endorsement ordering for both directions, business-ID ties,
+  always-newest-first nested endorsements and vouch-ID ties.
+- Default/max page sizes, complete endorsements within a single business page,
+  and SQL business pagination before relation prefetches.
+- Removing one endorsement versus the last, recreation of individual vouches,
+  business identity remaining stable and re-vouching changing business order.
+- Deletion, suspension/restoration, specialty deactivation/reactivation and
+  exclusion of retired/latest or other users' endorsements from ordering.
+- Authentication including bearer JWT, active Explorer/Merchant permissions,
+  user isolation and preservation of scoring-invalid evidence visibility.
 
-All selected tests ran successfully. The unrelated full backend suite and live
-frontend/provider/worker integration were not run.
+Populated pages use **5 database queries** under forced authentication: business
+count, ordered business page with joined category, current specialty-tag prefetch,
+eligible endorsement prefetch with joined specialty, and one full-history totals
+aggregate. Query assertions passed for one and multiple businesses, proving no
+per-business/per-endorsement query growth. The paginated retrieval check also
+confirmed SELECT-only queries. JWT adds its normal authentication read; the
+five-query claim excludes it. No production-scale SQL timing benchmark was run.
+
+Additional checks executed successfully:
+
+```powershell
+.\venv\Scripts\python.exe manage.py check
+.\venv\Scripts\python.exe manage.py makemigrations --check --dry-run
+git diff --check
+```
+
+Django system check: no issues. Migration drift check: `No changes detected`.
+Diff whitespace check: passed. No dependencies, application settings, models,
+constraints, mutation services or scoring logic changed. `MapView.tsx` retained
+the exact same SHA-256 hash before and after this task.
+
+The earlier per-specialty implementation's 43-test run is historical; the results
+above validate the grouping change. The full backend suite and live
+frontend/provider/worker integration were not run. No changes were staged,
+committed or pushed for Task 1.

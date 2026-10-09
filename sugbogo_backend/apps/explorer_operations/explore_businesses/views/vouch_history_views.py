@@ -13,7 +13,7 @@ from ..services.vouch_history_service import VouchHistoryService
 
 
 class VouchHistoryView(APIView):
-    """Returns the authenticated user's paginated active specialty vouches."""
+    """Returns business-grouped vouch history with totals for the authenticated user."""
 
     permission_classes = (
         IsAuthenticated,
@@ -24,7 +24,7 @@ class VouchHistoryView(APIView):
     )
 
     def get(self, request):
-        """Lists current specialty vouches in the requested chronological order."""
+        """Paginates eligible businesses and returns their endorsements and full totals."""
         query_serializer = VouchHistoryQuerySerializer(
             data=request.query_params,
         )
@@ -44,6 +44,10 @@ class VouchHistoryView(APIView):
             page,
             many=True,
         )
-        return paginator.get_paginated_response(
+        response = paginator.get_paginated_response(
             serializer.data,
         )
+        response.data["data"]["summary"] = VouchHistoryService.get_summary(
+            request.user,
+        )
+        return response
