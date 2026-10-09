@@ -92,6 +92,7 @@ export type MerchantBusinessDocument = {
   document_type:
     "business_registration" | "authorization_document" | "additional_documents";
   file_name: string | null;
+  has_file?: boolean;
 };
 
 export type MerchantBusinessVerification = {

@@ -92,8 +92,7 @@ describe("MerchantProfileHeader cover allowance", () => {
     expect(screen.queryByText("Name change pending")).toBeNull();
   });
 
-  it("opens the pending business name request from the hero", async () => {
-    const onPendingNameChange = jest.fn();
+  it("keeps pending review navigation out of the hero", async () => {
     const allowance = { limit: 3, remaining: 2, resets_at: null };
     const screen = await render(
       <MerchantProfileHeader
@@ -104,15 +103,13 @@ describe("MerchantProfileHeader cover allowance", () => {
         coverPhotoUpdate={allowance}
         onCheckCoverAllowance={jest.fn(async () => allowance)}
         onEditCover={jest.fn()}
-        onPendingNameChange={onPendingNameChange}
       />,
     );
 
-    expect(screen.getByText("Name change pending")).toBeTruthy();
-    await fireEvent.press(
-      screen.getByLabelText("View pending business name request"),
-    );
-    expect(onPendingNameChange).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Name change pending")).toBeNull();
+    expect(
+      screen.queryByLabelText("View pending business name request"),
+    ).toBeNull();
   });
 
   it("blocks the picker and shows the rolling reset when exhausted", async () => {

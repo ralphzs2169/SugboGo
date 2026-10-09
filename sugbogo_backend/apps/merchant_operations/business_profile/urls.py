@@ -27,8 +27,22 @@ from apps.merchant_operations.business_profile.views.business_profile_views impo
     BusinessPhotosView,
     BusinessProfileView,
 )
+from apps.merchant_operations.business_profile.views.verification_document_views import (
+    MerchantVerificationDocumentAccessView,
+    MerchantVerificationDocumentPreviewView,
+)
 
 urlpatterns = [
+    path(
+        "verification-documents/<int:document_id>/access/",
+        MerchantVerificationDocumentAccessView.as_view(),
+        name="merchant-verification-document-access",
+    ),
+    path(
+        "verification-documents/preview/<str:token>/",
+        MerchantVerificationDocumentPreviewView.as_view(),
+        name="merchant-verification-document-preview",
+    ),
     path(
         "update-requests/pending-status/",
         MerchantBusinessChangePendingStatusView.as_view(),

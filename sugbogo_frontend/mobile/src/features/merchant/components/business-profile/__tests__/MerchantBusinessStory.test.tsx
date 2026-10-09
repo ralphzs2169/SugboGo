@@ -38,25 +38,11 @@ describe("MerchantBusinessStory", () => {
     expect(onEditInformation).toHaveBeenCalledTimes(1);
   });
 
-  it("shows classification review context and preserves status recovery", async () => {
-    const onClassificationHistory = jest.fn();
-    const onRetryClassification = jest.fn();
-    const screen = await render(
-      <MerchantBusinessStory
-        business={business}
-        pendingClassificationRequest={{ id: 4 } as never}
-        onClassificationHistory={onClassificationHistory}
-        hasClassificationError
-        onRetryClassification={onRetryClassification}
-      />,
-    );
+  it("shows only approved business content", async () => {
+    const screen = await render(<MerchantBusinessStory business={business} />);
 
-    await fireEvent.press(
-      screen.getByLabelText("View pending classification request"),
-    );
-    await fireEvent.press(screen.getByText("Retry request status"));
-    expect(onClassificationHistory).toHaveBeenCalledTimes(1);
-    expect(onRetryClassification).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Classification pending review")).toBeNull();
+    expect(screen.queryByText("Retry request status")).toBeNull();
   });
 
   it("expands long descriptions and hides direct editing while suspended", async () => {
@@ -66,12 +52,10 @@ describe("MerchantBusinessStory", () => {
     const screen = await render(
       <MerchantBusinessStory
         business={{ ...business, description, status: "suspended" }}
-        isCheckingClassification
         onEditInformation={jest.fn()}
       />,
     );
 
-    expect(screen.getByText("Checking request status...")).toBeTruthy();
     expect(screen.queryByLabelText("Edit business information")).toBeNull();
     await fireEvent.press(screen.getByText("Read more"));
     expect(screen.getByText(description)).toBeTruthy();

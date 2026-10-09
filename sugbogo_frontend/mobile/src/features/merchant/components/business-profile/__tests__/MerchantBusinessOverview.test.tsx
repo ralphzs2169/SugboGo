@@ -3,7 +3,7 @@ import { fireEvent, render } from "@testing-library/react-native";
 import { Linking } from "react-native";
 
 import type { MerchantBusinessProfileResponse } from "../../../types/merchantBusinessProfile.types";
-import MerchantBusinessOverview from "../MerchantBusinessOverview";
+import MerchantBusinessDetails from "../MerchantBusinessDetails";
 
 jest.mock(
   "@/features/merchant/components/registration/location/LocationPickerMap",
@@ -96,15 +96,89 @@ const business: MerchantBusinessProfileResponse = {
         id: 1,
         document_type: "business_registration",
         file_name: "registration.pdf",
+        has_file: true,
       },
     ],
   },
 };
 
-describe("MerchantBusinessOverview", () => {
+describe("MerchantBusinessDetails", () => {
+  it("opens the approved map without making the preview interactive", async () => {
+    const onViewMap = jest.fn();
+    const screen = await render(
+      <MerchantBusinessDetails business={business} onViewMap={onViewMap} />,
+    );
+
+    await fireEvent.press(
+      screen.getByLabelText("View approved business location on map"),
+    );
+    expect(onViewMap).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Location map preview")).toBeTruthy();
+  });
+
+  it("opens available verification documents and shows preparation state", async () => {
+    const onViewDocument = jest.fn();
+    const screen = await render(
+      <MerchantBusinessDetails
+        business={business}
+        onViewDocument={onViewDocument}
+      />,
+    );
+
+    await fireEvent.press(
+      screen.getByLabelText("View business verification details"),
+    );
+    await fireEvent.press(
+      screen.getByLabelText("Open Business Registration: registration.pdf"),
+    );
+    expect(onViewDocument).toHaveBeenCalledWith(1);
+
+    const loading = await render(
+      <MerchantBusinessDetails
+        business={business}
+        onViewDocument={onViewDocument}
+        openingDocumentId={1}
+      />,
+    );
+    await fireEvent.press(
+      loading.getByLabelText("View business verification details"),
+    );
+    expect(
+      loading.getByLabelText("Open Business Registration: registration.pdf")
+        .props.accessibilityState,
+    ).toEqual(expect.objectContaining({ disabled: true, busy: true }));
+  });
+
+  it("keeps documents without an accessible file noninteractive", async () => {
+    const onViewDocument = jest.fn();
+    const screen = await render(
+      <MerchantBusinessDetails
+        business={{
+          ...business,
+          verification: {
+            ...business.verification!,
+            documents: [
+              { ...business.verification!.documents[0], has_file: false },
+            ],
+          },
+        }}
+        onViewDocument={onViewDocument}
+      />,
+    );
+
+    await fireEvent.press(
+      screen.getByLabelText("View business verification details"),
+    );
+    const row = screen.getByLabelText(
+      "Business Registration: file unavailable",
+    );
+    expect(row.props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(row);
+    expect(onViewDocument).not.toHaveBeenCalled();
+  });
   it("shows live summaries without raw fields or reviewed-change actions", async () => {
     const screen = await render(
-      <MerchantBusinessOverview business={business} />,
+      <MerchantBusinessDetails business={business} />,
     );
 
     expect(screen.queryByText("Classification")).toBeNull();
@@ -125,7 +199,7 @@ describe("MerchantBusinessOverview", () => {
 
   it("expands hours and read-only verification details on demand", async () => {
     const screen = await render(
-      <MerchantBusinessOverview business={business} />,
+      <MerchantBusinessDetails business={business} />,
     );
 
     expect(screen.getByText("Today")).toBeTruthy();
@@ -142,7 +216,7 @@ describe("MerchantBusinessOverview", () => {
       .toLocaleDateString("en-US", { weekday: "long" })
       .toLowerCase();
     const screen = await render(
-      <MerchantBusinessOverview
+      <MerchantBusinessDetails
         business={{
           ...business,
           operating_hours: [
@@ -167,7 +241,7 @@ describe("MerchantBusinessOverview", () => {
   it("keeps contact details available without expanding them by default", async () => {
     const openUrl = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
     const screen = await render(
-      <MerchantBusinessOverview business={business} />,
+      <MerchantBusinessDetails business={business} />,
     );
 
     expect(screen.queryByText("hello@example.com")).toBeNull();
@@ -188,32 +262,24 @@ describe("MerchantBusinessOverview", () => {
     openUrl.mockRestore();
   });
 
-  it("keeps direct edits and pending details available while restricting suspended edits", async () => {
+  it("keeps direct edits available while restricting suspended edits", async () => {
     const onEditOperatingHours = jest.fn();
     const onManagePhotos = jest.fn();
-    const onPending = jest.fn();
     const screen = await render(
-      <MerchantBusinessOverview
+      <MerchantBusinessDetails
         business={business}
         onEditOperatingHours={onEditOperatingHours}
         onManagePhotos={onManagePhotos}
-        pendingLocationRequest={{ id: 4 } as never}
-        onLocationHistory={onPending}
       />,
     );
 
     await fireEvent.press(screen.getByLabelText("Edit operating hours"));
     await fireEvent.press(screen.getByLabelText("Manage photos"));
-    expect(screen.getByText("Pending review")).toBeTruthy();
-    await fireEvent.press(
-      screen.getByLabelText("View pending location request"),
-    );
     expect(onEditOperatingHours).toHaveBeenCalledTimes(1);
     expect(onManagePhotos).toHaveBeenCalledTimes(1);
-    expect(onPending).toHaveBeenCalledTimes(1);
 
     const suspended = await render(
-      <MerchantBusinessOverview
+      <MerchantBusinessDetails
         business={{ ...business, status: "suspended" }}
         onEditOperatingHours={onEditOperatingHours}
       />,
@@ -221,24 +287,17 @@ describe("MerchantBusinessOverview", () => {
     expect(suspended.queryByLabelText("Edit operating hours")).toBeNull();
   });
 
-  it("keeps location pending contextual and the mode switch in More", async () => {
-    const onPendingLocation = jest.fn();
+  it("keeps location free of pending controls and the mode switch in More", async () => {
     const onSwitchToExplorer = jest.fn();
     const screen = await render(
-      <MerchantBusinessOverview
+      <MerchantBusinessDetails
         business={business}
-        pendingLocationRequest={{ id: 22 } as never}
-        onLocationHistory={onPendingLocation}
         onSwitchToExplorer={onSwitchToExplorer}
       />,
     );
 
-    expect(screen.getByText("Pending review")).toBeTruthy();
-    await fireEvent.press(
-      screen.getByLabelText("View pending location request"),
-    );
+    expect(screen.queryByText("Pending review")).toBeNull();
     await fireEvent.press(screen.getByText("Switch to Explorer"));
-    expect(onPendingLocation).toHaveBeenCalledTimes(1);
     expect(onSwitchToExplorer).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Request location change")).toBeNull();
     expect(screen.queryByText("Change Requests")).toBeNull();
@@ -247,7 +306,7 @@ describe("MerchantBusinessOverview", () => {
   it("shows switching feedback and disables the Explorer mode row", async () => {
     const onSwitchToExplorer = jest.fn();
     const screen = await render(
-      <MerchantBusinessOverview
+      <MerchantBusinessDetails
         business={business}
         onSwitchToExplorer={onSwitchToExplorer}
         isSwitchingToExplorer
@@ -274,7 +333,7 @@ describe("MerchantBusinessOverview", () => {
       file_name: `upload-${id}.jpg`,
     }));
     const screen = await render(
-      <MerchantBusinessOverview business={{ ...business, photos }} />,
+      <MerchantBusinessDetails business={{ ...business, photos }} />,
     );
 
     expect(screen.getAllByLabelText(/Business photo/)).toHaveLength(3);

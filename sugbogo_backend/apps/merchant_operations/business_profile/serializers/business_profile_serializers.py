@@ -326,10 +326,14 @@ class MerchantBusinessDocumentSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="MDOC_ID")
     document_type = serializers.CharField(source="MDOC_DOCUMENT_TYPE")
     file_name = serializers.CharField(source="MDOC_FILE_NAME")
+    has_file = serializers.SerializerMethodField()
+
+    def get_has_file(self, obj):
+        return bool(obj.MDOC_DOCUMENT_PUBLIC_ID)
 
     class Meta:
         model = MerchantApplicationDocument
-        fields = ("id", "document_type", "file_name")
+        fields = ("id", "document_type", "file_name", "has_file")
 
 
 class BusinessProfileResponseSerializer(serializers.ModelSerializer):

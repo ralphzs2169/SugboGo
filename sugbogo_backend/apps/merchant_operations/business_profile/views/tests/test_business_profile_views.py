@@ -435,6 +435,7 @@ class BusinessCoverPhotoViewTests(TestCase):
             profile["verification"]["documents"][0]["file_name"],
             "registration.pdf",
         )
+        self.assertTrue(profile["verification"]["documents"][0]["has_file"])
         self.assertNotIn("MDOC_DOCUMENT_URL", str(profile))
         self.assertEqual(profile["cover_photo_update"]["limit"], 3)
 
