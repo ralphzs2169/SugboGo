@@ -1,5 +1,11 @@
 import React from "react";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
 
@@ -9,19 +15,24 @@ jest.setTimeout(15000);
 
 const mockProfile = jest.fn();
 const mockUpdateInformation = jest.fn();
+const mockSetOptions = jest.fn();
+const mockConfirmModal = jest.fn((_props: unknown) => null);
 
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => mockProfile(),
 }));
 
-jest.mock("../../../hooks/business-profile/useUpdateMerchantBusinessInformation", () => ({
-  __esModule: true,
-  default: () => ({
-    updateInformation: mockUpdateInformation,
-    isSaving: false,
+jest.mock(
+  "../../../hooks/business-profile/useUpdateMerchantBusinessInformation",
+  () => ({
+    __esModule: true,
+    default: () => ({
+      updateInformation: mockUpdateInformation,
+      isSaving: false,
+    }),
   }),
-}));
+);
 
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -29,6 +40,28 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
+  useNavigation: () => ({ setOptions: mockSetOptions }),
+  useFocusEffect: (callback: () => void) =>
+    jest.requireActual("react").useEffect(callback, [callback]),
+}));
+
+jest.mock(
+  "expo-router/build/react-navigation/elements/Header/HeaderBackButton",
+  () => ({
+    HeaderBackButton: ({ onPress }: { onPress: () => void }) => {
+      const { Pressable, Text } = jest.requireActual("react-native");
+      return (
+        <Pressable onPress={onPress} accessibilityLabel="Back">
+          <Text>Back</Text>
+        </Pressable>
+      );
+    },
+  }),
+);
+
+jest.mock("@/shared/components/modals/ConfirmModal", () => ({
+  __esModule: true,
+  default: (props: unknown) => mockConfirmModal(props),
 }));
 
 jest.mock("react-native-toast-message", () => ({
@@ -45,6 +78,10 @@ const business = {
 };
 
 describe("MerchantBusinessInformationEditScreen", () => {
+  afterEach(async () => {
+    await cleanup();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockProfile.mockReturnValue({
@@ -83,11 +120,26 @@ describe("MerchantBusinessInformationEditScreen", () => {
     expect(screen.getByDisplayValue(business.business_email)).toBeTruthy();
     expect(screen.getByDisplayValue(business.website)).toBeTruthy();
 
-    fireEvent.press(screen.getByText("Save Changes"));
+    expect(
+      screen.getByRole("button", { name: "Save Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+
+    await fireEvent.changeText(
+      screen.getByDisplayValue(business.description),
+      "Updated business description",
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Save Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(false);
+
+    await fireEvent.press(screen.getByText("Save Changes"));
 
     await waitFor(() => {
       expect(mockUpdateInformation).toHaveBeenCalledWith({
-        description: business.description,
+        description: "Updated business description",
         contact_number: business.contact_number,
         business_email: business.business_email,
         website: business.website,
@@ -97,6 +149,71 @@ describe("MerchantBusinessInformationEditScreen", () => {
         expect.objectContaining({ type: "success" }),
       );
     });
+  });
+
+  it("disables Save again when an edit is reverted", async () => {
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    const saveButton = screen.getByRole("button", { name: "Save Changes" });
+
+    await fireEvent.changeText(
+      screen.getByDisplayValue(business.website),
+      "https://updated.example.com",
+    );
+    expect(saveButton.props.accessibilityState.disabled).toBe(false);
+
+    await fireEvent.changeText(
+      screen.getByDisplayValue("https://updated.example.com"),
+      business.website,
+    );
+    expect(saveButton.props.accessibilityState.disabled).toBe(true);
+    expect(mockUpdateInformation).not.toHaveBeenCalled();
+  });
+
+  it("leaves without confirmation when no information has changed", async () => {
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+
+    fireEvent.press(screen.getByText("Cancel"));
+
+    expect(router.back).toHaveBeenCalledTimes(1);
+    expect((mockConfirmModal as jest.Mock).mock.lastCall[0].visible).toBe(
+      false,
+    );
+  });
+
+  it("confirms discarding edits from Cancel and header Back", async () => {
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    await fireEvent.changeText(
+      screen.getByDisplayValue(business.description),
+      "Updated business description",
+    );
+
+    await fireEvent.press(screen.getByText("Cancel"));
+    await waitFor(() =>
+      expect((mockConfirmModal as jest.Mock).mock.lastCall[0].visible).toBe(
+        true,
+      ),
+    );
+    expect(router.back).not.toHaveBeenCalled();
+
+    await act(async () => {
+      (mockConfirmModal as jest.Mock).mock.lastCall[0].onCancel();
+    });
+
+    const headerLeft = mockSetOptions.mock.lastCall?.[0].headerLeft;
+    const header = await render(headerLeft());
+    await fireEvent.press(header.getByLabelText("Back"));
+    await waitFor(() =>
+      expect((mockConfirmModal as jest.Mock).mock.lastCall[0].visible).toBe(
+        true,
+      ),
+    );
+    expect(router.back).not.toHaveBeenCalled();
+
+    await act(async () => {
+      (mockConfirmModal as jest.Mock).mock.lastCall[0].onConfirm();
+    });
+    expect(router.back).toHaveBeenCalledTimes(1);
+    expect(mockUpdateInformation).not.toHaveBeenCalled();
   });
 
   it("renders backend field errors on the corresponding input", async () => {
@@ -110,7 +227,11 @@ describe("MerchantBusinessInformationEditScreen", () => {
     });
     const screen = await render(<MerchantBusinessInformationEditScreen />);
 
-    fireEvent.press(screen.getByText("Save Changes"));
+    await fireEvent.changeText(
+      screen.getByDisplayValue(business.contact_number),
+      "09170000000",
+    );
+    await fireEvent.press(screen.getByText("Save Changes"));
 
     await waitFor(() => {
       expect(
@@ -130,8 +251,12 @@ describe("MerchantBusinessInformationEditScreen", () => {
     );
     const screen = await render(<MerchantBusinessInformationEditScreen />);
 
-    fireEvent.press(screen.getByText("Save Changes"));
-    fireEvent.press(screen.getByText("Save Changes"));
+    await fireEvent.changeText(
+      screen.getByDisplayValue(business.description),
+      "Updated business description",
+    );
+    await fireEvent.press(screen.getByText("Save Changes"));
+    await fireEvent.press(screen.getByRole("button", { name: "Save Changes" }));
 
     await waitFor(() => {
       expect(mockUpdateInformation).toHaveBeenCalledTimes(1);
@@ -142,5 +267,4 @@ describe("MerchantBusinessInformationEditScreen", () => {
     });
     await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
   });
-
 });

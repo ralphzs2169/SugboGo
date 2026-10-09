@@ -56,6 +56,7 @@ export default function MerchantOperatingHoursEditScreen() {
   });
 
   const { reset } = form;
+  const hasChanges = form.formState.isDirty;
 
   useEffect(() => {
     if (!business || initializedBusinessId.current === business.id) {
@@ -70,7 +71,12 @@ export default function MerchantOperatingHoursEditScreen() {
   }, [business, reset]);
 
   async function submitValues(values: OperatingHoursForm) {
-    if (savingRef.current || !business || business.status !== "active") {
+    if (
+      savingRef.current ||
+      !form.formState.isDirty ||
+      !business ||
+      business.status !== "active"
+    ) {
       return;
     }
 
@@ -175,7 +181,7 @@ export default function MerchantOperatingHoursEditScreen() {
                 </AppText>
 
                 <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-                  Changes to your operating hours don't require administrator
+                  Changes to your operating hours do not require administrator
                   approval. Your updated schedule will appear on your business
                   listing after saving.
                 </AppText>
@@ -208,6 +214,7 @@ export default function MerchantOperatingHoursEditScreen() {
             className="flex-1"
             onPress={() => void form.handleSubmit(submitValues)()}
             loading={isSaving || form.formState.isSubmitting}
+            disabled={!hasChanges}
             rounded="full"
           />
         </View>

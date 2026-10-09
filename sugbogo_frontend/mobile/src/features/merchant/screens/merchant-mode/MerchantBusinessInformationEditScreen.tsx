@@ -1,9 +1,22 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { router } from "expo-router";
-import { useEffect, useRef } from "react";
+import { router, useFocusEffect, useNavigation } from "expo-router";
+import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Controller, useForm } from "react-hook-form";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import {
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { z } from "zod";
@@ -15,6 +28,7 @@ import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
 import FormTextArea from "@/shared/components/form/FormTextArea";
 import LoadingScreen from "@/shared/components/LoadingScreen";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 
@@ -31,12 +45,17 @@ type BusinessInformationForm = z.infer<
  *
  * Displays full-width guidance for direct updates, initializes the form
  * with existing business information, validates changes, and handles
- * server errors. Editing is unavailable for suspended businesses.
+ * server errors. Unsubmitted edits require discard confirmation, and editing
+ * is unavailable for suspended businesses.
  */
 export default function MerchantBusinessInformationEditScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const savingRef = useRef(false);
+  const savedRef = useRef(false);
+  const hasChangesRef = useRef(false);
   const initializedBusinessId = useRef<number | null>(null);
+  const [discardVisible, setDiscardVisible] = useState(false);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
 
@@ -55,6 +74,7 @@ export default function MerchantBusinessInformationEditScreen() {
   });
 
   const { reset } = form;
+  const hasChanges = form.formState.isDirty;
 
   useEffect(() => {
     if (!business || initializedBusinessId.current === business.id) {
@@ -71,8 +91,44 @@ export default function MerchantBusinessInformationEditScreen() {
     });
   }, [business, reset]);
 
+  useLayoutEffect(() => {
+    hasChangesRef.current = hasChanges;
+  }, [hasChanges]);
+
+  const requestExit = useCallback(() => {
+    if (savingRef.current || savedRef.current) {
+      return;
+    }
+
+    if (hasChangesRef.current) {
+      setDiscardVisible(true);
+      return;
+    }
+
+    router.back();
+  }, []);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => <HeaderBackButton onPress={requestExit} />,
+    });
+  }, [navigation, requestExit]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          requestExit();
+          return true;
+        },
+      );
+      return () => subscription.remove();
+    }, [requestExit]),
+  );
+
   async function submitValues(values: BusinessInformationForm) {
-    if (savingRef.current) {
+    if (savingRef.current || !form.formState.isDirty) {
       return;
     }
 
@@ -91,6 +147,7 @@ export default function MerchantBusinessInformationEditScreen() {
         text1: "Business information updated",
       });
 
+      savedRef.current = true;
       router.back();
     } catch (error) {
       const response = error as ApiError;
@@ -305,7 +362,7 @@ export default function MerchantBusinessInformationEditScreen() {
           title="Cancel"
           variant="outline"
           className="flex-1"
-          onPress={() => router.back()}
+          onPress={requestExit}
           disabled={isSaving || form.formState.isSubmitting}
           rounded="full"
         />
@@ -315,9 +372,25 @@ export default function MerchantBusinessInformationEditScreen() {
           className="flex-1"
           onPress={() => void form.handleSubmit(submitValues)()}
           loading={isSaving || form.formState.isSubmitting}
+          disabled={!hasChanges}
           rounded="full"
         />
       </View>
+
+      {/* Discard confirmation */}
+      <ConfirmModal
+        visible={discardVisible}
+        title="Discard business information changes?"
+        message="Your unsaved business information changes will be lost."
+        confirmText="Discard"
+        destructive
+        onCancel={() => setDiscardVisible(false)}
+        onConfirm={() => {
+          reset();
+          setDiscardVisible(false);
+          router.back();
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
