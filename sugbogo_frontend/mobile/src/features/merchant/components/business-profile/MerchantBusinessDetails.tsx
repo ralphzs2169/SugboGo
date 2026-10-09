@@ -157,7 +157,7 @@ export default function MerchantBusinessDetails({
   }
 
   return (
-    <View className="bg-background pb-4">
+    <View className="bg-background pb-2">
       {/* Full-width business photos section */}
       <View className="mb-2 mt-2 bg-surface px-5 pb-5 pt-4">
         {/* Photos section heading */}

@@ -14,6 +14,11 @@ const mockClassificationState = jest.fn();
 const mockLocationState = jest.fn();
 const mockClusters = jest.fn();
 const mockDocumentAccess = jest.fn();
+const mockLogout = jest.fn();
+
+jest.mock("@/features/auth/hooks/useLogout", () => ({
+  useLogout: () => ({ logout: mockLogout }),
+}));
 
 jest.mock("../../../assets/icons/photos-card.svg", () => "PhotosCardIcon");
 jest.mock(
@@ -31,6 +36,37 @@ jest.mock("expo-web-browser", () => ({
 jest.mock("react-native-toast-message", () => ({
   show: jest.fn(),
 }));
+
+jest.mock("@/shared/components/modals/ConfirmModal", () => {
+  const { Pressable, Text, View } = jest.requireActual("react-native");
+  return function MockConfirmModal({
+    visible,
+    title,
+    destructive,
+    onCancel,
+    onConfirm,
+  }: {
+    visible: boolean;
+    title: string;
+    destructive: boolean;
+    onCancel: () => void;
+    onConfirm: () => void;
+  }) {
+    if (!visible) return null;
+    return (
+      <View>
+        <Text>{title}</Text>
+        <Text>{destructive ? "Destructive confirmation" : "Confirmation"}</Text>
+        <Pressable onPress={onCancel} accessibilityLabel="Cancel logout">
+          <Text>Cancel</Text>
+        </Pressable>
+        <Pressable onPress={onConfirm} accessibilityLabel="Confirm logout">
+          <Text>Confirm</Text>
+        </Pressable>
+      </View>
+    );
+  };
+});
 
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
@@ -222,6 +258,39 @@ describe("MerchantProfileScreen", () => {
     mockClusters.mockReturnValue({
       clusters: [{ id: 1, name: "Culinary", icon: "utensils" }],
     });
+  });
+
+  it("uses the Explorer logout row and confirmation flow", async () => {
+    mockProfile.mockReturnValue({
+      business: {
+        id: 7,
+        business_name: "Sugbo Bistro",
+        category: { id: 1, name: "Restaurant" },
+        cluster: { id: 1, name: "Culinary" },
+        status: "active",
+        cover_photo_url: null,
+        cover_photo_update: { limit: 3, remaining: 1, resets_at: null },
+        operating_hours: [],
+        photos: [],
+        specialty_tags: [],
+        location: { landmarks: [] },
+      },
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+    await fireEvent.press(screen.getByText("Logout"));
+    expect(screen.getByText("Log out?")).toBeTruthy();
+
+    expect(screen.getByText("Destructive confirmation")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Cancel logout"));
+    expect(mockLogout).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByText("Logout"));
+    await fireEvent.press(screen.getByLabelText("Confirm logout"));
+    expect(mockLogout).toHaveBeenCalledTimes(1);
   });
 
   it("opens the approved map and a freshly authorized document", async () => {

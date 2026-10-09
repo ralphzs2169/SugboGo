@@ -16,11 +16,15 @@ import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { useLogout } from "@/features/auth/hooks/useLogout";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getBusinessHoursSummary } from "@/features/explore/utils/businessHours.utils";
+import ProfileMenuItem from "@/features/profile/components/ProfileMenuItem";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 import SafePressable from "@/shared/components/SafePressable";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -42,7 +46,6 @@ import { useMerchantBusinessNameChangeRequests } from "../../hooks/business-name
 import { useMerchantClassificationChangeRequests } from "../../hooks/classification-change/useMerchantClassificationChanges";
 import { useMerchantLocationChangeRequests } from "../../hooks/location-change/useMerchantLocationChanges";
 import useClusters from "../../hooks/registration/useClusters";
-import { useAuthStore } from "@/features/auth/store/auth.store";
 
 const STICKY_REVEAL_INSET = 64;
 
@@ -53,6 +56,7 @@ const STICKY_REVEAL_INSET = 64;
  */
 export default function MerchantProfileScreen() {
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
+  const { logout } = useLogout();
   const merchantAvatarUrl = useAuthStore(
     (state) => state.user?.avatar_url ?? null,
   );
@@ -89,6 +93,7 @@ export default function MerchantProfileScreen() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const heroHeightRef = useRef(0);
   const stickyVisibleRef = useRef(false);
   const [isStickyVisible, setIsStickyVisible] = useState(false);
@@ -534,8 +539,30 @@ export default function MerchantProfileScreen() {
             onSwitchToExplorer={handleSwitchToExplorer}
             isSwitchingToExplorer={isSwitchingMode}
           />
+
+          {/* Session action */}
+          <View className=" mb-4 bg-surface">
+            <ProfileMenuItem
+              title="Logout"
+              icon="logout"
+              variant="danger"
+              onPress={() => setShowLogoutModal(true)}
+              showChevron={false}
+            />
+          </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Logout confirmation */}
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Log out?"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Logout"
+        destructive
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={logout}
+      />
 
       {/* Collapsed business identity on scroll */}
       <MerchantProfileStickyHeader
