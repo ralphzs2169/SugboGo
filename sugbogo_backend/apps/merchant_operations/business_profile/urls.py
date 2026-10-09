@@ -5,6 +5,9 @@ from apps.merchant_operations.business_profile.views.business_classification_cha
     MerchantBusinessClassificationChangeListCreateView,
     MerchantBusinessClassificationChangeWithdrawView,
 )
+from apps.merchant_operations.business_profile.views.business_change_pending_status_views import (
+    MerchantBusinessChangePendingStatusView,
+)
 from apps.merchant_operations.business_profile.views.business_name_change_views import (
     MerchantBusinessNameChangeCreateView,
     MerchantBusinessNameChangeDetailView,
@@ -26,6 +29,11 @@ from apps.merchant_operations.business_profile.views.business_profile_views impo
 )
 
 urlpatterns = [
+    path(
+        "update-requests/pending-status/",
+        MerchantBusinessChangePendingStatusView.as_view(),
+        name="business-change-pending-status",
+    ),
     path(
         "update-requests/location/",
         MerchantBusinessLocationChangeListCreateView.as_view(),

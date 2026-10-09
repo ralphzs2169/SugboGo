@@ -20,6 +20,7 @@ import type {
   SubmitBusinessNameChangePayload,
 } from "../../types/businessNameChange.types";
 import { merchantBusinessNameChangeKeys } from "./businessNameChangeQueryKeys";
+import { businessChangePendingStatusQueryKey } from "../change-requests/businessChangePendingStatusQueryKey";
 
 function useRefreshApprovedBusinessName(
   latestRequest: BusinessNameChangeRequest | undefined,
@@ -144,10 +145,15 @@ export function useSubmitMerchantBusinessNameChange() {
         merchantBusinessNameChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await queryClient.invalidateQueries({
-        queryKey: merchantBusinessNameChangeKeys.list(userId),
-        refetchType: "all",
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: merchantBusinessNameChangeKeys.list(userId),
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
+        }),
+      ]);
     },
   });
 }
@@ -175,6 +181,9 @@ export function useWithdrawMerchantBusinessNameChange() {
             userId,
             changeRequest.id,
           ),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
         }),
       ]);
     },

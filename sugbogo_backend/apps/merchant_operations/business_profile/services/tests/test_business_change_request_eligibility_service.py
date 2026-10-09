@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from apps.business.models import Business, Category, Cluster, Location
 from apps.merchant_operations.business_profile.models import (
@@ -12,6 +13,9 @@ from apps.merchant_operations.business_profile.models import (
 )
 from apps.merchant_operations.business_profile.services.business_change_request_eligibility_service import (
     BusinessChangeRequestEligibilityService,
+)
+from apps.merchant_operations.business_profile.services.business_change_pending_status_service import (
+    BusinessChangePendingStatusService,
 )
 from apps.users.models import User
 
@@ -95,6 +99,64 @@ class BusinessChangeRequestEligibilityServiceTests(TestCase):
             BLCR_SUBMITTED_AT=timezone.now() - timedelta(days=10),
             BLCR_RESOLVED_AT=resolved_at,
         )
+
+    def test_pending_status_summary_checks_only_current_pending_requests(self):
+        """Report independent pending flags without loading request histories."""
+        with self.assertNumQueries(4):
+            empty = BusinessChangePendingStatusService.for_merchant(
+                self.merchant,
+            )
+        self.assertEqual(empty, {
+            "business_name": False,
+            "classification": False,
+            "location": False,
+        })
+
+        name_request = self._name_request(BusinessNameChangeRequest.Status.PENDING)
+        self._classification_request(
+            BusinessClassificationChangeRequest.Status.REJECTED,
+        )
+        self._location_request(BusinessLocationChangeRequest.Status.PENDING)
+        self.assertEqual(
+            BusinessChangePendingStatusService.for_merchant(self.merchant),
+            {
+                "business_name": True,
+                "classification": False,
+                "location": True,
+            },
+        )
+
+        self._classification_request(
+            BusinessClassificationChangeRequest.Status.PENDING,
+        )
+        name_request.BNCR_STATUS = BusinessNameChangeRequest.Status.WITHDRAWN
+        name_request.save(update_fields=["BNCR_STATUS"])
+        self.assertEqual(
+            BusinessChangePendingStatusService.for_merchant(self.merchant),
+            {
+                "business_name": False,
+                "classification": True,
+                "location": True,
+            },
+        )
+
+    def test_pending_status_endpoint_allows_suspended_merchant(self):
+        """Expose only the merchant's own pending flags while suspended."""
+        self._name_request(BusinessNameChangeRequest.Status.PENDING)
+        self.business.BUSN_STATUS = Business.BusinessStatus.SUSPENDED
+        self.business.save(update_fields=["BUSN_STATUS"])
+
+        client = APIClient()
+        client.force_authenticate(user=self.merchant)
+        response = client.get(
+            "/api/merchant/business-profile/update-requests/pending-status/",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"], {
+            "business_name": True,
+            "classification": False,
+            "location": False,
+        })
 
     def test_business_without_requests_is_eligible(self):
         """Allow all request types when no prior request exists."""

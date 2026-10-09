@@ -1,13 +1,21 @@
 import React from "react";
-import { cleanup, fireEvent, render } from "@testing-library/react-native";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react-native";
 
 import ManageBusinessScreen from "../ManageBusinessScreen";
 
 const mockPush = jest.fn();
 const mockProfile = jest.fn();
+const mockPendingStatus = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
+  useFocusEffect: (callback: () => void) =>
+    jest.requireActual("react").useEffect(callback, [callback]),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
@@ -16,6 +24,13 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => mockProfile(),
 }));
+jest.mock(
+  "../../../hooks/change-requests/useBusinessChangePendingStatus",
+  () => ({
+    __esModule: true,
+    default: () => mockPendingStatus(),
+  }),
+);
 
 const business = {
   status: "active",
@@ -38,6 +53,83 @@ describe("ManageBusinessScreen", () => {
       isLoading: false,
       refetch: jest.fn(),
     });
+    mockPendingStatus.mockReturnValue({
+      pendingStatus: null,
+      refetch: jest.fn(),
+    });
+  });
+
+  it.each([
+    ["business_name", "View business name requests"],
+    ["classification", "View classification requests"],
+    ["location", "View location & landmarks requests"],
+  ] as const)("shows Pending only for %s", async (pendingKey, rowLabel) => {
+    mockPendingStatus.mockReturnValue({
+      pendingStatus: {
+        business_name: pendingKey === "business_name",
+        classification: pendingKey === "classification",
+        location: pendingKey === "location",
+      },
+      refetch: jest.fn(),
+    });
+    const screen = await render(<ManageBusinessScreen />);
+    expect(
+      within(screen.getByLabelText(rowLabel)).getByText("Pending"),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Pending")).toHaveLength(1);
+  });
+
+  it("shows independent indicators for multiple pending requests", async () => {
+    mockPendingStatus.mockReturnValue({
+      pendingStatus: {
+        business_name: true,
+        classification: false,
+        location: true,
+      },
+      refetch: jest.fn(),
+    });
+    const screen = await render(<ManageBusinessScreen />);
+    expect(screen.getAllByText("Pending")).toHaveLength(2);
+    expect(
+      within(screen.getByLabelText("View classification requests")).queryByText(
+        "Pending",
+      ),
+    ).toBeNull();
+  });
+
+  it("shows all three indicators when every request type is pending", async () => {
+    mockPendingStatus.mockReturnValue({
+      pendingStatus: {
+        business_name: true,
+        classification: true,
+        location: true,
+      },
+      refetch: jest.fn(),
+    });
+    const screen = await render(<ManageBusinessScreen />);
+    expect(screen.getAllByText("Pending")).toHaveLength(3);
+  });
+
+  it("shows no indicators when the backend confirms no pending requests", async () => {
+    mockPendingStatus.mockReturnValue({
+      pendingStatus: {
+        business_name: false,
+        classification: false,
+        location: false,
+      },
+      refetch: jest.fn(),
+    });
+    const screen = await render(<ManageBusinessScreen />);
+    expect(screen.queryByText("Pending")).toBeNull();
+  });
+
+  it("keeps navigation available without pending status data", async () => {
+    const screen = await render(<ManageBusinessScreen />);
+    expect(screen.queryByText("Pending")).toBeNull();
+    await fireEvent.press(screen.getByLabelText("View business name requests"));
+    expect(mockPush).toHaveBeenCalledWith(
+      "/(merchant)/business-update-requests",
+    );
   });
 
   it("opens each reviewed-change history directly", async () => {

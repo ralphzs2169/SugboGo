@@ -1,6 +1,8 @@
 import { Pressable, ScrollView, View } from "react-native";
 import { router, type Href } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useCallback, useRef } from "react";
+import { useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
@@ -9,6 +11,7 @@ import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
+import useBusinessChangePendingStatus from "../../hooks/change-requests/useBusinessChangePendingStatus";
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 
@@ -20,7 +23,20 @@ type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
  * where merchants can inspect pending work or start an eligible request.
  */
 export default function ManageBusinessScreen() {
+  const hasFocused = useRef(false);
   const { business, isLoading, refetch } = useMerchantBusinessProfile();
+  const { pendingStatus, refetch: refetchPendingStatus } =
+    useBusinessChangePendingStatus();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocused.current) {
+        void refetchPendingStatus();
+      } else {
+        hasFocused.current = true;
+      }
+    }, [refetchPendingStatus]),
+  );
 
   if (isLoading && !business) {
     return (
@@ -73,18 +89,21 @@ export default function ManageBusinessScreen() {
   const reviewedRows = [
     {
       title: "Business name",
+      isPending: pendingStatus?.business_name === true,
       detail: business.business_name,
       icon: "storefront-outline" as IconName,
       route: "/(merchant)/business-update-requests",
     },
     {
       title: "Classification",
+      isPending: pendingStatus?.classification === true,
       detail: `${business.category.name} · ${business.cluster.name}`,
       icon: "shape-outline" as IconName,
       route: "/(merchant)/business-update-requests/classification",
     },
     {
       title: "Location & landmarks",
+      isPending: pendingStatus?.location === true,
       detail: business.location.address,
       icon: "map-marker-outline" as IconName,
       route: "/(merchant)/business-update-requests/location",
@@ -233,7 +252,7 @@ export default function ManageBusinessScreen() {
                   />
                 </View>
 
-                <View className="flex-1 pr-2">
+                <View className="min-w-0 flex-1 pr-2">
                   <AppText
                     weight="semibold"
                     className="text-sm text-text-primary"
@@ -247,6 +266,17 @@ export default function ManageBusinessScreen() {
                     {row.detail}
                   </AppText>
                 </View>
+
+                {row.isPending ? (
+                  <View className="mr-2 rounded-full bg-text-info px-2.5 py-1">
+                    <AppText
+                      weight="semibold"
+                      className="text-[11px] text-white"
+                    >
+                      Pending
+                    </AppText>
+                  </View>
+                ) : null}
 
                 <MaterialCommunityIcons
                   name="chevron-right"

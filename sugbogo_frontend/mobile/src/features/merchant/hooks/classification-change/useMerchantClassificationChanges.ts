@@ -20,6 +20,7 @@ import type {
   SubmitClassificationChangePayload,
 } from "../../types/classificationChange.types";
 import { merchantClassificationChangeKeys } from "./classificationChangeQueryKeys";
+import { businessChangePendingStatusQueryKey } from "../change-requests/businessChangePendingStatusQueryKey";
 
 function useRefreshApprovedClassification(
   request: ClassificationChangeRequest | undefined,
@@ -148,10 +149,15 @@ export function useSubmitMerchantClassificationChange() {
         merchantClassificationChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await queryClient.invalidateQueries({
-        queryKey: merchantClassificationChangeKeys.list(userId),
-        refetchType: "all",
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: merchantClassificationChangeKeys.list(userId),
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
+        }),
+      ]);
     },
   });
 }
@@ -178,6 +184,9 @@ export function useWithdrawMerchantClassificationChange() {
             userId,
             changeRequest.id,
           ),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
         }),
       ]);
     },
