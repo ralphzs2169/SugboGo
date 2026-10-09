@@ -43,7 +43,7 @@ class ReviewKeywordService:
         business_id: int,
         review_id: int,
     ) -> bool:
-        """Invalidates generated insights when a supporting review is deleted."""
+        """Invalidates generated insights when supporting review evidence changes."""
         try:
             summary = BusinessReviewSummary.objects.select_for_update().get(
                 BUSN_ID_id=business_id,
