@@ -228,6 +228,27 @@ jest.mock(
   },
 );
 
+function showLoadedBusiness() {
+  mockProfile.mockReturnValue({
+    business: {
+      id: 7,
+      business_name: "Sugbo Bistro",
+      category: { id: 1, name: "Restaurant" },
+      cluster: { id: 1, name: "Culinary" },
+      status: "active",
+      display_cover_photo_url: null,
+      cover_photo_update: { limit: 3, remaining: 1, resets_at: null },
+      operating_hours: [],
+      photos: [],
+      specialty_tags: [],
+      location: { landmarks: [] },
+    },
+    isLoading: false,
+    error: null,
+    refetch: mockRefetch,
+  });
+}
+
 describe("MerchantProfileScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -518,7 +539,9 @@ describe("MerchantProfileScreen", () => {
     expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
     expect(screen.getAllByText("Sugbo Bistro")).toHaveLength(1);
     expect(screen.getByText("Changes under review")).toBeTruthy();
-    expect(screen.getByText("1 pending request · Business name")).toBeTruthy();
+    const pending = screen.getByLabelText("View 1 change under review");
+    expect(within(pending).getByText("1")).toBeTruthy();
+    expect(within(pending).getByText("Business name")).toBeTruthy();
     expect(screen.queryByText("Name change pending")).toBeNull();
     expect(screen.queryByText("Awaiting Admin review")).toBeNull();
     expect(screen.queryByText("Request name change")).toBeNull();
@@ -560,7 +583,9 @@ describe("MerchantProfileScreen", () => {
     expect(screen.queryByText("Request name change")).toBeNull();
     expect(screen.getByText("Manage Business")).toBeTruthy();
     expect(screen.queryByText(/changes under review/)).toBeNull();
-    expect(mockNotify).toHaveBeenCalledTimes(1);
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.any(Error) }),
+    );
   });
 
   it("keeps the two primary actions in one compact row", async () => {
@@ -691,10 +716,10 @@ describe("MerchantProfileScreen", () => {
 
     const screen = await render(<MerchantProfileScreen />);
     expect(screen.getByText("Changes under review")).toBeTruthy();
+    const pending = screen.getByLabelText("View 2 changes under review");
+    expect(within(pending).getByText("2")).toBeTruthy();
     expect(
-      screen.getByText(
-        "2 pending requests · Classification, Location & landmarks",
-      ),
+      within(pending).getByText("Classification · Location & landmarks"),
     ).toBeTruthy();
     expect(screen.queryByText("Classification Pending review")).toBeNull();
     expect(screen.queryByText("Location Pending review")).toBeNull();
@@ -752,9 +777,11 @@ describe("MerchantProfileScreen", () => {
       const screen = await render(<MerchantProfileScreen />);
       expect(screen.getByText("Changes under review")).toBeTruthy();
       expect(screen.queryByText("Awaiting Admin review")).toBeNull();
+      const pending = screen.getByLabelText("View 1 change under review");
+      expect(within(pending).getByText("1")).toBeTruthy();
       expect(
-        screen.getByText(
-          `1 pending request · ${type === "location" ? "Location & landmarks" : "Classification"}`,
+        within(pending).getByText(
+          type === "location" ? "Location & landmarks" : "Classification",
         ),
       ).toBeTruthy();
       await fireEvent.press(
@@ -798,9 +825,11 @@ describe("MerchantProfileScreen", () => {
 
     const screen = await render(<MerchantProfileScreen />);
     expect(screen.getByText("Changes under review")).toBeTruthy();
+    const pending = screen.getByLabelText("View 3 changes under review");
+    expect(within(pending).getByText("3")).toBeTruthy();
     expect(
-      screen.getByText(
-        "3 pending requests · Business name, Classification, Location & landmarks",
+      within(pending).getByText(
+        "Business name · Classification · Location & landmarks",
       ),
     ).toBeTruthy();
     expect(screen.queryByText("Name change pending")).toBeNull();
@@ -839,9 +868,9 @@ describe("MerchantProfileScreen", () => {
 
     const screen = await render(<MerchantProfileScreen />);
     expect(screen.getByText("Changes under review")).toBeTruthy();
-    expect(
-      screen.getByText("1 pending request · Location & landmarks"),
-    ).toBeTruthy();
+    const pending = screen.getByLabelText("View 1 change under review");
+    expect(within(pending).getByText("1")).toBeTruthy();
+    expect(within(pending).getByText("Location & landmarks")).toBeTruthy();
     expect(screen.queryByText("Checking request status...")).toBeNull();
   });
 
@@ -874,7 +903,190 @@ describe("MerchantProfileScreen", () => {
 
     const screen = await render(<MerchantProfileScreen />);
     expect(screen.queryByText("Changes under review")).toBeNull();
-    await fireEvent.press(screen.getByLabelText("Retry request status"));
+    expect(screen.getByText("Unable to check update requests")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByLabelText("Unable to check update requests. Tap to retry."),
+    );
     expect(refetchLocation).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a compact status placeholder until the independent queries resolve", async () => {
+    showLoadedBusiness();
+    mockRequestState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+    mockClassificationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+    mockLocationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+    expect(screen.getByTestId("merchant-request-status-skeleton")).toBeTruthy();
+    expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
+    expect(screen.queryByText("Changes under review")).toBeNull();
+
+    mockRequestState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    mockClassificationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    mockLocationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    await screen.rerender(<MerchantProfileScreen />);
+    expect(screen.queryByTestId("merchant-request-status-skeleton")).toBeNull();
+    expect(screen.queryByText("Changes under review")).toBeNull();
+    expect(screen.queryByText("Unable to check update requests")).toBeNull();
+  });
+
+  it("retains confirmed pending navigation and retries only a failed status", async () => {
+    showLoadedBusiness();
+    const error = new Error("Classification status unavailable");
+    const refetchName = jest.fn();
+    const refetchClassification = jest.fn();
+    const refetchLocation = jest.fn();
+    mockRequestState.mockReturnValue({
+      pendingRequest: { id: 9 },
+      isLoading: false,
+      error: null,
+      refetch: refetchName,
+    });
+    mockClassificationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error,
+      refetch: refetchClassification,
+    });
+    mockLocationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error: null,
+      refetch: refetchLocation,
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+    const pending = screen.getByLabelText("View confirmed change under review");
+    expect(within(pending).getByText("Business name")).toBeTruthy();
+    expect(within(pending).queryByText("1")).toBeNull();
+    expect(screen.getByText("Unable to check update requests")).toBeTruthy();
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error,
+        toastId: "merchant-profile-change-request-status-error",
+      }),
+    );
+    await fireEvent.press(pending);
+    expect(router.push).toHaveBeenCalledWith(
+      "/(merchant)/business-update-requests/9",
+    );
+    await fireEvent.press(
+      screen.getByLabelText("Unable to check update requests. Tap to retry."),
+    );
+    expect(refetchClassification).toHaveBeenCalledTimes(1);
+    expect(refetchName).not.toHaveBeenCalled();
+    expect(refetchLocation).not.toHaveBeenCalled();
+
+    mockClassificationState.mockReturnValue({
+      pendingRequest: { id: 11 },
+      isLoading: false,
+      error: null,
+      refetch: refetchClassification,
+    });
+    await screen.rerender(<MerchantProfileScreen />);
+    expect(screen.queryByText("Unable to check update requests")).toBeNull();
+    expect(screen.getByLabelText("View 2 changes under review")).toBeTruthy();
+  });
+
+  it("keeps a single error and targeted Retry for three failed queries", async () => {
+    showLoadedBusiness();
+    const error = new Error("Unavailable");
+    const refetchName = jest.fn();
+    const refetchClassification = jest.fn();
+    const refetchLocation = jest.fn();
+    mockRequestState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error,
+      refetch: refetchName,
+    });
+    mockClassificationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error,
+      refetch: refetchClassification,
+    });
+    mockLocationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      error,
+      refetch: refetchLocation,
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+    expect(screen.getAllByText("Unable to check update requests")).toHaveLength(
+      1,
+    );
+    expect(screen.getByText("Business details")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByLabelText("Unable to check update requests. Tap to retry."),
+    );
+    expect(refetchName).toHaveBeenCalledTimes(1);
+    expect(refetchClassification).toHaveBeenCalledTimes(1);
+    expect(refetchLocation).toHaveBeenCalledTimes(1);
+    await screen.rerender(<MerchantProfileScreen />);
+    expect(screen.getByText("Unable to check update requests")).toBeTruthy();
+
+    mockLocationState.mockReturnValue({
+      pendingRequest: null,
+      isLoading: false,
+      isRefetching: true,
+      error,
+      refetch: refetchLocation,
+    });
+    await screen.rerender(<MerchantProfileScreen />);
+    expect(screen.getByText("Checking request statuses...")).toBeTruthy();
+    expect(screen.queryByText("Tap to retry")).toBeNull();
+  });
+
+  it("keeps cached pending data visible when its background refresh fails", async () => {
+    showLoadedBusiness();
+    mockLocationState.mockReturnValue({
+      pendingRequest: { id: 22 },
+      isLoading: false,
+      isRefetching: false,
+      error: new Error("Refresh failed"),
+      refetch: jest.fn(),
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+    const pending = screen.getByLabelText("View confirmed change under review");
+    expect(within(pending).getByText("Location & landmarks")).toBeTruthy();
+    expect(within(pending).queryByText("1")).toBeNull();
+    expect(screen.getByText("Unable to check update requests")).toBeTruthy();
+    await fireEvent.press(pending);
+    expect(router.push).toHaveBeenCalledWith(
+      "/(merchant)/business-update-requests/location/22",
+    );
   });
 });

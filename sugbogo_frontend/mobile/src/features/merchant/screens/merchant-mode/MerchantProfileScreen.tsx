@@ -23,6 +23,7 @@ import ProfileMenuItem from "@/features/profile/components/ProfileMenuItem";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import SafePressable from "@/shared/components/SafePressable";
+import Skeleton from "@/shared/components/Skeleton";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
@@ -75,18 +76,21 @@ export default function MerchantProfileScreen() {
   const {
     pendingRequest,
     isLoading: isCheckingName,
+    isRefetching: isRefetchingName,
     error: nameError,
     refetch: refetchRequests,
   } = useMerchantBusinessNameChangeRequests();
   const {
     pendingRequest: pendingClassificationRequest,
     isLoading: isCheckingClassification,
+    isRefetching: isRefetchingClassification,
     error: classificationError,
     refetch: refetchClassification,
   } = useMerchantClassificationChangeRequests();
   const {
     pendingRequest: pendingLocationRequest,
     isLoading: isCheckingLocation,
+    isRefetching: isRefetchingLocation,
     error: locationError,
     refetch: refetchLocation,
   } = useMerchantLocationChangeRequests();
@@ -105,6 +109,12 @@ export default function MerchantProfileScreen() {
     toastId: "merchant-business-profile-error",
     title: "Unable to load business profile",
     fallbackMessage: "Please try again.",
+  });
+  useQueryErrorNotification({
+    error: nameError ?? classificationError ?? locationError,
+    toastId: "merchant-profile-change-request-status-error",
+    title: "Unable to check update requests",
+    fallbackMessage: "Some request statuses couldn't be loaded.",
   });
 
   const { updateCoverPhoto, isUploading } = useUpdateBusinessCoverPhoto(
@@ -271,6 +281,12 @@ export default function MerchantProfileScreen() {
   const hasRequestStatusError = Boolean(
     nameError || classificationError || locationError,
   );
+  const isRetryingRequestStatus = Boolean(
+    (nameError && isRefetchingName) ||
+    (classificationError && isRefetchingClassification) ||
+    (locationError && isRefetchingLocation),
+  );
+  const isRequestStatusIncomplete = isCheckingRequests || hasRequestStatusError;
   const clusterIcon = clusters.find(
     (cluster) => cluster.id === business.cluster.id,
   )?.icon;
@@ -391,7 +407,11 @@ export default function MerchantProfileScreen() {
               <SafePressable
                 onPress={handlePendingChangesPress}
                 accessibilityRole="button"
-                accessibilityLabel={`View ${pendingCount} ${pendingCount === 1 ? "change" : "changes"} under review`}
+                accessibilityLabel={
+                  isRequestStatusIncomplete
+                    ? `View confirmed ${pendingCount === 1 ? "change" : "changes"} under review`
+                    : `View ${pendingCount} ${pendingCount === 1 ? "change" : "changes"} under review`
+                }
                 className="mt-6 min-h-[72px] cursor-pointer flex-row items-center gap-3 border-y border-border-primary bg-background px-5 py-3 active:bg-background"
               >
                 {/* Pending status icon */}
@@ -415,11 +435,16 @@ export default function MerchantProfileScreen() {
                     </AppText>
 
                     {/* Pending request count */}
-                    <View className="min-w-6 items-center justify-center rounded-full bg-blue-500/10 px-2 py-0.5">
-                      <AppText weight="bold" className="text-xs text-blue-500">
-                        {pendingCount}
-                      </AppText>
-                    </View>
+                    {!isRequestStatusIncomplete ? (
+                      <View className="min-w-6 items-center justify-center rounded-full bg-blue-500/10 px-2 py-0.5">
+                        <AppText
+                          weight="bold"
+                          className="text-xs text-blue-500"
+                        >
+                          {pendingCount}
+                        </AppText>
+                      </View>
+                    ) : null}
                   </View>
 
                   {/* Affected business information */}
@@ -429,6 +454,11 @@ export default function MerchantProfileScreen() {
                   >
                     {pendingChanges.map((change) => change.label).join(" · ")}
                   </AppText>
+                  {isCheckingRequests ? (
+                    <AppText className="text-xs text-text-secondary">
+                      Checking other request statuses...
+                    </AppText>
+                  ) : null}
                 </View>
 
                 {/* Navigation indicator */}
@@ -438,6 +468,40 @@ export default function MerchantProfileScreen() {
                   color={theme.extends.colors.text.secondary}
                 />
               </SafePressable>
+            ) : null}
+
+            {isCheckingRequests &&
+            !hasRequestStatusError &&
+            pendingCount === 0 ? (
+              <View
+                testID="merchant-request-status-skeleton"
+                className="mt-6 gap-2 border-y border-border-primary bg-background px-5 py-4"
+              >
+                <Skeleton className="h-4 w-40 rounded-md" />
+                <Skeleton className="h-3 w-56 max-w-full rounded-md" />
+              </View>
+            ) : null}
+
+            {hasRequestStatusError ? (
+              <View className="mt-4">
+                <ErrorState
+                  size="section"
+                  title="Unable to check update requests"
+                  description={
+                    isRetryingRequestStatus
+                      ? "Checking request statuses..."
+                      : "Some request statuses couldn't be loaded."
+                  }
+                  primaryActionTitle={
+                    isRetryingRequestStatus ? undefined : "Retry"
+                  }
+                  onPrimaryAction={
+                    isRetryingRequestStatus
+                      ? undefined
+                      : handleRetryRequestStatus
+                  }
+                />
+              </View>
             ) : null}
 
             {/* Snapshot metrics for the live business */}
