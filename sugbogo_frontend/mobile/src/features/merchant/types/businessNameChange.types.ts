@@ -1,3 +1,5 @@
+import type { BusinessChangeRequestEligibility } from "./businessChangeRequestEligibility.types";
+
 export type BusinessNameChangeStatus =
   "pending" | "approved" | "rejected" | "withdrawn";
 
@@ -10,10 +12,12 @@ export type BusinessNameChangeRequest = {
   submitted_at: string;
   resolved_at: string | null;
   rejection_reason: string | null;
+  reason: string | null;
 };
 
 export type BusinessNameChangeRequestPage = {
   items: BusinessNameChangeRequest[];
+  eligibility: BusinessChangeRequestEligibility;
   pagination: {
     page: number;
     page_size: number;
@@ -26,4 +30,5 @@ export type BusinessNameChangeRequestPage = {
 
 export type SubmitBusinessNameChangePayload = {
   proposed_business_name: string;
+  reason: string;
 };

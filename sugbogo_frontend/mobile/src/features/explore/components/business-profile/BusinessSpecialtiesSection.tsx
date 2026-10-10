@@ -13,6 +13,7 @@ type Props = {
   businessId: number;
   specialtyTags: ExploreBusinessSpecialtyTag[];
   isOwnBusiness: boolean;
+  displayAsExplorer?: boolean;
 };
 
 /**
@@ -25,6 +26,7 @@ export default function BusinessSpecialtiesSection({
   businessId,
   specialtyTags,
   isOwnBusiness,
+  displayAsExplorer = false,
 }: Props) {
   const { vouch, pendingTagId } = useBusinessVouch({
     businessId,
@@ -75,7 +77,7 @@ export default function BusinessSpecialtiesSection({
       </AppText>
 
       <AppText className="mt-0.5 text-xs text-text-secondary">
-        {isOwnBusiness
+        {isOwnBusiness && !displayAsExplorer
           ? "What Explorers vouch for at your business"
           : "What does this place get right?"}
       </AppText>

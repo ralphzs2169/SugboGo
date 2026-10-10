@@ -1,3 +1,5 @@
+import type { BusinessChangeRequestEligibility } from "./businessChangeRequestEligibility.types";
+
 export type ClassificationChangeStatus =
   "pending" | "approved" | "rejected" | "withdrawn";
 
@@ -16,10 +18,12 @@ export type ClassificationChangeRequest = {
   submitted_at: string;
   resolved_at: string | null;
   rejection_reason: string | null;
+  reason: string | null;
 };
 
 export type ClassificationChangeRequestPage = {
   items: ClassificationChangeRequest[];
+  eligibility: BusinessChangeRequestEligibility;
   pagination: {
     page: number;
     page_size: number;
@@ -33,4 +37,5 @@ export type ClassificationChangeRequestPage = {
 export type SubmitClassificationChangePayload = {
   proposed_category_id: number;
   proposed_specialty_tag_ids: number[];
+  reason: string;
 };

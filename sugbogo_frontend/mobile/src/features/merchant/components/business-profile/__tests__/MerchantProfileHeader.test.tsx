@@ -1,6 +1,12 @@
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import MerchantProfileHeader from "../MerchantProfileHeader";
 
@@ -51,6 +57,9 @@ async function renderHeader(remaining: number) {
   const screen = await render(
     <MerchantProfileHeader
       businessName="Sugbo Bistro"
+      classification="Restaurant · Culinary"
+      clusterIcon="utensils"
+      status="active"
       coverPhotoUrl={null}
       coverPhotoUpdate={allowance}
       onCheckCoverAllowance={onCheckCoverAllowance}
@@ -65,6 +74,42 @@ describe("MerchantProfileHeader cover allowance", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPickFromGallery.mockResolvedValue("file:///selected.jpg");
+  });
+
+  it("shows business identity once with its classification and status", async () => {
+    const screen = await renderHeader(2);
+
+    expect(screen.getAllByText("Sugbo Bistro")).toHaveLength(1);
+    expect(screen.getByText("Restaurant · Culinary")).toBeTruthy();
+    expect(screen.getByText("Active")).toBeTruthy();
+    const hero = screen.getByTestId("merchant-cover-hero");
+    expect(within(hero).getByText("Sugbo Bistro")).toBeTruthy();
+    expect(within(hero).getByText("Restaurant · Culinary")).toBeTruthy();
+    const clusterGlyph = String.fromCodePoint(
+      Number(MaterialCommunityIcons.glyphMap["silverware-fork-knife"]),
+    );
+    expect(within(hero).getByText(clusterGlyph)).toBeTruthy();
+    expect(screen.queryByText("Name change pending")).toBeNull();
+  });
+
+  it("keeps pending review navigation out of the hero", async () => {
+    const allowance = { limit: 3, remaining: 2, resets_at: null };
+    const screen = await render(
+      <MerchantProfileHeader
+        businessName="Sugbo Bistro"
+        classification="Restaurant · Culinary"
+        status="active"
+        coverPhotoUrl={null}
+        coverPhotoUpdate={allowance}
+        onCheckCoverAllowance={jest.fn(async () => allowance)}
+        onEditCover={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Name change pending")).toBeNull();
+    expect(
+      screen.queryByLabelText("View pending business name request"),
+    ).toBeNull();
   });
 
   it("blocks the picker and shows the rolling reset when exhausted", async () => {

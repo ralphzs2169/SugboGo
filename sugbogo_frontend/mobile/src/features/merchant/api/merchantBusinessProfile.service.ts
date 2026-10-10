@@ -17,6 +17,16 @@ export async function getMerchantBusinessProfile(): Promise<
   return request(apiClient.get("/merchant/business-profile/"));
 }
 
+export async function getMerchantVerificationDocumentAccess(
+  documentId: number,
+): Promise<ApiResponse<{ url: string; expires_in: number }>> {
+  return request(
+    apiClient.get(
+      `/merchant/business-profile/verification-documents/${documentId}/access/`,
+    ),
+  );
+}
+
 export async function updateMerchantBusinessInformation(
   changes: MerchantBusinessInformationUpdate,
 ): Promise<ApiResponse<MerchantBusinessInformationResponse>> {

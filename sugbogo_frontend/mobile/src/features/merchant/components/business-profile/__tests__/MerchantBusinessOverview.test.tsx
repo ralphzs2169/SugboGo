@@ -1,23 +1,58 @@
 import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
+import { Linking } from "react-native";
 
 import type { MerchantBusinessProfileResponse } from "../../../types/merchantBusinessProfile.types";
-import MerchantBusinessOverview from "../MerchantBusinessOverview";
+import MerchantBusinessDetails from "../MerchantBusinessDetails";
+
+jest.mock(
+  "@/features/merchant/components/registration/location/LocationPickerMap",
+  () => {
+    const { Text } = jest.requireActual("react-native");
+    return function MockMap() {
+      return <Text>Location map preview</Text>;
+    };
+  },
+);
+
+jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => {
+  const { Pressable, Text } = jest.requireActual("react-native");
+  return function MockPhotoViewer({
+    visible,
+    initialIndex,
+    onClose,
+  }: {
+    visible: boolean;
+    initialIndex: number;
+    onClose: () => void;
+  }) {
+    return visible ? (
+      <Pressable onPress={onClose}>
+        <Text>Photo viewer {initialIndex + 1}</Text>
+      </Pressable>
+    ) : null;
+  };
+});
 
 const business: MerchantBusinessProfileResponse = {
   id: 7,
   business_name: "Sugbo Bistro",
   description: "Local Cebu food",
   contact_number: "+639171234567",
-  business_email: "hello@sugbogogo.test",
+  business_email: "hello@example.com",
   website: "https://example.com",
   status: "active",
   cover_photo_url: null,
+  display_cover_photo_url: null,
   cover_photo_retry_after: null,
   cover_photo_update: { limit: 3, remaining: 2, resets_at: null },
   category: { id: 2, name: "Restaurants" },
   cluster: { id: 1, name: "Food and Dining" },
-  specialty_tags: [{ id: 3, name: "Lechon", color: "blue", icon: "tag" }],
+  specialty_tags: [
+    { id: 3, name: "Lechon", color: "blue", icon: "tag" },
+    { id: 4, name: "Local Food", color: "green", icon: "chef_hat" },
+    { id: 5, name: "Coffee", color: "yellow", icon: "coffee" },
+  ],
   location: {
     address: "Gorordo Avenue",
     city: "Cebu City",
@@ -40,24 +75,10 @@ const business: MerchantBusinessProfileResponse = {
   operating_hours: [
     {
       day: "monday",
-      is_open: false,
-      is_24_hours: false,
-      open_time: null,
-      close_time: null,
-    },
-    {
-      day: "tuesday",
-      is_open: true,
-      is_24_hours: true,
-      open_time: null,
-      close_time: null,
-    },
-    {
-      day: "wednesday",
       is_open: true,
       is_24_hours: false,
-      open_time: "22:00:00",
-      close_time: "02:00:00",
+      open_time: "09:00:00",
+      close_time: "18:00:00",
     },
   ],
   photos: [
@@ -76,243 +97,253 @@ const business: MerchantBusinessProfileResponse = {
         id: 1,
         document_type: "business_registration",
         file_name: "registration.pdf",
+        has_file: true,
       },
     ],
   },
 };
 
-describe("MerchantBusinessOverview", () => {
-  it("shows approved listing facts and original verification metadata", async () => {
+describe("MerchantBusinessDetails", () => {
+  it("opens the approved map without making the preview interactive", async () => {
+    const onViewMap = jest.fn();
     const screen = await render(
-      <MerchantBusinessOverview business={business} />,
+      <MerchantBusinessDetails business={business} onViewMap={onViewMap} />,
     );
 
-    expect(screen.getByText("Local Cebu food")).toBeTruthy();
-    expect(screen.getByText("Restaurants")).toBeTruthy();
-    expect(screen.getByText("Food and Dining")).toBeTruthy();
-    expect(screen.getByText("Lechon")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByLabelText("View approved business location on map"),
+    );
+    expect(onViewMap).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Location map preview")).toBeTruthy();
+  });
+
+  it("opens available verification documents and shows preparation state", async () => {
+    const onViewDocument = jest.fn();
+    const screen = await render(
+      <MerchantBusinessDetails
+        business={business}
+        onViewDocument={onViewDocument}
+      />,
+    );
+
+    await fireEvent.press(
+      screen.getByLabelText("View business verification details"),
+    );
+    await fireEvent.press(
+      screen.getByLabelText("Open Business Registration: registration.pdf"),
+    );
+    expect(onViewDocument).toHaveBeenCalledWith(1);
+
+    const loading = await render(
+      <MerchantBusinessDetails
+        business={business}
+        onViewDocument={onViewDocument}
+        openingDocumentId={1}
+      />,
+    );
+    await fireEvent.press(
+      loading.getByLabelText("View business verification details"),
+    );
+    expect(
+      loading.getByLabelText("Open Business Registration: registration.pdf")
+        .props.accessibilityState,
+    ).toEqual(expect.objectContaining({ disabled: true, busy: true }));
+  });
+
+  it("keeps documents without an accessible file noninteractive", async () => {
+    const onViewDocument = jest.fn();
+    const screen = await render(
+      <MerchantBusinessDetails
+        business={{
+          ...business,
+          verification: {
+            ...business.verification!,
+            documents: [
+              { ...business.verification!.documents[0], has_file: false },
+            ],
+          },
+        }}
+        onViewDocument={onViewDocument}
+      />,
+    );
+
+    await fireEvent.press(
+      screen.getByLabelText("View business verification details"),
+    );
+    const row = screen.getByLabelText(
+      "Business Registration: file unavailable",
+    );
+    expect(row.props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(row);
+    expect(onViewDocument).not.toHaveBeenCalled();
+  });
+  it("shows live summaries without raw fields or reviewed-change actions", async () => {
+    const screen = await render(
+      <MerchantBusinessDetails business={business} />,
+    );
+
+    expect(screen.queryByText("Classification")).toBeNull();
+    expect(screen.getByText("Business details")).toBeTruthy();
+    expect(screen.queryByText(/vouches?/i)).toBeNull();
     expect(screen.getByText("Gorordo Avenue")).toBeTruthy();
-    expect(screen.getByText("Ayala Center")).toBeTruthy();
-    expect(screen.getByText("Closed")).toBeTruthy();
-    expect(screen.getByText("Open 24 hours")).toBeTruthy();
-    expect(screen.getByText(/next day/)).toBeTruthy();
-    expect(screen.getByText("storefront.jpg")).toBeTruthy();
+    expect(screen.getByText("1 landmark")).toBeTruthy();
+    expect(screen.getByText("Location map preview")).toBeTruthy();
+    expect(screen.getByLabelText("Business photo 1")).toBeTruthy();
+    expect(screen.queryByText("storefront.jpg")).toBeNull();
+    expect(screen.queryByText("10.3157, 123.8854")).toBeNull();
+    expect(screen.queryByText("Request classification change")).toBeNull();
+    expect(screen.queryByLabelText("Edit classification")).toBeNull();
+    expect(screen.queryByText("Request location change")).toBeNull();
+    expect(screen.queryByText("Juan Dela Cruz")).toBeNull();
+    expect(screen.getByText("More")).toBeTruthy();
+  });
+
+  it("expands hours and read-only verification details on demand", async () => {
+    const screen = await render(
+      <MerchantBusinessDetails business={business} />,
+    );
+
+    expect(screen.getByText("Today")).toBeTruthy();
+    expect(screen.queryByText("monday")).toBeNull();
+    await fireEvent.press(screen.getByText("View weekly schedule"));
+    expect(screen.getByText("monday")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Business Verification"));
     expect(screen.getByText("Juan Dela Cruz")).toBeTruthy();
     expect(screen.getByText("registration.pdf")).toBeTruthy();
-    expect(screen.queryByText("2 cover photo updates remaining.")).toBeNull();
   });
 
-  it("distinguishes missing hours from a closed day", async () => {
+  it("shows 24-hour opening once in the collapsed hours summary", async () => {
+    const today = new Date()
+      .toLocaleDateString("en-US", { weekday: "long" })
+      .toLowerCase();
     const screen = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, operating_hours: [], specialty_tags: [] }}
+      <MerchantBusinessDetails
+        business={{
+          ...business,
+          operating_hours: [
+            {
+              day: today,
+              is_open: true,
+              is_24_hours: true,
+              open_time: null,
+              close_time: null,
+            },
+          ],
+        }}
       />,
     );
 
-    expect(screen.getAllByText("Not provided").length).toBeGreaterThan(0);
-    expect(screen.getByText("No active specialties")).toBeTruthy();
-    expect(screen.queryByText("Closed")).toBeNull();
+    expect(screen.getAllByText("Open 24 hours")).toHaveLength(1);
+    expect(screen.queryByText("Today")).toBeNull();
+    await fireEvent.press(screen.getByText("View weekly schedule"));
+    expect(screen.getAllByText("Open 24 hours")).toHaveLength(2);
   });
 
-  it("opens only information editing for active businesses", async () => {
-    const onEditInformation = jest.fn();
+  it("keeps contact details available without expanding them by default", async () => {
+    const openUrl = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
     const screen = await render(
-      <MerchantBusinessOverview
-        business={business}
-        onEditInformation={onEditInformation}
-      />,
+      <MerchantBusinessDetails business={business} />,
     );
 
-    fireEvent.press(screen.getByLabelText("Edit business information"));
-    expect(onEditInformation).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("hello@example.com")).toBeNull();
+    await fireEvent.press(screen.getByText("Contact details"));
+    expect(screen.getByText("+639171234567")).toBeTruthy();
+    expect(screen.getByText("hello@example.com")).toBeTruthy();
+    expect(screen.getByText("https://example.com")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Open phone: +639171234567"));
+    expect(openUrl).toHaveBeenCalledWith("tel:+639171234567");
+    await fireEvent.press(
+      screen.getByLabelText("Open email: hello@example.com"),
+    );
+    expect(openUrl).toHaveBeenCalledWith("mailto:hello@example.com");
+    await fireEvent.press(
+      screen.getByLabelText("Open website: https://example.com"),
+    );
+    expect(openUrl).toHaveBeenCalledWith("https://example.com");
+    openUrl.mockRestore();
   });
 
-  it("offers operating-hours editing only for an active business", async () => {
+  it("keeps direct edits available while restricting suspended edits", async () => {
     const onEditOperatingHours = jest.fn();
-    const active = await render(
-      <MerchantBusinessOverview
+    const onManagePhotos = jest.fn();
+    const screen = await render(
+      <MerchantBusinessDetails
         business={business}
         onEditOperatingHours={onEditOperatingHours}
+        onManagePhotos={onManagePhotos}
       />,
     );
 
-    fireEvent.press(active.getByLabelText("Edit operating hours"));
+    await fireEvent.press(screen.getByLabelText("Edit operating hours"));
+    await fireEvent.press(screen.getByLabelText("Manage photos"));
     expect(onEditOperatingHours).toHaveBeenCalledTimes(1);
-  });
-
-  it("offers photo management only for an active business", async () => {
-    const onManagePhotos = jest.fn();
-    const active = await render(
-      <MerchantBusinessOverview
-        business={business}
-        onManagePhotos={onManagePhotos}
-      />,
-    );
-
-    fireEvent.press(active.getByLabelText("Manage business photos"));
     expect(onManagePhotos).toHaveBeenCalledTimes(1);
-  });
 
-  it("hides photo management for a suspended business", async () => {
-    const onManagePhotos = jest.fn();
     const suspended = await render(
-      <MerchantBusinessOverview
+      <MerchantBusinessDetails
         business={{ ...business, status: "suspended" }}
-        onManagePhotos={onManagePhotos}
-      />,
-    );
-    expect(suspended.queryByLabelText("Manage business photos")).toBeNull();
-    expect(
-      suspended.getByText(
-        "Photos cannot be edited while your business is suspended.",
-      ),
-    ).toBeTruthy();
-  });
-
-  it("hides operating-hours editing for a suspended business", async () => {
-    const suspended = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, status: "suspended" }}
-        onEditOperatingHours={jest.fn()}
+        onEditOperatingHours={onEditOperatingHours}
       />,
     );
     expect(suspended.queryByLabelText("Edit operating hours")).toBeNull();
   });
 
-  it("explains why a suspended business cannot open editing", async () => {
-    const onEditInformation = jest.fn();
+  it("keeps location free of pending controls and the mode switch in More", async () => {
+    const onSwitchToExplorer = jest.fn();
     const screen = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, status: "suspended" }}
-        onEditInformation={onEditInformation}
-      />,
-    );
-
-    expect(screen.queryByLabelText("Edit business information")).toBeNull();
-    expect(
-      screen.getByText(
-        "Business information cannot be edited while your business is suspended.",
-      ),
-    ).toBeTruthy();
-    expect(onEditInformation).not.toHaveBeenCalled();
-  });
-
-  it("offers a classification request without being blocked by name requests", async () => {
-    const onRequestClassification = jest.fn();
-    const active = await render(
-      <MerchantBusinessOverview
+      <MerchantBusinessDetails
         business={business}
-        onRequestClassification={onRequestClassification}
-        onClassificationHistory={jest.fn()}
-      />,
-    );
-    fireEvent.press(active.getByText("Request classification change"));
-    expect(onRequestClassification).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps live classification visible while a classification request is pending", async () => {
-    const pending = await render(
-      <MerchantBusinessOverview
-        business={business}
-        pendingClassificationRequest={{
-          id: 9,
-          request_type: "classification",
-          status: "pending",
-          previous: {
-            category: business.category,
-            cluster: business.cluster,
-            specialty_tags: business.specialty_tags,
-          },
-          proposed: {
-            category: { id: 4, name: "Creative Arts" },
-            cluster: { id: 5, name: "Culture" },
-            specialty_tags: [],
-          },
-          submitted_at: "2026-10-03T10:00:00Z",
-          resolved_at: null,
-          rejection_reason: null,
-        }}
-        onRequestClassification={jest.fn()}
-        onClassificationHistory={jest.fn()}
-      />,
-    );
-    expect(pending.getByText("Restaurants")).toBeTruthy();
-    expect(pending.getByText("Food and Dining")).toBeTruthy();
-    expect(pending.queryByText("Creative Arts")).toBeNull();
-    expect(pending.queryByText("Request classification change")).toBeNull();
-    expect(pending.getByText("View pending request")).toBeTruthy();
-  });
-
-  it("prevents suspended businesses from opening classification submission", async () => {
-    const suspended = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, status: "suspended" }}
-        onRequestClassification={jest.fn()}
-        onClassificationHistory={jest.fn()}
-      />,
-    );
-    expect(suspended.queryByText("Request classification change")).toBeNull();
-    expect(
-      suspended.getByText(/Classification changes cannot be requested/),
-    ).toBeTruthy();
-  });
-
-  it("offers location requests alongside another pending request", async () => {
-    const onRequestLocation = jest.fn();
-    const screen = await render(
-      <MerchantBusinessOverview
-        business={business}
-        onRequestLocation={onRequestLocation}
-        onLocationHistory={jest.fn()}
+        onSwitchToExplorer={onSwitchToExplorer}
       />,
     );
 
-    fireEvent.press(screen.getByText("Request location change"));
-    expect(onRequestLocation).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Location requests")).toBeTruthy();
-  });
-
-  it("keeps live location visible and hides submission while location review is pending", async () => {
-    const screen = await render(
-      <MerchantBusinessOverview
-        business={business}
-        pendingLocationRequest={{
-          id: 11,
-          request_type: "location",
-          status: "pending",
-          previous: { location: business.location, landmarks: [] },
-          proposed: {
-            location: {
-              ...business.location,
-              address: "Proposed address",
-            },
-            landmarks: [],
-          },
-          submitted_at: "2026-10-03T10:00:00Z",
-          resolved_at: null,
-          rejection_reason: null,
-        }}
-        onRequestLocation={jest.fn()}
-        onLocationHistory={jest.fn()}
-      />,
-    );
-
-    expect(screen.getByText("Gorordo Avenue")).toBeTruthy();
-    expect(screen.queryByText("Proposed address")).toBeNull();
+    expect(screen.queryByText("Pending review")).toBeNull();
+    await fireEvent.press(screen.getByText("Switch to Explorer"));
+    expect(onSwitchToExplorer).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Request location change")).toBeNull();
-    expect(screen.getByText("Location change pending")).toBeTruthy();
+    expect(screen.queryByText("Change Requests")).toBeNull();
   });
 
-  it("keeps location history while a suspended business cannot submit", async () => {
+  it("shows switching feedback and disables the Explorer mode row", async () => {
+    const onSwitchToExplorer = jest.fn();
     const screen = await render(
-      <MerchantBusinessOverview
-        business={{ ...business, status: "suspended" }}
-        onRequestLocation={jest.fn()}
-        onLocationHistory={jest.fn()}
+      <MerchantBusinessDetails
+        business={business}
+        onSwitchToExplorer={onSwitchToExplorer}
+        isSwitchingToExplorer
       />,
     );
 
-    expect(screen.queryByText("Request location change")).toBeNull();
-    expect(screen.getByText("Location requests")).toBeTruthy();
+    expect(screen.getByText("Switching to Explorer...")).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-switch-loading-indicator"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-switch-to-explorer").props
+        .accessibilityState,
+    ).toEqual({ disabled: true, busy: true });
+    await fireEvent.press(screen.getByTestId("merchant-switch-to-explorer"));
+    expect(onSwitchToExplorer).not.toHaveBeenCalled();
+  });
+
+  it("limits the photo preview to thumbnails without filenames", async () => {
+    const photos = [1, 2, 3, 4].map((id) => ({
+      id,
+      category: "additional" as const,
+      url: `https://example.com/${id}.jpg`,
+      file_name: `upload-${id}.jpg`,
+    }));
+    const screen = await render(
+      <MerchantBusinessDetails business={{ ...business, photos }} />,
+    );
+
+    expect(screen.getAllByLabelText(/Business photo/)).toHaveLength(3);
+    expect(screen.getByText("4 business photos")).toBeTruthy();
+    expect(screen.getByText("+1")).toBeTruthy();
+    expect(screen.queryByText("upload-1.jpg")).toBeNull();
+    await fireEvent.press(screen.getByLabelText("View business photo 2"));
+    expect(screen.getByText("Photo viewer 2")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Photo viewer 2"));
+    expect(screen.queryByText("Photo viewer 2")).toBeNull();
   });
 });

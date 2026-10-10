@@ -13,9 +13,11 @@ import type {
 import LandmarkMap from "../components/registration/landmark/LanmarkMap";
 
 type ReviewLandmarksScreenProps = {
-  businessLocation: BusinessLocation;
+  businessLocation: Omit<BusinessLocation, "isWithinServiceArea">;
   selectedLandmarks: BusinessLandmark[];
   onClose: () => void;
+  title?: string;
+  description?: string;
 };
 
 /**
@@ -29,6 +31,8 @@ export default function ReviewLandmarksScreen({
   businessLocation,
   selectedLandmarks,
   onClose,
+  title = "Your landmarks",
+  description = "These landmarks help explorers recognize places near your business.",
 }: ReviewLandmarksScreenProps) {
   return (
     <View className="flex-1 bg-background">
@@ -75,12 +79,11 @@ export default function ReviewLandmarksScreen({
           <View className="mb-4 flex-row items-start justify-between">
             <View className="min-w-0 flex-1 pr-4">
               <AppText weight="bold" className="text-lg text-text-primary">
-                Your landmarks
+                {title}
               </AppText>
 
               <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-                These landmarks help explorers recognize places near your
-                business.
+                {description}
               </AppText>
             </View>
 

@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
+import { DISCOVERY_FEED_QUERY_KEY } from "@/features/explore/hooks/useDiscoveryFeed";
 import { updateMerchantBusinessCoverPhoto } from "@/features/merchant/api/merchantBusinessProfile.service";
 
 import { merchantBusinessProfileKey } from "../merchantBusinessProfileQueryKeys";
@@ -27,7 +28,9 @@ jest.mock("expo-image-manipulator", () => ({
 
 function createWrapper(client: QueryClient) {
   return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
   };
 }
 
@@ -63,9 +66,12 @@ describe("useUpdateBusinessCoverPhoto", () => {
 
     const client = createQueryClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
-    const { result, unmount } = await renderHook(() => useUpdateBusinessCoverPhoto(7), {
-      wrapper: createWrapper(client),
-    });
+    const { result, unmount } = await renderHook(
+      () => useUpdateBusinessCoverPhoto(7),
+      {
+        wrapper: createWrapper(client),
+      },
+    );
 
     await act(async () => {
       await result.current.updateCoverPhoto("file:///selected.jpg");
@@ -79,6 +85,9 @@ describe("useUpdateBusinessCoverPhoto", () => {
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: exploreBusinessDetailKey(7),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: DISCOVERY_FEED_QUERY_KEY,
     });
     unmount();
     client.clear();
@@ -94,9 +103,12 @@ describe("useUpdateBusinessCoverPhoto", () => {
 
     const client = createQueryClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
-    const { result, unmount } = await renderHook(() => useUpdateBusinessCoverPhoto(7), {
-      wrapper: createWrapper(client),
-    });
+    const { result, unmount } = await renderHook(
+      () => useUpdateBusinessCoverPhoto(7),
+      {
+        wrapper: createWrapper(client),
+      },
+    );
 
     await act(async () => {
       await expect(

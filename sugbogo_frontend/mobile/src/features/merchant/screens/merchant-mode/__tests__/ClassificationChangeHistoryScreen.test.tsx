@@ -11,6 +11,9 @@ const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
   router: { back: jest.fn(), push: (...args: unknown[]) => mockPush(...args) },
 }));
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => mockProfile(),
@@ -24,6 +27,14 @@ jest.mock(
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => ({
   __esModule: true,
   default: jest.fn(),
+}));
+jest.mock("../../../hooks/registration/useSpecialtyTags", () => ({
+  __esModule: true,
+  default: () => ({ specialtyTags: [] }),
+}));
+jest.mock("../../../hooks/registration/useClusters", () => ({
+  __esModule: true,
+  default: () => ({ clusters: [{ id: 1, name: "Food", icon: "coffee" }] }),
 }));
 
 const request = {
@@ -53,7 +64,11 @@ describe("ClassificationChangeHistoryScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockProfile.mockReturnValue({
-      business: { status: "active", category: { name: "Restaurants" } },
+      business: {
+        status: "active",
+        category: { name: "Restaurants" },
+        cluster: { id: 1, name: "Food" },
+      },
     });
     mockHistory.mockReturnValue({
       requests: [request],
@@ -80,6 +95,22 @@ describe("ClassificationChangeHistoryScreen", () => {
       "/(merchant)/business-update-requests/classification/7",
     );
     expect(screen.queryByText("Request classification change")).toBeNull();
+  });
+
+  it("shows the server total while only one request is loaded", async () => {
+    mockHistory.mockReturnValue({ ...mockHistory(), totalRequests: 8 });
+    const screen = await render(<ClassificationChangeHistoryScreen />);
+    expect(screen.getByTestId("history-count")).toHaveTextContent("(8)");
+  });
+
+  it("uses the current cluster's catalog icon", async () => {
+    const screen = await render(<ClassificationChangeHistoryScreen />);
+    expect(screen.getByLabelText("Current cluster icon: coffee")).toBeTruthy();
+  });
+
+  it("hides the badge when the total is unavailable", async () => {
+    const screen = await render(<ClassificationChangeHistoryScreen />);
+    expect(screen.queryByTestId("history-count")).toBeNull();
   });
 
   it("shows rejection feedback and permits a new classification request", async () => {
@@ -110,9 +141,7 @@ describe("ClassificationChangeHistoryScreen", () => {
       isLoading: true,
     });
     const loading = await render(<ClassificationChangeHistoryScreen />);
-    expect(
-      loading.queryByText("No classification change requests yet."),
-    ).toBeNull();
+    expect(loading.queryByText("No classification requests yet")).toBeNull();
   });
 
   it("shows an empty state", async () => {
@@ -128,9 +157,7 @@ describe("ClassificationChangeHistoryScreen", () => {
       refetch: mockRefetch,
     });
     const empty = await render(<ClassificationChangeHistoryScreen />);
-    expect(
-      empty.getByText("No classification change requests yet."),
-    ).toBeTruthy();
+    expect(empty.getByText("No classification requests yet")).toBeTruthy();
   });
 
   it("keeps a persistent Retry action on a page-level error", async () => {

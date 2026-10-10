@@ -47,6 +47,7 @@ const pendingRequest: LocationChangeRequest = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "Our business location has changed.",
 };
 
 function page(
@@ -59,6 +60,17 @@ function page(
     message: "Success.",
     data: {
       items,
+      eligibility: {
+        can_submit: !items.some((item) => item.status === "pending"),
+        reason: items.some((item) => item.status === "pending")
+          ? ("pending" as const)
+          : null,
+        cooldown_duration_hours: 72,
+        cooldown_until: null,
+        last_approved_request_id: null,
+        pending_request_id:
+          items.find((item) => item.status === "pending")?.id ?? null,
+      },
       pagination: {
         page: number,
         page_size: 10,
@@ -105,10 +117,16 @@ describe("merchant location change queries", () => {
     );
 
     await waitFor(() => expect(result.current.pendingRequest?.id).toBe(107));
+    expect(result.current.totalRequests).toBe(2);
     await act(async () => {
       await result.current.fetchNextPage();
     });
-    expect(result.current.requests.map((item) => item.id)).toEqual([107, 106]);
+    await waitFor(() =>
+      expect(result.current.requests.map((item) => item.id)).toEqual([
+        107, 106,
+      ]),
+    );
+    expect(result.current.totalRequests).toBe(2);
     expect(service.getLocationChangeRequests).toHaveBeenNthCalledWith(2, 2);
     unmount();
     client.clear();
@@ -130,6 +148,7 @@ describe("merchant location change queries", () => {
     const payload = {
       proposed_location: pendingRequest.proposed.location,
       proposed_landmarks: [],
+      reason: "Our business location has changed.",
     };
 
     await act(async () => {

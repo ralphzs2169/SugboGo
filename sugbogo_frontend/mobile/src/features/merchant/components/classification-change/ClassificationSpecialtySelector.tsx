@@ -44,7 +44,11 @@ export default function ClassificationSpecialtySelector({
     (props: BottomSheetFooterProps) => (
       <BottomSheetFooter {...props} bottomInset={insets.bottom}>
         <View className="border-t border-border-primary bg-surface px-6 py-3">
-          <Button title="Done" onPress={() => sheetRef.current?.dismiss()} />
+          <Button
+            title="Done"
+            onPress={() => sheetRef.current?.dismiss()}
+            rounded="full"
+          />
         </View>
       </BottomSheetFooter>
     ),
@@ -53,14 +57,11 @@ export default function ClassificationSpecialtySelector({
 
   return (
     <View>
-      {/* Selected tags and count */}
-      <AppText weight="semibold" className="text-sm text-text-primary">
-        Specialty tags
-      </AppText>
-      <AppText className="mt-1 text-xs text-text-secondary">
+      {/* Selected specialties */}
+      <AppText className="text-xs text-text-secondary">
         {selectedIds.length} of 3 selected
       </AppText>
-      <View className="mt-3 flex-row flex-wrap">
+      <View className="mt-3 flex-row flex-wrap gap-2">
         {selectedIds.map((id) => {
           const tag = tags.find((item) => item.id === id);
           return tag ? (
@@ -68,16 +69,19 @@ export default function ClassificationSpecialtySelector({
           ) : null;
         })}
       </View>
-      <Pressable
+
+      <Button
+        title={
+          selectedIds.length === 3
+            ? "Edit specialty tags"
+            : "Choose specialty tags"
+        }
+        variant="soft"
+        rounded="full"
+        className="mt-6"
         onPress={() => sheetRef.current?.present()}
-        accessibilityRole="button"
-        accessibilityLabel="Choose specialty tags"
-        className="cursor-pointer min-h-12 items-center justify-center rounded-xl border border-border-primary bg-surface active:bg-brand/10"
-      >
-        <AppText weight="semibold" className="text-sm text-brand">
-          Choose specialty tags
-        </AppText>
-      </Pressable>
+        size="sm"
+      />
       {error ? (
         <AppText className="mt-2 text-xs text-text-error">{error}</AppText>
       ) : null}
@@ -99,46 +103,60 @@ export default function ClassificationSpecialtySelector({
           />
         )}
       >
-        <BottomSheetView className="mb-4 border-b border-border-primary px-6 pb-3">
-          <View className="flex-row items-center justify-between">
-            <AppText weight="bold" className="text-xl text-text-primary">
-              Specialty Tags
-            </AppText>
-            <AppText className="text-sm text-text-secondary">
-              {selectedIds.length} of 3 selected
+        <View className="flex-1">
+          {/* Fixed sheet header */}
+          <View className="border-b border-border-primary bg-surface px-6 pb-4 pt-3">
+            <View className="flex-row items-center justify-between gap-3">
+              <AppText
+                weight="bold"
+                className="flex-1 text-xl text-text-primary"
+              >
+                Specialty Tags
+              </AppText>
+
+              <AppText className="text-xs text-text-secondary">
+                {selectedIds.length} of 3 selected
+              </AppText>
+            </View>
+
+            <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+              {selectedIds.length >= 3
+                ? "Deselect a specialty to choose a different one."
+                : "Select exactly 3 tags that describe your business."}
             </AppText>
           </View>
-          <AppText className="mt-1 text-sm text-text-secondary">
-            {selectedIds.length >= 3
-              ? "Deselect a specialty to choose a different one."
-              : "Select exactly 3 tags that describe your business."}
-          </AppText>
-        </BottomSheetView>
-        <BottomSheetScrollView
-          contentContainerClassName="px-6"
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 32) }}
-          enableFooterMarginAdjustment
-          showsVerticalScrollIndicator={false}
-          testID="classification-specialty-options"
-        >
-          <View className="flex-row flex-wrap justify-center gap-2">
-            {tags.map((tag) => {
-              const isSelected = selectedIds.includes(tag.id);
-              return (
-                <SpecialtyTagChip
-                  key={tag.id}
-                  tag={tag}
-                  mode="registration"
-                  isSelected={isSelected}
-                  isDisabled={!isSelected && selectedIds.length >= 3}
-                  onPress={() => toggleTag(tag.id)}
-                  showIcon
-                  showSelectionIndicator
-                />
-              );
-            })}
-          </View>
-        </BottomSheetScrollView>
+
+          {/* Scrollable specialty options */}
+          <BottomSheetScrollView
+            style={{ flex: 1 }}
+            contentContainerClassName="px-6 pt-4"
+            contentContainerStyle={{
+              paddingBottom: Math.max(insets.bottom, 32),
+            }}
+            enableFooterMarginAdjustment
+            showsVerticalScrollIndicator={false}
+            testID="classification-specialty-options"
+          >
+            <View className="flex-row flex-wrap justify-center gap-2">
+              {tags.map((tag) => {
+                const isSelected = selectedIds.includes(tag.id);
+
+                return (
+                  <SpecialtyTagChip
+                    key={tag.id}
+                    tag={tag}
+                    mode="registration"
+                    isSelected={isSelected}
+                    isDisabled={!isSelected && selectedIds.length >= 3}
+                    onPress={() => toggleTag(tag.id)}
+                    showIcon
+                    showSelectionIndicator
+                  />
+                );
+              })}
+            </View>
+          </BottomSheetScrollView>
+        </View>
       </BottomSheetModal>
     </View>
   );

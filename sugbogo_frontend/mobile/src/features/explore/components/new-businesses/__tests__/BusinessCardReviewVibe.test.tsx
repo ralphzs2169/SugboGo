@@ -13,6 +13,7 @@ const business = {
   id: 12,
   business_name: "Review Vibe Cafe",
   cover_photo_url: null,
+  display_cover_photo_url: null,
   review_count: 12,
   overall_vibe: "mostly_positive",
   is_pocketed: false,
@@ -40,6 +41,22 @@ async function renderBusiness(overrides: Partial<ExploreBusiness>) {
 }
 
 describe("BusinessCard review vibe", () => {
+  it("uses the resolved display cover and keeps the empty-image placeholder", async () => {
+    const withPhoto = await renderBusiness({
+      display_cover_photo_url: "https://example.com/storefront.jpg",
+    });
+    expect(JSON.stringify(withPhoto.toJSON())).toContain(
+      "https://example.com/storefront.jpg",
+    );
+
+    const withoutPhoto = await renderBusiness({
+      display_cover_photo_url: null,
+    });
+    expect(JSON.stringify(withoutPhoto.toJSON())).not.toContain(
+      "https://example.com/storefront.jpg",
+    );
+  });
+
   it("shows review count and vibe when available", async () => {
     const screen = await renderBusiness({});
     expect(screen.getByText("12 reviews")).toBeTruthy();

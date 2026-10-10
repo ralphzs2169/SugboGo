@@ -47,6 +47,7 @@ const pendingRequest: ClassificationChangeRequest = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "Our products and services have changed.",
 };
 
 function page(
@@ -59,6 +60,17 @@ function page(
     message: "Success.",
     data: {
       items,
+      eligibility: {
+        can_submit: !items.some((item) => item.status === "pending"),
+        reason: items.some((item) => item.status === "pending")
+          ? ("pending" as const)
+          : null,
+        cooldown_duration_hours: 168,
+        cooldown_until: null,
+        last_approved_request_id: null,
+        pending_request_id:
+          items.find((item) => item.status === "pending")?.id ?? null,
+      },
       pagination: {
         page: number,
         page_size: 10,
@@ -104,6 +116,7 @@ describe("classification change React Query hooks", () => {
       { wrapper },
     );
     await waitFor(() => expect(result.current.requests).toHaveLength(1));
+    expect(result.current.totalRequests).toBe(2);
     expect(result.current.pendingRequest?.id).toBe(7);
     await act(async () => {
       await result.current.fetchNextPage();
@@ -111,6 +124,7 @@ describe("classification change React Query hooks", () => {
     await waitFor(() =>
       expect(result.current.requests.map((item) => item.id)).toEqual([7, 6]),
     );
+    expect(result.current.totalRequests).toBe(2);
     expect(service.getClassificationChangeRequests).toHaveBeenNthCalledWith(
       2,
       2,
@@ -142,11 +156,13 @@ describe("classification change React Query hooks", () => {
       await result.current.mutateAsync({
         proposed_category_id: 4,
         proposed_specialty_tag_ids: [2, 3, 4],
+        reason: "Our products and services have changed.",
       });
     });
     expect(service.submitClassificationChange).toHaveBeenCalledWith({
       proposed_category_id: 4,
       proposed_specialty_tag_ids: [2, 3, 4],
+      reason: "Our products and services have changed.",
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: merchantClassificationChangeKeys.list(42),

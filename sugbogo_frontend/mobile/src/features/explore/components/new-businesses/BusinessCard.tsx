@@ -142,9 +142,9 @@ export default function BusinessCard({
           }}
           className="relative shrink-0 overflow-hidden rounded-xl bg-surface-secondary"
         >
-          {business.cover_photo_url ? (
+          {business.display_cover_photo_url ? (
             <Image
-              source={{ uri: business.cover_photo_url }}
+              source={{ uri: business.display_cover_photo_url }}
               style={{
                 width: "100%",
                 height: "100%",
@@ -298,9 +298,9 @@ export default function BusinessCard({
           }}
           className="relative w-full bg-surface-secondary"
         >
-          {business.cover_photo_url ? (
+          {business.display_cover_photo_url ? (
             <Image
-              source={{ uri: business.cover_photo_url }}
+              source={{ uri: business.display_cover_photo_url }}
               style={{
                 width: "100%",
                 height: "100%",

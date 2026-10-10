@@ -33,9 +33,9 @@ export default function ExploreBusinessHero({
   return (
     <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
       {/* Cover photo */}
-      {business.cover_photo_url ? (
+      {business.display_cover_photo_url ? (
         <Image
-          source={{ uri: business.cover_photo_url }}
+          source={{ uri: business.display_cover_photo_url }}
           style={{
             width: "100%",
             height: "100%",

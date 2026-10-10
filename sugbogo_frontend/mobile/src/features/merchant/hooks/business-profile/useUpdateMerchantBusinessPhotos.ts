@@ -6,6 +6,7 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import { updateMerchantBusinessPhotos } from "../../api/merchantBusinessProfile.service";
 import { merchantBusinessProfileKey } from "./merchantBusinessProfileQueryKeys";
+import { invalidateBusinessDisplayCover } from "./invalidateBusinessDisplayCover";
 
 /** Save the live photo collection and refresh owner and Explorer detail reads. */
 export default function useUpdateMerchantBusinessPhotos(
@@ -35,7 +36,10 @@ export default function useUpdateMerchantBusinessPhotos(
         );
       }
 
-      await Promise.all(invalidations);
+      await Promise.all([
+        ...invalidations,
+        invalidateBusinessDisplayCover(queryClient),
+      ]);
     },
   });
 

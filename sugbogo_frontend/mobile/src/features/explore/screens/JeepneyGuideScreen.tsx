@@ -213,7 +213,7 @@ export default function JeepneyGuideScreen({ businessId }: Props) {
         <JeepneyDestinationStickyHeader
           businessName={businessName}
           address={destinationAddress}
-          coverPhotoUrl={business.cover_photo_url}
+          coverPhotoUrl={business.display_cover_photo_url}
           opacity={stickyHeaderOpacity}
           translateY={stickyHeaderTranslateY}
         />
@@ -234,7 +234,7 @@ export default function JeepneyGuideScreen({ businessId }: Props) {
         <JeepneyDestinationHeader
           businessName={businessName}
           address={destinationAddress}
-          coverPhotoUrl={business?.cover_photo_url ?? null}
+          coverPhotoUrl={business?.display_cover_photo_url ?? null}
           isLoading={businessQuery.isLoading && !business}
         />
 

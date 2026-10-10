@@ -94,17 +94,39 @@ describe("MerchantOperatingHoursEditScreen", () => {
     const screen = await render(<MerchantOperatingHoursEditScreen />);
 
     expect(screen.getAllByText(/8:00/).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Save Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+
+    await press(screen.getByLabelText("Edit monday hours"));
+    await press(screen.getByText("Open 24 hours"));
+    expect(
+      screen.getByRole("button", { name: "Save Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(false);
+
     await press(screen.getByText("Save Changes"));
 
     await waitFor(() => {
       expect(mockUpdateOperatingHours).toHaveBeenCalledWith({
-        hours: DAYS.map((day) => ({
-          day,
-          is_open: true,
-          is_24_hours: false,
-          open_time: "08:00",
-          close_time: "17:00",
-        })),
+        hours: DAYS.map((day) =>
+          day === "monday"
+            ? {
+                day,
+                is_open: true,
+                is_24_hours: true,
+                open_time: null,
+                close_time: null,
+              }
+            : {
+                day,
+                is_open: true,
+                is_24_hours: false,
+                open_time: "08:00",
+                close_time: "17:00",
+              },
+        ),
       });
       expect(router.back).toHaveBeenCalledTimes(1);
       expect(Toast.show).toHaveBeenCalledWith(

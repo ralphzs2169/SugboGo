@@ -65,6 +65,7 @@ function createBusiness(
     id,
     business_name: name,
     cover_photo_url: null,
+    display_cover_photo_url: null,
     review_count: 0,
     overall_vibe: null,
     is_pocketed: false,

@@ -14,6 +14,12 @@ from apps.merchant_operations.business_profile.models import (
 from apps.merchant_operations.business_profile.serializers.business_name_change_serializers import (
     BusinessNameChangeCreateSerializer,
 )
+from apps.merchant_operations.business_profile.services.business_change_request_eligibility_service import (
+    BusinessChangeRequestEligibilityService,
+)
+from apps.merchant_operations.business_profile.services.merchant_change_reason import (
+    validate_merchant_change_reason,
+)
 
 
 class BusinessNameChangeService:
@@ -37,11 +43,12 @@ class BusinessNameChangeService:
         return serializer.validated_data["proposed_business_name"]
 
     @staticmethod
-    def submit(user, proposed_business_name):
+    def submit(user, proposed_business_name, reason):
         """Create a pending request while preserving the live business name."""
         proposed_name = BusinessNameChangeService._validate_proposed_name(
             proposed_business_name,
         )
+        merchant_reason = validate_merchant_change_reason(reason)
 
         try:
             with transaction.atomic():
@@ -67,19 +74,25 @@ class BusinessNameChangeService:
                         ],
                     })
 
-                if BusinessNameChangeRequest.objects.filter(
-                    BUSN_ID=business,
-                    BNCR_STATUS=BusinessNameChangeRequest.Status.PENDING,
-                ).exists():
-                    raise ValidationError(
-                        "A business name change request is already pending."
+                eligibility = (
+                    BusinessChangeRequestEligibilityService.for_business_name(
+                        business,
                     )
+                )
+                BusinessChangeRequestEligibilityService.enforce(
+                    eligibility,
+                    request_label="business name change",
+                    pending_message=(
+                        "A business name change request is already pending."
+                    ),
+                )
 
                 return BusinessNameChangeRequest.objects.create(
                     BUSN_ID=business,
                     USER_ID=user,
                     BNCR_PREVIOUS_BUSINESS_NAME=business.BUSN_NAME,
                     BNCR_PROPOSED_BUSINESS_NAME=proposed_name,
+                    BNCR_MERCHANT_REASON=merchant_reason,
                     BNCR_STATUS=BusinessNameChangeRequest.Status.PENDING,
                     BNCR_SUBMITTED_AT=timezone.now(),
                 )
@@ -101,6 +114,14 @@ class BusinessNameChangeService:
             BusinessNameChangeRequest.objects
             .filter(BUSN_ID=business, USER_ID=user)
             .order_by("-BNCR_SUBMITTED_AT", "-BNCR_ID")
+        )
+
+    @staticmethod
+    def get_eligibility_for_merchant(user):
+        """Return the merchant's current business-name request eligibility."""
+        business = BusinessNameChangeService._get_owned_business(user)
+        return BusinessChangeRequestEligibilityService.for_business_name(
+            business,
         )
 
     @staticmethod

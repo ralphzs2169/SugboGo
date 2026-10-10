@@ -9,7 +9,11 @@ from apps.business.models import (
     BusinessPhoto,
     BusinessSpecialtyTag,
 )
-from apps.merchant_application.models import MerchantApplicationDocument
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationDocument,
+)
 from apps.shared.services.cloudinary_service import CloudinaryService
 
 
@@ -38,6 +42,9 @@ class BusinessProfileService:
                     "LOCT_ID",
                     "merchant_application",
                     "merchant_application__identity",
+                )
+                .annotate(
+                    display_cover_photo_url=display_cover_photo_expression(),
                 )
                 .prefetch_related(
                     Prefetch(
@@ -81,6 +88,22 @@ class BusinessProfileService:
             raise NotFound(
                 "Your business could not be found.",
             )
+
+    @staticmethod
+    def get_verification_document_for_merchant(user, document_id):
+        """Return a document only from the caller's approved business application."""
+        try:
+            return MerchantApplicationDocument.objects.select_related(
+                "MAPP_ID",
+            ).get(
+                MDOC_ID=document_id,
+                MAPP_ID__BUSN_ID__USER_ID=user,
+                MAPP_ID__MAPP_STATUS=(
+                    MerchantApplication.ApplicationStatus.APPROVED
+                ),
+            )
+        except MerchantApplicationDocument.DoesNotExist:
+            raise NotFound("The requested document could not be found.")
 
     @staticmethod
     def update_information(business, validated_data):

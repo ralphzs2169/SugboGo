@@ -14,8 +14,11 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("../../hooks/useExploreBusinessProfile");
 jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
-  ReviewDerivedDataSyncProvider: ({ children }: { children: React.ReactNode }) =>
+  ReviewDerivedDataSyncProvider: ({
     children,
+  }: {
+    children: React.ReactNode;
+  }) => children,
 }));
 jest.mock("../../hooks/useBusinessProfileVisit", () => jest.fn());
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
@@ -95,15 +98,17 @@ jest.mock("../../components/business-profile/SimilarPlacesSection", () => ({
 
 jest.mock("../../components/business-profile/ExploreBusinessHero", () => ({
   __esModule: true,
+  default: ({ isOwnBusiness }: { isOwnBusiness: boolean }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Text } = require("react-native");
+
+    return <Text>{isOwnBusiness ? "Your Business" : "Explorer hero"}</Text>;
+  },
+}));
+jest.mock("../../components/business-profile/BusinessProfileQuickInfo", () => ({
+  __esModule: true,
   default: () => null,
 }));
-jest.mock(
-  "../../components/business-profile/BusinessProfileQuickInfo",
-  () => ({
-    __esModule: true,
-    default: () => null,
-  }),
-);
 jest.mock(
   "../../components/business-profile/BusinessSpecialtiesSection",
   () => ({
@@ -119,38 +124,35 @@ jest.mock("../../components/business-profile/BusinessPhotosSection", () => ({
   __esModule: true,
   default: () => null,
 }));
-jest.mock(
-  "../../components/business-profile/BusinessVisitInfoContent",
-  () => ({
-    __esModule: true,
-    default: ({
-      isOwnBusiness,
-      onViewRoute,
-      onJeepneyGuide,
-      onRide,
-    }: {
-      isOwnBusiness: boolean;
-      onViewRoute: () => void;
-      onJeepneyGuide: () => void;
-      onRide: () => void;
-    }) => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { Pressable, View } = require("react-native");
+jest.mock("../../components/business-profile/BusinessVisitInfoContent", () => ({
+  __esModule: true,
+  default: ({
+    isOwnBusiness,
+    onViewRoute,
+    onJeepneyGuide,
+    onRide,
+  }: {
+    isOwnBusiness: boolean;
+    onViewRoute: () => void;
+    onJeepneyGuide: () => void;
+    onRide: () => void;
+  }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pressable, View } = require("react-native");
 
-      if (isOwnBusiness) {
-        return null;
-      }
+    if (isOwnBusiness) {
+      return null;
+    }
 
-      return (
-        <View>
-          <Pressable testID="route-action" onPress={onViewRoute} />
-          <Pressable testID="jeepney-action" onPress={onJeepneyGuide} />
-          <Pressable testID="ride-action" onPress={onRide} />
-        </View>
-      );
-    },
-  }),
-);
+    return (
+      <View>
+        <Pressable testID="route-action" onPress={onViewRoute} />
+        <Pressable testID="jeepney-action" onPress={onJeepneyGuide} />
+        <Pressable testID="ride-action" onPress={onRide} />
+      </View>
+    );
+  },
+}));
 jest.mock("../../components/business-profile/BusinessProfileFooter", () => ({
   __esModule: true,
   default: ({ isOwnBusiness }: { isOwnBusiness: boolean }) => {
@@ -286,6 +288,33 @@ describe("Explore Business Profile actions and section placement", () => {
 
     expect(screen.getByText("Manage My Business")).toBeTruthy();
     expect(screen.queryByTestId("route-action")).toBeNull();
+    expect(screen.queryByTestId("write-review-action")).toBeNull();
+  });
+
+  it("shows Explorer presentation in merchant preview without enabling review creation", async () => {
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: {
+        ...explorerBusiness,
+        is_own_business: true,
+      },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    const screen = await render(
+      <ExploreBusinessProfileScreen
+        businessId={20}
+        distance={null}
+        distanceAccuracy={null}
+        previewAsExplorer
+      />,
+    );
+
+    expect(screen.getByText("Explorer hero")).toBeTruthy();
+    expect(screen.queryByText("Your Business")).toBeNull();
+    expect(screen.queryByText("Manage My Business")).toBeNull();
+    expect(screen.getByTestId("route-action")).toBeTruthy();
     expect(screen.queryByTestId("write-review-action")).toBeNull();
   });
 

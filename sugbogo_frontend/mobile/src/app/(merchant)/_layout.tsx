@@ -12,6 +12,27 @@ export default function MerchantLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
 
+      <Stack.Screen name="business-location-map" />
+
+      <Stack.Screen
+        name="manage-business"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Manage Business",
+        }}
+      />
+      <Stack.Screen
+        name="change-requests"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Change Requests",
+        }}
+      />
+
       {/* Business information */}
       <Stack.Screen
         name="business-information"
@@ -50,6 +71,7 @@ export default function MerchantLayout() {
           ...slideFromRight,
           headerShown: true,
           title: "Request Name Change",
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
@@ -58,7 +80,7 @@ export default function MerchantLayout() {
           ...defaultStackScreenOptions,
           ...slideFromRight,
           headerShown: true,
-          title: "Requested Changes",
+          title: "Business Name Requests",
         }}
       />
       <Stack.Screen
@@ -77,6 +99,7 @@ export default function MerchantLayout() {
           ...slideFromRight,
           headerShown: true,
           title: "Request Classification Change",
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
@@ -104,10 +127,12 @@ export default function MerchantLayout() {
           ...slideFromRight,
           headerShown: true,
           title: "Request Location Change",
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen name="location-change/picker" />
       <Stack.Screen name="location-change/landmarks-picker" />
+      <Stack.Screen name="location-change/review-landmarks" />
       <Stack.Screen
         name="business-update-requests/location/index"
         options={{

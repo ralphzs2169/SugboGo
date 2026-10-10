@@ -31,6 +31,7 @@ const pendingRequest: BusinessNameChangeRequest = {
   submitted_at: "2026-10-03T10:00:00Z",
   resolved_at: null,
   rejection_reason: null,
+  reason: "We are updating our business identity.",
 };
 
 function page(
@@ -43,6 +44,17 @@ function page(
     message: "Success.",
     data: {
       items,
+      eligibility: {
+        can_submit: !items.some((item) => item.status === "pending"),
+        reason: items.some((item) => item.status === "pending")
+          ? ("pending" as const)
+          : null,
+        cooldown_duration_hours: 168,
+        cooldown_until: null,
+        last_approved_request_id: null,
+        pending_request_id:
+          items.find((item) => item.status === "pending")?.id ?? null,
+      },
       pagination: {
         page: number,
         page_size: 10,
@@ -89,6 +101,7 @@ describe("business name change React Query hooks", () => {
     );
 
     await waitFor(() => expect(result.current.requests).toHaveLength(1));
+    expect(result.current.totalRequests).toBe(2);
     expect(result.current.pendingRequest?.id).toBe(7);
     await act(async () => {
       await result.current.fetchNextPage();
@@ -96,6 +109,7 @@ describe("business name change React Query hooks", () => {
     await waitFor(() =>
       expect(result.current.requests.map((item) => item.id)).toEqual([7, 6]),
     );
+    expect(result.current.totalRequests).toBe(2);
     expect(service.getBusinessNameChangeRequests).toHaveBeenNthCalledWith(2, 2);
     unmount();
     client.clear();
@@ -119,10 +133,14 @@ describe("business name change React Query hooks", () => {
     );
 
     await act(async () => {
-      await result.current.mutateAsync("Sugbo Heritage Bistro");
+      await result.current.mutateAsync({
+        proposed_business_name: "Sugbo Heritage Bistro",
+        reason: "We are updating our business identity.",
+      });
     });
     expect(service.submitBusinessNameChange).toHaveBeenCalledWith({
       proposed_business_name: "Sugbo Heritage Bistro",
+      reason: "We are updating our business identity.",
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: merchantBusinessNameChangeKeys.list(42),

@@ -23,6 +23,7 @@ import type {
   SubmitLocationChangePayload,
 } from "../../types/locationChange.types";
 import { merchantLocationChangeKeys } from "./locationChangeQueryKeys";
+import { businessChangePendingStatusQueryKey } from "../change-requests/businessChangePendingStatusQueryKey";
 
 const handledApprovals = new Set<string>();
 const handlingApprovals = new Set<string>();
@@ -105,13 +106,21 @@ export function useMerchantLocationChangeRequests() {
     refetchOnMount: "always",
   });
   const requests = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const totalRequests = query.data?.pages[0]?.pagination.total_items;
   const latestRequest = query.data?.pages[0]?.items[0];
+  const eligibility = query.data?.pages[0]?.eligibility ?? null;
+  const pendingRequest =
+    requests.find(
+      (request) => request.id === eligibility?.pending_request_id,
+    ) ?? null;
   useRefreshApprovedLocation(latestRequest, userId);
 
   return {
     requests,
+    totalRequests,
     latestRequest,
-    pendingRequest: latestRequest?.status === "pending" ? latestRequest : null,
+    eligibility,
+    pendingRequest,
     hasData: query.data !== undefined,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
@@ -156,10 +165,15 @@ export function useSubmitMerchantLocationChange() {
         merchantLocationChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await queryClient.invalidateQueries({
-        queryKey: merchantLocationChangeKeys.list(userId),
-        refetchType: "all",
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: merchantLocationChangeKeys.list(userId),
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
+        }),
+      ]);
     },
   });
 }
@@ -176,10 +190,15 @@ export function useWithdrawMerchantLocationChange() {
         merchantLocationChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await queryClient.invalidateQueries({
-        queryKey: merchantLocationChangeKeys.list(userId),
-        refetchType: "all",
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: merchantLocationChangeKeys.list(userId),
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
+        }),
+      ]);
     },
   });
 }

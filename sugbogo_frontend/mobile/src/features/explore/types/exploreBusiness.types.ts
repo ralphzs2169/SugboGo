@@ -35,6 +35,7 @@ export type ExploreBusiness = {
   id: number;
   business_name: string;
   cover_photo_url: string | null;
+  display_cover_photo_url: string | null;
   review_count: number;
   overall_vibe: OverallReviewVibe | null;
   is_pocketed: boolean;

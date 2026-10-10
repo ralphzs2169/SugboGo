@@ -30,3 +30,16 @@ test("location list keys preserve independent status and page filters", () => {
   assert.notDeepEqual(pending, approved);
   assert.notDeepEqual(pending, secondPage);
 });
+
+test("combined queue keys share one invalidation prefix", () => {
+  const page = adminBusinessUpdateRequestKeys.combinedList({
+    status: "pending",
+    requestType: "all",
+    page: 2,
+  });
+
+  assert.deepEqual(
+    page.slice(0, adminBusinessUpdateRequestKeys.combinedLists.length),
+    adminBusinessUpdateRequestKeys.combinedLists,
+  );
+});
