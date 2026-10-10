@@ -17,6 +17,8 @@ export default function StreetViewMarkerOverlay({
   variant,
   name,
   onClick,
+  children,
+  showLabel = false,
 }) {
   const map = useMap();
   const streetViewLibrary = useMapsLibrary("streetView");
@@ -185,12 +187,29 @@ export default function StreetViewMarkerOverlay({
       "position_changed",
       updateDistance,
     );
+    let redrawFrame = null;
+    const redraw = () => {
+      if (redrawFrame !== null) {
+        cancelAnimationFrame(redrawFrame);
+      }
+      redrawFrame = requestAnimationFrame(() => {
+        overlay.draw();
+        redrawFrame = null;
+      });
+    };
+    const povListener = panorama.addListener("pov_changed", redraw);
+    const panoListener = panorama.addListener("pano_changed", redraw);
 
     // Attach this overlay directly to the Street View panorama.
     overlay.setMap(panorama);
 
     return () => {
       positionListener.remove();
+      povListener.remove();
+      panoListener.remove();
+      if (redrawFrame !== null) {
+        cancelAnimationFrame(redrawFrame);
+      }
 
       overlay.setMap(null);
       overlayRef.current = null;
@@ -202,21 +221,25 @@ export default function StreetViewMarkerOverlay({
   return createPortal(
     <>
       {/* Custom Street View marker */}
-      <BusinessMapMarker variant={variant} />
+      {children ?? <BusinessMapMarker variant={variant} />}
 
       {/* Distance from the current Street View position */}
-      {formattedDistance && (
+      {(formattedDistance || showLabel) && (
         <div
           className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded-lg border border-white/80 bg-black/75 px-2.5 py-1.5 text-center text-white shadow-sm"
-          aria-label={`${name}, ${formattedDistance} away`}
+          aria-label={
+            formattedDistance ? `${name}, ${formattedDistance} away` : name
+          }
         >
           <p className="max-w-[180px] truncate text-[11px] font-semibold">
             {name}
           </p>
 
-          <p className="mt-0.5 text-[10px] font-medium text-white/75">
-            {formattedDistance} away
-          </p>
+          {formattedDistance && (
+            <p className="mt-0.5 text-[10px] font-medium text-white/75">
+              {formattedDistance} away
+            </p>
+          )}
         </div>
       )}
     </>,
