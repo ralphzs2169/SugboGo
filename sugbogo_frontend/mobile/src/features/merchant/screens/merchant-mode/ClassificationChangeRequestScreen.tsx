@@ -561,6 +561,7 @@ export default function ClassificationChangeRequestScreen() {
               }}
               currentTags={business.specialty_tags}
               proposedTags={requestedTags}
+              showBorder={false}
             />
             <MerchantChangeReasonCard
               value={reason}

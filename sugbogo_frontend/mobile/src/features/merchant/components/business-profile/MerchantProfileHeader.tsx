@@ -236,15 +236,7 @@ export default function MerchantProfileHeader({
         <View className="flex-row items-end gap-3">
           {/* Merchant avatar overlapping the business cover */}
           <View className="-mt-9 h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-surface bg-background">
-            {avatarUrl || avatarKey ? (
-              <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={72} />
-            ) : (
-              <MaterialCommunityIcons
-                name="storefront-outline"
-                size={34}
-                color={theme.extends.colors.text.secondary}
-              />
-            )}
+            <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={72} />
           </View>
         </View>
 

@@ -1,4 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useState } from "react";
 import { Animated, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -11,6 +13,7 @@ import type { ClusterIcon } from "@/shared/types/cluster.types";
 type Props = {
   businessName: string;
   classification: string;
+  coverPhotoUrl?: string | null;
   clusterIcon?: ClusterIcon;
   visible: boolean;
   opacity: Animated.Value;
@@ -20,11 +23,12 @@ type Props = {
 
 /**
  * Reveals a compact, actionable business identity after the cover scrolls away.
- * Uses the same storefront identity fallback as the redesigned hero.
+ * Displays the business display cover with a storefront fallback.
  */
 export default function MerchantProfileStickyHeader({
   businessName,
   classification,
+  coverPhotoUrl,
   clusterIcon,
   visible,
   opacity,
@@ -32,6 +36,9 @@ export default function MerchantProfileStickyHeader({
   onManageBusiness,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null);
+  const visibleCoverUrl =
+    coverPhotoUrl && failedCoverUrl !== coverPhotoUrl ? coverPhotoUrl : null;
 
   return (
     <Animated.View
@@ -55,12 +62,22 @@ export default function MerchantProfileStickyHeader({
         accessibilityLabel="Manage business"
         className="min-h-16 cursor-pointer flex-row items-center gap-3 px-4 py-2 active:bg-background"
       >
-        <View className="h-11 w-11 items-center justify-center rounded-full bg-background">
-          <MaterialCommunityIcons
-            name="storefront-outline"
-            size={23}
-            color={theme.extends.colors.text.secondary}
-          />
+        <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-background">
+          {visibleCoverUrl ? (
+            <Image
+              source={{ uri: visibleCoverUrl }}
+              contentFit="cover"
+              style={{ width: 40, height: 40 }}
+              accessibilityLabel={`${businessName} cover photo`}
+              onError={() => setFailedCoverUrl(visibleCoverUrl)}
+            />
+          ) : (
+            <MaterialCommunityIcons
+              name="storefront-outline"
+              size={23}
+              color={theme.extends.colors.text.secondary}
+            />
+          )}
         </View>
         <View className="min-w-0 flex-1">
           <AppText

@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, within } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import Toast from "react-native-toast-message";
@@ -258,6 +258,105 @@ describe("MerchantProfileScreen", () => {
     mockClusters.mockReturnValue({
       clusters: [{ id: 1, name: "Culinary", icon: "utensils" }],
     });
+  });
+
+  it("shows a noninteractive full-page skeleton only for a cold profile load", async () => {
+    mockProfile.mockReturnValue({
+      business: null,
+      isLoading: true,
+      error: null,
+      refetch: mockRefetch,
+    });
+
+    const screen = await render(<MerchantProfileScreen />);
+
+    expect(screen.getByTestId("merchant-profile-skeleton")).toBeTruthy();
+    expect(screen.getByTestId("merchant-profile-skeleton-hero")).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-profile-skeleton-actions"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-profile-skeleton-overview"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-profile-skeleton-details"),
+    ).toBeTruthy();
+    expect(screen.getByTestId("merchant-profile-skeleton-more")).toBeTruthy();
+    expect(
+      screen.getByTestId("merchant-profile-skeleton-scroll").props
+        .contentContainerStyle.paddingBottom,
+    ).toBe(80);
+    expect(screen.queryByText("Loading Business Profile")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("replaces the skeleton with business content after the initial fetch", async () => {
+    mockProfile.mockReturnValue({
+      business: null,
+      isLoading: true,
+      error: null,
+      refetch: mockRefetch,
+    });
+    const screen = await render(<MerchantProfileScreen />);
+
+    mockProfile.mockReturnValue({
+      business: {
+        id: 7,
+        business_name: "Sugbo Bistro",
+        category: { id: 1, name: "Restaurant" },
+        cluster: { id: 1, name: "Culinary" },
+        status: "active",
+        display_cover_photo_url: null,
+        cover_photo_update: { limit: 3, remaining: 1, resets_at: null },
+        operating_hours: [],
+        photos: [],
+        specialty_tags: [],
+        location: { landmarks: [] },
+      },
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+    await screen.rerender(<MerchantProfileScreen />);
+
+    expect(screen.queryByTestId("merchant-profile-skeleton")).toBeNull();
+    expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
+    expect(screen.getByText("Manage Business")).toBeTruthy();
+  });
+
+  it("keeps cached business content during background fetch and pull refresh", async () => {
+    mockProfile.mockReturnValue({
+      business: {
+        id: 7,
+        business_name: "Sugbo Bistro",
+        category: { id: 1, name: "Restaurant" },
+        cluster: { id: 1, name: "Culinary" },
+        status: "active",
+        display_cover_photo_url: null,
+        cover_photo_update: { limit: 3, remaining: 1, resets_at: null },
+        operating_hours: [],
+        photos: [],
+        specialty_tags: [],
+        location: { landmarks: [] },
+      },
+      isLoading: true,
+      error: null,
+      refetch: mockRefetch,
+    });
+    const screen = await render(<MerchantProfileScreen />);
+    const scroll = screen.getByTestId("merchant-profile-scroll");
+
+    expect(screen.queryByTestId("merchant-profile-skeleton")).toBeNull();
+    expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
+
+    await act(async () => {
+      await scroll.props.refreshControl.props.onRefresh();
+    });
+
+    expect(mockRefetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Sugbo Bistro")).toBeTruthy();
+    expect(screen.queryByTestId("merchant-profile-skeleton")).toBeNull();
   });
 
   it("uses the Explorer logout row and confirmation flow", async () => {

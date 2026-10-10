@@ -26,6 +26,7 @@ type Props = {
   currentTags: TagValue[];
   proposedTags: TagValue[];
   status?: RequestStatus;
+  showBorder?: boolean;
 };
 
 /**
@@ -41,6 +42,7 @@ export default function ClassificationChangeReviewSections({
   currentTags,
   proposedTags,
   status,
+  showBorder = true,
 }: Props) {
   const categoryChanged = current.category.id !== proposed.category.id;
 
@@ -242,7 +244,11 @@ export default function ClassificationChangeReviewSections({
     <>
       {/* Category comparison */}
       {categoryChanged ? (
-        <View className="mb-4 rounded-2xl border border-border-primary/70 bg-surface p-4">
+        <View
+          className={`mb-4 bg-surface p-4 ${
+            showBorder ? "border rounded-xl border-border-primary/70" : ""
+          }`}
+        >
           {/* Card header */}
           <View className="flex-row items-center justify-between border-b border-border-primary/60 pb-3">
             <AppText weight="bold" className="text-sm text-text-primary">
@@ -263,7 +269,11 @@ export default function ClassificationChangeReviewSections({
 
       {/* Specialty additions and removals */}
       {hasSpecialtyChanges ? (
-        <View className="mb-4 rounded-2xl border border-border-primary/70 bg-surface p-4">
+        <View
+          className={`mb-4 bg-surface p-4 ${
+            showBorder ? "border rounded-xl border-border-primary/70" : ""
+          }`}
+        >
           {/* Card header */}
           <View className="flex-row items-center justify-between border-b border-border-primary/60 pb-3">
             <AppText weight="bold" className="text-sm text-text-primary">

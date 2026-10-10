@@ -22,7 +22,6 @@ import { getBusinessHoursSummary } from "@/features/explore/utils/businessHours.
 import ProfileMenuItem from "@/features/profile/components/ProfileMenuItem";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import LoadingScreen from "@/shared/components/LoadingScreen";
 import SafePressable from "@/shared/components/SafePressable";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -39,6 +38,7 @@ import MerchantBusinessDetails from "../../components/business-profile/MerchantB
 import { getMerchantVerificationDocumentAccess } from "../../api/merchantBusinessProfile.service";
 import MerchantBusinessStory from "../../components/business-profile/MerchantBusinessStory";
 import MerchantProfileHeader from "../../components/business-profile/MerchantProfileHeader";
+import MerchantProfileSkeleton from "../../components/business-profile/MerchantProfileSkeleton";
 import MerchantProfileStickyHeader from "../../components/business-profile/MerchantProfileStickyHeader";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
@@ -227,12 +227,7 @@ export default function MerchantProfileScreen() {
 
   // Cold-load and recoverable profile failures
   if (isLoading && !business) {
-    return (
-      <LoadingScreen
-        title="Loading Business Profile"
-        description="Fetching your business information..."
-      />
-    );
+    return <MerchantProfileSkeleton />;
   }
 
   if (!business) {
@@ -568,6 +563,7 @@ export default function MerchantProfileScreen() {
       <MerchantProfileStickyHeader
         businessName={business.business_name}
         classification={`${business.category.name} · ${business.cluster.name}`}
+        coverPhotoUrl={business.display_cover_photo_url}
         clusterIcon={clusterIcon}
         visible={isStickyVisible}
         opacity={stickyOpacity}
