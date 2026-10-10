@@ -1,13 +1,8 @@
-import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowLeftRight,
-  ArrowRight,
-  MessageSquareText,
-  Quote,
-} from "lucide-react";
+import { AlertTriangle, ArrowLeftRight } from "lucide-react";
 
 import BusinessNameRequestSidebar from "./BusinessNameRequestSidebar";
+import ReviewDirectionIndicator from "./ReviewDirectionIndicator";
+import UpdateRequestReason from "./UpdateRequestReason";
 import StatusBadge from "@/shared/components/StatusBadge";
 import { formatLabel } from "@/shared/utils/stringUtils";
 import { UPDATE_REQUEST_STATUS_VARIANTS } from "../constants/businessUpdateRequestStatus";
@@ -70,21 +65,7 @@ export default function BusinessNameReviewCase({ request }) {
               </div>
 
               {/* Circular directional indicator */}
-              <div className="flex items-center justify-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-stroke bg-background shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
-                  <ArrowDown
-                    size={18}
-                    className="text-text-secondary sm:hidden"
-                    aria-hidden="true"
-                  />
-
-                  <ArrowRight
-                    size={18}
-                    className="hidden text-text-secondary sm:block"
-                    aria-hidden="true"
-                  />
-                </div>
-              </div>
+              <ReviewDirectionIndicator />
 
               {/* Proposed name */}
               <div className="min-w-0 rounded-xl border border-stroke bg-background p-5 shadow-sm">
@@ -138,35 +119,7 @@ export default function BusinessNameReviewCase({ request }) {
           </div>
 
           {/* Merchant explanation */}
-          <div>
-            <div className="flex items-center gap-2 text-text-secondary">
-              <MessageSquareText size={15} aria-hidden="true" />
-
-              <h3 className="text-xs font-bold uppercase tracking-wider">
-                Reason for Change
-              </h3>
-            </div>
-
-            <p className="mt-5 text-xs font-medium text-text-secondary">
-              Merchant's explanation
-            </p>
-
-            <blockquote className="mt-2 flex overflow-hidden rounded-lg bg-surface">
-              <div className="w-1 shrink-0 bg-primary" aria-hidden="true" />
-
-              <div className="min-w-0 flex-1 px-4 py-4">
-                <Quote
-                  size={18}
-                  className="text-text-secondary"
-                  aria-hidden="true"
-                />
-
-                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-text-primary">
-                  {request.reason?.trim() || "No explanation provided."}
-                </p>
-              </div>
-            </blockquote>
-          </div>
+          <UpdateRequestReason reason={request.reason} />
         </div>
 
         {/* Request information, identities, and review guidance */}

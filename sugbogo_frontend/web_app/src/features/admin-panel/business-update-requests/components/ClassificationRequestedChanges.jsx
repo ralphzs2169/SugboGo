@@ -1,9 +1,9 @@
-import { ArrowDown, ArrowRight } from "lucide-react";
-
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 
 import ClassificationSpecialtyDiff from "./ClassificationSpecialtyDiff";
+import ReviewDirectionIndicator from "./ReviewDirectionIndicator";
 import { getClassificationDiff } from "../utils/classificationDiff";
+import { withClusterDisplay } from "../utils/classificationDisplay";
 
 /**
  * Displays only the captured classification differences.
@@ -15,6 +15,8 @@ export default function ClassificationRequestedChanges({
   previous,
   proposed,
   status,
+  clusterDisplay,
+  specialtyDisplay,
 }) {
   const diff = getClassificationDiff(previous, proposed);
 
@@ -25,6 +27,9 @@ export default function ClassificationRequestedChanges({
     diff.addedSpecialties.length > 0 || diff.removedSpecialties.length > 0;
 
   const proposedLabel = status === "approved" ? "Approved" : "Requested";
+  const changedField = diff.categoryChanged ? "category" : "cluster";
+  const previousCluster = withClusterDisplay(previous?.cluster, clusterDisplay);
+  const proposedCluster = withClusterDisplay(proposed?.cluster, clusterDisplay);
 
   return (
     <div className="min-w-0">
@@ -42,17 +47,24 @@ export default function ClassificationRequestedChanges({
                 At submission
               </p>
 
-              <p className="mt-3 break-words text-lg font-medium leading-7 text-text-primary">
-                {diff.categoryChanged
-                  ? previous?.category?.name || "Not provided"
-                  : previous?.cluster?.name || "Not provided"}
-              </p>
+              {diff.categoryChanged ? (
+                <p className="mt-3 break-words text-lg font-medium leading-7 text-text-primary">
+                  {previous?.category?.name || "Not provided"}
+                </p>
+              ) : (
+                <ClusterDisplay
+                  clusterName={previousCluster?.name}
+                  clusterIcon={previousCluster?.icon}
+                  variant="comparison"
+                  className="mt-3"
+                />
+              )}
 
               {diff.categoryChanged ? (
                 <div className="mt-2">
                   <ClusterDisplay
-                    clusterName={previous?.cluster?.name}
-                    clusterIcon={previous?.cluster?.icon}
+                    clusterName={previousCluster?.name}
+                    clusterIcon={previousCluster?.icon}
                     variant="small"
                   />
                 </div>
@@ -64,39 +76,33 @@ export default function ClassificationRequestedChanges({
             </div>
 
             {/* Name transition */}
-            <div className="flex items-center justify-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-stroke bg-background shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
-                <ArrowDown
-                  size={18}
-                  className="text-text-secondary sm:hidden"
-                  aria-hidden="true"
-                />
-
-                <ArrowRight
-                  size={18}
-                  className="hidden text-text-secondary sm:block"
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
+            <ReviewDirectionIndicator />
 
             {/* Proposed classification */}
             <div className="min-w-0 rounded-xl border border-stroke bg-background p-5 shadow-sm">
               <p className="text-xs font-semibold text-text-secondary">
-                {proposedLabel}
+                {proposedLabel} {changedField}
               </p>
 
-              <p className="mt-3 break-words text-xl font-bold leading-7 text-text-primary">
-                {diff.categoryChanged
-                  ? proposed?.category?.name || "Not provided"
-                  : proposed?.cluster?.name || "Not provided"}
-              </p>
+              {diff.categoryChanged ? (
+                <p className="mt-3 break-words text-xl font-bold leading-7 text-text-primary">
+                  {proposed?.category?.name || "Not provided"}
+                </p>
+              ) : (
+                <ClusterDisplay
+                  clusterName={proposedCluster?.name}
+                  clusterIcon={proposedCluster?.icon}
+                  variant="comparison"
+                  emphasized
+                  className="mt-3"
+                />
+              )}
 
               {diff.categoryChanged ? (
                 <div className="mt-2">
                   <ClusterDisplay
-                    clusterName={proposed?.cluster?.name}
-                    clusterIcon={proposed?.cluster?.icon}
+                    clusterName={proposedCluster?.name}
+                    clusterIcon={proposedCluster?.icon}
                     variant="small"
                   />
                 </div>
@@ -117,7 +123,11 @@ export default function ClassificationRequestedChanges({
             hasCategoryOrClusterChange ? "mt-6 border-t border-stroke pt-6" : ""
           }
         >
-          <ClassificationSpecialtyDiff diff={diff} status={status} />
+          <ClassificationSpecialtyDiff
+            diff={diff}
+            status={status}
+            specialtyDisplay={specialtyDisplay}
+          />
         </div>
       )}
     </div>

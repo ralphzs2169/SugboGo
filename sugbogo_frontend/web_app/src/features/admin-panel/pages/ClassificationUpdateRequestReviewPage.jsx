@@ -14,6 +14,8 @@ import RejectUpdateRequestModal from "../business-update-requests/components/Rej
 
 import useClassificationUpdateRequestDecisions from "../business-update-requests/hooks/useClassificationUpdateRequestDecisions";
 import useClassificationUpdateRequestDetail from "../business-update-requests/hooks/useClassificationUpdateRequestDetail";
+import useClassificationClusterDisplay from "../business-update-requests/hooks/useClassificationClusterDisplay";
+import useClassificationSpecialtyDisplay from "../business-update-requests/hooks/useClassificationSpecialtyDisplay";
 import { hasStalePendingBaseline } from "../business-update-requests/utils/classificationDiff";
 
 /**
@@ -39,6 +41,8 @@ export default function ClassificationUpdateRequestReviewPage() {
 
   const { request, isLoading, error, refetch } =
     useClassificationUpdateRequestDetail(requestId);
+  const clusterDisplay = useClassificationClusterDisplay(request);
+  const specialtyDisplay = useClassificationSpecialtyDisplay(request);
 
   const decisions = useClassificationUpdateRequestDecisions();
 
@@ -48,7 +52,11 @@ export default function ClassificationUpdateRequestReviewPage() {
 
   const isStalePendingRequest = hasStalePendingBaseline(request);
 
-  useDocumentTitle("Review Classification Request | SugboGo Admin");
+  useDocumentTitle(
+    request
+      ? `Request #${request.id} | SugboGo Admin`
+      : "Review Classification Request | SugboGo Admin",
+  );
 
   useApiErrorNotification(error, {
     toastId: "admin-classification-request-detail-error",
@@ -185,7 +193,7 @@ export default function ClassificationUpdateRequestReviewPage() {
       {/* Classification review content */}
       <DetailPageLayout
         breadcrumbs={breadcrumbs}
-        title="Classification & Specialty Change Request"
+        title={request ? `Request #${request.id}` : "Review Request"}
         backLabel="Back to Update Requests"
         onBack={handleBack}
         isLoading={isLoading && !request}
@@ -225,6 +233,8 @@ export default function ClassificationUpdateRequestReviewPage() {
             <ClassificationReviewCase
               request={request}
               isStalePendingRequest={isStalePendingRequest}
+              clusterDisplay={clusterDisplay}
+              specialtyDisplay={specialtyDisplay}
             />
           </div>
         )}
@@ -266,7 +276,7 @@ export default function ClassificationUpdateRequestReviewPage() {
             <div className="flex w-full gap-3 sm:w-auto">
               <Button
                 type="button"
-                variant="danger"
+                variant="danger-outline"
                 className="flex-1 cursor-pointer sm:flex-none"
                 disabled={isDecisionPending}
                 onClick={() => openDialog("reject")}
@@ -292,6 +302,8 @@ export default function ClassificationUpdateRequestReviewPage() {
       <ApproveClassificationRequestModal
         isOpen={activeDialog === "approve" && request?.status === "pending"}
         request={request}
+        clusterDisplay={clusterDisplay}
+        specialtyDisplay={specialtyDisplay}
         loading={decisions.isApproving}
         onClose={closeDialog}
         onConfirm={approve}
