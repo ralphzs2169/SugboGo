@@ -40,6 +40,7 @@ Test HTTP routing preservation, initial authentication timeout, invalid/expired 
 ### Follow-up verification (2026-10-11, Asia/Manila)
 
 - The 17 socket/publication regression tests passed again on October 10.
+- After merging origin/main at 82b9d9e, all 135 notification, admin moderation, and merchant business-profile tests passed on October 11. The overlapping classification test changes merged cleanly.
 - Local Docker Redis responded to PING and the configured Redis channel layer delivered a transient group message.
 - A real local Daphne server passed a network WebSocket smoke test against disposable PostgreSQL fixtures: signed access-token authentication, recipient isolation, notification creation signals, read-state signals, and reconnect synchronization. The temporary server stopped and the test database was removed successfully.
 - The smoke harness lives in the ignored local test environment. It does not verify production TLS/proxy configuration or implement frontend synchronization. Automated tests cover simulated Redis failures; a live Redis outage has not been exercised.
