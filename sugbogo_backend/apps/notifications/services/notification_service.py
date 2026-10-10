@@ -3,6 +3,9 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.notifications.models import Notification
+from apps.notifications.services.notification_realtime_service import (
+    NotificationRealtimeService,
+)
 
 
 class NotificationService:
@@ -42,11 +45,13 @@ class NotificationService:
             or (target_id is not None and target_id <= 0)
         ):
             raise ValidationError("Provide a target type and positive target ID together.")
-        notification, _ = Notification.objects.get_or_create(
+        notification, created = Notification.objects.get_or_create(
             USER_ID=recipient,
             NOTF_DEDUP_KEY=dedup_key,
             defaults=values,
         )
+        if created:
+            NotificationRealtimeService.schedule(recipient.pk)
         return notification
 
     @staticmethod
@@ -67,10 +72,12 @@ class NotificationService:
         """Mark a recipient's item read while preserving its first read timestamp."""
         queryset = NotificationService.queryset(user).filter(pk=notification_id)
         now = timezone.now()
-        queryset.filter(NOTF_READ_AT__isnull=True).update(
+        updated = queryset.filter(NOTF_READ_AT__isnull=True).update(
             NOTF_READ_AT=now,
             NOTF_UPDATED_AT=now,
         )
+        if updated:
+            NotificationRealtimeService.schedule(user.pk)
         try:
             return queryset.get()
         except Notification.DoesNotExist as exc:
@@ -80,7 +87,10 @@ class NotificationService:
     def mark_all_read(user):
         """Mark currently unread recipient items read in one database statement."""
         now = timezone.now()
-        return NotificationService.queryset(user, is_read=False).update(
+        updated = NotificationService.queryset(user, is_read=False).update(
             NOTF_READ_AT=now,
             NOTF_UPDATED_AT=now,
         )
+        if updated:
+            NotificationRealtimeService.schedule(user.pk)
+        return updated

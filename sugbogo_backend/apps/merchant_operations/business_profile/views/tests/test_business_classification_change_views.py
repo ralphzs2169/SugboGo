@@ -388,11 +388,15 @@ class BusinessClassificationChangeViewTests(TestCase):
         with patch(
             "apps.merchant_operations.business_profile.services."
             "business_classification_change_service.recompute_discovery_scores.delay"
-        ) as dispatch:
+        ) as dispatch, patch(
+            "apps.notifications.services.notification_realtime_service."
+            "NotificationRealtimeService.publish"
+        ) as publish:
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
                 response = self._approve(request_id)
-            self.assertEqual(len(callbacks), 1)
+            self.assertEqual(len(callbacks), 2)
             dispatch.assert_called_once_with()
+            publish.assert_called_once_with(self.merchant.pk)
         self.assertEqual(response.status_code, 200, response.data)
         self.business.refresh_from_db()
         self.assertEqual(self.business.CTGRY_ID_id, self.new_category.pk)
@@ -509,13 +513,22 @@ class BusinessClassificationChangeViewTests(TestCase):
         self.assertEqual(detail.data["data"]["proposed"]["category"]["id"], self.new_category.pk)
         reject_url = f"{self._detail(request_id, admin=True)}reject/"
         self.assertEqual(self.client.post(reject_url, {}, format="json").status_code, 400)
-        with self.captureOnCommitCallbacks(execute=True) as callbacks:
-            rejected = self.client.post(
-                reject_url,
-                {"rejection_reason": "Choose a more accurate category."},
-                format="json",
-            )
-        self.assertEqual(callbacks, [])
+        with patch(
+            "apps.notifications.services.notification_realtime_service."
+            "NotificationRealtimeService.publish"
+        ) as publish, patch(
+            "apps.merchant_operations.business_profile.services."
+            "business_classification_change_service.recompute_discovery_scores.delay"
+        ) as dispatch:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                rejected = self.client.post(
+                    reject_url,
+                    {"rejection_reason": "Choose a more accurate category."},
+                    format="json",
+                )
+            self.assertEqual(len(callbacks), 1)
+            publish.assert_called_once_with(self.merchant.pk)
+            dispatch.assert_not_called()
         self.assertEqual(rejected.status_code, 200, rejected.data)
         self.assertEqual(rejected.data["data"]["status"], "rejected")
         self.assertEqual(
