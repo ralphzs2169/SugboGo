@@ -20,6 +20,7 @@ import type {
   SubmitClassificationChangePayload,
 } from "../../types/classificationChange.types";
 import { merchantClassificationChangeKeys } from "./classificationChangeQueryKeys";
+import { businessChangePendingStatusQueryKey } from "../change-requests/businessChangePendingStatusQueryKey";
 
 function useRefreshApprovedClassification(
   request: ClassificationChangeRequest | undefined,
@@ -89,13 +90,21 @@ export function useMerchantClassificationChangeRequests() {
     refetchOnMount: "always",
   });
   const requests = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const totalRequests = query.data?.pages[0]?.pagination.total_items;
   const latestRequest = query.data?.pages[0]?.items[0];
+  const eligibility = query.data?.pages[0]?.eligibility ?? null;
+  const pendingRequest =
+    requests.find(
+      (request) => request.id === eligibility?.pending_request_id,
+    ) ?? null;
   useRefreshApprovedClassification(latestRequest, userId);
 
   return {
     requests,
+    totalRequests,
     latestRequest,
-    pendingRequest: latestRequest?.status === "pending" ? latestRequest : null,
+    eligibility,
+    pendingRequest,
     hasData: query.data !== undefined,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
@@ -140,10 +149,15 @@ export function useSubmitMerchantClassificationChange() {
         merchantClassificationChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await queryClient.invalidateQueries({
-        queryKey: merchantClassificationChangeKeys.list(userId),
-        refetchType: "all",
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: merchantClassificationChangeKeys.list(userId),
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
+        }),
+      ]);
     },
   });
 }
@@ -170,6 +184,9 @@ export function useWithdrawMerchantClassificationChange() {
             userId,
             changeRequest.id,
           ),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
         }),
       ]);
     },

@@ -35,7 +35,7 @@ export default function DaySectionCard({
   children,
 }: DaySectionCardProps) {
   return (
-    <View className="rounded-xl bg-surface" style={shadows.subtle}>
+    <View className="rounded-xl bg-surface">
       <View
         className={`overflow-hidden rounded-xl border ${
           hasError

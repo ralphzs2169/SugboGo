@@ -81,7 +81,7 @@ export default function RoadRouteScreen({ businessId }: Props) {
   const business = businessQuery.business;
 
   const businessName = business?.business_name ?? "Destination";
-  const businessCoverPhotoUrl = business?.cover_photo_url ?? null;
+  const businessCoverPhotoUrl = business?.display_cover_photo_url ?? null;
 
   async function handleContinueInGoogleMaps() {
     const destination = roadRouteQuery.route?.destination;

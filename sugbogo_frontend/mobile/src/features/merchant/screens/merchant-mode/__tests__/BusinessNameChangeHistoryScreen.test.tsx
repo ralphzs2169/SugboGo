@@ -1,5 +1,10 @@
 import React from "react";
-import { cleanup, fireEvent, render } from "@testing-library/react-native";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 
 import BusinessNameChangeHistoryScreen from "../BusinessNameChangeHistoryScreen";
 
@@ -10,6 +15,9 @@ const mockPush = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { push: (...args: unknown[]) => mockPush(...args), back: jest.fn() },
+}));
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
@@ -68,6 +76,46 @@ describe("BusinessNameChangeHistoryScreen", () => {
     expect(screen.queryByText("Request name change")).toBeNull();
   });
 
+  it("shows the server total rather than the loaded item count", async () => {
+    mockRequests.mockReturnValue({ ...mockRequests(), totalRequests: 5 });
+    const screen = await render(<BusinessNameChangeHistoryScreen />);
+    expect(screen.getByTestId("history-count")).toHaveTextContent("(5)");
+    expect(screen.queryByText("1")).toBeNull();
+  });
+
+  it("uses the business cover photo and falls back when it fails", async () => {
+    mockProfile.mockReturnValue({
+      business: {
+        id: 10,
+        business_name: "Sugbo Bistro",
+        status: "active",
+        cover_photo_url: "https://example.com/cover.jpg",
+      },
+    });
+    const screen = await render(<BusinessNameChangeHistoryScreen />);
+    const cover = screen.getByLabelText("Business cover photo");
+    expect(cover.props.source).toEqual([
+      { uri: "https://example.com/cover.jpg" },
+    ]);
+    fireEvent(cover, "error", { nativeEvent: {} });
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Business cover photo")).toBeNull(),
+    );
+    expect(screen.getByTestId("business-cover-fallback")).toBeTruthy();
+  });
+
+  it("hides a zero or unavailable total", async () => {
+    mockRequests.mockReturnValue({ ...mockRequests(), totalRequests: 0 });
+    const screen = await render(<BusinessNameChangeHistoryScreen />);
+    expect(screen.queryByTestId("history-count")).toBeNull();
+    mockRequests.mockReturnValue({
+      ...mockRequests(),
+      totalRequests: undefined,
+    });
+    screen.rerender(<BusinessNameChangeHistoryScreen />);
+    expect(screen.queryByTestId("history-count")).toBeNull();
+  });
+
   it("shows rejection feedback and permits a new request", async () => {
     mockRequests.mockReturnValue({
       ...mockRequests(),
@@ -93,7 +141,7 @@ describe("BusinessNameChangeHistoryScreen", () => {
       pendingRequest: null,
     });
     const screen = await render(<BusinessNameChangeHistoryScreen />);
-    expect(screen.getByText("No requested changes yet.")).toBeTruthy();
+    expect(screen.getByText("No name change requests yet")).toBeTruthy();
   });
 
   it("keeps an error state with a query retry", async () => {
@@ -114,7 +162,7 @@ describe("BusinessNameChangeHistoryScreen", () => {
       isLoading: true,
     });
     const screen = await render(<BusinessNameChangeHistoryScreen />);
-    expect(screen.queryByText("No requested changes yet.")).toBeNull();
+    expect(screen.queryByText("No name change requests yet")).toBeNull();
   });
 
   it("loads another page when the history reaches its end", async () => {

@@ -16,6 +16,9 @@ export default function useBusinessUpdateRequestDecisions() {
         queryKey: adminBusinessUpdateRequestKeys.lists,
       }),
       queryClient.invalidateQueries({
+        queryKey: adminBusinessUpdateRequestKeys.combinedLists,
+      }),
+      queryClient.invalidateQueries({
         queryKey: adminBusinessUpdateRequestKeys.detail(requestId),
       }),
     ]);

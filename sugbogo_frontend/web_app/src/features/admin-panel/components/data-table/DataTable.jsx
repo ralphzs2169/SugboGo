@@ -112,13 +112,15 @@ function DataTable({
       className="relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2"
       aria-busy={isLoading || isFetching}
     >
-      <div className="mb-6">
-        <TableTabs
-          tabs={tabs}
-          activeTab={activeTab}
-          onTabChange={onTabChange}
-        />
-      </div>
+      {tabs.length > 0 && (
+        <div className="mb-6">
+          <TableTabs
+            tabs={tabs}
+            activeTab={activeTab}
+            onTabChange={onTabChange}
+          />
+        </div>
+      )}
 
       <TableControls
         globalFilter={state.globalFilter ?? ""}

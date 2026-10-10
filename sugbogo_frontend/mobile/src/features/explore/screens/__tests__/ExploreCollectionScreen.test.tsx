@@ -148,6 +148,7 @@ const business: ExploreBusiness = {
   id: 42,
   business_name: "Collection Place",
   cover_photo_url: null,
+  display_cover_photo_url: null,
   review_count: 0,
   overall_vibe: null,
   is_pocketed: false,

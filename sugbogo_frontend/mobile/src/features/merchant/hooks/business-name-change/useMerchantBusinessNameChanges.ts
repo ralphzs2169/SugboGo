@@ -17,8 +17,10 @@ import * as service from "../../api/businessNameChange.service";
 import type {
   BusinessNameChangeRequest,
   BusinessNameChangeRequestPage,
+  SubmitBusinessNameChangePayload,
 } from "../../types/businessNameChange.types";
 import { merchantBusinessNameChangeKeys } from "./businessNameChangeQueryKeys";
+import { businessChangePendingStatusQueryKey } from "../change-requests/businessChangePendingStatusQueryKey";
 
 function useRefreshApprovedBusinessName(
   latestRequest: BusinessNameChangeRequest | undefined,
@@ -83,13 +85,22 @@ export function useMerchantBusinessNameChangeRequests() {
   });
 
   const requests = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const totalRequests = query.data?.pages[0]?.pagination.total_items;
   const latestRequest = query.data?.pages[0]?.items[0];
+  const eligibility = query.data?.pages[0]?.eligibility ?? null;
+  const pendingRequest =
+    requests.find(
+      (request) => request.id === eligibility?.pending_request_id,
+    ) ?? null;
   useRefreshApprovedBusinessName(latestRequest, userId);
 
   return {
     requests,
+    totalRequests,
     latestRequest,
-    pendingRequest: latestRequest?.status === "pending" ? latestRequest : null,
+    eligibility,
+    pendingRequest,
+    hasData: query.data !== undefined,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
     isFetchingNextPage: query.isFetchingNextPage,
@@ -127,21 +138,22 @@ export function useSubmitMerchantBusinessNameChange() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (proposedBusinessName: string) =>
-      throwOnApiError(
-        await service.submitBusinessNameChange({
-          proposed_business_name: proposedBusinessName,
-        }),
-      ),
+    mutationFn: async (payload: SubmitBusinessNameChangePayload) =>
+      throwOnApiError(await service.submitBusinessNameChange(payload)),
     onSuccess: async (changeRequest: BusinessNameChangeRequest) => {
       queryClient.setQueryData(
         merchantBusinessNameChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await queryClient.invalidateQueries({
-        queryKey: merchantBusinessNameChangeKeys.list(userId),
-        refetchType: "all",
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: merchantBusinessNameChangeKeys.list(userId),
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
+        }),
+      ]);
     },
   });
 }
@@ -169,6 +181,9 @@ export function useWithdrawMerchantBusinessNameChange() {
             userId,
             changeRequest.id,
           ),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessChangePendingStatusQueryKey(userId),
         }),
       ]);
     },

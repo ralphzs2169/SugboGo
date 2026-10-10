@@ -35,7 +35,6 @@ export default function CreateReviewDisputeFooter({
         loading={isSubmitting}
         disabled={isSubmitting}
         rounded="full"
-        fontClassName="font-bold"
       />
 
       {/* Submission guidance */}

@@ -9,6 +9,9 @@ from apps.merchant_operations.business_profile.serializers.business_classificati
     BusinessClassificationChangeCreateSerializer,
     MerchantBusinessClassificationChangeSerializer,
 )
+from apps.merchant_operations.business_profile.serializers.change_request_eligibility_serializers import (
+    BusinessChangeRequestEligibilitySerializer,
+)
 from apps.merchant_operations.business_profile.services.business_classification_change_service import (
     BusinessClassificationChangeService,
 )
@@ -29,7 +32,16 @@ class MerchantBusinessClassificationChangeListCreateView(APIView):
         paginator = StandardPagination()
         page = paginator.paginate_queryset(requests, request)
         serializer = MerchantBusinessClassificationChangeSerializer(page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+        response = paginator.get_paginated_response(serializer.data)
+        eligibility = (
+            BusinessClassificationChangeService.get_eligibility_for_merchant(
+                request.user,
+            )
+        )
+        response.data["data"]["eligibility"] = (
+            BusinessChangeRequestEligibilitySerializer(eligibility).data
+        )
+        return response
 
     def post(self, request):
         """Save a proposal while leaving live classification unchanged."""
@@ -41,6 +53,7 @@ class MerchantBusinessClassificationChangeListCreateView(APIView):
             proposed_specialty_tag_ids=(
                 serializer.validated_data["proposed_specialty_tag_ids"]
             ),
+            reason=serializer.validated_data.get("reason"),
         )
         return success_response(
             data=MerchantBusinessClassificationChangeSerializer(change_request).data,

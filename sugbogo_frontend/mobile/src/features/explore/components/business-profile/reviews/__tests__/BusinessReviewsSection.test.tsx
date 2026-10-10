@@ -1,4 +1,5 @@
 import { fireEvent, render } from "@testing-library/react-native";
+import { router } from "expo-router";
 
 import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
 import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
@@ -96,14 +97,11 @@ describe("BusinessReviewsSection", () => {
       />,
     );
 
-    expect(screen.getByText("Recent Review Insights")).toBeTruthy();
+    expect(screen.getByText("Summary")).toBeTruthy();
     expect(screen.getByText("Mostly negative")).toBeTruthy();
     expect(
-      screen.getByText(
-        "Based on 5 eligible reviews from the past 30 days.",
-      ),
+      screen.getByText("Based on 5 eligible reviews from the past 30 days."),
     ).toBeTruthy();
-    expect(screen.getByText("Vibe Summary")).toBeTruthy();
     expect(screen.getByText("AI-generated")).toBeTruthy();
     expect(screen.getByText(reviewInsights.narrative!)).toBeTruthy();
     expect(screen.queryByText("Recent Sentiment")).toBeNull();
@@ -151,5 +149,39 @@ describe("BusinessReviewsSection", () => {
       <BusinessReviewsSection {...defaultProps} isOwnBusiness />,
     );
     expect(ownerScreen.queryByText("Write a review")).toBeNull();
+  });
+
+  it("uses Explorer copy in preview while retaining owner review restrictions", async () => {
+    mockPreview([]);
+    const screen = await render(
+      <BusinessReviewsSection
+        {...defaultProps}
+        isOwnBusiness
+        displayAsExplorer
+      />,
+    );
+
+    expect(
+      screen.getByText("Be the first to share your experience."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Write a review")).toBeNull();
+
+    mockPreview([review]);
+    const withReviews = await render(
+      <BusinessReviewsSection
+        {...defaultProps}
+        isOwnBusiness
+        displayAsExplorer
+      />,
+    );
+    await fireEvent.press(withReviews.getByText("See more"));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/(explorer)/business/[businessId]/reviews",
+      params: {
+        businessId: "20",
+        isOwnBusiness: "1",
+        previewAsExplorer: "1",
+      },
+    });
   });
 });

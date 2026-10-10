@@ -5,6 +5,7 @@ import {
   rejectClassificationUpdateRequest,
 } from "../services/classificationUpdateRequestService";
 import { adminClassificationUpdateRequestKeys } from "./classificationUpdateRequestQueryKeys";
+import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
 
 /** Records classification decisions and refreshes its independent queue and detail caches. */
 export default function useClassificationUpdateRequestDecisions() {
@@ -14,6 +15,9 @@ export default function useClassificationUpdateRequestDecisions() {
     await Promise.all([
       queryClient.invalidateQueries({
         queryKey: adminClassificationUpdateRequestKeys.lists,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: adminBusinessUpdateRequestKeys.combinedLists,
       }),
       queryClient.invalidateQueries({
         queryKey: adminClassificationUpdateRequestKeys.detail(requestId),

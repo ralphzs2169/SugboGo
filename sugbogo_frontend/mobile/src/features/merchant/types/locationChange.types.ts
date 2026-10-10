@@ -1,3 +1,5 @@
+import type { BusinessChangeRequestEligibility } from "./businessChangeRequestEligibility.types";
+
 export type LocationChangeStatus =
   "pending" | "approved" | "rejected" | "withdrawn";
 
@@ -35,10 +37,12 @@ export type LocationChangeRequest = {
   submitted_at: string;
   resolved_at: string | null;
   rejection_reason: string | null;
+  reason: string | null;
 };
 
 export type LocationChangeRequestPage = {
   items: LocationChangeRequest[];
+  eligibility: BusinessChangeRequestEligibility;
   pagination: {
     page: number;
     page_size: number;
@@ -52,4 +56,5 @@ export type LocationChangeRequestPage = {
 export type SubmitLocationChangePayload = {
   proposed_location: Omit<LocationChangeLocation, "id">;
   proposed_landmarks: Omit<LocationChangeLandmark, "id">[];
+  reason: string;
 };

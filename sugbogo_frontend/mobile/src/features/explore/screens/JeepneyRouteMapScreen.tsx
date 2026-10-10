@@ -66,7 +66,8 @@ export default function JeepneyRouteMapScreen({
   });
 
   const businessName = businessQuery.business?.business_name ?? "Destination";
-  const businessCoverPhotoUrl = businessQuery.business?.cover_photo_url ?? null;
+  const businessCoverPhotoUrl =
+    businessQuery.business?.display_cover_photo_url ?? null;
 
   const storedOrigin = originBusinessId === businessId ? confirmedOrigin : null;
 

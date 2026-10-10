@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from apps.business.models import Business, Location
+from apps.business.models import Business, BusinessPhoto, Location
 from apps.merchant_operations.business_profile.services.business_profile_service import (
     BusinessProfileService,
 )
@@ -84,6 +84,12 @@ class BusinessProfileServiceTests(TestCase):
 
     def test_update_cover_photo_uploads_and_persists_new_photo(self):
         photo = self._cover_photo()
+        storefront = BusinessPhoto.objects.create(
+            BUSN_ID=self.business,
+            BPHO_CATEGORY=BusinessPhoto.PhotoCategory.STOREFRONT,
+            BPHO_PHOTO_URL="https://example.com/storefront.jpg",
+            BPHO_PHOTO_PUBLIC_ID="storefront",
+        )
 
         with patch(
             "apps.merchant_operations.business_profile.services.business_profile_service.CloudinaryService.upload_image"
@@ -108,6 +114,10 @@ class BusinessProfileServiceTests(TestCase):
         self.assertEqual(
             business.BUSN_COVER_PHOTO_PUBLIC_ID,
             "business_profile_covers/cover",
+        )
+        self.assertEqual(
+            list(self.business.photos.values_list("BPHO_ID", flat=True)),
+            [storefront.BPHO_ID],
         )
 
         mock_upload.assert_called_once_with(
@@ -203,4 +213,4 @@ class BusinessProfileServiceTests(TestCase):
         )
 
 
-    
+

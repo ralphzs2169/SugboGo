@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from datetime import timedelta
 from threading import Barrier
 from unittest.mock import patch
 
@@ -128,6 +129,7 @@ class BusinessClassificationChangeViewTests(TestCase):
             {
                 "proposed_category_id": category.CTGRY_ID,
                 "proposed_specialty_tag_ids": [tag.TAG_ID for tag in tags],
+                "reason": "Our products and services have changed.",
             },
             format="json",
         )
@@ -197,6 +199,8 @@ class BusinessClassificationChangeViewTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         request = BusinessClassificationChangeRequest.objects.get()
         self.assertEqual(request.BCCR_STATUS, "pending")
+        self.assertEqual(request.BCCR_MERCHANT_REASON, "Our products and services have changed.")
+        self.assertEqual(response.data["data"]["reason"], "Our products and services have changed.")
         self.assertEqual(request.PREVIOUS_CTGRY_ID_id, self.old_category.pk)
         self.assertEqual(request.PROPOSED_CTGRY_ID_id, self.new_category.pk)
         self.assertEqual(request.BCCR_PREVIOUS_CATEGORY_NAME, "Restaurants")
@@ -227,6 +231,44 @@ class BusinessClassificationChangeViewTests(TestCase):
             {tag.pk for tag in self.tags[:3]},
         )
         self.assertEqual(self.application.MAPP_STATUS, "approved")
+
+    def test_active_approval_cooldown_blocks_submission_and_is_exposed(self):
+        """Return seven-day classification eligibility and reject submission."""
+        resolved_at = timezone.now()
+        approved = BusinessClassificationChangeRequest.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.merchant,
+            PREVIOUS_CTGRY_ID=self.old_category,
+            PROPOSED_CTGRY_ID=self.old_category,
+            BCCR_PREVIOUS_CATEGORY_NAME=self.old_category.CTGRY_NAME,
+            BCCR_PREVIOUS_CLUSTER_ID=self.old_cluster.pk,
+            BCCR_PREVIOUS_CLUSTER_NAME=self.old_cluster.CLUS_NAME,
+            BCCR_PROPOSED_CATEGORY_NAME=self.old_category.CTGRY_NAME,
+            BCCR_PROPOSED_CLUSTER_ID=self.old_cluster.pk,
+            BCCR_PROPOSED_CLUSTER_NAME=self.old_cluster.CLUS_NAME,
+            BCCR_STATUS=BusinessClassificationChangeRequest.Status.APPROVED,
+            BCCR_SUBMITTED_AT=resolved_at - timedelta(days=1),
+            BCCR_RESOLVED_AT=resolved_at,
+        )
+
+        eligibility = self.client.get(
+            self.merchant_url,
+        ).data["data"]["eligibility"]
+        blocked = self._submit()
+
+        self.assertFalse(eligibility["can_submit"])
+        self.assertEqual(eligibility["reason"], "cooldown")
+        self.assertEqual(eligibility["cooldown_duration_hours"], 168)
+        self.assertEqual(
+            eligibility["last_approved_request_id"],
+            approved.pk,
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertEqual(blocked.data["errors"]["reason"], ["cooldown"])
+        self.assertEqual(
+            BusinessClassificationChangeRequest.objects.count(),
+            1,
+        )
 
     def test_submission_rejects_invalid_taxonomy_and_unchanged_sets(self):
         """Validate count, uniqueness, existence, and unordered no-op sets."""
@@ -394,6 +436,10 @@ class BusinessClassificationChangeViewTests(TestCase):
             self.assertEqual(len(callbacks), 1)
             dispatch.assert_called_once_with()
         self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            response.data["data"]["reason"],
+            "Our products and services have changed.",
+        )
         self.business.refresh_from_db()
         self.assertEqual(self.business.CTGRY_ID_id, self.new_category.pk)
         self.assertEqual(self.business.CTGRY_ID.CLUS_ID_id, self.new_cluster.pk)
@@ -429,6 +475,11 @@ class BusinessClassificationChangeViewTests(TestCase):
         category_only = self._submit(category=self.new_category, tags=self.tags[:3])
         self.assertEqual(category_only.status_code, 201)
         self.assertEqual(self._approve(category_only.data["data"]["id"]).status_code, 200)
+        BusinessClassificationChangeRequest.objects.filter(
+            pk=category_only.data["data"]["id"],
+        ).update(
+            BCCR_RESOLVED_AT=timezone.now() - timedelta(days=7),
+        )
         self.client.force_authenticate(user=self.merchant)
         tag_only = self._submit(category=self.new_category, tags=self.tags[1:4])
         self.assertEqual(tag_only.status_code, 201)
@@ -496,12 +547,18 @@ class BusinessClassificationChangeViewTests(TestCase):
 
     def test_rejection_and_admin_permissions(self):
         """Require Admin role and reason; never mutate live classification."""
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/classification-cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
         request_id = self._submit().data["data"]["id"]
         self.assertEqual(self.client.get(self.admin_url).status_code, 403)
         self.client.force_authenticate(user=self.admin)
         queue = self.client.get(f"{self.admin_url}?status=pending")
         self.assertEqual(queue.status_code, 200)
         self.assertEqual(queue.data["data"]["items"][0]["id"], request_id)
+        self.assertEqual(
+            queue.data["data"]["items"][0]["cover_photo_url"],
+            "https://example.com/classification-cover.jpg",
+        )
         detail = self.client.get(self._detail(request_id, admin=True))
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.data["data"]["current"]["category"]["id"], self.old_category.pk)
@@ -660,6 +717,7 @@ class BusinessClassificationConcurrencyTests(TransactionTestCase):
             user=self.merchant,
             proposed_category_id=category.pk,
             proposed_specialty_tag_ids=[tag.pk for tag in self.tags[1:]],
+            reason="Our products and services have changed.",
         )
         self.request_id = request.pk
 

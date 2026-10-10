@@ -16,6 +16,7 @@ const business: ExploreBusiness = {
   id: 12,
   business_name: "Reason Test Business",
   cover_photo_url: null,
+  display_cover_photo_url: null,
   review_count: 12,
   overall_vibe: "mostly_positive",
   is_pocketed: false,
@@ -62,38 +63,27 @@ async function renderCard(
 
 describe("BusinessCard recommendation reason", () => {
   it("renders a one-line reason on the compact variant", async () => {
-    const screen = await renderCard(
-      "compact",
-      reason,
-    );
-    const reasonText = screen.getByText(
-      "Interested in Local Coffee",
-    );
+    const screen = await renderCard("compact", reason);
+    const reasonText = screen.getByText("Interested in Local Coffee");
 
     expect(reasonText.props.numberOfLines).toBe(1);
     await screen.unmount();
   });
 
   it("renders nothing when the compact reason is null", async () => {
-    const screen = await renderCard(
-      "compact",
-      null,
-    );
+    const screen = await renderCard("compact", null);
 
     expect(screen.queryByText(/Interested in/)).toBeNull();
     await screen.unmount();
   });
 
-  it.each([
-    "default",
-    "featured",
-  ] as const)("does not render the reason on the %s variant", async (variant) => {
-    const screen = await renderCard(
-      variant,
-      reason,
-    );
+  it.each(["default", "featured"] as const)(
+    "does not render the reason on the %s variant",
+    async (variant) => {
+      const screen = await renderCard(variant, reason);
 
-    expect(screen.queryByText(/Interested in/)).toBeNull();
-    await screen.unmount();
-  });
+      expect(screen.queryByText(/Interested in/)).toBeNull();
+      await screen.unmount();
+    },
+  );
 });

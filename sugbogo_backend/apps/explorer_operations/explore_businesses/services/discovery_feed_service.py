@@ -6,6 +6,7 @@ from apps.business.models import (
     BusinessSpecialtyTag,
     BusinessVouch,
 )
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
     apply_taxonomy_filters,
 )
@@ -93,6 +94,7 @@ class DiscoveryFeedService:
                     user_pocket_exists,
                 ),
                 published_review_count=published_review_count(),
+                display_cover_photo_url=display_cover_photo_expression(),
                 discovery_rank_score=Coalesce(
                     "discovery_score__DSC_D_SCORE",
                     Value(

@@ -74,7 +74,7 @@ export function selectedLocationProposal(
 export function buildLocationChangePayload(
   location: LocationChangeLocation,
   landmarks: BusinessLandmark[],
-): SubmitLocationChangePayload {
+): Omit<SubmitLocationChangePayload, "reason"> {
   return {
     proposed_location: {
       latitude: location.latitude,
@@ -116,7 +116,7 @@ function landmarkSignature(landmark: {
 /** Detects effective changes without treating landmark display order as a change. */
 export function locationProposalChanged(
   business: MerchantBusinessProfileResponse,
-  payload: SubmitLocationChangePayload,
+  payload: Omit<SubmitLocationChangePayload, "reason">,
 ) {
   const current = liveLocationProposal(business.location);
   const proposed = payload.proposed_location;

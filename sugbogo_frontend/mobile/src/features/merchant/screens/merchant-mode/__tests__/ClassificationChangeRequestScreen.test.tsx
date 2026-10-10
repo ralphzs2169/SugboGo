@@ -12,16 +12,36 @@ const mockProfile = jest.fn();
 const mockRequests = jest.fn();
 const mockSubmit = jest.fn();
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 const mockRefetchRequests = jest.fn();
 const mockSpecialtyTags = jest.fn();
 const mockSelectorProps = jest.fn();
+const mockBack = jest.fn();
+const mockSetOptions = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: {
-    back: jest.fn(),
+    back: () => mockBack(),
+    push: (...args: unknown[]) => mockPush(...args),
     replace: (...args: unknown[]) => mockReplace(...args),
   },
+  useNavigation: () => ({ setOptions: mockSetOptions }),
+  useFocusEffect: (callback: () => void) =>
+    jest.requireActual("react").useEffect(callback, [callback]),
 }));
+jest.mock(
+  "expo-router/build/react-navigation/elements/Header/HeaderBackButton",
+  () => ({
+    HeaderBackButton: ({ onPress }: { onPress: () => void }) => {
+      const { Pressable, Text } = jest.requireActual("react-native");
+      return (
+        <Pressable onPress={onPress} accessibilityLabel="Back">
+          <Text>Back</Text>
+        </Pressable>
+      );
+    },
+  }),
+);
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => mockProfile(),
@@ -40,8 +60,8 @@ jest.mock("../../../hooks/registration/useClusters", () => ({
   __esModule: true,
   default: () => ({
     clusters: [
-      { id: 1, name: "Food" },
-      { id: 5, name: "Culture" },
+      { id: 1, name: "Food", icon: "utensils" },
+      { id: 5, name: "Culture", icon: "landmark" },
     ],
     isLoading: false,
     error: null,
@@ -128,6 +148,15 @@ const business = {
   })),
 };
 
+const eligible = {
+  can_submit: true,
+  reason: null,
+  cooldown_duration_hours: 168,
+  cooldown_until: null,
+  last_approved_request_id: null,
+  pending_request_id: null,
+};
+
 describe("ClassificationChangeRequestScreen", () => {
   afterEach(async () => {
     await cleanup();
@@ -150,7 +179,9 @@ describe("ClassificationChangeRequestScreen", () => {
       refetch: jest.fn(),
     });
     mockRequests.mockReturnValue({
+      eligibility: eligible,
       pendingRequest: null,
+      hasData: true,
       isLoading: false,
       error: null,
       refetch: mockRefetchRequests,
@@ -188,13 +219,36 @@ describe("ClassificationChangeRequestScreen", () => {
     ]);
   });
 
+  it("uses the registration cluster icon in the live summary", async () => {
+    const screen = await render(<ClassificationChangeRequestScreen />);
+    expect(screen.getByTestId("live-cluster-icon")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Current classification"));
+    expect(screen.getByText("Tag 1")).toBeTruthy();
+  });
+
   it("prefills current values and rejects an unchanged proposal", async () => {
     const screen = await render(<ClassificationChangeRequestScreen />);
     expect(screen.getAllByText("Restaurants").length).toBeGreaterThan(0);
     expect(screen.getByText("3 of 3 selected")).toBeTruthy();
-    await fireEvent.press(screen.getByText("Review Request"));
     expect(
-      screen.getByText(/Make at least one classification change/),
+      screen.getByRole("button", { name: "Review Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("requires a valid explanation during review", async () => {
+    const screen = await render(<ClassificationChangeRequestScreen />);
+    expect(screen.queryByLabelText("Reason for change")).toBeNull();
+    await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
+    await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "short",
+    );
+    await fireEvent.press(screen.getByText("Submit Request"));
+    expect(
+      screen.getByText("Please enter at least 10 characters."),
     ).toBeTruthy();
     expect(mockSubmit).not.toHaveBeenCalled();
   });
@@ -202,17 +256,22 @@ describe("ClassificationChangeRequestScreen", () => {
   it("submits category-only changes with no cluster ID and keeps live data visible", async () => {
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
-    expect(screen.getByText("Derived cluster: Food")).toBeTruthy();
-    await fireEvent.press(screen.getByText("Review Request"));
-    expect(screen.getByText("Requested Classification")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Review Changes"));
+    expect(screen.getByText("Category change")).toBeTruthy();
+    expect(screen.queryByText("Specialty changes")).toBeNull();
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "  Our business focus has changed.  ",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(mockSubmit).toHaveBeenCalledWith({
         proposed_category_id: 6,
         proposed_specialty_tag_ids: [1, 2, 3],
+        reason: "Our business focus has changed.",
       }),
     );
-    expect(screen.getByText("Current Classification")).toBeTruthy();
+    expect(screen.getAllByText("Currently live").length).toBeGreaterThan(0);
     expect(mockReplace).toHaveBeenCalledWith(
       "/(merchant)/business-update-requests/classification/7",
     );
@@ -224,13 +283,18 @@ describe("ClassificationChangeRequestScreen", () => {
     await fireEvent.press(
       screen.getByLabelText("Select Category: Creative Arts"),
     );
-    expect(screen.getByText("Derived cluster: Culture")).toBeTruthy();
-    await fireEvent.press(screen.getByText("Review Request"));
+    await fireEvent.press(screen.getByText("Review Changes"));
+    expect(screen.getAllByText("Culture").length).toBeGreaterThan(0);
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(mockSubmit).toHaveBeenCalledWith({
         proposed_category_id: 4,
         proposed_specialty_tag_ids: [1, 2, 3],
+        reason: "Our business focus has changed.",
       }),
     );
   });
@@ -245,7 +309,11 @@ describe("ClassificationChangeRequestScreen", () => {
     );
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
-    await fireEvent.press(screen.getByText("Review Request"));
+    await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     const button = screen.getByRole("button", { name: "Submit Request" });
     await fireEvent.press(button);
     await fireEvent.press(button);
@@ -263,7 +331,13 @@ describe("ClassificationChangeRequestScreen", () => {
     });
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByText("Choose Tag 4"));
-    await fireEvent.press(screen.getByText("Review Request"));
+    await fireEvent.press(screen.getByText("Review Changes"));
+    expect(screen.getByText("Specialty changes")).toBeTruthy();
+    expect(screen.queryByText("Category change")).toBeNull();
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText("Choose valid specialty tags.")).toBeTruthy(),
@@ -271,6 +345,7 @@ describe("ClassificationChangeRequestScreen", () => {
     expect(mockSubmit).toHaveBeenCalledWith({
       proposed_category_id: 2,
       proposed_specialty_tag_ids: [1, 2, 4],
+      reason: "Our business focus has changed.",
     });
     expect(mockReplace).not.toHaveBeenCalled();
   });
@@ -284,7 +359,11 @@ describe("ClassificationChangeRequestScreen", () => {
     });
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
-    await fireEvent.press(screen.getByText("Review Request"));
+    await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(
@@ -303,7 +382,11 @@ describe("ClassificationChangeRequestScreen", () => {
     });
     const screen = await render(<ClassificationChangeRequestScreen />);
     await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
-    await fireEvent.press(screen.getByText("Review Request"));
+    await fireEvent.press(screen.getByText("Review Changes"));
+    await fireEvent.changeText(
+      screen.getByLabelText("Reason for change"),
+      "Our business focus has changed.",
+    );
     await fireEvent.press(screen.getByText("Submit Request"));
     await waitFor(() => expect(mockRefetchRequests).toHaveBeenCalledTimes(1));
     expect(screen.getByText(/already pending/)).toBeTruthy();
@@ -311,7 +394,14 @@ describe("ClassificationChangeRequestScreen", () => {
 
   it("blocks a second request while one is pending", async () => {
     mockRequests.mockReturnValue({
+      eligibility: {
+        ...eligible,
+        can_submit: false,
+        reason: "pending",
+        pending_request_id: 7,
+      },
       pendingRequest: { id: 7, status: "pending" },
+      hasData: true,
       isLoading: false,
       error: null,
       refetch: mockRefetchRequests,
@@ -319,6 +409,34 @@ describe("ClassificationChangeRequestScreen", () => {
     const pending = await render(<ClassificationChangeRequestScreen />);
     expect(pending.getByText("Pending Admin review")).toBeTruthy();
     expect(pending.queryByText("Submit Request")).toBeNull();
+  });
+
+  it("shows classification cooldown and opens the approved request", async () => {
+    mockRequests.mockReturnValue({
+      eligibility: {
+        can_submit: false,
+        reason: "cooldown",
+        cooldown_duration_hours: 168,
+        cooldown_until: "2026-10-16T07:00:00Z",
+        last_approved_request_id: 52,
+        pending_request_id: null,
+      },
+      pendingRequest: null,
+      hasData: true,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetchRequests,
+    });
+
+    const screen = await render(<ClassificationChangeRequestScreen />);
+
+    expect(screen.getByText("Change temporarily unavailable")).toBeTruthy();
+    expect(screen.getByText("7 days")).toBeTruthy();
+    expect(screen.queryByText("Review Changes")).toBeNull();
+    await fireEvent.press(screen.getByText("View Approved Request"));
+    expect(mockPush).toHaveBeenCalledWith(
+      "/(merchant)/business-update-requests/classification/52",
+    );
   });
 
   it("blocks suspended businesses from submitting", async () => {
@@ -331,5 +449,33 @@ describe("ClassificationChangeRequestScreen", () => {
     const suspended = await render(<ClassificationChangeRequestScreen />);
     expect(suspended.getByText("Request unavailable")).toBeTruthy();
     expect(suspended.queryByText("Submit Request")).toBeNull();
+  });
+
+  it("exits immediately when nothing has changed", async () => {
+    const screen = await render(<ClassificationChangeRequestScreen />);
+    await fireEvent.press(screen.getByText("Cancel"));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Discard classification changes?")).toBeNull();
+  });
+
+  it("confirms discarding a changed draft from Cancel", async () => {
+    const screen = await render(<ClassificationChangeRequestScreen />);
+    await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
+    await fireEvent.press(screen.getByText("Cancel"));
+    expect(screen.getByText("Discard classification changes?")).toBeTruthy();
+    expect(mockBack).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByText("Discard"));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirms discarding a changed draft from the header Back", async () => {
+    const screen = await render(<ClassificationChangeRequestScreen />);
+    await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
+    const headerLeft = mockSetOptions.mock.lastCall?.[0].headerLeft;
+    const header = await render(headerLeft());
+    await fireEvent.press(header.getByLabelText("Back"));
+    expect(screen.getByText("Discard classification changes?")).toBeTruthy();
+    expect(mockBack).not.toHaveBeenCalled();
   });
 });

@@ -1,8 +1,13 @@
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+from threading import Barrier
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
-from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.db import IntegrityError, close_old_connections, transaction
+from django.test import TestCase, TransactionTestCase
+from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
 from apps.business.models import Business, Category, Cluster, Location
@@ -123,7 +128,10 @@ class BusinessNameChangeViewTests(TestCase):
         """Submit a request through the merchant API."""
         return self.client.post(
             self.submit_url,
-            {"proposed_business_name": name},
+            {
+                "proposed_business_name": name,
+                "reason": "We are updating our business identity.",
+            },
             format="json",
         )
 
@@ -226,6 +234,36 @@ class BusinessNameChangeViewTests(TestCase):
                     BNCR_SUBMITTED_AT=BusinessNameChangeRequest.objects.get().BNCR_SUBMITTED_AT,
                 )
 
+    def test_active_approval_cooldown_blocks_submission_and_is_exposed(self):
+        """Return seven-day name eligibility and reject a new submission."""
+        resolved_at = timezone.now()
+        approved = BusinessNameChangeRequest.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.merchant,
+            BNCR_PREVIOUS_BUSINESS_NAME="Previous Bistro",
+            BNCR_PROPOSED_BUSINESS_NAME=self.business.BUSN_NAME,
+            BNCR_STATUS=BusinessNameChangeRequest.Status.APPROVED,
+            BNCR_SUBMITTED_AT=resolved_at - timedelta(days=1),
+            BNCR_RESOLVED_AT=resolved_at,
+        )
+
+        eligibility = self.client.get(
+            self.merchant_list_url,
+        ).data["data"]["eligibility"]
+        blocked = self._submit("Another Bistro")
+
+        self.assertFalse(eligibility["can_submit"])
+        self.assertEqual(eligibility["reason"], "cooldown")
+        self.assertEqual(eligibility["cooldown_duration_hours"], 168)
+        self.assertEqual(
+            eligibility["last_approved_request_id"],
+            approved.pk,
+        )
+        self.assertIsNone(eligibility["pending_request_id"])
+        self.assertEqual(blocked.status_code, 400)
+        self.assertEqual(blocked.data["errors"]["reason"], ["cooldown"])
+        self.assertEqual(BusinessNameChangeRequest.objects.count(), 1)
+
     def test_missing_and_suspended_business_cannot_submit(self):
         """Honor the established owner lookup and active-status guard."""
         unowned_merchant = User.objects.create_user(
@@ -249,6 +287,10 @@ class BusinessNameChangeViewTests(TestCase):
     def test_merchant_history_detail_and_foreign_request_protection(self):
         """Expose own terminal history without revealing another owner's IDs."""
         first = self._submit()
+        self.assertEqual(
+            first.data["data"]["reason"],
+            "We are updating our business identity.",
+        )
         first_id = first.data["data"]["id"]
         withdraw = self.client.post(
             f"{self._merchant_detail_url(first_id)}withdraw/",
@@ -277,6 +319,27 @@ class BusinessNameChangeViewTests(TestCase):
         )
         self.assertEqual(self.client.get(self.merchant_list_url).data["data"]["items"], [])
 
+    def test_historical_request_without_reason_remains_readable(self):
+        """Legacy rows do not acquire fabricated merchant explanations."""
+        request_id = self._submit().data["data"]["id"]
+        BusinessNameChangeRequest.objects.filter(pk=request_id).update(
+            BNCR_MERCHANT_REASON=None,
+        )
+        detail = self.client.get(self._merchant_detail_url(request_id))
+        self.assertEqual(detail.status_code, 200)
+        self.assertIsNone(detail.data["data"]["reason"])
+
+    def test_new_submission_requires_reason_without_creating_request(self):
+        """The endpoint enforces the explanation even when the client omits it."""
+        response = self.client.post(
+            self.submit_url,
+            {"proposed_business_name": "Sugbo Heritage Bistro"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("reason", response.data["errors"])
+        self.assertFalse(BusinessNameChangeRequest.objects.exists())
+
     def test_withdrawal_is_pending_only_and_does_not_change_business(self):
         """Keep withdrawn requests as terminal history."""
         request_id = self._submit().data["data"]["id"]
@@ -285,6 +348,10 @@ class BusinessNameChangeViewTests(TestCase):
         self.assertEqual(self.client.post(url).status_code, 400)
         request = BusinessNameChangeRequest.objects.get(pk=request_id)
         self.assertEqual(request.BNCR_STATUS, "withdrawn")
+        self.assertEqual(
+            request.BNCR_MERCHANT_REASON,
+            "We are updating our business identity.",
+        )
         self.assertIsNotNone(request.BNCR_RESOLVED_AT)
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_NAME, "Sugbo Bistro")
@@ -296,6 +363,8 @@ class BusinessNameChangeViewTests(TestCase):
 
     def test_admin_queue_detail_permissions_and_resolution_fields(self):
         """Provide review context to Admin and Super Admin only."""
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/name-cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
         request_id = self._submit().data["data"]["id"]
         self.client.force_authenticate(user=self.explorer)
         self.assertEqual(self.client.get(self.admin_list_url).status_code, 403)
@@ -305,8 +374,20 @@ class BusinessNameChangeViewTests(TestCase):
         queue = self.client.get(self.admin_list_url)
         self.assertEqual(queue.status_code, 200)
         self.assertEqual(queue.data["data"]["items"][0]["id"], request_id)
+        self.assertEqual(
+            queue.data["data"]["items"][0]["cover_photo_url"],
+            "https://example.com/name-cover.jpg",
+        )
         detail = self.client.get(self._admin_detail_url(request_id))
+        self.assertEqual(
+            detail.data["data"]["reason"],
+            "We are updating our business identity.",
+        )
         self.assertEqual(detail.data["data"]["current_business_name"], "Sugbo Bistro")
+        self.assertEqual(
+            detail.data["data"]["cover_photo_url"],
+            "https://example.com/name-cover.jpg",
+        )
         self.assertEqual(detail.data["data"]["previous_business_name"], "Sugbo Bistro")
         self.assertEqual(detail.data["data"]["proposed_business_name"], "Sugbo Heritage Bistro")
         self.assertEqual(detail.data["data"]["merchant"]["email"], self.merchant.USER_EMAIL)
@@ -325,6 +406,10 @@ class BusinessNameChangeViewTests(TestCase):
         self.assertEqual(self.business.BUSN_NAME, "Sugbo Heritage Bistro")
         self.assertEqual(self.identity.MIDN_BUSINESS_NAME, "Sugbo Bistro")
         self.assertEqual(approved.data["data"]["status"], "approved")
+        self.assertEqual(
+            approved.data["data"]["reason"],
+            "We are updating our business identity.",
+        )
         self.assertEqual(approved.data["data"]["reviewer"]["email"], self.admin.USER_EMAIL)
         self.assertIsNotNone(approved.data["data"]["resolved_at"])
         self.assertEqual(self.client.post(url).status_code, 400)
@@ -446,6 +531,10 @@ class BusinessNameChangeViewTests(TestCase):
             format="json",
         )
         self.assertEqual(rejected.status_code, 200)
+        self.assertEqual(
+            rejected.data["data"]["reason"],
+            "We are updating our business identity.",
+        )
         self.assertEqual(rejected.data["data"]["status"], "rejected")
         self.assertEqual(rejected.data["data"]["reviewer"]["email"], self.admin.USER_EMAIL)
         self.assertIsNotNone(rejected.data["data"]["resolved_at"])
@@ -464,3 +553,73 @@ class BusinessNameChangeViewTests(TestCase):
         self.client.force_authenticate(user=None)
         self.assertIn(self.client.get(self.merchant_list_url).status_code, (401, 403))
         self.assertIn(self.client.get(self.admin_list_url).status_code, (401, 403))
+
+
+class BusinessNameChangeSubmissionConcurrencyTests(TransactionTestCase):
+    """Verify simultaneous submissions cannot create two pending requests."""
+
+    def setUp(self):
+        """Create committed rows visible to separate database connections."""
+        self.merchant = User.objects.create_user(
+            email="concurrent-name-owner@example.com",
+            password="StrongPassword123!",
+            USER_FNAME="Concurrent",
+            USER_LNAME="Owner",
+            USER_ROLE=User.UserRole.MERCHANT,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        cluster = Cluster.objects.create(CLUS_NAME="Concurrent Food")
+        category = Category.objects.create(
+            CTGRY_NAME="Concurrent Cafe",
+            CLUS_ID=cluster,
+        )
+        location = Location.objects.create(
+            LOCT_POINT=Point(123.8854, 10.3157, srid=4326),
+            LOCT_ADDRESS="Concurrent address",
+        )
+        self.business = Business.objects.create(
+            BUSN_NAME="Concurrent Cafe",
+            BUSN_CONTACT_NUMBER="09171234567",
+            USER_ID=self.merchant,
+            CTGRY_ID=category,
+            LOCT_ID=location,
+        )
+
+    def test_parallel_submissions_create_only_one_pending_request(self):
+        """Serialize submissions through the locked business row."""
+        barrier = Barrier(2)
+
+        def submit(name):
+            """Submit from a separate connection after a simultaneous start."""
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                try:
+                    BusinessNameChangeService.submit(
+                        self.merchant,
+                        name,
+                        "We are updating our business identity.",
+                    )
+                    return "created"
+                except ValidationError:
+                    return "blocked"
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = [
+                future.result(timeout=20)
+                for future in (
+                    executor.submit(submit, "Concurrent Cafe One"),
+                    executor.submit(submit, "Concurrent Cafe Two"),
+                )
+            ]
+
+        self.assertCountEqual(results, ["created", "blocked"])
+        self.assertEqual(
+            BusinessNameChangeRequest.objects.filter(
+                BUSN_ID=self.business,
+                BNCR_STATUS=BusinessNameChangeRequest.Status.PENDING,
+            ).count(),
+            1,
+        )

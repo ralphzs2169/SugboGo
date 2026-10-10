@@ -24,6 +24,7 @@ describe("businessNameChange.service", () => {
   it("uses focused submit, paginated history, detail, and withdraw routes", async () => {
     await service.submitBusinessNameChange({
       proposed_business_name: "Sugbo Heritage Bistro",
+      reason: "We are updating our business identity.",
     });
     await service.getBusinessNameChangeRequests(2);
     await service.getBusinessNameChangeRequest(7);
@@ -31,7 +32,10 @@ describe("businessNameChange.service", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/merchant/business-profile/update-requests/business-name/",
-      { proposed_business_name: "Sugbo Heritage Bistro" },
+      {
+        proposed_business_name: "Sugbo Heritage Bistro",
+        reason: "We are updating our business identity.",
+      },
     );
     expect(apiClient.get).toHaveBeenCalledWith(
       "/merchant/business-profile/update-requests/",

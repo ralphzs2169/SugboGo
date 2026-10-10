@@ -1,56 +1,57 @@
-const DIFF_GROUPS = [
-  {
-    key: "removedSpecialties",
-    label: "Removed",
-    prefix: "−",
-    classes: "border-red-200 bg-red-50 text-red-700",
-  },
-  {
-    key: "addedSpecialties",
-    label: "Added",
-    prefix: "+",
-    classes: "border-green-200 bg-green-50 text-green-700",
-  },
-  {
-    key: "retainedSpecialties",
-    label: "Retained",
-    prefix: "",
-    classes: "border-stroke bg-surface text-text-secondary",
-  },
-];
+import { CircleMinus, CirclePlus } from "lucide-react";
 
-/** Shows the requested specialty set changes while preserving retained tags as context. */
-export default function ClassificationSpecialtyDiff({ diff }) {
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+
+/** Groups only changed specialty tags from the frozen snapshots. */
+export default function ClassificationSpecialtyDiff({ diff, status }) {
+  const groups = [
+    {
+      key: "addedSpecialties",
+      label: status === "approved" ? "Added" : "Requested to add",
+      Icon: CirclePlus,
+    },
+    {
+      key: "removedSpecialties",
+      label: status === "approved" ? "Removed" : "Requested to remove",
+      Icon: CircleMinus,
+    },
+  ];
+
   return (
     <div>
       <h3 className="text-sm font-semibold text-text-primary">
-        Specialty Tags
+        Specialty changes
       </h3>
-      <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {DIFF_GROUPS.map((group) => (
-          <div key={group.key}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              {group.label}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {diff[group.key].length > 0 ? (
-                diff[group.key].map((tag) => (
-                  <span
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {groups
+          .filter((group) => diff[group.key].length > 0)
+          .map((group) => (
+            <div key={group.key} className="rounded-lg bg-surface p-4">
+              <h4 className="text-xs font-semibold text-text-secondary">
+                {group.label} ({diff[group.key].length})
+              </h4>
+              <ul className="mt-2 divide-y divide-stroke">
+                {diff[group.key].map((tag) => (
+                  <li
                     key={tag.id}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${group.classes}`}
+                    className="flex items-center gap-2 py-2 text-sm text-text-primary"
                   >
-                    {group.prefix && (
-                      <span aria-hidden="true">{group.prefix} </span>
+                    <group.Icon
+                      className="h-4 w-4 shrink-0 text-text-secondary"
+                      aria-hidden="true"
+                    />
+                    {tag.color ? (
+                      <SpecialtyTagChip tag={tag} size="small" />
+                    ) : (
+                      <span className="break-words rounded-full border border-stroke bg-background px-2.5 py-1 text-xs">
+                        {tag.name}
+                      </span>
                     )}
-                    {tag.name}
-                  </span>
-                ))
-              ) : (
-                <span className="text-sm text-text-secondary">None</span>
-              )}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
     </div>
   );

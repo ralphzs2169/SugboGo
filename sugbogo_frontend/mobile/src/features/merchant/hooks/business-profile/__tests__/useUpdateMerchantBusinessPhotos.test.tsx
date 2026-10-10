@@ -4,6 +4,8 @@ import { act, renderHook } from "@testing-library/react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
+import { DISCOVERY_FEED_QUERY_KEY } from "@/features/explore/hooks/useDiscoveryFeed";
+import { EXPLORE_COLLECTIONS_QUERY_KEY } from "@/features/explore/hooks/useExploreCollection";
 import { updateMerchantBusinessPhotos } from "@/features/merchant/api/merchantBusinessProfile.service";
 
 import { merchantBusinessProfileKey } from "../merchantBusinessProfileQueryKeys";
@@ -50,13 +52,19 @@ describe("useUpdateMerchantBusinessPhotos", () => {
     });
 
     expect(updateMerchantBusinessPhotos).toHaveBeenCalledWith(payload);
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledTimes(8);
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: merchantBusinessProfileKey(42),
       refetchType: "all",
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: exploreBusinessDetailKey(7),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: DISCOVERY_FEED_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
     });
     unmount();
     client.clear();

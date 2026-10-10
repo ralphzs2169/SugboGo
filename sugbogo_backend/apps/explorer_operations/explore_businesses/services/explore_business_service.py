@@ -4,6 +4,7 @@ from apps.business.models import (
     BusinessSpecialtyTag,
     BusinessVouch,
 )
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.reviews.models import (
     Review,
     ReviewLike,
@@ -85,6 +86,7 @@ class ExploreBusinessService:
                         user_pocket_exists,
                     ),
                     published_review_count=published_review_count(),
+                    display_cover_photo_url=display_cover_photo_expression(),
                 )
                 .prefetch_related(
                     Prefetch(

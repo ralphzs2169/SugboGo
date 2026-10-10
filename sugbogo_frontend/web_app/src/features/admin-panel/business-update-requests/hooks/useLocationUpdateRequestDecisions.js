@@ -5,6 +5,7 @@ import {
   rejectLocationUpdateRequest,
 } from "../services/locationUpdateRequestService";
 import { adminLocationUpdateRequestKeys } from "./locationUpdateRequestQueryKeys";
+import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
 
 /** Records a location decision and refreshes only its queue and detail resources. */
 export default function useLocationUpdateRequestDecisions() {
@@ -14,6 +15,9 @@ export default function useLocationUpdateRequestDecisions() {
     await Promise.all([
       queryClient.invalidateQueries({
         queryKey: adminLocationUpdateRequestKeys.lists,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: adminBusinessUpdateRequestKeys.combinedLists,
       }),
       queryClient.invalidateQueries({
         queryKey: adminLocationUpdateRequestKeys.detail(requestId),

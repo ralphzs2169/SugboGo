@@ -8,6 +8,7 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
 
 import { merchantBusinessProfileKey } from "./merchantBusinessProfileQueryKeys";
+import { invalidateBusinessDisplayCover } from "./invalidateBusinessDisplayCover";
 
 const COVER_IMAGE_WIDTH = 1600;
 const COVER_IMAGE_COMPRESSION = 0.8;
@@ -78,7 +79,10 @@ export default function useUpdateBusinessCoverPhoto(
         );
       }
 
-      await Promise.all(invalidations);
+      await Promise.all([
+        ...invalidations,
+        invalidateBusinessDisplayCover(queryClient),
+      ]);
     },
     onError: (error) => {
       const response = error as unknown as ApiResponse<unknown>;

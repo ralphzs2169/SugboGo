@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { View } from "react-native";
 import MapView, {
   type MapPressEvent,
@@ -16,13 +16,15 @@ import type {
 } from "@/shared/types/BusinessLocation.types";
 
 type LandmarkMapProps = {
-  businessLocation: BusinessLocation;
+  businessLocation: Pick<BusinessLocation, "latitude" | "longitude">;
   selectedLandmarks: BusinessLandmark[];
   onLandmarkPress?: (landmark: BusinessLandmark) => void;
   onMapPress?: (event: MapPressEvent) => void;
   children?: ReactNode;
   initialLatitudeDelta?: number;
   initialLongitudeDelta?: number;
+  mapRef?: RefObject<MapView | null>;
+  onMapReady?: () => void;
 };
 
 const DEFAULT_MAP_DELTA = 0.014;
@@ -40,10 +42,14 @@ export default function LandmarkMap({
   onMapPress,
   initialLatitudeDelta = DEFAULT_MAP_DELTA,
   initialLongitudeDelta = DEFAULT_MAP_DELTA,
+  mapRef,
+  onMapReady,
   children,
 }: LandmarkMapProps) {
   return (
     <MapView
+      ref={mapRef}
+      onMapReady={onMapReady}
       provider={PROVIDER_GOOGLE}
       style={{ flex: 1 }}
       customMapStyle={MAP_STYLE}

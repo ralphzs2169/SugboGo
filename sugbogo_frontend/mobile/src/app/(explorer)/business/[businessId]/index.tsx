@@ -3,17 +3,20 @@ import ExploreBusinessProfileScreen from "@/features/explore/screens/ExploreBusi
 import { useLocalSearchParams } from "expo-router";
 
 export default function BusinessDetailRoute() {
-  const { businessId, distance, distanceAccuracy } = useLocalSearchParams<{
-    businessId: string;
-    distance?: string;
-    distanceAccuracy?: string;
-  }>();
+  const { businessId, distance, distanceAccuracy, previewAsExplorer } =
+    useLocalSearchParams<{
+      businessId: string;
+      distance?: string;
+      distanceAccuracy?: string;
+      previewAsExplorer?: string;
+    }>();
 
   return (
     <ExploreBusinessProfileScreen
       businessId={Number(businessId)}
       distance={distance ? Number(distance) : null}
       distanceAccuracy={distanceAccuracy ? Number(distanceAccuracy) : null}
+      previewAsExplorer={previewAsExplorer === "1"}
     />
   );
 }

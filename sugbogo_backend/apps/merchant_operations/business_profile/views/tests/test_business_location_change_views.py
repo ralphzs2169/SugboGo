@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from threading import Barrier
 from unittest.mock import patch
 
@@ -168,6 +169,7 @@ class BusinessLocationChangeViewTests(TestCase):
                 "postal_code": "6000",
             },
             "proposed_landmarks": landmarks,
+            "reason": "Our business location has changed.",
         }
 
     def _submit(
@@ -261,6 +263,11 @@ class BusinessLocationChangeViewTests(TestCase):
         data = response.data["data"]
         self.assertEqual(data["request_type"], "location")
         self.assertEqual(data["status"], "pending")
+        self.assertEqual(data["reason"], "Our business location has changed.")
+        self.assertEqual(
+            BusinessLocationChangeRequest.objects.get(pk=data["id"]).BLCR_MERCHANT_REASON,
+            "Our business location has changed.",
+        )
         self.assertEqual(data["previous"]["location"]["id"], self.old_location.pk)
         self.assertEqual(data["previous"]["landmarks"][0]["id"], self.old_landmark.pk)
         self.assertEqual(data["proposed"]["location"]["longitude"], 123.891)
@@ -270,6 +277,44 @@ class BusinessLocationChangeViewTests(TestCase):
         self.assertEqual(BusinessLandmark.objects.filter(LOCT_ID=self.old_location).count(), 1)
         self.application.refresh_from_db()
         self.assertEqual(self.application.BUSN_ID_id, self.business.pk)
+
+    def test_active_approval_cooldown_blocks_submission_and_is_exposed(self):
+        """Return 72-hour location eligibility and reject submission."""
+        resolved_at = timezone.now()
+        approved = BusinessLocationChangeRequest.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.merchant,
+            BLCR_PREVIOUS_LOCT_ID=self.old_location.pk,
+            BLCR_PREVIOUS_POINT=self.old_location.LOCT_POINT,
+            BLCR_PREVIOUS_ADDRESS=self.old_location.LOCT_ADDRESS,
+            BLCR_PREVIOUS_CITY=self.old_location.LOCT_CITY,
+            BLCR_PREVIOUS_PROVINCE=self.old_location.LOCT_PROVINCE,
+            BLCR_PREVIOUS_POSTAL_CODE=self.old_location.LOCT_POSTAL_CODE,
+            BLCR_PROPOSED_POINT=self.old_location.LOCT_POINT,
+            BLCR_PROPOSED_ADDRESS=self.old_location.LOCT_ADDRESS,
+            BLCR_PROPOSED_CITY=self.old_location.LOCT_CITY,
+            BLCR_PROPOSED_PROVINCE=self.old_location.LOCT_PROVINCE,
+            BLCR_PROPOSED_POSTAL_CODE=self.old_location.LOCT_POSTAL_CODE,
+            BLCR_STATUS=BusinessLocationChangeRequest.Status.APPROVED,
+            BLCR_SUBMITTED_AT=resolved_at - timedelta(days=1),
+            BLCR_RESOLVED_AT=resolved_at,
+        )
+
+        eligibility = self.client.get(
+            self.merchant_url,
+        ).data["data"]["eligibility"]
+        blocked = self._submit()
+
+        self.assertFalse(eligibility["can_submit"])
+        self.assertEqual(eligibility["reason"], "cooldown")
+        self.assertEqual(eligibility["cooldown_duration_hours"], 72)
+        self.assertEqual(
+            eligibility["last_approved_request_id"],
+            approved.pk,
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertEqual(blocked.data["errors"]["reason"], ["cooldown"])
+        self.assertEqual(BusinessLocationChangeRequest.objects.count(), 1)
 
     def test_zero_and_five_landmarks_are_allowed(self):
         """The complete desired set may contain zero through five landmarks."""
@@ -628,10 +673,21 @@ class BusinessLocationChangeViewTests(TestCase):
 
     def test_reject_and_owner_profile_landmark_fields(self):
         """Rejection preserves live state and owner profile supports editor prefill."""
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/location-cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
         request_id = self._submit().data["data"]["id"]
         self.client.force_authenticate(user=self.super_admin)
+        queue = self.client.get(self.admin_url)
+        self.assertEqual(
+            queue.data["data"]["items"][0]["cover_photo_url"],
+            "https://example.com/location-cover.jpg",
+        )
         detail = self.client.get(f"{self.admin_url}{request_id}/")
         self.assertEqual(detail.status_code, 200)
+        self.assertEqual(
+            detail.data["data"]["reason"],
+            "Our business location has changed.",
+        )
         self.assertEqual(detail.data["data"]["current"]["location"]["id"], self.old_location.pk)
         rejected = self.client.post(
             f"{self.admin_url}{request_id}/reject/",
@@ -640,6 +696,10 @@ class BusinessLocationChangeViewTests(TestCase):
         )
         self.assertEqual(rejected.status_code, 200)
         self.assertEqual(rejected.data["data"]["status"], "rejected")
+        self.assertEqual(
+            rejected.data["data"]["reason"],
+            "Our business location has changed.",
+        )
         self._assert_live_old()
         self.client.force_authenticate(user=self.merchant)
         profile = self.client.get("/api/merchant/business-profile/")
@@ -700,6 +760,7 @@ class BusinessLocationChangeConcurrencyTests(TransactionTestCase):
                 "province": "Cebu",
             },
             proposed_landmarks=[],
+            reason="Our business location has changed.",
         )
         self.request_id = request.pk
 
