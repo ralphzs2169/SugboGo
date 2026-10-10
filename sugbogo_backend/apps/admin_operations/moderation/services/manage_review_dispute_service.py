@@ -13,6 +13,9 @@ from apps.reviews.services.review_moderation_consistency_service import (
     ReviewModerationConsistencyService,
 )
 from apps.users.services.reputation_service import ReputationService
+from apps.notifications.services.notification_event_service import (
+    NotificationEventService,
+)
 
 
 class ManageReviewDisputeService:
@@ -219,7 +222,7 @@ class ManageReviewDisputeService:
             actor, dispute, AdminActivity.Action.REVIEW_DISPUTE_UPHELD,
             previous_review_status, Review.ReviewStatus.REJECTED,
         )
-
+        NotificationEventService.review_dispute_resolved(dispute, previous_review_status)
         return dispute
 
     @staticmethod
@@ -262,6 +265,9 @@ class ManageReviewDisputeService:
         ManageReviewDisputeService._record_resolution(
             actor, dispute, AdminActivity.Action.REVIEW_DISPUTE_DISMISSED,
             dispute.REVW_ID.REVW_STATUS, dispute.REVW_ID.REVW_STATUS,
+        )
+        NotificationEventService.review_dispute_resolved(
+            dispute, dispute.REVW_ID.REVW_STATUS,
         )
         return dispute
 

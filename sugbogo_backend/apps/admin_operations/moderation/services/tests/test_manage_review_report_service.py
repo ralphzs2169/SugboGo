@@ -11,6 +11,7 @@ from apps.admin_operations.moderation.services.manage_review_report_service impo
 from apps.reviews.models import Review, ReviewReport, BusinessReviewSummary
 from apps.reviews.services.tests import test_review_report_service as report_fixtures
 from apps.users.models import User, ReputationEvent
+from apps.notifications.models import Notification
 
 
 class ReportFixtures:
@@ -143,6 +144,8 @@ class ConcurrentReviewReportTests(ReportFixtures, TransactionTestCase):
                 for future in futures:
                     future.result(timeout=15)
         self.assertEqual(AdminActivity.objects.count(), 2)
+        self.assertEqual(Notification.objects.filter(NOTF_TYPE="review_rejected").count(), 1)
+        self.assertEqual(Notification.objects.filter(NOTF_TYPE="review_report_approved").count(), 2)
         self.assertEqual(ReputationEvent.objects.count(), 3)
         self.assertEqual(ReputationEvent.objects.filter(
             REVT_EVENT_TYPE=ReputationEvent.EventType.CONFIRMED_VIOLATION_PENALTY,
@@ -169,3 +172,4 @@ class ConcurrentReviewReportTests(ReportFixtures, TransactionTestCase):
                 outcomes = [future.result(timeout=15) for future in futures]
         self.assertCountEqual(outcomes, ["resolved", "rejected"])
         self.assertEqual(AdminActivity.objects.count(), 1)
+        self.assertEqual(Notification.objects.filter(USER_ID=self.user).count(), 1)

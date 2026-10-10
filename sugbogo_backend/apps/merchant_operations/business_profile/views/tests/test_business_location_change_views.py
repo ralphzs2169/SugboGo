@@ -204,6 +204,56 @@ class BusinessLocationChangeViewTests(TestCase):
         self.assertEqual(self.old_location.LOCT_ADDRESS, "Gorordo Avenue, Cebu City")
         self.assertTrue(BusinessLandmark.objects.filter(pk=self.old_landmark.pk).exists())
 
+    def test_decision_notifications_reach_only_request_submitter(self):
+        from apps.notifications.models import Notification
+
+        for outcome in ("rejected", "approved"):
+            response = self._submit()
+            self.assertEqual(response.status_code, 201, response.data)
+            request = BusinessLocationChangeRequest.objects.order_by("-pk").first()
+            self.assertEqual(Notification.objects.count(), int(outcome == "approved"))
+            if outcome == "approved":
+                BusinessLocationChangeService.approve(request.pk, self.admin)
+            else:
+                BusinessLocationChangeService.reject(request.pk, self.admin, "Private rejection reason.")
+            notification = Notification.objects.get(
+                NOTF_DEDUP_KEY=f"business_location_change:{request.pk}:resolved",
+            )
+            self.assertEqual(notification.USER_ID_id, self.merchant.pk)
+            self.assertEqual(notification.NOTF_TYPE, f"business_location_change_{outcome}")
+            self.assertEqual(notification.NOTF_TARGET_ID, request.pk)
+            self.assertEqual(notification.NOTF_TARGET_TYPE, "business_location_change")
+            self.assertNotIn("Private rejection reason", notification.NOTF_BODY)
+        self.assertEqual(Notification.objects.count(), 2)
+
+    def test_notification_failure_rolls_back_both_request_decisions(self):
+        from apps.notifications.models import Notification
+
+        response = self._submit()
+        self.assertEqual(response.status_code, 201, response.data)
+        request = BusinessLocationChangeRequest.objects.get()
+        previous_business = dict(type(self.business).objects.values().get(pk=self.business.pk))
+        for outcome in ("approved", "rejected"):
+            with self.subTest(outcome=outcome):
+                with patch(
+                    "apps.notifications.services.notification_event_service.NotificationService.create",
+                    side_effect=RuntimeError("Inbox storage unavailable"),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        if outcome == "approved":
+                            BusinessLocationChangeService.approve(request.pk, self.admin)
+                        else:
+                            BusinessLocationChangeService.reject(request.pk, self.admin, "Private rejection reason.")
+                request.refresh_from_db()
+                self.assertEqual(request.BLCR_STATUS, "pending")
+                self.assertIsNone(request.REVIEWER_ID_id)
+                self.assertEqual(
+                    dict(type(self.business).objects.values().get(pk=self.business.pk)),
+                    previous_business,
+                )
+                self._assert_live_old()
+                self.assertFalse(Notification.objects.exists())
+
     def test_submit_snapshots_both_sides_and_leaves_live_and_application(self):
         """Submission freezes coordinates, flat address, and landmark values."""
         response = self._submit()
