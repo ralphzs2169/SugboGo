@@ -361,8 +361,10 @@ class ReviewService:
         if not reviews:
             return reviews
 
-        business_id = reviews[0].BUSN_ID_id
-
+        business_ids = {
+            review.BUSN_ID_id
+            for review in reviews
+        }
         user_ids = {
             review.USER_ID_id
             for review in reviews
@@ -371,7 +373,7 @@ class ReviewService:
         vouches = (
             BusinessVouch.objects
             .filter(
-                BUSN_ID=business_id,
+                BUSN_ID_id__in=business_ids,
                 USER_ID__in=user_ids,
             )
             .select_related(
@@ -379,19 +381,25 @@ class ReviewService:
             )
         )
 
-        vouches_by_user = {}
+        vouches_by_business_and_user = {}
 
         for vouch in vouches:
-            vouches_by_user.setdefault(
-                vouch.USER_ID_id,
+            vouches_by_business_and_user.setdefault(
+                (
+                    vouch.BUSN_ID_id,
+                    vouch.USER_ID_id,
+                ),
                 [],
             ).append(
                 vouch,
             )
 
         for review in reviews:
-            review.vouched_specialties = vouches_by_user.get(
-                review.USER_ID_id,
+            review.vouched_specialties = vouches_by_business_and_user.get(
+                (
+                    review.BUSN_ID_id,
+                    review.USER_ID_id,
+                ),
                 [],
             )
 
