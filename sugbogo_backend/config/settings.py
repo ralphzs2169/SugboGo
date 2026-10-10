@@ -155,6 +155,7 @@ INSTALLED_APPS = [
     # 'apps.merchant_operations.apps.MerchantOperationsConfig',
 
     'apps.reviews.apps.ReviewsConfig',
+    'apps.notifications.apps.NotificationsConfig',
     'apps.review_disputes.apps.ReviewDisputesConfig',
     # Explorer Operations
     'apps.explorer_operations.explore_businesses.apps.ExploreBusinessesConfig',
