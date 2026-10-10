@@ -12,6 +12,7 @@ from apps.business.models import (
     BusinessSpecialtyTag,
     BusinessVouch,
 )
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.business.services.visibility_event_service import (
     VisibilityEventService,
     VisibilityTrackingUnavailable,
@@ -189,6 +190,7 @@ class RecommendationService:
             .annotate(
                 is_pocketed=Exists(user_pocket_exists),
                 published_review_count=published_review_count(),
+                display_cover_photo_url=display_cover_photo_expression(),
                 recommendation_visibility_gap=Coalesce(
                     "discovery_score__DSC_V_SCORE",
                     Value(Decimal("0.00000")),

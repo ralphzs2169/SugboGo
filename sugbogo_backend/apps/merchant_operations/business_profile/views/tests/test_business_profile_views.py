@@ -438,6 +438,12 @@ class BusinessCoverPhotoViewTests(TestCase):
         self.assertTrue(profile["verification"]["documents"][0]["has_file"])
         self.assertNotIn("MDOC_DOCUMENT_URL", str(profile))
         self.assertEqual(profile["cover_photo_update"]["limit"], 3)
+        self.assertIsNone(profile["cover_photo_url"])
+        self.assertEqual(
+            profile["display_cover_photo_url"],
+            "https://example.com/storefront.jpg",
+        )
+        self.assertEqual(profile["cover_photo_update"]["remaining"], 3)
 
     def test_profile_is_scoped_to_authenticated_merchant(self):
         other_merchant = User.objects.create_user(

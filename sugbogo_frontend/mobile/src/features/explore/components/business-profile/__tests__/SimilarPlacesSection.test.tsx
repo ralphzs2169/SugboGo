@@ -9,7 +9,13 @@ import type { ExploreBusiness } from "../../../types/exploreBusiness.types";
 import SimilarPlacesSection from "../SimilarPlacesSection";
 
 const mockBusinessCard = jest.fn(
-  ({ business, onPress }: { business: ExploreBusiness; onPress: () => void }) => {
+  ({
+    business,
+    onPress,
+  }: {
+    business: ExploreBusiness;
+    onPress: () => void;
+  }) => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Pressable, Text } = require("react-native");
 
@@ -65,6 +71,7 @@ function createBusiness(id: number): ExploreBusiness {
     id,
     business_name: `Similar Business ${id}`,
     cover_photo_url: null,
+    display_cover_photo_url: null,
     review_count: 0,
     overall_vibe: null,
     is_pocketed: id === 1,

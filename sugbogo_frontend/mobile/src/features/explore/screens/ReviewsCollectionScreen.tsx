@@ -448,7 +448,7 @@ function ReviewsCollectionScreenContent({
       <ReviewComposerSheet
         businessId={businessId}
         businessName={business?.business_name ?? businessName ?? "Business"}
-        coverPhotoUrl={business?.cover_photo_url}
+        coverPhotoUrl={business?.display_cover_photo_url}
         sheetRef={reviewSheetRef}
         review={editingReview}
       />

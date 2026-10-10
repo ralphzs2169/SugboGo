@@ -112,6 +112,10 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    display_cover_photo_url = serializers.URLField(
+        read_only=True,
+        allow_null=True,
+    )
     is_pocketed = serializers.BooleanField(
         read_only=True,
     )
@@ -153,6 +157,7 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
             "id",
             "business_name",
             "cover_photo_url",
+            "display_cover_photo_url",
             "is_pocketed",
             "review_count",
             "overall_vibe",

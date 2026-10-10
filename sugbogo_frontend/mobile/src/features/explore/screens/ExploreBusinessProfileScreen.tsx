@@ -286,7 +286,7 @@ function ExploreBusinessProfileScreenContent({
         <ReviewComposerSheet
           businessId={business.id}
           businessName={business.business_name}
-          coverPhotoUrl={business.cover_photo_url}
+          coverPhotoUrl={business.display_cover_photo_url}
           sheetRef={composerRef}
           review={editingReview}
         />

@@ -15,6 +15,7 @@ export type MerchantBusinessProfileResponse = {
   photos: MerchantBusinessPhoto[];
   verification: MerchantBusinessVerification | null;
   cover_photo_url: string | null;
+  display_cover_photo_url: string | null;
   cover_photo_retry_after: number | null;
   cover_photo_update: CoverPhotoUpdateAllowance;
   id: number;

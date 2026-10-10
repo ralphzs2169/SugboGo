@@ -337,7 +337,7 @@ export default function MerchantProfileScreen() {
               classification={`${business.category.name} · ${business.cluster.name}`}
               clusterIcon={clusterIcon}
               status={business.status}
-              coverPhotoUrl={business.cover_photo_url}
+              coverPhotoUrl={business.display_cover_photo_url}
               avatarUrl={merchantAvatarUrl}
               avatarKey={merchantAvatarKey}
               isUploading={isUploading}

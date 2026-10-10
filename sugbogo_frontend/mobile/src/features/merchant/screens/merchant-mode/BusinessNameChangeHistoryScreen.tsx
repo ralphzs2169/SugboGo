@@ -55,7 +55,7 @@ export default function BusinessNameChangeHistoryScreen() {
   } = useMerchantBusinessNameChangeRequests();
 
   const hasHistory = requests.length > 0;
-  const coverPhotoUrl = business?.cover_photo_url;
+  const coverPhotoUrl = business?.display_cover_photo_url;
   const showCoverPhoto = Boolean(
     coverPhotoUrl && coverPhotoUrl !== failedCoverUrl,
   );

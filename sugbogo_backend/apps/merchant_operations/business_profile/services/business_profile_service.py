@@ -9,6 +9,7 @@ from apps.business.models import (
     BusinessPhoto,
     BusinessSpecialtyTag,
 )
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationDocument,
@@ -41,6 +42,9 @@ class BusinessProfileService:
                     "LOCT_ID",
                     "merchant_application",
                     "merchant_application__identity",
+                )
+                .annotate(
+                    display_cover_photo_url=display_cover_photo_expression(),
                 )
                 .prefetch_related(
                     Prefetch(

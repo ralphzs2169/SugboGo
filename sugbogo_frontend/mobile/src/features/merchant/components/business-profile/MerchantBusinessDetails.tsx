@@ -87,7 +87,8 @@ export default function MerchantBusinessDetails({
   isSwitchingToExplorer = false,
 }: Props) {
   const [weeklyHoursVisible, setWeeklyHoursVisible] = useState(false);
-  const [contactDetailsVisible, setContactDetailsVisible] = useState(true);
+  const [locationVisible, setLocationVisible] = useState(false);
+  const [contactDetailsVisible, setContactDetailsVisible] = useState(false);
   const [verificationVisible, setVerificationVisible] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
@@ -428,93 +429,128 @@ export default function MerchantBusinessDetails({
           </View>
         </View>
 
-        {/* Location and landmarks */}
-        <View className="border-t border-border-primary/60 py-4">
-          {/* Location heading */}
-          <View className="mb-3 flex-row items-center gap-2">
+        {/* Expandable location and landmarks */}
+        <View className="border-t border-border-primary/60 pb-4">
+          {/* Location heading and disclosure */}
+          <Pressable
+            onPress={() => setLocationVisible((visible) => !visible)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: locationVisible }}
+            accessibilityLabel={
+              locationVisible
+                ? "Hide business location details"
+                : "View business location details"
+            }
+            className="min-h-16 cursor-pointer flex-row items-center gap-2 py-3 active:opacity-70"
+          >
             <MaterialCommunityIcons
               name="map-marker-outline"
               size={20}
               color={theme.extends.colors.text.secondary}
             />
 
-            <AppText
-              weight="semibold"
-              className="flex-1 text-sm text-text-primary"
-            >
-              Location
-            </AppText>
-            {onViewMap ? (
-              <Pressable
-                onPress={onViewMap}
-                accessibilityRole="button"
-                accessibilityLabel="View approved business location on map"
-                className="min-h-11 cursor-pointer flex-row items-center gap-1 px-2 active:opacity-70"
-              >
-                <AppText weight="semibold" className="text-sm text-brand">
-                  View map
+            <View className="min-w-0 flex-1">
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                Location
+              </AppText>
+
+              {/* Collapsed location summary */}
+              {!locationVisible ? (
+                <AppText
+                  className="mt-1 text-xs text-text-secondary"
+                  numberOfLines={1}
+                >
+                  {address.cityLine ||
+                    address.addressLine ||
+                    "Saved business location"}
+                  {" · "}
+                  {business.location.landmarks.length} landmark
+                  {business.location.landmarks.length === 1 ? "" : "s"}
                 </AppText>
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={18}
-                  color={theme.extends.colors.brand}
-                />
-              </Pressable>
-            ) : null}
-          </View>
+              ) : null}
+            </View>
 
-          {/* Location map */}
-          <View className="overflow-hidden rounded-xl bg-surface-secondary">
-            <LocationPickerMap
-              latitude={business.location.latitude}
-              longitude={business.location.longitude}
-              interactionEnabled={false}
-              showLocationPreviewOverlay={false}
-              previewHeight={156}
+            <MaterialCommunityIcons
+              name={locationVisible ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={theme.extends.colors.text.secondary}
             />
-          </View>
+          </Pressable>
 
-          {/* Bordered address and landmark card */}
-          <View className="mt-3 rounded-xl border border-border-primary bg-surface p-3">
-            {address.addressLine ? (
-              <AppText
-                weight="semibold"
-                className="text-sm leading-5 text-text-primary"
-              >
-                {address.addressLine}
-              </AppText>
-            ) : null}
-
-            {address.cityLine ? (
-              <AppText
-                className={`text-sm leading-5 text-text-secondary ${
-                  address.addressLine ? "mt-1" : ""
-                }`}
-              >
-                {address.cityLine}
-              </AppText>
-            ) : null}
-
-            {/* Landmark count */}
-            <View
-              className={`flex-row items-center gap-2 ${
-                address.addressLine || address.cityLine
-                  ? "mt-3 border-t border-border-primary/60 pt-3"
-                  : ""
-              }`}
-            >
-              <MaterialCommunityIcons
-                name="map-marker-radius-outline"
-                size={17}
-                color={theme.extends.colors.text.secondary}
+          {/* Expanded location card */}
+          {locationVisible ? (
+            <View className="overflow-hidden rounded-xl border border-border-primary bg-surface">
+              {/* Read-only business location preview */}
+              <LocationPickerMap
+                latitude={business.location.latitude}
+                longitude={business.location.longitude}
+                interactionEnabled={false}
+                showLocationPreviewOverlay={false}
+                previewHeight={156}
               />
 
-              <AppText className="flex-1 text-sm text-text-secondary">
-                {business.location.landmarks.length} landmark
-                {business.location.landmarks.length === 1 ? "" : "s"}
-              </AppText>
+              {/* Address and registered landmark details */}
+              <View className="px-3 py-3">
+                {address.addressLine ? (
+                  <AppText
+                    weight="semibold"
+                    className="text-sm leading-5 text-text-primary"
+                  >
+                    {address.addressLine}
+                  </AppText>
+                ) : null}
+
+                {address.cityLine ? (
+                  <AppText
+                    className={`text-sm leading-5 text-text-secondary ${
+                      address.addressLine ? "mt-1" : ""
+                    }`}
+                  >
+                    {address.cityLine}
+                  </AppText>
+                ) : null}
+
+                {!address.addressLine && !address.cityLine ? (
+                  <AppText className="text-sm text-text-secondary">
+                    Address unavailable
+                  </AppText>
+                ) : null}
+
+                {/* Landmark count and full-screen map action */}
+                <View className="mt-3 flex-row items-center gap-2 border-t border-border-primary/60 pt-2">
+                  <MaterialCommunityIcons
+                    name="map-marker-radius-outline"
+                    size={17}
+                    color={theme.extends.colors.text.secondary}
+                  />
+
+                  <AppText className="min-w-0 flex-1 text-sm text-text-secondary">
+                    {business.location.landmarks.length} landmark
+                    {business.location.landmarks.length === 1 ? "" : "s"}
+                  </AppText>
+
+                  {onViewMap ? (
+                    <Pressable
+                      onPress={onViewMap}
+                      accessibilityRole="button"
+                      accessibilityLabel="View approved business location and landmarks on map"
+                      className="min-h-11 cursor-pointer flex-row items-center gap-1 px-1 active:opacity-70"
+                    >
+                      <AppText weight="semibold" className="text-sm text-brand">
+                        View map
+                      </AppText>
+
+                      <MaterialCommunityIcons
+                        name="chevron-right"
+                        size={18}
+                        color={theme.extends.colors.brand}
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
             </View>
-          </View>
+          ) : null}
         </View>
 
         {/* Expandable contact details */}

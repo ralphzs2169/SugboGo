@@ -366,6 +366,10 @@ class BusinessProfileResponseSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    display_cover_photo_url = serializers.URLField(
+        read_only=True,
+        allow_null=True,
+    )
 
     cover_photo_retry_after = serializers.SerializerMethodField()
     cover_photo_update = serializers.SerializerMethodField()
@@ -388,6 +392,7 @@ class BusinessProfileResponseSerializer(serializers.ModelSerializer):
             "photos",
             "verification",
             "cover_photo_url",
+            "display_cover_photo_url",
             "cover_photo_retry_after",
             "cover_photo_update",
         )

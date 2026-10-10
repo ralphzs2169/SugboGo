@@ -92,7 +92,7 @@ export default function BusinessProfileScrollView({
           businessId={business.id}
           isPocketed={business.is_pocketed}
           businessName={business.business_name}
-          coverPhotoUrl={business.cover_photo_url}
+          coverPhotoUrl={business.display_cover_photo_url}
           clusterIconName={clusterIconName}
           clusterName={business.cluster.name}
           categoryName={business.category.name}

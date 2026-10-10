@@ -43,6 +43,7 @@ const business: MerchantBusinessProfileResponse = {
   website: "https://example.com",
   status: "active",
   cover_photo_url: null,
+  display_cover_photo_url: null,
   cover_photo_retry_after: null,
   cover_photo_update: { limit: 3, remaining: 2, resets_at: null },
   category: { id: 2, name: "Restaurants" },
