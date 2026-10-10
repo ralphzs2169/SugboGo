@@ -6,8 +6,8 @@ import Tooltip from "@/shared/components/actions/Tooltip";
 /**
  * Reusable button component.
  *
- * Supports variants, sizes, icons, loading states, disabled states,
- * optional disabled tooltips, and optional hover tooltips.
+ * Supports visual variants, sizes, icons, loading and disabled states,
+ * and optional tooltips for consistent application actions.
  */
 export default function Button({
   children,
@@ -37,13 +37,18 @@ export default function Button({
     secondary:
       "border border-stroke bg-background text-text-primary hover:bg-surface",
 
-    // used for actions column in tables
+    // Table action buttons
     action:
       "bg-transparent text-text-secondary hover:bg-surface hover:text-text-primary",
 
+    // Positive actions
     success: "bg-success text-white hover:opacity-90 active:opacity-80",
 
+    // Destructive actions
     danger: "bg-red-600 text-white hover:bg-red-700 active:bg-red-800",
+
+    "danger-outline":
+      "border border-red-500 bg-transparent text-red-600 hover:bg-red-50 active:bg-red-100",
 
     edit: "text-blue-600 hover:bg-blue-50 hover:text-blue-700",
 
@@ -65,12 +70,14 @@ export default function Button({
       )}
       {...props}
     >
+      {/* Loading indicator or leading icon */}
       {loading ? (
         <LoaderCircle size={18} className="animate-spin" />
       ) : (
         Icon && <Icon size={18} />
       )}
 
+      {/* Button label */}
       {!iconOnly && <span>{children}</span>}
     </button>
   );
