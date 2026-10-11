@@ -41,7 +41,12 @@ class AdminUnderReviewFilterSerializer(serializers.Serializer):
         trim_whitespace=True,
     )
     reason = serializers.ChoiceField(
-        choices=("text_flagged", "image_flagged", "provider_failure"),
+        choices=(
+            "text_flagged",
+            "image_flagged",
+            "local_cebuano_safety",
+            "provider_failure",
+        ),
         required=False,
     )
     content = serializers.ChoiceField(
@@ -106,6 +111,12 @@ class AdminUnderReviewListSerializer(serializers.ModelSerializer):
             for item in findings
         ):
             reasons.append("image_flagged")
+        if any(
+            item.get("source") == "local_cebuano_safety"
+            and item.get("flagged") is True
+            for item in findings
+        ):
+            reasons.append("local_cebuano_safety")
         data = moderation_data(review)
         if data.get("outcome") == "provider_failure" or data.get("incomplete") is True:
             reasons.append("provider_failure")
@@ -176,6 +187,15 @@ class AdminUnderReviewDetailSerializer(AdminUnderReviewListSerializer):
                 retry_state = "retrying"
             else:
                 retry_state = "awaiting_review"
+        local_safety_findings = [
+            {
+                "category": item.get("category"),
+                "matched_rule": item.get("matched_rule"),
+            }
+            for item in moderation_findings(review)
+            if item.get("source") == "local_cebuano_safety"
+            and item.get("flagged") is True
+        ]
         return {
             "text_checked": text_finding is not None,
             "text_flagged_categories": (
@@ -184,4 +204,5 @@ class AdminUnderReviewDetailSerializer(AdminUnderReviewListSerializer):
             "provider_unavailable": unavailable,
             "retry_state": retry_state,
             "checked_at": data.get("checked_at"),
+            "local_safety_findings": local_safety_findings,
         }

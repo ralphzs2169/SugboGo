@@ -30,7 +30,8 @@ class ReviewModerationRetryService:
             and metadata.get("retry_exhausted", False) is False
             and metadata.get("retry_attempt", 0) == expected_attempt
             and not any(
-                finding.get("flagged") is True
+                finding.get("source") in ("text", "image")
+                and finding.get("flagged") is True
                 for finding in findings
                 if isinstance(finding, dict)
             )

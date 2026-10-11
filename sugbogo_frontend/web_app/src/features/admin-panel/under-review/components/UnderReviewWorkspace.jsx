@@ -45,6 +45,7 @@ function QueueFilters({ filters, onChange }) {
             <option value="">All reasons</option>
             <option value="text_flagged">Text flagged</option>
             <option value="image_flagged">Image flagged</option>
+            <option value="local_cebuano_safety">Potential violent threat</option>
             <option value="provider_failure">Provider failure</option>
           </select>
         </label>

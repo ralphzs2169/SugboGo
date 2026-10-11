@@ -47,8 +47,26 @@ export default function UnderReviewFindings({ review }) {
         <h3 className="text-sm font-semibold text-text-primary">Moderation findings</h3>
       </div>
       <p className="mt-1 text-xs text-text-secondary">
-        Automated findings are supporting evidence for your decision.
+        Moderation findings are supporting evidence for your decision.
       </p>
+
+      {moderation.local_safety_findings?.length > 0 && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">
+            Potential violent threat
+          </p>
+          <dl className="mt-2 space-y-1 text-xs text-amber-900">
+            <div className="flex gap-2">
+              <dt className="font-semibold">Detected in</dt>
+              <dd>Review text</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-semibold">Source</dt>
+              <dd>Local Cebuano safety fallback</dd>
+            </div>
+          </dl>
+        </div>
+      )}
 
       {moderation.provider_unavailable && (
         <div className="mt-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">

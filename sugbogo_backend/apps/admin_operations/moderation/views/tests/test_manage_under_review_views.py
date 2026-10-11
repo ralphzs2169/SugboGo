@@ -251,6 +251,66 @@ class ManageUnderReviewViewTests(TestCase):
         self.assertTrue(provider["moderation"]["provider_unavailable"])
         self.assertEqual(provider["moderation"]["retry_state"], "retrying")
 
+    def test_local_safety_reason_is_structured_and_filterable(self):
+        """Admin evidence identifies the local source without raw review text."""
+        self.review.REVW_MODERATION_DATA = {
+            "outcome": "flagged",
+            "findings": [
+                {
+                    "source": "local_cebuano_safety",
+                    "photo_index": None,
+                    "flagged": True,
+                    "category": "violence_threat",
+                    "matched_rule": "direct_kill_threat",
+                },
+                {
+                    "source": "text",
+                    "photo_index": None,
+                    "flagged": False,
+                    "categories": {"violence": False},
+                },
+            ],
+        }
+        self.review.save(update_fields=["REVW_MODERATION_DATA"])
+
+        list_response = self.client.get(
+            reverse("admin-under-review-list"),
+            {"reason": "local_cebuano_safety"},
+        )
+        self.assertEqual(list_response.status_code, 200)
+        items = list_response.data["data"]["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["hold_reasons"], ["local_cebuano_safety"])
+        self.assertNotIn("REVW_MODERATION_DATA", items[0])
+
+        detail = self.client.get(
+            reverse("admin-under-review-detail", args=[self.review.pk]),
+        ).data["data"]
+        self.assertEqual(
+            detail["moderation"]["local_safety_findings"],
+            [
+                {
+                    "category": "violence_threat",
+                    "matched_rule": "direct_kill_threat",
+                },
+            ],
+        )
+        self.assertEqual(detail["moderation"]["text_flagged_categories"], [])
+        self.assertFalse(detail["moderation"]["provider_unavailable"])
+
+        self.review.REVW_MODERATION_DATA["outcome"] = "provider_failure"
+        self.review.REVW_MODERATION_DATA["retryable"] = True
+        self.review.save(update_fields=["REVW_MODERATION_DATA"])
+        unavailable = self.client.get(
+            reverse("admin-under-review-detail", args=[self.review.pk]),
+        ).data["data"]
+        self.assertEqual(
+            unavailable["hold_reasons"],
+            ["local_cebuano_safety", "provider_failure"],
+        )
+        self.assertTrue(unavailable["moderation"]["provider_unavailable"])
+        self.assertEqual(unavailable["moderation"]["retry_state"], "retrying")
+
     def test_decision_endpoints_are_audited_and_stale_safe(self):
         """API decisions return statuses and refuse duplicate transitions."""
         approve = reverse("admin-under-review-approve", args=[self.review.pk])

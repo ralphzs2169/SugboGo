@@ -58,6 +58,12 @@ class ManageUnderReviewService:
                     {"source": "image", "flagged": True},
                 ],
             )
+        elif reason == "local_cebuano_safety":
+            queryset = queryset.filter(
+                REVW_MODERATION_DATA__findings__contains=[
+                    {"source": "local_cebuano_safety", "flagged": True},
+                ],
+            )
         elif reason == "provider_failure":
             queryset = queryset.filter(
                 Q(REVW_MODERATION_DATA__outcome="provider_failure")

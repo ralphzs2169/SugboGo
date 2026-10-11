@@ -254,6 +254,53 @@ class ReviewModerationRetryTests(TestCase):
     @patch(
         "apps.reviews.services.review_moderation_retry_service."
         "ReviewModerationService.moderate",
+    )
+    def test_local_finding_preserves_provider_retry_until_check_completes(
+        self,
+        moderate,
+    ):
+        """Local evidence cannot suppress recovery from a separate outage."""
+        local_finding = {
+            "source": "local_cebuano_safety",
+            "photo_index": None,
+            "flagged": True,
+            "category": "violence_threat",
+            "matched_rule": "direct_kill_threat",
+        }
+        metadata = self.review.REVW_MODERATION_DATA
+        metadata["findings"] = [local_finding]
+        self.review.save(update_fields=["REVW_MODERATION_DATA"])
+
+        failed_again = moderation_result("provider_failure")
+        failed_again["findings"].insert(0, local_finding)
+        completed = moderation_result("flagged")
+        completed["findings"][0]["flagged"] = False
+        completed["findings"].insert(0, local_finding)
+        moderate.side_effect = [failed_again, completed]
+
+        first_outcome = ReviewModerationRetryService.retry(
+            self.review.pk,
+            expected_attempt=0,
+            max_retries=3,
+        )
+        second_outcome = ReviewModerationRetryService.retry(
+            self.review.pk,
+            expected_attempt=1,
+            max_retries=3,
+        )
+
+        self.assertEqual(first_outcome, "provider_failure")
+        self.assertEqual(second_outcome, "flagged")
+        self.assertEqual(moderate.call_count, 2)
+        self.review.refresh_from_db()
+        self.business.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertFalse(self.review.REVW_MODERATION_DATA["retryable"])
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+
+    @patch(
+        "apps.reviews.services.review_moderation_retry_service."
+        "ReviewModerationService.moderate",
         return_value=moderation_result("provider_failure"),
     )
     def test_final_task_failure_stays_held_without_another_retry(

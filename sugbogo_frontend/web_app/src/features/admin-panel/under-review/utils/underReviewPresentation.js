@@ -3,6 +3,7 @@ import { formatLabel } from "@/shared/utils/stringUtils";
 export const HOLD_REASON_LABELS = {
   text_flagged: "Text flagged",
   image_flagged: "Image flagged",
+  local_cebuano_safety: "Potential violent threat",
   provider_failure: "Automated moderation unavailable",
 };
 

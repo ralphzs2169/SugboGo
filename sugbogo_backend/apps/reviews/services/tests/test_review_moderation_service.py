@@ -39,6 +39,65 @@ def uploaded_image(name: str, contents: bytes) -> SimpleUploadedFile:
 )
 class ReviewModerationServiceTests(SimpleTestCase):
     @patch("apps.reviews.services.review_moderation_service.OpenAI")
+    def test_english_ai_flag_remains_primary(self, openai_client):
+        openai_client.return_value.moderations.create.return_value = (
+            provider_response(flagged=True)
+        )
+        result = ReviewModerationService.moderate(
+            "I love the place but I will kill the customers.",
+        )
+        self.assertEqual(result["outcome"], "flagged")
+        self.assertEqual(
+            [finding["source"] for finding in result["findings"]],
+            ["text"],
+        )
+
+    @patch("apps.reviews.services.review_moderation_service.OpenAI")
+    def test_safe_ai_result_still_holds_local_cebuano_threat(self, openai_client):
+        openai_client.return_value.moderations.create.return_value = (
+            provider_response()
+        )
+        for text in (
+            "Patyon nako ang mga customer.",
+            "I love this place pero patyon nako ang mga customer.",
+            "I love this place pero patyon gyud tika.",
+            "Mopatay gyud ko nimo.",
+            "Pusilon tika.",
+            "Sumbagon nako siya.",
+        ):
+            with self.subTest(text=text):
+                result = ReviewModerationService.moderate(text)
+                self.assertEqual(result["outcome"], "flagged")
+                self.assertEqual(result["failure_type"], None)
+                self.assertEqual(
+                    [finding["source"] for finding in result["findings"]],
+                    ["local_cebuano_safety", "text"],
+                )
+                self.assertFalse(result["findings"][1]["flagged"])
+
+    @patch("apps.reviews.services.review_moderation_service.OpenAI")
+    def test_ai_and_local_findings_coexist(self, openai_client):
+        openai_client.return_value.moderations.create.return_value = (
+            provider_response(flagged=True)
+        )
+        result = ReviewModerationService.moderate(
+            "Patyon nako ang mga customer.",
+        )
+        self.assertEqual(result["outcome"], "flagged")
+        self.assertTrue(result["findings"][0]["flagged"])
+        self.assertTrue(result["findings"][1]["flagged"])
+
+    @patch("apps.reviews.services.review_moderation_service.OpenAI")
+    def test_provider_failure_and_local_finding_stay_distinct(self, openai_client):
+        openai_client.return_value.moderations.create.side_effect = TimeoutError()
+        result = ReviewModerationService.moderate(
+            "Patyon nako ang mga customer.",
+        )
+        self.assertEqual(result["outcome"], "provider_failure")
+        self.assertEqual(result["failure_type"], "TimeoutError")
+        self.assertEqual(result["findings"][0]["source"], "local_cebuano_safety")
+
+    @patch("apps.reviews.services.review_moderation_service.OpenAI")
     def test_safe_text(self, openai_client):
         openai_client.return_value.moderations.create.return_value = (
             provider_response()

@@ -244,6 +244,38 @@ test("provider failure is shown as unavailable, not unsafe content", () => {
   assert.doesNotMatch(html, /potential concerns/);
 });
 
+test("local Cebuano safety finding identifies its source and review text", () => {
+  const detail = {
+    ...heldReview,
+    hold_reasons: ["local_cebuano_safety"],
+    text: "Patyon nako ang mga customer.",
+    photos: [],
+    moderation: {
+      text_checked: true,
+      text_flagged_categories: [],
+      local_safety_findings: [
+        {
+          category: "violence_threat",
+          matched_rule: "direct_kill_threat",
+        },
+      ],
+      provider_unavailable: false,
+      retry_state: null,
+      checked_at: "2026-10-10T09:00:00Z",
+    },
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42",
+    { list: { ...heldList, items: [detail] }, detail },
+  );
+
+  assert.match(html, /Potential violent threat/);
+  assert.match(html, /Detected in/);
+  assert.match(html, /Review text/);
+  assert.match(html, /Local Cebuano safety fallback/);
+  assert.doesNotMatch(html, /direct_kill_threat/);
+});
+
 test("empty queue renders the moderation empty state", () => {
   const html = renderPage(
     "/admin-panel/moderation-integrity?tab=under-review",

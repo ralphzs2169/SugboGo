@@ -32,6 +32,9 @@ from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
+from apps.reviews.services.tests.test_review_moderation_service import (
+    provider_response,
+)
 from apps.users.models import User
 
 
@@ -400,6 +403,79 @@ class ReviewServiceTests(TestCase):
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
         queue.assert_not_called()
+
+    @override_settings(OPENAI_API_KEY="test-key")
+    def test_local_safety_finding_holds_without_retry_or_publication(self):
+        """A completed local threat finding is a hold, not infrastructure failure."""
+        with (
+            patch(
+                "apps.reviews.services.review_service."
+                "ReviewModerationService.moderate",
+                self.real_moderate,
+            ),
+            patch(
+                "apps.reviews.services.review_moderation_service.OpenAI",
+            ) as openai_client,
+            patch.object(ReviewService, "_queue_sentiment_after_commit") as sentiment,
+            patch(
+                "apps.reviews.tasks.retry_failed_review_moderation.delay",
+            ) as retry,
+        ):
+            openai_client.return_value.moderations.create.return_value = (
+                provider_response()
+            )
+            with self.captureOnCommitCallbacks(execute=True):
+                review = ReviewService.create_review(
+                    user=self.user,
+                    business_id=self.business.pk,
+                    text="Patyon nako ang mga customer.",
+                )
+
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertFalse(review.REVW_MODERATION_DATA["retryable"])
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["findings"][0]["source"],
+            "local_cebuano_safety",
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        sentiment.assert_not_called()
+        retry.assert_not_called()
+
+    @override_settings(OPENAI_API_KEY="test-key")
+    def test_provider_failure_with_local_finding_still_schedules_retry(self):
+        """A local finding does not hide an independent provider outage."""
+        with (
+            patch(
+                "apps.reviews.services.review_service."
+                "ReviewModerationService.moderate",
+                self.real_moderate,
+            ),
+            patch(
+                "apps.reviews.services.review_moderation_service.OpenAI",
+            ) as openai_client,
+            patch(
+                "apps.reviews.tasks.retry_failed_review_moderation.delay",
+            ) as retry,
+        ):
+            openai_client.return_value.moderations.create.side_effect = (
+                TimeoutError()
+            )
+            with self.captureOnCommitCallbacks(execute=True):
+                review = ReviewService.create_review(
+                    user=self.user,
+                    business_id=self.business.pk,
+                    text="Patyon nako ang mga customer.",
+                )
+
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertTrue(review.REVW_MODERATION_DATA["retryable"])
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["findings"][0]["source"],
+            "local_cebuano_safety",
+        )
+        retry.assert_called_once_with(review.pk)
 
     def test_provider_failure_queues_retry_only_after_commit(self):
         """The held review is committed before its recovery task is sent."""
