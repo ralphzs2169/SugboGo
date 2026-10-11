@@ -9,6 +9,8 @@ from rest_framework.exceptions import ValidationError
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.moderation.services.manage_review_report_service import ManageReviewReportService
 from apps.reviews.models import Review, ReviewReport, BusinessReviewSummary
+from apps.reviews.services.review_report_service import ReviewReportService
+from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests import test_review_report_service as report_fixtures
 from apps.users.models import User, ReputationEvent
 from apps.notifications.models import Notification
@@ -40,9 +42,36 @@ class ReportFixtures:
             admin_notes="Evidence inspected and decision recorded.", approve=approve,
         )
 
+    def add_pending_reports(self, count):
+        """Create independent pending reporters through the reporting service."""
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_REPORT_COUNT=self.review.reports.count(),
+        )
+        reports = []
+        for index in range(count):
+            reporter = User.objects.create_user(
+                email=f"extra-reporter-{index}@example.com",
+                password=None,
+                USER_FNAME="Extra",
+                USER_LNAME="Reporter",
+                USER_ROLE=User.UserRole.EXPLORER,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+            reports.append(
+                ReviewReportService.create_report(
+                    reporter,
+                    self.review.pk,
+                    ReviewReport.ReportType.OTHER,
+                )
+            )
+        self.review.refresh_from_db()
+        return reports
+
 
 class ManageReviewReportServiceTests(ReportFixtures, TestCase):
     def test_approval_rejects_review_refreshes_insights_and_audits(self):
+        siblings = self.add_pending_reports(2)
+        self.assertTrue(self.review.REVW_IS_REPORT_FLAGGED)
         summary = BusinessReviewSummary.objects.create(
             BUSN_ID=self.business, BRSU_POSITIVE_COUNT=1,
             BRSU_REVIEW_COUNT=1, BRSU_CLASSIFIED_REVIEW_COUNT=1,
@@ -59,7 +88,18 @@ class ManageReviewReportServiceTests(ReportFixtures, TestCase):
         self.report.refresh_from_db()
         summary.refresh_from_db()
         self.assertEqual(self.review.REVW_STATUS, "rejected")
+        self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
         self.assertEqual(self.report.RREP_STATUS, "approved")
+        self.assertEqual(
+            [item.pk for item in ReviewService.list_reviews(
+                self.business.pk,
+                self.user,
+            )],
+            [],
+        )
+        for sibling in siblings:
+            sibling.refresh_from_db()
+            self.assertEqual(sibling.RREP_STATUS, "pending")
         self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
         self.assertEqual(summary.BRSU_NARRATIVE, "")
         self.assertEqual(ReputationEvent.objects.count(), 2)
@@ -68,18 +108,31 @@ class ManageReviewReportServiceTests(ReportFixtures, TestCase):
         self.assertEqual(event.AACT_CONTEXT["previous_review_status"], "published")
         self.assertEqual(event.AACT_CONTEXT["report_status"], "approved")
 
-    def test_rejection_preserves_flagged_review_without_reputation_or_refresh(self):
-        self.review.REVW_IS_SPAM_FLAGGED = True
-        self.review.save()
+    def test_rejecting_one_of_three_reports_clears_attention(self):
+        siblings = self.add_pending_reports(2)
+        self.assertTrue(self.review.REVW_IS_REPORT_FLAGGED)
         with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:
             with self.captureOnCommitCallbacks(execute=True):
                 self.resolve(approve=False)
             enqueue.assert_not_called()
         self.review.refresh_from_db()
-        self.assertTrue(self.review.REVW_IS_SPAM_FLAGGED)
+        self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
         self.assertEqual(self.review.REVW_STATUS, "published")
         self.assertFalse(ReputationEvent.objects.exists())
         self.assertEqual(AdminActivity.objects.get().AACT_ACTION, "review_report_rejected")
+        for sibling in siblings:
+            self.resolve(sibling, approve=False)
+            self.review.refresh_from_db()
+            self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
+        self.assertEqual(self.review.REVW_STATUS, "published")
+
+    def test_rejecting_one_of_four_reports_keeps_attention(self):
+        self.add_pending_reports(3)
+        self.assertTrue(self.review.REVW_IS_REPORT_FLAGGED)
+        self.resolve(approve=False)
+        self.review.refresh_from_db()
+        self.assertTrue(self.review.REVW_IS_REPORT_FLAGGED)
+        self.assertEqual(self.review.REVW_STATUS, "published")
 
     def test_repeated_resolution_has_no_duplicate_effects(self):
         self.resolve()

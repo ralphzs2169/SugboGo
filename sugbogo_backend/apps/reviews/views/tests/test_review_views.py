@@ -218,6 +218,8 @@ class ReviewViewTests(APITestCase):
             self.business.BUSN_ID,
         )
         self.assertEqual(response.data["data"]["status"], "published")
+        self.assertNotIn("report_count", response.data["data"])
+        self.assertNotIn("is_report_flagged", response.data["data"])
         self.assertNotIn("reliability_reasons", response.data["data"])
         self.assertNotIn("installation_id", response.data["data"])
         self.assertNotIn("is_device_abuse_flagged", response.data["data"])
@@ -738,7 +740,7 @@ class ReviewViewTests(APITestCase):
             2,
             REVW_STATUS=Review.ReviewStatus.REJECTED,
         )
-        spam = self._create_list_review(3, REVW_IS_SPAM_FLAGGED=True)
+        reported = self._create_list_review(3, REVW_IS_REPORT_FLAGGED=True)
         device_abuse = self._create_list_review(
             4,
             REVW_IS_DEVICE_ABUSE_FLAGGED=True,
@@ -754,7 +756,7 @@ class ReviewViewTests(APITestCase):
                 "review_ids": [
                     visible.pk,
                     hidden.pk,
-                    spam.pk,
+                    reported.pk,
                     device_abuse.pk,
                     deleted_id,
                 ],
@@ -763,14 +765,14 @@ class ReviewViewTests(APITestCase):
 
         self.assertEqual(
             self._list_ids(topic="Friendly service"),
-            [device_abuse.pk, visible.pk],
+            [device_abuse.pk, reported.pk, visible.pk],
         )
         Review.objects.filter(pk=visible.pk).update(
             REVW_STATUS=Review.ReviewStatus.FLAGGED,
         )
         self.assertEqual(
             self._list_ids(topic="Friendly service"),
-            [device_abuse.pk],
+            [device_abuse.pk, reported.pk],
         )
 
     def test_filters_compose_with_ordering(self):

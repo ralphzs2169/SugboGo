@@ -50,7 +50,7 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
                 self.assertNotIn(private, notification.NOTF_BODY)
 
     def test_rejected_report_notifies_only_reporter_and_does_not_claim_clearance(self):
-        self.review.REVW_IS_SPAM_FLAGGED = True
+        self.review.REVW_IS_REPORT_FLAGGED = True
         self.review.save()
         ManageReviewReportService.resolve(
             self.report.pk, actor=self.admin,
@@ -61,7 +61,7 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         self.assertEqual(notification.NOTF_TYPE, "review_report_rejected")
         self.assertNotIn("cleared", notification.NOTF_BODY)
         self.review.refresh_from_db()
-        self.assertTrue(self.review.REVW_IS_SPAM_FLAGGED)
+        self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
 
     def test_sibling_reports_have_independent_outcomes_and_one_author_notice(self):
         sibling = ReviewReport.objects.create(

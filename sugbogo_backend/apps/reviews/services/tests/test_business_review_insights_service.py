@@ -117,7 +117,9 @@ class BusinessReviewInsightsServiceTests(SummaryFixtureMixin, TestCase):
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
         summary.BRSU_KEYWORD_TAGS = [{"text": "friendly service", "count": 2}]
         summary.save(update_fields=["BRSU_KEYWORD_TAGS"])
-        Review.objects.filter(pk=review.pk).update(REVW_IS_SPAM_FLAGGED=True)
+        Review.objects.filter(pk=review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
 
         with patch.object(ReviewKeywordService, "_generate") as provider:
             result = BusinessReviewInsightsService.refresh(self.business.pk)

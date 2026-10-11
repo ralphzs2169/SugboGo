@@ -8,6 +8,7 @@ from apps.reviews.models import Review, ReviewReport
 from apps.reviews.services.review_moderation_consistency_service import (
     ReviewModerationConsistencyService,
 )
+from apps.reviews.services.review_report_service import ReviewReportService
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
 from apps.notifications.services.notification_event_service import (
@@ -86,6 +87,7 @@ class ManageReviewReportService:
             ).order_by("pk"))
             review.REVW_STATUS = Review.ReviewStatus.REJECTED
             review.save(update_fields=["REVW_STATUS", "REVW_UPDATED_AT"])
+            ReviewReportService.recompute_report_flag(review)
             ReputationService.apply_confirmed_violation_penalty(
                 user_id=review.USER_ID_id, review_id=review.pk,
             )
@@ -96,6 +98,8 @@ class ManageReviewReportService:
             ReviewModerationConsistencyService.refresh_excluded_review(
                 business_id=review.BUSN_ID_id, review_id=review.pk,
             )
+        else:
+            ReviewReportService.recompute_report_flag(review)
 
         AdminActivityService.record_user_action(
             actor=actor,

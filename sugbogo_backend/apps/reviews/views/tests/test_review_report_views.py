@@ -143,6 +143,8 @@ class ReviewReportViewTests(APITestCase):
             response.data["data"]["status"],
             report.RREP_STATUS,
         )
+        self.assertNotIn("report_count", response.data["data"])
+        self.assertNotIn("report_flagged", response.data["data"])
 
         self.review.refresh_from_db()
 
@@ -261,6 +263,35 @@ class ReviewReportViewTests(APITestCase):
         self.assertFalse(
             ReviewReport.objects.exists(),
         )
+
+    def test_author_cannot_report_own_review(self):
+        """The API uses the standard validation envelope for self-reporting."""
+        self.client.force_authenticate(self.second_explorer)
+        response = self.client.post(
+            self.report_url,
+            {"report_type": ReviewReport.ReportType.SPAM},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+        self.assertEqual(
+            response.data["message"],
+            "You cannot report your own review.",
+        )
+        self.assertFalse(ReviewReport.objects.exists())
+
+    def test_nonpublished_review_cannot_be_reported(self):
+        """Reports may be filed only while the review is public."""
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        response = self.client.post(
+            self.report_url,
+            {"report_type": ReviewReport.ReportType.ABUSE},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(ReviewReport.objects.exists())
 
     def test_authenticated_merchant_can_report_review(self):
         self.client.force_authenticate(

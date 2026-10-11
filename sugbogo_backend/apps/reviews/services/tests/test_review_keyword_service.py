@@ -240,14 +240,14 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.refresh(), "insufficient_reviews")
         self.provider.assert_not_called()
 
-    def test_outliers_are_included_but_moderation_flags_are_excluded(self):
+    def test_outlier_and_report_flags_remain_keyword_eligible(self):
         Review.objects.filter(pk=self.reviews[0].pk).update(
             REVW_IS_OUTLIER_SENTIMENT=True,
         )
         Review.objects.filter(pk=self.reviews[1].pk).update(
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_REPORT_FLAGGED=True,
         )
-        self.assertEqual(self.refresh(), "insufficient_reviews")
+        self.assertEqual(self.refresh(), "updated")
         snapshot_ids = {
             review_id
             for review_id, _ in ReviewKeywordService._snapshot(
@@ -256,7 +256,7 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
             )
         }
         self.assertIn(self.reviews[0].pk, snapshot_ids)
-        self.assertNotIn(self.reviews[1].pk, snapshot_ids)
+        self.assertIn(self.reviews[1].pk, snapshot_ids)
 
     def test_selection_is_deterministic_and_spread_across_one_business(self):
         reviews = [(index, f"review {index}") for index in range(240)]
@@ -362,7 +362,7 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.reference_time = timezone.now()
         self.refresh()
         Review.objects.filter(pk=self.reviews[0].pk).update(
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
         )
         self.allow_next_day()
         self.provider.return_value = "not json"
@@ -375,7 +375,7 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
     def test_concurrent_source_change_discards_generated_result(self):
         def generate_then_change(_reviews):
             Review.objects.filter(pk=self.reviews[0].pk).update(
-                REVW_IS_SPAM_FLAGGED=True,
+                REVW_STATUS=Review.ReviewStatus.REJECTED,
             )
             return self.response()
 
@@ -400,7 +400,7 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         with self.settings(GEMINI_API_KEY="test-only-key"):
             self.refresh()
         Review.objects.filter(pk=self.reviews[0].pk).update(
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
         )
         self.create_review(self.business, 7)
         self.reference_time = timezone.now()

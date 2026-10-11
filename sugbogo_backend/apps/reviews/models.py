@@ -60,7 +60,7 @@ class Review(models.Model):
         default=0,
     )
 
-    REVW_IS_SPAM_FLAGGED = models.BooleanField(
+    REVW_IS_REPORT_FLAGGED = models.BooleanField(
         default=False,
     )
 

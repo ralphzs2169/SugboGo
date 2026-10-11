@@ -2150,7 +2150,7 @@ class ReviewServiceTests(TestCase):
         review = Review.objects.create(
             USER_ID=self.user, BUSN_ID=self.business, REVW_TEXT="Existing review.",
             REVW_SENTIMENT_SCORE=-0.6, REVW_SENTIMENT_LABEL="negative",
-            REVW_IS_SPAM_FLAGGED=True, REVW_IS_OUTLIER_SENTIMENT=True,
+            REVW_IS_REPORT_FLAGGED=True, REVW_IS_OUTLIER_SENTIMENT=True,
         )
         photo = ReviewPhoto.objects.create(
             REVW_ID=review, RPHO_PHOTO_URL="https://example.com/photo.jpg",
@@ -2163,7 +2163,7 @@ class ReviewServiceTests(TestCase):
         self.assertFalse(ReviewPhoto.objects.filter(pk=photo.pk).exists())
         self.assertEqual(review.REVW_SENTIMENT_SCORE, -0.6)
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
-        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_REPORT_FLAGGED)
         self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
 
     def test_blank_direct_service_calls_are_validation_errors(self):
@@ -2300,13 +2300,14 @@ class ReviewServiceTests(TestCase):
         for flagged in (True, False):
             with self.subTest(flagged=flagged):
                 review.REVW_IS_OUTLIER_SENTIMENT = flagged
-                review.REVW_IS_SPAM_FLAGGED = flagged
+                review.REVW_IS_REPORT_FLAGGED = flagged
                 review.REVW_IS_DEVICE_ABUSE_FLAGGED = flagged
                 data = ReviewResponseSerializer(review).data
                 self.assertEqual(data["sentiment_score"], -0.75)
                 self.assertEqual(data["sentiment_label"], "negative")
                 self.assertIs(data["is_outlier_sentiment"], flagged)
-                self.assertIs(data["is_spam_flagged"], flagged)
+                self.assertNotIn("is_report_flagged", data)
+                self.assertNotIn("report_count", data)
                 self.assertNotIn("is_device_abuse_flagged", data)
                 self.assertNotIn("reliability_reasons", data)
                 self.assertNotIn("installation_id", data)
@@ -2317,7 +2318,8 @@ class ReviewServiceTests(TestCase):
         self.assertIsNone(data["sentiment_score"])
         self.assertIsNone(data["sentiment_label"])
         self.assertIs(data["is_outlier_sentiment"], False)
-        self.assertIs(data["is_spam_flagged"], False)
+        self.assertNotIn("is_report_flagged", data)
+        self.assertNotIn("report_count", data)
         self.assertNotIn("is_device_abuse_flagged", data)
 
     def test_response_moderation_fields_are_read_only(self):
@@ -2325,7 +2327,6 @@ class ReviewServiceTests(TestCase):
             "sentiment_score": -0.9,
             "sentiment_label": "negative",
             "is_outlier_sentiment": True,
-            "is_spam_flagged": True,
         }
         serializer = ReviewResponseSerializer(data=fields)
         self.assertTrue(serializer.is_valid(), serializer.errors)
@@ -2333,6 +2334,8 @@ class ReviewServiceTests(TestCase):
         for name in fields:
             self.assertTrue(serializer.fields[name].read_only)
         self.assertNotIn("is_device_abuse_flagged", serializer.fields)
+        self.assertNotIn("is_report_flagged", serializer.fields)
+        self.assertNotIn("report_count", serializer.fields)
 
     def test_outlier_method_flags_both_directions_and_accepts_in_range(self):
         for _ in range(5):
@@ -2402,7 +2405,7 @@ class ReviewServiceTests(TestCase):
             self._create_signal_review(score=0.75)
         review = self._create_signal_review(user=self.user)
         Review.objects.filter(pk=review.pk).update(
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_REPORT_FLAGGED=True,
             REVW_IS_DEVICE_ABUSE_FLAGGED=True,
         )
         self.score_review.return_value = (-0.9, "Negative", "vader")
@@ -2415,7 +2418,7 @@ class ReviewServiceTests(TestCase):
         ReviewSentimentService.process_review(review.pk)
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_OUTLIER_SENTIMENT)
-        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_REPORT_FLAGGED)
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
         self.assertEqual(self.score_review.call_count, 2)
 
@@ -2423,7 +2426,7 @@ class ReviewServiceTests(TestCase):
         review = self._create_signal_review(user=self.user)
         Review.objects.filter(pk=review.pk).update(
             REVW_IS_OUTLIER_SENTIMENT=True,
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_REPORT_FLAGGED=True,
             REVW_IS_DEVICE_ABUSE_FLAGGED=True,
         )
         with patch.object(ReviewService, "_is_outlier_sentiment") as check_outlier:
@@ -2433,7 +2436,7 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.75)
         self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
-        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_REPORT_FLAGGED)
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_no_reliability_signal_records_empty_reasons(self):
@@ -2464,7 +2467,7 @@ class ReviewServiceTests(TestCase):
             [Review.ReliabilityReason.DUPLICATE_CONTENT],
         )
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
-        self.assertFalse(review.REVW_IS_SPAM_FLAGGED)
+        self.assertFalse(review.REVW_IS_REPORT_FLAGGED)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
 
     def test_duplicate_requires_exact_normalized_text_and_recent_history(self):
