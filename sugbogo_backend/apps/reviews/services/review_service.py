@@ -992,15 +992,11 @@ class ReviewService:
         if review.REVW_STATUS != Review.ReviewStatus.UNDER_REVIEW:
             raise ValidationError("Only an under-review review can be rejected.")
 
-        review.REVW_STATUS = Review.ReviewStatus.REJECTED
-        review.save(update_fields=["REVW_STATUS", "REVW_UPDATED_AT"])
-
         from apps.reviews.services.review_moderation_consistency_service import (
             ReviewModerationConsistencyService,
         )
 
-        ReviewModerationConsistencyService.refresh_excluded_review(
-            business_id=review.BUSN_ID_id,
-            review_id=review.REVW_ID,
+        review, _ = ReviewModerationConsistencyService.reject_review(
+            review.REVW_ID,
         )
         return review

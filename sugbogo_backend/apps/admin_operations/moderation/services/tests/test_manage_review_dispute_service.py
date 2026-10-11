@@ -185,6 +185,44 @@ class ManageReviewDisputeServiceTests(TestCase):
         self.assertEqual(event.AACT_CONTEXT["previous_review_status"], "published")
         self.assertEqual(event.AACT_CONTEXT["review_status"], "rejected")
 
+    def test_uphold_decrements_published_count_once(self):
+        Business.objects.filter(pk=self.business.pk).update(
+            BUSN_REVIEW_COUNT=1,
+        )
+        dispute = self.create_dispute()
+
+        ManageReviewDisputeService.uphold_dispute(
+            dispute.pk,
+            actor=self.admin,
+        )
+
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+
+        with self.assertRaises(ValidationError):
+            ManageReviewDisputeService.uphold_dispute(
+                dispute.pk,
+                actor=self.admin,
+            )
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+
+    def test_uphold_of_already_rejected_review_preserves_count(self):
+        dispute = self.create_dispute()
+        self.review.REVW_STATUS = Review.ReviewStatus.REJECTED
+        self.review.save(update_fields=["REVW_STATUS"])
+        Business.objects.filter(pk=self.business.pk).update(
+            BUSN_REVIEW_COUNT=1,
+        )
+
+        ManageReviewDisputeService.uphold_dispute(
+            dispute.pk,
+            actor=self.admin,
+        )
+
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+
     def test_dismiss_audits_actor_without_changing_review_or_refreshing_insights(self):
         dispute = self.create_dispute()
         with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:

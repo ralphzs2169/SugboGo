@@ -8,6 +8,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.moderation.services.manage_review_report_service import ManageReviewReportService
+from apps.business.models import Business
 from apps.reviews.models import Review, ReviewReport, BusinessReviewSummary
 from apps.reviews.services.review_report_service import ReviewReportService
 from apps.reviews.services.review_service import ReviewService
@@ -140,6 +141,36 @@ class ManageReviewReportServiceTests(ReportFixtures, TestCase):
             self.resolve(approve=False)
         self.assertEqual(AdminActivity.objects.count(), 1)
         self.assertEqual(ReputationEvent.objects.count(), 2)
+
+    def test_approval_decrements_published_count_once(self):
+        Business.objects.filter(pk=self.business.pk).update(
+            BUSN_REVIEW_COUNT=1,
+        )
+        sibling = ReviewReport.objects.create(
+            USER_ID=self.admin,
+            REVW_ID=self.review,
+            RREP_TYPE=ReviewReport.ReportType.SPAM,
+        )
+
+        self.resolve()
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+
+        self.resolve(sibling)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+
+    def test_approval_of_already_rejected_review_preserves_count(self):
+        self.review.REVW_STATUS = Review.ReviewStatus.REJECTED
+        self.review.save(update_fields=["REVW_STATUS"])
+        Business.objects.filter(pk=self.business.pk).update(
+            BUSN_REVIEW_COUNT=1,
+        )
+
+        self.resolve()
+
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
 
     def test_related_reports_remain_pending_and_author_penalty_is_once_per_review(self):
         sibling = ReviewReport.objects.create(

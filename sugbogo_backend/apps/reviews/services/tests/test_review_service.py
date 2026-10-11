@@ -119,6 +119,27 @@ class ReviewServiceTests(TestCase):
         with self.assertRaises(ValidationError):
             ReviewService.reject_under_review(review.pk)
 
+    def test_rejecting_held_review_preserves_other_published_count(self):
+        Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A separate published review.",
+        )
+        Business.objects.filter(pk=self.business.pk).update(
+            BUSN_REVIEW_COUNT=1,
+        )
+        held_review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for a decision.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+
+        ReviewService.reject_under_review(held_review.pk)
+
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+
     @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
     def test_under_review_photo_cannot_be_deleted_separately(self, delete_image):
         """Review photos stay stable until a held review is withdrawn."""

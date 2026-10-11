@@ -422,6 +422,20 @@ class MerchantReviewDisputeCreateViewTests(
             1,
         )
 
+    def test_direct_id_creation_rejects_under_review_review(self):
+        self.review.REVW_STATUS = Review.ReviewStatus.UNDER_REVIEW
+        self.review.save(update_fields=["REVW_STATUS"])
+
+        response = self.client.post(
+            self.create_url,
+            self.valid_payload(),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+        self.assertFalse(MerchantReviewDispute.objects.exists())
+
     def test_create_dispute_rejects_invalid_reason(self):
         payload = self.valid_payload()
         payload["reason"] = "invalid-reason"
