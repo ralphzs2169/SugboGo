@@ -11,6 +11,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
+from apps.admin_operations.activity_management.models import AdminActivity
 from apps.business.models import (
     Business,
     BusinessSpecialtyTag,
@@ -192,6 +193,117 @@ class BusinessClassificationChangeViewTests(TestCase):
                     previous_business,
                 )
                 self.assertFalse(Notification.objects.exists())
+                self.assertFalse(AdminActivity.objects.exists())
+
+    def test_admin_decisions_record_one_activity_for_request_submitter(self):
+        """Record both outcomes with the exact reviewer and request context."""
+        from apps.notifications.models import Notification
+
+        for outcome in ("rejected", "approved"):
+            with self.subTest(outcome=outcome):
+                self.client.force_authenticate(user=self.merchant)
+                request_id = self._submit().data["data"]["id"]
+                action = "approve" if outcome == "approved" else "reject"
+                url = f"{self._detail(request_id, admin=True)}{action}/"
+                self.assertEqual(self.client.post(url).status_code, 403)
+                self.assertFalse(
+                    AdminActivity.objects.filter(
+                        AACT_CONTEXT__request_id=request_id,
+                    ).exists()
+                )
+
+                self.client.force_authenticate(user=self.admin)
+                payload = (
+                    {"rejection_reason": "Choose a more accurate category."}
+                    if outcome == "rejected"
+                    else {}
+                )
+                self.assertEqual(
+                    self.client.post(url, payload, format="json").status_code,
+                    200,
+                )
+                activity = AdminActivity.objects.get(
+                    AACT_CONTEXT__request_id=request_id,
+                )
+                self.assertEqual(activity.ACTOR_ID, self.admin)
+                self.assertEqual(activity.TARGET_USER_ID, self.merchant)
+                self.assertEqual(
+                    activity.AACT_ACTION,
+                    getattr(
+                        AdminActivity.Action,
+                        f"BUSINESS_CLASSIFICATION_CHANGE_{outcome.upper()}",
+                    ),
+                )
+                self.assertEqual(
+                    activity.AACT_CONTEXT,
+                    {
+                        "request_id": request_id,
+                        "request_type": "business_classification_change",
+                        "business_id": self.business.pk,
+                        "outcome": outcome,
+                    },
+                )
+                self.assertEqual(
+                    Notification.objects.filter(
+                        NOTF_TARGET_TYPE="business_classification_change",
+                        NOTF_TARGET_ID=request_id,
+                    ).count(),
+                    1,
+                )
+                self.assertEqual(
+                    self.client.post(url, payload, format="json").status_code,
+                    400,
+                )
+                self.assertEqual(
+                    AdminActivity.objects.filter(
+                        AACT_CONTEXT__request_id=request_id,
+                    ).count(),
+                    1,
+                )
+
+    def test_activity_failure_rolls_back_each_decision(self):
+        """Rollback taxonomy, request state, and notices on activity failure."""
+        from apps.notifications.models import Notification
+
+        request_id = self._submit().data["data"]["id"]
+        for outcome in ("approved", "rejected"):
+            with self.subTest(outcome=outcome):
+                with patch(
+                    "apps.merchant_operations.business_profile.services."
+                    "business_classification_change_service."
+                    "AdminActivityService.record_user_action",
+                    side_effect=RuntimeError("Activity storage unavailable"),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        if outcome == "approved":
+                            BusinessClassificationChangeService.approve(
+                                request_id,
+                                self.admin,
+                            )
+                        else:
+                            BusinessClassificationChangeService.reject(
+                                request_id,
+                                self.admin,
+                                "Choose a more accurate category.",
+                            )
+                self.business.refresh_from_db()
+                change_request = BusinessClassificationChangeRequest.objects.get(
+                    pk=request_id,
+                )
+                self.assertEqual(self.business.CTGRY_ID_id, self.old_category.pk)
+                self.assertEqual(change_request.BCCR_STATUS, "pending")
+                self.assertIsNone(change_request.REVIEWER_ID_id)
+                self.assertEqual(
+                    set(
+                        BusinessSpecialtyTag.objects.filter(
+                            BUSN_ID=self.business,
+                            BST_IS_ACTIVE=True,
+                        ).values_list("TAG_ID_id", flat=True)
+                    ),
+                    {tag.pk for tag in self.tags[:3]},
+                )
+                self.assertFalse(Notification.objects.exists())
+                self.assertFalse(AdminActivity.objects.exists())
 
     def test_submission_captures_snapshots_without_changing_live_or_application(self):
         """Keep classification and historical application intact while pending."""

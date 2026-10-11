@@ -5,6 +5,8 @@ from django.db.models import Case, IntegerField, Prefetch, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.activity_management.services import AdminActivityService
 from apps.notifications.services.notification_event_service import (
     NotificationEventService,
 )
@@ -474,6 +476,17 @@ class BusinessClassificationChangeService:
         transaction.on_commit(
             BusinessClassificationChangeService._queue_discovery_refresh,
         )
+        AdminActivityService.record_user_action(
+            actor=reviewer,
+            target_user=change_request.USER_ID,
+            action=AdminActivity.Action.BUSINESS_CLASSIFICATION_CHANGE_APPROVED,
+            context={
+                "request_id": change_request.pk,
+                "request_type": "business_classification_change",
+                "business_id": change_request.BUSN_ID_id,
+                "outcome": change_request.BCCR_STATUS,
+            },
+        )
         NotificationEventService.merchant_request_resolved(
             recipient=change_request.USER_ID,
             request_id=change_request.pk,
@@ -516,6 +529,17 @@ class BusinessClassificationChangeService:
                 "BCCR_RESOLVED_AT",
                 "BCCR_UPDATED_AT",
             ],
+        )
+        AdminActivityService.record_user_action(
+            actor=reviewer,
+            target_user=change_request.USER_ID,
+            action=AdminActivity.Action.BUSINESS_CLASSIFICATION_CHANGE_REJECTED,
+            context={
+                "request_id": change_request.pk,
+                "request_type": "business_classification_change",
+                "business_id": change_request.BUSN_ID_id,
+                "outcome": change_request.BCCR_STATUS,
+            },
         )
         NotificationEventService.merchant_request_resolved(
             recipient=change_request.USER_ID,
