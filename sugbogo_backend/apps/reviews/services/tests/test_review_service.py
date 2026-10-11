@@ -1396,6 +1396,11 @@ class ReviewServiceTests(TestCase):
                 )
             )
 
+        # Equal timestamps must still produce stable newest-first results.
+        Review.objects.filter(
+            pk__in=[review.pk for review in reviews],
+        ).update(REVW_CREATED_AT=timezone.now())
+
         preview = ReviewService.get_review_preview(
             business_id=self.business.BUSN_ID,
             user=self.user,

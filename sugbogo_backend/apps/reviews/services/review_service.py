@@ -328,7 +328,7 @@ class ReviewService:
                 BUSN_ID=business_id,
                 REVW_STATUS=Review.ReviewStatus.PUBLISHED,
             )
-            .order_by("-REVW_CREATED_AT")
+            .order_by("-REVW_CREATED_AT", "-REVW_ID")
         )
 
     @staticmethod

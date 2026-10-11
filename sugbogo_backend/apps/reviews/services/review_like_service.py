@@ -15,13 +15,22 @@ class ReviewLikeService:
         user: User,
         review_id: int,
     ) -> ReviewLike:
+        """Create an allowed like while excluding merchant owner engagement."""
         try:
-            review = Review.objects.get(
+            review = Review.objects.select_related("BUSN_ID").get(
                 REVW_ID=review_id,
             )
         except Review.DoesNotExist:
             raise NotFound(
                 "The review could not be found.",
+            )
+
+        if (
+            user.USER_ROLE == User.UserRole.MERCHANT
+            and review.BUSN_ID.USER_ID_id == user.pk
+        ):
+            raise ValidationError(
+                "You cannot like reviews on your own business.",
             )
 
         try:
