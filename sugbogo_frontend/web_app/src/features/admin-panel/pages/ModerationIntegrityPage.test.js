@@ -36,12 +36,31 @@ after(async () => {
   delete globalThis.window;
 });
 
-function renderPage(url) {
+function renderPage(url, { list, detail } = {}) {
   globalThis.window = {
     location: { search: new URL(url, "http://localhost").search },
   };
 
   const queryClient = new QueryClient();
+  if (list) {
+    queryClient.setQueryData(
+      ["admin", "under-review", "list", {
+        page: 1,
+        page_size: 10,
+        search: "",
+        reason: undefined,
+        content: undefined,
+        ordering: "oldest",
+      }],
+      list,
+    );
+  }
+  if (detail) {
+    queryClient.setQueryData(
+      ["admin", "under-review", "detail", detail.id],
+      detail,
+    );
+  }
 
   return renderToString(
     React.createElement(
@@ -103,7 +122,7 @@ test("legacy list routes redirect while the dispute detail route remains", () =>
   assert.match(appSource, /path="review-disputes\/:disputeId"/);
 });
 
-test("default and invalid tabs show the Under Review placeholder", () => {
+test("default and invalid tabs show the Under Review queue", () => {
   for (const url of [
     "/admin-panel/moderation-integrity",
     "/admin-panel/moderation-integrity?tab=invalid",
@@ -111,10 +130,132 @@ test("default and invalid tabs show the Under Review placeholder", () => {
     const html = renderPage(url);
 
     assert.match(html, /Moderation &amp; Integrity/);
-    assert.match(html, /Under Review management is coming next/);
+    assert.match(html, /Under Review Queue/);
+    assert.match(html, /Search held reviews/);
+    assert.match(html, /Oldest first/);
+    assert.match(html, /aria-busy="true"/);
     assert.match(html, /rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2/);
     assert.doesNotMatch(html, /Search review disputes/);
   }
+});
+
+const heldReview = {
+  id: 42,
+  author: { id: 7, first_name: "Ana", last_name: "Cruz" },
+  business: { id: 9, name: "Cebu Cafe" },
+  text_preview: "A sample held review",
+  first_photo_url: "https://example.com/first.jpg",
+  photo_count: 2,
+  submitted_at: "2026-10-10T09:00:00Z",
+  status: "under_review",
+  hold_reasons: ["text_flagged", "image_flagged"],
+};
+
+const heldList = {
+  items: [heldReview],
+  pagination: {
+    page: 1,
+    total_items: 1,
+    total_pages: 1,
+    has_next: false,
+    has_previous: false,
+  },
+};
+
+test("queue renders held reviews and a neutral no-selection panel", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    { list: heldList },
+  );
+
+  assert.match(html, /A sample held review/);
+  assert.match(html, /Ana Cruz/);
+  assert.match(html, /Cebu Cafe/);
+  assert.match(html, /Text flagged/);
+  assert.match(html, /Image flagged/);
+  assert.match(html, /Select a review/);
+  assert.match(html, /aria-pressed="false"/);
+});
+
+test("selected detail separates text and photo findings", () => {
+  const detail = {
+    ...heldReview,
+    text: "Full held review content",
+    photos: [
+      {
+        id: 12,
+        photo_url: "https://example.com/first.jpg",
+        checked: true,
+        flagged_categories: [],
+      },
+      {
+        id: 13,
+        photo_url: "https://example.com/second.jpg",
+        checked: true,
+        flagged_categories: ["violence"],
+      },
+    ],
+    moderation: {
+      text_checked: true,
+      text_flagged_categories: ["harassment"],
+      provider_unavailable: false,
+      retry_state: null,
+      checked_at: "2026-10-10T09:00:00Z",
+    },
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42",
+    { list: heldList, detail },
+  );
+
+  assert.match(html, /Full held review content/);
+  assert.match(html, /Photo 1/);
+  assert.match(html, /Photo 2/);
+  assert.match(html, /Harassment/);
+  assert.match(html, /Violence/);
+  assert.match(html, /No findings/);
+  assert.match(html, /Approve &amp; Publish/);
+  assert.match(html, /Reject Review/);
+  assert.match(html, /aria-pressed="true"/);
+});
+
+test("provider failure is shown as unavailable, not unsafe content", () => {
+  const detail = {
+    ...heldReview,
+    hold_reasons: ["provider_failure"],
+    text: "Content awaiting a check",
+    photos: [],
+    moderation: {
+      text_checked: false,
+      text_flagged_categories: [],
+      provider_unavailable: true,
+      retry_state: "retrying",
+      checked_at: null,
+    },
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42",
+    { list: { ...heldList, items: [detail] }, detail },
+  );
+
+  assert.match(html, /Automated moderation unavailable/);
+  assert.match(html, /A background check may still be retried/);
+  assert.match(html, /Not checked/);
+  assert.doesNotMatch(html, /potential concerns/);
+});
+
+test("empty queue renders the moderation empty state", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    {
+      list: {
+        items: [],
+        pagination: { total_items: 0, total_pages: 0 },
+      },
+    },
+  );
+
+  assert.match(html, /No reviews currently need moderation/);
 });
 
 test("all four tabs render and placeholder content follows the URL", () => {

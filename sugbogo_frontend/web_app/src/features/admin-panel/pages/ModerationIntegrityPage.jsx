@@ -5,6 +5,7 @@ import { Clock3, Flag, MessageSquareText, ShieldAlert } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import TableTabs from "../components/data-table/TableTabs";
 import ReviewDisputeManagementTable from "../review-disputes/components/ReviewDisputeManagementTable";
+import UnderReviewWorkspace from "../under-review/components/UnderReviewWorkspace";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 const MODERATION_TABS = [
@@ -17,12 +18,6 @@ const MODERATION_TABS = [
 const VALID_TABS = new Set(MODERATION_TABS.map((tab) => tab.id));
 
 const PLACEHOLDERS = {
-  "under-review": {
-    title: "Under Review management is coming next",
-    description:
-      "AI-held review management will be available here in a future update.",
-    Icon: Clock3,
-  },
   suspicious: {
     title: "Suspicious review signals are coming next",
     description:
@@ -120,7 +115,11 @@ export default function ModerationIntegrityPage() {
               />
             </nav>
 
-            <ModerationPlaceholder {...PLACEHOLDERS[activeTab]} />
+            {activeTab === "under-review" ? (
+              <UnderReviewWorkspace />
+            ) : (
+              <ModerationPlaceholder {...PLACEHOLDERS[activeTab]} />
+            )}
           </div>
         )}
       </section>
