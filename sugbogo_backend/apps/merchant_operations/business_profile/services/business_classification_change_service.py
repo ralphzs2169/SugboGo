@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 
 from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Prefetch, Value, When
@@ -315,13 +316,20 @@ class BusinessClassificationChangeService:
             raise NotFound("The classification change request could not be found.")
 
     @staticmethod
-    def _queue_discovery_refresh():
+    def _queue_discovery_refresh(
+        request_id,
+        business_id,
+    ):
         """Queue the existing all-business refresh after a committed approval."""
         try:
             recompute_discovery_scores.delay()
         except Exception:
             logger.exception(
-                "Classification approved but discovery refresh dispatch failed."
+                "Classification approved but discovery refresh dispatch failed.",
+                extra={
+                    "request_id": request_id,
+                    "business_id": business_id,
+                },
             )
 
     @staticmethod
@@ -474,7 +482,11 @@ class BusinessClassificationChangeService:
             ],
         )
         transaction.on_commit(
-            BusinessClassificationChangeService._queue_discovery_refresh,
+            partial(
+                BusinessClassificationChangeService._queue_discovery_refresh,
+                request_id=change_request.pk,
+                business_id=change_request.BUSN_ID_id,
+            ),
         )
         AdminActivityService.record_user_action(
             actor=reviewer,

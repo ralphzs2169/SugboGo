@@ -545,6 +545,7 @@ class BusinessClassificationChangeViewTests(TestCase):
         ) as dispatch:
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
                 response = self._approve(request_id)
+                dispatch.assert_not_called()
             self.assertEqual(len(callbacks), 1)
             dispatch.assert_called_once_with()
         self.assertEqual(response.status_code, 200, response.data)
@@ -762,6 +763,8 @@ class BusinessClassificationChangeViewTests(TestCase):
 
     def test_dispatch_failure_does_not_undo_committed_approval(self):
         """Retain approved data when post-commit Celery dispatch fails."""
+        from apps.notifications.models import Notification
+
         request_id = self._submit().data["data"]["id"]
         with patch(
             "apps.merchant_operations.business_profile.services."
@@ -774,12 +777,32 @@ class BusinessClassificationChangeViewTests(TestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 response = self._approve(request_id)
         logged_error.assert_called_once()
+        self.assertEqual(
+            logged_error.call_args.kwargs["extra"],
+            {
+                "request_id": request_id,
+                "business_id": self.business.pk,
+            },
+        )
         self.assertEqual(response.status_code, 200, response.data)
         self.business.refresh_from_db()
         self.assertEqual(self.business.CTGRY_ID_id, self.new_category.pk)
         self.assertEqual(
             BusinessClassificationChangeRequest.objects.get(pk=request_id).BCCR_STATUS,
             "approved",
+        )
+        self.assertEqual(
+            AdminActivity.objects.filter(
+                AACT_CONTEXT__request_id=request_id,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Notification.objects.filter(
+                NOTF_TARGET_TYPE="business_classification_change",
+                NOTF_TARGET_ID=request_id,
+            ).count(),
+            1,
         )
 
 

@@ -1,7 +1,14 @@
+from unittest.mock import patch
+
+from amqp.exceptions import ConnectionError as AMQPConnectionError
 from celery.schedules import crontab
 from django.conf import settings
 from django.test import SimpleTestCase
+from kombu import Connection
+from kombu.exceptions import OperationalError
+from kombu.messaging import Producer
 
+from apps.business.tasks import recompute_discovery_scores
 from config import celery_app
 
 
@@ -88,4 +95,55 @@ class CeleryConfigurationTests(SimpleTestCase):
                 settings,
                 "CELERY_RESULT_BACKEND",
             ),
+        )
+
+    def test_discovery_publish_retries_transient_broker_failure(self):
+        """Use Celery's existing short, bounded publish retry policy."""
+        policy = celery_app.conf.task_publish_retry_policy
+        self.assertTrue(celery_app.conf.task_publish_retry)
+        self.assertEqual(policy["max_retries"], 3)
+        self.assertLessEqual(policy["interval_max"], 1)
+
+        original_publish = Producer._publish
+        attempts = []
+
+        def fail_once(
+            producer,
+            *args,
+            **kwargs,
+        ):
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise AMQPConnectionError("Temporary broker failure")
+            return original_publish(producer, *args, **kwargs)
+
+        with patch.object(Producer, "_publish", fail_once):
+            recompute_discovery_scores.apply_async(
+                connection=Connection("memory://"),
+            )
+
+        self.assertEqual(len(attempts), 2)
+
+    def test_discovery_publish_retry_is_bounded(self):
+        """Raise after finite attempts when the broker stays unavailable."""
+        attempts = []
+
+        def fail_publish(
+            producer,
+            *args,
+            **kwargs,
+        ):
+            attempts.append(1)
+            raise AMQPConnectionError("Broker unavailable")
+
+        with patch.object(Producer, "_publish", fail_publish):
+            with self.assertRaises(OperationalError):
+                recompute_discovery_scores.apply_async(
+                    connection=Connection("memory://"),
+                )
+
+        self.assertGreater(len(attempts), 1)
+        self.assertLessEqual(
+            len(attempts),
+            celery_app.conf.task_publish_retry_policy["max_retries"] + 1,
         )
