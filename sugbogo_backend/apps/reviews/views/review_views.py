@@ -32,13 +32,15 @@ class ReviewView(APIView):
     ):
         """Create a review for a business."""
 
-        serializer = ReviewCreateSerializer(
-            data={
-                "text": request.data.get("text"),
-                "device_id": request.data.get("device_id"),
-                "photos": request.FILES.getlist("photos"),
-            },
-        )
+        data = {
+            "text": request.data.get("text"),
+            "photos": request.FILES.getlist("photos"),
+        }
+        for field in ("installation_id", "device_id"):
+            if field in request.data:
+                data[field] = request.data.get(field)
+
+        serializer = ReviewCreateSerializer(data=data)
         serializer.is_valid(
             raise_exception=True,
         )

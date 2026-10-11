@@ -173,17 +173,17 @@ class ReviewService:
 
     @staticmethod
     def _is_device_abuse(review: Review) -> bool:
-        """Check the saved review's device for shared accounts or bulk posting."""
-        device_id = review.REVW_DEVICE_ID
-        if device_id is None or not device_id.strip():
+        """Check the installation for shared accounts or bulk posting."""
+        installation_id = review.REVW_INSTALLATION_ID
+        if installation_id is None or not installation_id.strip():
             return False
 
-        # Include every status so moderation cannot erase evidence of device use.
-        device_reviews = Review.objects.filter(
-            REVW_DEVICE_ID=device_id,
+        # Include every status so moderation cannot erase installation evidence.
+        installation_reviews = Review.objects.filter(
+            REVW_INSTALLATION_ID=installation_id,
         )
         distinct_users = (
-            device_reviews
+            installation_reviews
             .filter(BUSN_ID_id=review.BUSN_ID_id)
             .values("USER_ID_id")
             .distinct()
@@ -193,7 +193,7 @@ class ReviewService:
             return True
 
         window_end = timezone.now()
-        recent_count = device_reviews.filter(
+        recent_count = installation_reviews.filter(
             REVW_CREATED_AT__gte=window_end - ReviewService.DEVICE_REVIEW_WINDOW,
             REVW_CREATED_AT__lte=window_end,
         ).count()
@@ -205,7 +205,7 @@ class ReviewService:
         business_id: int,
         text: str,
         photos: list | None = None,
-        device_id: str | None = None,
+        installation_id: str | None = None,
     ) -> Review:
         """Moderate before atomically creating a published or held review."""
         try:
@@ -264,7 +264,7 @@ class ReviewService:
                         USER_ID=user,
                         BUSN_ID=business,
                         REVW_TEXT=text,
-                        REVW_DEVICE_ID=device_id,
+                        REVW_INSTALLATION_ID=installation_id,
                         REVW_STATUS=review_status,
                     )
                 except IntegrityError:

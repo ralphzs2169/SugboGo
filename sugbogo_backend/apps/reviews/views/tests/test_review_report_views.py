@@ -91,7 +91,7 @@ class ReviewReportViewTests(APITestCase):
     def test_create_report_successfully(self):
         payload = {
             "report_type": ReviewReport.ReportType.SPAM,
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -130,7 +130,7 @@ class ReviewReportViewTests(APITestCase):
         )
 
         self.assertEqual(
-            report.RREP_DEVICE_ID,
+            report.RREP_INSTALLATION_ID,
             "test-device-001",
         )
 
@@ -151,7 +151,7 @@ class ReviewReportViewTests(APITestCase):
             1,
         )
 
-    def test_create_report_without_device_id_successfully(self):
+    def test_create_report_without_installation_id_successfully(self):
         payload = {
             "report_type": ReviewReport.ReportType.SPAM,
         }
@@ -172,8 +172,38 @@ class ReviewReportViewTests(APITestCase):
         )
 
         self.assertIsNone(
-            report.RREP_DEVICE_ID,
+            report.RREP_INSTALLATION_ID,
         )
+
+    def test_legacy_device_id_is_accepted(self):
+        """An older client can still attach its stored installation ID."""
+        response = self.client.post(
+            self.report_url,
+            {
+                "report_type": ReviewReport.ReportType.SPAM,
+                "device_id": "legacy-installation",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        report = ReviewReport.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(report.RREP_INSTALLATION_ID, "legacy-installation")
+
+    def test_conflicting_installation_identifiers_are_rejected(self):
+        """A report cannot silently choose between two different IDs."""
+        response = self.client.post(
+            self.report_url,
+            {
+                "report_type": ReviewReport.ReportType.SPAM,
+                "installation_id": "new-installation",
+                "device_id": "legacy-installation",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(ReviewReport.objects.exists())
 
     def test_create_report_rejects_invalid_report_type(self):
         payload = {

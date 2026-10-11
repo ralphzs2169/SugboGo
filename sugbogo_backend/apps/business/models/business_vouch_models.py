@@ -142,7 +142,7 @@ class BusinessVouch(models.Model):
         default=False,
     )
 
-    VOUCH_DEVICE_ID = models.CharField(
+    VOUCH_INSTALLATION_ID = models.CharField(
         max_length=255,
         blank=True,
         null=True,

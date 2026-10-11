@@ -1,5 +1,6 @@
 import apiClient from "@/shared/api/apiClient.service";
 import { request } from "@/shared/api/request.service";
+import { getInstallationId } from "@/shared/api/storage.service";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 
 import type {
@@ -79,15 +80,28 @@ export function getAllBusinessReviews(
   return request(apiClient.get(url, { params }));
 }
 
-export function createReview(
+export async function createReview(
   businessId: number,
   text: string,
   photos: LocalReviewPhoto[],
 ): Promise<ApiResponse<ReviewCreateResult>> {
+  let installationId: string;
+
+  try {
+    installationId = await getInstallationId();
+  } catch {
+    throw new Error(
+      "Unable to access this app's installation ID. Please try again.",
+    );
+  }
+
+  const form = reviewForm(text, photos);
+  form.append("installation_id", installationId);
+
   return request(
     apiClient.post(
       `/reviews/business/${businessId}/`,
-      reviewForm(text, photos),
+      form,
     ),
   );
 }

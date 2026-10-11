@@ -170,7 +170,7 @@ class ReviewViewTests(APITestCase):
     def test_create_review_successfully(self):
         payload = {
             "text": "Great food and excellent service.",
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -204,7 +204,7 @@ class ReviewViewTests(APITestCase):
         )
 
         self.assertEqual(
-            review.REVW_DEVICE_ID,
+            review.REVW_INSTALLATION_ID,
             "test-device-001",
         )
 
@@ -218,6 +218,36 @@ class ReviewViewTests(APITestCase):
             self.business.BUSN_ID,
         )
         self.assertEqual(response.data["data"]["status"], "published")
+
+    def test_legacy_device_id_is_accepted_as_installation_id(self):
+        """Older app versions can still submit the previous request key."""
+        response = self.client.post(
+            self.preview_url,
+            {
+                "text": "A detailed review from an older app version.",
+                "device_id": "legacy-installation",
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        review = Review.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(review.REVW_INSTALLATION_ID, "legacy-installation")
+
+    def test_conflicting_installation_identifiers_are_rejected(self):
+        """A request cannot silently choose between two different IDs."""
+        response = self.client.post(
+            self.preview_url,
+            {
+                "text": "A detailed review with conflicting IDs.",
+                "installation_id": "new-installation",
+                "device_id": "legacy-installation",
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Review.objects.filter(USER_ID=self.explorer).exists())
 
     def test_flagged_submission_returns_successful_under_review_status(self):
         """The API reports the held state without exposing moderation evidence."""

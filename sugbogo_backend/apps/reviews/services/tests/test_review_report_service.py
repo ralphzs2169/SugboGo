@@ -92,7 +92,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
             user=self.user,
             review_id=review.REVW_ID,
             report_type=ReviewReport.ReportType.SPAM,
-            device_id="test-device-001",
+            installation_id="test-device-001",
         )
 
         self.assertEqual(
@@ -111,7 +111,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
         self.assertEqual(
-            report.RREP_DEVICE_ID,
+            report.RREP_INSTALLATION_ID,
             "test-device-001",
         )
 
@@ -127,7 +127,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
             1,
         )
 
-    def test_create_report_without_device_id(self):
+    def test_create_report_without_installation_id(self):
         review = ReviewService.create_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
@@ -141,7 +141,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
         self.assertIsNone(
-            report.RREP_DEVICE_ID,
+            report.RREP_INSTALLATION_ID,
         )
 
         review.refresh_from_db()
@@ -160,7 +160,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
                 user=self.user,
                 review_id=999999,
                 report_type=ReviewReport.ReportType.SPAM,
-                device_id="test-device-001",
+                installation_id="test-device-001",
             )
 
     def test_create_report_rejects_duplicate_report(self):
@@ -174,7 +174,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
             user=self.user,
             review_id=review.REVW_ID,
             report_type=ReviewReport.ReportType.SPAM,
-            device_id="test-device-001",
+            installation_id="test-device-001",
         )
 
         with self.assertRaisesMessage(
@@ -185,7 +185,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
                 user=self.user,
                 review_id=review.REVW_ID,
                 report_type=ReviewReport.ReportType.ABUSE,
-                device_id="test-device-002",
+                installation_id="test-device-002",
             )
 
         self.assertEqual(
@@ -214,14 +214,14 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
             user=self.user,
             review_id=review.REVW_ID,
             report_type=ReviewReport.ReportType.SPAM,
-            device_id="test-device-001",
+            installation_id="test-device-001",
         )
 
         second_report = ReviewReportService.create_report(
             user=self.second_user,
             review_id=review.REVW_ID,
             report_type=ReviewReport.ReportType.MISINFORMATION,
-            device_id="test-device-002",
+            installation_id="test-device-002",
         )
 
         self.assertNotEqual(

@@ -141,7 +141,7 @@ export async function vouchForBusinessSpecialty(
   return request(
     apiClient.post(`/explorer/explore/businesses/${businessId}/vouch/`, {
       tag_id: tagId,
-      device_id: installationId,
+      installation_id: installationId,
     }),
   );
 }

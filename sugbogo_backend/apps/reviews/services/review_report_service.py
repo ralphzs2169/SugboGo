@@ -20,7 +20,7 @@ class ReviewReportService:
         user: User,
         review_id: int,
         report_type: str,
-        device_id: str | None = None,
+        installation_id: str | None = None,
     ) -> ReviewReport:
         """Record a report and flag reviews whose report count reaches three."""
         try:
@@ -37,7 +37,7 @@ class ReviewReportService:
                 REVW_ID=review,
                 USER_ID=user,
                 RREP_TYPE=report_type,
-                RREP_DEVICE_ID=device_id,
+                RREP_INSTALLATION_ID=installation_id,
             )
         except IntegrityError:
             raise ValidationError(

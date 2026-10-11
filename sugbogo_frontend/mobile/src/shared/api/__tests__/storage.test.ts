@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { randomUUID } from "expo-crypto";
 
 import {
   saveAccessToken,
@@ -7,6 +8,7 @@ import {
   getRefreshToken,
   clearTokens,
   clearRefreshToken,
+  getInstallationId,
 } from "../storage.service";
 
 /**
@@ -25,6 +27,7 @@ jest.mock("expo-secure-store", () => ({
   getItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),
 }));
+jest.mock("expo-crypto", () => ({ randomUUID: jest.fn() }));
 
 describe("token storage", () => {
   beforeEach(() => {
@@ -87,5 +90,56 @@ describe("token storage", () => {
     await clearRefreshToken();
 
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("refresh_token");
+  });
+
+  it("creates and stores an installation ID when none exists", async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    (randomUUID as jest.Mock).mockReturnValue("generated-installation");
+
+    await expect(getInstallationId()).resolves.toBe("generated-installation");
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      "installation_id",
+      "generated-installation",
+    );
+    expect(randomUUID).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses the stored installation ID across calls and token clearing", async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(
+      "stored-installation",
+    );
+
+    await expect(getInstallationId()).resolves.toBe("stored-installation");
+    await clearTokens();
+    await expect(getInstallationId()).resolves.toBe("stored-installation");
+
+    expect(randomUUID).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith(
+      "installation_id",
+    );
+  });
+
+  it("does not invent an ID when SecureStore retrieval fails", async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(
+      new Error("SecureStore unavailable"),
+    );
+
+    await expect(getInstallationId()).rejects.toThrow(
+      "SecureStore unavailable",
+    );
+    expect(randomUUID).not.toHaveBeenCalled();
+  });
+
+  it("rejects when a generated ID cannot be persisted", async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    (randomUUID as jest.Mock).mockReturnValue("generated-installation");
+    (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(
+      new Error("SecureStore unavailable"),
+    );
+
+    await expect(getInstallationId()).rejects.toThrow(
+      "SecureStore unavailable",
+    );
   });
 });

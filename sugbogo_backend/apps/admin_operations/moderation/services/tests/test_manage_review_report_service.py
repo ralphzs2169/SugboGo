@@ -31,7 +31,7 @@ class ReportFixtures:
         )
         self.report = ReviewReport.objects.create(
             USER_ID=self.user, REVW_ID=self.review, RREP_TYPE="abuse",
-            RREP_DEVICE_ID="private-device",
+            RREP_INSTALLATION_ID="private-device",
         )
 
     def resolve(self, report=None, approve=True):

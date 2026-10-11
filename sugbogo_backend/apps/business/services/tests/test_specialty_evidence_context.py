@@ -96,7 +96,7 @@ class SpecialtyEvidenceContextTests(SafeReviewModerationMixin, TestCase):
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             tag_id=self.specialty.TAG_ID,
-            device_id="direct-evidence-device",
+            installation_id="direct-evidence-device",
         )
 
     def _create_review(self):

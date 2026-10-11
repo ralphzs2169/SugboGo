@@ -60,7 +60,7 @@ class Review(models.Model):
         default=False,
     )
 
-    REVW_DEVICE_ID = models.CharField(
+    REVW_INSTALLATION_ID = models.CharField(
         max_length=255,
         blank=True,
         null=True,
@@ -189,7 +189,7 @@ class ReviewReport(models.Model):
         default=ReportStatus.PENDING,
     )
 
-    RREP_DEVICE_ID = models.CharField(
+    RREP_INSTALLATION_ID = models.CharField(
         max_length=255,
         blank=True,
         null=True,

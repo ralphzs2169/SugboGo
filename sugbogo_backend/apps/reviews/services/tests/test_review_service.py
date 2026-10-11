@@ -257,7 +257,7 @@ class ReviewServiceTests(TestCase):
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food and excellent service.",
-            device_id="test-device-001",
+            installation_id="test-device-001",
         )
 
         self.assertEqual(
@@ -276,7 +276,7 @@ class ReviewServiceTests(TestCase):
         )
 
         self.assertEqual(
-            review.REVW_DEVICE_ID,
+            review.REVW_INSTALLATION_ID,
             "test-device-001",
         )
 
@@ -2231,7 +2231,7 @@ class ReviewServiceTests(TestCase):
     def _create_signal_review(
         self,
         score=0.75,
-        device_id=None,
+        installation_id=None,
         business=None,
         user=None,
         status=Review.ReviewStatus.PUBLISHED,
@@ -2251,7 +2251,7 @@ class ReviewServiceTests(TestCase):
             REVW_TEXT="A review used to check moderation signals.",
             REVW_SENTIMENT_SCORE=score,
             REVW_SENTIMENT_LABEL="positive" if score is not None else None,
-            REVW_DEVICE_ID=device_id,
+            REVW_INSTALLATION_ID=installation_id,
             REVW_STATUS=status,
         )
 
@@ -2279,12 +2279,12 @@ class ReviewServiceTests(TestCase):
             LOCT_ID=location,
         )
 
-    def _create_bulk_history(self, count, device_id, created_at=None):
+    def _create_bulk_history(self, count, installation_id, created_at=None):
         reviews = [
             self._create_signal_review(
                 business=self._create_signal_business(),
                 user=self.second_user,
-                device_id=device_id,
+                installation_id=installation_id,
             )
             for _ in range(count)
         ]
@@ -2436,12 +2436,12 @@ class ReviewServiceTests(TestCase):
 
     def test_fourth_distinct_user_on_device_flags_only_new_review(self):
         prior_reviews = [
-            self._create_signal_review(device_id="shared-device")
+            self._create_signal_review(installation_id="shared-device")
             for _ in range(3)
         ]
         review = ReviewService.create_review(
             self.user, self.business.pk, "A new review from a shared device.",
-            device_id="shared-device",
+            installation_id="shared-device",
         )
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
         review.refresh_from_db()
@@ -2453,20 +2453,20 @@ class ReviewServiceTests(TestCase):
 
     def test_third_distinct_user_on_device_is_not_flagged(self):
         for _ in range(2):
-            self._create_signal_review(device_id="shared-device")
+            self._create_signal_review(installation_id="shared-device")
         review = ReviewService.create_review(
             self.user, self.business.pk, "A third user sharing one device.",
-            device_id="shared-device",
+            installation_id="shared-device",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_sockpuppet_detection_counts_rejected_and_flagged_reviews(self):
         for status in Review.ReviewStatus.values:
-            self._create_signal_review(device_id="shared-device", status=status)
+            self._create_signal_review(installation_id="shared-device", status=status)
         review = ReviewService.create_review(
             self.user, self.business.pk, "Another review on the same device.",
-            device_id="shared-device",
+            installation_id="shared-device",
         )
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2474,25 +2474,25 @@ class ReviewServiceTests(TestCase):
     def test_sockpuppet_detection_does_not_combine_businesses(self):
         other_business = self._create_signal_business()
         for _ in range(3):
-            self._create_signal_review(device_id="shared-device", business=other_business)
+            self._create_signal_review(installation_id="shared-device", business=other_business)
         review = ReviewService.create_review(
             self.user, self.business.pk, "A review of a different business.",
-            device_id="shared-device",
+            installation_id="shared-device",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
-    def test_missing_device_ids_never_query_or_flag_shared_blank_history(self):
-        for device_id in (None, "", " \t"):
-            with self.subTest(device_id=device_id):
+    def test_missing_installation_ids_never_query_or_flag_shared_blank_history(self):
+        for installation_id in (None, "", " \t"):
+            with self.subTest(installation_id=installation_id):
                 for _ in range(11):
-                    self._create_signal_review(device_id=device_id)
+                    self._create_signal_review(installation_id=installation_id)
                 author = self._create_signal_review(
                     business=self._create_signal_business(),
                 ).USER_ID
                 review = ReviewService.create_review(
                     author, self.business.pk, "A review without a usable device ID.",
-                    device_id=device_id,
+                    installation_id=installation_id,
                 )
                 review.refresh_from_db()
                 self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2503,7 +2503,7 @@ class ReviewServiceTests(TestCase):
         self._create_bulk_history(10, "bulk-device")
         review = ReviewService.create_review(
             self.second_user, self.business.pk, "An eleventh review across businesses.",
-            device_id="bulk-device",
+            installation_id="bulk-device",
         )
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2513,7 +2513,7 @@ class ReviewServiceTests(TestCase):
         self._create_bulk_history(9, "bulk-device")
         review = ReviewService.create_review(
             self.second_user, self.business.pk, "A tenth review across businesses.",
-            device_id="bulk-device",
+            installation_id="bulk-device",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2526,7 +2526,7 @@ class ReviewServiceTests(TestCase):
         with patch("apps.reviews.services.review_service.timezone.now", return_value=now):
             review = ReviewService.create_review(
                 self.second_user, self.business.pk, "A review at the window boundary.",
-                device_id="bulk-device",
+                installation_id="bulk-device",
             )
             review.refresh_from_db()
             self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2541,7 +2541,7 @@ class ReviewServiceTests(TestCase):
         )
         review = ReviewService.create_review(
             self.second_user, self.business.pk, "A review after old activity expired.",
-            device_id="bulk-device",
+            installation_id="bulk-device",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2551,25 +2551,25 @@ class ReviewServiceTests(TestCase):
         self._create_bulk_history(5, "device-b")
         review = ReviewService.create_review(
             self.user, self.business.pk, "Another review from only one device.",
-            device_id="device-a",
+            installation_id="device-a",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_two_devices_do_not_combine_for_sockpuppet_threshold(self):
-        for device_id in ("device-a", "device-b"):
+        for installation_id in ("device-a", "device-b"):
             for _ in range(2):
-                self._create_signal_review(device_id=device_id)
+                self._create_signal_review(installation_id=installation_id)
         review = ReviewService.create_review(
             self.user, self.business.pk, "A third user on the first device.",
-            device_id="device-a",
+            installation_id="device-a",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_failed_creation_rolls_back_both_moderation_flags(self):
         for _ in range(5):
-            self._create_signal_review(score=0.75, device_id="shared-device")
+            self._create_signal_review(score=0.75, installation_id="shared-device")
         self.score_review.return_value = (-0.9, "Negative", "vader")
         with patch(
             "apps.reviews.services.review_service.CloudinaryService.upload_image",
@@ -2577,7 +2577,7 @@ class ReviewServiceTests(TestCase):
         ), self.assertRaisesRegex(RuntimeError, "Upload failed"):
             ReviewService.create_review(
                 self.user, self.business.pk, "A flagged review that fails to save.",
-                device_id="shared-device", photos=[object()],
+                installation_id="shared-device", photos=[object()],
             )
         self.assertFalse(Review.objects.filter(USER_ID=self.user).exists())
         self.assertFalse(Review.objects.filter(REVW_IS_OUTLIER_SENTIMENT=True).exists())
