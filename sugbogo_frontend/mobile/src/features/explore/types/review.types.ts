@@ -57,6 +57,7 @@ export type ReviewCreateResult = {
   id: number;
   business_id: number;
   user_id: number;
+  status: BusinessReview["status"];
 };
 
 export type LocalReviewPhoto = {

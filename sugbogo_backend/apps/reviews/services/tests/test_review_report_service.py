@@ -13,10 +13,13 @@ from apps.business.models import (
 from apps.reviews.models import BusinessReviewSummary, Review, ReviewReport
 from apps.reviews.services.review_report_service import ReviewReportService
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    SafeReviewModerationMixin,
+)
 from apps.users.models import User
 
 
-class ReviewReportServiceTests(TestCase):
+class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
     """Tests for reporting business reviews."""
 
     def setUp(self):

@@ -306,7 +306,7 @@ describe("useBusinessReviews", () => {
   it("starts sentiment synchronization after review creation", async () => {
     (createReview as jest.Mock).mockResolvedValue({
       success: true,
-      data: { id: 18, business_id: 20, user_id: 4 },
+      data: { id: 18, business_id: 20, user_id: 4, status: "published" },
     });
     const { client, Wrapper } = setupClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
@@ -336,6 +336,30 @@ describe("useBusinessReviews", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
     });
+    unmount();
+    client.clear();
+  });
+
+  it("keeps an under-review submission successful without sentiment sync", async () => {
+    (createReview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { id: 19, business_id: 20, user_id: 4, status: "under_review" },
+    });
+    const { client, Wrapper } = setupClient();
+    const { result, unmount } = await renderHook(() => useCreateReview(20), {
+      wrapper: Wrapper,
+    });
+
+    let created: Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined;
+    await act(async () => {
+      created = await result.current.mutateAsync({
+        text: "A review waiting before publication.",
+        photos: [],
+      });
+    });
+
+    expect(created?.status).toBe("under_review");
+    expect(mockStartSentimentSync).not.toHaveBeenCalled();
     unmount();
     client.clear();
   });

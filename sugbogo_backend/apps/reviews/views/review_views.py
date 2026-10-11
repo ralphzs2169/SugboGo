@@ -54,8 +54,13 @@ class ReviewView(APIView):
                 "id": review.REVW_ID,
                 "business_id": review.BUSN_ID_id,
                 "user_id": review.USER_ID_id,
+                "status": review.REVW_STATUS,
             },
-            message="Review added successfully.",
+            message=(
+                "Review added successfully."
+                if review.REVW_STATUS == review.ReviewStatus.PUBLISHED
+                else "Review submitted and is under review."
+            ),
         )
 
     def get(self, request, business_id):

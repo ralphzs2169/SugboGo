@@ -22,10 +22,13 @@ from apps.business.services.business_specialty_service import (
 from apps.business.services.vouch_service import VouchService
 from apps.reviews.models import Review, ReviewPhoto
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    SafeReviewModerationMixin,
+)
 from apps.users.models import ReputationEvent, User
 
 
-class SpecialtyEvidenceContextTests(TestCase):
+class SpecialtyEvidenceContextTests(SafeReviewModerationMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.explorer = User.objects.create_user(

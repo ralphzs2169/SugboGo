@@ -114,7 +114,10 @@ function useReviewMutation<TVariables, TResult>(
         await invalidateBusinessCardCollections(queryClient);
       }
 
-      if (sync === "create") {
+      if (
+        sync === "create" &&
+        (result as ReviewCreateResult).status === "published"
+      ) {
         startSentimentSync({
           reviewId: (result as ReviewCreateResult).id,
           baselineComputedAt: context.baselineSentimentComputedAt,

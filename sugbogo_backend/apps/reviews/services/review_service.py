@@ -25,6 +25,7 @@ from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
+from apps.reviews.services.review_moderation_service import ReviewModerationService
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
@@ -94,6 +95,31 @@ class ReviewService:
         transaction.on_commit(publish, robust=True)
 
     @staticmethod
+    def _apply_published_effects(review: Review) -> None:
+        """Apply the count, reputation, and sentiment effects of publication."""
+        Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
+            BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
+        )
+
+        if review.photos.exists():
+            ReputationService.apply_review_with_photo_reward(
+                user_id=review.USER_ID_id,
+                source_id=review.REVW_ID,
+                business_id=review.BUSN_ID_id,
+            )
+        else:
+            ReputationService.apply_review_reward(
+                user_id=review.USER_ID_id,
+                source_id=review.REVW_ID,
+                business_id=review.BUSN_ID_id,
+            )
+
+        ReviewService._queue_sentiment_after_commit(
+            review.REVW_ID,
+            review.BUSN_ID_id,
+        )
+
+    @staticmethod
     def _is_outlier_sentiment(review: Review) -> bool:
         """Compare a scored review with the business's other published scores."""
         if review.REVW_SENTIMENT_SCORE is None:
@@ -150,7 +176,6 @@ class ReviewService:
         return recent_count > ReviewService.DEVICE_MAX_REVIEWS_IN_WINDOW
 
     @staticmethod
-    @transaction.atomic
     def create_review(
         user: User,
         business_id: int,
@@ -158,7 +183,7 @@ class ReviewService:
         photos: list | None = None,
         device_id: str | None = None,
     ) -> Review:
-        """Create a review and queue sentiment after its transaction commits."""
+        """Moderate before atomically creating a published or held review."""
         try:
             business = Business.objects.get(
                 BUSN_ID=business_id,
@@ -176,69 +201,72 @@ class ReviewService:
 
         if not isinstance(text, str) or not text.strip():
             raise ValidationError({"text": "Review text is required."})
-        try:
-            review = Review.objects.create(
-                USER_ID=user,
-                BUSN_ID=business,
-                REVW_TEXT=text,
-                REVW_DEVICE_ID=device_id,
-            )
-        except IntegrityError:
+
+        if Review.objects.filter(USER_ID=user, BUSN_ID=business).exists():
             raise ValidationError(
                 "You have already reviewed this business.",
-            ) from None
+            )
 
-        review.REVW_IS_DEVICE_ABUSE_FLAGGED = ReviewService._is_device_abuse(
-            review,
+        submitted_photos = photos or []
+        moderation = ReviewModerationService.moderate(
+            text=text,
+            photos=submitted_photos,
         )
-        review.save(
-            update_fields=[
-                "REVW_IS_DEVICE_ABUSE_FLAGGED",
-                "REVW_UPDATED_AT",
-            ],
-        )
+        review_status = Review.ReviewStatus.PUBLISHED
+        if moderation["outcome"] != "safe":
+            review_status = Review.ReviewStatus.UNDER_REVIEW
 
         uploaded_public_ids = []
+        uploaded_photos = []
 
         try:
-            for photo in photos or []:
+            for photo in submitted_photos:
                 upload_result = CloudinaryService.upload_image(
                     photo,
                     folder="sugbogo/reviews",
                 )
-
                 public_id = upload_result["public_id"]
+                uploaded_public_ids.append(public_id)
+                uploaded_photos.append(upload_result)
 
-                ReviewPhoto.objects.create(
-                    REVW_ID=review,
-                    RPHO_PHOTO_URL=upload_result["secure_url"],
-                    RPHO_PHOTO_PUBLIC_ID=public_id,
+            with transaction.atomic():
+                try:
+                    review = Review.objects.create(
+                        USER_ID=user,
+                        BUSN_ID=business,
+                        REVW_TEXT=text,
+                        REVW_DEVICE_ID=device_id,
+                        REVW_STATUS=review_status,
+                    )
+                except IntegrityError:
+                    raise ValidationError(
+                        "You have already reviewed this business.",
+                    ) from None
+
+                for index, upload_result in enumerate(uploaded_photos):
+                    review_photo = ReviewPhoto.objects.create(
+                        REVW_ID=review,
+                        RPHO_PHOTO_URL=upload_result["secure_url"],
+                        RPHO_PHOTO_PUBLIC_ID=upload_result["public_id"],
+                    )
+                    for finding in moderation["findings"]:
+                        if finding["photo_index"] == index:
+                            finding["photo_id"] = review_photo.RPHO_ID
+
+                review.REVW_MODERATION_DATA = moderation
+                review.REVW_IS_DEVICE_ABUSE_FLAGGED = ReviewService._is_device_abuse(
+                    review,
+                )
+                review.save(
+                    update_fields=[
+                        "REVW_MODERATION_DATA",
+                        "REVW_IS_DEVICE_ABUSE_FLAGGED",
+                        "REVW_UPDATED_AT",
+                    ],
                 )
 
-                uploaded_public_ids.append(
-                    public_id,
-                )
-
-            Business.objects.filter(
-                BUSN_ID=business.BUSN_ID,
-            ).update(
-                BUSN_REVIEW_COUNT=models.F(
-                    "BUSN_REVIEW_COUNT",
-                ) + 1,
-            )
-
-            if review.photos.exists():
-                ReputationService.apply_review_with_photo_reward(
-                    user_id=user.USER_ID,
-                    source_id=review.REVW_ID,
-                    business_id=business.BUSN_ID,
-                )
-            else:
-                ReputationService.apply_review_reward(
-                    user_id=user.USER_ID,
-                    source_id=review.REVW_ID,
-                    business_id=business.BUSN_ID,
-                )
+                if review_status == Review.ReviewStatus.PUBLISHED:
+                    ReviewService._apply_published_effects(review)
 
         except Exception:
             for public_id in uploaded_public_ids:
@@ -248,9 +276,13 @@ class ReviewService:
 
             raise
 
-        ReviewService._queue_sentiment_after_commit(
-            review.REVW_ID,
-            business.BUSN_ID,
+        logger.info(
+            "Review creation moderation decision saved.",
+            extra={
+                "review_id": review.REVW_ID,
+                "outcome": moderation["outcome"],
+                "review_status": review_status,
+            },
         )
         return review
 
@@ -834,27 +866,7 @@ class ReviewService:
         review.REVW_STATUS = Review.ReviewStatus.PUBLISHED
         review.save(update_fields=["REVW_STATUS", "REVW_UPDATED_AT"])
 
-        Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
-            BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
-        )
-
-        if review.photos.exists():
-            ReputationService.apply_review_with_photo_reward(
-                user_id=review.USER_ID_id,
-                source_id=review.REVW_ID,
-                business_id=review.BUSN_ID_id,
-            )
-        else:
-            ReputationService.apply_review_reward(
-                user_id=review.USER_ID_id,
-                source_id=review.REVW_ID,
-                business_id=review.BUSN_ID_id,
-            )
-
-        ReviewService._queue_sentiment_after_commit(
-            review.REVW_ID,
-            review.BUSN_ID_id,
-        )
+        ReviewService._apply_published_effects(review)
         ReviewService._queue_review_insights_after_commit(
             review.BUSN_ID_id,
         )

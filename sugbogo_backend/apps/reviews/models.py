@@ -91,6 +91,11 @@ class Review(models.Model):
         blank=True,
     )
 
+    REVW_MODERATION_DATA = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+
     REVW_CREATED_AT = models.DateTimeField(
         auto_now_add=True,
     )

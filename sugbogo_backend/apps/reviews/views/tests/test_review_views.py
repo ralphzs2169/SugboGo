@@ -34,6 +34,20 @@ class ReviewViewTests(APITestCase):
     """Tests for business review API endpoints."""
 
     def setUp(self):
+        moderation_patcher = patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            return_value={
+                "outcome": "safe",
+                "model": "omni-moderation-latest",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "failure_type": None,
+                "image_count": 0,
+                "findings": [],
+            },
+        )
+        self.moderate_review = moderation_patcher.start()
+        self.addCleanup(moderation_patcher.stop)
+
         self.merchant = User.objects.create_user(
             email="merchant-review@example.com",
             password="StrongPassword123!",
@@ -203,6 +217,26 @@ class ReviewViewTests(APITestCase):
             response.data["data"]["business_id"],
             self.business.BUSN_ID,
         )
+        self.assertEqual(response.data["data"]["status"], "published")
+
+    def test_flagged_submission_returns_successful_under_review_status(self):
+        """The API reports the held state without exposing moderation evidence."""
+        self.moderate_review.return_value["outcome"] = "flagged"
+        response = self.client.post(
+            self.preview_url,
+            {"text": "A review being checked before publication."},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(response.data["data"]["status"], "under_review")
+        self.assertNotIn("moderation", response.data["data"])
+        review = Review.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        preview = self.client.get(self.preview_url).data["data"]
+        self.assertEqual(preview["user_review"]["id"], review.pk)
+        self.assertEqual(preview["reviews"], [])
+        self.assertEqual(preview["total_count"], 0)
 
     def test_create_response_succeeds_when_sentiment_broker_is_unavailable(self):
         with patch(
@@ -1172,6 +1206,20 @@ class ReviewDetailViewTests(APITestCase):
     """Tests for the review update/delete endpoint."""
 
     def setUp(self):
+        moderation_patcher = patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            return_value={
+                "outcome": "safe",
+                "model": "omni-moderation-latest",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "failure_type": None,
+                "image_count": 0,
+                "findings": [],
+            },
+        )
+        moderation_patcher.start()
+        self.addCleanup(moderation_patcher.stop)
+
         self.merchant = User.objects.create_user(
             email="merchant-detail@example.com",
             password="StrongPassword123!",

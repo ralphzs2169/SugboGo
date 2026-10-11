@@ -71,6 +71,12 @@ MOBILE_SCHEME = os.getenv("MOBILE_SCHEME", "com.sugbogo.app://")
 
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODERATION_MODEL = os.getenv(
+    "OPENAI_MODERATION_MODEL",
+    "omni-moderation-latest",
+)
+
 # Daily review keyword extraction
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_KEYWORD_MODEL = os.getenv(

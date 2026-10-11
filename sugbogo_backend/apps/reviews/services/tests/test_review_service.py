@@ -6,6 +6,7 @@ from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 from django.test import TestCase
+from django.test import override_settings
 from django.utils import timezone
 from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -38,6 +39,11 @@ class ReviewServiceTests(TestCase):
     """Tests for creating, updating, and deleting business reviews."""
 
     def setUp(self):
+        from apps.reviews.services.review_moderation_service import (
+            ReviewModerationService,
+        )
+
+        self.real_moderate = ReviewModerationService.moderate
         # Existing service tests stay offline and independent of provisioned models.
         patcher = patch(
             "apps.reviews.services.review_sentiment_service.route_sentiment",
@@ -45,6 +51,20 @@ class ReviewServiceTests(TestCase):
         )
         self.score_review = patcher.start()
         self.addCleanup(patcher.stop)
+
+        moderation_patcher = patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            return_value={
+                "outcome": "safe",
+                "model": "omni-moderation-latest",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "failure_type": None,
+                "image_count": 0,
+                "findings": [],
+            },
+        )
+        self.moderate_review = moderation_patcher.start()
+        self.addCleanup(moderation_patcher.stop)
 
     def test_under_review_lifecycle_and_public_count(self):
         """A held review can be published once and counted only after approval."""
@@ -272,6 +292,111 @@ class ReviewServiceTests(TestCase):
         )
 
         mock_upload.assert_not_called()
+
+    def test_flagged_text_is_held_without_publication_effects(self):
+        """A flagged submission is retained for its author but stays private."""
+        self.moderate_review.return_value["outcome"] = "flagged"
+        with patch.object(ReviewService, "_queue_sentiment_after_commit") as queue:
+            review = ReviewService.create_review(
+                user=self.user,
+                business_id=self.business.pk,
+                text="A review requiring moderation.",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(review.REVW_MODERATION_DATA["outcome"], "flagged")
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        self.assertEqual(
+            list(ReviewService.list_reviews(self.business.pk, self.second_user)),
+            [],
+        )
+        preview = ReviewService.get_review_preview(self.business.pk, self.user)
+        self.assertEqual(preview["user_review"].pk, review.pk)
+        self.assertEqual(preview["total_count"], 0)
+        self.assertFalse(
+            BusinessReviewSummaryService.eligible_reviews(self.business.pk).exists(),
+        )
+        queue.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_flagged_second_image_is_traced_to_its_review_photo(self, upload):
+        """A flagged image keeps its saved photo identity for future review."""
+        upload.side_effect = [
+            {
+                "public_id": "first-photo",
+                "secure_url": "https://example.com/first.jpg",
+            },
+            {
+                "public_id": "second-photo",
+                "secure_url": "https://example.com/second.jpg",
+            },
+        ]
+        self.moderate_review.return_value = {
+            "outcome": "flagged",
+            "model": "omni-moderation-latest",
+            "checked_at": "2026-10-11T00:00:00+00:00",
+            "failure_type": None,
+            "image_count": 2,
+            "findings": [
+                {"source": "text", "photo_index": None, "flagged": False},
+                {"source": "image", "photo_index": 0, "flagged": False},
+                {"source": "image", "photo_index": 1, "flagged": True},
+            ],
+        }
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.pk,
+            text="A review with attached photos.",
+            photos=[
+                self.create_test_image("first.jpg"),
+                self.create_test_image("second.jpg"),
+            ],
+        )
+        photos = list(review.photos.order_by("RPHO_ID"))
+        findings = review.REVW_MODERATION_DATA["findings"]
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(findings[1]["photo_id"], photos[0].pk)
+        self.assertEqual(findings[2]["photo_id"], photos[1].pk)
+        self.assertTrue(findings[2]["flagged"])
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+
+    def test_provider_failure_is_held_without_publication_effects(self):
+        """An unavailable moderation provider cannot publish unchecked text."""
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+        self.moderate_review.return_value["failure_type"] = "TimeoutError"
+        with patch.object(ReviewService, "_queue_sentiment_after_commit") as queue:
+            review = ReviewService.create_review(
+                user=self.user,
+                business_id=self.business.pk,
+                text="A review awaiting a provider decision.",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["failure_type"],
+            "TimeoutError",
+        )
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        queue.assert_not_called()
+
+    @override_settings(OPENAI_API_KEY="")
+    def test_missing_key_holds_actual_review_submission(self):
+        """Missing configuration is treated as a publication hold."""
+        with patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            self.real_moderate,
+        ):
+            review = ReviewService.create_review(
+                user=self.user,
+                business_id=self.business.pk,
+                text="A review awaiting moderation configuration.",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["failure_type"],
+            "MissingAPIKey",
+        )
 
     @patch(
         "apps.reviews.services.review_service.CloudinaryService.upload_image",
