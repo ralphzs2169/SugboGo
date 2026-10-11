@@ -12,6 +12,7 @@ class Review(models.Model):
 
     class ReviewStatus(models.TextChoices):
         PUBLISHED = "published", "Published"
+        UNDER_REVIEW = "under_review", "Under review"
         FLAGGED = "flagged", "Flagged"
         REJECTED = "rejected", "Rejected"
 

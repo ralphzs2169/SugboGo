@@ -261,6 +261,7 @@ class ReviewService:
         try:
             return (
                 Review.objects
+                .select_for_update()
                 .select_related(
                     "BUSN_ID",
                 )
@@ -339,6 +340,8 @@ class ReviewService:
 
         try:
             review = ReviewService._annotated_review_queryset(user).get(
+                models.Q(REVW_STATUS=Review.ReviewStatus.PUBLISHED)
+                | models.Q(USER_ID=user),
                 REVW_ID=review_id,
             )
         except Review.DoesNotExist:
@@ -574,6 +577,11 @@ class ReviewService:
                 "You do not have permission to update this review.",
             )
 
+        if review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+            raise ValidationError(
+                "This review cannot be edited while it is under review.",
+            )
+
         existing_photos = list(
             review.photos.all(),
         )
@@ -745,18 +753,18 @@ class ReviewService:
         deleted_review_id = review.REVW_ID
         business_id = review.BUSN_ID_id
 
+        was_published = review.REVW_STATUS == Review.ReviewStatus.PUBLISHED
         review.delete()
 
-        Business.objects.filter(
-            BUSN_ID=business_id,
-        ).update(
-            BUSN_REVIEW_COUNT=Greatest(
-                models.F(
-                    "BUSN_REVIEW_COUNT",
-                ) - 1,
-                0,
-            ),
-        )
+        if was_published:
+            Business.objects.filter(
+                BUSN_ID=business_id,
+            ).update(
+                BUSN_REVIEW_COUNT=Greatest(
+                    models.F("BUSN_REVIEW_COUNT") - 1,
+                    0,
+                ),
+            )
 
         BusinessReviewSummaryService.recompute_sentiment(
             business_id,
@@ -778,6 +786,7 @@ class ReviewService:
         try:
             photo = (
                 ReviewPhoto.objects
+                .select_for_update()
                 .select_related(
                     "REVW_ID",
                 )
@@ -795,8 +804,83 @@ class ReviewService:
                 "You do not have permission to delete this review photo.",
             )
 
+        if photo.REVW_ID.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+            raise ValidationError(
+                "This review cannot be edited while it is under review.",
+            )
+
         CloudinaryService.delete_image(
             photo.RPHO_PHOTO_PUBLIC_ID,
         )
 
         photo.delete()
+
+    @staticmethod
+    @transaction.atomic
+    def publish_under_review(review_id: int) -> Review:
+        """Publish a held review and start its existing publication effects."""
+        try:
+            review = (
+                Review.objects
+                .select_for_update()
+                .get(REVW_ID=review_id)
+            )
+        except Review.DoesNotExist:
+            raise NotFound("The review could not be found.") from None
+
+        if review.REVW_STATUS != Review.ReviewStatus.UNDER_REVIEW:
+            raise ValidationError("Only an under-review review can be published.")
+
+        review.REVW_STATUS = Review.ReviewStatus.PUBLISHED
+        review.save(update_fields=["REVW_STATUS", "REVW_UPDATED_AT"])
+
+        Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
+            BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
+        )
+
+        if review.photos.exists():
+            ReputationService.apply_review_with_photo_reward(
+                user_id=review.USER_ID_id,
+                source_id=review.REVW_ID,
+                business_id=review.BUSN_ID_id,
+            )
+        else:
+            ReputationService.apply_review_reward(
+                user_id=review.USER_ID_id,
+                source_id=review.REVW_ID,
+                business_id=review.BUSN_ID_id,
+            )
+
+        ReviewService._queue_sentiment_after_commit(
+            review.REVW_ID,
+            review.BUSN_ID_id,
+        )
+        ReviewService._queue_review_insights_after_commit(
+            review.BUSN_ID_id,
+        )
+        return review
+
+    @staticmethod
+    @transaction.atomic
+    def reject_under_review(review_id: int) -> Review:
+        """Reject a held review and remove any generated evidence."""
+        try:
+            review = Review.objects.select_for_update().get(REVW_ID=review_id)
+        except Review.DoesNotExist:
+            raise NotFound("The review could not be found.") from None
+
+        if review.REVW_STATUS != Review.ReviewStatus.UNDER_REVIEW:
+            raise ValidationError("Only an under-review review can be rejected.")
+
+        review.REVW_STATUS = Review.ReviewStatus.REJECTED
+        review.save(update_fields=["REVW_STATUS", "REVW_UPDATED_AT"])
+
+        from apps.reviews.services.review_moderation_consistency_service import (
+            ReviewModerationConsistencyService,
+        )
+
+        ReviewModerationConsistencyService.refresh_excluded_review(
+            business_id=review.BUSN_ID_id,
+            review_id=review.REVW_ID,
+        )
+        return review

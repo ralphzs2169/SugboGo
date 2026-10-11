@@ -3,6 +3,7 @@ import { View } from "react-native";
 import Toast from "react-native-toast-message";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 
+import AppText from "@/shared/components/AppText";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
@@ -140,6 +141,17 @@ export default function BusinessReviewCard({
         highlightedTopic={highlightedTopic}
       />
 
+      {review.is_own_review && review.status === "under_review" && (
+        <View className="mt-3 rounded-lg bg-surface-secondary px-3 py-2">
+          <AppText weight="semibold" className="text-xs text-text-primary">
+            Under review
+          </AppText>
+          <AppText className="mt-1 text-xs text-text-secondary">
+            We're reviewing this before it appears publicly.
+          </AppText>
+        </View>
+      )}
+
       {/* Merchant response */}
       {review.reply && <MerchantReviewResponse reply={review.reply} />}
 
@@ -149,10 +161,9 @@ export default function BusinessReviewCard({
         options={
           review.is_own_review
             ? [
-                {
-                  label: "Edit my review",
-                  value: "edit",
-                },
+                ...(review.status === "under_review"
+                  ? []
+                  : [{ label: "Edit my review", value: "edit" }]),
                 {
                   label: "Delete my review",
                   value: "delete",

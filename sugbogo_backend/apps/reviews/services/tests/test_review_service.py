@@ -46,6 +46,101 @@ class ReviewServiceTests(TestCase):
         self.score_review = patcher.start()
         self.addCleanup(patcher.stop)
 
+    def test_under_review_lifecycle_and_public_count(self):
+        """A held review can be published once and counted only after approval."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for approval.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        self.assertEqual(review.REVW_STATUS, "under_review")
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        self.assertEqual(
+            ReviewService.list_reviews(self.business.pk, self.second_user),
+            [],
+        )
+
+        with (
+            patch.object(ReviewService, "_queue_sentiment_after_commit") as sentiment,
+            patch.object(ReviewService, "_queue_review_insights_after_commit") as insights,
+        ):
+            ReviewService.publish_under_review(review.pk)
+        sentiment.assert_called_once_with(review.pk, self.business.pk)
+        insights.assert_called_once_with(self.business.pk)
+        review.refresh_from_db()
+        self.business.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+        with self.assertRaises(ValidationError):
+            ReviewService.publish_under_review(review.pk)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+
+    def test_under_review_rejection_and_edit_guard(self):
+        """A held review stays stable and rejection never increments the count."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for a decision.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        with self.assertRaisesMessage(ValidationError, "under review"):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Changed content.",
+            )
+        ReviewService.reject_under_review(review.pk)
+        review.refresh_from_db()
+        self.business.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        with self.assertRaises(ValidationError):
+            ReviewService.reject_under_review(review.pk)
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    def test_under_review_photo_cannot_be_deleted_separately(self, delete_image):
+        """Review photos stay stable until a held review is withdrawn."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for a decision.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://example.com/held.jpg",
+            RPHO_PHOTO_PUBLIC_ID="held-photo",
+        )
+        with self.assertRaisesMessage(ValidationError, "under review"):
+            ReviewService.delete_photo(self.user, photo.pk)
+        self.assertTrue(ReviewPhoto.objects.filter(pk=photo.pk).exists())
+        delete_image.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    def test_author_deletes_under_review_without_changing_public_count(
+        self,
+        delete_image,
+    ):
+        """Withdrawal uses the existing photo cleanup without decrementing count."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for approval.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://example.com/held.jpg",
+            RPHO_PHOTO_PUBLIC_ID="held-photo",
+        )
+        ReviewService.delete_review(self.user, review.pk)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        self.assertFalse(Review.objects.filter(pk=review.pk).exists())
+        delete_image.assert_called_once_with("held-photo")
+
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(

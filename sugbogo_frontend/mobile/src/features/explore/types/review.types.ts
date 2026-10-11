@@ -36,7 +36,7 @@ export type ReviewReply = {
 export type BusinessReview = {
   id: number;
   text: string;
-  status: string;
+  status: "published" | "under_review" | "flagged" | "rejected";
   like_count: number;
   report_count: number;
   sentiment_label: ReviewSentiment | null;

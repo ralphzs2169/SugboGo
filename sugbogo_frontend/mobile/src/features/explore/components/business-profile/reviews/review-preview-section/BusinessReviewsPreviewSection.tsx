@@ -50,6 +50,7 @@ export default function BusinessReviewsPreviewSection({
     refetch,
     totalCount,
     hasOwnReview: previewHasOwnReview,
+    userReview,
   } = useBusinessReviewPreview(businessId);
 
   const reviewCount = totalCount ?? 0;
@@ -154,6 +155,14 @@ export default function BusinessReviewsPreviewSection({
       )}
 
       {/* Review preview */}
+      {!isLoading && !error && userReview?.status === "under_review" && (
+        <BusinessReviewCard
+          businessId={businessId}
+          review={userReview}
+          onEdit={onEditReview}
+        />
+      )}
+
       {!isLoading && !error && reviews.length > 0 && (
         <View>
           {/* Latest reviews */}

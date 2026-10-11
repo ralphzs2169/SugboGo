@@ -7,6 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from PIL import Image
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.test import APITestCase
 
 from apps.business.models import (
@@ -493,6 +494,63 @@ class ReviewViewTests(APITestCase):
             REVW_TEXT=f"Review wording {index}.",
             **fields,
         )
+
+    def test_under_review_is_author_only_and_excluded_from_public_lists(self):
+        """The preview exposes a held review solely in its author field."""
+        held = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="A held review from this explorer.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        published = self._create_list_review(51)
+        self._create_list_review(
+            52,
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        preview = self.client.get(self.preview_url).data["data"]
+        self.assertEqual(preview["user_review"]["id"], held.pk)
+        self.assertEqual(preview["user_review"]["status"], "under_review")
+        self.assertEqual([item["id"] for item in preview["reviews"]], [published.pk])
+        self.assertEqual(preview["total_count"], 1)
+        self.assertEqual(self._list_ids(), [published.pk])
+        self.assertEqual(
+            ReviewService.get_review_detail(held.pk, self.explorer).pk,
+            held.pk,
+        )
+
+        self.client.force_authenticate(self.merchant)
+        other_preview = self.client.get(self.preview_url).data["data"]
+        self.assertIsNone(other_preview["user_review"])
+        self.assertEqual(
+            [item["id"] for item in other_preview["reviews"]],
+            [published.pk],
+        )
+        with self.assertRaises(NotFound):
+            ReviewService.get_review_detail(held.pk, self.merchant)
+
+    def test_under_review_edit_rejected_and_delete_allowed(self):
+        """The API blocks held content changes and accepts author withdrawal."""
+        held = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="A held review from this explorer.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        detail_url = f"/api/reviews/{held.pk}/"
+        update = self.client.patch(
+            detail_url,
+            {"text": "Changed review text after moderation started."},
+            format="multipart",
+        )
+        self.assertEqual(update.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(update.data["code"], "VALIDATION_ERROR")
+        held.refresh_from_db()
+        self.assertEqual(held.REVW_TEXT, "A held review from this explorer.")
+
+        deleted = self.client.delete(detail_url)
+        self.assertEqual(deleted.status_code, status.HTTP_200_OK)
+        self.assertFalse(Review.objects.filter(pk=held.pk).exists())
 
     def _list_ids(self, **params):
         """Returns review IDs from the existing list response envelope."""

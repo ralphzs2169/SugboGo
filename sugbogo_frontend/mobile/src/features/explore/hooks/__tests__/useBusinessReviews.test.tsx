@@ -184,6 +184,48 @@ describe("useBusinessReviews", () => {
     client.clear();
   });
 
+  it("refreshes public queries when a held review receives a decision", async () => {
+    const heldReview = {
+      id: 1,
+      status: "under_review",
+      is_own_review: true,
+    } as BusinessReview;
+    (getBusinessReviewPreview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: {
+        reviews: [],
+        total_count: 0,
+        user_review: heldReview,
+      },
+    });
+    const { client, Wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result, unmount } = await renderHook(
+      () => useBusinessReviewPreview(20),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(result.current.userReview?.status).toBe("under_review"));
+
+    await act(async () => {
+      client.setQueryData(businessReviewPreviewKey(20), {
+        reviews: [heldReview],
+        total_count: 1,
+        user_review: { ...heldReview, status: "published" },
+      });
+    });
+
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: businessReviewsKey(20),
+      }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: exploreBusinessDetailKey(20),
+    });
+    unmount();
+    client.clear();
+  });
+
   it("keeps merchant review management's complete collection available", async () => {
     (getAllBusinessReviews as jest.Mock)
       .mockResolvedValueOnce({ success: true, data: page([8, 5], 1, true) })

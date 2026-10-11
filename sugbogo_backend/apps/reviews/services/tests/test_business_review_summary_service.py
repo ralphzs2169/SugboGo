@@ -138,6 +138,7 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         self.create_review(self.business)
         exclusions = [
             {"REVW_STATUS": Review.ReviewStatus.REJECTED},
+            {"REVW_STATUS": Review.ReviewStatus.UNDER_REVIEW},
             {"REVW_STATUS": Review.ReviewStatus.FLAGGED},
             {"REVW_IS_SPAM_FLAGGED": True},
             {"REVW_IS_DEVICE_ABUSE_FLAGGED": True},
