@@ -267,6 +267,28 @@ SIMPLE_JWT = {
 }
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = "config.asgi.application"
+
+NOTIFICATION_WS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("NOTIFICATION_WS_ALLOWED_ORIGINS", WEB_APP_URL).split(",")
+    if origin.strip()
+]
+NOTIFICATION_WS_AUTH_TIMEOUT = 5
+NOTIFICATION_WS_STATUS_INTERVAL = 30
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [{
+                "address": os.getenv("NOTIFICATION_REDIS_URL", "redis://127.0.0.1:6379/1"),
+                "socket_connect_timeout": 1,
+                "socket_timeout": 1,
+            }],
+            "prefix": "sugbogo_notifications",
+        },
+    },
+}
 
 
 # Database

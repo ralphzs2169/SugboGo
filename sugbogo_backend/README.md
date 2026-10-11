@@ -4,6 +4,9 @@ The SugboGo backend is built with **Django** and **Django REST Framework**. It p
 
 ## Tech Stack
 
+Notification WebSocket setup and the client protocol are documented in
+[notification-websocket-setup.md](docs/notification-websocket-setup.md).
+
 - Python
 - Django
 - Django REST Framework
