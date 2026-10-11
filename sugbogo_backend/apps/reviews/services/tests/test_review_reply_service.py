@@ -16,10 +16,13 @@ from apps.business.models import (
 from apps.reviews.models import ReplyPhoto, ReviewReply
 from apps.reviews.services.review_reply_service import ReviewReplyService
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    SafeReviewModerationMixin,
+)
 from apps.users.models import User
 
 
-class ReviewReplyServiceTests(TestCase):
+class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.merchant = User.objects.create_user(
@@ -348,7 +351,7 @@ class ReviewReplyServiceTests(TestCase):
 
 
 
-class ReplyPhotoServiceTests(TestCase):
+class ReplyPhotoServiceTests(SafeReviewModerationMixin, TestCase):
     """Tests for deleting individual reply photos."""
 
     @classmethod

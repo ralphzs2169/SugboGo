@@ -79,6 +79,29 @@ describe("BusinessReviewsSection", () => {
     jest.clearAllMocks();
   });
 
+  it("shows only the author's held review outside public previews", async () => {
+    mockPreview([]);
+    (useBusinessReviewPreview as jest.Mock).mockReturnValue({
+      reviews: [],
+      userReview: {
+        ...review,
+        id: 7,
+        text: "My held review",
+        status: "under_review",
+        is_own_review: true,
+      },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+      totalCount: 0,
+      hasOwnReview: true,
+    });
+
+    const screen = await render(<BusinessReviewsSection {...defaultProps} />);
+    expect(screen.getByText("My held review")).toBeTruthy();
+    expect(screen.queryByText("Write a review")).toBeNull();
+  });
+
   it("places Write a review inline with an eligible review preview", async () => {
     mockPreview([review]);
     const screen = await render(<BusinessReviewsSection {...defaultProps} />);

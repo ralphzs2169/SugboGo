@@ -1,6 +1,7 @@
 import apiClient from "@/shared/api/apiClient.service";
 
-import { getAllBusinessReviews } from "../reviewBusiness.service";
+import { getInstallationId } from "@/shared/api/storage.service";
+import { createReview, getAllBusinessReviews } from "../reviewBusiness.service";
 import {
   DEFAULT_BUSINESS_REVIEW_FILTERS,
   type BusinessReviewFilters,
@@ -8,7 +9,10 @@ import {
 
 jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,
-  default: { get: jest.fn() },
+  default: { get: jest.fn(), post: jest.fn() },
+}));
+jest.mock("@/shared/api/storage.service", () => ({
+  getInstallationId: jest.fn(),
 }));
 jest.mock("@/shared/api/request.service", () => ({
   request: (value: unknown) => value,
@@ -103,5 +107,39 @@ describe("getAllBusinessReviews", () => {
     expect(apiClient.get).toHaveBeenCalledWith(url, {
       params: { page: "2", page_size: "100" },
     });
+  });
+});
+
+describe("createReview installation ID", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getInstallationId as jest.Mock).mockResolvedValue("stored-installation");
+    (apiClient.post as jest.Mock).mockResolvedValue({ success: true });
+  });
+
+  it("sends text, every photo, and the stored installation ID", async () => {
+    await createReview(20, "A detailed review", [
+      { uri: "file:///one.jpg" },
+      { uri: "file:///two.jpg", fileName: "two.jpg", mimeType: "image/jpeg" },
+    ]);
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    const [url, form] = (apiClient.post as jest.Mock).mock.calls[0];
+    expect(url).toBe("/reviews/business/20/");
+    expect(form.get("text")).toBe("A detailed review");
+    expect(form.get("installation_id")).toBe("stored-installation");
+    expect(form.getAll("photos")).toHaveLength(2);
+    expect(getInstallationId).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops submission with a clear error when SecureStore fails", async () => {
+    (getInstallationId as jest.Mock).mockRejectedValue(
+      new Error("SecureStore unavailable"),
+    );
+
+    await expect(createReview(20, "A detailed review", [])).rejects.toThrow(
+      "Unable to access this app's installation ID",
+    );
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 });

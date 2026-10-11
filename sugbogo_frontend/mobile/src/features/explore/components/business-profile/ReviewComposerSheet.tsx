@@ -200,10 +200,19 @@ export default function ReviewComposerSheet({
           textChanged,
         });
       } else {
-        await createReview({
+        const created = await createReview({
           text: trimmedText,
           photos,
         });
+        if (created.status === "under_review") {
+          Toast.show({
+            type: "success",
+            text1: "Review submitted",
+            text2: "It's being reviewed before it appears publicly.",
+          });
+          sheetRef.current?.dismiss();
+          return;
+        }
       }
 
       Toast.show({

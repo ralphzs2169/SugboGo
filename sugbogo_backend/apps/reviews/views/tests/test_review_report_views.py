@@ -91,7 +91,7 @@ class ReviewReportViewTests(APITestCase):
     def test_create_report_successfully(self):
         payload = {
             "report_type": ReviewReport.ReportType.SPAM,
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -130,7 +130,7 @@ class ReviewReportViewTests(APITestCase):
         )
 
         self.assertEqual(
-            report.RREP_DEVICE_ID,
+            report.RREP_INSTALLATION_ID,
             "test-device-001",
         )
 
@@ -143,6 +143,8 @@ class ReviewReportViewTests(APITestCase):
             response.data["data"]["status"],
             report.RREP_STATUS,
         )
+        self.assertNotIn("report_count", response.data["data"])
+        self.assertNotIn("report_flagged", response.data["data"])
 
         self.review.refresh_from_db()
 
@@ -151,7 +153,7 @@ class ReviewReportViewTests(APITestCase):
             1,
         )
 
-    def test_create_report_without_device_id_successfully(self):
+    def test_create_report_without_installation_id_successfully(self):
         payload = {
             "report_type": ReviewReport.ReportType.SPAM,
         }
@@ -172,8 +174,38 @@ class ReviewReportViewTests(APITestCase):
         )
 
         self.assertIsNone(
-            report.RREP_DEVICE_ID,
+            report.RREP_INSTALLATION_ID,
         )
+
+    def test_legacy_device_id_is_accepted(self):
+        """An older client can still attach its stored installation ID."""
+        response = self.client.post(
+            self.report_url,
+            {
+                "report_type": ReviewReport.ReportType.SPAM,
+                "device_id": "legacy-installation",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        report = ReviewReport.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(report.RREP_INSTALLATION_ID, "legacy-installation")
+
+    def test_conflicting_installation_identifiers_are_rejected(self):
+        """A report cannot silently choose between two different IDs."""
+        response = self.client.post(
+            self.report_url,
+            {
+                "report_type": ReviewReport.ReportType.SPAM,
+                "installation_id": "new-installation",
+                "device_id": "legacy-installation",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(ReviewReport.objects.exists())
 
     def test_create_report_rejects_invalid_report_type(self):
         payload = {
@@ -231,6 +263,35 @@ class ReviewReportViewTests(APITestCase):
         self.assertFalse(
             ReviewReport.objects.exists(),
         )
+
+    def test_author_cannot_report_own_review(self):
+        """The API uses the standard validation envelope for self-reporting."""
+        self.client.force_authenticate(self.second_explorer)
+        response = self.client.post(
+            self.report_url,
+            {"report_type": ReviewReport.ReportType.SPAM},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+        self.assertEqual(
+            response.data["message"],
+            "You cannot report your own review.",
+        )
+        self.assertFalse(ReviewReport.objects.exists())
+
+    def test_nonpublished_review_cannot_be_reported(self):
+        """Reports may be filed only while the review is public."""
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        response = self.client.post(
+            self.report_url,
+            {"report_type": ReviewReport.ReportType.ABUSE},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(ReviewReport.objects.exists())
 
     def test_authenticated_merchant_can_report_review(self):
         self.client.force_authenticate(

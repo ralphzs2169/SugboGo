@@ -31,6 +31,8 @@ class ManageReviewReportViewTests(ReportFixtures, TestCase):
         data = response.data["data"]
         self.assertEqual(data["related_report_counts"]["pending"], 1)
         self.assertEqual(data["review"]["text"], self.review.REVW_TEXT)
+        self.assertIn("report_flagged", data["review"])
+        self.assertNotIn("spam_flagged", data["review"])
         self.assertNotIn("private-device", str(data))
         self.assertNotIn(self.user.USER_EMAIL, str(data))
 

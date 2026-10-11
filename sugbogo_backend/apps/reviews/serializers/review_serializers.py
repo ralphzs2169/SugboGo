@@ -13,9 +13,12 @@ from apps.reviews.models import (
 from apps.reviews.serializers.review_reply_serializers import (
     ReviewReplyResponseSerializer,
 )
+from apps.shared.serializers.installation_id_serializers import (
+    InstallationIdInputSerializer,
+)
 
 
-class ReviewCreateSerializer(serializers.Serializer):
+class ReviewCreateSerializer(InstallationIdInputSerializer):
     """Validates a business review creation request and its uploaded photos."""
 
     text = serializers.CharField(
@@ -28,12 +31,6 @@ class ReviewCreateSerializer(serializers.Serializer):
         },
     )
 
-    device_id = serializers.CharField(
-        max_length=255,
-        required=False,
-        allow_blank=True,
-        allow_null=True,
-    )
     photos = serializers.ListField(
         child=serializers.ImageField(),
         required=False,
@@ -68,8 +65,9 @@ class ReviewUpdateSerializer(ReviewCreateSerializer):
     )
 
     def validate(self, attrs):
+        attrs = super().validate(attrs)
         if not attrs or (
-            set(attrs).issubset({"photos", "device_id"})
+            set(attrs).issubset({"photos", "installation_id"})
             and not attrs.get("photos")
         ):
             raise serializers.ValidationError("Provide review text or photos to update.")
@@ -167,10 +165,6 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
         source="REVW_LIKE_COUNT",
         read_only=True,
     )
-    report_count = serializers.IntegerField(
-        source="REVW_REPORT_COUNT",
-        read_only=True,
-    )
     sentiment_score = serializers.FloatField(
         source="REVW_SENTIMENT_SCORE",
         read_only=True,
@@ -183,14 +177,6 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
     )
     is_outlier_sentiment = serializers.BooleanField(
         source="REVW_IS_OUTLIER_SENTIMENT",
-        read_only=True,
-    )
-    is_spam_flagged = serializers.BooleanField(
-        source="REVW_IS_SPAM_FLAGGED",
-        read_only=True,
-    )
-    is_device_abuse_flagged = serializers.BooleanField(
-        source="REVW_IS_DEVICE_ABUSE_FLAGGED",
         read_only=True,
     )
     created_at = serializers.DateTimeField(
@@ -242,12 +228,9 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "text",
             "status",
             "like_count",
-            "report_count",
             "sentiment_score",
             "sentiment_label",
             "is_outlier_sentiment",
-            "is_spam_flagged",
-            "is_device_abuse_flagged",
             "created_at",
             "updated_at",
             "is_liked",
@@ -260,15 +243,9 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "active_dispute_id",
         )
 
-class ReviewReportSerializer(serializers.Serializer):
+class ReviewReportSerializer(InstallationIdInputSerializer):
     """Validates a business review report request."""
 
     report_type = serializers.ChoiceField(
         choices=ReviewReport.ReportType.choices,
-    )
-    device_id = serializers.CharField(
-        max_length=255,
-        required=False,
-        allow_blank=True,
-        allow_null=True,
     )

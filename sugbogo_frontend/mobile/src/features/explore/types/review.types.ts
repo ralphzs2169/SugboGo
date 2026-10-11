@@ -36,9 +36,8 @@ export type ReviewReply = {
 export type BusinessReview = {
   id: number;
   text: string;
-  status: string;
+  status: "published" | "under_review" | "flagged" | "rejected";
   like_count: number;
-  report_count: number;
   sentiment_label: ReviewSentiment | null;
   sentiment_score: number | null;
   is_liked: boolean;
@@ -57,6 +56,7 @@ export type ReviewCreateResult = {
   id: number;
   business_id: number;
   user_id: number;
+  status: BusinessReview["status"];
 };
 
 export type LocalReviewPhoto = {

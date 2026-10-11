@@ -10,8 +10,17 @@ from apps.users.models import User
 class Review(models.Model):
     """A user's review of a business."""
 
+    class ReliabilityReason(models.TextChoices):
+        DUPLICATE_CONTENT = "duplicate_content", "Duplicate content"
+        RAPID_SUBMISSION = "rapid_submission", "Rapid submission"
+        SHARED_INSTALLATION_ACCOUNTS = (
+            "shared_installation_accounts",
+            "Shared installation accounts",
+        )
+
     class ReviewStatus(models.TextChoices):
         PUBLISHED = "published", "Published"
+        UNDER_REVIEW = "under_review", "Under review"
         FLAGGED = "flagged", "Flagged"
         REJECTED = "rejected", "Rejected"
 
@@ -51,7 +60,7 @@ class Review(models.Model):
         default=0,
     )
 
-    REVW_IS_SPAM_FLAGGED = models.BooleanField(
+    REVW_IS_REPORT_FLAGGED = models.BooleanField(
         default=False,
     )
 
@@ -59,7 +68,7 @@ class Review(models.Model):
         default=False,
     )
 
-    REVW_DEVICE_ID = models.CharField(
+    REVW_INSTALLATION_ID = models.CharField(
         max_length=255,
         blank=True,
         null=True,
@@ -67,6 +76,10 @@ class Review(models.Model):
     
     REVW_IS_DEVICE_ABUSE_FLAGGED = models.BooleanField(
         default=False,
+    )
+    REVW_RELIABILITY_REASONS = models.JSONField(
+        default=list,
+        blank=True,
     )
 
     REVW_SENTIMENT_SCORE = models.FloatField(
@@ -87,6 +100,11 @@ class Review(models.Model):
 
     REVW_MODERATION_NOTES = models.TextField(
         null=True,
+        blank=True,
+    )
+
+    REVW_MODERATION_DATA = models.JSONField(
+        default=dict,
         blank=True,
     )
 
@@ -183,7 +201,7 @@ class ReviewReport(models.Model):
         default=ReportStatus.PENDING,
     )
 
-    RREP_DEVICE_ID = models.CharField(
+    RREP_INSTALLATION_ID = models.CharField(
         max_length=255,
         blank=True,
         null=True,

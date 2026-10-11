@@ -111,7 +111,7 @@ class BusinessVouchViewTests(APITestCase):
     def test_create_vouch_successfully(self):
         payload = {
             "tag_id": self.spicy_tag.TAG_ID,
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -138,7 +138,7 @@ class BusinessVouchViewTests(APITestCase):
         )
 
         self.assertEqual(
-            vouch.VOUCH_DEVICE_ID,
+            vouch.VOUCH_INSTALLATION_ID,
             "test-device-001",
         )
 
@@ -161,10 +161,40 @@ class BusinessVouchViewTests(APITestCase):
             self.spicy_tag.TAG_ID,
         )
 
+    def test_legacy_device_id_is_accepted(self):
+        """An older app can still vouch with its existing request key."""
+        response = self.client.post(
+            self.url,
+            {
+                "tag_id": self.spicy_tag.TAG_ID,
+                "device_id": "legacy-installation",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        vouch = self.business.vouches.get(USER_ID=self.user)
+        self.assertEqual(vouch.VOUCH_INSTALLATION_ID, "legacy-installation")
+
+    def test_conflicting_installation_identifiers_are_rejected(self):
+        """A vouch cannot silently choose between two different IDs."""
+        response = self.client.post(
+            self.url,
+            {
+                "tag_id": self.spicy_tag.TAG_ID,
+                "installation_id": "new-installation",
+                "device_id": "legacy-installation",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.business.vouches.exists())
+
     def test_create_vouch_rejects_invalid_tag(self):
         payload = {
             "tag_id": self.unrelated_tag.TAG_ID,
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -194,7 +224,7 @@ class BusinessVouchViewTests(APITestCase):
 
     def test_create_vouch_rejects_missing_tag_id(self):
         payload = {
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -221,7 +251,7 @@ class BusinessVouchViewTests(APITestCase):
     def test_create_vouch_rejects_invalid_tag_id(self):
         payload = {
             "tag_id": "invalid",
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -250,12 +280,12 @@ class BusinessVouchViewTests(APITestCase):
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-001",
+            installation_id="test-device-001",
         )
 
         payload = {
             "tag_id": self.spicy_tag.TAG_ID,
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -287,7 +317,7 @@ class BusinessVouchViewTests(APITestCase):
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-001",
+            installation_id="test-device-001",
         )
 
         response = self.client.delete(
@@ -343,7 +373,7 @@ class BusinessVouchViewTests(APITestCase):
 
         payload = {
             "tag_id": self.spicy_tag.TAG_ID,
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -382,7 +412,7 @@ class BusinessVouchViewTests(APITestCase):
             self.url,
             {
                 "tag_id": self.spicy_tag.TAG_ID,
-                "device_id": "test-device-001",
+                "installation_id": "test-device-001",
             },
             format="json",
         )
@@ -398,7 +428,7 @@ class BusinessVouchViewTests(APITestCase):
             self.url,
             {
                 "tag_id": self.spicy_tag.TAG_ID,
-                "device_id": "test-device-002",
+                "installation_id": "test-device-002",
             },
             format="json",
         )

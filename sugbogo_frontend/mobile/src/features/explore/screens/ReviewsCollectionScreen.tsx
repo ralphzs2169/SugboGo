@@ -324,6 +324,12 @@ function ReviewsCollectionScreenContent({
         renderItem={renderReview}
         ListHeaderComponent={
           <View className="gap-3 px-4">
+            {ownership.userReview?.status === "under_review" && (
+              <BusinessReviewCard
+                businessId={businessId}
+                review={ownership.userReview}
+              />
+            )}
             <ReviewFiltersSection
               insights={business?.review_insights}
               insightsLoading={insightsLoading}

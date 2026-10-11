@@ -138,9 +138,8 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         self.create_review(self.business)
         exclusions = [
             {"REVW_STATUS": Review.ReviewStatus.REJECTED},
+            {"REVW_STATUS": Review.ReviewStatus.UNDER_REVIEW},
             {"REVW_STATUS": Review.ReviewStatus.FLAGGED},
-            {"REVW_IS_SPAM_FLAGGED": True},
-            {"REVW_IS_DEVICE_ABUSE_FLAGGED": True},
         ]
         for index, values in enumerate(exclusions, start=1):
             with self.subTest(values=values):
@@ -158,6 +157,36 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
     def test_outlier_is_included(self):
         self.create_review(self.business, REVW_IS_OUTLIER_SENTIMENT=True)
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+
+    def test_published_reliability_signals_remain_eligible(self):
+        """All three advisory reasons retain normal published eligibility."""
+        for index, reason in enumerate(Review.ReliabilityReason.values):
+            self.create_review(
+                self.business,
+                index,
+                REVW_RELIABILITY_REASONS=[reason],
+                REVW_IS_DEVICE_ABUSE_FLAGGED=(
+                    reason != Review.ReliabilityReason.DUPLICATE_CONTENT
+                ),
+            )
+
+        summary = BusinessReviewSummaryService.recompute_sentiment(
+            self.business.pk,
+        )
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 3)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 3)
+
+    def test_published_report_flag_remains_eligible(self):
+        """Pending community concerns do not remove published insight evidence."""
+        self.create_review(
+            self.business,
+            REVW_IS_REPORT_FLAGGED=True,
+        )
+        summary = BusinessReviewSummaryService.recompute_sentiment(
+            self.business.pk,
+        )
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
         self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
 
     def test_other_business_reviews_are_not_counted(self):
@@ -188,13 +217,11 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
         for values in [
             {"REVW_STATUS": Review.ReviewStatus.REJECTED},
-            {"REVW_IS_SPAM_FLAGGED": True},
-            {"REVW_IS_DEVICE_ABUSE_FLAGGED": True},
         ]:
             with self.subTest(values=values):
                 Review.objects.filter(pk=review.pk).update(
                     REVW_STATUS=Review.ReviewStatus.PUBLISHED,
-                    REVW_IS_SPAM_FLAGGED=False,
+                    REVW_IS_REPORT_FLAGGED=False,
                     REVW_IS_DEVICE_ABUSE_FLAGGED=False,
                 )
                 Review.objects.filter(pk=review.pk).update(**values)

@@ -61,7 +61,7 @@ class AdminReviewReportSerializer(serializers.ModelSerializer):
             "id": review.pk, "text": review.REVW_TEXT,
             "status": review.REVW_STATUS,
             "author_id": review.USER_ID_id,
-            "spam_flagged": review.REVW_IS_SPAM_FLAGGED,
+            "report_flagged": review.REVW_IS_REPORT_FLAGGED,
             "device_abuse_flagged": review.REVW_IS_DEVICE_ABUSE_FLAGGED,
             "business": {"id": review.BUSN_ID_id, "name": review.BUSN_ID.BUSN_NAME},
             "photos": [{"id": photo.pk, "url": photo.RPHO_PHOTO_URL}

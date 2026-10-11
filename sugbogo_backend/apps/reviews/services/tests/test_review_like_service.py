@@ -11,10 +11,13 @@ from apps.business.models import (
 from apps.reviews.models import ReviewLike
 from apps.reviews.services.review_like_service import ReviewLikeService
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    SafeReviewModerationMixin,
+)
 from apps.users.models import User
 
 
-class ReviewLikeServiceTests(TestCase):
+class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
     """Tests for liking and unliking business reviews."""
 
     @classmethod

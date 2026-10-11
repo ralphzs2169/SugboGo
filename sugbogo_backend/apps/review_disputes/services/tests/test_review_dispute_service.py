@@ -256,6 +256,44 @@ class ReviewDisputeServiceTests(TestCase):
             ).exists(),
         )
 
+    def test_create_dispute_rejects_under_review_review(self):
+        self.review.REVW_STATUS = Review.ReviewStatus.UNDER_REVIEW
+        self.review.save(update_fields=["REVW_STATUS"])
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "This review can no longer be disputed.",
+        ):
+            self.create_dispute()
+
+        self.assertFalse(MerchantReviewDispute.objects.exists())
+
+    def test_existing_under_review_dispute_is_hidden_from_merchant(self):
+        dispute = self.create_dispute()
+        self.review.REVW_STATUS = Review.ReviewStatus.UNDER_REVIEW
+        self.review.save(update_fields=["REVW_STATUS"])
+
+        self.assertFalse(
+            ReviewDisputeService.list_merchant_disputes(self.merchant).exists(),
+        )
+        with self.assertRaises(NotFound):
+            ReviewDisputeService.get_dispute(self.merchant, dispute.pk)
+        with self.assertRaises(NotFound):
+            ReviewDisputeService.get_dispute_detail(self.merchant, dispute.pk)
+
+    def test_historical_rejected_dispute_remains_accessible(self):
+        dispute = self.create_dispute()
+        self.review.REVW_STATUS = Review.ReviewStatus.REJECTED
+        self.review.save(update_fields=["REVW_STATUS"])
+
+        self.assertTrue(
+            ReviewDisputeService.list_merchant_disputes(self.merchant).exists(),
+        )
+        self.assertEqual(
+            ReviewDisputeService.get_dispute_detail(self.merchant, dispute.pk).pk,
+            dispute.pk,
+        )
+
     def test_create_dispute_allows_resubmission_after_dismissal(self):
         previous_dispute = self.create_dispute()
         previous_dispute.MRDSP_STATUS = (

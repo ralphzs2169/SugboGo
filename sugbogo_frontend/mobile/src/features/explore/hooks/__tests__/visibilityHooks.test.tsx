@@ -195,6 +195,11 @@ describe("real React Query visibility mutations", () => {
       await result.current.vouch({ tagId: 14, isVouched: false });
     });
 
+    expect(service.vouchForBusinessSpecialty).toHaveBeenCalledWith(
+      1,
+      14,
+      "test-installation",
+    );
     expect(client.getQueryData(["explore-recommendations"])).toMatchObject({
       items: [
         {

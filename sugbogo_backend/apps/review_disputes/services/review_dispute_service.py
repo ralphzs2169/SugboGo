@@ -101,6 +101,11 @@ class ReviewDisputeService:
                 "You do not have permission to access this review dispute.",
             )
 
+        if dispute.REVW_ID.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+            raise NotFound(
+                "The review dispute could not be found.",
+            )
+
         return dispute
 
     @staticmethod
@@ -140,7 +145,7 @@ class ReviewDisputeService:
                 "You do not have permission to dispute this review.",
             )
 
-        if review.REVW_STATUS == Review.ReviewStatus.REJECTED:
+        if review.REVW_STATUS != Review.ReviewStatus.PUBLISHED:
             raise ValidationError(
                 "This review can no longer be disputed.",
             )
@@ -215,6 +220,7 @@ class ReviewDisputeService:
         queryset = (
             MerchantReviewDispute.objects
             .filter(USER_ID=user)
+            .exclude(REVW_ID__REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW)
             .select_related(
                 "BUSN_ID",
                 "REVW_ID",

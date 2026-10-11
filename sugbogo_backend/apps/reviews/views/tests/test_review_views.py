@@ -7,6 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from PIL import Image
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.test import APITestCase
 
 from apps.business.models import (
@@ -33,6 +34,20 @@ class ReviewViewTests(APITestCase):
     """Tests for business review API endpoints."""
 
     def setUp(self):
+        moderation_patcher = patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            return_value={
+                "outcome": "safe",
+                "model": "omni-moderation-latest",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "failure_type": None,
+                "image_count": 0,
+                "findings": [],
+            },
+        )
+        self.moderate_review = moderation_patcher.start()
+        self.addCleanup(moderation_patcher.stop)
+
         self.merchant = User.objects.create_user(
             email="merchant-review@example.com",
             password="StrongPassword123!",
@@ -155,7 +170,7 @@ class ReviewViewTests(APITestCase):
     def test_create_review_successfully(self):
         payload = {
             "text": "Great food and excellent service.",
-            "device_id": "test-device-001",
+            "installation_id": "test-device-001",
         }
 
         response = self.client.post(
@@ -189,7 +204,7 @@ class ReviewViewTests(APITestCase):
         )
 
         self.assertEqual(
-            review.REVW_DEVICE_ID,
+            review.REVW_INSTALLATION_ID,
             "test-device-001",
         )
 
@@ -202,6 +217,61 @@ class ReviewViewTests(APITestCase):
             response.data["data"]["business_id"],
             self.business.BUSN_ID,
         )
+        self.assertEqual(response.data["data"]["status"], "published")
+        self.assertNotIn("report_count", response.data["data"])
+        self.assertNotIn("is_report_flagged", response.data["data"])
+        self.assertNotIn("reliability_reasons", response.data["data"])
+        self.assertNotIn("installation_id", response.data["data"])
+        self.assertNotIn("is_device_abuse_flagged", response.data["data"])
+
+    def test_legacy_device_id_is_accepted_as_installation_id(self):
+        """Older app versions can still submit the previous request key."""
+        response = self.client.post(
+            self.preview_url,
+            {
+                "text": "A detailed review from an older app version.",
+                "device_id": "legacy-installation",
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        review = Review.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(review.REVW_INSTALLATION_ID, "legacy-installation")
+
+    def test_conflicting_installation_identifiers_are_rejected(self):
+        """A request cannot silently choose between two different IDs."""
+        response = self.client.post(
+            self.preview_url,
+            {
+                "text": "A detailed review with conflicting IDs.",
+                "installation_id": "new-installation",
+                "device_id": "legacy-installation",
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Review.objects.filter(USER_ID=self.explorer).exists())
+
+    def test_flagged_submission_returns_successful_under_review_status(self):
+        """The API reports the held state without exposing moderation evidence."""
+        self.moderate_review.return_value["outcome"] = "flagged"
+        response = self.client.post(
+            self.preview_url,
+            {"text": "A review being checked before publication."},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(response.data["data"]["status"], "under_review")
+        self.assertNotIn("moderation", response.data["data"])
+        review = Review.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        preview = self.client.get(self.preview_url).data["data"]
+        self.assertEqual(preview["user_review"]["id"], review.pk)
+        self.assertEqual(preview["reviews"], [])
+        self.assertEqual(preview["total_count"], 0)
 
     def test_create_response_succeeds_when_sentiment_broker_is_unavailable(self):
         with patch(
@@ -494,6 +564,63 @@ class ReviewViewTests(APITestCase):
             **fields,
         )
 
+    def test_under_review_is_author_only_and_excluded_from_public_lists(self):
+        """The preview exposes a held review solely in its author field."""
+        held = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="A held review from this explorer.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        published = self._create_list_review(51)
+        self._create_list_review(
+            52,
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        preview = self.client.get(self.preview_url).data["data"]
+        self.assertEqual(preview["user_review"]["id"], held.pk)
+        self.assertEqual(preview["user_review"]["status"], "under_review")
+        self.assertEqual([item["id"] for item in preview["reviews"]], [published.pk])
+        self.assertEqual(preview["total_count"], 1)
+        self.assertEqual(self._list_ids(), [published.pk])
+        self.assertEqual(
+            ReviewService.get_review_detail(held.pk, self.explorer).pk,
+            held.pk,
+        )
+
+        self.client.force_authenticate(self.merchant)
+        other_preview = self.client.get(self.preview_url).data["data"]
+        self.assertIsNone(other_preview["user_review"])
+        self.assertEqual(
+            [item["id"] for item in other_preview["reviews"]],
+            [published.pk],
+        )
+        with self.assertRaises(NotFound):
+            ReviewService.get_review_detail(held.pk, self.merchant)
+
+    def test_under_review_edit_rejected_and_delete_allowed(self):
+        """The API blocks held content changes and accepts author withdrawal."""
+        held = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="A held review from this explorer.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        detail_url = f"/api/reviews/{held.pk}/"
+        update = self.client.patch(
+            detail_url,
+            {"text": "Changed review text after moderation started."},
+            format="multipart",
+        )
+        self.assertEqual(update.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(update.data["code"], "VALIDATION_ERROR")
+        held.refresh_from_db()
+        self.assertEqual(held.REVW_TEXT, "A held review from this explorer.")
+
+        deleted = self.client.delete(detail_url)
+        self.assertEqual(deleted.status_code, status.HTTP_200_OK)
+        self.assertFalse(Review.objects.filter(pk=held.pk).exists())
+
     def _list_ids(self, **params):
         """Returns review IDs from the existing list response envelope."""
         response = self.client.get(self.list_url, params)
@@ -613,7 +740,7 @@ class ReviewViewTests(APITestCase):
             2,
             REVW_STATUS=Review.ReviewStatus.REJECTED,
         )
-        spam = self._create_list_review(3, REVW_IS_SPAM_FLAGGED=True)
+        reported = self._create_list_review(3, REVW_IS_REPORT_FLAGGED=True)
         device_abuse = self._create_list_review(
             4,
             REVW_IS_DEVICE_ABUSE_FLAGGED=True,
@@ -629,18 +756,24 @@ class ReviewViewTests(APITestCase):
                 "review_ids": [
                     visible.pk,
                     hidden.pk,
-                    spam.pk,
+                    reported.pk,
                     device_abuse.pk,
                     deleted_id,
                 ],
             }],
         )
 
-        self.assertEqual(self._list_ids(topic="Friendly service"), [visible.pk])
+        self.assertEqual(
+            self._list_ids(topic="Friendly service"),
+            [device_abuse.pk, reported.pk, visible.pk],
+        )
         Review.objects.filter(pk=visible.pk).update(
             REVW_STATUS=Review.ReviewStatus.FLAGGED,
         )
-        self.assertEqual(self._list_ids(topic="Friendly service"), [])
+        self.assertEqual(
+            self._list_ids(topic="Friendly service"),
+            [device_abuse.pk, reported.pk],
+        )
 
     def test_filters_compose_with_ordering(self):
         negative = self._create_list_review(
@@ -1114,6 +1247,20 @@ class ReviewDetailViewTests(APITestCase):
     """Tests for the review update/delete endpoint."""
 
     def setUp(self):
+        moderation_patcher = patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            return_value={
+                "outcome": "safe",
+                "model": "omni-moderation-latest",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "failure_type": None,
+                "image_count": 0,
+                "findings": [],
+            },
+        )
+        moderation_patcher.start()
+        self.addCleanup(moderation_patcher.stop)
+
         self.merchant = User.objects.create_user(
             email="merchant-detail@example.com",
             password="StrongPassword123!",

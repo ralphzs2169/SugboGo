@@ -6,6 +6,7 @@ from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 from django.test import TestCase
+from django.test import override_settings
 from django.utils import timezone
 from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -38,6 +39,11 @@ class ReviewServiceTests(TestCase):
     """Tests for creating, updating, and deleting business reviews."""
 
     def setUp(self):
+        from apps.reviews.services.review_moderation_service import (
+            ReviewModerationService,
+        )
+
+        self.real_moderate = ReviewModerationService.moderate
         # Existing service tests stay offline and independent of provisioned models.
         patcher = patch(
             "apps.reviews.services.review_sentiment_service.route_sentiment",
@@ -45,6 +51,136 @@ class ReviewServiceTests(TestCase):
         )
         self.score_review = patcher.start()
         self.addCleanup(patcher.stop)
+
+        moderation_patcher = patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            return_value={
+                "outcome": "safe",
+                "model": "omni-moderation-latest",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "failure_type": None,
+                "image_count": 0,
+                "findings": [],
+            },
+        )
+        self.moderate_review = moderation_patcher.start()
+        self.addCleanup(moderation_patcher.stop)
+
+    def test_under_review_lifecycle_and_public_count(self):
+        """A held review can be published once and counted only after approval."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for approval.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        self.assertEqual(review.REVW_STATUS, "under_review")
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        self.assertEqual(
+            ReviewService.list_reviews(self.business.pk, self.second_user),
+            [],
+        )
+
+        with (
+            patch.object(ReviewService, "_queue_sentiment_after_commit") as sentiment,
+            patch.object(ReviewService, "_queue_review_insights_after_commit") as insights,
+        ):
+            ReviewService.publish_under_review(review.pk)
+        sentiment.assert_called_once_with(review.pk, self.business.pk)
+        insights.assert_called_once_with(self.business.pk)
+        review.refresh_from_db()
+        self.business.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+        with self.assertRaises(ValidationError):
+            ReviewService.publish_under_review(review.pk)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+
+    def test_under_review_rejection_and_edit_guard(self):
+        """A held review stays stable and rejection never increments the count."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for a decision.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        with self.assertRaisesMessage(ValidationError, "under review"):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Changed content.",
+            )
+        ReviewService.reject_under_review(review.pk)
+        review.refresh_from_db()
+        self.business.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        with self.assertRaises(ValidationError):
+            ReviewService.reject_under_review(review.pk)
+
+    def test_rejecting_held_review_preserves_other_published_count(self):
+        Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A separate published review.",
+        )
+        Business.objects.filter(pk=self.business.pk).update(
+            BUSN_REVIEW_COUNT=1,
+        )
+        held_review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for a decision.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+
+        ReviewService.reject_under_review(held_review.pk)
+
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    def test_under_review_photo_cannot_be_deleted_separately(self, delete_image):
+        """Review photos stay stable until a held review is withdrawn."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for a decision.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://example.com/held.jpg",
+            RPHO_PHOTO_PUBLIC_ID="held-photo",
+        )
+        with self.assertRaisesMessage(ValidationError, "under review"):
+            ReviewService.delete_photo(self.user, photo.pk)
+        self.assertTrue(ReviewPhoto.objects.filter(pk=photo.pk).exists())
+        delete_image.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    def test_author_deletes_under_review_without_changing_public_count(
+        self,
+        delete_image,
+    ):
+        """Withdrawal uses the existing photo cleanup without decrementing count."""
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="A review waiting for approval.",
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://example.com/held.jpg",
+            RPHO_PHOTO_PUBLIC_ID="held-photo",
+        )
+        ReviewService.delete_review(self.user, review.pk)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        self.assertFalse(Review.objects.filter(pk=review.pk).exists())
+        delete_image.assert_called_once_with("held-photo")
 
     @classmethod
     def setUpTestData(cls):
@@ -142,7 +278,7 @@ class ReviewServiceTests(TestCase):
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food and excellent service.",
-            device_id="test-device-001",
+            installation_id="test-device-001",
         )
 
         self.assertEqual(
@@ -161,7 +297,7 @@ class ReviewServiceTests(TestCase):
         )
 
         self.assertEqual(
-            review.REVW_DEVICE_ID,
+            review.REVW_INSTALLATION_ID,
             "test-device-001",
         )
 
@@ -177,6 +313,177 @@ class ReviewServiceTests(TestCase):
         )
 
         mock_upload.assert_not_called()
+
+    def test_flagged_text_is_held_without_publication_effects(self):
+        """A flagged submission is retained for its author but stays private."""
+        self.moderate_review.return_value["outcome"] = "flagged"
+        with patch.object(ReviewService, "_queue_sentiment_after_commit") as queue:
+            review = ReviewService.create_review(
+                user=self.user,
+                business_id=self.business.pk,
+                text="A review requiring moderation.",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(review.REVW_MODERATION_DATA["outcome"], "flagged")
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        self.assertEqual(
+            list(ReviewService.list_reviews(self.business.pk, self.second_user)),
+            [],
+        )
+        preview = ReviewService.get_review_preview(self.business.pk, self.user)
+        self.assertEqual(preview["user_review"].pk, review.pk)
+        self.assertEqual(preview["total_count"], 0)
+        self.assertFalse(
+            BusinessReviewSummaryService.eligible_reviews(self.business.pk).exists(),
+        )
+        queue.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_flagged_second_image_is_traced_to_its_review_photo(self, upload):
+        """A flagged image keeps its saved photo identity for future review."""
+        upload.side_effect = [
+            {
+                "public_id": "first-photo",
+                "secure_url": "https://example.com/first.jpg",
+            },
+            {
+                "public_id": "second-photo",
+                "secure_url": "https://example.com/second.jpg",
+            },
+        ]
+        self.moderate_review.return_value = {
+            "outcome": "flagged",
+            "model": "omni-moderation-latest",
+            "checked_at": "2026-10-11T00:00:00+00:00",
+            "failure_type": None,
+            "image_count": 2,
+            "findings": [
+                {"source": "text", "photo_index": None, "flagged": False},
+                {"source": "image", "photo_index": 0, "flagged": False},
+                {"source": "image", "photo_index": 1, "flagged": True},
+            ],
+        }
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.pk,
+            text="A review with attached photos.",
+            photos=[
+                self.create_test_image("first.jpg"),
+                self.create_test_image("second.jpg"),
+            ],
+        )
+        photos = list(review.photos.order_by("RPHO_ID"))
+        findings = review.REVW_MODERATION_DATA["findings"]
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(findings[1]["photo_id"], photos[0].pk)
+        self.assertEqual(findings[2]["photo_id"], photos[1].pk)
+        self.assertTrue(findings[2]["flagged"])
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+
+    def test_provider_failure_is_held_without_publication_effects(self):
+        """An unavailable moderation provider cannot publish unchecked text."""
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+        self.moderate_review.return_value["failure_type"] = "TimeoutError"
+        with patch.object(ReviewService, "_queue_sentiment_after_commit") as queue:
+            review = ReviewService.create_review(
+                user=self.user,
+                business_id=self.business.pk,
+                text="A review awaiting a provider decision.",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["failure_type"],
+            "TimeoutError",
+        )
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        queue.assert_not_called()
+
+    def test_provider_failure_queues_retry_only_after_commit(self):
+        """The held review is committed before its recovery task is sent."""
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+        self.moderate_review.return_value["failure_type"] = "TimeoutError"
+        with patch(
+            "apps.reviews.tasks.retry_failed_review_moderation.delay",
+        ) as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                review = ReviewService.create_review(
+                    user=self.user,
+                    business_id=self.business.pk,
+                    text="A review awaiting provider recovery.",
+                )
+                delay.assert_not_called()
+
+        delay.assert_called_once_with(review.pk)
+        self.assertTrue(review.REVW_MODERATION_DATA["retryable"])
+        self.assertEqual(review.REVW_MODERATION_DATA["retry_attempt"], 0)
+
+    def test_safe_and_flagged_reviews_do_not_queue_retry(self):
+        """Only infrastructure holds enter automatic recovery."""
+        with patch(
+            "apps.reviews.tasks.retry_failed_review_moderation.delay",
+        ) as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                safe_review = ReviewService.create_review(
+                    user=self.user,
+                    business_id=self.business.pk,
+                    text="A safe review that can publish immediately.",
+                )
+        self.assertEqual(safe_review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        delay.assert_not_called()
+
+        self.moderate_review.return_value["outcome"] = "flagged"
+        with patch(
+            "apps.reviews.tasks.retry_failed_review_moderation.delay",
+        ) as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                flagged_review = ReviewService.create_review(
+                    user=self.second_user,
+                    business_id=self.business.pk,
+                    text="A review awaiting human inspection.",
+                )
+        self.assertEqual(
+            flagged_review.REVW_STATUS,
+            Review.ReviewStatus.UNDER_REVIEW,
+        )
+        delay.assert_not_called()
+
+    def test_retry_enqueue_failure_keeps_submission_successful(self):
+        """Broker failure cannot turn a saved technical hold into an API error."""
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+        self.moderate_review.return_value["failure_type"] = "TimeoutError"
+        with patch(
+            "apps.reviews.tasks.retry_failed_review_moderation.delay",
+            side_effect=ConnectionError("broker unavailable"),
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                review = ReviewService.create_review(
+                    user=self.user,
+                    business_id=self.business.pk,
+                    text="A review saved while the broker is down.",
+                )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertTrue(Review.objects.filter(pk=review.pk).exists())
+
+    @override_settings(OPENAI_API_KEY="")
+    def test_missing_key_holds_actual_review_submission(self):
+        """Missing configuration is treated as a publication hold."""
+        with patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            self.real_moderate,
+        ):
+            review = ReviewService.create_review(
+                user=self.user,
+                business_id=self.business.pk,
+                text="A review awaiting moderation configuration.",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["failure_type"],
+            "MissingAPIKey",
+        )
 
     @patch(
         "apps.reviews.services.review_service.CloudinaryService.upload_image",
@@ -1864,7 +2171,7 @@ class ReviewServiceTests(TestCase):
         review = Review.objects.create(
             USER_ID=self.user, BUSN_ID=self.business, REVW_TEXT="Existing review.",
             REVW_SENTIMENT_SCORE=-0.6, REVW_SENTIMENT_LABEL="negative",
-            REVW_IS_SPAM_FLAGGED=True, REVW_IS_OUTLIER_SENTIMENT=True,
+            REVW_IS_REPORT_FLAGGED=True, REVW_IS_OUTLIER_SENTIMENT=True,
         )
         photo = ReviewPhoto.objects.create(
             REVW_ID=review, RPHO_PHOTO_URL="https://example.com/photo.jpg",
@@ -1877,7 +2184,7 @@ class ReviewServiceTests(TestCase):
         self.assertFalse(ReviewPhoto.objects.filter(pk=photo.pk).exists())
         self.assertEqual(review.REVW_SENTIMENT_SCORE, -0.6)
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
-        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_REPORT_FLAGGED)
         self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
 
     def test_blank_direct_service_calls_are_validation_errors(self):
@@ -1945,7 +2252,7 @@ class ReviewServiceTests(TestCase):
     def _create_signal_review(
         self,
         score=0.75,
-        device_id=None,
+        installation_id=None,
         business=None,
         user=None,
         status=Review.ReviewStatus.PUBLISHED,
@@ -1965,7 +2272,7 @@ class ReviewServiceTests(TestCase):
             REVW_TEXT="A review used to check moderation signals.",
             REVW_SENTIMENT_SCORE=score,
             REVW_SENTIMENT_LABEL="positive" if score is not None else None,
-            REVW_DEVICE_ID=device_id,
+            REVW_INSTALLATION_ID=installation_id,
             REVW_STATUS=status,
         )
 
@@ -1993,12 +2300,12 @@ class ReviewServiceTests(TestCase):
             LOCT_ID=location,
         )
 
-    def _create_bulk_history(self, count, device_id, created_at=None):
+    def _create_bulk_history(self, count, installation_id, created_at=None):
         reviews = [
             self._create_signal_review(
                 business=self._create_signal_business(),
                 user=self.second_user,
-                device_id=device_id,
+                installation_id=installation_id,
             )
             for _ in range(count)
         ]
@@ -2008,20 +2315,23 @@ class ReviewServiceTests(TestCase):
             ).update(REVW_CREATED_AT=created_at)
         return reviews
 
-    def test_response_serializes_all_five_moderation_fields(self):
+    def test_response_omits_internal_reliability_fields(self):
         review = self._create_signal_review(score=-0.75)
         review.REVW_SENTIMENT_LABEL = "negative"
         for flagged in (True, False):
             with self.subTest(flagged=flagged):
                 review.REVW_IS_OUTLIER_SENTIMENT = flagged
-                review.REVW_IS_SPAM_FLAGGED = flagged
+                review.REVW_IS_REPORT_FLAGGED = flagged
                 review.REVW_IS_DEVICE_ABUSE_FLAGGED = flagged
                 data = ReviewResponseSerializer(review).data
                 self.assertEqual(data["sentiment_score"], -0.75)
                 self.assertEqual(data["sentiment_label"], "negative")
                 self.assertIs(data["is_outlier_sentiment"], flagged)
-                self.assertIs(data["is_spam_flagged"], flagged)
-                self.assertIs(data["is_device_abuse_flagged"], flagged)
+                self.assertNotIn("is_report_flagged", data)
+                self.assertNotIn("report_count", data)
+                self.assertNotIn("is_device_abuse_flagged", data)
+                self.assertNotIn("reliability_reasons", data)
+                self.assertNotIn("installation_id", data)
 
     def test_response_serializes_null_sentiment_and_false_flags(self):
         review = self._create_signal_review(score=None)
@@ -2029,22 +2339,24 @@ class ReviewServiceTests(TestCase):
         self.assertIsNone(data["sentiment_score"])
         self.assertIsNone(data["sentiment_label"])
         self.assertIs(data["is_outlier_sentiment"], False)
-        self.assertIs(data["is_spam_flagged"], False)
-        self.assertIs(data["is_device_abuse_flagged"], False)
+        self.assertNotIn("is_report_flagged", data)
+        self.assertNotIn("report_count", data)
+        self.assertNotIn("is_device_abuse_flagged", data)
 
     def test_response_moderation_fields_are_read_only(self):
         fields = {
             "sentiment_score": -0.9,
             "sentiment_label": "negative",
             "is_outlier_sentiment": True,
-            "is_spam_flagged": True,
-            "is_device_abuse_flagged": True,
         }
         serializer = ReviewResponseSerializer(data=fields)
         self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertEqual(serializer.validated_data, {})
         for name in fields:
             self.assertTrue(serializer.fields[name].read_only)
+        self.assertNotIn("is_device_abuse_flagged", serializer.fields)
+        self.assertNotIn("is_report_flagged", serializer.fields)
+        self.assertNotIn("report_count", serializer.fields)
 
     def test_outlier_method_flags_both_directions_and_accepts_in_range(self):
         for _ in range(5):
@@ -2114,7 +2426,7 @@ class ReviewServiceTests(TestCase):
             self._create_signal_review(score=0.75)
         review = self._create_signal_review(user=self.user)
         Review.objects.filter(pk=review.pk).update(
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_REPORT_FLAGGED=True,
             REVW_IS_DEVICE_ABUSE_FLAGGED=True,
         )
         self.score_review.return_value = (-0.9, "Negative", "vader")
@@ -2127,7 +2439,7 @@ class ReviewServiceTests(TestCase):
         ReviewSentimentService.process_review(review.pk)
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_OUTLIER_SENTIMENT)
-        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_REPORT_FLAGGED)
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
         self.assertEqual(self.score_review.call_count, 2)
 
@@ -2135,7 +2447,7 @@ class ReviewServiceTests(TestCase):
         review = self._create_signal_review(user=self.user)
         Review.objects.filter(pk=review.pk).update(
             REVW_IS_OUTLIER_SENTIMENT=True,
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_REPORT_FLAGGED=True,
             REVW_IS_DEVICE_ABUSE_FLAGGED=True,
         )
         with patch.object(ReviewService, "_is_outlier_sentiment") as check_outlier:
@@ -2145,21 +2457,204 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.75)
         self.assertTrue(review.REVW_IS_OUTLIER_SENTIMENT)
-        self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
+        self.assertTrue(review.REVW_IS_REPORT_FLAGGED)
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_no_reliability_signal_records_empty_reasons(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "A unique and useful review.",
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_third_normalized_match_from_same_user_flags_only_duplicate(self):
+        for text in ["Great place!", "  GREAT   PLACE! "]:
+            prior = ReviewService.create_review(
+                self.user,
+                self._create_signal_business().pk,
+                text,
+            )
+            self.assertEqual(prior.REVW_RELIABILITY_REASONS, [])
+
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "great place!",
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertFalse(review.REVW_IS_REPORT_FLAGGED)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_duplicate_requires_exact_normalized_text_and_recent_history(self):
+        first = ReviewService.create_review(
+            self.user,
+            self._create_signal_business().pk,
+            "Great place!",
+        )
+        Review.objects.filter(pk=first.pk).update(
+            REVW_CREATED_AT=timezone.now() - timedelta(days=31),
+        )
+        ReviewService.create_review(
+            self.user,
+            self._create_signal_business().pk,
+            "  GREAT   PLACE! ",
+        )
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "great place!",
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+
+        different = ReviewService.create_review(
+            self.second_user,
+            self._create_signal_business().pk,
+            "Really great place!",
+        )
+        self.assertEqual(different.REVW_RELIABILITY_REASONS, [])
+
+    def test_duplicate_matches_same_installation_across_accounts(self):
+        for _ in range(2):
+            prior = self._create_signal_review(
+                business=self._create_signal_business(),
+                installation_id="shared-installation",
+            )
+            Review.objects.filter(pk=prior.pk).update(
+                REVW_TEXT="Repeated words.",
+            )
+
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "  REPEATED   WORDS. ",
+            installation_id="shared-installation",
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+
+    def test_unrelated_installations_do_not_make_global_duplicate(self):
+        for installation_id in ("other-one", "other-two"):
+            prior = self._create_signal_review(
+                business=self._create_signal_business(),
+                installation_id=installation_id,
+            )
+            Review.objects.filter(pk=prior.pk).update(
+                REVW_TEXT="Common phrase.",
+            )
+
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Common phrase.",
+            installation_id="current-installation",
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+
+    def test_duplicate_counts_retained_rejected_but_not_deleted_reviews(self):
+        rejected = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self._create_signal_business(),
+            REVW_TEXT="Retained phrase.",
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        deleted = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self._create_signal_business(),
+            REVW_TEXT="Retained phrase.",
+        )
+        deleted.delete()
+        Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self._create_signal_business(),
+            REVW_TEXT="Retained phrase.",
+        )
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Retained phrase.",
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        self.assertTrue(Review.objects.filter(pk=rejected.pk).exists())
+
+    def test_rapid_and_duplicate_reasons_can_coexist(self):
+        self._create_bulk_history(10, "bulk-installation")
+        review = ReviewService.create_review(
+            self.second_user,
+            self.business.pk,
+            "A review used to check moderation signals.",
+            installation_id="bulk-installation",
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [
+                Review.ReliabilityReason.RAPID_SUBMISSION,
+                Review.ReliabilityReason.DUPLICATE_CONTENT,
+            ],
+        )
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_heuristic_failure_does_not_change_ai_publication_decision(self):
+        with patch.object(
+            ReviewService,
+            "_reliability_reasons",
+            side_effect=RuntimeError("Query failed"),
+        ):
+            review = ReviewService.create_review(
+                self.user,
+                self.business.pk,
+                "A safe review despite a signal outage.",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+
+    def test_ai_hold_preserves_heuristic_reason_without_retry(self):
+        self._create_bulk_history(10, "bulk-installation")
+        self.moderate_review.return_value["outcome"] = "flagged"
+        with patch.object(
+            ReviewService,
+            "_queue_moderation_retry_after_commit",
+        ) as retry:
+            review = ReviewService.create_review(
+                self.user,
+                self.business.pk,
+                "A held review after rapid activity.",
+                installation_id="bulk-installation",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.RAPID_SUBMISSION],
+        )
+        retry.assert_not_called()
 
     def test_fourth_distinct_user_on_device_flags_only_new_review(self):
         prior_reviews = [
-            self._create_signal_review(device_id="shared-device")
+            self._create_signal_review(installation_id="shared-device")
             for _ in range(3)
         ]
         review = ReviewService.create_review(
             self.user, self.business.pk, "A new review from a shared device.",
-            device_id="shared-device",
+            installation_id="shared-device",
         )
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.SHARED_INSTALLATION_ACCOUNTS],
+        )
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         for prior in prior_reviews:
             prior.refresh_from_db()
@@ -2167,20 +2662,21 @@ class ReviewServiceTests(TestCase):
 
     def test_third_distinct_user_on_device_is_not_flagged(self):
         for _ in range(2):
-            self._create_signal_review(device_id="shared-device")
+            self._create_signal_review(installation_id="shared-device")
         review = ReviewService.create_review(
             self.user, self.business.pk, "A third user sharing one device.",
-            device_id="shared-device",
+            installation_id="shared-device",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
 
     def test_sockpuppet_detection_counts_rejected_and_flagged_reviews(self):
         for status in Review.ReviewStatus.values:
-            self._create_signal_review(device_id="shared-device", status=status)
+            self._create_signal_review(installation_id="shared-device", status=status)
         review = ReviewService.create_review(
             self.user, self.business.pk, "Another review on the same device.",
-            device_id="shared-device",
+            installation_id="shared-device",
         )
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2188,25 +2684,25 @@ class ReviewServiceTests(TestCase):
     def test_sockpuppet_detection_does_not_combine_businesses(self):
         other_business = self._create_signal_business()
         for _ in range(3):
-            self._create_signal_review(device_id="shared-device", business=other_business)
+            self._create_signal_review(installation_id="shared-device", business=other_business)
         review = ReviewService.create_review(
             self.user, self.business.pk, "A review of a different business.",
-            device_id="shared-device",
+            installation_id="shared-device",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
-    def test_missing_device_ids_never_query_or_flag_shared_blank_history(self):
-        for device_id in (None, "", " \t"):
-            with self.subTest(device_id=device_id):
+    def test_missing_installation_ids_never_query_or_flag_shared_blank_history(self):
+        for installation_id in (None, "", " \t"):
+            with self.subTest(installation_id=installation_id):
                 for _ in range(11):
-                    self._create_signal_review(device_id=device_id)
+                    self._create_signal_review(installation_id=installation_id)
                 author = self._create_signal_review(
                     business=self._create_signal_business(),
                 ).USER_ID
                 review = ReviewService.create_review(
                     author, self.business.pk, "A review without a usable device ID.",
-                    device_id=device_id,
+                    installation_id=installation_id,
                 )
                 review.refresh_from_db()
                 self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2217,20 +2713,25 @@ class ReviewServiceTests(TestCase):
         self._create_bulk_history(10, "bulk-device")
         review = ReviewService.create_review(
             self.second_user, self.business.pk, "An eleventh review across businesses.",
-            device_id="bulk-device",
+            installation_id="bulk-device",
         )
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.RAPID_SUBMISSION],
+        )
 
     def test_bulk_spam_does_not_flag_tenth_review(self):
         self._create_bulk_history(9, "bulk-device")
         review = ReviewService.create_review(
             self.second_user, self.business.pk, "A tenth review across businesses.",
-            device_id="bulk-device",
+            installation_id="bulk-device",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
 
     def test_bulk_spam_includes_exact_window_start_but_excludes_older_reviews(self):
         now = timezone.now()
@@ -2240,7 +2741,7 @@ class ReviewServiceTests(TestCase):
         with patch("apps.reviews.services.review_service.timezone.now", return_value=now):
             review = ReviewService.create_review(
                 self.second_user, self.business.pk, "A review at the window boundary.",
-                device_id="bulk-device",
+                installation_id="bulk-device",
             )
             review.refresh_from_db()
             self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2255,7 +2756,7 @@ class ReviewServiceTests(TestCase):
         )
         review = ReviewService.create_review(
             self.second_user, self.business.pk, "A review after old activity expired.",
-            device_id="bulk-device",
+            installation_id="bulk-device",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
@@ -2265,25 +2766,25 @@ class ReviewServiceTests(TestCase):
         self._create_bulk_history(5, "device-b")
         review = ReviewService.create_review(
             self.user, self.business.pk, "Another review from only one device.",
-            device_id="device-a",
+            installation_id="device-a",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_two_devices_do_not_combine_for_sockpuppet_threshold(self):
-        for device_id in ("device-a", "device-b"):
+        for installation_id in ("device-a", "device-b"):
             for _ in range(2):
-                self._create_signal_review(device_id=device_id)
+                self._create_signal_review(installation_id=installation_id)
         review = ReviewService.create_review(
             self.user, self.business.pk, "A third user on the first device.",
-            device_id="device-a",
+            installation_id="device-a",
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_failed_creation_rolls_back_both_moderation_flags(self):
         for _ in range(5):
-            self._create_signal_review(score=0.75, device_id="shared-device")
+            self._create_signal_review(score=0.75, installation_id="shared-device")
         self.score_review.return_value = (-0.9, "Negative", "vader")
         with patch(
             "apps.reviews.services.review_service.CloudinaryService.upload_image",
@@ -2291,7 +2792,7 @@ class ReviewServiceTests(TestCase):
         ), self.assertRaisesRegex(RuntimeError, "Upload failed"):
             ReviewService.create_review(
                 self.user, self.business.pk, "A flagged review that fails to save.",
-                device_id="shared-device", photos=[object()],
+                installation_id="shared-device", photos=[object()],
             )
         self.assertFalse(Review.objects.filter(USER_ID=self.user).exists())
         self.assertFalse(Review.objects.filter(REVW_IS_OUTLIER_SENTIMENT=True).exists())

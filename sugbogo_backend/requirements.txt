@@ -19,6 +19,7 @@ google-auth==2.56.0
 google-genai==2.24.0
 idna==3.18
 mypy_extensions==1.1.0
+openai==3.28.0
 packaging==26.2
 pathspec==1.1.1
 pillow==12.3.0
