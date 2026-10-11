@@ -43,9 +43,9 @@ export const PAGE_METADATA = {
       "Manage jeepney routes, transit points, and directed transfer connections.",
   },
 
-  "/admin-panel/flags-suspicious": {
-    title: "Flags & Suspicious Activity",
-    subtitle: "Monitor flagged submissions and platform integrity.",
+  "/admin-panel/moderation-integrity": {
+    title: "Moderation & Integrity",
+    subtitle: "Review trust and safety activity across the platform.",
   },
 
   "/admin-panel/analytics": {

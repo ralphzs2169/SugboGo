@@ -59,10 +59,11 @@ export default function ReviewDisputeDetailPage() {
     return () => observer.disconnect();
   }, [dispute]);
 
-  const handleBack = useNavigateBack("/admin-panel/review-disputes");
+  const disputesUrl = "/admin-panel/moderation-integrity?tab=disputes";
+  const handleBack = useNavigateBack(disputesUrl);
 
   function handleDisputeResolved() {
-    navigate("/admin-panel/review-disputes");
+    navigate(disputesUrl);
   }
 
   const breadcrumbs = [
@@ -71,11 +72,11 @@ export default function ReviewDisputeDetailPage() {
       href: "/admin-panel/dashboard",
     },
     {
-      label: "Moderation",
+      label: "Trust & Safety",
     },
     {
-      label: "Review Disputes",
-      href: "/admin-panel/review-disputes",
+      label: "Moderation & Integrity",
+      href: disputesUrl,
     },
     {
       label: dispute ? `Dispute #${dispute.id}` : "Review Dispute",

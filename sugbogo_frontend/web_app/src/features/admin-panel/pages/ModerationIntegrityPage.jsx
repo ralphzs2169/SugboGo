@@ -1,0 +1,129 @@
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Clock3, Flag, MessageSquareText, ShieldAlert } from "lucide-react";
+
+import PageHeader from "../components/PageHeader";
+import TableTabs from "../components/data-table/TableTabs";
+import ReviewDisputeManagementTable from "../review-disputes/components/ReviewDisputeManagementTable";
+import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
+
+const MODERATION_TABS = [
+  { id: "under-review", label: "Under Review", icon: Clock3 },
+  { id: "suspicious", label: "Suspicious", icon: ShieldAlert },
+  { id: "reported", label: "Reported", icon: Flag },
+  { id: "disputes", label: "Disputes", icon: MessageSquareText },
+];
+
+const VALID_TABS = new Set(MODERATION_TABS.map((tab) => tab.id));
+
+const PLACEHOLDERS = {
+  "under-review": {
+    title: "Under Review management is coming next",
+    description:
+      "AI-held review management will be available here in a future update.",
+    Icon: Clock3,
+  },
+  suspicious: {
+    title: "Suspicious review signals are coming next",
+    description:
+      "Advisory review reliability signals will be available here in a future update.",
+    Icon: ShieldAlert,
+  },
+  reported: {
+    title: "Reported reviews are coming next",
+    description:
+      "Community-reported review management will be available here in a future update.",
+    Icon: Flag,
+  },
+};
+
+function ModerationPlaceholder({ title, description, Icon }) {
+  return (
+    <div className="flex min-h-[520px] items-center justify-center rounded-lg border border-stroke-strong bg-surface px-6 py-14">
+      <div className="max-w-md text-center">
+        <Icon className="mx-auto h-10 w-10 text-text-secondary" />
+        <h2 className="mt-4 text-lg font-semibold text-text-primary">
+          {title}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function ModerationIntegrityPage() {
+  useDocumentTitle("Moderation & Integrity | SugboGo Admin");
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab = VALID_TABS.has(requestedTab)
+    ? requestedTab
+    : "under-review";
+
+  useEffect(() => {
+    if (requestedTab === activeTab) {
+      return;
+    }
+
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+
+        next.set("tab", activeTab);
+
+        return next;
+      },
+      { replace: true },
+    );
+  }, [activeTab, requestedTab, setSearchParams]);
+
+  function handleTabChange(tab) {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+
+      next.set("tab", tab);
+
+      return next;
+    });
+  }
+
+  return (
+    <>
+      <PageHeader
+        breadcrumbs={[
+          { label: "SugboGo Admin", href: "/admin-panel/dashboard" },
+          { label: "Trust & Safety" },
+          { label: "Moderation & Integrity" },
+        ]}
+        title="Moderation & Integrity"
+      />
+
+      <section>
+        {activeTab === "disputes" ? (
+          <ReviewDisputeManagementTable
+            tabs={MODERATION_TABS}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+          />
+        ) : (
+          <div className="relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2">
+            <nav
+              aria-label="Moderation & Integrity sections"
+              className="mb-6 overflow-x-auto pb-1"
+            >
+              <TableTabs
+                tabs={MODERATION_TABS}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+              />
+            </nav>
+
+            <ModerationPlaceholder {...PLACEHOLDERS[activeTab]} />
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
