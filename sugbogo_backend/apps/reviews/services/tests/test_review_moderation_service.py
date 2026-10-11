@@ -109,6 +109,60 @@ class ReviewModerationServiceTests(SimpleTestCase):
         self.assertTrue(all(url.startswith("data:image/jpeg;base64,") for url in image_urls))
 
     @patch("apps.reviews.services.review_moderation_service.OpenAI")
+    def test_retry_moderates_every_persisted_image_url(self, openai_client):
+        create = openai_client.return_value.moderations.create
+        create.side_effect = [
+            provider_response(request_id="text"),
+            provider_response(request_id="photo-1"),
+            provider_response(flagged=True, request_id="photo-2"),
+            provider_response(request_id="photo-3"),
+        ]
+        image_urls = [
+            f"https://res.cloudinary.com/test/image/upload/review-{index}.jpg"
+            for index in range(1, 4)
+        ]
+        result = ReviewModerationService.moderate(
+            text="A review awaiting a provider retry.",
+            image_urls=image_urls,
+        )
+        self.assertEqual(result["outcome"], "flagged")
+        self.assertEqual(create.call_count, 4)
+        self.assertEqual(
+            [
+                call.kwargs["input"][0]["image_url"]["url"]
+                for call in create.call_args_list[1:]
+            ],
+            image_urls,
+        )
+        self.assertEqual(
+            [finding["photo_index"] for finding in result["findings"][1:]],
+            [0, 1, 2],
+        )
+
+    @patch("apps.reviews.services.review_moderation_service.OpenAI")
+    def test_valid_flag_before_later_provider_failure_stays_flagged(
+        self,
+        openai_client,
+    ):
+        create = openai_client.return_value.moderations.create
+        create.side_effect = [
+            provider_response(request_id="text"),
+            provider_response(flagged=True, request_id="photo-1"),
+            TimeoutError(),
+        ]
+        result = ReviewModerationService.moderate(
+            text="A review with several photos.",
+            image_urls=[
+                "https://res.cloudinary.com/test/image/upload/first.jpg",
+                "https://res.cloudinary.com/test/image/upload/second.jpg",
+            ],
+        )
+        self.assertEqual(result["outcome"], "flagged")
+        self.assertTrue(result["incomplete"])
+        self.assertEqual(result["failure_type"], "TimeoutError")
+        self.assertTrue(result["findings"][1]["flagged"])
+
+    @patch("apps.reviews.services.review_moderation_service.OpenAI")
     def test_provider_failure_is_a_hold(self, openai_client):
         openai_client.return_value.moderations.create.side_effect = TimeoutError()
         result = ReviewModerationService.moderate("Friendly service.")

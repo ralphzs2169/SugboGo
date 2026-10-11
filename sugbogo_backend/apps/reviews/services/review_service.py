@@ -95,6 +95,30 @@ class ReviewService:
         transaction.on_commit(publish, robust=True)
 
     @staticmethod
+    def _queue_moderation_retry_after_commit(review_id: int) -> None:
+        """Queue infrastructure recovery without changing submission success."""
+
+        def publish():
+            try:
+                from apps.reviews.tasks import retry_failed_review_moderation
+
+                retry_failed_review_moderation.delay(review_id)
+                logger.info(
+                    "Review moderation retry queued.",
+                    extra={"review_id": review_id},
+                )
+            except Exception as exc:
+                logger.error(
+                    "Review moderation retry enqueue failed.",
+                    extra={
+                        "review_id": review_id,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+
+        transaction.on_commit(publish, robust=True)
+
+    @staticmethod
     def _apply_published_effects(review: Review) -> None:
         """Apply the count, reputation, and sentiment effects of publication."""
         Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
@@ -212,6 +236,11 @@ class ReviewService:
             text=text,
             photos=submitted_photos,
         )
+        moderation["retry_attempt"] = 0
+        moderation["retryable"] = moderation["outcome"] == "provider_failure"
+        moderation["retry_exhausted"] = False
+        moderation["last_attempted_at"] = moderation["checked_at"]
+        moderation["last_provider_failure"] = moderation["failure_type"]
         review_status = Review.ReviewStatus.PUBLISHED
         if moderation["outcome"] != "safe":
             review_status = Review.ReviewStatus.UNDER_REVIEW
@@ -267,6 +296,10 @@ class ReviewService:
 
                 if review_status == Review.ReviewStatus.PUBLISHED:
                     ReviewService._apply_published_effects(review)
+                elif moderation["outcome"] == "provider_failure":
+                    ReviewService._queue_moderation_retry_after_commit(
+                        review.REVW_ID,
+                    )
 
         except Exception:
             for public_id in uploaded_public_ids:

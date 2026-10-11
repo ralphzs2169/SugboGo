@@ -11,6 +11,9 @@ from apps.reviews.services.review_keyword_service import (
     ReviewKeywordService,
     RetryableKeywordError,
 )
+from apps.reviews.services.review_moderation_retry_service import (
+    ReviewModerationRetryService,
+)
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
 
@@ -19,6 +22,68 @@ logger = logging.getLogger(__name__)
 TRANSIENT_RETRY_LIMIT = 3
 TRANSIENT_RETRY_BASE_SECONDS = 60
 TRANSIENT_RETRY_MAX_SECONDS = 300
+
+
+@shared_task(
+    bind=True,
+    name="apps.reviews.tasks.retry_failed_review_moderation",
+    max_retries=TRANSIENT_RETRY_LIMIT,
+)
+def retry_failed_review_moderation(task, review_id: int) -> str:
+    """Recover only a review held by a transient moderation failure."""
+    logger.info(
+        "Review moderation retry started.",
+        extra={
+            "review_id": review_id,
+            "retry_number": task.request.retries,
+        },
+    )
+    outcome = ReviewModerationRetryService.retry(
+        review_id=review_id,
+        expected_attempt=task.request.retries,
+        max_retries=task.max_retries,
+    )
+
+    if outcome == "stale":
+        logger.info(
+            "Stale review moderation retry skipped.",
+            extra={"review_id": review_id},
+        )
+        return outcome
+    if outcome == "published":
+        logger.info(
+            "Review moderation retry published safe review.",
+            extra={"review_id": review_id},
+        )
+        return outcome
+    if outcome == "flagged":
+        logger.info(
+            "Review moderation retry found flagged content; review remains held.",
+            extra={"review_id": review_id},
+        )
+        return outcome
+    if outcome == "exhausted":
+        logger.error(
+            "Review moderation retries exhausted; review remains held.",
+            extra={"review_id": review_id},
+        )
+        return outcome
+
+    countdown = min(
+        TRANSIENT_RETRY_BASE_SECONDS * (2 ** task.request.retries),
+        TRANSIENT_RETRY_MAX_SECONDS,
+    )
+    logger.warning(
+        "Review moderation provider failed again; retry scheduled.",
+        extra={
+            "review_id": review_id,
+            "retry_countdown_seconds": countdown,
+        },
+    )
+    raise task.retry(
+        exc=RuntimeError("Review moderation provider remains unavailable."),
+        countdown=countdown,
+    )
 
 
 @shared_task(name="apps.reviews.tasks.process_review_sentiment")

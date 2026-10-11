@@ -380,6 +380,72 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
         queue.assert_not_called()
 
+    def test_provider_failure_queues_retry_only_after_commit(self):
+        """The held review is committed before its recovery task is sent."""
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+        self.moderate_review.return_value["failure_type"] = "TimeoutError"
+        with patch(
+            "apps.reviews.tasks.retry_failed_review_moderation.delay",
+        ) as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                review = ReviewService.create_review(
+                    user=self.user,
+                    business_id=self.business.pk,
+                    text="A review awaiting provider recovery.",
+                )
+                delay.assert_not_called()
+
+        delay.assert_called_once_with(review.pk)
+        self.assertTrue(review.REVW_MODERATION_DATA["retryable"])
+        self.assertEqual(review.REVW_MODERATION_DATA["retry_attempt"], 0)
+
+    def test_safe_and_flagged_reviews_do_not_queue_retry(self):
+        """Only infrastructure holds enter automatic recovery."""
+        with patch(
+            "apps.reviews.tasks.retry_failed_review_moderation.delay",
+        ) as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                safe_review = ReviewService.create_review(
+                    user=self.user,
+                    business_id=self.business.pk,
+                    text="A safe review that can publish immediately.",
+                )
+        self.assertEqual(safe_review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        delay.assert_not_called()
+
+        self.moderate_review.return_value["outcome"] = "flagged"
+        with patch(
+            "apps.reviews.tasks.retry_failed_review_moderation.delay",
+        ) as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                flagged_review = ReviewService.create_review(
+                    user=self.second_user,
+                    business_id=self.business.pk,
+                    text="A review awaiting human inspection.",
+                )
+        self.assertEqual(
+            flagged_review.REVW_STATUS,
+            Review.ReviewStatus.UNDER_REVIEW,
+        )
+        delay.assert_not_called()
+
+    def test_retry_enqueue_failure_keeps_submission_successful(self):
+        """Broker failure cannot turn a saved technical hold into an API error."""
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+        self.moderate_review.return_value["failure_type"] = "TimeoutError"
+        with patch(
+            "apps.reviews.tasks.retry_failed_review_moderation.delay",
+            side_effect=ConnectionError("broker unavailable"),
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                review = ReviewService.create_review(
+                    user=self.user,
+                    business_id=self.business.pk,
+                    text="A review saved while the broker is down.",
+                )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertTrue(Review.objects.filter(pk=review.pk).exists())
+
     @override_settings(OPENAI_API_KEY="")
     def test_missing_key_holds_actual_review_submission(self):
         """Missing configuration is treated as a publication hold."""

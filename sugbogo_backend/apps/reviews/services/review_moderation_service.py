@@ -3,6 +3,7 @@
 import base64
 import logging
 import math
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.utils import timezone
@@ -115,15 +116,35 @@ class ReviewModerationService:
         }
 
     @staticmethod
+    def _stored_image_input(image_url: str) -> dict:
+        """Supply a persisted public Cloudinary image for retry moderation."""
+        parsed_url = urlsplit(image_url)
+        if (
+            parsed_url.scheme != "https"
+            or not parsed_url.hostname
+            or parsed_url.username
+            or parsed_url.password
+        ):
+            raise ValueError("The stored review image URL is invalid.")
+
+        return {
+            "type": "image_url",
+            "image_url": {
+                "url": image_url,
+            },
+        }
+
+    @staticmethod
     def moderate(
         text: str,
         photos: list | None = None,
+        image_urls: list[str] | None = None,
     ) -> dict:
         """Moderate text and every image independently for photo attribution."""
         model = settings.OPENAI_MODERATION_MODEL
         checked_at = timezone.now().isoformat()
         findings = []
-        image_count = len(photos or [])
+        image_count = len(photos or []) + len(image_urls or [])
 
         if not settings.OPENAI_API_KEY:
             logger.warning("Review moderation configuration is missing.")
@@ -157,6 +178,14 @@ class ReviewModerationService:
                         ReviewModerationService._image_input(photo),
                     ),
                 )
+            for index, image_url in enumerate(image_urls or []):
+                inputs.append(
+                    (
+                        "image",
+                        index,
+                        ReviewModerationService._stored_image_input(image_url),
+                    ),
+                )
 
             for source, photo_index, provider_input in inputs:
                 logger.info(
@@ -178,17 +207,25 @@ class ReviewModerationService:
                     ),
                 )
         except Exception as exc:
+            if any(finding["flagged"] for finding in findings):
+                outcome = "flagged"
+            else:
+                outcome = "provider_failure"
             logger.warning(
                 "Review moderation could not be completed.",
-                extra={"error_type": type(exc).__name__},
+                extra={
+                    "error_type": type(exc).__name__,
+                    "outcome": outcome,
+                },
             )
             return {
-                "outcome": "provider_failure",
+                "outcome": outcome,
                 "model": model,
                 "checked_at": checked_at,
                 "failure_type": type(exc).__name__,
                 "image_count": image_count,
                 "findings": findings,
+                "incomplete": True,
             }
 
         if any(item["flagged"] for item in findings):
