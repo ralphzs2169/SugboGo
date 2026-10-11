@@ -23,11 +23,11 @@ export default function LocationLandmarkDiff({ previous, proposed, status }) {
   }
 
   return (
-    <section className="rounded-xl border border-stroke bg-background p-5">
-      <h2 className="text-base font-semibold text-text-primary">
-        Landmark changes
-      </h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+    <section>
+      <h4 className="text-sm font-semibold text-text-primary">
+        Landmark Changes
+      </h4>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {groups
           .filter((group) => diff[group.key].length > 0)
           .map((group) => (
@@ -39,18 +39,18 @@ export default function LocationLandmarkDiff({ previous, proposed, status }) {
                 {diff[group.key].map((landmark, index) => (
                   <li
                     key={`${landmark.id ?? landmark.place_id ?? landmark.name}-${index}`}
-                    className="flex gap-2 py-3"
+                    className="flex min-w-0 gap-2 py-3"
                   >
                     <group.Icon
                       className="mt-0.5 h-4 w-4 shrink-0 text-text-secondary"
                       aria-hidden="true"
                     />
                     <div className="min-w-0">
-                      <p className="break-words text-sm font-medium text-text-primary">
+                      <p className="break-words text-sm font-medium leading-5 text-text-primary">
                         {landmark.name}
                       </p>
                       {landmark.address && (
-                        <p className="break-words text-xs text-text-secondary">
+                        <p className="mt-1 break-words text-xs leading-5 text-text-secondary">
                           {landmark.address}
                         </p>
                       )}

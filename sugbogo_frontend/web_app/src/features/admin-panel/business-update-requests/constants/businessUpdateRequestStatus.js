@@ -7,7 +7,7 @@ export const UPDATE_REQUEST_STATUS_TABS = [
 ];
 
 export const UPDATE_REQUEST_STATUS_VARIANTS = {
-  pending: "warning",
+  pending: "info",
   approved: "success",
   rejected: "danger",
   withdrawn: "muted",

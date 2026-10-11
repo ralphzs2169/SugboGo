@@ -138,7 +138,7 @@ export default function RequestReviewWorkspace({
                 )}
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button
-                    variant="danger"
+                    variant="danger-outline"
                     disabled={decisionPending}
                     onClick={onReject}
                   >

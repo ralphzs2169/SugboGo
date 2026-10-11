@@ -12,6 +12,22 @@ export async function fetchClassificationUpdateRequest(requestId) {
   return response.data.data;
 }
 
+/** Retrieves an existing taxonomy tag's display metadata by ID. */
+export async function fetchClassificationSpecialtyDisplay(tagId) {
+  const response = await apiClient.get(
+    `/admin/taxonomy/specialty-tags/${tagId}/`,
+  );
+  return response.data.data;
+}
+
+/** Retrieves an existing taxonomy cluster's icon by ID. */
+export async function fetchClassificationClusterDisplay(clusterId) {
+  const response = await apiClient.get(
+    `/admin/taxonomy/clusters/${clusterId}/`,
+  );
+  return response.data.data;
+}
+
 export async function approveClassificationUpdateRequest(requestId) {
   const response = await apiClient.post(`${BASE_URL}${requestId}/approve/`);
   return response.data.data;

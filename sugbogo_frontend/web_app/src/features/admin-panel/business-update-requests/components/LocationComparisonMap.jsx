@@ -1,4 +1,4 @@
-import { Component, useEffect } from "react";
+import { Component, useEffect, useMemo, useState } from "react";
 import {
   AdvancedMarker,
   APILoadingStatus,
@@ -7,13 +7,15 @@ import {
   useMap,
 } from "@vis.gl/react-google-maps";
 
-const MARKER_STYLES = {
-  current: "bg-sky-700",
-  previous: "bg-amber-600",
-  proposed: "bg-emerald-700",
-};
+import StreetViewMarkerOverlay from "@/shared/components/maps/StreetViewMarkerOverlay";
 
-/** Keeps a map-rendering failure local so the textual review remains usable. */
+import LocationMapStateMarker from "./LocationMapStateMarker";
+import {
+  groupLocationMapStates,
+  validLocationPosition,
+} from "../utils/locationMapMarkers";
+
+/** Keeps a Google Maps rendering failure local to the map section. */
 export class LocationMapBoundary extends Component {
   constructor(props) {
     super(props);
@@ -60,45 +62,31 @@ function MapUnavailable({ states }) {
   );
 }
 
-function validPosition(location) {
-  if (
-    location?.latitude == null ||
-    location?.longitude == null ||
-    String(location.latitude).trim() === "" ||
-    String(location.longitude).trim() === ""
-  ) {
-    return null;
-  }
-  const lat = Number(location?.latitude);
-  const lng = Number(location?.longitude);
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng) ||
-    Math.abs(lat) > 90 ||
-    Math.abs(lng) > 180
-  ) {
-    return null;
-  }
-  return { lat, lng };
-}
-
-/** Fits the comparison map to all available snapshot pins without excessive close-range zoom. */
-function FitComparisonBounds({ markers }) {
+/** Fits exact marker positions and caps zoom for nearby locations. */
+function FitComparisonBounds({ groups }) {
   const map = useMap();
+
   useEffect(() => {
-    if (!map || !window.google?.maps || !markers.length) {
+    if (!map || !window.google?.maps || !groups.length) {
       return;
     }
+
+    if (map.getStreetView()?.getVisible()) {
+      return;
+    }
+
     const bounds = new window.google.maps.LatLngBounds();
-    markers.forEach((marker) => bounds.extend(marker.position));
+    groups.forEach((group) => bounds.extend(group.position));
+
     if (
-      markers.length === 1 ||
+      groups.length === 1 ||
       bounds.getNorthEast().equals(bounds.getSouthWest())
     ) {
-      map.setCenter(markers[0].position);
+      map.setCenter(groups[0].position);
       map.setZoom(18);
       return;
     }
+
     map.fitBounds(bounds, 70);
     const listener = window.google.maps.event.addListenerOnce(
       map,
@@ -109,21 +97,59 @@ function FitComparisonBounds({ markers }) {
         }
       },
     );
+
     return () => window.google.maps.event.removeListener(listener);
-  }, [map, markers]);
+  }, [map, groups]);
+
   return null;
 }
 
-/** Shows a single read-only comparison map with labeled, distinct snapshot pins. */
+/** Keeps regular map markers separate from their panorama overlays. */
+function ComparisonMapMarkers({ groups }) {
+  const map = useMap();
+  const [streetViewVisible, setStreetViewVisible] = useState(false);
+
+  useEffect(() => {
+    const panorama = map?.getStreetView();
+    if (!panorama) {
+      return;
+    }
+
+    const updateVisibility = () => {
+      setStreetViewVisible(Boolean(panorama.getVisible()));
+    };
+    updateVisibility();
+
+    const listener = panorama.addListener("visible_changed", updateVisibility);
+    return () => listener.remove();
+  }, [map]);
+
+  if (streetViewVisible) {
+    return null;
+  }
+
+  return groups.map((group) => (
+    <AdvancedMarker
+      key={group.key}
+      position={group.position}
+      title={group.states.map((state) => state.label).join(" and ")}
+    >
+      <LocationMapStateMarker states={group.states} />
+    </AdvancedMarker>
+  ));
+}
+
+/** Shows captured and live pins on a read-only map and in Street View. */
 export default function LocationComparisonMap({ states }) {
   const apiStatus = useApiLoadingStatus();
-  const markers = states
-    .map((state) => ({ ...state, position: validPosition(state.location) }))
-    .filter((state) => state.position);
+  const groups = useMemo(() => groupLocationMapStates(states), [states]);
+  const unplottedStates = states.filter(
+    (state) => !validLocationPosition(state.location),
+  );
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
 
   if (
-    !markers.length ||
+    !groups.length ||
     apiStatus === APILoadingStatus.FAILED ||
     apiStatus === APILoadingStatus.AUTH_FAILURE ||
     !mapId
@@ -141,57 +167,59 @@ export default function LocationComparisonMap({ states }) {
 
   return (
     <div>
-      {/* Comparison map */}
-      <div className="h-64 overflow-hidden rounded-lg border border-stroke sm:h-80">
+      {/* Read-only map with Google Pegman and standard navigation controls */}
+      <div className="h-72 overflow-hidden rounded-lg border border-stroke sm:h-80">
         <Map
-          defaultCenter={markers[0].position}
+          defaultCenter={groups[0].position}
           defaultZoom={16}
           mapId={mapId}
-          disableDefaultUI
+          streetViewControl
           zoomControl
+          mapTypeControl={false}
+          fullscreenControl={false}
           gestureHandling="cooperative"
         >
-          <FitComparisonBounds markers={markers} />
-          {markers.map((marker, index) => {
-            const coincident = markers.some(
-              (other, otherIndex) =>
-                otherIndex < index &&
-                Math.abs(other.position.lat - marker.position.lat) < 0.00003 &&
-                Math.abs(other.position.lng - marker.position.lng) < 0.00003,
-            );
-            return (
-              <AdvancedMarker
-                key={marker.id}
-                position={marker.position}
-                title={marker.label}
-                zIndex={index + 1}
-              >
-                <span
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white font-bold text-white shadow-lg ${MARKER_STYLES[marker.id]} ${coincident ? "translate-x-5" : ""}`}
-                >
-                  {index + 1}
-                </span>
-              </AdvancedMarker>
-            );
-          })}
+          <FitComparisonBounds groups={groups} />
+          <ComparisonMapMarkers groups={groups} />
+
+          {/* Registration review overlays anchor these markers in Street View. */}
+          {groups.map((group) => (
+            <StreetViewMarkerOverlay
+              key={group.key}
+              position={group.position}
+              name={group.states.map((state) => state.label).join(" and ")}
+              showLabel
+            >
+              <LocationMapStateMarker states={group.states} />
+            </StreetViewMarkerOverlay>
+          ))}
         </Map>
       </div>
-      {/* Map legend */}
+
+      {/* Each legend item identifies its true location state. */}
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-        {markers.map((marker, index) => (
-          <span
-            key={marker.id}
-            className="inline-flex items-center gap-2 text-xs text-text-secondary"
-          >
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white ${MARKER_STYLES[marker.id]}`}
-            >
-              {index + 1}
-            </span>
-            {marker.label}
-          </span>
+        {groups.map((group) => (
+          <div key={group.key} className="flex min-w-0 items-center gap-2">
+            <LocationMapStateMarker states={group.states} compact />
+            <div className="min-w-0 text-xs text-text-secondary">
+              <p>
+                {group.states.map((state) => state.label).join(" · ")}
+                {group.states.length > 1 && " (same pin)"}
+              </p>
+              <p className="break-words font-mono text-[10px] tabular-nums">
+                {group.position.lat}, {group.position.lng}
+              </p>
+            </div>
+          </div>
         ))}
       </div>
+      {unplottedStates.length > 0 && (
+        <p className="mt-3 text-xs text-text-secondary">
+          {unplottedStates.map((state) => state.label).join(" and ")}{" "}
+          {unplottedStates.length === 1 ? "pin has" : "pins have"} no valid
+          coordinates to plot. Review the captured values above.
+        </p>
+      )}
     </div>
   );
 }

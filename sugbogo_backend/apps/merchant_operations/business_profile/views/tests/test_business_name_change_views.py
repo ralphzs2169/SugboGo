@@ -10,6 +10,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
+from apps.admin_operations.activity_management.models import AdminActivity
 from apps.business.models import Business, Category, Cluster, Location
 from apps.merchant_application.models import (
     MerchantApplication,
@@ -191,6 +192,105 @@ class BusinessNameChangeViewTests(TestCase):
                     previous_business,
                 )
                 self.assertFalse(Notification.objects.exists())
+                self.assertFalse(AdminActivity.objects.exists())
+
+    def test_admin_decisions_record_one_activity_for_request_submitter(self):
+        """Record each outcome once with its reviewer and request context."""
+        from apps.notifications.models import Notification
+
+        for outcome in ("rejected", "approved"):
+            with self.subTest(outcome=outcome):
+                self.client.force_authenticate(user=self.merchant)
+                request_id = self._submit().data["data"]["id"]
+                action = "approve" if outcome == "approved" else "reject"
+                url = f"{self._admin_detail_url(request_id)}{action}/"
+                self.assertEqual(self.client.post(url).status_code, 403)
+                self.assertFalse(
+                    AdminActivity.objects.filter(
+                        AACT_CONTEXT__request_id=request_id,
+                    ).exists()
+                )
+
+                self.client.force_authenticate(user=self.admin)
+                payload = (
+                    {"rejection_reason": "The submitted name needs clarification."}
+                    if outcome == "rejected"
+                    else {}
+                )
+                self.assertEqual(
+                    self.client.post(url, payload, format="json").status_code,
+                    200,
+                )
+                activity = AdminActivity.objects.get(
+                    AACT_CONTEXT__request_id=request_id,
+                )
+                self.assertEqual(activity.ACTOR_ID, self.admin)
+                self.assertEqual(activity.TARGET_USER_ID, self.merchant)
+                self.assertEqual(
+                    activity.AACT_ACTION,
+                    getattr(
+                        AdminActivity.Action,
+                        f"BUSINESS_NAME_CHANGE_{outcome.upper()}",
+                    ),
+                )
+                self.assertEqual(
+                    activity.AACT_CONTEXT,
+                    {
+                        "request_id": request_id,
+                        "request_type": "business_name_change",
+                        "business_id": self.business.pk,
+                        "outcome": outcome,
+                    },
+                )
+                self.assertEqual(
+                    Notification.objects.filter(
+                        NOTF_TARGET_TYPE="business_name_change",
+                        NOTF_TARGET_ID=request_id,
+                    ).count(),
+                    1,
+                )
+                self.assertEqual(
+                    self.client.post(url, payload, format="json").status_code,
+                    400,
+                )
+                self.assertEqual(
+                    AdminActivity.objects.filter(
+                        AACT_CONTEXT__request_id=request_id,
+                    ).count(),
+                    1,
+                )
+
+    def test_activity_failure_rolls_back_each_decision(self):
+        """Keep the request and business pending when activity storage fails."""
+        from apps.notifications.models import Notification
+
+        request_id = self._submit().data["data"]["id"]
+        for outcome in ("approved", "rejected"):
+            with self.subTest(outcome=outcome):
+                with patch(
+                    "apps.merchant_operations.business_profile.services."
+                    "business_name_change_service.AdminActivityService.record_user_action",
+                    side_effect=RuntimeError("Activity storage unavailable"),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        if outcome == "approved":
+                            BusinessNameChangeService.approve(
+                                request_id,
+                                self.admin,
+                            )
+                        else:
+                            BusinessNameChangeService.reject(
+                                request_id,
+                                self.admin,
+                                "The name needs clarification.",
+                            )
+                self.business.refresh_from_db()
+                change_request = BusinessNameChangeRequest.objects.get(pk=request_id)
+                self.assertEqual(self.business.BUSN_NAME, "Sugbo Bistro")
+                self.assertEqual(change_request.BNCR_STATUS, "pending")
+                self.assertIsNone(change_request.REVIEWER_ID_id)
+                self.assertFalse(Notification.objects.exists())
+                self.assertFalse(AdminActivity.objects.exists())
 
     def test_submission_preserves_live_business_and_application(self):
         """Persist a pending proposal and captured baseline only."""
