@@ -2294,7 +2294,7 @@ class ReviewServiceTests(TestCase):
             ).update(REVW_CREATED_AT=created_at)
         return reviews
 
-    def test_response_serializes_all_five_moderation_fields(self):
+    def test_response_omits_internal_reliability_fields(self):
         review = self._create_signal_review(score=-0.75)
         review.REVW_SENTIMENT_LABEL = "negative"
         for flagged in (True, False):
@@ -2307,7 +2307,9 @@ class ReviewServiceTests(TestCase):
                 self.assertEqual(data["sentiment_label"], "negative")
                 self.assertIs(data["is_outlier_sentiment"], flagged)
                 self.assertIs(data["is_spam_flagged"], flagged)
-                self.assertIs(data["is_device_abuse_flagged"], flagged)
+                self.assertNotIn("is_device_abuse_flagged", data)
+                self.assertNotIn("reliability_reasons", data)
+                self.assertNotIn("installation_id", data)
 
     def test_response_serializes_null_sentiment_and_false_flags(self):
         review = self._create_signal_review(score=None)
@@ -2316,7 +2318,7 @@ class ReviewServiceTests(TestCase):
         self.assertIsNone(data["sentiment_label"])
         self.assertIs(data["is_outlier_sentiment"], False)
         self.assertIs(data["is_spam_flagged"], False)
-        self.assertIs(data["is_device_abuse_flagged"], False)
+        self.assertNotIn("is_device_abuse_flagged", data)
 
     def test_response_moderation_fields_are_read_only(self):
         fields = {
@@ -2324,13 +2326,13 @@ class ReviewServiceTests(TestCase):
             "sentiment_label": "negative",
             "is_outlier_sentiment": True,
             "is_spam_flagged": True,
-            "is_device_abuse_flagged": True,
         }
         serializer = ReviewResponseSerializer(data=fields)
         self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertEqual(serializer.validated_data, {})
         for name in fields:
             self.assertTrue(serializer.fields[name].read_only)
+        self.assertNotIn("is_device_abuse_flagged", serializer.fields)
 
     def test_outlier_method_flags_both_directions_and_accepts_in_range(self):
         for _ in range(5):
@@ -2434,6 +2436,185 @@ class ReviewServiceTests(TestCase):
         self.assertTrue(review.REVW_IS_SPAM_FLAGGED)
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
+    def test_no_reliability_signal_records_empty_reasons(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "A unique and useful review.",
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_third_normalized_match_from_same_user_flags_only_duplicate(self):
+        for text in ["Great place!", "  GREAT   PLACE! "]:
+            prior = ReviewService.create_review(
+                self.user,
+                self._create_signal_business().pk,
+                text,
+            )
+            self.assertEqual(prior.REVW_RELIABILITY_REASONS, [])
+
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "great place!",
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertFalse(review.REVW_IS_SPAM_FLAGGED)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_duplicate_requires_exact_normalized_text_and_recent_history(self):
+        first = ReviewService.create_review(
+            self.user,
+            self._create_signal_business().pk,
+            "Great place!",
+        )
+        Review.objects.filter(pk=first.pk).update(
+            REVW_CREATED_AT=timezone.now() - timedelta(days=31),
+        )
+        ReviewService.create_review(
+            self.user,
+            self._create_signal_business().pk,
+            "  GREAT   PLACE! ",
+        )
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "great place!",
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+
+        different = ReviewService.create_review(
+            self.second_user,
+            self._create_signal_business().pk,
+            "Really great place!",
+        )
+        self.assertEqual(different.REVW_RELIABILITY_REASONS, [])
+
+    def test_duplicate_matches_same_installation_across_accounts(self):
+        for _ in range(2):
+            prior = self._create_signal_review(
+                business=self._create_signal_business(),
+                installation_id="shared-installation",
+            )
+            Review.objects.filter(pk=prior.pk).update(
+                REVW_TEXT="Repeated words.",
+            )
+
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "  REPEATED   WORDS. ",
+            installation_id="shared-installation",
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+
+    def test_unrelated_installations_do_not_make_global_duplicate(self):
+        for installation_id in ("other-one", "other-two"):
+            prior = self._create_signal_review(
+                business=self._create_signal_business(),
+                installation_id=installation_id,
+            )
+            Review.objects.filter(pk=prior.pk).update(
+                REVW_TEXT="Common phrase.",
+            )
+
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Common phrase.",
+            installation_id="current-installation",
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+
+    def test_duplicate_counts_retained_rejected_but_not_deleted_reviews(self):
+        rejected = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self._create_signal_business(),
+            REVW_TEXT="Retained phrase.",
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        deleted = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self._create_signal_business(),
+            REVW_TEXT="Retained phrase.",
+        )
+        deleted.delete()
+        Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self._create_signal_business(),
+            REVW_TEXT="Retained phrase.",
+        )
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Retained phrase.",
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        self.assertTrue(Review.objects.filter(pk=rejected.pk).exists())
+
+    def test_rapid_and_duplicate_reasons_can_coexist(self):
+        self._create_bulk_history(10, "bulk-installation")
+        review = ReviewService.create_review(
+            self.second_user,
+            self.business.pk,
+            "A review used to check moderation signals.",
+            installation_id="bulk-installation",
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [
+                Review.ReliabilityReason.RAPID_SUBMISSION,
+                Review.ReliabilityReason.DUPLICATE_CONTENT,
+            ],
+        )
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_heuristic_failure_does_not_change_ai_publication_decision(self):
+        with patch.object(
+            ReviewService,
+            "_reliability_reasons",
+            side_effect=RuntimeError("Query failed"),
+        ):
+            review = ReviewService.create_review(
+                self.user,
+                self.business.pk,
+                "A safe review despite a signal outage.",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+
+    def test_ai_hold_preserves_heuristic_reason_without_retry(self):
+        self._create_bulk_history(10, "bulk-installation")
+        self.moderate_review.return_value["outcome"] = "flagged"
+        with patch.object(
+            ReviewService,
+            "_queue_moderation_retry_after_commit",
+        ) as retry:
+            review = ReviewService.create_review(
+                self.user,
+                self.business.pk,
+                "A held review after rapid activity.",
+                installation_id="bulk-installation",
+            )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.RAPID_SUBMISSION],
+        )
+        retry.assert_not_called()
+
     def test_fourth_distinct_user_on_device_flags_only_new_review(self):
         prior_reviews = [
             self._create_signal_review(installation_id="shared-device")
@@ -2446,6 +2627,10 @@ class ReviewServiceTests(TestCase):
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.SHARED_INSTALLATION_ACCOUNTS],
+        )
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         for prior in prior_reviews:
             prior.refresh_from_db()
@@ -2460,6 +2645,7 @@ class ReviewServiceTests(TestCase):
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
 
     def test_sockpuppet_detection_counts_rejected_and_flagged_reviews(self):
         for status in Review.ReviewStatus.values:
@@ -2508,6 +2694,10 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.RAPID_SUBMISSION],
+        )
 
     def test_bulk_spam_does_not_flag_tenth_review(self):
         self._create_bulk_history(9, "bulk-device")
@@ -2517,6 +2707,7 @@ class ReviewServiceTests(TestCase):
         )
         review.refresh_from_db()
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
 
     def test_bulk_spam_includes_exact_window_start_but_excludes_older_reviews(self):
         now = timezone.now()

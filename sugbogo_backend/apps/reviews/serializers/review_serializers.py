@@ -187,10 +187,6 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
         source="REVW_IS_SPAM_FLAGGED",
         read_only=True,
     )
-    is_device_abuse_flagged = serializers.BooleanField(
-        source="REVW_IS_DEVICE_ABUSE_FLAGGED",
-        read_only=True,
-    )
     created_at = serializers.DateTimeField(
         source="REVW_CREATED_AT",
         read_only=True,
@@ -245,7 +241,6 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "sentiment_label",
             "is_outlier_sentiment",
             "is_spam_flagged",
-            "is_device_abuse_flagged",
             "created_at",
             "updated_at",
             "is_liked",

@@ -10,6 +10,14 @@ from apps.users.models import User
 class Review(models.Model):
     """A user's review of a business."""
 
+    class ReliabilityReason(models.TextChoices):
+        DUPLICATE_CONTENT = "duplicate_content", "Duplicate content"
+        RAPID_SUBMISSION = "rapid_submission", "Rapid submission"
+        SHARED_INSTALLATION_ACCOUNTS = (
+            "shared_installation_accounts",
+            "Shared installation accounts",
+        )
+
     class ReviewStatus(models.TextChoices):
         PUBLISHED = "published", "Published"
         UNDER_REVIEW = "under_review", "Under review"
@@ -68,6 +76,10 @@ class Review(models.Model):
     
     REVW_IS_DEVICE_ABUSE_FLAGGED = models.BooleanField(
         default=False,
+    )
+    REVW_RELIABILITY_REASONS = models.JSONField(
+        default=list,
+        blank=True,
     )
 
     REVW_SENTIMENT_SCORE = models.FloatField(

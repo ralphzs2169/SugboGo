@@ -362,7 +362,7 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.reference_time = timezone.now()
         self.refresh()
         Review.objects.filter(pk=self.reviews[0].pk).update(
-            REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+            REVW_IS_SPAM_FLAGGED=True,
         )
         self.allow_next_day()
         self.provider.return_value = "not json"
@@ -375,7 +375,7 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
     def test_concurrent_source_change_discards_generated_result(self):
         def generate_then_change(_reviews):
             Review.objects.filter(pk=self.reviews[0].pk).update(
-                REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+                REVW_IS_SPAM_FLAGGED=True,
             )
             return self.response()
 
@@ -400,7 +400,7 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         with self.settings(GEMINI_API_KEY="test-only-key"):
             self.refresh()
         Review.objects.filter(pk=self.reviews[0].pk).update(
-            REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+            REVW_IS_SPAM_FLAGGED=True,
         )
         self.create_review(self.business, 7)
         self.reference_time = timezone.now()

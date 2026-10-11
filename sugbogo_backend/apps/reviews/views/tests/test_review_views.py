@@ -218,6 +218,9 @@ class ReviewViewTests(APITestCase):
             self.business.BUSN_ID,
         )
         self.assertEqual(response.data["data"]["status"], "published")
+        self.assertNotIn("reliability_reasons", response.data["data"])
+        self.assertNotIn("installation_id", response.data["data"])
+        self.assertNotIn("is_device_abuse_flagged", response.data["data"])
 
     def test_legacy_device_id_is_accepted_as_installation_id(self):
         """Older app versions can still submit the previous request key."""
@@ -758,11 +761,17 @@ class ReviewViewTests(APITestCase):
             }],
         )
 
-        self.assertEqual(self._list_ids(topic="Friendly service"), [visible.pk])
+        self.assertEqual(
+            self._list_ids(topic="Friendly service"),
+            [device_abuse.pk, visible.pk],
+        )
         Review.objects.filter(pk=visible.pk).update(
             REVW_STATUS=Review.ReviewStatus.FLAGGED,
         )
-        self.assertEqual(self._list_ids(topic="Friendly service"), [])
+        self.assertEqual(
+            self._list_ids(topic="Friendly service"),
+            [device_abuse.pk],
+        )
 
     def test_filters_compose_with_ordering(self):
         negative = self._create_list_review(

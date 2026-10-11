@@ -25,7 +25,6 @@ class BusinessReviewSummaryService:
             BUSN_ID_id=business_id,
             REVW_STATUS=Review.ReviewStatus.PUBLISHED,
             REVW_IS_SPAM_FLAGGED=False,
-            REVW_IS_DEVICE_ABUSE_FLAGGED=False,
             REVW_CREATED_AT__gte=coverage_start,
             REVW_CREATED_AT__lte=reference_time,
         )
