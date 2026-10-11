@@ -1,9 +1,14 @@
 import { CircleMinus, CirclePlus } from "lucide-react";
 
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { withSpecialtyDisplay } from "../utils/classificationDisplay";
 
 /** Groups only changed specialty tags from the frozen snapshots. */
-export default function ClassificationSpecialtyDiff({ diff, status }) {
+export default function ClassificationSpecialtyDiff({
+  diff,
+  status,
+  specialtyDisplay,
+}) {
   const groups = [
     {
       key: "addedSpecialties",
@@ -31,24 +36,35 @@ export default function ClassificationSpecialtyDiff({ diff, status }) {
                 {group.label} ({diff[group.key].length})
               </h4>
               <ul className="mt-2 divide-y divide-stroke">
-                {diff[group.key].map((tag) => (
-                  <li
-                    key={tag.id}
-                    className="flex items-center gap-2 py-2 text-sm text-text-primary"
-                  >
-                    <group.Icon
-                      className="h-4 w-4 shrink-0 text-text-secondary"
-                      aria-hidden="true"
-                    />
-                    {tag.color ? (
-                      <SpecialtyTagChip tag={tag} size="small" />
-                    ) : (
-                      <span className="break-words rounded-full border border-stroke bg-background px-2.5 py-1 text-xs">
-                        {tag.name}
-                      </span>
-                    )}
-                  </li>
-                ))}
+                {diff[group.key].map((snapshotTag) => {
+                  const tag = withSpecialtyDisplay(
+                    snapshotTag,
+                    specialtyDisplay,
+                  );
+
+                  return (
+                    <li
+                      key={tag.id}
+                      className="flex items-center gap-2 py-2 text-sm text-text-primary"
+                    >
+                      <group.Icon
+                        className="h-4 w-4 shrink-0 text-text-secondary"
+                        aria-hidden="true"
+                      />
+                      {tag.color ? (
+                        <SpecialtyTagChip
+                          tag={tag}
+                          size="small"
+                          showIcon={Boolean(tag.icon)}
+                        />
+                      ) : (
+                        <span className="break-words rounded-full border border-stroke bg-background px-2.5 py-1 text-xs">
+                          {tag.name}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}

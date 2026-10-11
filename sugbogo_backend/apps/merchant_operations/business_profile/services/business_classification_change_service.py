@@ -1,10 +1,13 @@
 import logging
+from functools import partial
 
 from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Prefetch, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.activity_management.services import AdminActivityService
 from apps.notifications.services.notification_event_service import (
     NotificationEventService,
 )
@@ -313,13 +316,20 @@ class BusinessClassificationChangeService:
             raise NotFound("The classification change request could not be found.")
 
     @staticmethod
-    def _queue_discovery_refresh():
+    def _queue_discovery_refresh(
+        request_id,
+        business_id,
+    ):
         """Queue the existing all-business refresh after a committed approval."""
         try:
             recompute_discovery_scores.delay()
         except Exception:
             logger.exception(
-                "Classification approved but discovery refresh dispatch failed."
+                "Classification approved but discovery refresh dispatch failed.",
+                extra={
+                    "request_id": request_id,
+                    "business_id": business_id,
+                },
             )
 
     @staticmethod
@@ -472,7 +482,22 @@ class BusinessClassificationChangeService:
             ],
         )
         transaction.on_commit(
-            BusinessClassificationChangeService._queue_discovery_refresh,
+            partial(
+                BusinessClassificationChangeService._queue_discovery_refresh,
+                request_id=change_request.pk,
+                business_id=change_request.BUSN_ID_id,
+            ),
+        )
+        AdminActivityService.record_user_action(
+            actor=reviewer,
+            target_user=change_request.USER_ID,
+            action=AdminActivity.Action.BUSINESS_CLASSIFICATION_CHANGE_APPROVED,
+            context={
+                "request_id": change_request.pk,
+                "request_type": "business_classification_change",
+                "business_id": change_request.BUSN_ID_id,
+                "outcome": change_request.BCCR_STATUS,
+            },
         )
         NotificationEventService.merchant_request_resolved(
             recipient=change_request.USER_ID,
@@ -516,6 +541,17 @@ class BusinessClassificationChangeService:
                 "BCCR_RESOLVED_AT",
                 "BCCR_UPDATED_AT",
             ],
+        )
+        AdminActivityService.record_user_action(
+            actor=reviewer,
+            target_user=change_request.USER_ID,
+            action=AdminActivity.Action.BUSINESS_CLASSIFICATION_CHANGE_REJECTED,
+            context={
+                "request_id": change_request.pk,
+                "request_type": "business_classification_change",
+                "business_id": change_request.BUSN_ID_id,
+                "outcome": change_request.BCCR_STATUS,
+            },
         )
         NotificationEventService.merchant_request_resolved(
             recipient=change_request.USER_ID,

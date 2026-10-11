@@ -3,6 +3,8 @@ from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.activity_management.services import AdminActivityService
 from apps.notifications.services.notification_event_service import (
     NotificationEventService,
 )
@@ -262,6 +264,17 @@ class BusinessNameChangeService:
                 "BNCR_UPDATED_AT",
             ],
         )
+        AdminActivityService.record_user_action(
+            actor=reviewer,
+            target_user=change_request.USER_ID,
+            action=AdminActivity.Action.BUSINESS_NAME_CHANGE_APPROVED,
+            context={
+                "request_id": change_request.pk,
+                "request_type": "business_name_change",
+                "business_id": change_request.BUSN_ID_id,
+                "outcome": change_request.BNCR_STATUS,
+            },
+        )
         NotificationEventService.merchant_request_resolved(
             recipient=change_request.USER_ID,
             request_id=change_request.pk,
@@ -303,6 +316,17 @@ class BusinessNameChangeService:
                 "BNCR_RESOLVED_AT",
                 "BNCR_UPDATED_AT",
             ],
+        )
+        AdminActivityService.record_user_action(
+            actor=reviewer,
+            target_user=change_request.USER_ID,
+            action=AdminActivity.Action.BUSINESS_NAME_CHANGE_REJECTED,
+            context={
+                "request_id": change_request.pk,
+                "request_type": "business_name_change",
+                "business_id": change_request.BUSN_ID_id,
+                "outcome": change_request.BNCR_STATUS,
+            },
         )
         NotificationEventService.merchant_request_resolved(
             recipient=change_request.USER_ID,
