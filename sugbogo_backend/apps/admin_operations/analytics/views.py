@@ -20,6 +20,16 @@ from apps.admin_operations.analytics.services.discovery_analytics_service import
 from apps.admin_operations.analytics.services.platform_analytics_service import (
     PlatformAnalyticsService,
 )
+from apps.admin_operations.analytics.serializers.coverage_attention_serializers import (
+    BusinessAttentionMetadataSerializer,
+    BusinessAttentionQuerySerializer,
+    BusinessAttentionRowSerializer,
+    CoverageQuerySerializer,
+    CoverageReportSerializer,
+    LowExposureQuerySerializer,
+)
+from apps.admin_operations.analytics.services.business_attention_service import BusinessAttentionService
+from apps.admin_operations.analytics.services.coverage_analytics_service import CoverageAnalyticsService
 from apps.authentication.permissions import HasRole
 from apps.users.models import User
 from core.pagination import StandardPagination
@@ -59,6 +69,58 @@ class DiscoveryTrendView(APIView):
             data=DiscoveryTrendSerializer(report).data,
             message="Discovery trend retrieved successfully.",
         )
+
+
+class CoverageAnalyticsView(APIView):
+    """Provide pooled and grouped recorded coverage to active administrators."""
+
+    permission_classes = (IsAuthenticated, HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN))
+
+    def get(self, request):
+        """Validate classification filters and return source-aware coverage counts."""
+        query = CoverageQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        values = query.validated_data
+        report = CoverageAnalyticsService.get_report(
+            values["report_period"], cluster=values.get("cluster"), category=values.get("category"),
+        )
+        return success_response(data=CoverageReportSerializer(report).data, message="Coverage analytics retrieved successfully.")
+
+
+class BusinessAttentionView(APIView):
+    """Provide globally sorted and then paginated administrator attention rows."""
+
+    permission_classes = (IsAuthenticated, HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN))
+    query_serializer = BusinessAttentionQuerySerializer
+    low_exposure = False
+
+    def get(self, request):
+        """Return standard pagination or explicit unavailability for source-dependent ordering."""
+        query = self.query_serializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        values = query.validated_data
+        report = BusinessAttentionService.get_report(
+            values["report_period"], cluster=values.get("cluster"), category=values.get("category"),
+            ordering=values["ordering"], low_exposure=self.low_exposure,
+        )
+        metadata = BusinessAttentionMetadataSerializer(report).data
+        if report["items"] is None:
+            return success_response(
+                data={"items": None, "pagination": None, **metadata},
+                message="Business attention is temporarily unavailable.",
+            )
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(report["items"], request, view=self)
+        response = paginator.get_paginated_response(BusinessAttentionRowSerializer(page, many=True).data)
+        response.data["data"].update(metadata)
+        return response
+
+
+class LowExposureView(BusinessAttentionView):
+    """Provide provisional recorded-low-attention candidates using the fixed admin policy."""
+
+    query_serializer = LowExposureQuerySerializer
+    low_exposure = True
 
 
 class DiscoveryScoreListView(APIView):

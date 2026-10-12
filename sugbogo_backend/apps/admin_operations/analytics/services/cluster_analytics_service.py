@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.db.models import Count, Q
 
 from apps.business.models import Cluster
 
@@ -29,3 +30,25 @@ class ClusterAnalyticsService:
             CLUS_CREATED_AT__date__gte=week_start,
             CLUS_CREATED_AT__date__lte=today,
         ).count()
+
+    @staticmethod
+    def get_coverage_counts(eligible_ids, visited_ids, *, cluster=None, category=None):
+        """Count eligible and visited businesses by current cluster, retaining empty groups."""
+        queryset = Cluster.objects.all()
+        if cluster is not None:
+            queryset = queryset.filter(CLUS_ID=cluster)
+        if category is not None:
+            queryset = queryset.filter(categories__CTGRY_ID=category)
+        rows = queryset.annotate(
+            eligible=Count("categories__businesses", distinct=True, filter=Q(
+                categories__businesses__BUSN_ID__in=eligible_ids,
+            )),
+            visited=Count("categories__businesses", distinct=True, filter=Q(
+                categories__businesses__BUSN_ID__in=visited_ids or [],
+            )),
+        ).order_by("CLUS_NAME", "CLUS_ID")
+        return [
+            {"id": row.CLUS_ID, "name": row.CLUS_NAME, "eligible": row.eligible,
+             "visited": row.visited if visited_ids is not None else None}
+            for row in rows
+        ]

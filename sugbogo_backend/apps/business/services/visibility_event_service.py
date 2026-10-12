@@ -717,3 +717,41 @@ class VisibilityEventService:
                 observed_at = observed_at.replace(tzinfo=UTC)
             results[row["_id"]] = observed_at.astimezone(UTC)
         return results
+
+    @classmethod
+    def get_business_attention_metrics(cls, *, business_ids, start_time, end_time):
+        """Return business-keyed visits, saves and period-wide distinct saver counts."""
+        match = cls._analytics_match(business_ids)
+        match["occurred_at"] = cls._analytics_window(start_time, end_time)
+        if business_ids is None:
+            raise ValidationError({"business_ids": "An explicit business scope is required."})
+        ids = match["business_id"]["$in"]
+        if not ids:
+            return {}
+        match["event_type"] = {"$in": [
+            VisibilityEventType.PROFILE_VISIT.value, VisibilityEventType.SAVE.value,
+        ]}
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {
+                "_id": {"business": "$business_id", "event": "$event_type", "explorer": "$explorer_id"},
+                "events": {"$sum": 1},
+            }},
+            {"$group": {
+                "_id": {"business": "$_id.business", "event": "$_id.event"},
+                "events": {"$sum": "$events"},
+                "distinct_explorers": {"$sum": 1},
+            }},
+        ])
+        result = {
+            business_id: {"profile_visits": 0, "saves": 0, "distinct_savers": 0}
+            for business_id in ids
+        }
+        for row in rows:
+            metrics = result[row["_id"]["business"]]
+            if row["_id"]["event"] == VisibilityEventType.PROFILE_VISIT.value:
+                metrics["profile_visits"] = row["events"]
+            else:
+                metrics["saves"] = row["events"]
+                metrics["distinct_savers"] = row["distinct_explorers"]
+        return result
