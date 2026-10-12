@@ -81,6 +81,10 @@ class Review(models.Model):
         default=list,
         blank=True,
     )
+    REVW_RELIABILITY_EVIDENCE = models.JSONField(
+        default=dict,
+        blank=True,
+    )
 
     REVW_SENTIMENT_SCORE = models.FloatField(
         null=True,

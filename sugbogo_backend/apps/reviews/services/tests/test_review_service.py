@@ -2407,6 +2407,7 @@ class ReviewServiceTests(TestCase):
                 self.assertNotIn("report_count", data)
                 self.assertNotIn("is_device_abuse_flagged", data)
                 self.assertNotIn("reliability_reasons", data)
+                self.assertNotIn("reliability_evidence", data)
                 self.assertNotIn("installation_id", data)
 
     def test_response_serializes_null_sentiment_and_false_flags(self):
@@ -2543,9 +2544,11 @@ class ReviewServiceTests(TestCase):
             "A unique and useful review.",
         )
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_third_normalized_match_from_same_user_flags_only_duplicate(self):
+        prior_ids = []
         for text in ["Great place!", "  GREAT   PLACE! "]:
             prior = ReviewService.create_review(
                 self.user,
@@ -2553,6 +2556,7 @@ class ReviewServiceTests(TestCase):
                 text,
             )
             self.assertEqual(prior.REVW_RELIABILITY_REASONS, [])
+            prior_ids.append(prior.pk)
 
         review = ReviewService.create_review(
             self.user,
@@ -2564,8 +2568,46 @@ class ReviewServiceTests(TestCase):
             [Review.ReliabilityReason.DUPLICATE_CONTENT],
         )
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        evidence = review.REVW_RELIABILITY_EVIDENCE["duplicate_content"]
+        self.assertEqual(evidence["prior_match_count"], 2)
+        self.assertCountEqual(evidence["matched_review_ids"], prior_ids)
+        self.assertEqual(evidence["basis"], "same_user")
+        self.assertIsNotNone(evidence["observed_at"])
         self.assertFalse(review.REVW_IS_REPORT_FLAGGED)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_reliability_evidence_survives_related_review_changes(self):
+        prior_reviews = [
+            ReviewService.create_review(
+                self.user,
+                self._create_signal_business().pk,
+                "Repeated review text.",
+            )
+            for _ in range(2)
+        ]
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Repeated review text.",
+        )
+        evidence = review.REVW_RELIABILITY_EVIDENCE.copy()
+
+        Review.objects.filter(pk=prior_reviews[0].pk).update(
+            REVW_TEXT="Changed later.",
+        )
+        prior_reviews[1].delete()
+        ReviewService.update_review(
+            self.user,
+            review.pk,
+            text="Edited review text.",
+        )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
+
+    def test_historical_review_defaults_to_empty_reliability_evidence(self):
+        review = self._create_signal_review()
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
 
     def test_duplicate_requires_exact_normalized_text_and_recent_history(self):
         first = ReviewService.create_review(
@@ -2596,6 +2638,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(different.REVW_RELIABILITY_REASONS, [])
 
     def test_duplicate_matches_same_installation_across_accounts(self):
+        prior_ids = []
         for _ in range(2):
             prior = self._create_signal_review(
                 business=self._create_signal_business(),
@@ -2604,6 +2647,7 @@ class ReviewServiceTests(TestCase):
             Review.objects.filter(pk=prior.pk).update(
                 REVW_TEXT="Repeated words.",
             )
+            prior_ids.append(prior.pk)
 
         review = ReviewService.create_review(
             self.user,
@@ -2615,6 +2659,10 @@ class ReviewServiceTests(TestCase):
             review.REVW_RELIABILITY_REASONS,
             [Review.ReliabilityReason.DUPLICATE_CONTENT],
         )
+        evidence = review.REVW_RELIABILITY_EVIDENCE["duplicate_content"]
+        self.assertEqual(evidence["prior_match_count"], 2)
+        self.assertCountEqual(evidence["matched_review_ids"], prior_ids)
+        self.assertEqual(evidence["basis"], "same_installation")
 
     def test_unrelated_installations_do_not_make_global_duplicate(self):
         for installation_id in ("other-one", "other-two"):
@@ -2679,6 +2727,13 @@ class ReviewServiceTests(TestCase):
             ],
         )
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(
+            set(review.REVW_RELIABILITY_EVIDENCE),
+            {"rapid_submission", "duplicate_content"},
+        )
+        rapid_evidence = review.REVW_RELIABILITY_EVIDENCE["rapid_submission"]
+        self.assertEqual(rapid_evidence["review_count"], 11)
+        self.assertEqual(rapid_evidence["window_hours"], 24)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
 
     def test_heuristic_failure_does_not_change_ai_publication_decision(self):
@@ -2694,6 +2749,7 @@ class ReviewServiceTests(TestCase):
             )
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
 
     def test_ai_hold_preserves_heuristic_reason_without_retry(self):
         self._create_bulk_history(10, "bulk-installation")
@@ -2730,6 +2786,12 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(
             review.REVW_RELIABILITY_REASONS,
             [Review.ReliabilityReason.SHARED_INSTALLATION_ACCOUNTS],
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_EVIDENCE[
+                "shared_installation_accounts"
+            ]["distinct_account_count"],
+            4,
         )
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         for prior in prior_reviews:
@@ -2797,6 +2859,14 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(
             review.REVW_RELIABILITY_REASONS,
             [Review.ReliabilityReason.RAPID_SUBMISSION],
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_EVIDENCE["rapid_submission"]["review_count"],
+            11,
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_EVIDENCE["rapid_submission"]["window_hours"],
+            24,
         )
 
     def test_bulk_spam_does_not_flag_tenth_review(self):
