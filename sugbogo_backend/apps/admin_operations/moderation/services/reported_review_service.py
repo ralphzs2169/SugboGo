@@ -4,7 +4,7 @@ from django.db.models import Count, Exists, Max, Min, OuterRef, Prefetch, Q, Sub
 from django.db.models.functions import Concat
 from rest_framework.exceptions import NotFound
 
-from apps.reviews.models import Review, ReviewPhoto, ReviewReport
+from apps.reviews.models import Review, ReviewPhoto, ReviewReply, ReviewReport
 
 
 class ReportedReviewService:
@@ -18,6 +18,7 @@ class ReportedReviewService:
             REVW_ID_id=OuterRef("pk"),
             RREP_STATUS=ReviewReport.ReportStatus.PENDING,
         )
+        reply_exists = ReviewReply.objects.filter(REVW_ID_id=OuterRef("pk"))
         first_photo = (
             ReviewPhoto.objects
             .filter(REVW_ID_id=OuterRef("pk"))
@@ -61,6 +62,7 @@ class ReportedReviewService:
                 latest_pending_at=Max("reports__RREP_CREATED_AT", filter=pending),
                 photo_count=Count("photos", distinct=True),
                 first_photo_url=Subquery(first_photo),
+                has_reply=Exists(reply_exists),
             )
         )
 
@@ -117,6 +119,10 @@ class ReportedReviewService:
         try:
             return (
                 ReportedReviewService.queryset()
+                .select_related(
+                    "BUSN_ID__CTGRY_ID__CLUS_ID",
+                    "reply",
+                )
                 .prefetch_related(
                     "photos",
                     Prefetch("reports", queryset=reports, to_attr="investigation_reports"),

@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from apps.admin_operations.moderation.services.tests.test_manage_review_report_service import (
     ReportFixtures,
 )
-from apps.reviews.models import Review, ReviewReport
+from apps.reviews.models import Review, ReviewReply, ReviewReport
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 from apps.reviews.services.review_report_service import ReviewReportService
 from apps.users.models import User
@@ -95,6 +95,46 @@ class ReportedReviewViewTests(ReportFixtures, TestCase):
         item = response.data["data"]["items"][0]
         self.assertEqual(item["pending_report_count"], 1)
         self.assertFalse(item["needs_attention"])
+
+    def test_admin_presentation_context_uses_existing_review_data(self):
+        """The grouped read model adds display context without changing reports."""
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_EDITED_AT=timezone.now(),
+            REVW_LIKE_COUNT=5,
+        )
+        ReviewReply.objects.create(
+            REVW_ID=self.review,
+            RPLY_TEXT="We appreciate your feedback.",
+        )
+
+        queue = self.client.get(
+            reverse("admin-reported-review-list"),
+        ).data["data"]["items"][0]
+        self.assertTrue(queue["has_reply"])
+        self.assertTrue(queue["is_edited"])
+        self.assertNotIn("like_count", queue)
+        self.assertEqual(queue["pending_report_count"], 1)
+
+        detail = self.client.get(
+            reverse("admin-reported-review-detail", args=[self.review.pk]),
+        ).data["data"]
+        self.assertEqual(detail["like_count"], 5)
+        self.assertIsNotNone(detail["edited_at"])
+        self.assertEqual(detail["reply"]["text"], "We appreciate your feedback.")
+        self.assertEqual(
+            detail["business"]["cover_photo_url"],
+            "https://example.com/cover.jpg",
+        )
+        self.assertEqual(
+            detail["business"]["cluster_name"],
+            self.business.CTGRY_ID.CLUS_ID.CLUS_NAME,
+        )
+        self.assertEqual(
+            detail["business"]["category_name"],
+            self.business.CTGRY_ID.CTGRY_NAME,
+        )
 
     def test_public_review_serializer_has_no_report_moderation_data(self):
         """Grouped state and report decisions stay outside public review data."""

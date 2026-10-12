@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Inbox, Search, ShieldAlert } from "lucide-react";
+import { Clock3, Image as ImageIcon, Inbox, MessageSquare, Pencil, Search, ShieldAlert, UsersRound } from "lucide-react";
 
 import DataErrorState from "@/shared/components/errors/DataErrorState";
-import StatusBadge from "@/shared/components/StatusBadge";
+import UserAvatar from "@/shared/components/UserAvatar";
 import useDebounce from "@/shared/hooks/useDebounce";
-import { formatDateTime, formatRelativeDate } from "@/shared/utils/dateUtils";
+import { formatDateTime } from "@/shared/utils/dateUtils";
+import ReviewContentCard from "../../moderation/components/ReviewContentCard";
+import ReviewIdentityHeader from "../../moderation/components/ReviewIdentityHeader";
+import { formatModerationQueueTime } from "../../moderation/components/reviewPresentation";
 
 import {
   fetchSuspiciousReview,
@@ -20,14 +23,24 @@ import {
 
 const PAGE_SIZE = 10;
 
+const SIGNAL_ICONS = {
+  duplicate_content: ShieldAlert,
+  rapid_submission: Clock3,
+  shared_installation_accounts: UsersRound,
+};
+
 function SignalBadges({ reasons = [] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {reasons.map((reason) => (
-        <StatusBadge key={reason} variant="warning">
-          {SIGNAL_LABELS[reason] ?? "Reliability signal"}
-        </StatusBadge>
-      ))}
+      {reasons.map((reason) => {
+        const Icon = SIGNAL_ICONS[reason] ?? ShieldAlert;
+        return (
+          <span key={reason} className="inline-flex items-center gap-1 rounded-md border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-medium text-text-primary">
+            <Icon className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+            {SIGNAL_LABELS[reason] ?? "Reliability signal"}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -38,38 +51,56 @@ function QueueItem({ review, selected, onSelect }) {
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`w-full border-b border-stroke px-4 py-4 text-left transition-colors hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
-        selected ? "bg-surface-muted" : "bg-background"
+      className={`w-full cursor-pointer border-b border-l-2 border-stroke px-4 py-3.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
+        selected
+          ? "border-l-primary bg-primary/5 hover:bg-primary/10"
+          : "border-l-transparent bg-background hover:bg-interaction-hover"
       }`}
     >
-      <div className="flex gap-3">
-        {review.first_photo_url && (
-          <img
-            src={review.first_photo_url}
-            alt=""
-            className="h-14 w-14 shrink-0 rounded-lg object-cover"
-          />
-        )}
+      <div className="flex items-start gap-2">
+        <UserAvatar
+          avatarUrl={review.author.avatar_url}
+          avatarKey={review.author.avatar_key}
+          size="sm"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <span className="truncate text-sm font-semibold text-text-primary">
               {displayName(review.author)}
             </span>
-            <span className="shrink-0 text-xs text-text-secondary">
-              {formatRelativeDate(review.submitted_at)}
-            </span>
+            <time dateTime={review.submitted_at} title={formatDateTime(review.submitted_at)} className="shrink-0 text-xs text-text-secondary">
+              {formatModerationQueueTime(review.submitted_at)}
+            </time>
           </div>
           <p className="mt-0.5 truncate text-xs text-text-secondary">
             Review #{review.id} · {review.business.name}
           </p>
-          <p className="mt-2 line-clamp-2 text-sm text-text-primary">
-            {review.text_preview}
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex items-start gap-3">
+            <p className="min-w-0 flex-1 line-clamp-2 text-sm leading-5 text-text-primary">
+              {review.text_preview || "Photo review"}
+            </p>
+            {review.first_photo_url && (
+              <img src={review.first_photo_url} alt="Review photo thumbnail" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg border border-stroke object-cover" />
+            )}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <SignalBadges reasons={review.reasons} />
             {review.photo_count > 0 && (
-              <span className="text-xs text-text-secondary">
+              <span className="inline-flex items-center gap-1 rounded-md border border-stroke bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
+                <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 {review.photo_count} {review.photo_count === 1 ? "photo" : "photos"}
+              </span>
+            )}
+            {review.has_reply && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-stroke bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
+                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                Reply
+              </span>
+            )}
+            {review.is_edited && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-stroke bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                Edited
               </span>
             )}
           </div>
@@ -237,38 +268,15 @@ function InvestigationDetail({ reviewId, onStale }) {
   }
 
   return (
-    <article className="space-y-5 p-5 sm:p-6">
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-lg font-semibold text-text-primary">Investigation · Review #{review.id}</h2>
-          <StatusBadge variant="success">Published</StatusBadge>
-        </div>
+    <article className="space-y-6 p-5 sm:p-6">
+      <ReviewIdentityHeader review={review} />
+      <ReviewContentCard review={review} />
+      <section aria-label="Reliability signals" className="space-y-2">
+        <h3 className="text-xs font-bold uppercase tracking-wide text-text-secondary">Reliability Signals</h3>
         <SignalBadges reasons={review.reasons} />
-      </header>
-      <section className="border-t border-stroke pt-5">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-text-secondary">Review</h3>
-        <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-text-primary">{review.text}</p>
-        {review.photos?.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-3">
-            {review.photos.map((photo, index) => (
-              <a key={photo.id} href={photo.photo_url} target="_blank" rel="noreferrer" aria-label={`Open review photo ${index + 1}`} className="rounded-lg border border-stroke focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                <img src={photo.photo_url} alt={`Review photo ${index + 1}`} className="h-24 w-24 rounded-lg object-cover" />
-              </a>
-            ))}
-          </div>
-        )}
       </section>
       <DetectionEvidence review={review} />
       <CurrentActivity review={review} />
-      <section className="border-t border-stroke pt-5">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-text-secondary">User / Business Context</h3>
-        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-          <p className="text-text-secondary">Author<br /><Link className="font-medium text-primary hover:underline" to={`/admin-panel/users/${review.author.id}`}>{displayName(review.author)}</Link></p>
-          <p className="text-text-secondary">Business<br /><Link className="font-medium text-primary hover:underline" to={`/admin-panel/businesses/${review.business.id}`}>{review.business.name}</Link></p>
-          <p className="text-text-secondary">Submitted<br /><span className="font-medium text-text-primary">{formatDateTime(review.submitted_at)}</span></p>
-          <p className="text-text-secondary">Current status<br /><span className="font-medium text-text-primary">Published</span></p>
-        </div>
-      </section>
     </article>
   );
 }

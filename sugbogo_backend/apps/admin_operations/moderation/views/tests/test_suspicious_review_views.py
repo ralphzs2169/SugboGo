@@ -5,13 +5,14 @@ from datetime import timedelta
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework.test import APIClient
 
 from apps.admin_operations.moderation.services.tests.test_manage_under_review_service import (
     create_under_review_context,
 )
 from apps.business.models import Business
-from apps.reviews.models import Review
+from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 from apps.users.models import User
 
@@ -137,6 +138,51 @@ class SuspiciousReviewViewTests(TestCase):
                     expected,
                 )
                 self.assertEqual(self.client.get(detail).status_code, expected)
+
+    def test_admin_presentation_context_is_kept_in_admin_responses(self):
+        """Queue context and full review identity use existing review records."""
+        review = self.create_review(
+            "Review with presentation context",
+            [Review.ReliabilityReason.RAPID_SUBMISSION],
+        )
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+        edited_at = timezone.now()
+        Review.objects.filter(pk=review.pk).update(
+            REVW_EDITED_AT=edited_at,
+            REVW_LIKE_COUNT=3,
+        )
+        ReviewReply.objects.create(
+            REVW_ID=review,
+            RPLY_TEXT="Thank you for the feedback.",
+        )
+
+        queue = self.client.get(
+            reverse("admin-suspicious-review-list"),
+        ).data["data"]["items"][0]
+        self.assertTrue(queue["has_reply"])
+        self.assertTrue(queue["is_edited"])
+        self.assertNotIn("like_count", queue)
+
+        detail = self.client.get(
+            reverse("admin-suspicious-review-detail", args=[review.pk]),
+        ).data["data"]
+        self.assertEqual(detail["like_count"], 3)
+        self.assertTrue(detail["is_edited"])
+        self.assertEqual(parse_datetime(detail["edited_at"]), edited_at)
+        self.assertEqual(detail["reply"]["text"], "Thank you for the feedback.")
+        self.assertEqual(
+            detail["business"]["cover_photo_url"],
+            "https://example.com/cover.jpg",
+        )
+        self.assertEqual(
+            detail["business"]["cluster_name"],
+            self.business.CTGRY_ID.CLUS_ID.CLUS_NAME,
+        )
+        self.assertEqual(
+            detail["business"]["category_name"],
+            self.business.CTGRY_ID.CTGRY_NAME,
+        )
 
     def test_search_signal_sort_and_pagination(self):
         """Filter in the database before applying stable pagination."""

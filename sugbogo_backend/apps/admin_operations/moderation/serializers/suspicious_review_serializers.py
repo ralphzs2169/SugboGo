@@ -2,10 +2,13 @@
 
 from rest_framework import serializers
 
-from apps.reviews.models import Review
+from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import (
     ReviewAuthorResponseSerializer,
     ReviewPhotoResponseSerializer,
+)
+from apps.reviews.serializers.review_reply_serializers import (
+    ReviewReplyResponseSerializer,
 )
 
 
@@ -37,6 +40,8 @@ class SuspiciousReviewListSerializer(serializers.ModelSerializer):
     text_preview = serializers.SerializerMethodField()
     first_photo_url = serializers.URLField(read_only=True, allow_null=True)
     photo_count = serializers.IntegerField(read_only=True)
+    has_reply = serializers.BooleanField(read_only=True)
+    is_edited = serializers.SerializerMethodField()
     submitted_at = serializers.DateTimeField(source="REVW_CREATED_AT")
     reasons = serializers.ListField(source="REVW_RELIABILITY_REASONS")
 
@@ -49,6 +54,8 @@ class SuspiciousReviewListSerializer(serializers.ModelSerializer):
             "text_preview",
             "first_photo_url",
             "photo_count",
+            "has_reply",
+            "is_edited",
             "submitted_at",
             "reasons",
         )
@@ -63,6 +70,10 @@ class SuspiciousReviewListSerializer(serializers.ModelSerializer):
     def get_text_preview(self, review):
         """Keep queue content short."""
         return review.REVW_TEXT[:160]
+
+    def get_is_edited(self, review):
+        """Only an actual recorded review edit counts as edited."""
+        return review.REVW_EDITED_AT is not None
 
 
 class RelatedReviewSerializer(serializers.ModelSerializer):
@@ -100,6 +111,13 @@ class SuspiciousReviewDetailSerializer(serializers.ModelSerializer):
     reasons = serializers.ListField(source="REVW_RELIABILITY_REASONS")
     detection_evidence = serializers.SerializerMethodField()
     current_related_activity = serializers.SerializerMethodField()
+    like_count = serializers.IntegerField(source="REVW_LIKE_COUNT")
+    is_edited = serializers.SerializerMethodField()
+    edited_at = serializers.DateTimeField(
+        source="REVW_EDITED_AT",
+        allow_null=True,
+    )
+    reply = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
@@ -114,14 +132,36 @@ class SuspiciousReviewDetailSerializer(serializers.ModelSerializer):
             "reasons",
             "detection_evidence",
             "current_related_activity",
+            "like_count",
+            "is_edited",
+            "edited_at",
+            "reply",
         )
 
     def get_business(self, review):
         """Return the linked business identity."""
+        business = review.BUSN_ID
+        category = business.CTGRY_ID
+        cluster = category.CLUS_ID
         return {
             "id": review.BUSN_ID_id,
-            "name": review.BUSN_ID.BUSN_NAME,
+            "name": business.BUSN_NAME,
+            "cover_photo_url": business.BUSN_COVER_PHOTO_URL,
+            "cluster_name": cluster.CLUS_NAME,
+            "category_name": category.CTGRY_NAME,
         }
+
+    def get_reply(self, review):
+        """Expose an existing merchant reply only in Admin detail."""
+        try:
+            reply = review.reply
+        except ReviewReply.DoesNotExist:
+            return None
+        return ReviewReplyResponseSerializer(reply).data
+
+    def get_is_edited(self, review):
+        """Use the persisted author-edit timestamp for detail context."""
+        return review.REVW_EDITED_AT is not None
 
     def get_detection_evidence(self, review):
         """Return the immutable snapshot with deleted match availability."""

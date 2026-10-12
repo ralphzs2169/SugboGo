@@ -1,10 +1,10 @@
 """Read-only queries for Admin reliability investigations."""
 
-from django.db.models import Count, OuterRef, Q, Subquery, Value
+from django.db.models import Count, Exists, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Concat
 from rest_framework.exceptions import NotFound
 
-from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.models import Review, ReviewPhoto, ReviewReply
 from apps.reviews.services.review_service import ReviewService
 
 
@@ -30,9 +30,11 @@ class SuspiciousReviewService:
             .order_by("RPHO_ID")
             .values("RPHO_PHOTO_URL")[:1]
         )
+        reply_exists = ReviewReply.objects.filter(REVW_ID_id=OuterRef("pk"))
         queryset = SuspiciousReviewService.queryset().annotate(
             photo_count=Count("photos", distinct=True),
             first_photo_url=Subquery(first_photo),
+            has_reply=Exists(reply_exists),
         )
         search = filters.get("search")
         if search:
@@ -64,6 +66,10 @@ class SuspiciousReviewService:
         try:
             return (
                 SuspiciousReviewService.queryset()
+                .select_related(
+                    "BUSN_ID__CTGRY_ID__CLUS_ID",
+                    "reply",
+                )
                 .prefetch_related("photos")
                 .get(REVW_ID=review_id)
             )
