@@ -43,6 +43,7 @@ after(async () => {
 function renderPage(url, {
   list,
   detail,
+  clusters,
   suspiciousList,
   suspiciousDetail,
   suspiciousError,
@@ -74,6 +75,12 @@ function renderPage(url, {
     queryClient.setQueryData(
       ["admin", "under-review", "detail", detail.id],
       detail,
+    );
+  }
+  if (clusters && detail?.business.cluster_name) {
+    queryClient.setQueryData(
+      ["admin", "taxonomy", "clusters", "by-name", detail.business.cluster_name],
+      { items: clusters },
     );
   }
   if (suspiciousList) {
@@ -264,14 +271,91 @@ test("queue renders held reviews and a neutral no-selection panel", () => {
   assert.match(html, /Cebu Cafe/);
   assert.match(html, /Text flagged/);
   assert.match(html, /Image flagged/);
+  assert.match(html, /Review photo thumbnail/);
+  assert.match(html.replaceAll("<!-- -->", ""), /2 photos/);
+  assert.match(html, /Remove Reason filter|>Filter</);
   assert.match(html, /Select a review/);
   assert.match(html, /aria-pressed="false"/);
+});
+
+test("text-only queue rows show an author avatar without a photo placeholder", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    {
+      list: {
+        ...heldList,
+        items: [{ ...heldReview, first_photo_url: null, photo_count: 0 }],
+      },
+    },
+  );
+
+  assert.match(html, /Ana Cruz/);
+  assert.match(html, /rounded-full border border-stroke object-cover/);
+  assert.doesNotMatch(html, /Review photo thumbnail/);
+  assert.doesNotMatch(html, /0 photos/);
+});
+
+test("queue shows neutral photo, reply, and edit context without likes", () => {
+  const review = {
+    ...heldReview,
+    photo_count: 1,
+    has_reply: true,
+    is_edited: true,
+    like_count: 12,
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    { list: { ...heldList, items: [review] } },
+  );
+  const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
+
+  assert.ok(queue);
+  assert.match(queue.replaceAll("<!-- -->", ""), /1 photo/);
+  assert.match(queue, /Reply/);
+  assert.match(queue, /Edited/);
+  assert.match(queue, /Text flagged/);
+  assert.equal(
+    (queue.match(/rounded-md border px-2 py-0.5 text-xs font-medium text-text-primary border-danger\/25 bg-danger\/10/g) ?? []).length,
+    2,
+  );
+  assert.match(queue, /rounded-md border border-stroke bg-surface/);
+  assert.doesNotMatch(queue, /12 likes/);
+
+  const withoutContext = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    {
+      list: {
+        ...heldList,
+        items: [{ ...review, photo_count: 0, has_reply: false, is_edited: false }],
+      },
+    },
+  );
+  const emptyQueue = withoutContext.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
+  assert.doesNotMatch(emptyQueue, /1 photo|Reply|Edited/);
 });
 
 test("selected detail separates text and photo findings", () => {
   const detail = {
     ...heldReview,
+    author: {
+      ...heldReview.author,
+      avatar_url: "https://example.com/author-avatar.jpg",
+    },
+    business: {
+      ...heldReview.business,
+      cover_photo_url: "https://example.com/business-cover.jpg",
+      cluster_name: "Food and Dining",
+      category_name: "Restaurants",
+    },
     text: "Full held review content",
+    like_count: 12,
+    is_edited: true,
+    edited_at: "2026-10-11T01:42:00Z",
+    reply: {
+      id: 28,
+      text: "Thank you for sharing your visit.",
+      created_at: "2026-10-11T02:15:00Z",
+    },
     photos: [
       {
         id: 12,
@@ -296,22 +380,118 @@ test("selected detail separates text and photo findings", () => {
   };
   const html = renderPage(
     "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42",
-    { list: heldList, detail },
+    {
+      list: heldList,
+      detail,
+      clusters: [{ name: "Food and Dining", icon: "utensils" }],
+    },
   );
 
   assert.match(html, /Full held review content/);
+  const header = html.match(/<header[^>]*>(.*?)<\/header>/s)?.[1];
+  assert.ok(header);
+  assert.match(html, /pointer-events-none sticky top-0 z-30 h-0/);
+  assert.match(html, /aria-hidden="true" class="flex h-12[^"]*bg-background\/80[^"]*backdrop-blur-md/);
+  assert.match(html, /class="min-h-0 flex-1 overflow-y-auto lg:max-h-/);
+  assert.doesNotMatch(header, /sticky top-0/);
+  assert.match(header, /flex flex-wrap items-start justify-between gap-2/);
+  assert.match(header, /mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1/);
+  assert.match(header, /ml-auto inline-flex shrink-0 items-center gap-1.5/);
+  assert.match(header, /src="https:\/\/example.com\/business-cover.jpg"/);
+  assert.match(header, /src="https:\/\/example.com\/author-avatar.jpg"/);
+  assert.match(header, /lucide-utensils/);
+  assert.doesNotMatch(header, /h-20 w-20/);
+  assert.doesNotMatch(header, /src="https:\/\/example.com\/first.jpg"/);
+  assert.match(header, /href="\/admin-panel\/users\/7"/);
+  assert.match(header, /href="\/admin-panel\/businesses\/9"/);
+  assert.equal((header.match(/lucide-external-link/g) ?? []).length, 2);
+  assert.match(header, /bg-blue-500 text-white/);
+  assert.doesNotMatch(header, />Business cover</);
+  assert.match(header, /Food and Dining/);
+  assert.match(header, /Restaurants/);
+  assert.match(header, /Oct 10, 2026 ·/);
+  assert.match(html, /Review photos/);
+  const reviewContent = html.match(/<section class="[^"]*rounded-lg border border-stroke bg-surface p-4[^"]*">(.*?)<\/section>/s)?.[1];
+  assert.ok(reviewContent);
+  assert.match(reviewContent, /lucide-quote/);
+  assert.match(reviewContent, /lucide-thumbs-up/);
+  assert.doesNotMatch(reviewContent, /lucide-heart/);
+  assert.match(reviewContent.replaceAll("<!-- -->", ""), /12 likes/);
+  assert.match(reviewContent.replaceAll("<!-- -->", ""), /2 photos/);
+  assert.match(reviewContent, /Edited Oct 11, 2026 ·/);
+  assert.match(reviewContent, /Merchant Response/);
+  assert.match(reviewContent, /border-l-2 border-primary bg-surface-muted\/40/);
+  assert.match(reviewContent, /Thank you for sharing your visit/);
+  assert.match(reviewContent, /dateTime="2026-10-11T02:15:00Z"/);
+  assert.doesNotMatch(header, /12 likes|2 photos|Edited|Merchant reply/);
+  assert.doesNotMatch(html, /Submission context/);
   assert.match(html, /Photo 1/);
   assert.match(html, /Photo 2/);
   assert.match(html, /Harassment/);
   assert.match(html, /Violence/);
   assert.match(html, /No findings/);
+  assert.equal(
+    (html.match(/flex items-start gap-3 rounded-lg border p-3 border-danger\/25 bg-danger\/10/g) ?? []).length,
+    2,
+  );
   assert.match(html, /Approve &amp; Publish/);
   assert.match(html, /Reject Review/);
   assert.match(html, /aria-pressed="true"/);
 });
 
-test("provider failure is shown as unavailable, not unsafe content", () => {
+test("header uses compact business image and existing identity fallbacks", () => {
   const detail = {
+    ...heldReview,
+    business: {
+      ...heldReview.business,
+      cover_photo_url: "https://example.com/business-cover.jpg",
+    },
+    text: "Text only review",
+    photos: [
+      {
+        id: 12,
+        photo_url: "https://example.com/first.jpg",
+        checked: true,
+        flagged_categories: [],
+      },
+    ],
+    moderation: {
+      text_checked: true,
+      text_flagged_categories: ["harassment"],
+      provider_unavailable: false,
+    },
+  };
+  const url = "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42";
+  const coverHtml = renderPage(url, { list: heldList, detail });
+  const coverHeader = coverHtml.match(/<header[^>]*>(.*?)<\/header>/s)?.[1];
+
+  assert.match(coverHeader, /src="https:\/\/example.com\/business-cover.jpg"/);
+  assert.match(coverHeader, /h-6 w-6 shrink-0 rounded-full/);
+  assert.match(coverHeader, /alt=""/);
+  assert.doesNotMatch(coverHeader, /h-20 w-20/);
+  assert.doesNotMatch(coverHeader, /src="https:\/\/example.com\/first.jpg"/);
+  assert.doesNotMatch(coverHeader, />Business cover</);
+  assert.doesNotMatch(coverHtml, /Merchant Response/);
+
+  const noCoverDetail = {
+    ...detail,
+    business: { ...detail.business, cover_photo_url: null },
+  };
+  const noCoverHtml = renderPage(url, {
+    list: heldList,
+    detail: noCoverDetail,
+  });
+  const noCoverHeader = noCoverHtml.match(/<header[^>]*>(.*?)<\/header>/s)?.[1];
+
+  assert.match(noCoverHeader, /lucide-store/);
+  assert.match(noCoverHeader, /h-6 w-6 shrink-0 rounded-full/);
+  assert.match(noCoverHeader, /explorer-avatar-1.webp/);
+  assert.doesNotMatch(noCoverHeader, /src="https:\/\/example.com\/first.jpg"/);
+  assert.doesNotMatch(noCoverHeader, />Business cover</);
+});
+
+test("provider failure copy follows retry state without a manual retry action", () => {
+  const baseDetail = {
     ...heldReview,
     hold_reasons: ["provider_failure"],
     text: "Content awaiting a check",
@@ -324,15 +504,41 @@ test("provider failure is shown as unavailable, not unsafe content", () => {
       checked_at: null,
     },
   };
-  const html = renderPage(
-    "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42",
-    { list: { ...heldList, items: [detail] }, detail },
-  );
+  const url = "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42";
+  const cases = [
+    [
+      "retrying",
+      "The automated safety check could not be completed. Another attempt may run automatically. You can still review the content directly before deciding.",
+    ],
+    [
+      "exhausted",
+      "The automated safety check could not be completed after multiple attempts. Review the content directly before deciding.",
+    ],
+    [
+      null,
+      "The automated safety check could not be completed. Review the content directly before deciding.",
+    ],
+  ];
 
-  assert.match(html, /Automated moderation unavailable/);
-  assert.match(html, /A background check may still be retried/);
-  assert.match(html, /Not checked/);
-  assert.doesNotMatch(html, /potential concerns/);
+  for (const [retryState, expectedCopy] of cases) {
+    const detail = {
+      ...baseDetail,
+      moderation: { ...baseDetail.moderation, retry_state: retryState },
+    };
+    const html = renderPage(url, {
+      list: { ...heldList, items: [detail] },
+      detail,
+    });
+
+    assert.match(html, /Automated moderation unavailable/);
+    assert.match(html, /Check unavailable/);
+    assert.match(html, /border-warning\/30 bg-warning\/10 p-3/);
+    assert.match(html, /border-warning\/30 bg-warning\/10/);
+    assert.ok(html.includes(expectedCopy));
+    assert.match(html, /Not checked/);
+    assert.doesNotMatch(html, /potential concerns/);
+    assert.doesNotMatch(html, /<button[^>]*>Retry<\/button>/);
+  }
 });
 
 test("local Cebuano safety finding identifies its source and review text", () => {
@@ -364,6 +570,7 @@ test("local Cebuano safety finding identifies its source and review text", () =>
   assert.match(html, /Detected in/);
   assert.match(html, /Review text/);
   assert.match(html, /Local Cebuano safety fallback/);
+  assert.match(html, /border-danger\/25 bg-danger\/10/);
   assert.doesNotMatch(html, /direct_kill_threat/);
 });
 

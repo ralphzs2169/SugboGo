@@ -897,6 +897,10 @@ class ReviewService:
                 RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
             ).delete()
 
+            if text_changed or new_photos or removed_photos:
+                review.REVW_EDITED_AT = timezone.now()
+                review.save(update_fields=["REVW_EDITED_AT"])
+
             if (
                 new_photos
                 and not had_photo_before_update

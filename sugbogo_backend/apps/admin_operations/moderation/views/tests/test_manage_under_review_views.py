@@ -1,6 +1,7 @@
 """Admin API coverage for held-review queue, evidence, and decisions."""
 
 from django.test import TestCase
+from django.utils import timezone
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -8,7 +9,7 @@ from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.moderation.services.tests.test_manage_under_review_service import (
     create_under_review_context,
 )
-from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.models import Review, ReviewPhoto, ReviewReply
 from apps.users.models import User
 
 
@@ -93,6 +94,7 @@ class ManageUnderReviewViewTests(TestCase):
                 self.assertEqual(data["pagination"]["total_items"], 1)
                 self.assertEqual(data["items"][0]["id"], self.review.pk)
                 self.assertNotIn("REVW_MODERATION_DATA", data["items"][0])
+                self.assertNotIn("cover_photo_url", data["items"][0]["business"])
 
     def test_non_admin_and_anonymous_access_denied(self):
         """Ordinary accounts cannot read evidence or make decisions."""
@@ -195,6 +197,9 @@ class ManageUnderReviewViewTests(TestCase):
 
     def test_detail_structures_text_photo_and_provider_evidence(self):
         """Detailed findings remain attributed and omit raw provider JSON."""
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/business-cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+
         safe_photo = ReviewPhoto.objects.create(
             REVW_ID=self.review,
             RPHO_PHOTO_URL="https://example.com/safe.jpg",
@@ -231,12 +236,28 @@ class ManageUnderReviewViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.data["data"]
         self.assertEqual(data["text"], self.review.REVW_TEXT)
+        self.assertEqual(
+            data["business"],
+            {
+                "id": self.business.pk,
+                "name": "Sugbo Bistro",
+                "cover_photo_url": "https://example.com/business-cover.jpg",
+                "cluster_name": "Food and Dining",
+                "category_name": "Restaurants",
+            },
+        )
         self.assertEqual(data["moderation"]["text_flagged_categories"], ["harassment"])
         self.assertEqual(data["photos"][0]["flagged_categories"], [])
         self.assertEqual(data["photos"][1]["flagged_categories"], ["violence"])
         self.assertEqual(data["hold_reasons"], ["text_flagged", "image_flagged"])
         self.assertNotIn("category_scores", str(data))
         self.assertNotIn("REVW_MODERATION_DATA", str(data))
+
+        self.assertEqual(data["like_count"], 0)
+        self.assertFalse(data["is_edited"])
+        self.assertIsNone(data["edited_at"])
+        self.assertFalse(data["has_reply"])
+        self.assertIsNone(data["reply"])
 
         self.review.REVW_MODERATION_DATA = {
             "outcome": "provider_failure",
@@ -250,6 +271,38 @@ class ManageUnderReviewViewTests(TestCase):
         self.assertEqual(provider["hold_reasons"], ["provider_failure"])
         self.assertTrue(provider["moderation"]["provider_unavailable"])
         self.assertEqual(provider["moderation"]["retry_state"], "retrying")
+
+    def test_review_context_is_admin_only_and_keeps_queue_compact(self):
+        """List shows presence; detail shows likes and an existing reply."""
+        edited_at = timezone.now()
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_LIKE_COUNT=2,
+            REVW_EDITED_AT=edited_at,
+        )
+        reply = ReviewReply.objects.create(
+            REVW_ID=self.review,
+            RPLY_TEXT="Thank you for telling us about your visit.",
+        )
+
+        list_data = self.client.get(
+            reverse("admin-under-review-list"),
+        ).data["data"]["items"][0]
+        self.assertTrue(list_data["has_reply"])
+        self.assertTrue(list_data["is_edited"])
+        self.assertNotIn("like_count", list_data)
+        self.assertNotIn("reply", list_data)
+        self.assertNotIn("edited_at", list_data)
+
+        detail = self.client.get(
+            reverse("admin-under-review-detail", args=[self.review.pk]),
+        ).data["data"]
+        self.assertEqual(detail["like_count"], 2)
+        self.assertTrue(detail["is_edited"])
+        self.assertIsNotNone(detail["edited_at"])
+        self.assertEqual(detail["reply"]["id"], reply.pk)
+        self.assertEqual(detail["reply"]["text"], reply.RPLY_TEXT)
+        self.assertIsNotNone(detail["reply"]["created_at"])
+        self.assertNotIn("REVW_EDITED_AT", detail)
 
     def test_local_safety_reason_is_structured_and_filterable(self):
         """Admin evidence identifies the local source without raw review text."""

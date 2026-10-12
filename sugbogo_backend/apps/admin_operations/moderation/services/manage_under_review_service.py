@@ -1,12 +1,12 @@
 """Administrator queue and decisions for reviews held before publication."""
 
 from django.db import transaction
-from django.db.models import Count, OuterRef, Q, Subquery
+from django.db.models import Count, Exists, OuterRef, Q, Subquery
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.activity_management.services import AdminActivityService
-from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.models import Review, ReviewPhoto, ReviewReply
 from apps.reviews.services.review_service import ReviewService
 
 
@@ -20,6 +20,11 @@ class ManageUnderReviewService:
             Review.objects
             .select_related("USER_ID", "BUSN_ID")
             .filter(REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW)
+            .annotate(
+                has_reply=Exists(
+                    ReviewReply.objects.filter(REVW_ID_id=OuterRef("pk"))
+                ),
+            )
         )
 
     @staticmethod
@@ -84,7 +89,11 @@ class ManageUnderReviewService:
     def get_review(review_id):
         """Return one held review or a controlled missing-resource error."""
         try:
-            return ManageUnderReviewService.queryset().get(REVW_ID=review_id)
+            return (
+                ManageUnderReviewService.queryset()
+                .select_related("BUSN_ID__CTGRY_ID__CLUS_ID", "reply")
+                .get(REVW_ID=review_id)
+            )
         except Review.DoesNotExist:
             raise NotFound("The under-review review could not be found.") from None
 

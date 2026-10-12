@@ -119,6 +119,10 @@ class Review(models.Model):
     REVW_UPDATED_AT = models.DateTimeField(
         auto_now=True,
     )
+    REVW_EDITED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         db_table = "BUSINESS_REVIEW"

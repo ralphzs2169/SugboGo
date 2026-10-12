@@ -2,10 +2,13 @@
 
 from rest_framework import serializers
 
-from apps.reviews.models import Review
+from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import (
     ReviewAuthorResponseSerializer,
     ReviewPhotoResponseSerializer,
+)
+from apps.reviews.serializers.review_reply_serializers import (
+    ReviewReplyResponseSerializer,
 )
 
 
@@ -68,6 +71,8 @@ class AdminUnderReviewListSerializer(serializers.ModelSerializer):
     text_preview = serializers.SerializerMethodField()
     first_photo_url = serializers.URLField(read_only=True, allow_null=True)
     photo_count = serializers.IntegerField(read_only=True)
+    has_reply = serializers.BooleanField(read_only=True)
+    is_edited = serializers.SerializerMethodField()
     submitted_at = serializers.DateTimeField(source="REVW_CREATED_AT")
     status = serializers.CharField(source="REVW_STATUS")
     hold_reasons = serializers.SerializerMethodField()
@@ -81,6 +86,8 @@ class AdminUnderReviewListSerializer(serializers.ModelSerializer):
             "text_preview",
             "first_photo_url",
             "photo_count",
+            "has_reply",
+            "is_edited",
             "submitted_at",
             "status",
             "hold_reasons",
@@ -96,6 +103,10 @@ class AdminUnderReviewListSerializer(serializers.ModelSerializer):
     def get_text_preview(self, review):
         """Keep queue text short without changing canonical review text."""
         return review.REVW_TEXT[:160]
+
+    def get_is_edited(self, review):
+        """Only a recorded author edit counts as an edited review."""
+        return review.REVW_EDITED_AT is not None
 
     def get_hold_reasons(self, review):
         """Summarize which inputs or provider failures require inspection."""
@@ -129,13 +140,44 @@ class AdminUnderReviewDetailSerializer(AdminUnderReviewListSerializer):
     text = serializers.CharField(source="REVW_TEXT")
     photos = serializers.SerializerMethodField()
     moderation = serializers.SerializerMethodField()
+    like_count = serializers.IntegerField(source="REVW_LIKE_COUNT")
+    edited_at = serializers.DateTimeField(
+        source="REVW_EDITED_AT",
+        allow_null=True,
+    )
+    reply = serializers.SerializerMethodField()
 
     class Meta(AdminUnderReviewListSerializer.Meta):
         fields = AdminUnderReviewListSerializer.Meta.fields + (
             "text",
             "photos",
             "moderation",
+            "like_count",
+            "edited_at",
+            "reply",
         )
+
+    def get_reply(self, review):
+        """Expose an existing merchant reply only inside Admin detail."""
+        try:
+            reply = review.reply
+        except ReviewReply.DoesNotExist:
+            return None
+        return ReviewReplyResponseSerializer(reply).data
+
+    def get_business(self, review):
+        """Include the linked business cover and classification for Admin context."""
+        business = review.BUSN_ID
+        category = business.CTGRY_ID
+        cluster = category.CLUS_ID
+
+        return {
+            "id": review.BUSN_ID_id,
+            "name": business.BUSN_NAME,
+            "cover_photo_url": business.BUSN_COVER_PHOTO_URL,
+            "cluster_name": cluster.CLUS_NAME,
+            "category_name": category.CTGRY_NAME,
+        }
 
     def get_photos(self, review):
         """Pair each persisted image with its own moderation categories."""

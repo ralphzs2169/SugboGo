@@ -1146,6 +1146,23 @@ class ReviewServiceTests(TestCase):
             review.REVW_TEXT,
             "Updated review.",
         )
+        self.assertIsNotNone(review.REVW_EDITED_AT)
+
+    def test_update_review_without_changes_does_not_mark_edited(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.REVW_ID,
+            text="Original review.",
+        )
+
+        review.refresh_from_db()
+        self.assertIsNone(review.REVW_EDITED_AT)
 
     def test_update_review_rejects_non_owner(self):
         review = ReviewService.create_review(
@@ -1223,6 +1240,8 @@ class ReviewServiceTests(TestCase):
             ).count(),
             1,
         )
+        review.refresh_from_db()
+        self.assertIsNotNone(review.REVW_EDITED_AT)
 
         mock_upload.assert_called_once_with(
             first_photo,

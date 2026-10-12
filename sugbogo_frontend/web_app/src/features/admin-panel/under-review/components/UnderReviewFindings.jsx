@@ -1,36 +1,46 @@
-import { AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleHelp,
+  ShieldAlert,
+} from "lucide-react";
 
 import { formatModerationCategory } from "../utils/underReviewPresentation";
 
 function FindingRow({ label, checked, categories }) {
   const hasFindings = categories.length > 0;
+  const Icon = hasFindings
+    ? AlertTriangle
+    : checked
+      ? CheckCircle2
+      : CircleHelp;
+  const stateClasses = hasFindings
+    ? "border-danger/25 bg-danger/10"
+    : "border-stroke bg-surface-muted/50";
+  const iconClasses = hasFindings
+    ? "text-danger"
+    : checked
+      ? "text-success"
+      : "text-text-secondary";
 
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-stroke py-3 last:border-b-0">
-      <div>
-        <p className="text-sm font-medium text-text-primary">{label}</p>
-        <p className="mt-1 text-xs text-text-secondary">
+    <div className={`flex items-start gap-3 rounded-lg border p-3 ${stateClasses}`}>
+      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClasses}`} aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-text-primary">{label}</p>
+        <p className="mt-0.5 text-xs text-text-secondary">
           {hasFindings
-            ? "Automated moderation found potential concerns"
+            ? "Potentially inappropriate content detected"
             : checked
               ? "No findings"
               : "Not checked"}
         </p>
-      </div>
-      <div className="flex max-w-[60%] flex-wrap justify-end gap-1.5">
-        {hasFindings ? (
-          categories.map((category) => (
-            <span
-              key={category}
-              className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800"
-            >
-              {formatModerationCategory(category)}
+        {hasFindings && (
+          <p className="mt-2 text-xs text-text-secondary">
+            Category: <span className="font-medium text-text-primary">
+              {categories.map(formatModerationCategory).join(" · ")}
             </span>
-          ))
-        ) : checked ? (
-          <CheckCircle2 className="h-4 w-4 text-success" aria-label="No findings" />
-        ) : (
-          <span className="text-xs text-text-secondary">—</span>
+          </p>
         )}
       </div>
     </div>
@@ -41,7 +51,7 @@ export default function UnderReviewFindings({ review }) {
   const moderation = review.moderation;
 
   return (
-    <section className="rounded-xl border border-stroke bg-background p-5">
+    <section>
       <div className="flex items-center gap-2">
         <ShieldAlert className="h-4 w-4 text-text-secondary" />
         <h3 className="text-sm font-semibold text-text-primary">Moderation findings</h3>
@@ -51,11 +61,11 @@ export default function UnderReviewFindings({ review }) {
       </p>
 
       {moderation.local_safety_findings?.length > 0 && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900">
+        <div className="mt-4 rounded-lg border border-danger/25 bg-danger/10 p-4">
+          <p className="text-sm font-semibold text-text-primary">
             Potential violent threat
           </p>
-          <dl className="mt-2 space-y-1 text-xs text-amber-900">
+          <dl className="mt-2 space-y-1 text-xs text-text-secondary">
             <div className="flex gap-2">
               <dt className="font-semibold">Detected in</dt>
               <dd>Review text</dd>
@@ -69,24 +79,24 @@ export default function UnderReviewFindings({ review }) {
       )}
 
       {moderation.provider_unavailable && (
-        <div className="mt-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+        <div className="mt-4 flex gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+          <CircleHelp className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
-            <p className="text-sm font-semibold text-amber-900">
+            <p className="text-sm font-semibold text-text-primary">
               Automated moderation unavailable
             </p>
-            <p className="mt-1 text-xs text-amber-800">
+            <p className="mt-1 text-xs text-text-secondary">
               {moderation.retry_state === "retrying"
-                ? "A background check may still be retried. Review the content directly before deciding."
+                ? "The automated safety check could not be completed. Another attempt may run automatically. You can still review the content directly before deciding."
                 : moderation.retry_state === "exhausted"
-                  ? "Automated retries were exhausted. Review the content directly before deciding."
-                  : "Review the content directly before deciding."}
+                  ? "The automated safety check could not be completed after multiple attempts. Review the content directly before deciding."
+                  : "The automated safety check could not be completed. Review the content directly before deciding."}
             </p>
           </div>
         </div>
       )}
 
-      <div className="mt-3">
+      <div className="mt-3 space-y-2">
         <FindingRow
           label="Review text"
           checked={moderation.text_checked}
