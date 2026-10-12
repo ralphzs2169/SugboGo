@@ -135,6 +135,34 @@ class VisibilityAnalyticsTests(SimpleTestCase):
         self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers, event_type="PROFILE_VISIT"), 2)
         self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers, event_type="SAVE"), 1)
 
+    def test_distinct_series_counts_each_person_once_per_bucket_across_event_types(self):
+        self.documents.append(self.event("IMPRESSION", 2, 20, self.START + timedelta(days=2)))
+        rows = self.query(VisibilityEventService.get_analytics_explorer_series)
+        self.assertEqual(
+            [(row["date"], row["count"]) for row in rows],
+            [("2026-10-05", 1), ("2026-10-06", 1), ("2026-10-07", 1),
+             ("2026-10-08", 1), ("2026-10-12", 1)],
+        )
+        self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers), 3)
+        self.assertEqual(sum(row["count"] for row in rows), 5)
+        self.assertTrue(all(set(row) == {"date", "start", "end_exclusive", "count"} for row in rows))
+
+    def test_distinct_weekly_series_collapses_multiple_days_and_clips_boundaries(self):
+        rows = VisibilityEventService.get_analytics_explorer_series(
+            start_time=self.START + timedelta(hours=1),
+            end_time=self.END - timedelta(hours=1), interval="weekly",
+        )
+        self.assertEqual([(row["date"], row["count"]) for row in rows],
+                         [("2026-10-05", 2), ("2026-10-12", 1)])
+        self.assertEqual(rows[0]["start"], (self.START + timedelta(hours=1)).isoformat())
+        self.assertEqual(rows[-1]["end_exclusive"], (self.END - timedelta(hours=1)).isoformat())
+        self.assertEqual(self.query(VisibilityEventService.get_analytics_explorer_series, business_ids=[]), [])
+
+    def test_distinct_series_failure_raises_without_index_initialization(self):
+        with patch.object(self.collection, "aggregate", side_effect=AutoReconnect("Unavailable")):
+            with self.assertRaises(VisibilityTrackingUnavailable):
+                self.query(VisibilityEventService.get_analytics_explorer_series)
+
     def test_empty_scope_is_not_platform_and_healthy_empty_data_has_zero_counts(self):
         self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers, business_ids=[]), 0)
         self.assertEqual(self.query(VisibilityEventService.get_analytics_totals, business_ids=[]),
@@ -197,3 +225,5 @@ class VisibilityAnalyticsTests(SimpleTestCase):
             VisibilityEventService.get_analytics_totals(start_time=self.END, end_time=self.START)
         with self.assertRaises(ValidationError):
             self.query(VisibilityEventService.get_analytics_series, interval="monthly")
+        with self.assertRaises(ValidationError):
+            self.query(VisibilityEventService.get_analytics_explorer_series, interval="monthly")

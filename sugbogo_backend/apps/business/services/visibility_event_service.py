@@ -659,6 +659,50 @@ class VisibilityEventService:
         return rows[0]["count"] if rows else 0
 
     @classmethod
+    def get_analytics_explorer_series(
+        cls, *, start_time, end_time, business_ids=None, interval="daily",
+    ):
+        """Count distinct explorers per Manila bucket across businesses and event types."""
+        if interval not in {"daily", "weekly"}:
+            raise ValidationError({"interval": "Choose daily or weekly."})
+        match = cls._analytics_match(business_ids)
+        window = cls._analytics_window(start_time, end_time)
+        match["occurred_at"] = window
+        truncation = {
+            "date": "$occurred_at",
+            "unit": "day" if interval == "daily" else "week",
+            "timezone": "Asia/Manila",
+        }
+        if interval == "weekly":
+            truncation["startOfWeek"] = "monday"
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {"_id": {
+                "bucket": {"$dateTrunc": truncation},
+                "explorer": "$explorer_id",
+            }}},
+            {"$group": {
+                "_id": "$_id.bucket",
+                "count": {"$sum": 1},
+            }},
+            {"$sort": {"_id": 1}},
+        ])
+        results = []
+        for row in rows:
+            bucket = row["_id"]
+            if timezone.is_naive(bucket):
+                bucket = bucket.replace(tzinfo=UTC)
+            local_bucket = bucket.astimezone(MANILA)
+            next_bucket = local_bucket + timedelta(days=1 if interval == "daily" else 7)
+            results.append({
+                "date": local_bucket.date().isoformat(),
+                "start": max(bucket.astimezone(UTC), window["$gte"]).isoformat(),
+                "end_exclusive": min(next_bucket.astimezone(UTC), window["$lt"]).isoformat(),
+                "count": row["count"],
+            })
+        return results
+
+    @classmethod
     def get_first_observed_events(cls, *, business_ids=None):
         """Return first-observed timestamps by event type, not a coverage guarantee."""
         # The manuscript describes separate collections; use the maintained unified store.
