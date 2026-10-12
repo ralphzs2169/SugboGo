@@ -6,6 +6,7 @@ import PageHeader from "../components/PageHeader";
 import TableTabs from "../components/data-table/TableTabs";
 import ReviewDisputeManagementTable from "../review-disputes/components/ReviewDisputeManagementTable";
 import UnderReviewWorkspace from "../under-review/components/UnderReviewWorkspace";
+import SuspiciousReviewWorkspace from "../suspicious-reviews/components/SuspiciousReviewWorkspace";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 const MODERATION_TABS = [
@@ -18,12 +19,6 @@ const MODERATION_TABS = [
 const VALID_TABS = new Set(MODERATION_TABS.map((tab) => tab.id));
 
 const PLACEHOLDERS = {
-  suspicious: {
-    title: "Suspicious review signals are coming next",
-    description:
-      "Advisory review reliability signals will be available here in a future update.",
-    Icon: ShieldAlert,
-  },
   reported: {
     title: "Reported reviews are coming next",
     description:
@@ -117,6 +112,8 @@ export default function ModerationIntegrityPage() {
 
             {activeTab === "under-review" ? (
               <UnderReviewWorkspace />
+            ) : activeTab === "suspicious" ? (
+              <SuspiciousReviewWorkspace />
             ) : (
               <ModerationPlaceholder {...PLACEHOLDERS[activeTab]} />
             )}

@@ -36,7 +36,14 @@ after(async () => {
   delete globalThis.window;
 });
 
-function renderPage(url, { list, detail } = {}) {
+function renderPage(url, {
+  list,
+  detail,
+  suspiciousList,
+  suspiciousDetail,
+  suspiciousError,
+  suspiciousDetailError,
+} = {}) {
   globalThis.window = {
     location: { search: new URL(url, "http://localhost").search },
   };
@@ -60,6 +67,48 @@ function renderPage(url, { list, detail } = {}) {
       ["admin", "under-review", "detail", detail.id],
       detail,
     );
+  }
+  if (suspiciousList) {
+    queryClient.setQueryData(
+      ["admin", "suspicious-reviews", "list", {
+        page: 1,
+        page_size: 10,
+        search: "",
+        signal: undefined,
+        ordering: "newest",
+      }],
+      suspiciousList,
+    );
+  }
+  if (suspiciousError) {
+    queryClient.getQueryCache().build(queryClient, {
+      queryKey: ["admin", "suspicious-reviews", "list", {
+        page: 1,
+        page_size: 10,
+        search: "",
+        signal: undefined,
+        ordering: "newest",
+      }],
+    }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: new Error("Network unavailable"),
+    });
+  }
+  if (suspiciousDetail) {
+    queryClient.setQueryData(
+      ["admin", "suspicious-reviews", "detail", suspiciousDetail.id],
+      suspiciousDetail,
+    );
+  }
+  if (suspiciousDetailError) {
+    queryClient.getQueryCache().build(queryClient, {
+      queryKey: ["admin", "suspicious-reviews", "detail", suspiciousDetailError],
+    }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: new Error("Review unavailable"),
+    });
   }
 
   return renderToString(
@@ -290,7 +339,7 @@ test("empty queue renders the moderation empty state", () => {
   assert.match(html, /No reviews currently need moderation/);
 });
 
-test("all four tabs render and placeholder content follows the URL", () => {
+test("all four tabs render and Suspicious has its investigation workspace", () => {
   const suspicious = renderPage(
     "/admin-panel/moderation-integrity?tab=suspicious",
   );
@@ -302,10 +351,139 @@ test("all four tabs render and placeholder content follows the URL", () => {
     assert.match(suspicious, new RegExp(label));
   }
 
-  assert.match(suspicious, /Suspicious review signals are coming next/);
+  assert.match(suspicious, /Suspicious Reviews/);
+  assert.match(suspicious, /Select a review/);
   assert.match(reported, /Reported reviews are coming next/);
   assert.doesNotMatch(suspicious, /Search review disputes/);
   assert.doesNotMatch(reported, /Search review disputes/);
+});
+
+const suspiciousReview = {
+  id: 83,
+  author: { id: 7, first_name: "Ana", last_name: "Cruz" },
+  business: { id: 9, name: "Cebu Cafe" },
+  text_preview: "Exact repeated review text",
+  first_photo_url: "https://example.com/photo.jpg",
+  photo_count: 2,
+  submitted_at: "2026-10-10T09:00:00Z",
+  reasons: ["duplicate_content", "rapid_submission"],
+};
+
+test("Suspicious queue shows items, badges, filters, and no moderation actions", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious",
+    {
+      suspiciousList: {
+        items: [suspiciousReview],
+        pagination: { page: 1, total_pages: 1 },
+      },
+    },
+  );
+  assert.match(html, /Review #<!-- -->83/);
+  assert.match(html, /Exact repeated review text/);
+  assert.match(html, /Duplicate Content/);
+  assert.match(html, /Rapid Submission/);
+  assert.match(html, /Search suspicious reviews/);
+  assert.match(html, /All signals/);
+  assert.match(html, /Newest first/);
+  assert.doesNotMatch(html, /Approve &amp; Publish|Reject review|Remove Review/);
+});
+
+test("selected Suspicious detail separates detection evidence and live activity", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    {
+      suspiciousList: {
+        items: [suspiciousReview],
+        pagination: { page: 1, total_pages: 1 },
+      },
+      suspiciousDetail: {
+        ...suspiciousReview,
+        text: "Exact repeated review text",
+        status: "published",
+        photos: [],
+        detection_evidence: {
+          duplicate_content: {
+            prior_match_count: 2,
+            basis: "same_user",
+            matched_reviews: [
+              { id: 41, available: true },
+              { id: 47, available: false },
+            ],
+          },
+          rapid_submission: { review_count: 11, window_hours: 24 },
+        },
+        current_related_activity: {
+          duplicate_content: { review_count: 0, reviews: [] },
+          rapid_submission: { review_count: 0, reviews: [] },
+        },
+      },
+    },
+  );
+  assert.match(html, /Why It Was Flagged/);
+  assert.match(html, /Same normalized review text detected/);
+  assert.match(html, /2<!-- --> prior matching reviews/);
+  assert.match(html, /Review #<!-- -->47<!-- --> · unavailable\/deleted/);
+  assert.match(html, /11<!-- --> reviews with the same app installation identifier within <!-- -->24<!-- --> hours/);
+  assert.match(html, /Current Related Activity/);
+  assert.match(html, /Live data currently available/);
+  assert.doesNotMatch(html, /Highly similar content|private-installation/);
+});
+
+test("shared installation evidence shows historical and current account counts separately", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    {
+      suspiciousDetail: {
+        ...suspiciousReview,
+        reasons: ["shared_installation_accounts"],
+        text: "A review for investigation",
+        status: "published",
+        photos: [],
+        detection_evidence: {
+          shared_installation_accounts: {
+            distinct_account_count: 4,
+          },
+        },
+        current_related_activity: {
+          shared_installation_accounts: {
+            distinct_account_count: 2,
+            review_count: 2,
+            reviews: [],
+          },
+        },
+      },
+    },
+  );
+  assert.match(html, /Shared Installation \/ Accounts/);
+  assert.match(html, /4<!-- --> distinct accounts/);
+  assert.match(html, /2<!-- --> distinct accounts currently retained/);
+});
+
+test("Suspicious empty and loading states render", () => {
+  const loading = renderPage("/admin-panel/moderation-integrity?tab=suspicious");
+  assert.match(loading, /Loading suspicious reviews/);
+  const empty = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious",
+    {
+      suspiciousList: {
+        items: [],
+        pagination: { page: 1, total_pages: 0 },
+      },
+    },
+  );
+  assert.match(empty, /No suspicious reviews found/);
+  const error = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious",
+    { suspiciousError: true },
+  );
+  assert.match(error, /Unable to load suspicious reviews/);
+  assert.match(error, /Try Again/);
+  const detailError = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    { suspiciousDetailError: 83 },
+  );
+  assert.match(detailError, /Unable to load this investigation/);
 });
 
 test("Disputes tab renders the existing dispute table controls", () => {
