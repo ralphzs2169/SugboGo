@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from threading import Lock
 from time import monotonic
@@ -14,6 +14,7 @@ from rest_framework import status
 from rest_framework.exceptions import APIException, NotFound, ValidationError
 
 from apps.business.models import Business
+from apps.shared.analytics.date_ranges import MANILA
 from apps.shared.services.mongodb_service import MongoDBService
 
 logger = logging.getLogger(__name__)
@@ -546,3 +547,129 @@ class VisibilityEventService:
         cls._clear_temporary_unavailability()
 
         return business_ids
+
+    @classmethod
+    def _analytics_match(cls, business_ids=None, event_type=None):
+        """Build an explicit analytics scope without imposing current business status."""
+        match = {"event_type": {"$in": [event.value for event in VisibilityEventType]}}
+        if event_type is not None:
+            try:
+                match["event_type"] = VisibilityEventType(event_type).value
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"event_type": "Unsupported visibility event."}) from exc
+        if business_ids is not None:
+            ids = list(business_ids)
+            if any(type(value) is not int or value <= 0 for value in ids):
+                raise ValidationError({"business_ids": "Use positive integer business IDs."})
+            match["business_id"] = {"$in": cls._normalize_business_ids(ids)}
+        return match
+
+    @staticmethod
+    def _analytics_window(start_time, end_time):
+        """Validate and normalize a half-open UTC analytics query window."""
+        if (
+            not isinstance(start_time, datetime) or not isinstance(end_time, datetime)
+            or timezone.is_naive(start_time) or timezone.is_naive(end_time)
+            or start_time >= end_time
+        ):
+            raise ValidationError({"period": "Use ordered, aware datetime boundaries."})
+        return {"$gte": start_time.astimezone(UTC), "$lt": end_time.astimezone(UTC)}
+
+    @classmethod
+    def _read_analytics(cls, pipeline):
+        """Execute a read-only pipeline using existing availability and recovery handling."""
+        cls._raise_if_temporarily_unavailable()
+        # Deliberately bypass ensure_indexes: analytics reads must never create indexes.
+        try:
+            rows = list(cls._get_collection().aggregate(pipeline))
+        except PyMongoError as exc:
+            cls._mark_temporarily_unavailable()
+            logger.exception("Failed to read visibility analytics.")
+            raise VisibilityTrackingUnavailable() from exc
+        cls._clear_temporary_unavailability()
+        return rows
+
+    @classmethod
+    def get_analytics_totals(cls, *, start_time, end_time, business_ids=None):
+        """Count recorded events by type for one business, a set, or the platform."""
+        match = cls._analytics_match(business_ids)
+        match["occurred_at"] = cls._analytics_window(start_time, end_time)
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {"_id": "$event_type", "count": {"$sum": 1}}},
+        ])
+        totals = {event.value: 0 for event in VisibilityEventType}
+        totals.update({row["_id"]: row["count"] for row in rows})
+        return totals
+
+    @classmethod
+    def get_analytics_series(
+        cls, *, start_time, end_time, business_ids=None, interval="daily",
+    ):
+        """Return observed Manila day or Monday-week buckets without fabricating gaps."""
+        if interval not in {"daily", "weekly"}:
+            raise ValidationError({"interval": "Choose daily or weekly."})
+        match = cls._analytics_match(business_ids)
+        window = cls._analytics_window(start_time, end_time)
+        match["occurred_at"] = window
+        truncation = {
+            "date": "$occurred_at",
+            "unit": "day" if interval == "daily" else "week",
+            "timezone": "Asia/Manila",
+        }
+        if interval == "weekly":
+            truncation["startOfWeek"] = "monday"
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {
+                "_id": {"bucket": {"$dateTrunc": truncation}, "event_type": "$event_type"},
+                "count": {"$sum": 1},
+            }},
+            {"$sort": {"_id.bucket": 1, "_id.event_type": 1}},
+        ])
+        results = []
+        for row in rows:
+            bucket = row["_id"]["bucket"]
+            # PyMongo normally decodes BSON UTC datetimes without tzinfo.
+            if timezone.is_naive(bucket):
+                bucket = bucket.replace(tzinfo=UTC)
+            local_bucket = bucket.astimezone(MANILA)
+            next_bucket = local_bucket + timedelta(days=1 if interval == "daily" else 7)
+            results.append({
+                "date": local_bucket.date().isoformat(),
+                "start": max(bucket.astimezone(UTC), window["$gte"]).isoformat(),
+                "end_exclusive": min(next_bucket.astimezone(UTC), window["$lt"]).isoformat(),
+                "event_type": row["_id"]["event_type"],
+                "count": row["count"],
+            })
+        return results
+
+    @classmethod
+    def count_analytics_explorers(
+        cls, *, start_time, end_time, business_ids=None, event_type=None,
+    ):
+        """Count period-wide distinct explorers without exposing explorer identities."""
+        match = cls._analytics_match(business_ids, event_type)
+        match["occurred_at"] = cls._analytics_window(start_time, end_time)
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {"_id": "$explorer_id"}},
+            {"$count": "count"},
+        ])
+        return rows[0]["count"] if rows else 0
+
+    @classmethod
+    def get_first_observed_events(cls, *, business_ids=None):
+        """Return first-observed timestamps by event type, not a coverage guarantee."""
+        # The manuscript describes separate collections; use the maintained unified store.
+        rows = cls._read_analytics([
+            {"$match": cls._analytics_match(business_ids)},
+            {"$group": {"_id": "$event_type", "first_observed_at": {"$min": "$occurred_at"}}},
+        ])
+        results = {event.value: None for event in VisibilityEventType}
+        for row in rows:
+            observed_at = row["first_observed_at"]
+            if timezone.is_naive(observed_at):
+                observed_at = observed_at.replace(tzinfo=UTC)
+            results[row["_id"]] = observed_at.astimezone(UTC)
+        return results
