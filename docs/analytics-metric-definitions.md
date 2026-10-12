@@ -120,3 +120,29 @@ Tests cover Manila/UTC boundaries, default and custom periods, equal elapsed pri
 Task 2's SQL service tests require a disposable PostGIS test database. API access/contract tests and Mongo aggregation tests use in-memory fixtures/mocks. Refer to `sugbogo_backend/docs/admin-analytics-api-contract.md` for endpoint behavior, per-source metadata, and frontend acceptance checks. Visibility growth comparisons are deliberately null while coverage is unverified; there is no client-supplied coverage override.
 
 Task 3's SQL/service and API pagination tests also require a disposable PostGIS test database. They cover current eligible populations, pooled percentages, valid versus cached specialty counts, distinct supporters, fixed-window boundaries, server-owned threshold overrides, globally sorted pagination, Mongo failures and preserved classification-management statistics. Real Mongo performance and business-population scale still require infrastructure validation.
+
+## Task 4: approved admin operations definitions
+
+This task uses PostgreSQL domain records. It adds no tracking, scoring, payments, migrations or dependencies.
+
+### Onboarding and approved legacy exceptions
+
+Reuse `MerchantApplicationAnalyticsService.get_application_statistics()` unchanged. Its existing definitions remain authoritative for this section: pending applications have current `submitted` status; approval rate is approved / (approved + rejected) by current application status; SLA compliance uses review events with a recorded, non-null SLA outcome. Empty rate denominators remain null. Existing trends, sample thresholds, and histories retain their native semantics.
+
+**User-approved exception:** existing onboarding statistics retain configured UTC reporting and their native comparison windows, rather than adopting the shared Manila period/equal-adjacent-window rules. The legacy weekly window runs Monday through the current date, compared with the same elapsed dates in the preceding week. Existing daily histories cover seven dates. The response exposes this through `legacy_meta`, including `selected_period_applies=false`; the selectable period must not be presented as filtering these legacy outputs. No global timezone or existing service behavior is changed.
+
+New weekly activity uses the selected Manila period, Monday-based weeks, clipped half-open boundaries, and zero-filled event counts. Submissions count `MerchantApplicationSubmission` rows by `MASUB_SUBMITTED_AT`, including resubmissions. Completed reviews count approved/rejected `MerchantApplicationReview` rows by `MAREV_REVIEWED_AT`, including unlinked legacy review records. Neither is a distinct-application count.
+
+Pending application aging is a current snapshot, independent of the selected period. Use existing weekday counting with configured UTC dates, excluding the submission date and without a holiday calendar. Reuse the application-owned constants: `on_time` is under 3 business days; `approaching` is 3–4; `overdue` is 5+. Missing or future submission times enter `unknown_age`. Do not apply report/dispute elapsed-hour buckets to the onboarding SLA.
+
+### Attention queue and completed disputes
+
+Open reports are individual `ReviewReport` rows currently `pending`. Open disputes are `MerchantReviewDispute` rows currently `pending`. Both include the whole current backlog, irrespective of the selected period. No prior backlog or backlog growth comparison is fabricated.
+
+Elapsed age buckets are exhaustive: `under_1_day` is [0,24) hours; `days_1_to_2` is [24,72); `days_3_plus` is 72 hours or more. Exactly 24 hours enters the middle bucket, exactly 48 remains there, and exactly 72 enters the last bucket. Missing/future creation timestamps enter `unknown_age`. This is elapsed duration, not local midnight crossings or business days.
+
+Report timestamps are `RREP_CREATED_AT`, `RREP_UPDATED_AT`, and nullable `RREP_WITHDRAWN_AT`. There is no dedicated report resolution timestamp. Administrative approval/rejection audit entries exist, but complete lifecycle/backlog history is not verified. Do not substitute updated time for resolution time or claim that no audit records exist. Metadata discloses current-state queues and unavailable complete queue history.
+
+Dispute timestamps are `MRDSP_CREATED_AT`, `MRDSP_UPDATED_AT`, and nullable `MRDSP_RESOLVED_AT`. There is no `COMPLETED` status: completed means current `upheld` or `dismissed`. Withdrawn disputes are excluded even when they have resolution timestamps.
+
+Median turnaround is elapsed hours from creation to resolution for completed disputes whose resolution timestamp is within the selected Manila period, using [start,end). It is a recorded resolution-period cohort based on retained current statuses, not reconstructed state history. Return null median and sample count 0 for no valid observations; a valid zero-hour duration is retained. Negative/missing creation durations are excluded and counted. Completed disputes missing resolution times are counted separately across all current completed records, because they cannot be assigned to a period. Timestamp anomalies and unverified historical coverage are disclosed; deleted records or missing lifecycle history are not reconstructed.

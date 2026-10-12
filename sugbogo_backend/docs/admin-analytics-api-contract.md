@@ -207,3 +207,61 @@ Results use label `Low recorded attention with specialty support` and `selection
 8. Validate real MongoDB pipelines/index plans and representative population sizes before rollout. The initial implementation assembles filtered attention rows in memory to preserve cross-database sorting correctness; it is not a claim of large-population performance certification.
 
 Task 3 adds no migrations, dependencies, indexes or registered Django apps. Existing UTC event deduplication, evidence/scoring rules, prior analytics contracts and role permissions remain in place.
+
+## Task 4: admin onboarding and attention queue
+
+Both GET routes require an authenticated active admin or superadmin, use the existing success/error envelopes, and accept `period=7|30|90|custom` (default 30), with inclusive `start_date`/`end_date` for custom selections. Unsupported parameters are rejected. These endpoints read PostgreSQL only.
+
+### `GET /api/admin/analytics/onboarding/`
+
+```text
+data:
+  legacy_statistics: unchanged get_application_statistics() result
+  legacy_meta: timezone, as_of, selected_period_applies=false,
+               weekly_window, daily_history_days, definitions, exception
+  pending_aging: on_time, approaching, overdue, unknown_age
+  aging_meta: current_snapshot, timezone, as_of,
+              approaching_business_days, overdue_business_days, definition
+  weekly_activity: [{date, start, end_exclusive, submissions, completed_reviews}]
+  weekly_activity_definition
+  meta: shared Manila period metadata plus legacy exception disclosure
+```
+
+User-approved legacy exception: `legacy_statistics` retains existing configured UTC reporting, native trends/history and comparison windows. `legacy_meta` identifies the actual native weekly dates. The selected Manila period controls only `weekly_activity`; it does not filter legacy KPIs or pending aging. Never relabel legacy statistics as selected-period metrics or reinterpret an existing legacy trend as the shared percentage-change contract.
+
+Render weekly submissions/completed reviews as grouped bars or two lines. They count events, including resubmissions and unlinked recorded review decisions. Weekly buckets start Monday Manila time, are clipped to the selected period and zero-filled. Render application aging as current backlog bands using the existing 3/5 business-day constants; unknown ages remain a separate count. Legacy rates with null denominators must display no result rather than 0%.
+
+### `GET /api/admin/analytics/attention-queue/`
+
+```text
+data:
+  open_reports: {total, under_1_day, days_1_to_2, days_3_plus, unknown_age}
+  open_disputes: {total, under_1_day, days_1_to_2, days_3_plus, unknown_age}
+  queue_meta: current_snapshot, as_of, selected_period_applies=false,
+              age_basis, history_available=false, report_history, dispute_history
+  completed_dispute_turnaround:
+    median_hours (nullable), sample_count,
+    excluded_invalid_duration_count, missing_resolution_timestamp_count,
+    missing_timestamp_scope, measurement_type, definition
+  turnaround_meta: selected-period metadata and recorded-history limitations
+  meta: selected-period metadata and queue-history limitations
+```
+
+Render open counts as current backlog cards and stacked aging bars; changing the period must not imply that old pending records disappear. Buckets are elapsed hours [0,24), [24,72), and 72+, with missing/future timestamps separate. There is no report/dispute identity, evidence, personal location or record-level queue in this response. Existing moderation screens can provide authorized drill-down.
+
+Render completed-dispute median in hours with its sample count. Completed means upheld/dismissed, excludes withdrawn, and selects resolution timestamps inside the requested half-open period. A null median means no valid observations, not instantaneous completion. `missing_resolution_timestamp_count` covers all currently completed disputes, not just the selected period. Display timestamp exclusions and history limitations where applicable.
+
+Current queues are snapshots, not historical queue series. Partial administrator report decision audit exists but is not complete lifecycle history; there is no report resolution timestamp. `is_partial` can therefore be true even when the database query succeeds and returns legitimate zero current counts. It must not be interpreted as a database outage. Resolution-cohort coverage is unverified; no previous backlog comparisons are returned.
+
+### Task 4 verification for members
+
+1. Authenticate as admin and superadmin; confirm both routes return 200. Merchant/explorer and inactive admins must receive 403; unauthenticated clients must receive 401.
+2. Check empty data: pending counts are zero, approval/SLA rates and completed-dispute median are null, and turnaround sample count is zero.
+3. Create pending reports/disputes at 24, 48 and 72 elapsed hours: counts must land in middle, middle and oldest buckets. Confirm closed/withdrawn records are excluded.
+4. Confirm pending records older than a selected 7-day window remain in the current backlog. Review `queue_meta` history disclosures; do not build historical backlog graphs from current counts.
+5. Verify median using upheld/dismissed cases with known durations. Include withdrawn cases, missing resolution timestamps and negative durations to verify exclusions and anomaly counts.
+6. Verify Manila Sunday 23:59 versus Monday 00:00 grouping and exact [start,end) boundaries for submission/review events. Multiple submissions/reviews for one application must count as multiple events.
+7. Compare `legacy_statistics` with the existing merchant-application statistics endpoint using the same database/time. Retain native UTC windows and show the legacy exception in frontend labels/tooltips. Check aging uses application-owned business-day constants rather than moderation elapsed-hour bands.
+8. Run the new operations tests and existing onboarding/analytics regressions against a disposable PostgreSQL/PostGIS test database. Production-scale query timing, representative datasets and frontend integration remain separate verification work.
+
+Task 4 changes no existing onboarding service, moderation decision logic, Discovery Score, Mongo visibility tracking, migrations, dependencies, payments or registered Django apps. Test execution/results are recorded after the approved verification run.
