@@ -296,6 +296,41 @@ class ReviewService:
         return reasons, evidence
 
     @staticmethod
+    def _record_edit_duplicate_content(review: Review) -> None:
+        """Append a first edit-time duplicate finding without rewriting history."""
+        duplicate_reason = Review.ReliabilityReason.DUPLICATE_CONTENT
+        reasons = review.REVW_RELIABILITY_REASONS
+        if duplicate_reason in reasons:
+            return
+
+        duplicate_evidence = ReviewService._duplicate_content_evidence(review)
+        if duplicate_evidence is None:
+            return
+
+        evidence = review.REVW_RELIABILITY_EVIDENCE.copy()
+        duplicate_evidence["detected_during"] = "edit"
+        evidence[duplicate_reason] = duplicate_evidence
+        original_reasons = review.REVW_RELIABILITY_REASONS
+        original_evidence = review.REVW_RELIABILITY_EVIDENCE
+        review.REVW_RELIABILITY_REASONS = [
+            *reasons,
+            duplicate_reason,
+        ]
+        review.REVW_RELIABILITY_EVIDENCE = evidence
+        try:
+            review.save(
+                update_fields=[
+                    "REVW_RELIABILITY_REASONS",
+                    "REVW_RELIABILITY_EVIDENCE",
+                    "REVW_UPDATED_AT",
+                ],
+            )
+        except Exception:
+            review.REVW_RELIABILITY_REASONS = original_reasons
+            review.REVW_RELIABILITY_EVIDENCE = original_evidence
+            raise
+
+    @staticmethod
     def create_review(
         user: User,
         business_id: int,
@@ -882,6 +917,17 @@ class ReviewService:
             raise
 
         if text_changed:
+            try:
+                with transaction.atomic():
+                    ReviewService._record_edit_duplicate_content(review)
+            except Exception as exc:
+                logger.error(
+                    "Review edit duplicate reliability evaluation failed.",
+                    extra={
+                        "review_id": review.REVW_ID,
+                        "error_type": type(exc).__name__,
+                    },
+                )
             BusinessReviewSummaryService.recompute_sentiment(
                 review.BUSN_ID_id,
             )

@@ -7,6 +7,7 @@ import TableTabs from "../components/data-table/TableTabs";
 import ReviewDisputeManagementTable from "../review-disputes/components/ReviewDisputeManagementTable";
 import UnderReviewWorkspace from "../under-review/components/UnderReviewWorkspace";
 import SuspiciousReviewWorkspace from "../suspicious-reviews/components/SuspiciousReviewWorkspace";
+import ReportedReviewWorkspace from "../reported-reviews/components/ReportedReviewWorkspace";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 const MODERATION_TABS = [
@@ -17,31 +18,6 @@ const MODERATION_TABS = [
 ];
 
 const VALID_TABS = new Set(MODERATION_TABS.map((tab) => tab.id));
-
-const PLACEHOLDERS = {
-  reported: {
-    title: "Reported reviews are coming next",
-    description:
-      "Community-reported review management will be available here in a future update.",
-    Icon: Flag,
-  },
-};
-
-function ModerationPlaceholder({ title, description, Icon }) {
-  return (
-    <div className="flex min-h-[520px] items-center justify-center rounded-lg border border-stroke-strong bg-surface px-6 py-14">
-      <div className="max-w-md text-center">
-        <Icon className="mx-auto h-10 w-10 text-text-secondary" />
-        <h2 className="mt-4 text-lg font-semibold text-text-primary">
-          {title}
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-          {description}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 export default function ModerationIntegrityPage() {
   useDocumentTitle("Moderation & Integrity | SugboGo Admin");
@@ -115,7 +91,7 @@ export default function ModerationIntegrityPage() {
             ) : activeTab === "suspicious" ? (
               <SuspiciousReviewWorkspace />
             ) : (
-              <ModerationPlaceholder {...PLACEHOLDERS[activeTab]} />
+              <ReportedReviewWorkspace />
             )}
           </div>
         )}

@@ -11,6 +11,7 @@ let server;
 let ModerationIntegrityPage;
 let navigation;
 let getLegacyModerationDestination;
+let DecisionDialog;
 
 before(async () => {
   server = await createServer({
@@ -29,6 +30,9 @@ before(async () => {
   ({ getLegacyModerationDestination } = await server.ssrLoadModule(
     "/src/features/admin-panel/utils/moderationNavigation.js",
   ));
+  ({ DecisionDialog } = await server.ssrLoadModule(
+    "/src/features/admin-panel/reported-reviews/components/ReportedReviewWorkspace.jsx",
+  ));
 });
 
 after(async () => {
@@ -43,6 +47,10 @@ function renderPage(url, {
   suspiciousDetail,
   suspiciousError,
   suspiciousDetailError,
+  reportedList,
+  reportedDetail,
+  reportedError,
+  reportedDetailError,
 } = {}) {
   globalThis.window = {
     location: { search: new URL(url, "http://localhost").search },
@@ -104,6 +112,40 @@ function renderPage(url, {
   if (suspiciousDetailError) {
     queryClient.getQueryCache().build(queryClient, {
       queryKey: ["admin", "suspicious-reviews", "detail", suspiciousDetailError],
+    }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: new Error("Review unavailable"),
+    });
+  }
+  const reportedListKey = ["admin", "reported-reviews", "list", {
+    page: 1,
+    page_size: 10,
+    search: "",
+    reason: undefined,
+    ordering: "most_reported",
+  }];
+  if (reportedList) {
+    queryClient.setQueryData(reportedListKey, reportedList);
+  }
+  if (reportedError) {
+    queryClient.getQueryCache().build(queryClient, {
+      queryKey: reportedListKey,
+    }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: new Error("Network unavailable"),
+    });
+  }
+  if (reportedDetail) {
+    queryClient.setQueryData(
+      ["admin", "reported-reviews", "detail", reportedDetail.id],
+      reportedDetail,
+    );
+  }
+  if (reportedDetailError) {
+    queryClient.getQueryCache().build(queryClient, {
+      queryKey: ["admin", "reported-reviews", "detail", reportedDetailError],
     }).setState({
       status: "error",
       fetchStatus: "idle",
@@ -353,7 +395,8 @@ test("all four tabs render and Suspicious has its investigation workspace", () =
 
   assert.match(suspicious, /Suspicious Reviews/);
   assert.match(suspicious, /Select a review/);
-  assert.match(reported, /Reported reviews are coming next/);
+  assert.match(reported, /Reported Reviews/);
+  assert.match(reported, /Search reported reviews/);
   assert.doesNotMatch(suspicious, /Search review disputes/);
   assert.doesNotMatch(reported, /Search review disputes/);
 });
@@ -484,6 +527,152 @@ test("Suspicious empty and loading states render", () => {
     { suspiciousDetailError: 83 },
   );
   assert.match(detailError, /Unable to load this investigation/);
+});
+
+const reportedReview = {
+  id: 91,
+  author: { id: 7, first_name: "Ana", last_name: "Cruz" },
+  business: { id: 9, name: "Cebu Cafe" },
+  text_preview: "Reported content preview",
+  first_photo_url: "https://example.com/review.jpg",
+  photo_count: 2,
+  submitted_at: "2026-10-10T09:00:00Z",
+  status: "published",
+  pending_report_count: 3,
+  reason_counts: { spam: 1, abuse: 2, misinformation: 0, other: 0 },
+  first_pending_at: "2026-10-11T09:00:00Z",
+  latest_pending_at: "2026-10-12T09:00:00Z",
+  needs_attention: true,
+};
+
+const reportedList = {
+  items: [reportedReview],
+  pagination: {
+    page: 1,
+    total_items: 1,
+    total_pages: 1,
+    has_next: false,
+    has_previous: false,
+  },
+};
+
+test("Reported tab renders one review group, counts, reasons, and filters", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported",
+    { reportedList },
+  );
+
+  assert.equal((html.match(/Reported content preview/g) ?? []).length, 1);
+  assert.match(html, /3<!-- --> pending <!-- -->reports/);
+  assert.match(html, /Needs Attention/);
+  assert.match(html, /Abuse/);
+  assert.match(html, /Spam/);
+  assert.match(html, /Most Reported/);
+  assert.match(html, /Oldest Report/);
+  assert.match(html, /Newest Report/);
+  assert.match(html, /Search reported reviews/);
+  assert.match(html, /Select a reported review/);
+});
+
+test("Reported detail shows review, summary, individual reports, and decisions", () => {
+  const detail = {
+    ...reportedReview,
+    text: "Full review content under investigation",
+    photos: [{ id: 1, photo_url: "https://example.com/review.jpg" }],
+    reports: [
+      { id: 11, type: "abuse", status: "pending", created_at: "2026-10-11T09:00:00Z", admin_notes: null },
+      { id: 12, type: "spam", status: "pending", created_at: "2026-10-12T09:00:00Z", admin_notes: null },
+      { id: 13, type: "abuse", status: "rejected", created_at: "2026-10-11T10:00:00Z", admin_notes: "Not supported by the review content." },
+    ],
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList, reportedDetail: detail },
+  );
+
+  assert.match(html, /Full review content under investigation/);
+  assert.match(html, /Open review photo 1/);
+  assert.match(html, /Community Reports/);
+  assert.match(html, /Individual Reports/);
+  assert.match(html, /Report #<!-- -->11/);
+  assert.match(html, /Report #<!-- -->12/);
+  assert.match(html, /Previous Decisions/);
+  assert.equal((html.match(/Dismiss Report/g) ?? []).length, 2);
+  assert.equal((html.match(/Confirm Report/g) ?? []).length, 2);
+});
+
+test("Rejected reviews with pending sibling reports stay inspectable", () => {
+  const rejected = {
+    ...reportedReview,
+    status: "rejected",
+    pending_report_count: 1,
+    reason_counts: { spam: 1, abuse: 0, misinformation: 0, other: 0 },
+    needs_attention: false,
+    text: "Previously rejected review",
+    photos: [],
+    reports: [{ id: 14, type: "spam", status: "pending", created_at: "2026-10-12T09:00:00Z", admin_notes: null }],
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList: { ...reportedList, items: [rejected] }, reportedDetail: rejected },
+  );
+
+  assert.match(html, /Rejected/);
+  assert.match(html, /Previously rejected review/);
+  assert.match(html, /Confirm Report/);
+  assert.doesNotMatch(html, /Needs Attention/);
+});
+
+test("report confirmation explains rejection and requires decision notes", () => {
+  const baseProps = {
+    target: {
+      reviewId: 91,
+      reviewStatus: "published",
+      report: { id: 11, type: "abuse" },
+      decision: "confirm",
+    },
+    notes: "Too short",
+    onNotesChange: () => {},
+    onClose: () => {},
+    onConfirm: () => {},
+    pending: false,
+    error: null,
+  };
+  const published = renderToString(React.createElement(DecisionDialog, baseProps));
+  assert.match(published, /rejects the currently published review/);
+  assert.match(published, /Other pending reports remain open/);
+  assert.match(published, /at least 20 characters/);
+  assert.match(published, /disabled=""/);
+
+  const rejected = renderToString(React.createElement(DecisionDialog, {
+    ...baseProps,
+    target: { ...baseProps.target, reviewStatus: "rejected" },
+    notes: "Confirmed after reviewing content.",
+  }));
+  assert.match(rejected, /This review is already rejected/);
+
+  const dismissed = renderToString(React.createElement(DecisionDialog, {
+    ...baseProps,
+    target: { ...baseProps.target, decision: "dismiss" },
+    notes: "No violation after reviewing content.",
+  }));
+  assert.match(dismissed, /leaves the review status unchanged/);
+});
+
+test("Reported loading, empty, list error, and detail error states render", () => {
+  assert.match(renderPage("/admin-panel/moderation-integrity?tab=reported"), /Loading reported reviews/);
+  assert.match(renderPage(
+    "/admin-panel/moderation-integrity?tab=reported",
+    { reportedList: { ...reportedList, items: [] } },
+  ), /No reported reviews currently need attention/);
+  assert.match(renderPage(
+    "/admin-panel/moderation-integrity?tab=reported",
+    { reportedError: true },
+  ), /Unable to load reported reviews/);
+  assert.match(renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedDetailError: 91 },
+  ), /Unable to load this reported review/);
 });
 
 test("Disputes tab renders the existing dispute table controls", () => {

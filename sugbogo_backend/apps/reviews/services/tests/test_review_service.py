@@ -2576,6 +2576,288 @@ class ReviewServiceTests(TestCase):
         self.assertFalse(review.REVW_IS_REPORT_FLAGGED)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
 
+    def test_edit_to_third_same_user_match_records_duplicate_once(self):
+        prior_ids = []
+        for text in ("Great place!", "  GREAT   PLACE! "):
+            prior = ReviewService.create_review(
+                self.user,
+                self._create_signal_business().pk,
+                text,
+            )
+            prior_ids.append(prior.pk)
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Originally different text.",
+        )
+
+        ReviewService.update_review(
+            self.user,
+            review.pk,
+            text="great place!",
+        )
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        evidence = review.REVW_RELIABILITY_EVIDENCE["duplicate_content"]
+        self.assertEqual(evidence["prior_match_count"], 2)
+        self.assertCountEqual(evidence["matched_review_ids"], prior_ids)
+        self.assertEqual(evidence["basis"], "same_user")
+        self.assertEqual(evidence["detected_during"], "edit")
+        self.assertIsNotNone(evidence["observed_at"])
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_edit_to_third_same_installation_match_records_duplicate(self):
+        prior_ids = []
+        for _ in range(2):
+            prior = self._create_signal_review(
+                business=self._create_signal_business(),
+                installation_id="shared-installation",
+            )
+            Review.objects.filter(pk=prior.pk).update(
+                REVW_TEXT="Repeated words.",
+            )
+            prior_ids.append(prior.pk)
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Originally different text.",
+            installation_id="shared-installation",
+        )
+
+        ReviewService.update_review(
+            self.user,
+            review.pk,
+            text="  REPEATED   WORDS. ",
+        )
+
+        review.refresh_from_db()
+        evidence = review.REVW_RELIABILITY_EVIDENCE["duplicate_content"]
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        self.assertCountEqual(evidence["matched_review_ids"], prior_ids)
+        self.assertEqual(evidence["basis"], "same_installation")
+        self.assertEqual(evidence["detected_during"], "edit")
+
+    def test_edit_with_one_prior_match_does_not_count_itself(self):
+        ReviewService.create_review(
+            self.user,
+            self._create_signal_business().pk,
+            "Repeated words.",
+        )
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Originally different text.",
+        )
+
+        ReviewService.update_review(
+            self.user,
+            review.pk,
+            text="Repeated words.",
+        )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+
+    def test_later_edits_preserve_first_duplicate_detection(self):
+        for _ in range(2):
+            ReviewService.create_review(
+                self.user,
+                self._create_signal_business().pk,
+                "Repeated words.",
+            )
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Originally different text.",
+        )
+        ReviewService.update_review(
+            self.user,
+            review.pk,
+            text="Repeated words.",
+        )
+        review.refresh_from_db()
+        original_evidence = review.REVW_RELIABILITY_EVIDENCE.copy()
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+        ) as duplicate_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="Unique words after detection.",
+            )
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="Repeated words.",
+            )
+        duplicate_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, original_evidence)
+
+    def test_unchanged_text_edit_does_not_check_duplicate(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Text that remains unchanged.",
+        )
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+        ) as duplicate_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text=review.REVW_TEXT,
+            )
+        duplicate_check.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+
+    def test_photo_only_edit_does_not_check_duplicate(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Text that remains unchanged.",
+        )
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://example.com/review.jpg",
+            RPHO_PHOTO_PUBLIC_ID="review-photo",
+        )
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+        ) as duplicate_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                keep_photo_ids=[photo.pk],
+            )
+        duplicate_check.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+
+    def test_edit_preserves_duplicate_detected_during_creation(self):
+        for _ in range(2):
+            ReviewService.create_review(
+                self.user,
+                self._create_signal_business().pk,
+                "Repeated words.",
+            )
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Repeated words.",
+        )
+        original_evidence = review.REVW_RELIABILITY_EVIDENCE.copy()
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+        ) as duplicate_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="Unique words after detection.",
+            )
+        duplicate_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, original_evidence)
+
+    def test_text_edit_does_not_add_installation_signals(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Originally different text.",
+            installation_id="shared-installation",
+        )
+        for _ in range(10):
+            self._create_signal_review(
+                installation_id="shared-installation",
+            )
+
+        with patch.object(
+            ReviewService,
+            "_installation_reliability_findings",
+        ) as installation_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="Updated unique review text.",
+            )
+        installation_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+    def test_edit_duplicate_preserves_existing_installation_evidence(self):
+        for _ in range(2):
+            ReviewService.create_review(
+                self.user,
+                self._create_signal_business().pk,
+                "Repeated words.",
+            )
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Originally different text.",
+        )
+        rapid_reason = Review.ReliabilityReason.RAPID_SUBMISSION
+        rapid_evidence = {
+            "observed_at": "2026-10-11T00:00:00+00:00",
+            "window_hours": 24,
+            "review_count": 11,
+        }
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_REASONS=[rapid_reason],
+            REVW_RELIABILITY_EVIDENCE={rapid_reason: rapid_evidence},
+            REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+        )
+
+        ReviewService.update_review(
+            self.user,
+            review.pk,
+            text="Repeated words.",
+        )
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_REASONS,
+            [rapid_reason, Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        self.assertEqual(
+            review.REVW_RELIABILITY_EVIDENCE[rapid_reason],
+            rapid_evidence,
+        )
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
     def test_reliability_evidence_survives_related_review_changes(self):
         prior_reviews = [
             ReviewService.create_review(
