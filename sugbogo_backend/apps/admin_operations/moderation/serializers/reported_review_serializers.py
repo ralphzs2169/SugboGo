@@ -10,6 +10,20 @@ from apps.reviews.serializers.review_serializers import (
 from apps.reviews.serializers.review_reply_serializers import (
     ReviewReplyResponseSerializer,
 )
+from apps.admin_operations.moderation.serializers.manage_review_dispute_serializers import (
+    MIN_MODERATION_NOTES_LENGTH,
+)
+
+
+class ReportedReviewDecisionSerializer(serializers.Serializer):
+    """Validate one Admin decision for all pending reports on a review."""
+
+    decision = serializers.ChoiceField(choices=("keep", "reject"))
+    admin_notes = serializers.CharField(
+        min_length=MIN_MODERATION_NOTES_LENGTH,
+        max_length=2000,
+        trim_whitespace=True,
+    )
 
 
 class ReportedReviewFilterSerializer(serializers.Serializer):
@@ -100,6 +114,8 @@ class ReportedReviewListSerializer(serializers.ModelSerializer):
             ReviewReport.ReportType.SPAM: review.spam_count,
             ReviewReport.ReportType.ABUSE: review.abuse_count,
             ReviewReport.ReportType.MISINFORMATION: review.misinformation_count,
+            ReviewReport.ReportType.OFF_TOPIC: review.off_topic_count,
+            ReviewReport.ReportType.PRIVATE_INFORMATION: review.private_information_count,
             ReviewReport.ReportType.OTHER: review.other_count,
         }
 
@@ -112,10 +128,18 @@ class ReportedReviewReportSerializer(serializers.ModelSerializer):
     status = serializers.CharField(source="RREP_STATUS")
     created_at = serializers.DateTimeField(source="RREP_CREATED_AT")
     admin_notes = serializers.CharField(source="RREP_NOTES", allow_null=True)
+    explanation = serializers.CharField(source="RREP_EXPLANATION", allow_null=True)
 
     class Meta:
         model = ReviewReport
-        fields = ("id", "type", "status", "created_at", "admin_notes")
+        fields = (
+            "id",
+            "type",
+            "status",
+            "created_at",
+            "admin_notes",
+            "explanation",
+        )
 
 
 class ReportedReviewDetailSerializer(ReportedReviewListSerializer):

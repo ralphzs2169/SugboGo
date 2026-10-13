@@ -249,3 +249,27 @@ class ReviewReportSerializer(InstallationIdInputSerializer):
     report_type = serializers.ChoiceField(
         choices=ReviewReport.ReportType.choices,
     )
+    explanation = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+    )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if (
+            "explanation" in self.initial_data
+            and not isinstance(self.initial_data["explanation"], str)
+        ):
+            raise serializers.ValidationError({
+                "explanation": "Explanation must be text.",
+            })
+        if (
+            attrs["report_type"] == ReviewReport.ReportType.OTHER
+            and not attrs.get("explanation")
+        ):
+            raise serializers.ValidationError({
+                "explanation": "Please explain why you are reporting this review.",
+            })
+        return attrs

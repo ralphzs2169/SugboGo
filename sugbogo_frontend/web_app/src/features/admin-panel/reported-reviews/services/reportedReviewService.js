@@ -12,9 +12,9 @@ export async function fetchReportedReview(reviewId) {
   return response.data.data;
 }
 
-export async function decideReviewReport(reportId, decision, adminNotes) {
-  const action = decision === "confirm" ? "approve" : "reject";
-  const response = await apiClient.post(`${BASE_URL}${reportId}/${action}/`, {
+export async function decideReportedReview(reviewId, decision, adminNotes) {
+  const response = await apiClient.post(`${BASE_URL}reviews/${reviewId}/decision/`, {
+    decision,
     admin_notes: adminNotes,
   });
   return response.data.data;

@@ -9,7 +9,9 @@ import useDebounce from "@/shared/hooks/useDebounce";
 import { formatDateTime } from "@/shared/utils/dateUtils";
 import ReviewContentCard from "../../moderation/components/ReviewContentCard";
 import ReviewIdentityHeader from "../../moderation/components/ReviewIdentityHeader";
+import ReviewStickyContextBar from "../../moderation/components/ReviewStickyContextBar";
 import { formatModerationQueueTime } from "../../moderation/components/reviewPresentation";
+import useReviewStickyContext from "../../moderation/hooks/useReviewStickyContext";
 
 import {
   fetchSuspiciousReview,
@@ -253,6 +255,11 @@ function InvestigationDetail({ reviewId, onStale }) {
     enabled: Boolean(reviewId),
     retryOnMount: false,
   });
+  const {
+    scrollContainerRef,
+    reviewHeaderRef,
+    showContextBar,
+  } = useReviewStickyContext(review?.id);
 
   if (!reviewId) {
     return <div className="flex min-h-96 flex-col items-center justify-center p-8 text-center text-text-secondary"><ShieldAlert className="h-8 w-8" /><h2 className="mt-3 font-semibold text-text-primary">Select a review</h2><p className="mt-1 text-sm">Choose a review from the queue to investigate its reliability signals.</p></div>;
@@ -268,16 +275,21 @@ function InvestigationDetail({ reviewId, onStale }) {
   }
 
   return (
-    <article className="space-y-6 p-5 sm:p-6">
-      <ReviewIdentityHeader review={review} />
-      <ReviewContentCard review={review} />
-      <section aria-label="Reliability signals" className="space-y-2">
-        <h3 className="text-xs font-bold uppercase tracking-wide text-text-secondary">Reliability Signals</h3>
-        <SignalBadges reasons={review.reasons} />
-      </section>
-      <DetectionEvidence review={review} />
-      <CurrentActivity review={review} />
-    </article>
+    <div ref={scrollContainerRef} className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
+      <ReviewStickyContextBar review={review} visible={showContextBar} />
+      <article className="space-y-6 p-5 sm:p-6">
+        <div ref={reviewHeaderRef}>
+          <ReviewIdentityHeader review={review} />
+        </div>
+        <ReviewContentCard review={review} />
+        <section aria-label="Reliability signals" className="space-y-2">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-text-secondary">Reliability Signals</h3>
+          <SignalBadges reasons={review.reasons} />
+        </section>
+        <DetectionEvidence review={review} />
+        <CurrentActivity review={review} />
+      </article>
+    </div>
   );
 }
 
@@ -373,8 +385,8 @@ export default function SuspiciousReviewWorkspace() {
           </div>
         )}
       </aside>
-      <main aria-label="Suspicious review investigation" className="min-w-0 lg:max-h-[calc(100vh-260px)] lg:overflow-y-auto">
-        <InvestigationDetail reviewId={selectedId} onStale={handleStale} />
+      <main aria-label="Suspicious review investigation" className="min-w-0">
+        <InvestigationDetail key={selectedId} reviewId={selectedId} onStale={handleStale} />
       </main>
     </div>
   );

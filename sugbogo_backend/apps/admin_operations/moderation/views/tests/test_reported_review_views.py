@@ -96,6 +96,43 @@ class ReportedReviewViewTests(ReportFixtures, TestCase):
         self.assertEqual(item["pending_report_count"], 1)
         self.assertFalse(item["needs_attention"])
 
+    def test_new_reason_counts_filters_and_report_explanations(self):
+        off_topic = self.create_report(
+            self.review,
+            ReviewReport.ReportType.OFF_TOPIC,
+        )
+        private = self.create_report(
+            self.review,
+            ReviewReport.ReportType.PRIVATE_INFORMATION,
+        )
+        ReviewReport.objects.filter(pk=private.pk).update(
+            RREP_EXPLANATION="This includes someone's address.",
+        )
+
+        list_url = reverse("admin-reported-review-list")
+        for reason in (
+            ReviewReport.ReportType.OFF_TOPIC,
+            ReviewReport.ReportType.PRIVATE_INFORMATION,
+        ):
+            with self.subTest(reason=reason):
+                response = self.client.get(list_url, {"reason": reason})
+                self.assertEqual(response.status_code, 200)
+                item = response.data["data"]["items"][0]
+                self.assertEqual(item["reason_counts"][reason], 1)
+                self.assertEqual(item["reason_counts"]["abuse"], 1)
+
+        detail = self.client.get(
+            reverse("admin-reported-review-detail", args=[self.review.pk]),
+        ).data["data"]
+        reports = {report["id"]: report for report in detail["reports"]}
+        self.assertIsNone(reports[off_topic.pk]["explanation"])
+        self.assertEqual(
+            reports[private.pk]["explanation"],
+            "This includes someone's address.",
+        )
+        self.assertIsNone(reports[private.pk]["admin_notes"])
+        self.assertNotIn("explanation", str(detail["author"]))
+
     def test_admin_presentation_context_uses_existing_review_data(self):
         """The grouped read model adds display context without changing reports."""
         self.business.BUSN_COVER_PHOTO_URL = "https://example.com/cover.jpg"
@@ -145,6 +182,7 @@ class ReportedReviewViewTests(ReportFixtures, TestCase):
             "needs_attention",
             "reports",
             "reporter",
+            "explanation",
         ):
             with self.subTest(name=name):
                 self.assertNotIn(name, fields)
@@ -288,4 +326,89 @@ class ReportedReviewViewTests(ReportFixtures, TestCase):
                 reverse("admin-reported-review-detail", args=[self.review.pk]),
             ).status_code,
             404,
+        )
+
+
+class ReportedReviewDecisionViewTests(ReportFixtures, TestCase):
+    """Exercise the Admin-only review-level decision API."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.url = reverse("admin-reported-review-decision", args=[self.review.pk])
+        self.client.force_authenticate(self.admin)
+
+    def decide(self, decision, note="Review and all community reports inspected."):
+        return self.client.post(
+            self.url,
+            {"decision": decision, "admin_notes": note},
+        )
+
+    def test_admin_and_super_admin_can_resolve_group(self):
+        self.add_pending_reports(2)
+        response = self.decide("keep")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["resolved_report_count"], 3)
+        self.assertEqual(response.data["data"]["review_status"], "published")
+        self.assertEqual(
+            self.client.get(reverse("admin-reported-review-list")).data["data"]["items"],
+            [],
+        )
+
+        second_author = User.objects.create_user(
+            email="second-reported-author@example.com",
+            password=None,
+            USER_FNAME="Second",
+            USER_LNAME="Author",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        second_review = Review.objects.create(
+            USER_ID=second_author,
+            BUSN_ID=self.business,
+            REVW_TEXT="Second review",
+        )
+        ReviewReport.objects.create(
+            USER_ID=self.user,
+            REVW_ID=second_review,
+            RREP_TYPE=ReviewReport.ReportType.SPAM,
+        )
+        self.admin.USER_ROLE = User.UserRole.SUPER_ADMIN
+        self.admin.save(update_fields=["USER_ROLE"])
+        self.client.force_authenticate(self.admin)
+        second_url = reverse("admin-reported-review-decision", args=[second_review.pk])
+        self.assertEqual(
+            self.client.post(
+                second_url,
+                {"decision": "keep", "admin_notes": "Review content inspected and kept published."},
+            ).status_code,
+            200,
+        )
+
+    def test_unauthorized_roles_and_invalid_input_are_denied(self):
+        self.client.force_authenticate(user=None)
+        self.assertIn(self.decide("keep").status_code, (401, 403))
+        for user in (self.user, self.second_user):
+            self.client.force_authenticate(user)
+            self.assertEqual(self.decide("keep").status_code, 403)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.decide("keep", "short").status_code, 400)
+        self.assertEqual(self.decide("unknown").status_code, 400)
+        self.assertEqual(
+            ReviewReport.objects.get(pk=self.report.pk).RREP_STATUS,
+            ReviewReport.ReportStatus.PENDING,
+        )
+
+    def test_reject_resolves_group_and_repeat_is_refused(self):
+        self.add_pending_reports(2)
+        response = self.decide("reject")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["review_status"], "rejected")
+        self.assertEqual(self.decide("reject").status_code, 400)
+        self.assertEqual(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+            ).count(),
+            0,
         )

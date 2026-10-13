@@ -1,7 +1,9 @@
 export const REPORT_REASONS = {
   spam: "Spam",
-  abuse: "Abuse",
-  misinformation: "Misinformation",
+  abuse: "Abuse or Harassment",
+  misinformation: "False or Misleading Information",
+  off_topic: "Off-topic or Irrelevant",
+  private_information: "Personal or Private Information",
   other: "Other",
 };
 

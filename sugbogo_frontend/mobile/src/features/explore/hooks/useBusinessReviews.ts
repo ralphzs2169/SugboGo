@@ -11,6 +11,7 @@ import { useEffect, useRef } from "react";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import * as reviewService from "../api/reviewBusiness.service";
+import type { ReviewReportReason } from "../api/reviewBusiness.service";
 import type {
   BusinessReviewFilters,
   BusinessReviewListResponse,
@@ -357,9 +358,11 @@ export function useReportReview(businessId: number) {
     ({
       reviewId,
       reportType,
+      explanation,
     }: {
       reviewId: number;
-      reportType: "spam" | "abuse" | "misinformation" | "other";
-    }) => reviewService.reportReview(reviewId, reportType),
+      reportType: ReviewReportReason;
+      explanation?: string;
+    }) => reviewService.reportReview(reviewId, reportType, explanation),
   );
 }

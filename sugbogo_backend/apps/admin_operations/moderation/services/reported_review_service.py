@@ -53,6 +53,20 @@ class ReportedReviewService:
                     ),
                     distinct=True,
                 ),
+                off_topic_count=Count(
+                    "reports",
+                    filter=pending & Q(
+                        reports__RREP_TYPE=ReviewReport.ReportType.OFF_TOPIC,
+                    ),
+                    distinct=True,
+                ),
+                private_information_count=Count(
+                    "reports",
+                    filter=pending & Q(
+                        reports__RREP_TYPE=ReviewReport.ReportType.PRIVATE_INFORMATION,
+                    ),
+                    distinct=True,
+                ),
                 other_count=Count(
                     "reports",
                     filter=pending & Q(reports__RREP_TYPE=ReviewReport.ReportType.OTHER),

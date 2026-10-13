@@ -37,6 +37,7 @@ class ReviewReportService:
         review_id: int,
         report_type: str,
         installation_id: str | None = None,
+        explanation: str | None = None,
     ) -> ReviewReport:
         """Record a pending concern about another user's published review."""
         try:
@@ -60,6 +61,7 @@ class ReviewReportService:
                 USER_ID=user,
                 RREP_TYPE=report_type,
                 RREP_INSTALLATION_ID=installation_id,
+                RREP_EXPLANATION=explanation or None,
             )
         except IntegrityError:
             raise ValidationError(

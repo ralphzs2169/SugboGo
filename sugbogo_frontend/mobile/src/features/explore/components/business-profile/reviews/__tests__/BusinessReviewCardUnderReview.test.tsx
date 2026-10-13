@@ -35,7 +35,7 @@ jest.mock("@/shared/components/bottom-sheets/ActionBottomSheet", () => ({
     ));
   },
 }));
-jest.mock("@/shared/components/bottom-sheets/SelectionBottomSheet", () => ({
+jest.mock("../ReportReviewSheet", () => ({
   __esModule: true,
   default: () => null,
 }));

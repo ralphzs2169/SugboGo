@@ -60,18 +60,18 @@ test("detail loads one reported review group", async () => {
   assert.equal((await service.fetchReportedReview(91)).id, 91);
 });
 
-test("report decisions use the existing report-specific endpoints with notes", async () => {
+test("review decisions use one grouped endpoint with notes", async () => {
   const calls = [];
   apiClient.post = async (...args) => {
     calls.push(args);
     return { data: { data: { status: "resolved" } } };
   };
 
-  await service.decideReviewReport(11, "dismiss", "No violation found on inspection.");
-  await service.decideReviewReport(12, "confirm", "Confirmed violation in review content.");
+  await service.decideReportedReview(91, "keep", "No violation found on inspection.");
+  await service.decideReportedReview(92, "reject", "Confirmed violation in review content.");
 
   assert.deepEqual(calls, [
-    ["/admin/review-reports/11/reject/", { admin_notes: "No violation found on inspection." }],
-    ["/admin/review-reports/12/approve/", { admin_notes: "Confirmed violation in review content." }],
+    ["/admin/review-reports/reviews/91/decision/", { decision: "keep", admin_notes: "No violation found on inspection." }],
+    ["/admin/review-reports/reviews/92/decision/", { decision: "reject", admin_notes: "Confirmed violation in review content." }],
   ]);
 });

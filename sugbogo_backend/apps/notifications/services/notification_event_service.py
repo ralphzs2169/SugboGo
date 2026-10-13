@@ -20,6 +20,21 @@ class NotificationEventService:
             NotificationEventService._review_rejected(review, previous_review_status)
 
     @staticmethod
+    def reported_review_resolved(*, reports, review, previous_review_status):
+        """Notify each reporter and the author once for a review-level decision."""
+        for report in reports:
+            NotificationEventService.review_report_resolved(
+                report,
+                review,
+                Review.ReviewStatus.REJECTED,
+            )
+        if review.REVW_STATUS == Review.ReviewStatus.REJECTED:
+            NotificationEventService._review_rejected(
+                review,
+                previous_review_status,
+            )
+
+    @staticmethod
     def review_dispute_resolved(dispute, previous_review_status):
         """Notify the submitting merchant without claiming review clearance."""
         outcome = dispute.MRDSP_STATUS

@@ -138,13 +138,23 @@ export function unlikeReview(reviewId: number): Promise<ApiResponse<null>> {
   return request(apiClient.delete(`/reviews/${reviewId}/like/`));
 }
 
+export type ReviewReportReason =
+  | "spam"
+  | "abuse"
+  | "misinformation"
+  | "off_topic"
+  | "private_information"
+  | "other";
+
 export function reportReview(
   reviewId: number,
-  reportType: "spam" | "abuse" | "misinformation" | "other",
+  reportType: ReviewReportReason,
+  explanation?: string,
 ) {
   return request(
     apiClient.post(`/reviews/${reviewId}/report/`, {
       report_type: reportType,
+      ...(explanation ? { explanation } : {}),
     }),
   );
 }

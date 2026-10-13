@@ -421,6 +421,7 @@ describe("useBusinessReviews", () => {
       data: null,
     });
     const { client, Wrapper } = setupClient();
+    const invalidations = jest.spyOn(client, "invalidateQueries");
     const { result, unmount } = await renderHook(
       () => useReportReview(20),
       { wrapper: Wrapper },
@@ -430,9 +431,22 @@ describe("useBusinessReviews", () => {
       await result.current.mutateAsync({
         reviewId: 8,
         reportType: "spam",
+        explanation: "Repeated promotional content.",
       });
     });
 
+    expect(reportReview).toHaveBeenCalledWith(
+      8,
+      "spam",
+      "Repeated promotional content.",
+    );
+    for (const queryKey of [
+      businessReviewPreviewKey(20),
+      businessReviewsKey(20),
+      exploreBusinessDetailKey(20),
+    ]) {
+      expect(invalidations).toHaveBeenCalledWith({ queryKey });
+    }
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
     unmount();

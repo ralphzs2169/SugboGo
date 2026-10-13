@@ -5,6 +5,7 @@ from apps.admin_operations.moderation.views.manage_review_report_views import (
     AdminReviewReportApproveView, AdminReviewReportRejectView,
 )
 from apps.admin_operations.moderation.views.reported_review_views import (
+    AdminReportedReviewDecisionView,
     AdminReportedReviewDetailView,
     AdminReportedReviewListView,
 )
@@ -14,6 +15,11 @@ urlpatterns = [
         "reviews/",
         AdminReportedReviewListView.as_view(),
         name="admin-reported-review-list",
+    ),
+    path(
+        "reviews/<int:review_id>/decision/",
+        AdminReportedReviewDecisionView.as_view(),
+        name="admin-reported-review-decision",
     ),
     path(
         "reviews/<int:review_id>/",

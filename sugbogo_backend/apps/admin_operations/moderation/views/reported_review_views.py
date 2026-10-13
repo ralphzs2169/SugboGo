@@ -1,4 +1,4 @@
-"""Admin-only read endpoints for reviews with pending reports."""
+"""Admin-only grouped review reports and review-level decisions."""
 
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -7,6 +7,10 @@ from apps.admin_operations.moderation.serializers.reported_review_serializers im
     ReportedReviewDetailSerializer,
     ReportedReviewFilterSerializer,
     ReportedReviewListSerializer,
+    ReportedReviewDecisionSerializer,
+)
+from apps.admin_operations.moderation.services.manage_reported_review_service import (
+    ManageReportedReviewService,
 )
 from apps.admin_operations.moderation.services.reported_review_service import (
     ReportedReviewService,
@@ -57,4 +61,27 @@ class AdminReportedReviewDetailView(APIView):
         return success_response(
             data=ReportedReviewDetailSerializer(review).data,
             message="Reported review retrieved successfully.",
+        )
+
+
+class AdminReportedReviewDecisionView(APIView):
+    """Resolve all pending reports through one review-level Admin decision."""
+
+    permission_classes = AdminReportedReviewListView.permission_classes
+
+    def post(
+        self,
+        request,
+        review_id,
+    ):
+        serializer = ReportedReviewDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = ManageReportedReviewService.resolve(
+            review_id,
+            actor=request.user,
+            **serializer.validated_data,
+        )
+        return success_response(
+            data=result,
+            message="Reported review decision saved successfully.",
         )

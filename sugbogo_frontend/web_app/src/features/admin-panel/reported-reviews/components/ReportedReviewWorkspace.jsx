@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Flag, Image as ImageIcon, Inbox, MessageSquare, Pencil, Search } from "lucide-react";
+import { AlertCircle, Flag, Image as ImageIcon, Inbox, MessageSquare, Pencil, Search, Store } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
@@ -11,11 +11,14 @@ import UserAvatar from "@/shared/components/UserAvatar";
 import useDebounce from "@/shared/hooks/useDebounce";
 import { formatDateTime } from "@/shared/utils/dateUtils";
 import ReviewContentCard from "../../moderation/components/ReviewContentCard";
-import ReviewIdentityHeader, { ReviewStatusBadge as ReviewStatus } from "../../moderation/components/ReviewIdentityHeader";
+import ReviewIdentityHeader from "../../moderation/components/ReviewIdentityHeader";
+import ReviewStickyContextBar from "../../moderation/components/ReviewStickyContextBar";
 import { formatModerationQueueTime } from "../../moderation/components/reviewPresentation";
+import useReviewStickyContext from "../../moderation/hooks/useReviewStickyContext";
+import { fetchBusiness } from "../../businesses/services/businessService";
 
 import {
-  decideReviewReport,
+  decideReportedReview,
   fetchReportedReview,
   fetchReportedReviews,
 } from "../services/reportedReviewService";
@@ -28,20 +31,47 @@ import { refreshReportedReview } from "../utils/refreshReportedReview";
 
 const PAGE_SIZE = 10;
 
+function NeedsAttentionBadge() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200/70 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+      <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+      Needs Attention
+    </span>
+  );
+}
+
 function ReasonBadges({ counts }) {
+  const reasons = pendingReasons(counts).sort(
+    ([first], [second]) => (counts[second] ?? 0) - (counts[first] ?? 0),
+  );
+  const visibleReasons = reasons.length > 3 ? reasons.slice(0, 2) : reasons;
+
   return (
     <div className="flex flex-wrap gap-1.5">
-      {pendingReasons(counts).map(([reason]) => (
-        <span key={reason} className="inline-flex items-center gap-1 rounded-md border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-medium text-text-primary">
-          <Flag className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+      {visibleReasons.map(([reason]) => (
+        <span key={reason} className="inline-flex items-center rounded-md border border-stroke bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-secondary">
           {REPORT_REASONS[reason]}
         </span>
       ))}
+      {reasons.length > 3 && (
+        <span className="inline-flex items-center rounded-md border border-stroke bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-secondary">
+          +{reasons.length - visibleReasons.length} more
+        </span>
+      )}
     </div>
   );
 }
 
 function QueueItem({ review, selected, onSelect }) {
+  const { data: businessDetails } = useQuery({
+    queryKey: ["admin", "businesses", "detail", review.business.id],
+    queryFn: () => fetchBusiness(review.business.id),
+    enabled: Boolean(review.business.id) && !review.business.cover_photo_url,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const businessCoverUrl = review.business.cover_photo_url || businessDetails?.cover_photo_url;
+
   return (
     <button
       type="button"
@@ -64,15 +94,24 @@ function QueueItem({ review, selected, onSelect }) {
             <span className="truncate text-sm font-semibold text-text-primary">
               {displayName(review.author)}
             </span>
-            <time dateTime={review.submitted_at} title={formatDateTime(review.submitted_at)} className="shrink-0 text-xs text-text-secondary">
-              {formatModerationQueueTime(review.submitted_at)}
+            <time dateTime={review.latest_pending_at} title={`Latest report: ${formatDateTime(review.latest_pending_at)}`} className="shrink-0 text-xs text-text-secondary">
+              {formatModerationQueueTime(review.latest_pending_at)}
             </time>
           </div>
-          <p className="mt-0.5 truncate text-xs text-text-secondary">
-            Review #{review.id} · {review.business.name}
-          </p>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
+              {businessCoverUrl ? (
+                <img src={businessCoverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+              ) : (
+                <Store className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </span>
+            <span className="min-w-0 truncate">{review.business.name}</span>
+            <span aria-hidden="true">·</span>
+            <span className="shrink-0">Review #{review.id}{review.status === "rejected" ? " · Rejected" : ""}</span>
+          </div>
           <div className="mt-2 flex items-start gap-3">
-            <p className="min-w-0 flex-1 line-clamp-2 text-sm leading-5 text-text-primary">
+            <p className="min-w-0 flex-1 rounded-lg bg-surface-secondary px-2.5 py-2 text-sm leading-5 text-text-primary line-clamp-2">
               {review.text_preview || "Photo review"}
             </p>
             {review.first_photo_url && (
@@ -80,16 +119,13 @@ function QueueItem({ review, selected, onSelect }) {
             )}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="text-xs font-semibold text-text-primary">
+            <span className={`inline-flex items-center gap-1 text-xs font-semibold ${review.pending_report_count >= 3 ? "text-text-primary" : "text-text-secondary"}`}>
+              <Flag className={`h-3.5 w-3.5 ${review.pending_report_count >= 3 ? "text-warning" : "text-text-secondary"}`} aria-hidden="true" />
               {review.pending_report_count} pending {review.pending_report_count === 1 ? "report" : "reports"}
             </span>
-            {review.needs_attention && (
-              <StatusBadge variant="warning">Needs Attention</StatusBadge>
-            )}
-            <ReviewStatus status={review.status} />
+            <ReasonBadges counts={review.reason_counts} />
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <ReasonBadges counts={review.reason_counts} />
             {review.photo_count > 0 && (
               <span className="inline-flex items-center gap-1 rounded-md border border-stroke bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
                 <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -99,7 +135,7 @@ function QueueItem({ review, selected, onSelect }) {
             {review.has_reply && (
               <span className="inline-flex items-center gap-1 rounded-md border border-stroke bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
                 <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                Reply
+                Merchant replied
               </span>
             )}
             {review.is_edited && (
@@ -124,13 +160,13 @@ function ReportSummary({ review }) {
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-base font-semibold text-text-primary">Community Reports</h3>
         {review.needs_attention && (
-          <StatusBadge variant="warning">Needs Attention</StatusBadge>
+          <NeedsAttentionBadge />
         )}
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        {review.pending_report_count} pending {review.pending_report_count === 1 ? "report" : "reports"}. Reports are allegations awaiting individual decisions.
+        {review.pending_report_count} pending {review.pending_report_count === 1 ? "report" : "reports"}. Community reports are evidence for a decision about this review.
       </p>
-      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {Object.entries(REPORT_REASONS).map(([reason, label]) => (
           <div key={reason} className="rounded-lg border border-stroke bg-surface px-3 py-3">
             <dt className="text-xs text-text-secondary">{label}</dt>
@@ -146,7 +182,20 @@ function ReportSummary({ review }) {
   );
 }
 
-function IndividualReports({ review, onDecision }) {
+function ReportExplanation({ explanation }) {
+  if (!explanation) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 text-sm text-text-secondary">
+      <p className="font-medium text-text-primary">Reporter's explanation</p>
+      <p className="mt-1 whitespace-pre-wrap">{explanation}</p>
+    </div>
+  );
+}
+
+function IndividualReports({ review }) {
   const pending = review.reports?.filter((report) => report.status === "pending") ?? [];
   const resolved = review.reports?.filter((report) => report.status !== "pending") ?? [];
 
@@ -154,24 +203,16 @@ function IndividualReports({ review, onDecision }) {
     <section aria-label="Individual reports" className="border-t border-stroke pt-5">
       <h3 className="text-base font-semibold text-text-primary">Individual Reports</h3>
       <p className="mt-1 text-sm text-text-secondary">
-        Decide each pending community report separately. Other pending reports remain open after a decision.
+        These reports are supporting evidence for the review decision below.
       </p>
       <div className="mt-4 space-y-3">
         {pending.map((report) => (
           <article key={report.id} className="rounded-lg border border-stroke bg-background p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h4 className="text-sm font-semibold text-text-primary">
-                  {REPORT_REASONS[report.type] ?? "Report"} · Report #{report.id}
-                </h4>
-                <p className="mt-1 text-xs text-text-secondary">Submitted {formatDateTime(report.created_at)}</p>
-              </div>
-              <StatusBadge variant="warning">Pending</StatusBadge>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button size="sm" variant="secondary" onClick={() => onDecision(report, "dismiss", review.status)}>Dismiss Report</Button>
-              <Button size="sm" variant="danger-outline" onClick={() => onDecision(report, "confirm", review.status)}>Confirm Report</Button>
-            </div>
+            <h4 className="text-sm font-semibold text-text-primary">
+              {REPORT_REASONS[report.type] ?? "Report"} · Report #{report.id}
+            </h4>
+            <p className="mt-1 text-xs text-text-secondary">Submitted {formatDateTime(report.created_at)}</p>
+            <ReportExplanation explanation={report.explanation} />
           </article>
         ))}
       </div>
@@ -188,6 +229,7 @@ function IndividualReports({ review, onDecision }) {
                   <StatusBadge variant="muted">{report.status}</StatusBadge>
                 </div>
                 <p className="mt-1 text-xs text-text-secondary">Submitted {formatDateTime(report.created_at)}</p>
+                <ReportExplanation explanation={report.explanation} />
                 {report.admin_notes && (
                   <p className="mt-2 whitespace-pre-wrap text-text-secondary">Decision notes: {report.admin_notes}</p>
                 )}
@@ -200,13 +242,43 @@ function IndividualReports({ review, onDecision }) {
   );
 }
 
-function ReportedReviewDetail({ reviewId, onStale, onDecision }) {
+function AdminDecision({ review, onDecision, pending }) {
+  const alreadyRejected = review.status === "rejected";
+
+  return (
+    <section aria-label="Admin decision" className="border-t border-stroke pt-5">
+      <h3 className="text-base font-semibold text-text-primary">Admin Decision</h3>
+      <p className="mt-1 text-sm text-text-secondary">
+        {alreadyRejected
+          ? "This review is already rejected. Resolve its remaining pending reports without repeating the review rejection."
+          : "These community reports concern the same review. Decide whether the review should remain published."}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {!alreadyRejected && (
+          <Button variant="secondary" disabled={pending} onClick={() => onDecision(review, "keep")}>
+            Keep Review
+          </Button>
+        )}
+        <Button variant="danger-outline" disabled={pending} onClick={() => onDecision(review, "reject")}>
+          Reject Review
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function ReportedReviewDetail({ reviewId, onStale, onDecision, decisionPending }) {
   const { data: review, isLoading, error, refetch } = useQuery({
     queryKey: ["admin", "reported-reviews", "detail", reviewId],
     queryFn: () => fetchReportedReview(reviewId),
     enabled: Boolean(reviewId),
     retryOnMount: false,
   });
+  const {
+    scrollContainerRef,
+    reviewHeaderRef,
+    showContextBar,
+  } = useReviewStickyContext(review?.id);
 
   if (!reviewId) {
     return (
@@ -234,12 +306,18 @@ function ReportedReviewDetail({ reviewId, onStale, onDecision }) {
   }
 
   return (
-    <article className="space-y-6 p-5 sm:p-6">
-      <ReviewIdentityHeader review={review} />
-      <ReviewContentCard review={review} />
-      <ReportSummary review={review} />
-      <IndividualReports review={review} onDecision={onDecision} />
-    </article>
+    <div ref={scrollContainerRef} className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
+      <ReviewStickyContextBar review={review} visible={showContextBar} />
+      <article className="space-y-6 p-5 sm:p-6">
+        <div ref={reviewHeaderRef}>
+          <ReviewIdentityHeader review={review} />
+        </div>
+        <ReviewContentCard review={review} />
+        <ReportSummary review={review} />
+        <IndividualReports review={review} />
+        <AdminDecision review={review} onDecision={onDecision} pending={decisionPending} />
+      </article>
+    </div>
   );
 }
 
@@ -248,18 +326,18 @@ export function DecisionDialog({ target, notes, onNotesChange, onClose, onConfir
     return null;
   }
 
-  const isConfirm = target.decision === "confirm";
-  const consequence = isConfirm
-    ? target.reviewStatus === "published"
-      ? "Confirming this report rejects the currently published review through the existing report decision process. Other pending reports remain open."
-      : "This review is already rejected. Confirming this report records a decision on this report; other pending reports remain open."
-    : "Dismissing this report leaves the review status unchanged and updates the pending report count.";
+  const isReject = target.decision === "reject";
+  const consequence = isReject
+    ? target.reviewStatus === "rejected"
+      ? "This review is already rejected. All remaining pending community reports will be marked as confirmed without rejecting the review again."
+      : "The review will be rejected and all pending community reports for this review will be marked as confirmed. It will no longer remain published."
+    : "The review will remain published and all pending community reports for this review will be dismissed.";
 
   return (
     <Modal
       isOpen
-      title={`${isConfirm ? "Confirm" : "Dismiss"} Report #${target.report.id}`}
-      description={`${REPORT_REASONS[target.report.type] ?? "Community"} report on review #${target.reviewId}`}
+      title={isReject ? "Reject this review?" : "Keep this review?"}
+      description={`Review #${target.reviewId}`}
       onClose={onClose}
       showCloseButton={!pending}
     >
@@ -276,23 +354,23 @@ export function DecisionDialog({ target, notes, onNotesChange, onClose, onConfir
             maxLength={2000}
             disabled={pending}
             className="mt-2 w-full rounded-lg border border-stroke bg-background p-3 text-sm text-text-primary focus:border-stroke-active focus:outline-none"
-            placeholder="Explain the report decision"
+            placeholder="Explain the review decision"
           />
         </label>
         {error && (
           <p role="alert" className="text-sm text-red-600">
-            {error.response?.data?.message || "The report decision could not be saved. Please try again."}
+            {error.response?.data?.message || "The review decision could not be saved. Please try again."}
           </p>
         )}
         <div className="flex justify-end gap-2 border-t border-stroke pt-4">
           <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>
           <Button
-            variant={isConfirm ? "danger" : "primary"}
+            variant={isReject ? "danger" : "secondary"}
             onClick={onConfirm}
             loading={pending}
             disabled={notes.trim().length < 20}
           >
-            {isConfirm ? "Confirm Report" : "Dismiss Report"}
+            {isReject ? "Reject Review" : "Keep Review"}
           </Button>
         </div>
       </div>
@@ -328,12 +406,13 @@ export default function ReportedReviewWorkspace() {
   const reviews = data?.items ?? [];
   const pagination = data?.pagination;
   const mutation = useMutation({
-    mutationFn: ({ reportId, decision, adminNotes }) => (
-      decideReviewReport(reportId, decision, adminNotes)
+    mutationFn: ({ reviewId, decision, adminNotes }) => (
+      decideReportedReview(reviewId, decision, adminNotes)
     ),
     onSuccess: async () => {
       setDecisionTarget(null);
       setNotes("");
+      selectReview(null);
       try {
         const result = await refreshReportedReview({
           queryClient,
@@ -343,9 +422,7 @@ export default function ReportedReviewWorkspace() {
           selectedId,
           page,
         });
-        if (result.nextId !== selectedId) {
-          selectReview(result.nextId);
-        }
+        selectReview(result.nextId);
         if (result.previousPage) {
           setPage(page - 1);
         }
@@ -376,10 +453,10 @@ export default function ReportedReviewWorkspace() {
     selectReview(null);
   }
 
-  function openDecision(report, decision, reviewStatus) {
+  function openDecision(review, decision) {
     mutation.reset();
     setNotes("");
-    setDecisionTarget({ report, decision, reviewId: selectedId, reviewStatus });
+    setDecisionTarget({ decision, reviewId: review.id, reviewStatus: review.status });
   }
 
   function closeDecision() {
@@ -467,15 +544,15 @@ export default function ReportedReviewWorkspace() {
           </div>
         )}
       </aside>
-      <main aria-label="Reported review investigation" className="min-w-0 lg:max-h-[calc(100vh-260px)] lg:overflow-y-auto">
-        <ReportedReviewDetail reviewId={selectedId} onStale={handleStale} onDecision={openDecision} />
+      <main aria-label="Reported review investigation" className="min-w-0">
+        <ReportedReviewDetail key={selectedId} reviewId={selectedId} onStale={handleStale} onDecision={openDecision} decisionPending={mutation.isPending} />
       </main>
       <DecisionDialog
         target={decisionTarget}
         notes={notes}
         onNotesChange={setNotes}
         onClose={closeDecision}
-        onConfirm={() => mutation.mutate({ reportId: decisionTarget.report.id, decision: decisionTarget.decision, adminNotes: notes.trim() })}
+        onConfirm={() => mutation.mutate({ reviewId: decisionTarget.reviewId, decision: decisionTarget.decision, adminNotes: notes.trim() })}
         pending={mutation.isPending}
         error={mutation.error}
       />

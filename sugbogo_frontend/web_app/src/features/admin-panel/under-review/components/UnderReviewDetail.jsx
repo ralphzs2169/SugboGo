@@ -22,6 +22,7 @@ import { formatDateTime, formatRelativeDate } from "@/shared/utils/dateUtils";
 import { fetchClusters } from "../../cluster-category/services/clusterCategoryService";
 import useUnderReviewReview from "../hooks/useUnderReviewReview";
 import UnderReviewFindings from "./UnderReviewFindings";
+import ReviewStickyContextBar from "../../moderation/components/ReviewStickyContextBar";
 
 function DetailPlaceholder({ title, description }) {
   return (
@@ -152,17 +153,7 @@ export default function UnderReviewDetail({
         className="min-h-0 flex-1 overflow-y-auto lg:max-h-[calc(100vh-250px)]"
         ref={scrollContainerRef}
       >
-        <div className="pointer-events-none sticky top-0 z-30 h-0">
-          <div
-            aria-hidden={!showContextBar}
-            className={`flex h-12 items-center justify-between gap-3 border-b border-stroke bg-background/80 px-5 backdrop-blur-md lg:px-6 ${showContextBar ? "opacity-100" : "opacity-0"}`}
-          >
-            <span className="truncate text-sm font-semibold text-text-primary">
-              Review #{review.id}
-            </span>
-            <StatusBadge variant="info">Under Review</StatusBadge>
-          </div>
-        </div>
+        <ReviewStickyContextBar review={review} visible={showContextBar} />
         <header ref={reviewHeaderRef} className="border-b border-stroke bg-background px-5 py-4 lg:px-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-2">
