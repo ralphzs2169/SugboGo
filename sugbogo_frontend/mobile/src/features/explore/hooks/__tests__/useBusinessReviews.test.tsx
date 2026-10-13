@@ -5,6 +5,7 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 import {
   createReview,
   deleteReview,
+  deleteReviewPhoto,
   getAllBusinessReviews,
   getBusinessReviewPreview,
   reportReview,
@@ -21,6 +22,7 @@ import {
   useBusinessReviews,
   useCreateReview,
   useDeleteReview,
+  useDeleteReviewPhoto,
   useMerchantBusinessReviews,
   useReportReview,
   useUpdateReview,
@@ -31,6 +33,7 @@ import {
   exploreBusinessDetailKey,
 } from "../reviewQueryKeys";
 import { DISCOVERY_FEED_QUERY_KEY } from "../useDiscoveryFeed";
+import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { EXPLORE_COLLECTIONS_QUERY_KEY } from "../useExploreCollection";
 
 const mockStartSentimentSync = jest.fn();
@@ -39,6 +42,7 @@ const mockStartGeneratedInsightsSync = jest.fn();
 jest.mock("../../api/reviewBusiness.service", () => ({
   createReview: jest.fn(),
   deleteReview: jest.fn(),
+  deleteReviewPhoto: jest.fn(),
   getAllBusinessReviews: jest.fn(),
   getBusinessReviewPreview: jest.fn(),
   reportReview: jest.fn(),
@@ -54,7 +58,10 @@ jest.mock("../ReviewDerivedDataSyncProvider", () => ({
 
 function setupClient() {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { gcTime: 0 },
+    },
   });
 
   /** Supplies review hooks with isolated query state. */
@@ -247,6 +254,9 @@ describe("useBusinessReviews", () => {
       queryKey: DISCOVERY_FEED_QUERY_KEY,
     });
     expect(invalidate).toHaveBeenCalledWith({
+      queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
       queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
     });
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
@@ -290,6 +300,9 @@ describe("useBusinessReviews", () => {
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: DISCOVERY_FEED_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
@@ -342,6 +355,9 @@ describe("useBusinessReviews", () => {
     expect(invalidate).not.toHaveBeenCalledWith({
       queryKey: DISCOVERY_FEED_QUERY_KEY,
     });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
+    });
     expect(invalidate).not.toHaveBeenCalledWith({
       queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
     });
@@ -355,10 +371,10 @@ describe("useBusinessReviews", () => {
       data: null,
     });
     const { client, Wrapper } = setupClient();
-    const { result, unmount } = await renderHook(
-      () => useReportReview(20),
-      { wrapper: Wrapper },
-    );
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result, unmount } = await renderHook(() => useReportReview(20), {
+      wrapper: Wrapper,
+    });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -369,6 +385,39 @@ describe("useBusinessReviews", () => {
 
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalledWith({
+      queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
+    });
+    unmount();
+    client.clear();
+  });
+
+  it("refreshes both photo-filtered and unfiltered Community variants after photo deletion", async () => {
+    (deleteReviewPhoto as jest.Mock).mockResolvedValue({
+      success: true,
+      data: null,
+    });
+    const { client, Wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result, unmount } = await renderHook(
+      () => useDeleteReviewPhoto(20),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({ photoId: 44 });
+    });
+
+    expect(deleteReviewPhoto).toHaveBeenCalledWith(44);
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: businessReviewPreviewKey(20),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: businessReviewsKey(20),
+    });
     unmount();
     client.clear();
   });

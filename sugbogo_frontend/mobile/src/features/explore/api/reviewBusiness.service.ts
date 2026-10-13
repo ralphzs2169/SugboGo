@@ -116,11 +116,21 @@ export function deleteReviewPhoto(photoId: number) {
   return request(apiClient.delete(`/reviews/photos/${photoId}/`));
 }
 
-export function likeReview(reviewId: number): Promise<ApiResponse<null>> {
+export type ReviewLikeResult = {
+  review_id: number;
+  is_liked: boolean;
+  id?: number;
+};
+
+export function likeReview(
+  reviewId: number,
+): Promise<ApiResponse<ReviewLikeResult>> {
   return request(apiClient.post(`/reviews/${reviewId}/like/`));
 }
 
-export function unlikeReview(reviewId: number): Promise<ApiResponse<null>> {
+export function unlikeReview(
+  reviewId: number,
+): Promise<ApiResponse<ReviewLikeResult>> {
   return request(apiClient.delete(`/reviews/${reviewId}/like/`));
 }
 

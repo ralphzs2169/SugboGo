@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 
 import * as reviewReplyService from "../../api/reviewReply.service";
 import type { LocalReviewPhoto } from "../../types/review-reply/reviewReply.types";
@@ -35,6 +36,9 @@ function useReviewReplyMutation<T>(
         }),
         queryClient.invalidateQueries({
           queryKey: exploreBusinessDetailKey(businessId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
         }),
       ]);
     },

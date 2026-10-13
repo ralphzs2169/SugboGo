@@ -121,12 +121,11 @@ describe("CommunityReviewCard", () => {
     });
   });
 
-  it("provides immediate helpful feedback through the existing mutation", async () => {
+  it("delegates helpful feedback to the shared cache mutation", async () => {
     const screen = await render(<CommunityReviewCard review={baseReview} />);
 
     fireEvent.press(screen.getByLabelText("Mark review helpful"));
 
-    await waitFor(() => expect(screen.getByText("4 helpful")).toBeTruthy());
     expect(mockLike).toHaveBeenCalledWith({ reviewId: 9, isLiked: false });
   });
 

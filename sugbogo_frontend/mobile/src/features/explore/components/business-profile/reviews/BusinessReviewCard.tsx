@@ -42,8 +42,10 @@ export default function BusinessReviewCard({
   isLast = false,
   highlightedTopic,
 }: Props) {
-  const { mutateAsync: like, isPending: isLikePending } =
-    useReviewLike(businessId);
+  const { mutateAsync: like, isPending: isLikePending } = useReviewLike(
+    businessId,
+    review.id,
+  );
 
   const { mutateAsync: deleteReview, isPending: isDeletePending } =
     useDeleteReview(businessId);

@@ -49,63 +49,25 @@ function formatRelativeDate(value: string) {
 export default function CommunityReviewCard({ review }: Props) {
   const { mutateAsync: like, isPending: isLikePending } = useReviewLike(
     review.business.id,
+    review.id,
   );
 
-  const [helpfulState, setHelpfulState] = useState(() => ({
-    sourceReviewId: review.id,
-    sourceIsLiked: review.is_liked,
-    sourceLikeCount: review.like_count,
-    isLiked: review.is_liked,
-    likeCount: review.like_count,
-  }));
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
-
-  if (
-    helpfulState.sourceReviewId !== review.id ||
-    helpfulState.sourceIsLiked !== review.is_liked ||
-    helpfulState.sourceLikeCount !== review.like_count
-  ) {
-    setHelpfulState({
-      sourceReviewId: review.id,
-      sourceIsLiked: review.is_liked,
-      sourceLikeCount: review.like_count,
-      isLiked: review.is_liked,
-      likeCount: review.like_count,
-    });
-  }
-
-  const { isLiked, likeCount } = helpfulState;
 
   const toggleHelpful = async () => {
     if (isLikePending) {
       return;
     }
 
-    const previousLiked = isLiked;
-    const previousCount = likeCount;
-    const nextLiked = !previousLiked;
-
-    setHelpfulState((current) => ({
-      ...current,
-      isLiked: nextLiked,
-      likeCount: Math.max(0, previousCount + (nextLiked ? 1 : -1)),
-    }));
-
     try {
       await like({
         reviewId: review.id,
-        isLiked: previousLiked,
+        isLiked: review.is_liked,
       });
     } catch (error) {
-      setHelpfulState((current) => ({
-        ...current,
-        isLiked: previousLiked,
-        likeCount: previousCount,
-      }));
-
       const response = error as unknown as ApiResponse<unknown>;
 
       if (!response.success && !handleSystemError(response)) {
@@ -268,16 +230,21 @@ export default function CommunityReviewCard({ review }: Props) {
           disabled={isLikePending}
           accessibilityRole="button"
           accessibilityLabel={
-            isLiked ? "Remove helpful from this review" : "Mark review helpful"
+            review.is_liked
+              ? "Remove helpful from this review"
+              : "Mark review helpful"
           }
-          accessibilityState={{ selected: isLiked, disabled: isLikePending }}
+          accessibilityState={{
+            selected: review.is_liked,
+            disabled: isLikePending,
+          }}
           className="min-h-11 cursor-pointer flex-row items-center rounded-full pr-3 active:opacity-70 disabled:opacity-50"
         >
           <MaterialCommunityIcons
-            name={isLiked ? "thumb-up" : "thumb-up-outline"}
+            name={review.is_liked ? "thumb-up" : "thumb-up-outline"}
             size={18}
             color={
-              isLiked
+              review.is_liked
                 ? theme.extends.colors.brand
                 : theme.extends.colors.text.secondary
             }
@@ -286,10 +253,12 @@ export default function CommunityReviewCard({ review }: Props) {
           <AppText
             weight="medium"
             className={`ml-1.5 text-xs ${
-              isLiked ? "text-brand" : "text-text-secondary"
+              review.is_liked ? "text-brand" : "text-text-secondary"
             }`}
           >
-            {likeCount > 0 ? `${likeCount} helpful` : "Helpful?"}
+            {review.like_count > 0
+              ? `${review.like_count} helpful`
+              : "Helpful?"}
           </AppText>
         </Pressable>
 

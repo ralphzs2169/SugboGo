@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 
 import * as reviewService from "../api/reviewBusiness.service";
 import type {
@@ -39,8 +40,7 @@ type ReviewMutationContext = {
   baselineGeneratedAt: string | null;
   baselineInsightsUpdatedAt: string | null;
   baselineInsightsState:
-    | NonNullable<ExploreBusinessDetail["review_insights"]>["state"]
-    | null;
+    NonNullable<ExploreBusinessDetail["review_insights"]>["state"] | null;
   baselineSentimentComputedAt: string | null;
   startedAt: number;
 };
@@ -71,6 +71,7 @@ function useReviewMutation<TVariables, TResult>(
   businessId: number,
   mutationFn: (variables: TVariables) => Promise<unknown>,
   sync?: ReviewMutationSync,
+  refreshCommunity = false,
 ) {
   const queryClient = useQueryClient();
   const { startGeneratedInsightsSync, startSentimentSync } =
@@ -87,8 +88,7 @@ function useReviewMutation<TVariables, TResult>(
 
       return {
         baselineGeneratedAt: detail?.review_insights?.generated_at ?? null,
-        baselineInsightsUpdatedAt:
-          detail?.review_insights?.updated_at ?? null,
+        baselineInsightsUpdatedAt: detail?.review_insights?.updated_at ?? null,
         baselineInsightsState: detail?.review_insights?.state ?? null,
         baselineSentimentComputedAt:
           detail?.review_insights?.sentiment_computed_at ?? null,
@@ -107,6 +107,13 @@ function useReviewMutation<TVariables, TResult>(
         queryClient.invalidateQueries({
           queryKey: exploreBusinessDetailKey(businessId),
         }),
+        ...(refreshCommunity
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
+              }),
+            ]
+          : []),
       ]);
 
       if (sync === "create" || sync === "delete") {
@@ -193,9 +200,7 @@ export function useBusinessReviews(
         ),
       ),
     getNextPageParam: (lastPage) =>
-      lastPage.pagination.has_next
-        ? lastPage.pagination.page + 1
-        : undefined,
+      lastPage.pagination.has_next ? lastPage.pagination.page + 1 : undefined,
     placeholderData: keepPreviousData,
     enabled: Boolean(businessId),
   });
@@ -271,6 +276,7 @@ export function useCreateReview(businessId: number) {
     ({ text, photos }: { text: string; photos: LocalReviewPhoto[] }) =>
       reviewService.createReview(businessId, text, photos),
     "create",
+    true,
   );
 }
 
@@ -300,6 +306,7 @@ export function useUpdateReview(businessId: number) {
       textChanged: boolean;
     }) => reviewService.updateReview(reviewId, text, photos, keepPhotoIds),
     "update",
+    true,
   );
 }
 
@@ -309,12 +316,17 @@ export function useDeleteReview(businessId: number) {
     ({ reviewId }: { reviewId: number }) =>
       reviewService.deleteReview(reviewId),
     "delete",
+    true,
   );
 }
 
 export function useDeleteReviewPhoto(businessId: number) {
-  return useReviewMutation(businessId, ({ photoId }: { photoId: number }) =>
-    reviewService.deleteReviewPhoto(photoId),
+  return useReviewMutation(
+    businessId,
+    ({ photoId }: { photoId: number }) =>
+      reviewService.deleteReviewPhoto(photoId),
+    undefined,
+    true,
   );
 }
 
