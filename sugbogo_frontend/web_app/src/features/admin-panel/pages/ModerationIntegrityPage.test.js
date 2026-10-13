@@ -700,6 +700,7 @@ test("selected Suspicious detail separates detection evidence and live activity"
         photos: [],
         detection_evidence: {
           duplicate_content: {
+            observed_at: "2026-10-10T09:00:00Z",
             prior_match_count: 2,
             basis: "same_user",
             matched_reviews: [
@@ -707,7 +708,11 @@ test("selected Suspicious detail separates detection evidence and live activity"
               { id: 47, available: false },
             ],
           },
-          rapid_submission: { review_count: 11, window_hours: 24 },
+          rapid_submission: {
+            observed_at: "2026-10-10T09:00:00Z",
+            review_count: 11,
+            window_hours: 24,
+          },
         },
         current_related_activity: {
           duplicate_content: { review_count: 0, reviews: [] },
@@ -717,6 +722,8 @@ test("selected Suspicious detail separates detection evidence and live activity"
     },
   );
   assert.match(html, /Why It Was Flagged/);
+  assert.match(html, /Stored evidence from when each reliability signal was first detected/);
+  assert.equal((html.match(/Detected during review submission/g) ?? []).length, 2);
   assert.match(html, /Same normalized review text detected/);
   assert.match(html, /2<!-- --> prior matching reviews/);
   assert.match(html, /Review #<!-- -->47<!-- --> · unavailable\/deleted/);
@@ -726,6 +733,70 @@ test("selected Suspicious detail separates detection evidence and live activity"
   assert.match(html, /lucide-store/);
   assert.match(html, /rounded-full border border-stroke object-cover/);
   assert.doesNotMatch(html, /Highly similar content|private-installation/);
+});
+
+test("Suspicious edit duplicate uses stored detection context, not latest edit time", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    {
+      suspiciousDetail: {
+        ...suspiciousReview,
+        reasons: ["duplicate_content"],
+        text: "Exact repeated review text",
+        status: "published",
+        photos: [],
+        is_edited: true,
+        edited_at: "2026-10-12T09:00:00Z",
+        detection_evidence: {
+          duplicate_content: {
+            observed_at: "2026-10-11T09:00:00Z",
+            detected_during: "edit",
+            prior_match_count: 2,
+            basis: "same_user",
+          },
+        },
+        current_related_activity: {
+          duplicate_content: { review_count: 0, reviews: [] },
+        },
+      },
+    },
+  );
+
+  assert.match(html, /Detected during review edit/);
+  assert.match(html.replaceAll("<!-- -->", ""), /Observed Oct 11, 2026/);
+  assert.doesNotMatch(html, /Detection-time evidence recorded when the review was submitted/);
+});
+
+test("Suspicious legacy evidence does not claim an unknown detection stage or window", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    {
+      suspiciousDetail: {
+        ...suspiciousReview,
+        reasons: ["duplicate_content"],
+        text: "Exact repeated review text",
+        status: "published",
+        photos: [],
+        detection_evidence: {
+          duplicate_content: {
+            prior_match_count: 2,
+            basis: "same_user",
+          },
+        },
+        current_related_activity: {
+          duplicate_content: {
+            review_count: 0,
+            reviews: [],
+            window_unavailable: true,
+          },
+        },
+      },
+    },
+  );
+
+  assert.match(html, /Detection stage not recorded for this historical review/);
+  assert.match(html, /current matches cannot be scoped to the original 30-day window/);
+  assert.doesNotMatch(html, /Detected during review submission|No related records currently available/);
 });
 
 test("Suspicious detail shares the compact blurred review header", () => {

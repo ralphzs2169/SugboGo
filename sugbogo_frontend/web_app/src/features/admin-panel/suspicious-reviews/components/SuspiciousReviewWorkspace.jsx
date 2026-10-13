@@ -31,6 +31,20 @@ const SIGNAL_ICONS = {
   shared_installation_accounts: UsersRound,
 };
 
+function detectionContext(item) {
+  if (item.detected_during === "edit") {
+    return "Detected during review edit";
+  }
+  if (item.detected_during === "creation" || item.detected_during === "submission") {
+    return "Detected during review submission";
+  }
+  // Creation snapshots predate this field; edit snapshots always record "edit".
+  if (!item.detected_during && item.observed_at && !Number.isNaN(Date.parse(item.observed_at))) {
+    return "Detected during review submission";
+  }
+  return "Detection stage not recorded for this historical review.";
+}
+
 function SignalBadges({ reasons = [] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -121,7 +135,7 @@ function DetectionEvidence({ review }) {
         Why It Was Flagged
       </h3>
       <p className="mt-1 text-sm text-text-secondary">
-        Detection-time evidence recorded when the review was submitted.
+        Stored evidence from when each reliability signal was first detected.
       </p>
       <div className="mt-4 space-y-4">
         {review.reasons.map((reason) => {
@@ -137,6 +151,7 @@ function DetectionEvidence({ review }) {
                 </p>
               ) : (
                 <div className="mt-2 space-y-2 text-sm text-text-secondary">
+                  <p className="text-xs font-medium">{detectionContext(item)}</p>
                   {reason === "duplicate_content" && (
                     <>
                       <p>Same normalized review text detected.</p>
@@ -164,7 +179,7 @@ function DetectionEvidence({ review }) {
                   {reason === "shared_installation_accounts" && (
                     <p>{item.distinct_account_count} distinct accounts using the same app installation identifier reviewed this business.</p>
                   )}
-                  {item.observed_at && (
+                  {item.observed_at && !Number.isNaN(Date.parse(item.observed_at)) && (
                     <p className="text-xs">Observed {formatDateTime(item.observed_at)}</p>
                   )}
                 </div>
@@ -221,7 +236,9 @@ function CurrentActivity({ review }) {
                   {related.distinct_account_count} distinct accounts currently retained
                 </p>
               )}
-              {!related?.reviews?.length ? (
+              {related?.window_unavailable ? (
+                <p className="mt-2 text-sm text-text-secondary">The detection time is unavailable, so current matches cannot be scoped to the original 30-day window.</p>
+              ) : !related?.reviews?.length ? (
                 <p className="mt-2 text-sm text-text-secondary">No related records currently available.</p>
               ) : (
                 <ul className="mt-2 divide-y divide-stroke rounded-lg border border-stroke">

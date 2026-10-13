@@ -193,6 +193,13 @@ class SuspiciousReviewDetailSerializer(serializers.ModelSerializer):
         related = self.context.get("related_reviews", {})
         activity = {}
         for reason, reviews in related.items():
+            if reviews is None:
+                activity[reason] = {
+                    "reviews": [],
+                    "review_count": 0,
+                    "window_unavailable": True,
+                }
+                continue
             activity[reason] = {
                 "reviews": RelatedReviewSerializer(reviews, many=True).data,
                 "review_count": len(reviews),
