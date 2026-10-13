@@ -412,3 +412,49 @@ class ReportedReviewDecisionViewTests(ReportFixtures, TestCase):
             ).count(),
             0,
         )
+
+    def test_rejected_review_reports_can_be_dismissed_with_admin_notes(self):
+        self.add_pending_reports(2)
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        self.assertEqual(self.decide("dismiss", "Too short").status_code, 400)
+
+        response = self.decide("dismiss")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["decision"], "dismiss")
+        self.assertEqual(response.data["data"]["review_status"], "rejected")
+        self.assertEqual(response.data["data"]["resolved_report_count"], 3)
+        self.assertEqual(self.decide("dismiss").status_code, 400)
+        self.assertFalse(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+            ).exists()
+        )
+
+    def test_rejected_review_reports_can_be_confirmed(self):
+        self.add_pending_reports(2)
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+
+        response = self.decide("confirm")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["decision"], "confirm")
+        self.assertEqual(response.data["data"]["review_status"], "rejected")
+        self.assertEqual(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.APPROVED,
+            ).count(),
+            3,
+        )
+
+    def test_report_only_decisions_do_not_apply_to_published_reviews(self):
+        self.assertEqual(self.decide("dismiss").status_code, 400)
+        self.assertEqual(self.decide("confirm").status_code, 400)
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.RREP_STATUS, ReviewReport.ReportStatus.PENDING)

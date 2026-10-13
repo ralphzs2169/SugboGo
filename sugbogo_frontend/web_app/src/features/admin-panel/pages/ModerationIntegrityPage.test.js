@@ -1303,8 +1303,10 @@ test("Rejected reviews with pending sibling reports stay inspectable", () => {
   assert.match(html, /Previously rejected review/);
   assert.match(html, /lucide-store/);
   assert.match(html, /rounded-full border border-stroke object-cover/);
-  assert.match(html, /Reject Review/);
-  assert.doesNotMatch(html, /Keep Review/);
+  assert.match(html, /Confirm Reports/);
+  assert.match(html, /Dismiss Reports/);
+  assert.doesNotMatch(html, /Keep Review|Reject Review/);
+  assert.match(html, /bg-primary text-white/);
   assert.doesNotMatch(html, /Needs Attention/);
 });
 
@@ -1331,11 +1333,23 @@ test("review-level dialogs explain both decisions and require notes", () => {
 
   const rejected = renderToString(React.createElement(DecisionDialog, {
     ...baseProps,
-    target: { ...baseProps.target, reviewStatus: "rejected" },
+    target: { ...baseProps.target, reviewStatus: "rejected", decision: "confirm" },
     notes: "Confirmed after reviewing content.",
   }));
-  assert.match(rejected, /This review is already rejected/);
-  assert.match(rejected, /without rejecting the review again/);
+  assert.match(rejected, /Confirm these reports\?/);
+  assert.match(rejected, /review will remain rejected/);
+  assert.match(rejected, /Confirm Reports/);
+  assert.doesNotMatch(rejected, /Reject Review|bg-red-600/);
+
+  const dismissed = renderToString(React.createElement(DecisionDialog, {
+    ...baseProps,
+    target: { ...baseProps.target, reviewStatus: "rejected", decision: "dismiss" },
+    notes: "Reports dismissed after content inspection.",
+  }));
+  assert.match(dismissed, /Dismiss these reports\?/);
+  assert.match(dismissed, /review will remain rejected/);
+  assert.match(dismissed, /Dismiss Reports/);
+  assert.doesNotMatch(dismissed, /Keep Review|Reject Review/);
 
   const kept = renderToString(React.createElement(DecisionDialog, {
     ...baseProps,

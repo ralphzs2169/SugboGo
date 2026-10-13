@@ -6,17 +6,40 @@ function DecisionDialog({ target, notes, onNotesChange, onClose, onConfirm, pend
     return null;
   }
 
-  const isReject = target.decision === "reject";
-  const consequence = isReject
-    ? target.reviewStatus === "rejected"
-      ? "This review is already rejected. All remaining pending community reports will be marked as confirmed without rejecting the review again."
-      : "The review will be rejected and all pending community reports for this review will be marked as confirmed. It will no longer remain published."
-    : "The review will remain published and all pending community reports for this review will be dismissed.";
+  const alreadyRejected = target.reviewStatus === "rejected";
+  const isReject = target.decision === "reject" && !alreadyRejected;
+  const isConfirm = target.decision === "confirm" || (alreadyRejected && target.decision === "reject");
+  let title;
+  let consequence;
+  let actionLabel;
+  let actionVariant;
+
+  if (alreadyRejected && isConfirm) {
+    title = "Confirm these reports?";
+    consequence = "All remaining pending community reports will be marked as confirmed. The review will remain rejected.";
+    actionLabel = "Confirm Reports";
+    actionVariant = "primary";
+  } else if (alreadyRejected) {
+    title = "Dismiss these reports?";
+    consequence = "All remaining pending community reports will be dismissed. The review will remain rejected.";
+    actionLabel = "Dismiss Reports";
+    actionVariant = "secondary";
+  } else if (isReject) {
+    title = "Reject this review?";
+    consequence = "The review will be rejected and all pending community reports for this review will be marked as confirmed. It will no longer remain published.";
+    actionLabel = "Reject Review";
+    actionVariant = "danger";
+  } else {
+    title = "Keep this review?";
+    consequence = "The review will remain published and all pending community reports for this review will be dismissed.";
+    actionLabel = "Keep Review";
+    actionVariant = "secondary";
+  }
 
   return (
     <Modal
       isOpen
-      title={isReject ? "Reject this review?" : "Keep this review?"}
+      title={title}
       description={`Review #${target.reviewId}`}
       onClose={onClose}
       showCloseButton={!pending}
@@ -45,12 +68,12 @@ function DecisionDialog({ target, notes, onNotesChange, onClose, onConfirm, pend
         <div className="flex justify-end gap-2 border-t border-stroke pt-4">
           <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>
           <Button
-            variant={isReject ? "danger" : "secondary"}
+            variant={actionVariant}
             onClick={onConfirm}
             loading={pending}
             disabled={notes.trim().length < 20}
           >
-            {isReject ? "Reject Review" : "Keep Review"}
+            {actionLabel}
           </Button>
         </div>
       </div>

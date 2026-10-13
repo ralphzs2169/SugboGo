@@ -18,7 +18,9 @@ from apps.admin_operations.moderation.serializers.manage_review_dispute_serializ
 class ReportedReviewDecisionSerializer(serializers.Serializer):
     """Validate one Admin decision for all pending reports on a review."""
 
-    decision = serializers.ChoiceField(choices=("keep", "reject"))
+    decision = serializers.ChoiceField(
+        choices=("keep", "reject", "confirm", "dismiss"),
+    )
     admin_notes = serializers.CharField(
         min_length=MIN_MODERATION_NOTES_LENGTH,
         max_length=2000,

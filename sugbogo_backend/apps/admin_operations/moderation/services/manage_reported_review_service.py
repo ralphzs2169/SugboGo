@@ -53,8 +53,8 @@ class ManageReportedReviewService:
         if not reports:
             raise ValidationError("No pending reports remain for this review.")
 
-        if decision not in ("keep", "reject"):
-            raise ValidationError("Choose keep or reject for this review.")
+        if decision not in ("keep", "reject", "confirm", "dismiss"):
+            raise ValidationError("Choose a valid decision for this review.")
 
         previous_status = review.REVW_STATUS
         if decision == "keep" and previous_status != Review.ReviewStatus.PUBLISHED:
@@ -64,9 +64,16 @@ class ManageReportedReviewService:
             Review.ReviewStatus.REJECTED,
         ):
             raise ValidationError("Only a published or rejected review can be resolved.")
+        if (
+            decision in ("confirm", "dismiss")
+            and previous_status != Review.ReviewStatus.REJECTED
+        ):
+            raise ValidationError(
+                "Only an already-rejected review can have reports resolved separately."
+            )
 
-        rejecting = decision == "reject"
-        if rejecting:
+        confirming = decision in ("reject", "confirm")
+        if confirming:
             # Preserve the existing per-report reporter reward and one author penalty.
             account_ids = {review.USER_ID_id}
             account_ids.update(report.USER_ID_id for report in reports)
@@ -79,7 +86,7 @@ class ManageReportedReviewService:
 
         resolved_status = (
             ReviewReport.ReportStatus.APPROVED
-            if rejecting
+            if confirming
             else ReviewReport.ReportStatus.REJECTED
         )
         for report in reports:
@@ -89,7 +96,7 @@ class ManageReportedReviewService:
                 update_fields=["RREP_STATUS", "RREP_NOTES", "RREP_UPDATED_AT"],
             )
 
-        if rejecting and previous_status == Review.ReviewStatus.PUBLISHED:
+        if confirming and previous_status == Review.ReviewStatus.PUBLISHED:
             review, _ = ReviewModerationConsistencyService.reject_review(
                 review.pk,
             )
@@ -100,7 +107,7 @@ class ManageReportedReviewService:
 
         ReviewReportService.recompute_report_flag(review)
 
-        if rejecting:
+        if confirming:
             for report in reports:
                 if report.USER_ID_id != review.USER_ID_id:
                     ReputationService.apply_approved_report_reward(
@@ -108,14 +115,23 @@ class ManageReportedReviewService:
                         source_id=report.pk,
                     )
 
+        if previous_status == Review.ReviewStatus.REJECTED:
+            audit_action = (
+                AdminActivity.Action.REVIEW_REPORT_APPROVED
+                if confirming
+                else AdminActivity.Action.REVIEW_REPORT_REJECTED
+            )
+        else:
+            audit_action = (
+                AdminActivity.Action.REPORTED_REVIEW_REJECTED
+                if confirming
+                else AdminActivity.Action.REPORTED_REVIEW_KEPT
+            )
+
         AdminActivityService.record_user_action(
             actor=actor,
             target_user=review.USER_ID,
-            action=(
-                AdminActivity.Action.REPORTED_REVIEW_REJECTED
-                if rejecting
-                else AdminActivity.Action.REPORTED_REVIEW_KEPT
-            ),
+            action=audit_action,
             context={
                 "review_id": review.pk,
                 "business_id": review.BUSN_ID_id,
