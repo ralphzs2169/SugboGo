@@ -15,6 +15,27 @@ class VouchService:
     """Handles creating, removing, and checking user vouches."""
 
     @staticmethod
+    def get_current_specialty_support(business_id, *, as_of):
+        """Report valid endorsements and distinct supporters for every current active specialty."""
+        links = list(BusinessSpecialtyTag.objects.filter(
+            BUSN_ID=business_id, BST_IS_ACTIVE=True, BST_CREATED_AT__lte=as_of,
+        ).values("TAG_ID", "TAG_ID__TAG_NAME").order_by("TAG_ID__TAG_NAME", "TAG_ID"))
+        evidence = BusinessVouch.objects.filter(
+            BUSN_ID=business_id, TAG_ID__in=[row["TAG_ID"] for row in links],
+            VOUCH_EVIDENCE_IS_VALID=True, VOUCH_CREATED_AT__lte=as_of,
+        ).values("TAG_ID").annotate(
+            valid_vouches=models.Count("VOUCH_ID"),
+            distinct_supporters=models.Count("USER_ID", distinct=True),
+        )
+        # Suspicion alone does not invalidate evidence under the maintained vouch rules.
+        counts = {row["TAG_ID"]: row for row in evidence}
+        return [{
+            "specialty_id": row["TAG_ID"], "specialty_name": row["TAG_ID__TAG_NAME"],
+            "valid_vouches": counts.get(row["TAG_ID"], {}).get("valid_vouches", 0),
+            "distinct_supporters": counts.get(row["TAG_ID"], {}).get("distinct_supporters", 0),
+        } for row in links]
+
+    @staticmethod
     @transaction.atomic
     def create_vouch(
         user: User,
