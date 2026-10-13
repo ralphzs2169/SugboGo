@@ -40,6 +40,9 @@ class ReviewView(APIView):
             if field in request.data:
                 data[field] = request.data.get(field)
 
+        if "show_in_community" in request.data:
+            data["show_in_community"] = request.data.get("show_in_community")
+
         serializer = ReviewCreateSerializer(data=data)
         serializer.is_valid(
             raise_exception=True,
@@ -145,6 +148,9 @@ class ReviewDetailView(APIView):
             data["text"] = request.data.get(
                 "text",
             )
+
+        if "show_in_community" in request.data:
+            data["show_in_community"] = request.data.get("show_in_community")
 
         if "keep_photo_ids" in request.data:
             if hasattr(

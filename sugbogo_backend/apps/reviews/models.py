@@ -52,6 +52,8 @@ class Review(models.Model):
         default=ReviewStatus.PUBLISHED,
     )
 
+    REVW_SHOW_IN_COMMUNITY = models.BooleanField(default=True)
+
     REVW_LIKE_COUNT = models.PositiveIntegerField(
         default=0,
     )

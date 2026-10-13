@@ -537,7 +537,7 @@ class BusinessClassificationChangeViewTests(TestCase):
             BST_TAG_SCORE=Decimal("0.33000"),
             BST_DEACTIVATED_AT=timezone.now(),
         )
-   
+
         retained_activation = [link.BST_ACTIVATED_AT for link in self.links[1:]]
         request_id = self._submit().data["data"]["id"]
 

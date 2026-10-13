@@ -10,6 +10,7 @@ import {
 } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getInstallationId } from "@/shared/api/storage.service";
+import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
 import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
 import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
@@ -205,8 +206,8 @@ export default function useBusinessVouch({ businessId }: Props) {
 
           return {
             ...currentResults,
-            pages: currentResults.pages.map((page) =>
-              updateVouchState(page) ?? page,
+            pages: currentResults.pages.map(
+              (page) => updateVouchState(page) ?? page,
             ),
           };
         },
@@ -251,8 +252,8 @@ export default function useBusinessVouch({ businessId }: Props) {
 
           return {
             ...currentResults,
-            pages: currentResults.pages.map((page) =>
-              updateVouchState(page) ?? page,
+            pages: currentResults.pages.map(
+              (page) => updateVouchState(page) ?? page,
             ),
           };
         },
@@ -299,25 +300,23 @@ export default function useBusinessVouch({ businessId }: Props) {
       }
 
       for (const [queryKey, data] of context?.previousDiscoveryResults ?? []) {
-        queryClient.setQueryData(
-          queryKey,
-          data,
-        );
+        queryClient.setQueryData(queryKey, data);
       }
 
       for (const [queryKey, data] of context?.previousSimilarBusinesses ?? []) {
-        queryClient.setQueryData(
-          queryKey,
-          data,
-        );
+        queryClient.setQueryData(queryKey, data);
       }
 
-      for (const [queryKey, data] of context?.previousExploreCollections ?? []) {
-        queryClient.setQueryData(
-          queryKey,
-          data,
-        );
+      for (const [queryKey, data] of context?.previousExploreCollections ??
+        []) {
+        queryClient.setQueryData(queryKey, data);
       }
+    },
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
+      });
     },
 
     onSettled: async () => {

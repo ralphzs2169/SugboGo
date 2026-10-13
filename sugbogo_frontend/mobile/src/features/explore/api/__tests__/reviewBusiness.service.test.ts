@@ -1,9 +1,11 @@
 import apiClient from "@/shared/api/apiClient.service";
 
 import { getInstallationId } from "@/shared/api/storage.service";
+
 import {
   createReview,
   getAllBusinessReviews,
+  updateReview,
   getMyReviewReport,
   reportReview,
 } from "../reviewBusiness.service";
@@ -14,7 +16,7 @@ import {
 
 jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,
-  default: { get: jest.fn(), post: jest.fn() },
+  default: { get: jest.fn(), post: jest.fn(), patch: jest.fn() },
 }));
 jest.mock("@/shared/api/storage.service", () => ({
   getInstallationId: jest.fn(),
@@ -144,6 +146,45 @@ describe("getAllBusinessReviews", () => {
     expect(apiClient.get).toHaveBeenCalledWith(url, {
       params: { page: "2", page_size: "100" },
     });
+  });
+});
+
+describe("review visibility request payloads", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getInstallationId as jest.Mock).mockResolvedValue("stored-installation");
+    (apiClient.post as jest.Mock).mockResolvedValue({ success: true });
+    (apiClient.patch as jest.Mock).mockResolvedValue({ success: true });
+  });
+
+  it("includes explicit true or false on creation", async () => {
+    await createReview(20, "An excellent visit with friendly staff.", [], true);
+    await createReview(
+      20,
+      "An excellent visit with friendly staff.",
+      [],
+      false,
+    );
+    const first = (apiClient.post as jest.Mock).mock.calls[0][1] as FormData;
+    const second = (apiClient.post as jest.Mock).mock.calls[1][1] as FormData;
+    expect(first.get("show_in_community")).toBe("true");
+    expect(second.get("show_in_community")).toBe("false");
+    expect(first.get("installation_id")).toBe("stored-installation");
+    expect(second.get("installation_id")).toBe("stored-installation");
+  });
+
+  it("supports visibility-only edits without resending text or photos", async () => {
+    await updateReview(8, undefined, [], undefined, false);
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(form.get("show_in_community")).toBe("false");
+    expect(form.has("text")).toBe(false);
+    expect(form.has("keep_photo_ids")).toBe(false);
+  });
+
+  it("omits the preference when an existing client does not supply it", async () => {
+    await updateReview(8, "An updated review of this business.", [], []);
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(form.has("show_in_community")).toBe(false);
   });
 });
 

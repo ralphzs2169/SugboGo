@@ -193,6 +193,8 @@ class ReviewViewTests(APITestCase):
             self.explorer.USER_ID,
         )
 
+        self.assertTrue(review.REVW_SHOW_IN_COMMUNITY)
+
         self.assertEqual(
             review.BUSN_ID_id,
             self.business.BUSN_ID,
@@ -272,6 +274,38 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(preview["user_review"]["id"], review.pk)
         self.assertEqual(preview["reviews"], [])
         self.assertEqual(preview["total_count"], 0)
+
+    def test_create_review_can_opt_out_without_hiding_business_review(self):
+        response = self.client.post(
+            self.preview_url,
+            {
+                "text": "Great food and excellent service.",
+                "show_in_community": "false",
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        review = Review.objects.get(pk=response.data["data"]["id"])
+        self.assertFalse(review.REVW_SHOW_IN_COMMUNITY)
+        preview = self.client.get(self.preview_url).data["data"]
+        self.assertEqual(preview["user_review"]["id"], review.pk)
+        self.assertFalse(preview["user_review"]["show_in_community"])
+        self.assertIn(review.pk, [item["id"] for item in preview["reviews"]])
+        self.client.force_authenticate(self.merchant)
+        public_review = self.client.get(self.preview_url).data["data"]["reviews"][0]
+        self.assertNotIn("show_in_community", public_review)
+
+    def test_create_review_rejects_invalid_community_boolean(self):
+        response = self.client.post(
+            self.preview_url,
+            {
+                "text": "Great food and excellent service.",
+                "show_in_community": "sometimes",
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Review.objects.filter(USER_ID=self.explorer).exists())
 
     def test_create_response_succeeds_when_sentiment_broker_is_unavailable(self):
         with patch(
@@ -1371,6 +1405,62 @@ class ReviewDetailViewTests(APITestCase):
             self.review.REVW_TEXT,
             "Persisted update.",
         )
+
+    def test_visibility_only_update_round_trips_and_preserves_other_edits(self):
+        response = self.client.patch(
+            self.detail_url,
+            {"show_in_community": "false"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["data"]["show_in_community"])
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_TEXT, "Original review.")
+        self.assertFalse(self.review.REVW_SHOW_IN_COMMUNITY)
+        community_ids = [
+            item["id"]
+            for item in self.client.get("/api/reviews/community/").data["data"]["items"]
+        ]
+        self.assertNotIn(self.review.pk, community_ids)
+        business_ids = [
+            item["id"]
+            for item in self.client.get(
+                f"/api/reviews/business/{self.business.pk}/all/"
+            ).data["data"]["items"]
+        ]
+        self.assertIn(self.review.pk, business_ids)
+
+        self.client.patch(
+            self.detail_url,
+            {"text": "Updated text without a preference."},
+            format="multipart",
+        )
+        self.review.refresh_from_db()
+        self.assertFalse(self.review.REVW_SHOW_IN_COMMUNITY)
+
+        response = self.client.patch(
+            self.detail_url,
+            {"show_in_community": "true"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["data"]["show_in_community"])
+        community_ids = [
+            item["id"]
+            for item in self.client.get("/api/reviews/community/").data["data"]["items"]
+        ]
+        self.assertIn(self.review.pk, community_ids)
+
+    def test_non_owner_cannot_change_community_preference(self):
+        self.client.force_authenticate(self.other_explorer)
+        response = self.client.patch(
+            self.detail_url,
+            {"show_in_community": "false"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.review.refresh_from_db()
+        self.assertTrue(self.review.REVW_SHOW_IN_COMMUNITY)
 
     def test_update_review_rejects_non_owner(self):
         self.client.force_authenticate(self.other_explorer)

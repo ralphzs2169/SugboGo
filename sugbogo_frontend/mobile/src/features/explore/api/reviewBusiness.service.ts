@@ -23,13 +23,20 @@ function appendPhotos(form: FormData, photos: LocalReviewPhoto[]) {
 }
 
 function reviewForm(
-  text: string,
+  text: string | undefined,
   photos: LocalReviewPhoto[],
   keepPhotoIds?: number[],
+  showInCommunity?: boolean,
 ) {
   const form = new FormData();
 
-  form.append("text", text);
+  if (text !== undefined) {
+    form.append("text", text);
+  }
+
+  if (showInCommunity !== undefined) {
+    form.append("show_in_community", String(showInCommunity));
+  }
 
   keepPhotoIds?.forEach((id) => {
     form.append("keep_photo_ids", String(id));
@@ -84,6 +91,7 @@ export async function createReview(
   businessId: number,
   text: string,
   photos: LocalReviewPhoto[],
+  showInCommunity?: boolean,
 ): Promise<ApiResponse<ReviewCreateResult>> {
   let installationId: string;
 
@@ -95,7 +103,7 @@ export async function createReview(
     );
   }
 
-  const form = reviewForm(text, photos);
+  const form = reviewForm(text, photos, undefined, showInCommunity);
   form.append("installation_id", installationId);
 
   return request(
@@ -108,14 +116,15 @@ export async function createReview(
 
 export function updateReview(
   reviewId: number,
-  text: string,
+  text: string | undefined,
   photos: LocalReviewPhoto[],
-  keepPhotoIds: number[],
+  keepPhotoIds?: number[],
+  showInCommunity?: boolean,
 ): Promise<ApiResponse<BusinessReview>> {
   return request(
     apiClient.patch(
       `/reviews/${reviewId}/`,
-      reviewForm(text, photos, keepPhotoIds),
+      reviewForm(text, photos, keepPhotoIds, showInCommunity),
     ),
   );
 }
@@ -130,11 +139,21 @@ export function deleteReviewPhoto(photoId: number) {
   return request(apiClient.delete(`/reviews/photos/${photoId}/`));
 }
 
-export function likeReview(reviewId: number): Promise<ApiResponse<null>> {
+export type ReviewLikeResult = {
+  review_id: number;
+  is_liked: boolean;
+  id?: number;
+};
+
+export function likeReview(
+  reviewId: number,
+): Promise<ApiResponse<ReviewLikeResult>> {
   return request(apiClient.post(`/reviews/${reviewId}/like/`));
 }
 
-export function unlikeReview(reviewId: number): Promise<ApiResponse<null>> {
+export function unlikeReview(
+  reviewId: number,
+): Promise<ApiResponse<ReviewLikeResult>> {
   return request(apiClient.delete(`/reviews/${reviewId}/like/`));
 }
 

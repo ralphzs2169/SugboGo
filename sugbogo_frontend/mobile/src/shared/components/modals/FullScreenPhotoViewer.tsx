@@ -287,6 +287,8 @@ export default function FullScreenPhotoViewer({
           <Pressable
             onPress={onClose}
             hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Close photo viewer"
             className="h-10 w-10 items-center justify-center rounded-full bg-black/45 cursor-pointer active:opacity-70"
           >
             <MaterialCommunityIcons name="close" size={24} color="white" />

@@ -7,7 +7,13 @@ import {
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, BackHandler, Pressable, View } from "react-native";
+import {
+  ActivityIndicator,
+  BackHandler,
+  Pressable,
+  Switch,
+  View,
+} from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
@@ -73,6 +79,8 @@ export default function ReviewComposerSheet({
   const [isPicking, setIsPicking] = useState(false);
   const [originalText, setOriginalText] = useState("");
   const [originalPhotoIds, setOriginalPhotoIds] = useState<number[]>([]);
+  const [showInCommunity, setShowInCommunity] = useState(true);
+  const [originalShowInCommunity, setOriginalShowInCommunity] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [errors, setErrors] = useState<ReviewErrors>({});
 
@@ -97,7 +105,12 @@ export default function ReviewComposerSheet({
 
     const newPhotosAdded = photos.length > 0;
 
-    return textChanged || existingPhotosChanged || newPhotosAdded;
+    return (
+      textChanged ||
+      existingPhotosChanged ||
+      newPhotosAdded ||
+      showInCommunity !== originalShowInCommunity
+    );
   }
 
   function resetForm() {
@@ -109,6 +122,8 @@ export default function ReviewComposerSheet({
     setExistingPhotos(initialPhotos);
     setOriginalText(initialText);
     setOriginalPhotoIds(initialPhotos.map((photo) => photo.id));
+    setShowInCommunity(review?.show_in_community ?? true);
+    setOriginalShowInCommunity(review?.show_in_community ?? true);
     setErrors({});
   }
 
@@ -122,10 +137,12 @@ export default function ReviewComposerSheet({
   function validate(): ReviewErrors {
     const validationErrors: ReviewErrors = {};
 
-    if (!trimmedText) {
-      validationErrors.text = "Review is required.";
-    } else if (trimmedText.length < 25) {
-      validationErrors.text = "Review must be at least 25 characters.";
+    if (!isEditing || trimmedText !== originalText.trim()) {
+      if (!trimmedText) {
+        validationErrors.text = "Review is required.";
+      } else if (trimmedText.length < 25) {
+        validationErrors.text = "Review must be at least 25 characters.";
+      }
     }
 
     return validationErrors;
@@ -191,18 +208,29 @@ export default function ReviewComposerSheet({
     try {
       if (review) {
         const textChanged = trimmedText !== originalText.trim();
+        const photosChanged =
+          photos.length > 0 ||
+          existingPhotos.length !== originalPhotoIds.length ||
+          existingPhotos.some((photo) => !originalPhotoIds.includes(photo.id));
 
         await updateReview({
           reviewId: review.id,
-          text: trimmedText,
+          text: textChanged ? trimmedText : undefined,
           photos,
-          keepPhotoIds: existingPhotos.map((photo) => photo.id),
+          keepPhotoIds: photosChanged
+            ? existingPhotos.map((photo) => photo.id)
+            : undefined,
+          showInCommunity:
+            showInCommunity !== originalShowInCommunity
+              ? showInCommunity
+              : undefined,
           textChanged,
         });
       } else {
         const created = await createReview({
           text: trimmedText,
           photos,
+          showInCommunity,
         });
         if (created.status === "under_review") {
           Toast.show({
@@ -484,6 +512,38 @@ export default function ReviewComposerSheet({
               </Pressable>
             )}
           </View>
+        </View>
+
+        {/* Optional Community discovery preference */}
+        <View className="mt-6 rounded-xl border border-border-primary bg-background p-4">
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="min-w-0 flex-1">
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                Show in Community
+              </AppText>
+              <AppText className="mt-1 text-xs leading-4 text-text-secondary">
+                Allow other explorers to discover your review in the Community
+                feed.
+              </AppText>
+            </View>
+            <Switch
+              value={showInCommunity}
+              onValueChange={setShowInCommunity}
+              disabled={isPending}
+              accessibilityRole="switch"
+              accessibilityLabel="Show in Community"
+              accessibilityHint="Allow other explorers to discover your review in the Community feed"
+              accessibilityState={{
+                checked: showInCommunity,
+                disabled: isPending,
+              }}
+              trackColor={{ true: theme.extends.colors.brand }}
+            />
+          </View>
+          <AppText className="mt-2 text-xs leading-4 text-text-tertiary">
+            Turning this off won&apos;t hide your review from the business
+            profile.
+          </AppText>
         </View>
 
         {/* Submit action */}
