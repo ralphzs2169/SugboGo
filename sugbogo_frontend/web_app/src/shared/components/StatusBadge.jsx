@@ -9,6 +9,7 @@ export default function StatusBadge({ children, variant = "neutral" }) {
     success: "bg-emerald-500 text-white",
     warning: "bg-amber-500 text-white",
     danger: "bg-red-500 text-white",
+    dangerSoft: "border border-danger/25 bg-danger/10 text-red-700",
     info: "bg-blue-500 text-white",
   };
 
@@ -18,6 +19,7 @@ export default function StatusBadge({ children, variant = "neutral" }) {
     success: "bg-emerald-100",
     warning: "bg-amber-100",
     danger: "bg-red-100",
+    dangerSoft: "bg-danger",
     info: "bg-blue-100",
   };
 

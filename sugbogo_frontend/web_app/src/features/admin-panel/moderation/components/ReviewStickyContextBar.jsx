@@ -1,6 +1,6 @@
 import { ReviewStatusBadge } from "./ReviewIdentityHeader";
 
-export default function ReviewStickyContextBar({ review, visible }) {
+export default function ReviewStickyContextBar({ review, visible, statusVariant }) {
   return (
     <div className="pointer-events-none sticky top-0 z-30 h-0">
       <div
@@ -10,7 +10,7 @@ export default function ReviewStickyContextBar({ review, visible }) {
         <span className="truncate text-sm font-semibold text-text-primary">
           Review #{review.id}
         </span>
-        <ReviewStatusBadge status={review.status} />
+        <ReviewStatusBadge status={review.status} variant={statusVariant} />
       </div>
     </div>
   );

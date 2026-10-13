@@ -15,17 +15,17 @@ const STATUS_PRESENTATION = {
   under_review: { label: "Under Review", variant: "info" },
 };
 
-export function ReviewStatusBadge({ status }) {
+export function ReviewStatusBadge({ status, variant }) {
   const presentation = STATUS_PRESENTATION[status];
 
   return (
-    <StatusBadge variant={presentation?.variant ?? "neutral"}>
+    <StatusBadge variant={variant ?? presentation?.variant ?? "neutral"}>
       {presentation?.label ?? "Unknown status"}
     </StatusBadge>
   );
 }
 
-export default function ReviewIdentityHeader({ review }) {
+export default function ReviewIdentityHeader({ review, statusVariant }) {
   const clusterName = review.business.cluster_name;
   const { data: clusterResults } = useQuery({
     queryKey: ["admin", "taxonomy", "clusters", "by-name", clusterName],
@@ -46,7 +46,7 @@ export default function ReviewIdentityHeader({ review }) {
         <h2 className="text-lg font-semibold text-text-primary">
           Review #{review.id}
         </h2>
-        <ReviewStatusBadge status={review.status} />
+        <ReviewStatusBadge status={review.status} variant={statusVariant} />
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm">
         <UserAvatar

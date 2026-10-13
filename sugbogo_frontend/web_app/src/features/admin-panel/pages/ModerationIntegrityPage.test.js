@@ -929,14 +929,17 @@ test("Reported queue keeps report priority and neutral review context", () => {
   const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
 
   assert.ok(queue);
-  assert.match(queue, /border-l-primary bg-primary\/5/);
-  assert.match(queue, /Review photo thumbnail/);
+  assert.match(queue, /border-l-info bg-info\/5/);
+  assert.match(queue, /focus-visible:outline-info/);
+  assert.doesNotMatch(queue, /Review photo thumbnail/);
   assert.match(queue, /3<!-- --> pending <!-- -->reports/);
   assert.doesNotMatch(queue, /Needs Attention|lucide-circle-alert/);
-  assert.match(queue, /lucide-flag[^>]*text-warning/);
-  assert.match(queue, /rounded-lg bg-surface-secondary px-2\.5 py-2[^>]*line-clamp-2/);
+  assert.match(queue, /text-amber-700[^>]*>.*?lucide-flag/s);
+  assert.match(queue, /class="mt-2 line-clamp-2 text-sm leading-5 text-text-primary"/);
+  assert.doesNotMatch(queue, /bg-surface-secondary px-2\.5 py-2/);
   assert.match(queue, /rounded-md border border-stroke bg-surface-muted/);
   assert.match(queue, /Latest report: Oct 12, 2026/);
+  assert.match(queue, /Reported \d+[dhm] ago/);
   assert.match(queue, /src="https:\/\/example.com\/business-cover.jpg"/);
   assert.match(queue, /Review #<!-- -->91/);
   assert.doesNotMatch(queue, /Published/);
@@ -972,15 +975,56 @@ test("Reported queue keeps short and long excerpts compact across selected state
   const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
 
   assert.ok(queue);
-  assert.equal((queue.match(/bg-surface-secondary px-2\.5 py-2/g) ?? []).length, 2);
+  assert.equal((queue.match(/class="mt-2 line-clamp-2 text-sm leading-5 text-text-primary"/g) ?? []).length, 2);
   assert.equal((queue.match(/line-clamp-2/g) ?? []).length, 2);
-  assert.match(queue, /border-l-primary bg-primary\/5/);
+  assert.match(queue, /border-l-info bg-info\/5/);
   assert.match(queue, /border-l-transparent bg-background/);
   assert.match(queue, /Short review/);
   assert.match(queue, /\+<!-- -->2<!-- --> more/);
   assert.match(queue, /5<!-- --> pending <!-- -->reports/);
   assert.match(queue, /1<!-- --> pending <!-- -->report/);
   assert.doesNotMatch(queue, /Needs Attention|border-warning\/30 bg-warning\/10/);
+});
+
+test("Reported queue keeps identity and report evidence readable with missing images", () => {
+  const review = {
+    ...reportedReview,
+    author: {
+      id: 7,
+      first_name: "A very long reviewer name that should truncate",
+      last_name: "Cruz",
+    },
+    business: {
+      id: 9,
+      name: "A very long business name that should truncate cleanly",
+    },
+    status: "rejected",
+    first_photo_url: null,
+    photo_count: 0,
+    has_reply: false,
+    is_edited: false,
+    reason_counts: { spam: 1, abuse: 2, misinformation: 1, other: 1 },
+    pending_report_count: 5,
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported",
+    { reportedList: { ...reportedList, items: [review] } },
+  );
+  const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
+  const queueItem = queue?.match(/<button[^>]*aria-pressed="false"[^>]*>.*?<\/button>/s)?.[0];
+
+  assert.ok(queueItem);
+  assert.match(queueItem, /h-8 w-8[^>]*rounded-full/);
+  assert.match(queueItem, /h-6 w-6[^>]*rounded-md/);
+  assert.match(queueItem, /lucide-store/);
+  assert.match(queueItem, /Review #<!-- -->91/);
+  assert.match(queueItem, /· Rejected/);
+  assert.match(queueItem, /truncate text-sm font-semibold/);
+  assert.match(queueItem, /min-w-0 truncate/);
+  assert.match(queueItem, /\+<!-- -->2<!-- --> more/);
+  assert.ok(queueItem.indexOf("Abuse or Harassment") < queueItem.indexOf("Spam"));
+  assert.doesNotMatch(queueItem, /Merchant replied|Edited|Published|Review photo thumbnail/);
+  assert.doesNotMatch(queueItem, /bg-surface-secondary px-2\.5 py-2/);
 });
 
 test("Reported detail shows report evidence and one review-level decision", () => {
@@ -998,21 +1042,58 @@ test("Reported detail shows report evidence and one review-level decision", () =
     "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
     { reportedList, reportedDetail: detail },
   );
+  const normalizedHtml = html.replaceAll("<!-- -->", "");
 
   assert.match(html, /Full review content under investigation/);
   assert.match(html, /Open review photo 1/);
   assert.match(html, /Community Reports/);
   assert.match(html, /Individual Reports/);
+  assert.match(normalizedHtml, /3 reports/);
+  assert.match(html, /Community reports submitted about this review/);
+  assert.match(html, /divide-y divide-stroke overflow-hidden rounded-lg border border-stroke bg-background/);
   assert.match(html, /Reporter&#x27;s explanation/);
   assert.match(html, /A private phone number\nwas posted\./);
   assert.equal((html.match(/Reporter&#x27;s explanation/g) ?? []).length, 1);
-  assert.match(html, /Report #<!-- -->11/);
-  assert.match(html, /Report #<!-- -->12/);
+  assert.match(html, /report-explanation-11/);
+  assert.match(normalizedHtml, /#11/);
+  assert.match(normalizedHtml, /#12/);
+  assert.match(html, /line-clamp-3/);
+  assert.doesNotMatch(html, /rounded-lg border border-stroke bg-background p-4/);
+  assert.doesNotMatch(html, /Reporter name|Reporter avatar/);
   assert.match(html, /Previous Decisions/);
   assert.match(html, /Admin Decision/);
+  assert.match(normalizedHtml, /All 3 pending reports will be resolved together/);
+  assert.match(html, /sm:justify-end/);
   assert.equal((html.match(/Keep Review/g) ?? []).length, 1);
   assert.equal((html.match(/Reject Review/g) ?? []).length, 1);
   assert.doesNotMatch(html, /Dismiss Report|Confirm Report/);
+});
+
+test("Reported evidence keeps long explanations as safe text and omits empty explanations", () => {
+  const longExplanation = `${"Details about the reported content. ".repeat(10)}<script>alert(1)</script>`;
+  const detail = {
+    ...reportedReview,
+    text: "Reported review content",
+    photos: [],
+    reports: [
+      { id: 21, type: "other", status: "pending", created_at: "2026-10-11T09:00:00Z", explanation: longExplanation },
+      { id: 22, type: "spam", status: "pending", created_at: "2026-10-12T09:00:00Z", explanation: null },
+    ],
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList, reportedDetail: detail },
+  );
+  const reports = html.match(/<section aria-label="Individual reports"[^>]*>(.*?)<\/section>/s)?.[1];
+
+  assert.ok(reports);
+  assert.match(reports, /divide-y divide-stroke/);
+  assert.match(reports, /report-explanation-21/);
+  assert.doesNotMatch(reports, /report-explanation-22/);
+  assert.match(reports, /line-clamp-3/);
+  assert.match(reports, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(reports, /<script>/);
+  assert.doesNotMatch(reports, /Dismiss Report|Confirm Report/);
 });
 
 test("Reported detail shares the compact blurred review header", () => {
@@ -1096,6 +1177,7 @@ test("Reported detail uses linked review identity and full content context", () 
   assert.match(header, /Review #<!-- -->91/);
   assert.match(header, /flex flex-wrap items-start justify-between/);
   assert.match(header, /Published/);
+  assert.match(header, /bg-emerald-500 text-white/);
   assert.match(header, /src="https:\/\/example.com\/avatar.jpg"/);
   assert.match(header, /src="https:\/\/example.com\/cover.jpg"/);
   assert.match(header, /href="\/admin-panel\/users\/7"/);
@@ -1135,6 +1217,10 @@ test("Rejected reviews with pending sibling reports stay inspectable", () => {
   );
 
   assert.match(html, /Rejected/);
+  const header = html.match(/<header[^>]*>(.*?)<\/header>/s)?.[1];
+  assert.ok(header);
+  assert.match(header, /border border-danger\/25 bg-danger\/10 text-red-700/);
+  assert.doesNotMatch(header, /bg-slate-200 text-slate-700/);
   const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
   assert.ok(queue);
   assert.match(queue, /Review #<!-- -->91/);

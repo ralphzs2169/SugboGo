@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { AlertCircle, Flag, Image as ImageIcon, Inbox, MessageSquare, Pencil, Search, Store } from "lucide-react";
@@ -13,7 +13,7 @@ import { formatDateTime } from "@/shared/utils/dateUtils";
 import ReviewContentCard from "../../moderation/components/ReviewContentCard";
 import ReviewIdentityHeader from "../../moderation/components/ReviewIdentityHeader";
 import ReviewStickyContextBar from "../../moderation/components/ReviewStickyContextBar";
-import { formatModerationQueueTime } from "../../moderation/components/reviewPresentation";
+import { formatReviewTimestamp } from "../../moderation/components/reviewPresentation";
 import useReviewStickyContext from "../../moderation/hooks/useReviewStickyContext";
 import { fetchBusiness } from "../../businesses/services/businessService";
 
@@ -24,6 +24,7 @@ import {
 } from "../services/reportedReviewService";
 import {
   displayName,
+  formatReportedQueueTime,
   pendingReasons,
   REPORT_REASONS,
 } from "../utils/reportedReviewPresentation";
@@ -77,17 +78,17 @@ function QueueItem({ review, selected, onSelect }) {
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`w-full cursor-pointer border-b border-l-2 border-stroke px-4 py-3.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
+      className={`w-full cursor-pointer border-b border-l-[3px] border-stroke px-4 py-3.5 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-info ${
         selected
-          ? "border-l-primary bg-primary/5 hover:bg-primary/10"
+          ? "border-l-info bg-info/5 hover:bg-info/10"
           : "border-l-transparent bg-background hover:bg-interaction-hover"
       }`}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2.5">
         <UserAvatar
           avatarUrl={review.author.avatar_url}
           avatarKey={review.author.avatar_key}
-          size="sm"
+          size="queue"
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -95,59 +96,58 @@ function QueueItem({ review, selected, onSelect }) {
               {displayName(review.author)}
             </span>
             <time dateTime={review.latest_pending_at} title={`Latest report: ${formatDateTime(review.latest_pending_at)}`} className="shrink-0 text-xs text-text-secondary">
-              {formatModerationQueueTime(review.latest_pending_at)}
+              {formatReportedQueueTime(review.latest_pending_at)}
             </time>
           </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
               {businessCoverUrl ? (
                 <img src={businessCoverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
               ) : (
                 <Store className="h-3.5 w-3.5" aria-hidden="true" />
               )}
             </span>
-            <span className="min-w-0 truncate">{review.business.name}</span>
+            <span className="min-w-0 truncate" title={review.business.name}>{review.business.name}</span>
             <span aria-hidden="true">·</span>
-            <span className="shrink-0">Review #{review.id}{review.status === "rejected" ? " · Rejected" : ""}</span>
-          </div>
-          <div className="mt-2 flex items-start gap-3">
-            <p className="min-w-0 flex-1 rounded-lg bg-surface-secondary px-2.5 py-2 text-sm leading-5 text-text-primary line-clamp-2">
-              {review.text_preview || "Photo review"}
-            </p>
-            {review.first_photo_url && (
-              <img src={review.first_photo_url} alt="Review photo thumbnail" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg border border-stroke object-cover" />
+            <span className="shrink-0">Review #{review.id}</span>
+            {review.status === "rejected" && (
+              <span className="shrink-0">· Rejected</span>
             )}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className={`inline-flex items-center gap-1 text-xs font-semibold ${review.pending_report_count >= 3 ? "text-text-primary" : "text-text-secondary"}`}>
-              <Flag className={`h-3.5 w-3.5 ${review.pending_report_count >= 3 ? "text-warning" : "text-text-secondary"}`} aria-hidden="true" />
+          <p className="mt-2 line-clamp-2 text-sm leading-5 text-text-primary">
+            {review.text_preview || "Photo review"}
+          </p>
+          <div className="mt-2">
+            <span className={`inline-flex items-center gap-1 text-xs font-semibold ${review.pending_report_count >= 3 ? "text-amber-700" : "text-text-secondary"}`}>
+              <Flag className="h-3.5 w-3.5" aria-hidden="true" />
               {review.pending_report_count} pending {review.pending_report_count === 1 ? "report" : "reports"}
             </span>
-            <ReasonBadges counts={review.reason_counts} />
+            <div className="mt-1.5">
+              <ReasonBadges counts={review.reason_counts} />
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            {review.photo_count > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-stroke bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
-                <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                {review.photo_count} {review.photo_count === 1 ? "photo" : "photos"}
-              </span>
-            )}
-            {review.has_reply && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-stroke bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
-                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                Merchant replied
-              </span>
-            )}
-            {review.is_edited && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-stroke bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
-                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                Edited
-              </span>
-            )}
-          </div>
-          <p className="mt-2 text-xs text-text-secondary">
-            First: {formatDateTime(review.first_pending_at)} · Latest: {formatDateTime(review.latest_pending_at)}
-          </p>
+          {(review.photo_count > 0 || review.has_reply || review.is_edited) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-secondary">
+              {review.photo_count > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {review.photo_count} {review.photo_count === 1 ? "photo" : "photos"}
+                </span>
+              )}
+              {review.has_reply && (
+                <span className="inline-flex items-center gap-1">
+                  <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                  Merchant replied
+                </span>
+              )}
+              {review.is_edited && (
+                <span className="inline-flex items-center gap-1">
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  Edited
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </button>
@@ -182,16 +182,85 @@ function ReportSummary({ review }) {
   );
 }
 
-function ReportExplanation({ explanation }) {
+function ReportExplanation({ explanation, reportId }) {
+  const textRef = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const text = textRef.current;
+    if (!text || !explanation) {
+      return;
+    }
+
+    function measureOverflow() {
+      const lineHeight = Number.parseFloat(window.getComputedStyle(text).lineHeight);
+      setOverflows(text.scrollHeight > lineHeight * 3 + 1);
+    }
+
+    measureOverflow();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measureOverflow);
+      return () => window.removeEventListener("resize", measureOverflow);
+    }
+
+    const observer = new ResizeObserver(measureOverflow);
+    observer.observe(text.parentElement);
+    return () => observer.disconnect();
+  }, [explanation, expanded]);
+
   if (!explanation) {
     return null;
   }
 
   return (
-    <div className="mt-2 text-sm text-text-secondary">
-      <p className="font-medium text-text-primary">Reporter's explanation</p>
-      <p className="mt-1 whitespace-pre-wrap">{explanation}</p>
+    <div className="mt-2 min-w-0">
+      <p
+        ref={textRef}
+        id={`report-explanation-${reportId}`}
+        className={`whitespace-pre-wrap break-words text-sm leading-5 text-text-secondary ${expanded ? "" : "line-clamp-3"}`}
+      >
+        <span className="sr-only">Reporter's explanation: </span>
+        {explanation}
+      </p>
+      {overflows && (
+        <button
+          type="button"
+          aria-controls={`report-explanation-${reportId}`}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Show less" : "Show more"} of explanation for report #${reportId}`}
+          onClick={() => setExpanded((value) => !value)}
+          className="mt-1 rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
     </div>
+  );
+}
+
+function ReportRow({ report, resolved = false }) {
+  return (
+    <article className="px-4 py-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+          <span className="inline-flex items-center rounded-md border border-stroke bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-secondary">
+            {REPORT_REASONS[report.type] ?? "Report"}
+          </span>
+          <time dateTime={report.created_at} className="text-xs text-text-secondary">
+            {formatReviewTimestamp(report.created_at)}
+          </time>
+          {resolved && <StatusBadge variant="muted">{report.status}</StatusBadge>}
+        </div>
+        <span className="shrink-0 text-xs text-text-secondary">#{report.id}</span>
+      </div>
+      <ReportExplanation explanation={report.explanation} reportId={report.id} />
+      {resolved && report.admin_notes && (
+        <p className="mt-2 whitespace-pre-wrap break-words text-xs text-text-secondary">
+          Decision notes: {report.admin_notes}
+        </p>
+      )}
+    </article>
   );
 }
 
@@ -201,43 +270,28 @@ function IndividualReports({ review }) {
 
   return (
     <section aria-label="Individual reports" className="border-t border-stroke pt-5">
-      <h3 className="text-base font-semibold text-text-primary">Individual Reports</h3>
+      <div className="flex flex-wrap items-baseline gap-2">
+        <h3 className="text-base font-semibold text-text-primary">Individual Reports</h3>
+        <span className="text-xs text-text-secondary">
+          {review.reports?.length ?? 0} {review.reports?.length === 1 ? "report" : "reports"}
+        </span>
+      </div>
       <p className="mt-1 text-sm text-text-secondary">
-        These reports are supporting evidence for the review decision below.
+        Community reports submitted about this review.
       </p>
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 divide-y divide-stroke overflow-hidden rounded-lg border border-stroke bg-background">
         {pending.map((report) => (
-          <article key={report.id} className="rounded-lg border border-stroke bg-background p-4">
-            <h4 className="text-sm font-semibold text-text-primary">
-              {REPORT_REASONS[report.type] ?? "Report"} · Report #{report.id}
-            </h4>
-            <p className="mt-1 text-xs text-text-secondary">Submitted {formatDateTime(report.created_at)}</p>
-            <ReportExplanation explanation={report.explanation} />
-          </article>
+          <ReportRow key={report.id} report={report} />
+        ))}
+        {resolved.length > 0 && (
+          <div className="bg-surface-muted px-4 py-2 text-xs font-semibold text-text-secondary">
+            Previous Decisions
+          </div>
+        )}
+        {resolved.map((report) => (
+          <ReportRow key={report.id} report={report} resolved />
         ))}
       </div>
-      {resolved.length > 0 && (
-        <div className="mt-6">
-          <h4 className="text-sm font-semibold text-text-primary">Previous Decisions</h4>
-          <div className="mt-3 space-y-2">
-            {resolved.map((report) => (
-              <article key={report.id} className="rounded-lg border border-stroke bg-surface p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium text-text-primary">
-                    {REPORT_REASONS[report.type] ?? "Report"} · Report #{report.id}
-                  </span>
-                  <StatusBadge variant="muted">{report.status}</StatusBadge>
-                </div>
-                <p className="mt-1 text-xs text-text-secondary">Submitted {formatDateTime(report.created_at)}</p>
-                <ReportExplanation explanation={report.explanation} />
-                {report.admin_notes && (
-                  <p className="mt-2 whitespace-pre-wrap text-text-secondary">Decision notes: {report.admin_notes}</p>
-                )}
-              </article>
-            ))}
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -246,20 +300,20 @@ function AdminDecision({ review, onDecision, pending }) {
   const alreadyRejected = review.status === "rejected";
 
   return (
-    <section aria-label="Admin decision" className="border-t border-stroke pt-5">
+    <section aria-label="Admin decision" className="border-t border-stroke pt-6">
       <h3 className="text-base font-semibold text-text-primary">Admin Decision</h3>
       <p className="mt-1 text-sm text-text-secondary">
         {alreadyRejected
-          ? "This review is already rejected. Resolve its remaining pending reports without repeating the review rejection."
-          : "These community reports concern the same review. Decide whether the review should remain published."}
+          ? `This review is already rejected. Its ${review.pending_report_count} remaining pending ${review.pending_report_count === 1 ? "report will" : "reports will"} be resolved without rejecting it again.`
+          : `Decide whether this review should remain published. All ${review.pending_report_count} pending ${review.pending_report_count === 1 ? "report will" : "reports will"} be resolved together.`}
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
         {!alreadyRejected && (
-          <Button variant="secondary" disabled={pending} onClick={() => onDecision(review, "keep")}>
+          <Button variant="secondary" className="min-h-11" disabled={pending} onClick={() => onDecision(review, "keep")}>
             Keep Review
           </Button>
         )}
-        <Button variant="danger-outline" disabled={pending} onClick={() => onDecision(review, "reject")}>
+        <Button variant="danger-outline" className="min-h-11" disabled={pending} onClick={() => onDecision(review, "reject")}>
           Reject Review
         </Button>
       </div>
@@ -307,10 +361,10 @@ function ReportedReviewDetail({ reviewId, onStale, onDecision, decisionPending }
 
   return (
     <div ref={scrollContainerRef} className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
-      <ReviewStickyContextBar review={review} visible={showContextBar} />
+      <ReviewStickyContextBar review={review} visible={showContextBar} statusVariant={review.status === "rejected" ? "dangerSoft" : undefined} />
       <article className="space-y-6 p-5 sm:p-6">
         <div ref={reviewHeaderRef}>
-          <ReviewIdentityHeader review={review} />
+          <ReviewIdentityHeader review={review} statusVariant={review.status === "rejected" ? "dangerSoft" : undefined} />
         </div>
         <ReviewContentCard review={review} />
         <ReportSummary review={review} />

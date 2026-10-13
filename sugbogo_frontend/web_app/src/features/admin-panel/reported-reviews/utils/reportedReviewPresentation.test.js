@@ -2,9 +2,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  formatReportedQueueTime,
   nextReportedSelection,
   pendingReasons,
 } from "./reportedReviewPresentation.js";
+
+test("reported queue time labels use compact elapsed time", () => {
+  const now = Date.parse("2026-10-13T12:00:00Z");
+
+  assert.equal(formatReportedQueueTime("2026-10-13T12:00:00Z", now), "Reported just now");
+  assert.equal(formatReportedQueueTime("2026-10-13T11:55:00Z", now), "Reported 5m ago");
+  assert.equal(formatReportedQueueTime("2026-10-13T11:00:00Z", now), "Reported 1h ago");
+  assert.equal(formatReportedQueueTime("2026-10-10T12:00:00Z", now), "Reported 3d ago");
+});
 
 test("reason badges include only currently pending reason groups", () => {
   assert.deepEqual(

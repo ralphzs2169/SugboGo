@@ -17,6 +17,31 @@ export function pendingReasons(reasonCounts = {}) {
   );
 }
 
+export function formatReportedQueueTime(value, now = Date.now()) {
+  if (!value) {
+    return "Reported date unavailable";
+  }
+
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor((now - new Date(value).getTime()) / 60000),
+  );
+
+  if (elapsedMinutes < 1) {
+    return "Reported just now";
+  }
+
+  if (elapsedMinutes < 60) {
+    return `Reported ${elapsedMinutes}m ago`;
+  }
+
+  if (elapsedMinutes < 1440) {
+    return `Reported ${Math.floor(elapsedMinutes / 60)}h ago`;
+  }
+
+  return `Reported ${Math.floor(elapsedMinutes / 1440)}d ago`;
+}
+
 export function nextReportedSelection(previousItems, refreshedItems, selectedId) {
   if (refreshedItems.some((item) => item.id === selectedId)) {
     return selectedId;
