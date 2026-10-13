@@ -53,7 +53,7 @@ Mongo failures preserve available SQL data and return null affected visibility m
 
 ## Ralph: where Premium enforcement lives
 
-All five Premium view classes inherit the same authentication, merchant-role and `HasMerchantPlus` permissions. With `MERCHANT_PLUS_ENFORCED=False`, active merchants can preview them. With enforcement enabled, the current entitlement stub denies access before ownership/service queries. A future approved server entitlement lookup can grant access without changing endpoint permissions. No client entitlement claim is accepted.
+All seven Premium view classes, including peers and the composed report, inherit the same authentication, merchant-role and `HasMerchantPlus` permissions. With `MERCHANT_PLUS_ENFORCED=False`, active merchants can preview them. With enforcement enabled, the current entitlement stub denies access before ownership/service queries. A future approved server entitlement lookup can grant access without changing endpoint permissions. No client entitlement claim is accepted.
 
 | Location | Responsibility |
 |---|---|
@@ -62,7 +62,7 @@ All five Premium view classes inherit the same authentication, merchant-role and
 | `merchant_analytics/permissions.py`: `HasMerchantPlus` | Every Premium view uses this; denial returns HTTP 403 with code PLUS_REQUIRED. |
 | `serializers/standard_analytics_serializers.py` | Standard allowlist; never add Premium values and merely hide them in the UI. |
 
-The Plus permission does not replace role or ownership checks. Existing public review summaries remain public. Local peer benchmarks, report exports and the real entitlement lookup remain future tasks. Keep enforcement disabled for the agreed development preview. Before enabling it for paying users, coordinate the entitlement structure with Ralph and test eligible/denied accounts. No plan model/payment processing is introduced here.
+The Plus permission does not replace role or ownership checks. Existing public review summaries remain public. Anonymous category/cluster peers and the JSON report are implemented below; PDF exports and the real entitlement lookup remain future tasks. Keep enforcement disabled for the agreed development preview. Before enabling it for paying users, coordinate the entitlement structure with Ralph and test eligible/denied accounts. No plan model/payment processing is introduced here.
 
 ## Premium endpoint contract
 
@@ -106,7 +106,87 @@ Current/previous cohorts use current published reviews created in each period. E
 
 Reply numerator uses a retained reply created between the review creation and the single report generated_at cutoff; denominator is the published review-creation cohort. Older selected cohorts can include replies after period end. Recent cohorts have less opportunity to receive replies. Median duration uses only valid replied reviews in the cohort; unanswered reviews are excluded. No replied reviews produces null median/sample 0. Future/negative replies are excluded and counted across the entire published backlog. Deleted/recreated replies can lose the true original first-reply timestamp; this is a median of retained reply records.
 
-`reply_rate_change` is percentage points, with null comparison when either cohort denominator is zero; the shared helper requires at least one eligible review per cohort. `current_unanswered_published` covers all current published reviews, independent of selected dates. Current-state moderation/deletion and reply-history limitations appear in metadata. This task includes no district/cluster peer comparisons or report exports.
+`reply_rate_change` is percentage points, with null comparison when either cohort denominator is zero; the shared helper requires at least one eligible review per cohort. `current_unanswered_published` covers all current published reviews, independent of selected dates. Current-state moderation/deletion and reply-history limitations appear in metadata. Peer comparison and the composed JSON report are documented in the next section; PDF export is not implemented.
+
+## Peer comparison and composed report
+
+| Endpoint | Accepted parameters | Access |
+|---|---|---|
+| `GET /api/merchant/analytics/premium/peers/` | period, start_date, end_date | Active authenticated merchant + HasMerchantPlus + owned business |
+| `GET /api/merchant/analytics/premium/report/` | period, start_date, end_date, interval=daily/weekly (default daily for visibility) | Same Premium permission chain |
+
+Business IDs, category/cluster selectors, thresholds, user IDs and entitlement claims cannot be supplied by the client. Missing owned business returns 404. The report is explicitly Premium even though it includes a sanitized Standard subsection; the standalone Standard endpoint remains unchanged and ungated by Plus.
+
+### Peer group and disclosure policy
+
+Merchant-owned constants are in `merchant_analytics/constants.py`: `MIN_PEER_GROUP_SIZE=5` and display precision two decimal places. Five is an initial product disclosure threshold, not a statistical-confidence or anonymity guarantee. The existing classified-review threshold is reused from `apps/reviews/constants.py` rather than duplicated.
+
+Eligible peers are current active businesses in the merchant's category's cluster, created by generated_at. Exclude the owned business **before counting**. Prefer the same category if it contains at least five other eligible businesses; otherwise use all eligible businesses in the cluster, with `fallback_reason=category_group_too_small`. Category/cluster are taxonomy relationships, not geographic districts. Suspended businesses and future-created rows are excluded; verified status and owner-account status do not add eligibility filters. Current status/classification is not historical inventory, and newer businesses have shorter exposure; lifetimes are not normalized. The selected group is fixed for all metrics, even if sentiment samples are insufficient.
+
+If the resulting group is below five, top-level status is insufficient_data with reason peer_group_too_small. Group size/scope/minimum/fallback metadata remains visible. All metric values, medians, positions and eligible sample sizes are null; no metric reads are performed for that group. Owned Standard/Premium report sections remain usable. No peer names, IDs, individual metric rows, locations or review evidence are returned, even for sufficiently large groups.
+
+Each metric has label, unit, status, reason, merchant_value, peer_median, position, eligible_peer_sample_size, and merchant_classified_review_count (only populated for an available sentiment comparison). Group size describes inventory; eligible metric sample size can be smaller. Positions are above_median/at_median/below_median based on the same rounded values displayed to clients. Even groups use the mean of the two middle values. No rankings, percentiles or business-quality conclusions are inferred.
+
+### Peer metric definitions
+
+- Profile visits and saves count existing deduplicated PROFILE_VISIT/SAVE events in the same [start,end) window for each business. Healthy zero-event businesses remain in medians. SAVE events are not current Pocket holdings. Reads are batched for the group and owned business. Mongo failure suppresses both merchant and median values for these comparisons, with status unavailable/reason visibility_unavailable; SQL comparisons survive. Successful recorded comparisons have status partial/reason coverage_unverified. They are observations, not verified complete performance benchmarks; no recommendation is inferred from a below-median observation. Existing temporal growth remains suppressed.
+- Specialty support uses **period vouches added and still valid**, summed as endorsements across current active specialties, not distinct people. Match the existing Premium period trend, including creation bounds, link creation by generated_at and maintained evidence validity. This is an approved period-based definition distinct from Standard's all-time current support snapshot. Unvouch/invalidation/deactivation can revise results. Cached counts, Discovery Score and weight/reputation scores are not used. Zero-support businesses remain in the median; different numbers of specialties are not normalized.
+- Positive review share uses positive / classified stored labels on current published reviews created in the selected period. Blank/unclassified labels are excluded from the denominator, not treated as neutral. Require at least five classified reviews for the merchant and at least five selected peers each meeting that threshold. Suppress both numerical values/position when either requirement fails; reasons distinguish merchant_sentiment_sample_too_small and peer_sentiment_sample_too_small. Return the eligible peer sample count. Compute the median of individual business shares, **not** a pooled platform percentage or average of rates. A pooled platform share, if ever requested separately, must instead pool counts. Current review state follows the existing documented sentiment-policy discrepancy; no refresh or historical reconstruction is performed.
+
+### Composed JSON payload
+
+```text
+data:
+  business: owned business identity only
+  report_version: "1"
+  snapshot_as_of
+  results:
+    standard: existing sanitized Standard response
+    premium:
+      visibility: existing Premium visibility response
+      pocket: existing Premium Pocket response
+      specialties: existing Premium specialty response
+      review_insights: existing safe stored-insights response
+      review_performance: existing Premium review-performance response
+  changes:
+    visibility: metric -> existing change object
+    pocket: metric -> existing change object
+    reply_rate: existing percentage-point change object
+  peers: anonymous peer response including metric positions
+  key_findings: [{code, message}]
+  recommended_actions: [{code, message}]
+  meta
+  measurement_note
+```
+
+The report composes service calls directly, without internal HTTP requests or LLM calls. One resolved AnalyticsPeriod/generated_at is passed to every section. Source reads are sequential and not a cross-database transactional snapshot; concurrent data changes can affect reconciliation. Preserve subsection metadata. Stored summaries keep their own coverage dates and generation state, not the selected analytics range. Overall metadata stays partial and records partial section names; it never promotes unverified tracking to complete coverage.
+
+Deterministic rules use stable codes:
+
+| Code | Condition | Recommendation |
+|---|---|---|
+| UNANSWERED_REVIEWS | Whole current published backlog has eligible-unanswered reviews | Review backlog and respond where appropriate |
+| INSUFFICIENT_SENTIMENT | Selected cohort below classified-review threshold | Wait for sufficient classified data before drawing sentiment conclusions |
+| STORED_INSIGHTS_MISSING | No stored summary | Availability disclosure only |
+| STORED_INSIGHTS_OUTDATED | Stored state outdated | Check original state/coverage/freshness before using content |
+| STORED_CONTENT_UNAVAILABLE | Other stored state fails content gate | Availability disclosure only |
+| VISIBILITY_UNAVAILABLE | Owned or peer visibility reads fail | Missing evidence disclosure; no performance recommendation |
+| VISIBILITY_COVERAGE_UNVERIFIED | Current tracking coverage is unverified | Coverage disclosure; no growth claim |
+| INSUFFICIENT_PEERS | Selected inventory below group minimum | Small-group disclosure only |
+| INSUFFICIENT_SENTIMENT_PEERS | Group sufficient but merchant/peer sentiment samples insufficient | Sentiment comparison disclosure only |
+
+No causal diagnoses, low-quality labels, manufactured marketing advice or provider-generated findings are included. PDF rendering/export and frontend design are outside this branch.
+
+### Peer/report verification and remaining integration work
+
+1. Run merchant analytics tests plus shared visibility/date helpers. Cover exactly four/five other peers, same-category selection, cluster fallback, exclusion of the merchant/suspended/future/other-cluster rows, and client threshold overrides.
+2. Exercise healthy zero counts, odd/even medians, displayed ties, unequal business review samples and fewer than five sentiment-qualified peers. Check that no metric-specific group fallback occurs.
+3. Verify batched peer queries, period boundaries, retained specialty evidence, healthy zeros versus unavailable Mongo, and no peer identity fields in serialized payloads.
+4. Test both new routes with Plus enforcement off/on, future server-side entitlement grant mocks, roles, inactive accounts and two owners. Confirm standalone Standard still has no Premium data.
+5. Check composed subsection periods/generated_at, fixed weekly sections, visibility interval, stored summary coverage, conservative findings, and unchanged stored summaries on GET.
+6. Before deployment: reconcile live Mongo aggregates with tracking fixtures, verify coverage/retention and UTC deduplication, measure full-report cost and peer population scale, exercise real JWT access, validate frontend interpretation and entitlement integration. A real Mongo ping alone does not prove tracking completeness. Production query limits/caching require measured evidence and separate approval.
+
+Automated Mongo tests use the existing read-only in-memory collection; live database behavior and production performance are not established by those results.
 
 ### Premium verification
 
@@ -133,7 +213,7 @@ These automated tests use a mocked read-only Mongo collection. Live Mongo aggreg
 3. Compare stored profile/SAVE observations using the exact UTC bounds. Repeat a visitor over multiple dates; confirm one period-wide visitor. Unsave and confirm holder count falls while prior SAVE events remain.
 4. Confirm zero-support active specialties, inactive links, invalid evidence and valid suspicious evidence follow existing rules. Never compare against unfiltered cached totals.
 5. Validate published/rejected/under-review reviews, old unanswered backlog, replies after the selected end but before generated cutoff, future/negative replies, and null denominator vs 0% response.
-6. With enforcement off, the Standard response must still contain no Premium/comparison fields. With enforcement on, Standard remains available and all five Premium routes deny with `PLUS_REQUIRED` until the real entitlement check is implemented.
+6. With enforcement off, the Standard response must still contain no Premium/comparison fields. With enforcement on, Standard remains available and all seven Premium routes deny with `PLUS_REQUIRED` until the real entitlement check is implemented.
 7. Check that Mongo failure produces null visibility/partial metadata while SQL metrics remain readable. Preserve legitimate healthy zeros.
 8. Frontend should display event counts, current snapshots, cohort percentages and cutoff labels distinctly; no trend arrows or Premium numbers should be synthesized from this response.
 
