@@ -34,8 +34,15 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, password=None, **extra_fields):
+    def create_superuser(self, email=None, password=None, **extra_fields):
         """Create a fully active and verified SugboGo Super Admin."""
+        # Django's createsuperuser command supplies the USERNAME_FIELD keyword.
+        username_email = extra_fields.pop(self.model.USERNAME_FIELD, None)
+        if email is not None and username_email is not None and email != username_email:
+            raise ValueError("Supply the same email through email and USER_EMAIL.")
+        if email is None:
+            email = username_email
+
         required_values = {
             "USER_ROLE": User.UserRole.SUPER_ADMIN,
             "USER_STATUS": User.UserStatus.ACTIVE,
