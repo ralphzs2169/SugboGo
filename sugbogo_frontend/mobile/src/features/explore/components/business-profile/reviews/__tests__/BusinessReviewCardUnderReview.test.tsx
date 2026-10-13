@@ -3,6 +3,14 @@ import { fireEvent, render } from "@testing-library/react-native";
 import type { BusinessReview } from "../../../../types/review.types";
 import BusinessReviewCard from "../BusinessReviewCard";
 
+jest.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: jest.fn() }),
+}));
+jest.mock("@/features/auth/store/auth.store", () => ({
+  useAuthStore: (selector: (state: { user: { id: number } }) => unknown) =>
+    selector({ user: { id: 1 } }),
+}));
+
 jest.mock("../../../../hooks/useBusinessReviews", () => ({
   useDeleteReview: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useReportReview: () => ({ mutateAsync: jest.fn() }),
@@ -35,7 +43,11 @@ jest.mock("@/shared/components/bottom-sheets/ActionBottomSheet", () => ({
     ));
   },
 }));
-jest.mock("@/shared/components/bottom-sheets/SelectionBottomSheet", () => ({
+jest.mock("../ReportReviewSheet", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+jest.mock("../ReviewReportReceiptSheet", () => ({
   __esModule: true,
   default: () => null,
 }));
@@ -71,5 +83,30 @@ describe("BusinessReviewCard held review", () => {
     expect(screen.getByText("Delete my review")).toBeTruthy();
     fireEvent.press(screen.getByText("Delete my review"));
     expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("shows the persisted view action only for an already reported review", async () => {
+    const review = {
+      ...heldReview,
+      id: 74,
+      status: "published",
+      is_own_review: false,
+      has_reported: false,
+    } as BusinessReview;
+    const screen = await render(
+      <BusinessReviewCard businessId={20} review={review} />,
+    );
+    expect(screen.getByText("Report review")).toBeTruthy();
+    expect(screen.queryByText("View your report")).toBeNull();
+
+    await screen.rerender(
+      <BusinessReviewCard
+        businessId={20}
+        review={{ ...review, has_reported: true }}
+      />,
+    );
+    expect(screen.getByText("View your report")).toBeTruthy();
+    expect(screen.queryByText("Report review")).toBeNull();
+    screen.unmount();
   });
 });

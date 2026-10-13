@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
 import { Toaster } from "react-hot-toast";
@@ -11,7 +11,7 @@ import Businesses from "@/features/admin-panel/pages/BusinessesPage";
 import Users from "@/features/admin-panel/pages/Users";
 import UserDetailPage from "@/features/admin-panel/pages/UserDetailPage";
 import ExplorerActivities from "@/features/admin-panel/pages/ExplorerActivities";
-import SuspiciousActivities from "@/features/admin-panel/pages/SuspiciousActivities";
+import ModerationIntegrityPage from "@/features/admin-panel/pages/ModerationIntegrityPage";
 import Analytics from "@/features/admin-panel/pages/Analytics";
 import DiscoveryScoresPage from "@/features/admin-panel/pages/DiscoveryScoresPage";
 import Settings from "@/features/admin-panel/pages/Settings";
@@ -21,7 +21,6 @@ import ClusterCategoryPage from "@/features/admin-panel/pages/ClusterCategoryPag
 import BusinessApplications from "@/features/admin-panel/pages/BusinessApplicationsPage";
 import BusinessApplicationReviewPage from "@/features/admin-panel/pages/BusinessApplicationReviewPage";
 import BusinessDetailPage from "@/features/admin-panel/pages/BusinessDetailPage";
-import ReviewDisputesPage from "@/features/admin-panel/pages/ReviewDisputesPage";
 import ReviewDisputeDetailPage from "@/features/admin-panel/pages/ReviewDisputeDetailPage";
 import UpdateRequestsPage from "@/features/admin-panel/pages/UpdateRequestsPage";
 import UpdateRequestReviewPage from "@/features/admin-panel/pages/UpdateRequestReviewPage";
@@ -38,6 +37,18 @@ import PageLoader from "@/shared/components/loading/PageLoader";
 import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
 import SpecialtyTagsPage from "./features/admin-panel/pages/SpecialtyTagsPage";
 import TransitNetworkPage from "@/features/admin-panel/pages/TransitNetworkPage";
+import { getLegacyModerationDestination } from "@/features/admin-panel/utils/moderationNavigation";
+
+function LegacyModerationRedirect({ tab }) {
+  const location = useLocation();
+
+  return (
+    <Navigate
+      to={getLegacyModerationDestination(location.search, tab)}
+      replace
+    />
+  );
+}
 
 function App() {
   useRestoreSession();
@@ -128,8 +139,18 @@ function App() {
                 />
               }
             />
-            <Route path="flags-suspicious" element={<SuspiciousActivities />} />
-            <Route path="review-disputes" element={<ReviewDisputesPage />} />
+            <Route
+              path="moderation-integrity"
+              element={<ModerationIntegrityPage />}
+            />
+            <Route
+              path="flags-suspicious"
+              element={<LegacyModerationRedirect tab="under-review" />}
+            />
+            <Route
+              path="review-disputes"
+              element={<LegacyModerationRedirect tab="disputes" />}
+            />
             <Route
               path="review-disputes/:disputeId"
               element={<ReviewDisputeDetailPage />}

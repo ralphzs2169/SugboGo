@@ -1,4 +1,3 @@
-import React from "react";
 import { flexRender } from "@tanstack/react-table";
 import TableEmptyState from "./TableEmptyState";
 
@@ -15,10 +14,8 @@ export default function TableBody({ table, emptyState, onRowClick }) {
           <tr
             key={row.id}
             onClick={() => onRowClick?.(row.original)}
-            className={`h-[60px] border-b border-stroke last:border-b-0 ${
-              onRowClick
-                ? "cursor-pointer transition-colors hover:bg-interaction-hover"
-                : ""
+            className={`h-[60px] border-b border-stroke transition-colors hover:bg-interaction-hover last:border-b-0 ${
+              onRowClick ? "cursor-pointer" : ""
             }`}
           >
             {row.getVisibleCells().map((cell) => (

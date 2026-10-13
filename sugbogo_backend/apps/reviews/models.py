@@ -81,6 +81,10 @@ class Review(models.Model):
         default=list,
         blank=True,
     )
+    REVW_RELIABILITY_EVIDENCE = models.JSONField(
+        default=dict,
+        blank=True,
+    )
 
     REVW_SENTIMENT_SCORE = models.FloatField(
         null=True,
@@ -114,6 +118,10 @@ class Review(models.Model):
 
     REVW_UPDATED_AT = models.DateTimeField(
         auto_now=True,
+    )
+    REVW_EDITED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
     )
 
     class Meta:
@@ -162,8 +170,10 @@ class ReviewReport(models.Model):
 
     class ReportType(models.TextChoices):
         SPAM = "spam", "Spam"
-        ABUSE = "abuse", "Abuse"
-        MISINFORMATION = "misinformation", "Misinformation"
+        ABUSE = "abuse", "Abuse or Harassment"
+        MISINFORMATION = "misinformation", "False or Misleading Information"
+        OFF_TOPIC = "off_topic", "Off-topic or Irrelevant"
+        PRIVATE_INFORMATION = "private_information", "Personal or Private Information"
         OTHER = "other", "Other"
 
     class ReportStatus(models.TextChoices):
@@ -212,6 +222,11 @@ class ReviewReport(models.Model):
     )
 
     RREP_NOTES = models.TextField(
+        blank=True,
+        null=True,
+    )
+    RREP_EXPLANATION = models.CharField(
+        max_length=500,
         blank=True,
         null=True,
     )

@@ -1,25 +1,31 @@
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 
 import AppText from "@/shared/components/AppText";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
-import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
 import { theme } from "@/constants/theme";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import {
   useDeleteReview,
-  useReportReview,
 } from "../../../hooks/useBusinessReviews";
 import { useReviewLike } from "../../../hooks/useReviewLike";
 import type { BusinessReview } from "../../../types/review.types";
 import MerchantReviewResponse from "./MerchantReviewResponse";
 import ReviewContent from "./ReviewContent";
+import ReportReviewSheet from "./ReportReviewSheet";
+import ReviewReportReceiptSheet from "./ReviewReportReceiptSheet";
+import {
+  businessReviewPreviewKey,
+  businessReviewsKey,
+} from "../../../hooks/reviewQueryKeys";
 
 type Props = {
   businessId: number;
@@ -49,12 +55,30 @@ export default function BusinessReviewCard({
   const { mutateAsync: deleteReview, isPending: isDeletePending } =
     useDeleteReview(businessId);
 
-  const { mutateAsync: reportReview } = useReportReview(businessId);
 
   const [isDeleteVisible, setIsDeleteVisible] = useState(false);
+  const [reportedByUserId, setReportedByUserId] = useState<number | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const userId = useAuthStore((state) => state.user?.id);
+  const queryClient = useQueryClient();
+  const hasReported = review.has_reported || reportedByUserId === userId;
 
   const actionSheetRef = useRef<BottomSheetModal | null>(null);
   const reportSheetRef = useRef<BottomSheetModal | null>(null);
+  const receiptSheetRef = useRef<BottomSheetModal | null>(null);
+
+  const handleReported = () => {
+    setReportedByUserId(userId ?? null);
+    void queryClient.invalidateQueries({
+      queryKey: businessReviewPreviewKey(businessId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: businessReviewsKey(businessId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["my-review-report", userId, review.id],
+    });
+  };
 
   const toggleLike = async () => {
     try {
@@ -101,31 +125,6 @@ export default function BusinessReviewCard({
     }
   };
 
-  const handleReport = async (value: string) => {
-    try {
-      await reportReview({
-        reviewId: review.id,
-        reportType: value as "spam" | "abuse" | "misinformation" | "other",
-      });
-
-      Toast.show({
-        type: "info",
-        text1: "Review reported",
-        visibilityTime: 1500,
-      });
-    } catch (error) {
-      const response = error as ApiResponse<unknown>;
-
-      if (!response.success && !handleSystemError(response)) {
-        Toast.show({
-          type: "error",
-          text1: "Unable to report review",
-          text2: response.message || "Please try again.",
-        });
-      }
-    }
-  };
-
   return (
     <View
       className={`border-t border-border-primary bg-surface px-4 py-5 ${
@@ -147,7 +146,7 @@ export default function BusinessReviewCard({
             Under review
           </AppText>
           <AppText className="mt-1 text-xs text-text-secondary">
-            We're reviewing this before it appears publicly.
+            We&apos;re reviewing this before it appears publicly.
           </AppText>
         </View>
       )}
@@ -172,9 +171,9 @@ export default function BusinessReviewCard({
               ]
             : [
                 {
-                  label: "Report review",
-                  value: "report",
-                  color: theme.extends.colors.error,
+                  label: hasReported ? "View your report" : "Report review",
+                  value: hasReported ? "view-report" : "report",
+                  color: hasReported ? undefined : theme.extends.colors.error,
                 },
               ]
         }
@@ -190,33 +189,27 @@ export default function BusinessReviewCard({
           if (value === "report") {
             presentBottomSheet(reportSheetRef);
           }
+
+          if (value === "view-report") {
+            setReceiptOpen(true);
+            presentBottomSheet(receiptSheetRef);
+          }
         }}
       />
 
       {/* Report review */}
-      <SelectionBottomSheet
+      <ReportReviewSheet
         sheetRef={reportSheetRef}
-        title="Report review"
-        description="Why are you reporting this review?"
-        options={[
-          {
-            label: "Spam",
-            value: "spam",
-          },
-          {
-            label: "Abuse",
-            value: "abuse",
-          },
-          {
-            label: "Misinformation",
-            value: "misinformation",
-          },
-          {
-            label: "Other",
-            value: "other",
-          },
-        ]}
-        onSelect={handleReport}
+        businessId={businessId}
+        reviewId={review.id}
+        onReported={handleReported}
+      />
+
+      <ReviewReportReceiptSheet
+        sheetRef={receiptSheetRef}
+        reviewId={review.id}
+        isOpen={receiptOpen}
+        onDismiss={() => setReceiptOpen(false)}
       />
 
       {/* Delete confirmation */}

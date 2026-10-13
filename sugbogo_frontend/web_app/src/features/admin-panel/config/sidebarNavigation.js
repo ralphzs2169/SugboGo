@@ -3,7 +3,6 @@ import {
   FiSettings,
   FiShield,
   FiUsers,
-  FiMessageSquare,
   FiTag,
   FiMapPin,
   FiFileText,
@@ -75,19 +74,6 @@ import { MdStorefront } from "react-icons/md";
 //         to: "/admin-panel/explorer-activity",
 //         label: "Explorer Activity",
 //         Icon: FiUser,
-//         roles: ["admin", "super_admin"],
-//       },
-//     ],
-//   },
-
-//   {
-//     section: "Moderation",
-//     items: [
-//       {
-//         type: "link",
-//         to: "/admin-panel/flags-suspicious",
-//         label: "Flags & Suspicious",
-//         Icon: FiShield,
 //         roles: ["admin", "super_admin"],
 //       },
 //     ],
@@ -201,28 +187,17 @@ const navigation = [
   },
 
   {
-    section: "Moderation",
+    section: "Trust & Safety",
     items: [
       {
         type: "link",
-        to: "/admin-panel/review-disputes",
-        label: "Review Disputes",
-        Icon: FiMessageSquare,
-        roles: ["admin", "super_admin"],
-        activePaths: [
-          "/admin-panel/review-disputes",
-          "/admin-panel/review-disputes/[disputeId]",
-        ],
-      },
-      {
-        type: "link",
-        to: "/admin-panel/flags-suspicious",
-        label: "Flags & Suspicious",
+        to: "/admin-panel/moderation-integrity",
+        label: "Moderation & Integrity",
         Icon: FiShield,
         roles: ["admin", "super_admin"],
         activePaths: [
-          "/admin-panel/flags-suspicious",
-          "/admin-panel/flags-suspicious/[flagId]",
+          "/admin-panel/moderation-integrity",
+          "/admin-panel/review-disputes/[disputeId]",
         ],
       },
     ],

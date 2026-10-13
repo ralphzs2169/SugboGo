@@ -19,6 +19,7 @@ from apps.reviews.models import (
     Review,
     ReviewLike,
     ReviewPhoto,
+    ReviewReport,
     ReviewReply,
 )
 from apps.reviews.services.business_review_summary_service import (
@@ -181,15 +182,23 @@ class ReviewService:
     @staticmethod
     def _installation_reliability_reasons(review: Review) -> list[str]:
         """Return distinct installation signals without changing publication."""
+        reasons, _ = ReviewService._installation_reliability_findings(review)
+        return reasons
+
+    @staticmethod
+    def _installation_reliability_findings(review: Review) -> tuple[list[str], dict]:
+        """Capture installation signal decisions and their detection-time counts."""
         installation_id = review.REVW_INSTALLATION_ID
         if installation_id is None or not installation_id.strip():
-            return []
+            return [], {}
 
         # Include every status so moderation cannot erase installation evidence.
         installation_reviews = Review.objects.filter(
             REVW_INSTALLATION_ID=installation_id,
         )
         reasons = []
+        evidence = {}
+        observed_at = timezone.now()
         distinct_users = (
             installation_reviews
             .filter(BUSN_ID_id=review.BUSN_ID_id)
@@ -201,20 +210,36 @@ class ReviewService:
             reasons.append(
                 Review.ReliabilityReason.SHARED_INSTALLATION_ACCOUNTS,
             )
+            evidence[Review.ReliabilityReason.SHARED_INSTALLATION_ACCOUNTS] = {
+                "observed_at": observed_at.isoformat(),
+                "distinct_account_count": distinct_users,
+            }
 
-        window_end = timezone.now()
+        window_end = observed_at
         recent_count = installation_reviews.filter(
             REVW_CREATED_AT__gte=window_end - ReviewService.DEVICE_REVIEW_WINDOW,
             REVW_CREATED_AT__lte=window_end,
         ).count()
         if recent_count > ReviewService.DEVICE_MAX_REVIEWS_IN_WINDOW:
             reasons.append(Review.ReliabilityReason.RAPID_SUBMISSION)
+            evidence[Review.ReliabilityReason.RAPID_SUBMISSION] = {
+                "observed_at": observed_at.isoformat(),
+                "window_hours": int(
+                    ReviewService.DEVICE_REVIEW_WINDOW.total_seconds() / 3600
+                ),
+                "review_count": recent_count,
+            }
 
-        return reasons
+        return reasons, evidence
 
     @staticmethod
     def _has_duplicate_content(review: Review) -> bool:
         """Find two prior normalized matches from the author or installation."""
+        return ReviewService._duplicate_content_evidence(review) is not None
+
+    @staticmethod
+    def _duplicate_content_evidence(review: Review) -> dict | None:
+        """Capture exact prior matches from the duplicate decision query."""
         normalized_text = " ".join(review.REVW_TEXT.split()).casefold()
         window_end = timezone.now()
         source_filter = Q(USER_ID_id=review.USER_ID_id)
@@ -233,25 +258,78 @@ class ReviewService:
             )
             .exclude(pk=review.pk)
             .exclude(BUSN_ID_id=review.BUSN_ID_id)
-            .values_list("REVW_TEXT", flat=True)
+            .values("REVW_ID", "REVW_TEXT", "USER_ID_id")
             .iterator()
         )
-        match_count = 0
-        for prior_text in prior_texts:
-            if " ".join(prior_text.split()).casefold() == normalized_text:
-                match_count += 1
-                if match_count >= ReviewService.DUPLICATE_PRIOR_MATCHES:
-                    return True
+        matched_ids = []
+        same_user_matches = 0
+        for prior in prior_texts:
+            if " ".join(prior["REVW_TEXT"].split()).casefold() == normalized_text:
+                matched_ids.append(prior["REVW_ID"])
+                if prior["USER_ID_id"] == review.USER_ID_id:
+                    same_user_matches += 1
 
-        return False
+        if len(matched_ids) < ReviewService.DUPLICATE_PRIOR_MATCHES:
+            return None
+
+        if same_user_matches == len(matched_ids):
+            basis = "same_user"
+        elif same_user_matches == 0:
+            basis = "same_installation"
+        else:
+            basis = "same_user_or_installation"
+
+        return {
+            "observed_at": window_end.isoformat(),
+            "prior_match_count": len(matched_ids),
+            "matched_review_ids": matched_ids,
+            "basis": basis,
+        }
 
     @staticmethod
-    def _reliability_reasons(review: Review) -> list[str]:
-        """Evaluate the three advisory signals in a stable stored order."""
-        reasons = ReviewService._installation_reliability_reasons(review)
-        if ReviewService._has_duplicate_content(review):
+    def _reliability_reasons(review: Review) -> tuple[list[str], dict]:
+        """Evaluate advisory signals and capture their supporting evidence."""
+        reasons, evidence = ReviewService._installation_reliability_findings(review)
+        duplicate_evidence = ReviewService._duplicate_content_evidence(review)
+        if duplicate_evidence is not None:
             reasons.append(Review.ReliabilityReason.DUPLICATE_CONTENT)
-        return reasons
+            evidence[Review.ReliabilityReason.DUPLICATE_CONTENT] = duplicate_evidence
+        return reasons, evidence
+
+    @staticmethod
+    def _record_edit_duplicate_content(review: Review) -> None:
+        """Append a first edit-time duplicate finding without rewriting history."""
+        duplicate_reason = Review.ReliabilityReason.DUPLICATE_CONTENT
+        reasons = review.REVW_RELIABILITY_REASONS
+        if duplicate_reason in reasons:
+            return
+
+        duplicate_evidence = ReviewService._duplicate_content_evidence(review)
+        if duplicate_evidence is None:
+            return
+
+        evidence = review.REVW_RELIABILITY_EVIDENCE.copy()
+        duplicate_evidence["detected_during"] = "edit"
+        evidence[duplicate_reason] = duplicate_evidence
+        original_reasons = review.REVW_RELIABILITY_REASONS
+        original_evidence = review.REVW_RELIABILITY_EVIDENCE
+        review.REVW_RELIABILITY_REASONS = [
+            *reasons,
+            duplicate_reason,
+        ]
+        review.REVW_RELIABILITY_EVIDENCE = evidence
+        try:
+            review.save(
+                update_fields=[
+                    "REVW_RELIABILITY_REASONS",
+                    "REVW_RELIABILITY_EVIDENCE",
+                    "REVW_UPDATED_AT",
+                ],
+            )
+        except Exception:
+            review.REVW_RELIABILITY_REASONS = original_reasons
+            review.REVW_RELIABILITY_EVIDENCE = original_evidence
+            raise
 
     @staticmethod
     def create_review(
@@ -339,9 +417,10 @@ class ReviewService:
                 review.REVW_MODERATION_DATA = moderation
                 try:
                     with transaction.atomic():
-                        reliability_reasons = ReviewService._reliability_reasons(
-                            review,
-                        )
+                        (
+                            reliability_reasons,
+                            reliability_evidence,
+                        ) = ReviewService._reliability_reasons(review)
                 except Exception as exc:
                     logger.error(
                         "Review reliability evaluation failed.",
@@ -351,8 +430,10 @@ class ReviewService:
                         },
                     )
                     reliability_reasons = []
+                    reliability_evidence = {}
 
                 review.REVW_RELIABILITY_REASONS = reliability_reasons
+                review.REVW_RELIABILITY_EVIDENCE = reliability_evidence
                 installation_reasons = {
                     Review.ReliabilityReason.RAPID_SUBMISSION,
                     Review.ReliabilityReason.SHARED_INSTALLATION_ACCOUNTS,
@@ -364,6 +445,7 @@ class ReviewService:
                     update_fields=[
                         "REVW_MODERATION_DATA",
                         "REVW_RELIABILITY_REASONS",
+                        "REVW_RELIABILITY_EVIDENCE",
                         "REVW_IS_DEVICE_ABUSE_FLAGGED",
                         "REVW_UPDATED_AT",
                     ],
@@ -433,6 +515,11 @@ class ReviewService:
             USER_ID=user,
         )
 
+        own_reports = ReviewReport.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            USER_ID=user,
+        )
+
         active_disputes = (
             MerchantReviewDispute.objects
             .filter(
@@ -450,6 +537,7 @@ class ReviewService:
                 is_liked=Exists(likes),
                 is_liked_by_owner=Exists(owner_likes),
                 is_own_review=Exists(own_reviews),
+                has_reported=Exists(own_reports),
                 active_dispute_id=Subquery(active_disputes),
             )
             .prefetch_related(
@@ -816,6 +904,10 @@ class ReviewService:
                 RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
             ).delete()
 
+            if text_changed or new_photos or removed_photos:
+                review.REVW_EDITED_AT = timezone.now()
+                review.save(update_fields=["REVW_EDITED_AT"])
+
             if (
                 new_photos
                 and not had_photo_before_update
@@ -836,6 +928,17 @@ class ReviewService:
             raise
 
         if text_changed:
+            try:
+                with transaction.atomic():
+                    ReviewService._record_edit_duplicate_content(review)
+            except Exception as exc:
+                logger.error(
+                    "Review edit duplicate reliability evaluation failed.",
+                    extra={
+                        "review_id": review.REVW_ID,
+                        "error_type": type(exc).__name__,
+                    },
+                )
             BusinessReviewSummaryService.recompute_sentiment(
                 review.BUSN_ID_id,
             )

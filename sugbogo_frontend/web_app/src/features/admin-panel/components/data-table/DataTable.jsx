@@ -113,7 +113,7 @@ function DataTable({
       aria-busy={isLoading || isFetching}
     >
       {tabs.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-6 overflow-x-auto pb-1">
           <TableTabs
             tabs={tabs}
             activeTab={activeTab}

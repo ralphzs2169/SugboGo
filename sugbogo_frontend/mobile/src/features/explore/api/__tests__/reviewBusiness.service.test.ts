@@ -1,7 +1,12 @@
 import apiClient from "@/shared/api/apiClient.service";
 
 import { getInstallationId } from "@/shared/api/storage.service";
-import { createReview, getAllBusinessReviews } from "../reviewBusiness.service";
+import {
+  createReview,
+  getAllBusinessReviews,
+  getMyReviewReport,
+  reportReview,
+} from "../reviewBusiness.service";
 import {
   DEFAULT_BUSINESS_REVIEW_FILTERS,
   type BusinessReviewFilters,
@@ -23,6 +28,38 @@ const url = "/reviews/business/20/all/";
 function filters(changes: Partial<BusinessReviewFilters>) {
   return { ...DEFAULT_BUSINESS_REVIEW_FILTERS, ...changes };
 }
+
+describe("reportReview", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("sends the selected reason and optional reporter explanation", async () => {
+    await reportReview(74, "private_information", "Private phone number posted.");
+    await reportReview(75, "spam");
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/reviews/74/report/",
+      {
+        report_type: "private_information",
+        explanation: "Private phone number posted.",
+      },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/reviews/75/report/",
+      { report_type: "spam" },
+    );
+  });
+});
+
+describe("getMyReviewReport", () => {
+  it("retrieves the current user's report receipt from the review report route", async () => {
+    await getMyReviewReport(74);
+    expect(apiClient.get).toHaveBeenCalledWith("/reviews/74/report/");
+  });
+});
 
 describe("getAllBusinessReviews", () => {
   beforeEach(() => {

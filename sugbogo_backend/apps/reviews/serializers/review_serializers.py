@@ -212,6 +212,10 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    has_reported = serializers.BooleanField(
+        read_only=True,
+    )
+
     is_liked_by_owner = serializers.BooleanField(
         read_only=True,
     )
@@ -240,6 +244,7 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "author",
             "reply",
             "is_own_review",
+            "has_reported",
             "active_dispute_id",
         )
 
@@ -249,3 +254,32 @@ class ReviewReportSerializer(InstallationIdInputSerializer):
     report_type = serializers.ChoiceField(
         choices=ReviewReport.ReportType.choices,
     )
+    explanation = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+    )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if (
+            "explanation" in self.initial_data
+            and not isinstance(self.initial_data["explanation"], str)
+        ):
+            raise serializers.ValidationError({
+                "explanation": "Explanation must be text.",
+            })
+        if (
+            attrs["report_type"] == ReviewReport.ReportType.OTHER
+            and not attrs.get("explanation")
+        ):
+            raise serializers.ValidationError({
+                "explanation": "Please explain why you are reporting this review.",
+            })
+        explanation = attrs.get("explanation", "")
+        if explanation and len(explanation) < 10:
+            raise serializers.ValidationError({
+                "explanation": "Explanation must be at least 10 characters long.",
+            })
+        return attrs

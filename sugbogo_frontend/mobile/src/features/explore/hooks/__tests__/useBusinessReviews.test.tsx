@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import {
@@ -7,6 +8,7 @@ import {
   deleteReview,
   getAllBusinessReviews,
   getBusinessReviewPreview,
+  getMyReviewReport,
   reportReview,
   updateReview,
 } from "../../api/reviewBusiness.service";
@@ -22,6 +24,7 @@ import {
   useCreateReview,
   useDeleteReview,
   useMerchantBusinessReviews,
+  useMyReviewReport,
   useReportReview,
   useUpdateReview,
 } from "../useBusinessReviews";
@@ -41,6 +44,7 @@ jest.mock("../../api/reviewBusiness.service", () => ({
   deleteReview: jest.fn(),
   getAllBusinessReviews: jest.fn(),
   getBusinessReviewPreview: jest.fn(),
+  getMyReviewReport: jest.fn(),
   reportReview: jest.fn(),
   updateReview: jest.fn(),
 }));
@@ -421,6 +425,7 @@ describe("useBusinessReviews", () => {
       data: null,
     });
     const { client, Wrapper } = setupClient();
+    const invalidations = jest.spyOn(client, "invalidateQueries");
     const { result, unmount } = await renderHook(
       () => useReportReview(20),
       { wrapper: Wrapper },
@@ -430,12 +435,63 @@ describe("useBusinessReviews", () => {
       await result.current.mutateAsync({
         reviewId: 8,
         reportType: "spam",
+        explanation: "Repeated promotional content.",
       });
     });
 
+    expect(reportReview).toHaveBeenCalledWith(
+      8,
+      "spam",
+      "Repeated promotional content.",
+    );
+    for (const queryKey of [
+      businessReviewPreviewKey(20),
+      businessReviewsKey(20),
+      exploreBusinessDetailKey(20),
+    ]) {
+      expect(invalidations).toHaveBeenCalledWith({ queryKey });
+    }
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
     unmount();
     client.clear();
+  });
+});
+
+describe("useMyReviewReport", () => {
+  it("scopes receipt cache entries to the signed-in account", async () => {
+    const { client, Wrapper } = setupClient();
+    (getMyReviewReport as jest.Mock)
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: 1, reason: "spam" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: 2, reason: "abuse" },
+      });
+    useAuthStore.setState({ user: { id: 1 } as never });
+    const { result, unmount } = await renderHook(
+      () => useMyReviewReport(74, true),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(result.current.data?.id).toBe(1));
+    expect(client.getQueryData(["my-review-report", 1, 74])).toEqual({
+      id: 1,
+      reason: "spam",
+    });
+
+    await act(async () => {
+      useAuthStore.setState({ user: { id: 2 } as never });
+    });
+    await waitFor(() => expect(result.current.data?.id).toBe(2));
+    expect(getMyReviewReport).toHaveBeenCalledTimes(2);
+    expect(client.getQueryData(["my-review-report", 2, 74])).toEqual({
+      id: 2,
+      reason: "abuse",
+    });
+    unmount();
+    client.clear();
+    useAuthStore.setState({ user: null });
   });
 });

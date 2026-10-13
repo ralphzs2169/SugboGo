@@ -1,4 +1,4 @@
-"""OpenAI content moderation for submitted review text and photos."""
+"""OpenAI moderation with a narrow local Cebuano threat fallback."""
 
 import base64
 import logging
@@ -8,6 +8,10 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.utils import timezone
 from openai import OpenAI
+
+from apps.reviews.services.review_cebuano_safety_fallback import (
+    ReviewCebuanoSafetyFallback,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -144,6 +148,9 @@ class ReviewModerationService:
         model = settings.OPENAI_MODERATION_MODEL
         checked_at = timezone.now().isoformat()
         findings = []
+        local_finding = ReviewCebuanoSafetyFallback.finding(text)
+        if local_finding is not None:
+            findings.append(local_finding)
         image_count = len(photos or []) + len(image_urls or [])
 
         if not settings.OPENAI_API_KEY:
@@ -207,7 +214,11 @@ class ReviewModerationService:
                     ),
                 )
         except Exception as exc:
-            if any(finding["flagged"] for finding in findings):
+            if any(
+                finding["flagged"]
+                for finding in findings
+                if finding["source"] in ("text", "image")
+            ):
                 outcome = "flagged"
             else:
                 outcome = "provider_failure"
