@@ -660,12 +660,12 @@ class VisibilityEventService:
 
     @classmethod
     def get_analytics_explorer_series(
-        cls, *, start_time, end_time, business_ids=None, interval="daily",
+        cls, *, start_time, end_time, business_ids=None, interval="daily", event_type=None,
     ):
-        """Count distinct explorers per Manila bucket across businesses and event types."""
+        """Count distinct explorers per Manila bucket with an optional event-type scope."""
         if interval not in {"daily", "weekly"}:
             raise ValidationError({"interval": "Choose daily or weekly."})
-        match = cls._analytics_match(business_ids)
+        match = cls._analytics_match(business_ids, event_type)
         window = cls._analytics_window(start_time, end_time)
         match["occurred_at"] = window
         truncation = {
