@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from django.test import TestCase
 from django.urls import reverse
@@ -50,7 +50,7 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
                 self.assertNotIn(private, notification.NOTF_BODY)
 
     def test_rejected_report_notifies_only_reporter_and_does_not_claim_clearance(self):
-        self.review.REVW_IS_SPAM_FLAGGED = True
+        self.review.REVW_IS_REPORT_FLAGGED = True
         self.review.save()
         ManageReviewReportService.resolve(
             self.report.pk, actor=self.admin,
@@ -61,7 +61,7 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         self.assertEqual(notification.NOTF_TYPE, "review_report_rejected")
         self.assertNotIn("cleared", notification.NOTF_BODY)
         self.review.refresh_from_db()
-        self.assertTrue(self.review.REVW_IS_SPAM_FLAGGED)
+        self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
 
     def test_sibling_reports_have_independent_outcomes_and_one_author_notice(self):
         sibling = ReviewReport.objects.create(
@@ -184,3 +184,24 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Notification.objects.exists())
+
+    def test_live_delivery_failure_does_not_undo_approved_report(self):
+        layer = type("FailingLayer", (), {
+            "group_send": AsyncMock(side_effect=RuntimeError("Redis unavailable")),
+        })()
+        with (
+            patch("apps.notifications.services.notification_realtime_service.get_channel_layer",
+                  return_value=layer),
+            patch("apps.reviews.tasks.refresh_business_review_insights.delay"),
+            self.assertLogs("apps.notifications.services.notification_realtime_service",
+                            level="WARNING"),
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.approve_report()
+        self.report.refresh_from_db()
+        self.review.refresh_from_db()
+        self.assertEqual(self.report.RREP_STATUS, "approved")
+        self.assertEqual(self.review.REVW_STATUS, "rejected")
+        self.assertEqual(Notification.objects.count(), 2)
+        self.assertEqual(AdminActivity.objects.count(), 1)
+        self.assertEqual(ReputationEvent.objects.count(), 2)

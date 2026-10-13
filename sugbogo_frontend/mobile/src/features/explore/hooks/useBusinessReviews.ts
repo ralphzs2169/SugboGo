@@ -6,11 +6,17 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import * as reviewService from "../api/reviewBusiness.service";
+import type {
+  MyReviewReport,
+  ReviewReportReason,
+} from "../api/reviewBusiness.service";
 import type {
   BusinessReviewFilters,
   BusinessReviewListResponse,
@@ -120,7 +126,10 @@ function useReviewMutation<TVariables, TResult>(
         await invalidateBusinessCardCollections(queryClient);
       }
 
-      if (sync === "create") {
+      if (
+        sync === "create" &&
+        (result as ReviewCreateResult).status === "published"
+      ) {
         startSentimentSync({
           reviewId: (result as ReviewCreateResult).id,
           baselineComputedAt: context.baselineSentimentComputedAt,
@@ -160,12 +169,41 @@ function useReviewMutation<TVariables, TResult>(
 
 /** Retrieves the review preview shown on the business profile. */
 export function useBusinessReviewPreview(businessId: number) {
+  const queryClient = useQueryClient();
+  const previousOwnReview = useRef<{
+    businessId: number;
+    status: BusinessReview["status"] | null;
+  } | null>(null);
   const query = useQuery({
     queryKey: businessReviewPreviewKey(businessId),
     queryFn: async (): Promise<BusinessReviewPreview> =>
       throwOnApiError(await reviewService.getBusinessReviewPreview(businessId)),
     enabled: Boolean(businessId),
+    refetchInterval: (currentQuery) =>
+      currentQuery.state.data?.user_review?.status === "under_review"
+        ? 30_000
+        : false,
   });
+
+  useEffect(() => {
+    const currentStatus = query.data?.user_review?.status ?? null;
+    if (
+      previousOwnReview.current?.businessId === businessId &&
+      previousOwnReview.current.status === "under_review" &&
+      currentStatus !== "under_review"
+    ) {
+      void Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: businessReviewsKey(businessId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: exploreBusinessDetailKey(businessId),
+        }),
+        invalidateBusinessCardCollections(queryClient),
+      ]);
+    }
+    previousOwnReview.current = { businessId, status: currentStatus };
+  }, [businessId, query.data?.user_review?.status, queryClient]);
 
   const reviews = query.data?.reviews ?? [];
 
@@ -339,9 +377,22 @@ export function useReportReview(businessId: number) {
     ({
       reviewId,
       reportType,
+      explanation,
     }: {
       reviewId: number;
-      reportType: "spam" | "abuse" | "misinformation" | "other";
-    }) => reviewService.reportReview(reviewId, reportType),
+      reportType: ReviewReportReason;
+      explanation?: string;
+    }) => reviewService.reportReview(reviewId, reportType, explanation),
   );
+}
+
+export function useMyReviewReport(reviewId: number, enabled: boolean) {
+  const userId = useAuthStore((state) => state.user?.id);
+
+  return useQuery({
+    queryKey: ["my-review-report", userId, reviewId],
+    queryFn: async (): Promise<MyReviewReport> =>
+      throwOnApiError(await reviewService.getMyReviewReport(reviewId)),
+    enabled: enabled && Boolean(userId) && Boolean(reviewId),
+  });
 }

@@ -163,7 +163,7 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
     def test_returns_only_published_reviews(self):
         published = self._create_review()
         diagnostic = self._create_review(
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_REPORT_FLAGGED=True,
             REVW_IS_DEVICE_ABUSE_FLAGGED=True,
             REVW_IS_OUTLIER_SENTIMENT=True,
         )
@@ -483,11 +483,6 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
             user=self.explorer,
             review_id=other_review.pk,
         )
-        ReviewLikeService.create_like(
-            user=self.business.USER_ID,
-            review_id=other_review.pk,
-        )
-
         items_by_id = {
             item["id"]: item
             for item in self._items()
@@ -495,17 +490,17 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
 
         self.assertEqual(
             items_by_id[other_review.pk]["like_count"],
-            2,
+            1,
         )
         self.assertTrue(items_by_id[other_review.pk]["is_liked"])
-        self.assertTrue(items_by_id[other_review.pk]["is_liked_by_owner"])
+        self.assertFalse(items_by_id[other_review.pk]["is_liked_by_owner"])
         self.assertFalse(items_by_id[other_review.pk]["is_own_review"])
         self.assertTrue(items_by_id[own_review.pk]["is_own_review"])
 
     def test_excludes_private_moderation_and_diagnostic_fields(self):
         self._create_review(
             REVW_REPORT_COUNT=4,
-            REVW_IS_SPAM_FLAGGED=True,
+            REVW_IS_REPORT_FLAGGED=True,
             REVW_IS_DEVICE_ABUSE_FLAGGED=True,
             REVW_IS_OUTLIER_SENTIMENT=True,
             REVW_SENTIMENT_SCORE=-0.9,
@@ -518,7 +513,7 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
         for field in (
             "status",
             "report_count",
-            "is_spam_flagged",
+            "is_report_flagged",
             "is_device_abuse_flagged",
             "is_outlier_sentiment",
             "sentiment_score",

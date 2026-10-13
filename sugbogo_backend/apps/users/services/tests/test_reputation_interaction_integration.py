@@ -17,11 +17,14 @@ from apps.business.models import (
 from apps.business.services.vouch_service import VouchService
 from apps.reviews.models import ReviewPhoto
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    SafeReviewModerationMixin,
+)
 from apps.users.models import ReputationEvent, User
 from apps.users.services.reputation_service import ReputationService
 
 
-class ReputationInteractionIntegrationTests(TestCase):
+class ReputationInteractionIntegrationTests(SafeReviewModerationMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.explorer = User.objects.create_user(

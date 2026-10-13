@@ -1,9 +1,13 @@
 import apiClient from "@/shared/api/apiClient.service";
 
+import { getInstallationId } from "@/shared/api/storage.service";
+
 import {
   createReview,
   getAllBusinessReviews,
   updateReview,
+  getMyReviewReport,
+  reportReview,
 } from "../reviewBusiness.service";
 import {
   DEFAULT_BUSINESS_REVIEW_FILTERS,
@@ -14,6 +18,9 @@ jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,
   default: { get: jest.fn(), post: jest.fn(), patch: jest.fn() },
 }));
+jest.mock("@/shared/api/storage.service", () => ({
+  getInstallationId: jest.fn(),
+}));
 jest.mock("@/shared/api/request.service", () => ({
   request: (value: unknown) => value,
 }));
@@ -23,6 +30,38 @@ const url = "/reviews/business/20/all/";
 function filters(changes: Partial<BusinessReviewFilters>) {
   return { ...DEFAULT_BUSINESS_REVIEW_FILTERS, ...changes };
 }
+
+describe("reportReview", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("sends the selected reason and optional reporter explanation", async () => {
+    await reportReview(74, "private_information", "Private phone number posted.");
+    await reportReview(75, "spam");
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/reviews/74/report/",
+      {
+        report_type: "private_information",
+        explanation: "Private phone number posted.",
+      },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/reviews/75/report/",
+      { report_type: "spam" },
+    );
+  });
+});
+
+describe("getMyReviewReport", () => {
+  it("retrieves the current user's report receipt from the review report route", async () => {
+    await getMyReviewReport(74);
+    expect(apiClient.get).toHaveBeenCalledWith("/reviews/74/report/");
+  });
+});
 
 describe("getAllBusinessReviews", () => {
   beforeEach(() => {
@@ -113,6 +152,7 @@ describe("getAllBusinessReviews", () => {
 describe("review visibility request payloads", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (getInstallationId as jest.Mock).mockResolvedValue("stored-installation");
     (apiClient.post as jest.Mock).mockResolvedValue({ success: true });
     (apiClient.patch as jest.Mock).mockResolvedValue({ success: true });
   });
@@ -129,6 +169,8 @@ describe("review visibility request payloads", () => {
     const second = (apiClient.post as jest.Mock).mock.calls[1][1] as FormData;
     expect(first.get("show_in_community")).toBe("true");
     expect(second.get("show_in_community")).toBe("false");
+    expect(first.get("installation_id")).toBe("stored-installation");
+    expect(second.get("installation_id")).toBe("stored-installation");
   });
 
   it("supports visibility-only edits without resending text or photos", async () => {
@@ -143,5 +185,39 @@ describe("review visibility request payloads", () => {
     await updateReview(8, "An updated review of this business.", [], []);
     const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
     expect(form.has("show_in_community")).toBe(false);
+  });
+});
+
+describe("createReview installation ID", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getInstallationId as jest.Mock).mockResolvedValue("stored-installation");
+    (apiClient.post as jest.Mock).mockResolvedValue({ success: true });
+  });
+
+  it("sends text, every photo, and the stored installation ID", async () => {
+    await createReview(20, "A detailed review", [
+      { uri: "file:///one.jpg" },
+      { uri: "file:///two.jpg", fileName: "two.jpg", mimeType: "image/jpeg" },
+    ]);
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    const [url, form] = (apiClient.post as jest.Mock).mock.calls[0];
+    expect(url).toBe("/reviews/business/20/");
+    expect(form.get("text")).toBe("A detailed review");
+    expect(form.get("installation_id")).toBe("stored-installation");
+    expect(form.getAll("photos")).toHaveLength(2);
+    expect(getInstallationId).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops submission with a clear error when SecureStore fails", async () => {
+    (getInstallationId as jest.Mock).mockRejectedValue(
+      new Error("SecureStore unavailable"),
+    );
+
+    await expect(createReview(20, "A detailed review", [])).rejects.toThrow(
+      "Unable to access this app's installation ID",
+    );
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 });

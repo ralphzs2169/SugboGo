@@ -43,7 +43,11 @@ const REASON_OPTIONS = [
  * Supports server-backed search, filtering, sorting, pagination, retry states,
  * and navigation to individual dispute moderation details.
  */
-export default function ReviewDisputeManagementTable() {
+export default function ReviewDisputeManagementTable({
+  tabs = [],
+  activeTab,
+  onTabChange,
+}) {
   const navigate = useNavigate();
 
   const {
@@ -136,6 +140,9 @@ export default function ReviewDisputeManagementTable() {
       onResetFilters={handleResetFilters}
       isSearching={isSearching}
       config={{
+        tabs,
+        activeTab,
+        onTabChange,
         searchPlaceholder: "Search review disputes...",
         emptyState: {
           title: "No review disputes yet",

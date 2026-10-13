@@ -1,34 +1,19 @@
 import { useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 
+import Button from "@/shared/components/Button";
 import DetailPageLayout from "@/shared/components/layout/DetailPageLayout";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import useNavigateBack from "@/shared/hooks/useNavigateBack";
 
 import ApproveLocationRequestModal from "../business-update-requests/components/ApproveLocationRequestModal";
-import LocationComparisonMap, {
-  LocationMapBoundary,
-} from "../business-update-requests/components/LocationComparisonMap";
-import LocationLandmarkDiff from "../business-update-requests/components/LocationLandmarkDiff";
+import LocationReviewCase from "../business-update-requests/components/LocationReviewCase";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
-import RequestReviewWorkspace from "../business-update-requests/components/RequestReviewWorkspace";
-import ReviewComparison from "../business-update-requests/components/ReviewComparison";
 import useLocationUpdateRequestDecisions from "../business-update-requests/hooks/useLocationUpdateRequestDecisions";
 import useLocationUpdateRequestDetail from "../business-update-requests/hooks/useLocationUpdateRequestDetail";
-import {
-  getLocationFieldChanges,
-  locationBaselineMatches,
-} from "../business-update-requests/utils/locationDiff";
-
-const FIELD_LABELS = {
-  address: "Address",
-  city: "City",
-  province: "Province",
-  postal_code: "Postal code",
-};
+import { locationBaselineMatches } from "../business-update-requests/utils/locationDiff";
 
 function decisionMessage(error, fallback) {
   return error.response?.data?.message || fallback;
@@ -49,7 +34,11 @@ export default function LocationUpdateRequestReviewPage() {
     useLocationUpdateRequestDetail(requestId);
   const decisions = useLocationUpdateRequestDecisions();
 
-  useDocumentTitle("Review Location Request | SugboGo Admin");
+  useDocumentTitle(
+    request
+      ? `Request #${request.id} | SugboGo Admin`
+      : "Review Location Request | SugboGo Admin",
+  );
   useApiErrorNotification(error, {
     toastId: "admin-location-request-detail-error",
     fallbackMessage: "Unable to load this location request.",
@@ -129,40 +118,6 @@ export default function LocationUpdateRequestReviewPage() {
   const stale =
     request?.status === "pending" &&
     !locationBaselineMatches(request.current, request.previous);
-  const allFieldChanges = getLocationFieldChanges(
-    request?.previous?.location,
-    request?.proposed?.location,
-  );
-  const fieldChanges = allFieldChanges.filter(
-    (change) => change.field !== "latitude" && change.field !== "longitude",
-  );
-  const pinChanged = allFieldChanges.some(
-    (change) => change.field === "latitude" || change.field === "longitude",
-  );
-  const mapStates = request
-    ? [
-        {
-          id: "previous",
-          label: "At submission",
-          location: request.previous?.location,
-        },
-        ...(stale
-          ? [
-              {
-                id: "current",
-                label: "Current live",
-                location: request.current?.location,
-              },
-            ]
-          : []),
-        {
-          id: "proposed",
-          label: request.status === "approved" ? "Approved" : "Requested",
-          location: request.proposed?.location,
-        },
-      ]
-    : [];
-
   return (
     <>
       <DetailPageLayout
@@ -175,7 +130,7 @@ export default function LocationUpdateRequestReviewPage() {
           },
           { label: request ? `Request #${request.id}` : "Review Request" },
         ]}
-        title="Location & Landmark Change Request"
+        title={request ? `Request #${request.id}` : "Review Request"}
         backLabel="Back to Update Requests"
         onBack={handleBack}
         isLoading={isLoading && !request}
@@ -189,94 +144,87 @@ export default function LocationUpdateRequestReviewPage() {
         errorMessage="The location request could not be loaded. Please try again."
       >
         {request && (
-          <RequestReviewWorkspace
-            request={request}
-            type="Location & landmark change"
-            error={error}
-            onRetry={refetch}
-            decisionError={decisionError}
-            onApprove={() => setActiveDialog("approve")}
-            onReject={() => setActiveDialog("reject")}
-            decisionPending={decisions.isApproving || decisions.isRejecting}
+          <div
+            className={`w-full min-w-0 space-y-6 ${
+              request.status === "pending" ? "pb-36 sm:pb-28" : "pb-12"
+            }`}
           >
-            {stale && (
-              <p
+            {/* Keep cached content visible when a background refetch fails. */}
+            {error && (
+              <div
                 role="alert"
-                className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+                className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
               >
-                <AlertTriangle
-                  className="mt-0.5 h-4 w-4 shrink-0"
-                  aria-hidden="true"
-                />
-                The live business location or landmarks changed after
-                submission. The backend will check the baseline again if you
-                approve.
-              </p>
+                The latest request details could not be loaded.
+                <button
+                  type="button"
+                  className="ml-2 cursor-pointer font-semibold underline"
+                  onClick={() => void refetch()}
+                >
+                  Retry
+                </button>
+              </div>
             )}
-            {fieldChanges.length > 0 && (
-              <section className="rounded-xl border border-stroke bg-background p-5">
-                <h2 className="text-base font-semibold text-text-primary">
-                  Address changes
-                </h2>
-                <div className="mt-5">
-                  {fieldChanges.map((change) => (
-                    <ReviewComparison
-                      key={change.field}
-                      title={FIELD_LABELS[change.field]}
-                      previous={change.previous}
-                      proposed={change.proposed}
-                      status={request.status}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-            {pinChanged && (
-              <section className="rounded-xl border border-stroke bg-background p-5">
-                <h2 className="text-base font-semibold text-text-primary">
-                  Business pin
-                </h2>
-                <p className="mt-1 text-sm text-text-secondary">
-                  Compare the exact positions captured in this request.
-                </p>
-                <div className="mt-4">
-                  <LocationMapBoundary key={request.id} states={mapStates}>
-                    <LocationComparisonMap states={mapStates} />
-                  </LocationMapBoundary>
-                </div>
-                <ReviewComparison
-                  title="Coordinates"
-                  previous={
-                    <span className="font-mono text-xs tabular-nums">
-                      {request.previous?.location?.latitude ?? "—"},{" "}
-                      {request.previous?.location?.longitude ?? "—"}
-                    </span>
-                  }
-                  proposed={
-                    <span className="font-mono text-xs tabular-nums">
-                      {request.proposed?.location?.latitude ?? "—"},{" "}
-                      {request.proposed?.location?.longitude ?? "—"}
-                    </span>
-                  }
-                  status={request.status}
-                />
-                {stale && (
-                  <p className="mt-2 text-xs text-text-secondary">
-                    Current live position:{" "}
-                    {request.current?.location?.latitude ?? "—"},{" "}
-                    {request.current?.location?.longitude ?? "—"}
-                  </p>
-                )}
-              </section>
-            )}
-            <LocationLandmarkDiff
-              previous={request.previous?.landmarks}
-              proposed={request.proposed?.landmarks}
-              status={request.status}
+
+            <LocationReviewCase
+              request={request}
+              isStalePendingRequest={stale}
             />
-          </RequestReviewWorkspace>
+          </div>
         )}
       </DetailPageLayout>
+      {/* Fixed decision footer for pending requests */}
+      {request?.status === "pending" && (
+        <section
+          aria-label="Location change review actions"
+          className="
+            fixed bottom-0 left-0 right-0 z-30
+            border-t border-stroke
+            bg-background/95 px-6 py-4 backdrop-blur
+            lg:left-[var(--admin-sidebar-width)]
+          "
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="hidden text-sm font-semibold text-text-primary sm:block">
+                Review Decision
+              </h2>
+              <p className="mt-0.5 hidden text-xs text-text-secondary sm:block">
+                Review the proposed location before deciding.
+              </p>
+              {decisionError && (
+                <p
+                  role="alert"
+                  className="mt-2 text-xs font-medium text-red-600"
+                >
+                  {decisionError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex w-full gap-3 sm:w-auto">
+              <Button
+                type="button"
+                variant="danger-outline"
+                className="flex-1 cursor-pointer sm:flex-none"
+                disabled={decisions.isApproving || decisions.isRejecting}
+                onClick={() => setActiveDialog("reject")}
+              >
+                Reject Request
+              </Button>
+              <Button
+                type="button"
+                variant="success"
+                className="flex-1 cursor-pointer sm:flex-none"
+                disabled={decisions.isApproving || decisions.isRejecting}
+                onClick={() => setActiveDialog("approve")}
+              >
+                Approve Request
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
       <ApproveLocationRequestModal
         isOpen={activeDialog === "approve" && request?.status === "pending"}
         request={request}

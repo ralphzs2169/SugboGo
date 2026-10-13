@@ -109,11 +109,11 @@ function DataTable({
 
   return (
     <div
-      className="relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2"
+      className={`relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 ${tabs.length > 0 ? "pt-2" : "pt-6"}`}
       aria-busy={isLoading || isFetching}
     >
       {tabs.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-6 overflow-x-auto pb-1">
           <TableTabs
             tabs={tabs}
             activeTab={activeTab}

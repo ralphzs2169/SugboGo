@@ -109,7 +109,7 @@ class BusinessVouchServiceTests(TestCase):
             user=self.user,
             business_id=self.business.BUSN_ID,
             tag_id=self.spicy_tag.TAG_ID,
-            device_id="test-device-001",
+            installation_id="test-device-001",
         )
 
         self.assertEqual(
@@ -125,7 +125,7 @@ class BusinessVouchServiceTests(TestCase):
             self.spicy_tag.TAG_ID,
         )
         self.assertEqual(
-            vouch.VOUCH_DEVICE_ID,
+            vouch.VOUCH_INSTALLATION_ID,
             "test-device-001",
         )
         self.assertFalse(

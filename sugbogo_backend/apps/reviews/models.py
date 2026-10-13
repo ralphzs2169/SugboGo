@@ -10,8 +10,17 @@ from apps.users.models import User
 class Review(models.Model):
     """A user's review of a business."""
 
+    class ReliabilityReason(models.TextChoices):
+        DUPLICATE_CONTENT = "duplicate_content", "Duplicate content"
+        RAPID_SUBMISSION = "rapid_submission", "Rapid submission"
+        SHARED_INSTALLATION_ACCOUNTS = (
+            "shared_installation_accounts",
+            "Shared installation accounts",
+        )
+
     class ReviewStatus(models.TextChoices):
         PUBLISHED = "published", "Published"
+        UNDER_REVIEW = "under_review", "Under review"
         FLAGGED = "flagged", "Flagged"
         REJECTED = "rejected", "Rejected"
 
@@ -53,7 +62,7 @@ class Review(models.Model):
         default=0,
     )
 
-    REVW_IS_SPAM_FLAGGED = models.BooleanField(
+    REVW_IS_REPORT_FLAGGED = models.BooleanField(
         default=False,
     )
 
@@ -61,7 +70,7 @@ class Review(models.Model):
         default=False,
     )
 
-    REVW_DEVICE_ID = models.CharField(
+    REVW_INSTALLATION_ID = models.CharField(
         max_length=255,
         blank=True,
         null=True,
@@ -69,6 +78,14 @@ class Review(models.Model):
     
     REVW_IS_DEVICE_ABUSE_FLAGGED = models.BooleanField(
         default=False,
+    )
+    REVW_RELIABILITY_REASONS = models.JSONField(
+        default=list,
+        blank=True,
+    )
+    REVW_RELIABILITY_EVIDENCE = models.JSONField(
+        default=dict,
+        blank=True,
     )
 
     REVW_SENTIMENT_SCORE = models.FloatField(
@@ -92,12 +109,21 @@ class Review(models.Model):
         blank=True,
     )
 
+    REVW_MODERATION_DATA = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+
     REVW_CREATED_AT = models.DateTimeField(
         auto_now_add=True,
     )
 
     REVW_UPDATED_AT = models.DateTimeField(
         auto_now=True,
+    )
+    REVW_EDITED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
     )
 
     class Meta:
@@ -146,8 +172,10 @@ class ReviewReport(models.Model):
 
     class ReportType(models.TextChoices):
         SPAM = "spam", "Spam"
-        ABUSE = "abuse", "Abuse"
-        MISINFORMATION = "misinformation", "Misinformation"
+        ABUSE = "abuse", "Abuse or Harassment"
+        MISINFORMATION = "misinformation", "False or Misleading Information"
+        OFF_TOPIC = "off_topic", "Off-topic or Irrelevant"
+        PRIVATE_INFORMATION = "private_information", "Personal or Private Information"
         OTHER = "other", "Other"
 
     class ReportStatus(models.TextChoices):
@@ -185,7 +213,7 @@ class ReviewReport(models.Model):
         default=ReportStatus.PENDING,
     )
 
-    RREP_DEVICE_ID = models.CharField(
+    RREP_INSTALLATION_ID = models.CharField(
         max_length=255,
         blank=True,
         null=True,
@@ -196,6 +224,11 @@ class ReviewReport(models.Model):
     )
 
     RREP_NOTES = models.TextField(
+        blank=True,
+        null=True,
+    )
+    RREP_EXPLANATION = models.CharField(
+        max_length=500,
         blank=True,
         null=True,
     )

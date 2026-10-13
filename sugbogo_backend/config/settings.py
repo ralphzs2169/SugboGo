@@ -71,6 +71,12 @@ MOBILE_SCHEME = os.getenv("MOBILE_SCHEME", "com.sugbogo.app://")
 
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODERATION_MODEL = os.getenv(
+    "OPENAI_MODERATION_MODEL",
+    "omni-moderation-latest",
+)
+
 # Daily review keyword extraction
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_KEYWORD_MODEL = os.getenv(
@@ -267,6 +273,28 @@ SIMPLE_JWT = {
 }
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = "config.asgi.application"
+
+NOTIFICATION_WS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("NOTIFICATION_WS_ALLOWED_ORIGINS", WEB_APP_URL).split(",")
+    if origin.strip()
+]
+NOTIFICATION_WS_AUTH_TIMEOUT = 5
+NOTIFICATION_WS_STATUS_INTERVAL = 30
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [{
+                "address": os.getenv("NOTIFICATION_REDIS_URL", "redis://127.0.0.1:6379/1"),
+                "socket_connect_timeout": 1,
+                "socket_timeout": 1,
+            }],
+            "prefix": "sugbogo_notifications",
+        },
+    },
+}
 
 
 # Database

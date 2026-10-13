@@ -13,7 +13,7 @@ export default function LocationStateCard({ title, snapshot }) {
           .join(", ")}
       </p>
       <p className="mt-2 text-xs tabular-nums text-text-secondary">
-        {location?.latitude}, {location?.longitude}
+        {location?.latitude ?? "—"}, {location?.longitude ?? "—"}
       </p>
       <h4 className="mt-4 text-xs font-semibold uppercase tracking-wide text-text-secondary">
         Landmarks ({snapshot?.landmarks?.length ?? 0})

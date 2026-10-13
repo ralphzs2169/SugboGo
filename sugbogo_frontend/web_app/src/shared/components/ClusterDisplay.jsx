@@ -3,17 +3,40 @@ import { CLUSTER_ICONS } from "../constants/clusterIcons";
 
 /**
  * Displays a cluster using either a standard label presentation,
- * a compact badge, or a smaller inline presentation.
+ * a compact badge, a comparison value, or a smaller inline presentation.
  */
 export default function ClusterDisplay({
   clusterName,
   clusterIcon,
   variant = "default",
   className,
+  emphasized = false,
 }) {
   const cluster = CLUSTER_ICONS.find((item) => item.value === clusterIcon);
 
   const Icon = cluster?.icon;
+
+  if (variant === "comparison") {
+    return (
+      <div className={clsx("flex min-w-0 items-start gap-2.5", className)}>
+        {Icon && (
+          <Icon
+            className="mt-1 h-5 w-5 shrink-0 text-text-secondary"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+        )}
+        <span
+          className={clsx(
+            "min-w-0 break-words leading-7 text-text-primary",
+            emphasized ? "text-xl font-bold" : "text-lg font-medium",
+          )}
+        >
+          {clusterName || "Not provided"}
+        </span>
+      </div>
+    );
+  }
 
   if (variant === "badge") {
     return (

@@ -185,8 +185,6 @@ class ManageReviewDisputeService:
                 "Only pending review disputes can be upheld.",
             )
 
-        previous_review_status = dispute.REVW_ID.REVW_STATUS
-
         dispute.MRDSP_STATUS = (
             MerchantReviewDispute.DisputeStatus.UPHELD
         )
@@ -202,19 +200,15 @@ class ManageReviewDisputeService:
             ],
         )
 
-        Review.objects.filter(
-            REVW_ID=dispute.REVW_ID_id,
-        ).update(
-            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        review, previous_review_status = (
+            ReviewModerationConsistencyService.reject_review(
+                dispute.REVW_ID_id,
+            )
         )
+        dispute.REVW_ID = review
 
         ReputationService.apply_confirmed_violation_penalty(
             user_id=dispute.REVW_ID.USER_ID_id,
-            review_id=dispute.REVW_ID_id,
-        )
-
-        ReviewModerationConsistencyService.refresh_excluded_review(
-            business_id=dispute.REVW_ID.BUSN_ID_id,
             review_id=dispute.REVW_ID_id,
         )
 

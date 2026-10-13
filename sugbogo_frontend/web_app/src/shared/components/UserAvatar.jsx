@@ -16,6 +16,7 @@ export default function UserAvatar({
     xs: "h-4 w-4",
     sm: "h-6 w-6",
     md: "h-7 w-7",
+    queue: "h-8 w-8",
     compact: "h-9 w-9",
     lg: "h-10 w-10",
   };

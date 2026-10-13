@@ -34,11 +34,15 @@ class ReviewView(APIView):
 
         data = {
             "text": request.data.get("text"),
-            "device_id": request.data.get("device_id"),
             "photos": request.FILES.getlist("photos"),
         }
+        for field in ("installation_id", "device_id"):
+            if field in request.data:
+                data[field] = request.data.get(field)
+
         if "show_in_community" in request.data:
             data["show_in_community"] = request.data.get("show_in_community")
+
         serializer = ReviewCreateSerializer(data=data)
         serializer.is_valid(
             raise_exception=True,
@@ -55,8 +59,13 @@ class ReviewView(APIView):
                 "id": review.REVW_ID,
                 "business_id": review.BUSN_ID_id,
                 "user_id": review.USER_ID_id,
+                "status": review.REVW_STATUS,
             },
-            message="Review added successfully.",
+            message=(
+                "Review added successfully."
+                if review.REVW_STATUS == review.ReviewStatus.PUBLISHED
+                else "Review submitted and is under review."
+            ),
         )
 
     def get(self, request, business_id):

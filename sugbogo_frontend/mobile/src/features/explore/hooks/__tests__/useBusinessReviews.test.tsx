@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import {
@@ -8,6 +9,7 @@ import {
   deleteReviewPhoto,
   getAllBusinessReviews,
   getBusinessReviewPreview,
+  getMyReviewReport,
   reportReview,
   updateReview,
 } from "../../api/reviewBusiness.service";
@@ -24,6 +26,7 @@ import {
   useDeleteReview,
   useDeleteReviewPhoto,
   useMerchantBusinessReviews,
+  useMyReviewReport,
   useReportReview,
   useUpdateReview,
 } from "../useBusinessReviews";
@@ -45,6 +48,7 @@ jest.mock("../../api/reviewBusiness.service", () => ({
   deleteReviewPhoto: jest.fn(),
   getAllBusinessReviews: jest.fn(),
   getBusinessReviewPreview: jest.fn(),
+  getMyReviewReport: jest.fn(),
   reportReview: jest.fn(),
   updateReview: jest.fn(),
 }));
@@ -191,6 +195,48 @@ describe("useBusinessReviews", () => {
     client.clear();
   });
 
+  it("refreshes public queries when a held review receives a decision", async () => {
+    const heldReview = {
+      id: 1,
+      status: "under_review",
+      is_own_review: true,
+    } as BusinessReview;
+    (getBusinessReviewPreview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: {
+        reviews: [],
+        total_count: 0,
+        user_review: heldReview,
+      },
+    });
+    const { client, Wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result, unmount } = await renderHook(
+      () => useBusinessReviewPreview(20),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(result.current.userReview?.status).toBe("under_review"));
+
+    await act(async () => {
+      client.setQueryData(businessReviewPreviewKey(20), {
+        reviews: [heldReview],
+        total_count: 1,
+        user_review: { ...heldReview, status: "published" },
+      });
+    });
+
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: businessReviewsKey(20),
+      }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: exploreBusinessDetailKey(20),
+    });
+    unmount();
+    client.clear();
+  });
+
   it("keeps merchant review management's complete collection available", async () => {
     (getAllBusinessReviews as jest.Mock)
       .mockResolvedValueOnce({ success: true, data: page([8, 5], 1, true) })
@@ -274,7 +320,7 @@ describe("useBusinessReviews", () => {
   it("starts sentiment synchronization after review creation", async () => {
     (createReview as jest.Mock).mockResolvedValue({
       success: true,
-      data: { id: 18, business_id: 20, user_id: 4 },
+      data: { id: 18, business_id: 20, user_id: 4, status: "published" },
     });
     const { client, Wrapper } = setupClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
@@ -307,6 +353,30 @@ describe("useBusinessReviews", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
     });
+    unmount();
+    client.clear();
+  });
+
+  it("keeps an under-review submission successful without sentiment sync", async () => {
+    (createReview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { id: 19, business_id: 20, user_id: 4, status: "under_review" },
+    });
+    const { client, Wrapper } = setupClient();
+    const { result, unmount } = await renderHook(() => useCreateReview(20), {
+      wrapper: Wrapper,
+    });
+
+    let created: Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined;
+    await act(async () => {
+      created = await result.current.mutateAsync({
+        text: "A review waiting before publication.",
+        photos: [],
+      });
+    });
+
+    expect(created?.status).toBe("under_review");
+    expect(mockStartSentimentSync).not.toHaveBeenCalled();
     unmount();
     client.clear();
   });
@@ -421,9 +491,22 @@ describe("useBusinessReviews", () => {
       await result.current.mutateAsync({
         reviewId: 8,
         reportType: "spam",
+        explanation: "Repeated promotional content.",
       });
     });
 
+    expect(reportReview).toHaveBeenCalledWith(
+      8,
+      "spam",
+      "Repeated promotional content.",
+    );
+    for (const queryKey of [
+      businessReviewPreviewKey(20),
+      businessReviewsKey(20),
+      exploreBusinessDetailKey(20),
+    ]) {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey });
+    }
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
     expect(invalidate).not.toHaveBeenCalledWith({
@@ -461,5 +544,43 @@ describe("useBusinessReviews", () => {
     });
     unmount();
     client.clear();
+  });
+});
+
+describe("useMyReviewReport", () => {
+  it("scopes receipt cache entries to the signed-in account", async () => {
+    const { client, Wrapper } = setupClient();
+    (getMyReviewReport as jest.Mock)
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: 1, reason: "spam" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: 2, reason: "abuse" },
+      });
+    useAuthStore.setState({ user: { id: 1 } as never });
+    const { result, unmount } = await renderHook(
+      () => useMyReviewReport(74, true),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(result.current.data?.id).toBe(1));
+    expect(client.getQueryData(["my-review-report", 1, 74])).toEqual({
+      id: 1,
+      reason: "spam",
+    });
+
+    await act(async () => {
+      useAuthStore.setState({ user: { id: 2 } as never });
+    });
+    await waitFor(() => expect(result.current.data?.id).toBe(2));
+    expect(getMyReviewReport).toHaveBeenCalledTimes(2);
+    expect(client.getQueryData(["my-review-report", 2, 74])).toEqual({
+      id: 2,
+      reason: "abuse",
+    });
+    unmount();
+    client.clear();
+    useAuthStore.setState({ user: null });
   });
 });

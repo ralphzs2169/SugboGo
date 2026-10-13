@@ -8,6 +8,7 @@ from apps.reviews.models import Review, ReviewReport
 from apps.reviews.services.review_moderation_consistency_service import (
     ReviewModerationConsistencyService,
 )
+from apps.reviews.services.review_report_service import ReviewReportService
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
 from apps.notifications.services.notification_event_service import (
@@ -71,7 +72,6 @@ class ManageReviewReportService:
         if report.RREP_STATUS != ReviewReport.ReportStatus.PENDING:
             raise ValidationError("Only pending review reports can be resolved.")
 
-        previous_status = review.REVW_STATUS
         report.RREP_STATUS = (
             ReviewReport.ReportStatus.APPROVED if approve
             else ReviewReport.ReportStatus.REJECTED
@@ -84,8 +84,12 @@ class ManageReviewReportService:
             list(User.objects.select_for_update().filter(
                 pk__in={review.USER_ID_id, report.USER_ID_id},
             ).order_by("pk"))
-            review.REVW_STATUS = Review.ReviewStatus.REJECTED
-            review.save(update_fields=["REVW_STATUS", "REVW_UPDATED_AT"])
+            review, previous_status = (
+                ReviewModerationConsistencyService.reject_review(
+                    review.pk,
+                )
+            )
+            ReviewReportService.recompute_report_flag(review)
             ReputationService.apply_confirmed_violation_penalty(
                 user_id=review.USER_ID_id, review_id=review.pk,
             )
@@ -93,9 +97,9 @@ class ManageReviewReportService:
                 ReputationService.apply_approved_report_reward(
                     user_id=report.USER_ID_id, source_id=report.pk,
                 )
-            ReviewModerationConsistencyService.refresh_excluded_review(
-                business_id=review.BUSN_ID_id, review_id=review.pk,
-            )
+        else:
+            previous_status = review.REVW_STATUS
+            ReviewReportService.recompute_report_flag(review)
 
         AdminActivityService.record_user_action(
             actor=actor,

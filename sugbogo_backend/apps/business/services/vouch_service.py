@@ -20,7 +20,7 @@ class VouchService:
         user: User,
         business_id: int,
         tag_id: int,
-        device_id: str | None = None,
+        installation_id: str | None = None,
     ) -> BusinessVouch:
         try:
             locked_user = (
@@ -80,7 +80,7 @@ class VouchService:
                 BUSN_ID=business,
                 USER_ID=locked_user,
                 TAG_ID=tag,
-                VOUCH_DEVICE_ID=device_id,
+                VOUCH_INSTALLATION_ID=installation_id,
                 VOUCH_REPUTATION_SNAPSHOT=(
                     locked_user.USER_REPUTATION
                 ),

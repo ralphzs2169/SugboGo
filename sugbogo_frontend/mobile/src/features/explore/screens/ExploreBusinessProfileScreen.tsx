@@ -205,30 +205,6 @@ function ExploreBusinessProfileScreenContent({
               <BusinessAboutContent description={business.description} />
             </BusinessProfileSection>
 
-            {/* Visit and contact information */}
-            <BusinessProfileSection
-              title="Plan Your Visit"
-              icon={
-                <MaterialCommunityIcons
-                  name="calendar-clock-outline"
-                  size={18}
-                  color={theme.extends.colors.text.secondary}
-                />
-              }
-            >
-              <BusinessVisitInfoContent
-                location={business.location}
-                operatingHours={business.operating_hours}
-                contactNumber={business.contact_number}
-                email={business.email}
-                website={business.website}
-                onViewRoute={handleViewRoute}
-                onJeepneyGuide={handleJeepneyGuide}
-                onRide={handleRide}
-                isOwnBusiness={showOwnerIndicators}
-              />
-            </BusinessProfileSection>
-
             {/* Business photos */}
             <BusinessProfileSection
               title="See What’s Here"
@@ -253,6 +229,30 @@ function ExploreBusinessProfileScreenContent({
                 visible={galleryVisible}
                 initialIndex={galleryIndex}
                 onClose={() => setGalleryVisible(false)}
+              />
+            </BusinessProfileSection>
+
+            {/* Visit and contact information */}
+            <BusinessProfileSection
+              title="Plan Your Visit"
+              icon={
+                <MaterialCommunityIcons
+                  name="calendar-clock-outline"
+                  size={18}
+                  color={theme.extends.colors.text.secondary}
+                />
+              }
+            >
+              <BusinessVisitInfoContent
+                location={business.location}
+                operatingHours={business.operating_hours}
+                contactNumber={business.contact_number}
+                email={business.email}
+                website={business.website}
+                onViewRoute={handleViewRoute}
+                onJeepneyGuide={handleJeepneyGuide}
+                onRide={handleRide}
+                isOwnBusiness={showOwnerIndicators}
               />
             </BusinessProfileSection>
 

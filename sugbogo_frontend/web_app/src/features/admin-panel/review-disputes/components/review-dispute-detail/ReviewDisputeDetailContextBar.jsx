@@ -12,7 +12,9 @@ import { formatLabel } from "@/shared/utils/stringUtils";
  * the administrator scrolls through a review dispute detail page.
  */
 export default function ReviewDisputeDetailContextBar({ dispute }) {
-  const handleBack = useNavigateBack("/admin-panel/review-disputes");
+  const handleBack = useNavigateBack(
+    "/admin-panel/moderation-integrity?tab=disputes",
+  );
 
   const statusVariant =
     REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "neutral";

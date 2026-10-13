@@ -6,6 +6,8 @@ from django.db.models import Case, IntegerField, Prefetch, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.activity_management.services import AdminActivityService
 from apps.notifications.services.notification_event_service import (
     NotificationEventService,
 )
@@ -576,6 +578,17 @@ class BusinessLocationChangeService:
         )
         if not Business.objects.filter(LOCT_ID=old_location).exists():
             old_location.delete()
+        AdminActivityService.record_user_action(
+            actor=reviewer,
+            target_user=change_request.USER_ID,
+            action=AdminActivity.Action.BUSINESS_LOCATION_CHANGE_APPROVED,
+            context={
+                "request_id": change_request.pk,
+                "request_type": "business_location_change",
+                "business_id": change_request.BUSN_ID_id,
+                "outcome": change_request.BLCR_STATUS,
+            },
+        )
         NotificationEventService.merchant_request_resolved(
             recipient=change_request.USER_ID,
             request_id=change_request.pk,
@@ -616,6 +629,17 @@ class BusinessLocationChangeService:
                 "BLCR_RESOLVED_AT",
                 "BLCR_UPDATED_AT",
             ],
+        )
+        AdminActivityService.record_user_action(
+            actor=reviewer,
+            target_user=change_request.USER_ID,
+            action=AdminActivity.Action.BUSINESS_LOCATION_CHANGE_REJECTED,
+            context={
+                "request_id": change_request.pk,
+                "request_type": "business_location_change",
+                "business_id": change_request.BUSN_ID_id,
+                "outcome": change_request.BLCR_STATUS,
+            },
         )
         NotificationEventService.merchant_request_resolved(
             recipient=change_request.USER_ID,

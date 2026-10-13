@@ -1,22 +1,79 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { CalendarDays, Eye, Image } from "lucide-react";
+import {
+  CalendarDays,
+  Eye,
+  FilePenLine,
+  Image,
+  MapPin,
+  Shapes,
+  Type,
+} from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import StatusBadge from "@/shared/components/StatusBadge";
 import UserAvatar from "@/shared/components/UserAvatar";
-import { formatDateTime } from "@/shared/utils/dateUtils";
 
 import { UPDATE_REQUEST_STATUS_VARIANTS } from "../constants/businessUpdateRequestStatus";
 
 const columnHelper = createColumnHelper();
 
-const REQUEST_TYPE_LABELS = {
-  business_name: "Business Name Change",
-  classification: "Classification & Specialties Change",
-  location: "Location & Landmarks Change",
+const REQUEST_TYPE_CONFIG = {
+  business_name: {
+    title: "Business Name",
+    description: "Name update",
+    icon: Type,
+  },
+  classification: {
+    title: "Classification",
+    description: "Category & specialties",
+    icon: Shapes,
+  },
+  location: {
+    title: "Location",
+    description: "Address & landmarks",
+    icon: MapPin,
+  },
 };
 
-/** Builds the compact Admin queue columns for the selected update-request type. */
+const FALLBACK_REQUEST_TYPE = {
+  title: "Update Request",
+  description: "Business update",
+  icon: FilePenLine,
+};
+
+const dateFormatter = new Intl.DateTimeFormat("en-PH", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const timeFormatter = new Intl.DateTimeFormat("en-PH", {
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function getSubmittedDateParts(value) {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return {
+    iso: date.toISOString(),
+    date: dateFormatter.format(date),
+    time: timeFormatter.format(date),
+  };
+}
+
+/**
+ * Builds the Admin business update request queue columns.
+ *
+ * Presents request types with compact visual identifiers, separates
+ * submission dates from times, and adapts row actions to review status.
+ */
 export default function businessUpdateRequestColumns(onView) {
   return [
     columnHelper.display({
@@ -30,6 +87,7 @@ export default function businessUpdateRequestColumns(onView) {
         return pageIndex * pageSize + row.index + 1;
       },
     }),
+
     columnHelper.display({
       id: "business",
       header: "Business",
@@ -37,7 +95,8 @@ export default function businessUpdateRequestColumns(onView) {
       meta: { skeleton: "longText" },
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {/* Business cover */}
           {row.original.cover_photo_url ? (
             <img
               src={row.original.cover_photo_url}
@@ -49,13 +108,17 @@ export default function businessUpdateRequestColumns(onView) {
               <Image
                 className="h-5 w-5 text-text-secondary"
                 strokeWidth={1.75}
+                aria-hidden="true"
               />
             </div>
           )}
+
+          {/* Business identity */}
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-text-primary">
+            <p className="truncate text-sm font-semibold text-text-primary">
               {row.original.current_business_name || "—"}
             </p>
+
             <p className="mt-1 text-xs text-text-secondary">
               Business #{row.original.business_id}
             </p>
@@ -63,18 +126,42 @@ export default function businessUpdateRequestColumns(onView) {
         </div>
       ),
     }),
+
     columnHelper.display({
       id: "requestType",
       header: "Request Type",
-      size: 190,
+      size: 230,
       meta: { skeleton: "longText" },
       enableSorting: false,
-      cell: ({ row }) => (
-        <p className="text-sm font-medium text-text-primary">
-          {REQUEST_TYPE_LABELS[row.original.request_type] || "Update Request"}
-        </p>
-      ),
+      cell: ({ row }) => {
+        const config =
+          REQUEST_TYPE_CONFIG[row.original.request_type] ??
+          FALLBACK_REQUEST_TYPE;
+
+        const Icon = config.icon;
+
+        return (
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Request type icon */}
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface text-text-secondary">
+              <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+            </div>
+
+            {/* Request type label */}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-text-primary">
+                {config.title}
+              </p>
+
+              <p className="mt-1 truncate text-xs text-text-secondary">
+                {config.description}
+              </p>
+            </div>
+          </div>
+        );
+      },
     }),
+
     columnHelper.display({
       id: "merchant",
       header: "Requested By",
@@ -83,17 +170,21 @@ export default function businessUpdateRequestColumns(onView) {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
+          {/* Merchant avatar */}
           <UserAvatar
             avatarUrl={row.original.merchant?.avatar_url}
             avatarKey={row.original.merchant?.avatar_key}
             size="compact"
           />
+
+          {/* Merchant identity */}
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-text-primary">
               {row.original.merchant?.name ||
                 row.original.merchant?.email ||
                 "—"}
             </p>
+
             <p className="truncate text-xs text-text-secondary">
               {row.original.merchant?.email}
             </p>
@@ -101,24 +192,48 @@ export default function businessUpdateRequestColumns(onView) {
         </div>
       ),
     }),
+
     columnHelper.display({
       id: "submitted",
       header: "Submitted",
-      size: 180,
+      size: 165,
       meta: { skeleton: "text" },
       enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1.5">
-          <CalendarDays
-            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
-            strokeWidth={1.75}
-          />
-          <span className="text-sm text-text-secondary">
-            {formatDateTime(row.original.submitted_at)}
-          </span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const submitted = getSubmittedDateParts(row.original.submitted_at);
+
+        if (!submitted) {
+          return <span className="text-sm text-text-secondary">—</span>;
+        }
+
+        return (
+          <div className="flex items-start gap-2">
+            {/* Submission date icon */}
+            {/* <CalendarDays
+              size={16}
+              strokeWidth={1.75}
+              className="mt-0.5 shrink-0 text-text-secondary"
+              aria-hidden="true"
+            /> */}
+
+            {/* Date and time */}
+            <time
+              dateTime={submitted.iso}
+              className="flex min-w-0 flex-col gap-0.5"
+            >
+              <span className="whitespace-nowrap text-sm font-medium text-text-primary">
+                {submitted.date}
+              </span>
+
+              <span className="text-xs text-text-secondary">
+                {submitted.time}
+              </span>
+            </time>
+          </div>
+        );
+      },
     }),
+
     columnHelper.display({
       id: "status",
       header: "Status",
@@ -134,22 +249,27 @@ export default function businessUpdateRequestColumns(onView) {
         </StatusBadge>
       ),
     }),
+
     columnHelper.display({
       id: "actions",
       header: "Action",
       size: 110,
       meta: { skeleton: "actions" },
       enableSorting: false,
-      cell: ({ row }) => (
-        <Button
-          variant="action"
-          size="sm"
-          icon={Eye}
-          onClick={() => onView(row.original)}
-        >
-          Review
-        </Button>
-      ),
+      cell: ({ row }) => {
+        const isPending = row.original.status === "pending";
+
+        return (
+          <Button
+            variant="action"
+            size="sm"
+            icon={Eye}
+            onClick={() => onView(row.original)}
+          >
+            {isPending ? "Review" : "View"}
+          </Button>
+        );
+      },
     }),
   ];
 }

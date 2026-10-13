@@ -16,10 +16,13 @@ from apps.business.models import (
 from apps.reviews.models import ReviewReply
 from apps.reviews.services.review_reply_service import ReviewReplyService
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    SafeReviewModerationMixin,
+)
 from apps.users.models import User
 
 
-class ReviewReplyViewTests(APITestCase):
+class ReviewReplyViewTests(SafeReviewModerationMixin, APITestCase):
     """Tests for business-owner review reply API endpoints."""
 
     def setUp(self):
@@ -345,7 +348,7 @@ class ReviewReplyViewTests(APITestCase):
         self.assertFalse(ReviewReply.objects.filter(REVW_ID=self.review).exists())
 
 # new test class in the reply views test file
-class ReviewReplyDetailViewTests(APITestCase):
+class ReviewReplyDetailViewTests(SafeReviewModerationMixin, APITestCase):
     """Tests for the review reply update/delete endpoint."""
 
     def setUp(self):

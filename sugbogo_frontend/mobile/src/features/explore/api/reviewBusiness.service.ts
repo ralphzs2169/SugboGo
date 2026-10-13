@@ -1,5 +1,6 @@
 import apiClient from "@/shared/api/apiClient.service";
 import { request } from "@/shared/api/request.service";
+import { getInstallationId } from "@/shared/api/storage.service";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 
 import type {
@@ -86,16 +87,29 @@ export function getAllBusinessReviews(
   return request(apiClient.get(url, { params }));
 }
 
-export function createReview(
+export async function createReview(
   businessId: number,
   text: string,
   photos: LocalReviewPhoto[],
   showInCommunity?: boolean,
 ): Promise<ApiResponse<ReviewCreateResult>> {
+  let installationId: string;
+
+  try {
+    installationId = await getInstallationId();
+  } catch {
+    throw new Error(
+      "Unable to access this app's installation ID. Please try again.",
+    );
+  }
+
+  const form = reviewForm(text, photos, undefined, showInCommunity);
+  form.append("installation_id", installationId);
+
   return request(
     apiClient.post(
       `/reviews/business/${businessId}/`,
-      reviewForm(text, photos, undefined, showInCommunity),
+      form,
     ),
   );
 }
@@ -143,13 +157,38 @@ export function unlikeReview(
   return request(apiClient.delete(`/reviews/${reviewId}/like/`));
 }
 
+export type ReviewReportReason =
+  | "spam"
+  | "abuse"
+  | "misinformation"
+  | "off_topic"
+  | "private_information"
+  | "other";
+
+export type MyReviewReport = {
+  id: number;
+  review_id: number;
+  reason: ReviewReportReason;
+  explanation: string | null;
+  submitted_at: string;
+  state: "submitted" | "reviewed" | "withdrawn";
+};
+
+export function getMyReviewReport(
+  reviewId: number,
+): Promise<ApiResponse<MyReviewReport>> {
+  return request(apiClient.get(`/reviews/${reviewId}/report/`));
+}
+
 export function reportReview(
   reviewId: number,
-  reportType: "spam" | "abuse" | "misinformation" | "other",
+  reportType: ReviewReportReason,
+  explanation?: string,
 ) {
   return request(
     apiClient.post(`/reviews/${reviewId}/report/`, {
       report_type: reportType,
+      ...(explanation ? { explanation } : {}),
     }),
   );
 }

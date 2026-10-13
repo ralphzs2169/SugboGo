@@ -1,18 +1,56 @@
 
 from django.db import IntegrityError, models, transaction
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 
 from apps.reviews.models import Review, ReviewReport
-from apps.reviews.services.review_moderation_consistency_service import (
-    ReviewModerationConsistencyService,
-)
 from apps.users.models import User
+
+
+class AlreadyReported(APIException):
+    """Identify a duplicate report without relying on message matching."""
+
+    status_code = 400
+    default_detail = "You have already reported this review."
+    default_code = "already_reported"
 
 
 class ReviewReportService:
     """Handles reporting business reviews."""
 
-    SPAM_REPORT_THRESHOLD = 3
+    REPORT_ATTENTION_THRESHOLD = 3
+
+    @staticmethod
+    def get_user_report(
+        user: User,
+        review_id: int,
+    ) -> ReviewReport:
+        """Return only the current user's report for a review."""
+        try:
+            return ReviewReport.objects.get(
+                REVW_ID_id=review_id,
+                USER_ID=user,
+            )
+        except ReviewReport.DoesNotExist:
+            raise NotFound("Your report could not be found.")
+
+    @staticmethod
+    def recompute_report_flag(review: Review) -> bool:
+        """Set attention from pending reports while the caller holds the review lock."""
+        pending_count = ReviewReport.objects.filter(
+            REVW_ID=review,
+            RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+        ).count()
+        should_flag = (
+            review.REVW_STATUS == Review.ReviewStatus.PUBLISHED
+            and pending_count >= ReviewReportService.REPORT_ATTENTION_THRESHOLD
+        )
+        if review.REVW_IS_REPORT_FLAGGED != should_flag:
+            Review.objects.filter(pk=review.pk).update(
+                REVW_IS_REPORT_FLAGGED=should_flag,
+            )
+            review.REVW_IS_REPORT_FLAGGED = should_flag
+
+        return should_flag
 
     @staticmethod
     @transaction.atomic
@@ -20,9 +58,10 @@ class ReviewReportService:
         user: User,
         review_id: int,
         report_type: str,
-        device_id: str | None = None,
+        installation_id: str | None = None,
+        explanation: str | None = None,
     ) -> ReviewReport:
-        """Record a report and flag reviews whose report count reaches three."""
+        """Record a pending concern about another user's published review."""
         try:
             review = Review.objects.select_for_update().get(
                 REVW_ID=review_id,
@@ -32,17 +71,28 @@ class ReviewReportService:
                 "The review could not be found.",
             )
 
+        if review.USER_ID_id == user.pk:
+            raise ValidationError("You cannot report your own review.")
+
+        if ReviewReport.objects.filter(
+            REVW_ID=review,
+            USER_ID=user,
+        ).exists():
+            raise AlreadyReported()
+
+        if review.REVW_STATUS != Review.ReviewStatus.PUBLISHED:
+            raise ValidationError("Only published reviews can be reported.")
+
         try:
             report = ReviewReport.objects.create(
                 REVW_ID=review,
                 USER_ID=user,
                 RREP_TYPE=report_type,
-                RREP_DEVICE_ID=device_id,
+                RREP_INSTALLATION_ID=installation_id,
+                RREP_EXPLANATION=explanation or None,
             )
         except IntegrityError:
-            raise ValidationError(
-                "You have already reported this review.",
-            ) from None
+            raise AlreadyReported() from None
 
         Review.objects.filter(
             REVW_ID=review.REVW_ID,
@@ -52,19 +102,6 @@ class ReviewReportService:
             ) + 1,
         )
 
-        # Read the incremented count in SQL; never clear an existing flag.
-        newly_flagged = Review.objects.filter(
-            REVW_ID=review.REVW_ID,
-            REVW_REPORT_COUNT__gte=ReviewReportService.SPAM_REPORT_THRESHOLD,
-            REVW_IS_SPAM_FLAGGED=False,
-        ).update(
-            REVW_IS_SPAM_FLAGGED=True,
-        )
-
-        if newly_flagged:
-            ReviewModerationConsistencyService.refresh_excluded_review(
-                business_id=review.BUSN_ID_id,
-                review_id=review.REVW_ID,
-            )
+        ReviewReportService.recompute_report_flag(review)
 
         return report

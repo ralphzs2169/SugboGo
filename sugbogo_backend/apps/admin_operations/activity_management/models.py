@@ -14,6 +14,43 @@ class AdminActivity(models.Model):
         REVIEW_DISPUTE_DISMISSED = "review_dispute_dismissed", "Review dispute dismissed"
         REVIEW_REPORT_APPROVED = "review_report_approved", "Review report approved"
         REVIEW_REPORT_REJECTED = "review_report_rejected", "Review report rejected"
+        REPORTED_REVIEW_KEPT = "reported_review_kept", "Reported review kept"
+        REPORTED_REVIEW_REJECTED = (
+            "reported_review_rejected",
+            "Reported review rejected",
+        )
+        REVIEW_MODERATION_APPROVED = (
+            "review_moderation_approved",
+            "Review moderation approved",
+        )
+        REVIEW_MODERATION_REJECTED = (
+            "review_moderation_rejected",
+            "Review moderation rejected",
+        )
+        BUSINESS_NAME_CHANGE_APPROVED = (
+            "business_name_change_approved",
+            "Business name change approved",
+        )
+        BUSINESS_NAME_CHANGE_REJECTED = (
+            "business_name_change_rejected",
+            "Business name change rejected",
+        )
+        BUSINESS_CLASSIFICATION_CHANGE_APPROVED = (
+            "business_classification_change_approved",
+            "Business classification change approved",
+        )
+        BUSINESS_CLASSIFICATION_CHANGE_REJECTED = (
+            "business_classification_change_rejected",
+            "Business classification change rejected",
+        )
+        BUSINESS_LOCATION_CHANGE_APPROVED = (
+            "business_location_change_approved",
+            "Business location change approved",
+        )
+        BUSINESS_LOCATION_CHANGE_REJECTED = (
+            "business_location_change_rejected",
+            "Business location change rejected",
+        )
 
     AACT_ID = models.AutoField(
         primary_key=True,
