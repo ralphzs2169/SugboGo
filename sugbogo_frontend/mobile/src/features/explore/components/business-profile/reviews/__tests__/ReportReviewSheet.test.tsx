@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import type { RefObject } from "react";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { BackHandler } from "react-native";
 import Toast from "react-native-toast-message";
 
 import ReportReviewSheet from "../ReportReviewSheet";
@@ -19,8 +20,17 @@ jest.mock("@gorhom/bottom-sheet", () => {
   const React = require("react");
   const { TextInput, View } = require("react-native");
   const MockBottomSheetModal = React.forwardRef(
-    (props: { children: React.ReactNode }, ref: React.Ref<unknown>) => {
-      React.useImperativeHandle(ref, () => ({ dismiss: mockDismiss }));
+    (
+      props: { children: React.ReactNode; onChange?: (index: number) => void },
+      ref: React.Ref<unknown>,
+    ) => {
+      React.useImperativeHandle(ref, () => ({
+        present: () => props.onChange?.(0),
+        dismiss: () => {
+          mockDismiss();
+          props.onChange?.(-1);
+        },
+      }));
       return <View>{props.children}</View>;
     },
   );
@@ -32,32 +42,6 @@ jest.mock("@gorhom/bottom-sheet", () => {
     BottomSheetTextInput: TextInput,
   };
 });
-jest.mock("@/shared/components/form/FormTextArea", () => ({
-  __esModule: true,
-  default: ({ label, value, onChangeText, maxLength, error, rightElement }: {
-    label: string;
-    value: string;
-    onChangeText: (value: string) => void;
-    maxLength: number;
-    error?: string;
-    rightElement: React.ReactNode;
-  }) => {
-    const { Text, TextInput, View } = require("react-native");
-    return (
-      <View>
-        <Text>{label}</Text>
-        <TextInput
-          accessibilityLabel="Additional details"
-          value={value}
-          onChangeText={onChangeText}
-          maxLength={maxLength}
-        />
-        {rightElement}
-        {error && <Text>{error}</Text>}
-      </View>
-    );
-  },
-}));
 jest.mock("@/shared/components/Button", () => ({
   __esModule: true,
   default: ({ title, onPress, disabled, loading }: {
@@ -118,6 +102,10 @@ describe("ReportReviewSheet", () => {
     mockReportReview.mockResolvedValue({ success: true });
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("shows six reasons without submitting when a reason is selected", async () => {
     const screen = await renderSheet();
 
@@ -134,7 +122,7 @@ describe("ReportReviewSheet", () => {
     await selectReason(screen, "Spam");
     expect(mockReportReview).not.toHaveBeenCalled();
     expect(screen.getByText("Additional details (Optional)")).toBeTruthy();
-    expect(screen.getByText("0/500")).toBeTruthy();
+    expect(screen.getByText("0/10")).toBeTruthy();
     screen.unmount();
   });
 
@@ -142,8 +130,12 @@ describe("ReportReviewSheet", () => {
     const screen = await renderSheet();
     await selectReason(screen, "Other");
     expect(screen.getByText("Additional details (Required)")).toBeTruthy();
+    expect(screen.queryByText("Please explain why you are reporting this review.")).toBeNull();
+    await submit(screen);
     expect(screen.getByText("Please explain why you are reporting this review.")).toBeTruthy();
     await enterDetails(screen, "   ");
+    expect(screen.queryByText("Please explain why you are reporting this review.")).toBeNull();
+    await submit(screen);
     expect(screen.getByText("Please explain why you are reporting this review.")).toBeTruthy();
     await enterDetails(screen, "Details to keep");
     await selectReason(screen, "Spam");
@@ -155,7 +147,7 @@ describe("ReportReviewSheet", () => {
     const screen = await renderSheet();
     await selectReason(screen, "Other");
     await enterDetails(screen, `  ${"x".repeat(500)}`);
-    expect(screen.getByText("500/500")).toBeTruthy();
+    expect(screen.getByText("498/10")).toBeTruthy();
     expect(screen.getByLabelText("Additional details").props.maxLength).toBe(500);
 
     await enterDetails(screen, "  This is concerning.  ");
@@ -184,22 +176,86 @@ describe("ReportReviewSheet", () => {
     screen.unmount();
   });
 
+  it("keeps the minimum counter live and validates details on submit", async () => {
+    const screen = await renderSheet();
+    await selectReason(screen, "Spam");
+    await enterDetails(screen, "  123456789  ");
+    expect(screen.getByText("9/10")).toBeTruthy();
+    expect(screen.queryByText("Explanation must be at least 10 characters long.")).toBeNull();
+    expect(
+      screen.getByText("Submit Report").parent?.props.accessibilityState.disabled,
+    ).toBe(false);
+    await submit(screen);
+    expect(screen.getByText("Explanation must be at least 10 characters long.")).toBeTruthy();
+    expect(mockReportReview).not.toHaveBeenCalled();
+
+    await enterDetails(screen, "  1234567890  ");
+    expect(screen.getByText("10/10")).toBeTruthy();
+    expect(screen.queryByText("Explanation must be at least 10 characters long.")).toBeNull();
+    await selectReason(screen, "Other");
+    expect(screen.getByText("10/10")).toBeTruthy();
+    screen.unmount();
+  });
+
+  it("consumes Android Back while open so the business profile stays put", async () => {
+    const addBackListener = jest.spyOn(BackHandler, "addEventListener");
+    const screen = await renderSheet();
+
+    await act(async () => {
+      sheetRef.current?.present();
+    });
+
+    expect(addBackListener).toHaveBeenCalledWith(
+      "hardwareBackPress",
+      expect.any(Function),
+    );
+    const backHandler = addBackListener.mock.calls.at(-1)?.[1];
+    await act(async () => {
+      expect(backHandler?.()).toBe(true);
+    });
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    screen.unmount();
+  });
+
   it("keeps form values and inline feedback after an API error", async () => {
     mockReportReview.mockRejectedValue({
       success: false,
-      message: "You have already reported this review.",
+      message: "Service unavailable.",
     });
     const screen = await renderSheet();
     await selectReason(screen, "Spam");
     await enterDetails(screen, "My context");
     await submit(screen);
 
-    await waitFor(() => expect(screen.getByText("You have already reported this review.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Service unavailable.")).toBeTruthy());
     expect(screen.getByLabelText("Additional details").props.value).toBe("My context");
     expect(mockDismiss).not.toHaveBeenCalled();
     expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({
       type: "error",
     }));
+    screen.unmount();
+  });
+
+  it("recovers from a coded duplicate response", async () => {
+    const onReported = jest.fn();
+    mockReportReview.mockRejectedValue({
+      success: false,
+      code: "ALREADY_REPORTED",
+      message: "Duplicate",
+    });
+    const screen = await render(
+      <ReportReviewSheet
+        sheetRef={sheetRef}
+        businessId={20}
+        reviewId={74}
+        onReported={onReported}
+      />,
+    );
+    await selectReason(screen, "Spam");
+    await submit(screen);
+    await waitFor(() => expect(onReported).toHaveBeenCalledTimes(1));
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Duplicate")).toBeNull();
     screen.unmount();
   });
 

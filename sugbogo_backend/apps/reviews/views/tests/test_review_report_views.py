@@ -277,6 +277,125 @@ class ReviewReportViewTests(APITestCase):
         report = ReviewReport.objects.get(pk=response.data["data"]["id"])
         self.assertIsNone(report.RREP_EXPLANATION)
 
+    def test_explanation_minimum_uses_trimmed_length(self):
+        invalid_payloads = (
+            {"report_type": "other"},
+            {"report_type": "other", "explanation": "   "},
+            {"report_type": "other", "explanation": "  123456789  "},
+            {"report_type": "spam", "explanation": "  123456789  "},
+        )
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    self.report_url,
+                    payload,
+                    format="json",
+                )
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_400_BAD_REQUEST,
+                )
+
+        for report_type in ("other", "spam"):
+            with self.subTest(report_type=report_type):
+                response = self.client.post(
+                    self.report_url,
+                    {
+                        "report_type": report_type,
+                        "explanation": "  1234567890  ",
+                    },
+                    format="json",
+                )
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_200_OK,
+                )
+                report = ReviewReport.objects.get(
+                    pk=response.data["data"]["id"],
+                )
+                self.assertEqual(report.RREP_EXPLANATION, "1234567890")
+                report.delete()
+
+        maximum = self.client.post(
+            self.report_url,
+            {
+                "report_type": "other",
+                "explanation": "x" * 500,
+            },
+            format="json",
+        )
+        self.assertEqual(maximum.status_code, status.HTTP_200_OK)
+
+    def test_report_receipt_is_private_and_uses_friendly_states(self):
+        report = ReviewReport.objects.create(
+            REVW_ID=self.review,
+            USER_ID=self.explorer,
+            RREP_TYPE=ReviewReport.ReportType.OTHER,
+            RREP_EXPLANATION="A clear reason",
+            RREP_NOTES="Internal decision note",
+        )
+        response = self.client.get(self.report_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["data"]["reason"], "other")
+        self.assertEqual(response.data["data"]["explanation"], "A clear reason")
+        self.assertEqual(response.data["data"]["state"], "submitted")
+        self.assertIn("submitted_at", response.data["data"])
+        self.assertNotIn("RREP_NOTES", response.data["data"])
+        self.assertNotIn("installation_id", response.data["data"])
+
+        report.RREP_STATUS = ReviewReport.ReportStatus.APPROVED
+        report.save(update_fields=["RREP_STATUS"])
+        self.assertEqual(self.client.get(self.report_url).data["data"]["state"], "reviewed")
+
+        self.client.force_authenticate(self.second_explorer)
+        self.assertEqual(self.client.get(self.report_url).status_code, status.HTTP_404_NOT_FOUND)
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self.report_url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_historical_receipt_without_explanation_and_withdrawn_state(self):
+        ReviewReport.objects.create(
+            REVW_ID=self.review,
+            USER_ID=self.explorer,
+            RREP_TYPE=ReviewReport.ReportType.OTHER,
+            RREP_STATUS=ReviewReport.ReportStatus.WITHDRAWN,
+        )
+        response = self.client.get(self.report_url)
+        self.assertEqual(response.data["data"]["explanation"], None)
+        self.assertEqual(response.data["data"]["state"], "withdrawn")
+
+    def test_report_indicator_is_scoped_to_current_user_across_list_and_preview(self):
+        ReviewReport.objects.create(
+            REVW_ID=self.review,
+            USER_ID=self.explorer,
+            RREP_TYPE=ReviewReport.ReportType.SPAM,
+            RREP_STATUS=ReviewReport.ReportStatus.REJECTED,
+        )
+        preview_url = f"/api/reviews/business/{self.business.BUSN_ID}/"
+        list_url = f"{preview_url}all/"
+        self.assertTrue(self.client.get(preview_url).data["data"]["reviews"][0]["has_reported"])
+        self.assertTrue(self.client.get(list_url).data["data"]["items"][0]["has_reported"])
+
+        self.client.force_authenticate(self.merchant)
+        other_preview = self.client.get(preview_url).data["data"]["reviews"][0]
+        self.assertFalse(other_preview["has_reported"])
+        self.assertNotIn("explanation", other_preview)
+        self.assertNotIn("reports", other_preview)
+
+    def test_duplicate_error_has_stable_code(self):
+        ReviewReport.objects.create(
+            REVW_ID=self.review,
+            USER_ID=self.explorer,
+            RREP_TYPE=ReviewReport.ReportType.SPAM,
+        )
+        response = self.client.post(
+            self.report_url,
+            {"report_type": "spam"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "ALREADY_REPORTED")
+        self.assertEqual(ReviewReport.objects.count(), 1)
+
     def test_historical_other_report_without_explanation_remains_valid(self):
         report = ReviewReport.objects.create(
             REVW_ID=self.review,

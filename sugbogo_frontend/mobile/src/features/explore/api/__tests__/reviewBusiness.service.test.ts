@@ -1,7 +1,12 @@
 import apiClient from "@/shared/api/apiClient.service";
 
 import { getInstallationId } from "@/shared/api/storage.service";
-import { createReview, getAllBusinessReviews, reportReview } from "../reviewBusiness.service";
+import {
+  createReview,
+  getAllBusinessReviews,
+  getMyReviewReport,
+  reportReview,
+} from "../reviewBusiness.service";
 import {
   DEFAULT_BUSINESS_REVIEW_FILTERS,
   type BusinessReviewFilters,
@@ -46,6 +51,13 @@ describe("reportReview", () => {
       "/reviews/75/report/",
       { report_type: "spam" },
     );
+  });
+});
+
+describe("getMyReviewReport", () => {
+  it("retrieves the current user's report receipt from the review report route", async () => {
+    await getMyReviewReport(74);
+    expect(apiClient.get).toHaveBeenCalledWith("/reviews/74/report/");
   });
 });
 

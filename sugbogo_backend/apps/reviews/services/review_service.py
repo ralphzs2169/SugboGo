@@ -19,6 +19,7 @@ from apps.reviews.models import (
     Review,
     ReviewLike,
     ReviewPhoto,
+    ReviewReport,
     ReviewReply,
 )
 from apps.reviews.services.business_review_summary_service import (
@@ -514,6 +515,11 @@ class ReviewService:
             USER_ID=user,
         )
 
+        own_reports = ReviewReport.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            USER_ID=user,
+        )
+
         active_disputes = (
             MerchantReviewDispute.objects
             .filter(
@@ -531,6 +537,7 @@ class ReviewService:
                 is_liked=Exists(likes),
                 is_liked_by_owner=Exists(owner_likes),
                 is_own_review=Exists(own_reviews),
+                has_reported=Exists(own_reports),
                 active_dispute_id=Subquery(active_disputes),
             )
             .prefetch_related(

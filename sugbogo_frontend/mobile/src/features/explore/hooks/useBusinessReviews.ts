@@ -9,9 +9,13 @@ import {
 import { useEffect, useRef } from "react";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import * as reviewService from "../api/reviewBusiness.service";
-import type { ReviewReportReason } from "../api/reviewBusiness.service";
+import type {
+  MyReviewReport,
+  ReviewReportReason,
+} from "../api/reviewBusiness.service";
 import type {
   BusinessReviewFilters,
   BusinessReviewListResponse,
@@ -365,4 +369,15 @@ export function useReportReview(businessId: number) {
       explanation?: string;
     }) => reviewService.reportReview(reviewId, reportType, explanation),
   );
+}
+
+export function useMyReviewReport(reviewId: number, enabled: boolean) {
+  const userId = useAuthStore((state) => state.user?.id);
+
+  return useQuery({
+    queryKey: ["my-review-report", userId, reviewId],
+    queryFn: async (): Promise<MyReviewReport> =>
+      throwOnApiError(await reviewService.getMyReviewReport(reviewId)),
+    enabled: enabled && Boolean(userId) && Boolean(reviewId),
+  });
 }

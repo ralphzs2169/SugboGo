@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
@@ -10,6 +11,7 @@ import { theme } from "@/constants/theme";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import {
   useDeleteReview,
@@ -19,6 +21,11 @@ import type { BusinessReview } from "../../../types/review.types";
 import MerchantReviewResponse from "./MerchantReviewResponse";
 import ReviewContent from "./ReviewContent";
 import ReportReviewSheet from "./ReportReviewSheet";
+import ReviewReportReceiptSheet from "./ReviewReportReceiptSheet";
+import {
+  businessReviewPreviewKey,
+  businessReviewsKey,
+} from "../../../hooks/reviewQueryKeys";
 
 type Props = {
   businessId: number;
@@ -50,9 +57,28 @@ export default function BusinessReviewCard({
 
 
   const [isDeleteVisible, setIsDeleteVisible] = useState(false);
+  const [reportedByUserId, setReportedByUserId] = useState<number | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const userId = useAuthStore((state) => state.user?.id);
+  const queryClient = useQueryClient();
+  const hasReported = review.has_reported || reportedByUserId === userId;
 
   const actionSheetRef = useRef<BottomSheetModal | null>(null);
   const reportSheetRef = useRef<BottomSheetModal | null>(null);
+  const receiptSheetRef = useRef<BottomSheetModal | null>(null);
+
+  const handleReported = () => {
+    setReportedByUserId(userId ?? null);
+    void queryClient.invalidateQueries({
+      queryKey: businessReviewPreviewKey(businessId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: businessReviewsKey(businessId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["my-review-report", userId, review.id],
+    });
+  };
 
   const toggleLike = async () => {
     try {
@@ -145,9 +171,9 @@ export default function BusinessReviewCard({
               ]
             : [
                 {
-                  label: "Report review",
-                  value: "report",
-                  color: theme.extends.colors.error,
+                  label: hasReported ? "View your report" : "Report review",
+                  value: hasReported ? "view-report" : "report",
+                  color: hasReported ? undefined : theme.extends.colors.error,
                 },
               ]
         }
@@ -163,6 +189,11 @@ export default function BusinessReviewCard({
           if (value === "report") {
             presentBottomSheet(reportSheetRef);
           }
+
+          if (value === "view-report") {
+            setReceiptOpen(true);
+            presentBottomSheet(receiptSheetRef);
+          }
         }}
       />
 
@@ -171,6 +202,14 @@ export default function BusinessReviewCard({
         sheetRef={reportSheetRef}
         businessId={businessId}
         reviewId={review.id}
+        onReported={handleReported}
+      />
+
+      <ReviewReportReceiptSheet
+        sheetRef={receiptSheetRef}
+        reviewId={review.id}
+        isOpen={receiptOpen}
+        onDismiss={() => setReceiptOpen(false)}
       />
 
       {/* Delete confirmation */}

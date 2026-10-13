@@ -1,15 +1,37 @@
 
 from django.db import IntegrityError, models, transaction
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 
 from apps.reviews.models import Review, ReviewReport
 from apps.users.models import User
+
+
+class AlreadyReported(APIException):
+    """Identify a duplicate report without relying on message matching."""
+
+    status_code = 400
+    default_detail = "You have already reported this review."
+    default_code = "already_reported"
 
 
 class ReviewReportService:
     """Handles reporting business reviews."""
 
     REPORT_ATTENTION_THRESHOLD = 3
+
+    @staticmethod
+    def get_user_report(
+        user: User,
+        review_id: int,
+    ) -> ReviewReport:
+        """Return only the current user's report for a review."""
+        try:
+            return ReviewReport.objects.get(
+                REVW_ID_id=review_id,
+                USER_ID=user,
+            )
+        except ReviewReport.DoesNotExist:
+            raise NotFound("Your report could not be found.")
 
     @staticmethod
     def recompute_report_flag(review: Review) -> bool:
@@ -52,6 +74,12 @@ class ReviewReportService:
         if review.USER_ID_id == user.pk:
             raise ValidationError("You cannot report your own review.")
 
+        if ReviewReport.objects.filter(
+            REVW_ID=review,
+            USER_ID=user,
+        ).exists():
+            raise AlreadyReported()
+
         if review.REVW_STATUS != Review.ReviewStatus.PUBLISHED:
             raise ValidationError("Only published reviews can be reported.")
 
@@ -64,9 +92,7 @@ class ReviewReportService:
                 RREP_EXPLANATION=explanation or None,
             )
         except IntegrityError:
-            raise ValidationError(
-                "You have already reported this review.",
-            ) from None
+            raise AlreadyReported() from None
 
         Review.objects.filter(
             REVW_ID=review.REVW_ID,

@@ -146,6 +146,21 @@ export type ReviewReportReason =
   | "private_information"
   | "other";
 
+export type MyReviewReport = {
+  id: number;
+  review_id: number;
+  reason: ReviewReportReason;
+  explanation: string | null;
+  submitted_at: string;
+  state: "submitted" | "reviewed" | "withdrawn";
+};
+
+export function getMyReviewReport(
+  reviewId: number,
+): Promise<ApiResponse<MyReviewReport>> {
+  return request(apiClient.get(`/reviews/${reviewId}/report/`));
+}
+
 export function reportReview(
   reviewId: number,
   reportType: ReviewReportReason,

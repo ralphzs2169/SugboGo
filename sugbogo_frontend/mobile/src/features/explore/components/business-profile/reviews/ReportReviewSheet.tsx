@@ -5,8 +5,8 @@ import {
   BottomSheetScrollView,
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
-import { useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { BackHandler, Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
@@ -23,6 +23,7 @@ type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
   businessId: number;
   reviewId: number;
+  onReported?: () => void;
 };
 
 const REPORT_REASONS: { value: ReviewReportReason; label: string }[] = [
@@ -38,29 +39,57 @@ export default function ReportReviewSheet({
   sheetRef,
   businessId,
   reviewId,
+  onReported,
 }: Props) {
   const { mutateAsync: reportReview, isPending } = useReportReview(businessId);
   const submittingRef = useRef(false);
   const [reason, setReason] = useState<ReviewReportReason | null>(null);
   const [explanation, setExplanation] = useState("");
+  const [explanationError, setExplanationError] = useState<string | undefined>();
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const trimmedExplanation = explanation.trim();
   const explanationRequired = reason === "other";
-  const explanationError =
-    explanationRequired && !trimmedExplanation
-      ? "Please explain why you are reporting this review."
-      : undefined;
-  const canSubmit = Boolean(reason) && !explanationError && !isPending;
+  const canSubmit = Boolean(reason) && !isPending;
+
+  useEffect(() => {
+    if (!isSheetOpen) {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (!isPending) {
+          sheetRef.current?.dismiss();
+        }
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [isPending, isSheetOpen, sheetRef]);
 
   function resetForm() {
     setReason(null);
     setExplanation("");
+    setExplanationError(undefined);
     setSubmissionError(null);
   }
 
   async function submitReport() {
-    if (!reason || explanationError || submittingRef.current || isPending) {
+    if (!reason || submittingRef.current || isPending) {
+      return;
+    }
+
+    if (explanationRequired && !trimmedExplanation) {
+      setExplanationError("Please explain why you are reporting this review.");
+      return;
+    }
+
+    if (trimmedExplanation.length > 0 && trimmedExplanation.length < 10) {
+      setExplanationError("Explanation must be at least 10 characters long.");
       return;
     }
 
@@ -72,6 +101,7 @@ export default function ReportReviewSheet({
         reportType: reason,
         explanation: trimmedExplanation || undefined,
       });
+      onReported?.();
       Toast.show({
         type: "info",
         text1: "Review reported",
@@ -81,6 +111,16 @@ export default function ReportReviewSheet({
       resetForm();
     } catch (error) {
       const response = error as ApiResponse<unknown>;
+      if (!response.success && response.code === "ALREADY_REPORTED") {
+        onReported?.();
+        Toast.show({
+          type: "info",
+          text1: "You already reported this review",
+        });
+        sheetRef.current?.dismiss();
+        resetForm();
+        return;
+      }
       const message = response.message || "Please try again.";
       setSubmissionError(message);
       if (!response.success && !handleSystemError(response)) {
@@ -112,9 +152,14 @@ export default function ReportReviewSheet({
         width: 40,
       }}
       onChange={(index) => {
+        setIsSheetOpen(index >= 0);
         if (index < 0) {
           resetForm();
         }
+      }}
+      onDismiss={() => {
+        setIsSheetOpen(false);
+        resetForm();
       }}
       backdropComponent={(props) => (
         <BottomSheetBackdrop
@@ -149,11 +194,10 @@ export default function ReportReviewSheet({
                 disabled={isPending}
                 onPress={() => {
                   setReason(option.value);
+                  setExplanationError(undefined);
                   setSubmissionError(null);
                 }}
-                className={`min-h-11 flex-row items-center gap-3 rounded-xl px-3 py-2 active:opacity-70 ${
-                  selected ? "bg-brand/10" : "bg-surface"
-                }`}
+                className={`min-h-11 flex-row items-center gap-3 rounded-xl px-3 py-2 active:opacity-70 bg-surface`}
               >
                 <MaterialCommunityIcons
                   name={selected ? "radiobox-marked" : "radiobox-blank"}
@@ -182,18 +226,19 @@ export default function ReportReviewSheet({
             value={explanation}
             onChangeText={(value) => {
               setExplanation(value.slice(0, 500));
+              setExplanationError(undefined);
               setSubmissionError(null);
             }}
+            onFocus={() => setExplanationError(undefined)}
             placeholder="Share more context about your report"
+            accessibilityLabel="Additional details"
             maxLength={500}
+            minLength={10}
+            showCharacterCount
+            helperText="Up to 500 characters"
             error={explanationError}
             editable={!isPending}
             InputComponent={BottomSheetTextInput}
-            rightElement={
-              <AppText className="text-xs text-text-secondary">
-                {explanation.length}/500
-              </AppText>
-            }
           />
         </View>
 

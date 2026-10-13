@@ -14,7 +14,10 @@ from apps.reviews.models import BusinessReviewSummary, Review, ReviewReport
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
-from apps.reviews.services.review_report_service import ReviewReportService
+from apps.reviews.services.review_report_service import (
+    AlreadyReported,
+    ReviewReportService,
+)
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
     SafeReviewModerationMixin,
@@ -225,7 +228,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
         with self.assertRaisesMessage(
-            ValidationError,
+            AlreadyReported,
             "You have already reported this review.",
         ):
             ReviewReportService.create_report(
