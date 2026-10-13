@@ -1,4 +1,5 @@
-import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
@@ -20,21 +21,22 @@ export function useCommunityReviews(
     queryFn: async ({ pageParam }): Promise<CommunityReviewListResponse> =>
       throwOnApiError(await getCommunityReviews(filters, pageParam)),
     getNextPageParam: (lastPage) =>
-      lastPage.pagination.has_next
-        ? lastPage.pagination.page + 1
-        : undefined,
-    placeholderData: keepPreviousData,
+      lastPage.pagination.has_next ? lastPage.pagination.page + 1 : undefined,
   });
 
+  const reviews = useMemo(
+    () => query.data?.pages.flatMap((page) => page.items) ?? [],
+    [query.data],
+  );
+
   return {
-    reviews: query.data?.pages.flatMap((page) => page.items) ?? [],
+    reviews,
     pages: query.data?.pages ?? [],
     totalCount: query.data?.pages[0]?.pagination.total_items ?? 0,
     hasNextPage: query.hasNextPage,
     fetchNextPage: query.fetchNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
     isFetchNextPageError: query.isFetchNextPageError,
-    isPlaceholderData: query.isPlaceholderData,
 
     isLoading: query.isLoading,
     isInitialLoading: query.isLoading && !query.isFetched,

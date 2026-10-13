@@ -20,10 +20,23 @@ jest.mock("@/features/explore/hooks/useReviewLike", () => ({
 }));
 jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => ({
   __esModule: true,
-  default: ({ visible }: { visible: boolean }) => {
-    const { View } = jest.requireActual("react-native");
+  default: ({
+    visible,
+    onClose,
+  }: {
+    visible: boolean;
+    onClose: () => void;
+  }) => {
+    const { Pressable } = jest.requireActual("react-native");
 
-    return visible ? <View testID="fullscreen-photo-viewer" /> : null;
+    return visible ? (
+      <Pressable
+        testID="fullscreen-photo-viewer"
+        accessibilityRole="button"
+        accessibilityLabel="Close photo viewer"
+        onPress={onClose}
+      />
+    ) : null;
   },
 }));
 
@@ -90,6 +103,28 @@ describe("CommunityReviewCard", () => {
     });
   });
 
+  it("expands and collapses long review text", async () => {
+    const screen = await render(<CommunityReviewCard review={baseReview} />);
+    const reviewText = screen.getByText(baseReview.text);
+
+    fireEvent(reviewText, "textLayout", {
+      nativeEvent: { lines: Array.from({ length: 6 }, () => ({})) },
+    });
+    const readMore = await screen.findByLabelText("Read full review");
+    expect(screen.getByText(baseReview.text).props.numberOfLines).toBe(5);
+
+    fireEvent.press(readMore);
+    await waitFor(() => {
+      expect(
+        screen.getByText(baseReview.text).props.numberOfLines,
+      ).toBeUndefined();
+    });
+    fireEvent.press(screen.getByLabelText("Show less of review"));
+    await waitFor(() => {
+      expect(screen.getByText(baseReview.text).props.numberOfLines).toBe(5);
+    });
+  });
+
   it("opens review photos in the established fullscreen viewer", async () => {
     const screen = await render(<CommunityReviewCard review={baseReview} />);
 
@@ -97,6 +132,11 @@ describe("CommunityReviewCard", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("fullscreen-photo-viewer")).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByLabelText("Close photo viewer"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("fullscreen-photo-viewer")).toBeNull();
     });
   });
 
@@ -119,6 +159,38 @@ describe("CommunityReviewCard", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("View owner response photo 1")).toBeTruthy();
     });
+
+    fireEvent.press(screen.getByLabelText("View owner response photo 1"));
+    await waitFor(() => {
+      expect(screen.getByTestId("fullscreen-photo-viewer")).toBeTruthy();
+    });
+    expect(screen.getByLabelText("Collapse owner response")).toBeTruthy();
+  });
+
+  it("shows the full merchant response when expanded", async () => {
+    const longResponse = "Thank you for visiting. ".repeat(25);
+    const screen = await render(
+      <CommunityReviewCard
+        review={{
+          ...baseReview,
+          reply: {
+            id: 6,
+            text: longResponse,
+            created_at: "2026-10-12T09:00:00Z",
+            updated_at: "2026-10-12T09:00:00Z",
+            photos: [],
+          },
+        }}
+      />,
+    );
+
+    const expand = screen.getByLabelText("Expand owner response");
+    expect(expand.props.accessibilityState).toEqual({ expanded: false });
+    fireEvent.press(expand);
+
+    const collapse = await screen.findByLabelText("Collapse owner response");
+    expect(collapse.props.accessibilityState).toEqual({ expanded: true });
+    expect(screen.getByText(longResponse).props.numberOfLines).toBeUndefined();
   });
 
   it("delegates helpful feedback to the shared cache mutation", async () => {

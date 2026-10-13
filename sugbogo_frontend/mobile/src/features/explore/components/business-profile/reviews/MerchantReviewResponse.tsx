@@ -14,8 +14,6 @@ type Props = {
   perspective?: "explorer" | "merchant";
 };
 
-const MAX_LINES = 3;
-
 function formatRelativeDate(dateString: string) {
   const date = new Date(dateString);
   const diffDays = Math.floor((Date.now() - date.getTime()) / 86_400_000);
@@ -40,7 +38,6 @@ export default function MerchantReviewResponse({
   perspective = "explorer",
 }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [isTruncated, setIsTruncated] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
 
@@ -69,11 +66,12 @@ export default function MerchantReviewResponse({
           accessibilityLabel={
             expanded ? "Collapse owner response" : "Expand owner response"
           }
+          accessibilityState={{ expanded }}
           className="cursor-pointer active:opacity-70"
         >
           {!expanded ? (
             /* Collapsed response preview */
-            <View className="flex-row items-center py-3">
+            <View className="min-h-12 flex-row items-center py-3">
               <AppText
                 weight="semibold"
                 className="ml-1.5 flex-1 text-xs text-text-secondary"
@@ -122,13 +120,7 @@ export default function MerchantReviewResponse({
               </View>
 
               {/* Response text */}
-              <AppText
-                className="mt-2 text-sm leading-5 text-text-secondary"
-                numberOfLines={isTruncated ? MAX_LINES : undefined}
-                onTextLayout={(event) => {
-                  setIsTruncated(event.nativeEvent.lines.length > MAX_LINES);
-                }}
-              >
+              <AppText className="mt-2 text-sm leading-5 text-text-secondary">
                 {reply.text}
               </AppText>
 

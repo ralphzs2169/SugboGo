@@ -1,5 +1,5 @@
 import LottieView from "lottie-react-native";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -19,6 +19,7 @@ import CommunityReviewCard from "../components/CommunityReviewCard";
 import { useCommunityReviews } from "../hooks/useCommunityReviews";
 import {
   DEFAULT_COMMUNITY_REVIEW_FILTERS,
+  type CommunityReview,
   type CommunityReviewFilters,
 } from "../types/communityReview.types";
 
@@ -31,11 +32,19 @@ import {
  */
 export default function CommunityScreen() {
   const bottomSpacing = useTabBarSpacing(20);
+  const listRef = useRef<FlatList<CommunityReview>>(null);
   const isEndReachedRef = useRef(false);
+  const isPaginationArmedRef = useRef(false);
 
   const [filters, setFilters] = useState<CommunityReviewFilters>(
     DEFAULT_COMMUNITY_REVIEW_FILTERS,
   );
+
+  useEffect(() => {
+    isEndReachedRef.current = false;
+    isPaginationArmedRef.current = false;
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [filters]);
 
   const community = useCommunityReviews(filters);
   const taxonomy = useExploreFilterOptions();
@@ -75,12 +84,6 @@ export default function CommunityScreen() {
 
   const displayedReviews = hasListError ? [] : reviews;
 
-  const isUpdatingResults =
-    community.isPlaceholderData &&
-    community.isFetching &&
-    !community.isInitialLoading &&
-    !community.isFetchingNextPage;
-
   const clearContentFilters = () => {
     setFilters((current) => ({
       ...DEFAULT_COMMUNITY_REVIEW_FILTERS,
@@ -88,18 +91,20 @@ export default function CommunityScreen() {
     }));
   };
 
-  const loadNextPage = () => {
+  const loadNextPage = (retryFailedPage: boolean) => {
     if (
       isEndReachedRef.current ||
+      (!retryFailedPage &&
+        (!isPaginationArmedRef.current || community.isFetchNextPageError)) ||
       !community.hasNextPage ||
       community.isFetchingNextPage ||
-      community.isFetching ||
-      community.isPlaceholderData
+      community.isFetching
     ) {
       return;
     }
 
     isEndReachedRef.current = true;
+    isPaginationArmedRef.current = false;
 
     void community.fetchNextPage().finally(() => {
       isEndReachedRef.current = false;
@@ -110,6 +115,7 @@ export default function CommunityScreen() {
     !community.isInitialLoading &&
     !community.error &&
     !community.hasNextPage &&
+    !community.isFetching &&
     !community.isFetchingNextPage &&
     displayedReviews.length > 0;
 
@@ -120,16 +126,12 @@ export default function CommunityScreen() {
 
       {/* Filtered and paginated review feed */}
       <FlatList
+        ref={listRef}
         testID="community-review-list"
         data={displayedReviews}
         keyExtractor={(review) => String(review.id)}
         renderItem={({ item }) => (
-          <View
-            pointerEvents={isUpdatingResults ? "none" : "auto"}
-            className={`px-4 pt-3 ${
-              isUpdatingResults ? "opacity-60" : "opacity-100"
-            }`}
-          >
+          <View className="px-4 pt-3">
             <CommunityReviewCard review={item} />
           </View>
         )}
@@ -176,7 +178,7 @@ export default function CommunityScreen() {
             <View className="items-center py-5">
               <Button
                 title="Retry loading reviews"
-                onPress={loadNextPage}
+                onPress={() => loadNextPage(true)}
                 variant="soft"
                 rounded="full"
                 size="sm"
@@ -187,7 +189,10 @@ export default function CommunityScreen() {
           ) : null
         }
         contentContainerStyle={{ paddingBottom: bottomSpacing }}
-        onEndReached={loadNextPage}
+        onScrollBeginDrag={() => {
+          isPaginationArmedRef.current = true;
+        }}
+        onEndReached={() => loadNextPage(false)}
         onEndReachedThreshold={0.35}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -198,24 +203,6 @@ export default function CommunityScreen() {
           />
         }
       />
-
-      {/* Filter update feedback */}
-      {isUpdatingResults && (
-        <View
-          testID="community-filter-update-loader"
-          pointerEvents="none"
-          className="absolute left-0 right-0 top-1/2 z-20 items-center"
-        >
-          <View className="rounded-full bg-surface/90 p-2">
-            <LottieView
-              source={loadingAnimation}
-              autoPlay
-              loop
-              style={{ width: 36, height: 36 }}
-            />
-          </View>
-        </View>
-      )}
     </View>
   );
 }

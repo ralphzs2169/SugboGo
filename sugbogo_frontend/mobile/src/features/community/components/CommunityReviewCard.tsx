@@ -111,14 +111,17 @@ export default function CommunityReviewCard({ review }: Props) {
 
             {review.is_own_review && (
               <View className="ml-2 rounded-full bg-brand/10 px-2 py-0.5">
-                <AppText weight="semibold" className="text-[10px] text-brand">
+                <AppText
+                  weight="semibold"
+                  className="text-[10px] text-text-primary"
+                >
                   You
                 </AppText>
               </View>
             )}
           </View>
 
-          <AppText className="mt-0.5 text-[11px] text-text-tertiary">
+          <AppText className="mt-0.5 text-[11px] text-text-secondary">
             {formatRelativeDate(review.created_at)}
           </AppText>
         </View>
@@ -151,9 +154,13 @@ export default function CommunityReviewCard({ review }: Props) {
               isExpanded ? "Show less of review" : "Read full review"
             }
             accessibilityState={{ expanded: isExpanded }}
-            className="mt-1 cursor-pointer self-start active:opacity-70"
+            hitSlop={8}
+            className="mt-1 min-h-12 cursor-pointer self-start justify-center active:opacity-70"
           >
-            <AppText weight="semibold" className="text-xs text-brand">
+            <AppText
+              weight="semibold"
+              className="text-xs text-text-primary underline"
+            >
               {isExpanded ? "Show less" : "Read more"}
             </AppText>
           </Pressable>
@@ -180,7 +187,7 @@ export default function CommunityReviewCard({ review }: Props) {
 
               {index === MAX_REVIEW_PHOTOS - 1 &&
                 review.photos.length > MAX_REVIEW_PHOTOS && (
-                  <View className="absolute inset-0 items-center justify-center bg-black/45">
+                  <View className="absolute inset-0 items-center justify-center bg-black/65">
                     <AppText weight="bold" className="text-base text-white">
                       +{review.photos.length - MAX_REVIEW_PHOTOS}
                     </AppText>
@@ -238,14 +245,14 @@ export default function CommunityReviewCard({ review }: Props) {
             selected: review.is_liked,
             disabled: isLikePending,
           }}
-          className="min-h-11 cursor-pointer flex-row items-center rounded-full pr-3 active:opacity-70 disabled:opacity-50"
+          className="min-h-12 cursor-pointer flex-row items-center rounded-full pr-3 active:opacity-70 disabled:opacity-50"
         >
           <MaterialCommunityIcons
             name={review.is_liked ? "thumb-up" : "thumb-up-outline"}
             size={18}
             color={
               review.is_liked
-                ? theme.extends.colors.brand
+                ? theme.extends.colors.text.primary
                 : theme.extends.colors.text.secondary
             }
           />
@@ -253,7 +260,7 @@ export default function CommunityReviewCard({ review }: Props) {
           <AppText
             weight="medium"
             className={`ml-1.5 text-xs ${
-              review.is_liked ? "text-brand" : "text-text-secondary"
+              review.is_liked ? "text-text-primary" : "text-text-secondary"
             }`}
           >
             {review.like_count > 0

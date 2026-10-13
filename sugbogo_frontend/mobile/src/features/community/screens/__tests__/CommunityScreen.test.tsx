@@ -97,6 +97,7 @@ describe("CommunityScreen", () => {
     const screen = await render(<CommunityScreen />);
 
     expect(screen.getByTestId("community-loading")).toBeTruthy();
+    expect(screen.queryByTestId("community-empty")).toBeNull();
   });
 
   it("shows a persistent error and retries only the Community query", async () => {
@@ -131,6 +132,16 @@ describe("CommunityScreen", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("community-filter-empty")).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText("Clear filters"));
+    await waitFor(() => {
+      expect(useCommunityReviews).toHaveBeenLastCalledWith({
+        ordering: "newest",
+        clusterId: null,
+        hasPhotos: false,
+      });
+      expect(screen.getByTestId("community-empty")).toBeTruthy();
     });
   });
 
@@ -175,6 +186,43 @@ describe("CommunityScreen", () => {
     });
   });
 
+  it("retains every filter when controls are pressed before a rerender", async () => {
+    const screen = await render(<CommunityScreen />);
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Show Food Community reviews"));
+      fireEvent.press(
+        screen.getByLabelText("Sort Community reviews by Most Helpful"),
+      );
+      fireEvent.press(screen.getByLabelText("With Photos"));
+    });
+
+    await waitFor(() => {
+      expect(useCommunityReviews).toHaveBeenLastCalledWith({
+        ordering: "most_helpful",
+        clusterId: 3,
+        hasPhotos: true,
+      });
+    });
+  });
+
+  it("does not reset results when the selected cluster or sort is tapped", async () => {
+    const screen = await render(<CommunityScreen />);
+    const initialQueryCalls = (useCommunityReviews as jest.Mock).mock.calls
+      .length;
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Show All Community reviews"));
+      fireEvent.press(
+        screen.getByLabelText("Sort Community reviews by Newest, selected"),
+      );
+    });
+
+    expect((useCommunityReviews as jest.Mock).mock.calls).toHaveLength(
+      initialQueryCalls,
+    );
+  });
+
   it("guards duplicate pagination calls and supports pull-to-refresh", async () => {
     let resolveNextPage: (() => void) | undefined;
     mockFetchNextPage.mockImplementationOnce(
@@ -192,6 +240,12 @@ describe("CommunityScreen", () => {
 
     await act(async () => {
       list.props.onEndReached();
+    });
+    expect(mockFetchNextPage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      list.props.onScrollBeginDrag();
+      list.props.onEndReached();
       list.props.onEndReached();
       list.props.refreshControl.props.onRefresh();
     });
@@ -203,6 +257,37 @@ describe("CommunityScreen", () => {
     await act(async () => {
       resolveNextPage?.();
     });
+
+    await act(async () => {
+      list.props.onEndReached();
+    });
+    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps loaded reviews after a page error and retries only on request", async () => {
+    (useCommunityReviews as jest.Mock).mockReturnValue(
+      communityState({
+        hasNextPage: true,
+        isFetchNextPageError: true,
+        error: { success: false, message: "Offline" },
+      }),
+    );
+
+    const screen = await render(<CommunityScreen />);
+    const list = await screen.findByTestId("community-review-list");
+
+    await act(async () => {
+      list.props.onScrollBeginDrag();
+      list.props.onEndReached();
+      list.props.onEndReached();
+    });
+    expect(mockFetchNextPage).not.toHaveBeenCalled();
+    expect(screen.getByTestId("rendered-review-7")).toBeTruthy();
+    expect(screen.queryByTestId("community-error")).toBeNull();
+
+    fireEvent.press(screen.getByText("Retry loading reviews"));
+    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
+    expect(mockRefetch).not.toHaveBeenCalled();
   });
 
   it("shows completion feedback after the final non-empty page", async () => {

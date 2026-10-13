@@ -80,10 +80,10 @@ export default function CommunityBusinessLink({ business }: Props) {
             <MaterialCommunityIcons
               name="map-marker-outline"
               size={12}
-              color={theme.extends.colors.text.tertiary}
+              color={theme.extends.colors.text.secondary}
             />
             <AppText
-              className="ml-1 min-w-0 flex-1 text-[11px] text-text-tertiary"
+              className="ml-1 min-w-0 flex-1 text-[11px] text-text-secondary"
               numberOfLines={1}
             >
               {business.address}

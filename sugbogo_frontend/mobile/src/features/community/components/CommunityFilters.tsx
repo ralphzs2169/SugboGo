@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { Dispatch, SetStateAction } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -27,7 +28,7 @@ type Props = {
   isLoadingClusters: boolean;
   hasClusterError: boolean;
   filters: CommunityReviewFilters;
-  onChange: (filters: CommunityReviewFilters) => void;
+  onChange: Dispatch<SetStateAction<CommunityReviewFilters>>;
   onRetryClusters: () => void;
 };
 
@@ -59,6 +60,7 @@ export default function CommunityFilters({
               onPress={onRetryClusters}
               accessibilityRole="button"
               accessibilityLabel="Retry loading Community categories"
+              hitSlop={8}
               className="cursor-pointer flex-row items-center py-1 active:opacity-70"
             >
               <MaterialCommunityIcons
@@ -66,7 +68,10 @@ export default function CommunityFilters({
                 size={14}
                 color={theme.extends.colors.brand}
               />
-              <AppText weight="semibold" className="ml-1 text-xs text-brand">
+              <AppText
+                weight="semibold"
+                className="ml-1 text-xs text-text-primary"
+              >
                 Retry
               </AppText>
             </Pressable>
@@ -77,7 +82,7 @@ export default function CommunityFilters({
           testID="community-cluster-filters"
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerClassName="gap-2 px-4"
+          contentContainerClassName="min-h-12 items-center gap-2 px-4"
         >
           {isLoadingClusters ? (
             <>
@@ -95,15 +100,16 @@ export default function CommunityFilters({
                   <SafePressable
                     key={cluster.id ?? "all"}
                     onPress={() =>
-                      onChange({
-                        ...filters,
-                        clusterId: cluster.id,
-                      })
+                      onChange((current) =>
+                        current.clusterId === cluster.id
+                          ? current
+                          : { ...current, clusterId: cluster.id },
+                      )
                     }
                     accessibilityRole="button"
                     accessibilityLabel={`Show ${cluster.name} Community reviews`}
                     accessibilityState={{ selected }}
-                    className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 active:opacity-80 ${
+                    className={`min-h-12 cursor-pointer flex-row items-center rounded-full px-4 py-2 active:opacity-80 ${
                       selected ? "bg-brand" : "bg-background"
                     }`}
                   >
@@ -113,7 +119,7 @@ export default function CommunityFilters({
                         size={14}
                         color={
                           selected
-                            ? "#FFFFFF"
+                            ? theme.extends.colors.text.primary
                             : theme.extends.colors.text.secondary
                         }
                         style={{ marginRight: 5 }}
@@ -123,7 +129,7 @@ export default function CommunityFilters({
                     <AppText
                       weight="medium"
                       className={`text-sm ${
-                        selected ? "text-white" : "text-text-secondary"
+                        selected ? "text-text-primary" : "text-text-secondary"
                       }`}
                     >
                       {cluster.name}
@@ -149,7 +155,7 @@ export default function CommunityFilters({
           testID="community-feed-filters"
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerClassName="items-center gap-2 px-4"
+          contentContainerClassName="min-h-12 items-center gap-2 px-4"
         >
           <FilterChip
             label="With Photos"
@@ -157,10 +163,10 @@ export default function CommunityFilters({
             selected={filters.hasPhotos}
             showSelectedCheck
             onPress={() =>
-              onChange({
-                ...filters,
-                hasPhotos: !filters.hasPhotos,
-              })
+              onChange((current) => ({
+                ...current,
+                hasPhotos: !current.hasPhotos,
+              }))
             }
             accessibilityLabel={`With Photos${
               filters.hasPhotos ? ", selected" : ""
@@ -179,10 +185,11 @@ export default function CommunityFilters({
                 selected={selected}
                 showSelectedCheck
                 onPress={() =>
-                  onChange({
-                    ...filters,
-                    ordering: option.value,
-                  })
+                  onChange((current) =>
+                    current.ordering === option.value
+                      ? current
+                      : { ...current, ordering: option.value },
+                  )
                 }
                 accessibilityLabel={`Sort Community reviews by ${
                   option.label
