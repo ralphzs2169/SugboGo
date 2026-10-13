@@ -196,6 +196,45 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
             [visible.pk],
         )
 
+    def test_opted_out_reviews_are_excluded_from_every_feed_variant(self):
+        visible = self._create_review()
+        self.assertTrue(visible.REVW_SHOW_IN_COMMUNITY)
+        hidden = self._create_review(
+            REVW_SHOW_IN_COMMUNITY=False,
+            REVW_LIKE_COUNT=99,
+        )
+        ReviewPhoto.objects.create(
+            REVW_ID=hidden,
+            RPHO_PHOTO_URL="https://example.com/hidden.jpg",
+            RPHO_PHOTO_PUBLIC_ID="hidden",
+        )
+        for params in (
+            {},
+            {"ordering": "most_helpful"},
+            {"cluster": self.cluster.pk},
+            {"has_photos": "true"},
+            {"cluster": self.cluster.pk, "ordering": "most_helpful",
+             "has_photos": "true"},
+        ):
+            with self.subTest(params=params):
+                ids = [item["id"] for item in self._items(**params)]
+                self.assertNotIn(hidden.pk, ids)
+                if params.get("has_photos"):
+                    self.assertEqual(ids, [])
+                else:
+                    self.assertEqual(ids, [visible.pk])
+
+    def test_opted_out_reviews_do_not_count_toward_pagination(self):
+        for _ in range(10):
+            self._create_review(REVW_SHOW_IN_COMMUNITY=False)
+        visible = self._create_review()
+        response = self.client.get(self.url)
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 1)
+        self.assertEqual(
+            [item["id"] for item in response.data["data"]["items"]],
+            [visible.pk],
+        )
+
     def test_newest_ordering_uses_review_id_as_tie_breaker(self):
         reviews = [
             self._create_review()

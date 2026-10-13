@@ -269,12 +269,12 @@ export function useMerchantBusinessReviews(businessId: number) {
 
 export function useCreateReview(businessId: number) {
   return useReviewMutation<
-    { text: string; photos: LocalReviewPhoto[] },
+    { text: string; photos: LocalReviewPhoto[]; showInCommunity?: boolean },
     ReviewCreateResult
   >(
     businessId,
-    ({ text, photos }: { text: string; photos: LocalReviewPhoto[] }) =>
-      reviewService.createReview(businessId, text, photos),
+    ({ text, photos, showInCommunity }) =>
+      reviewService.createReview(businessId, text, photos, showInCommunity),
     "create",
     true,
   );
@@ -284,9 +284,10 @@ export function useUpdateReview(businessId: number) {
   return useReviewMutation<
     {
       reviewId: number;
-      text: string;
+      text?: string;
       photos: LocalReviewPhoto[];
-      keepPhotoIds: number[];
+      keepPhotoIds?: number[];
+      showInCommunity?: boolean;
       textChanged: boolean;
     },
     BusinessReview
@@ -297,14 +298,16 @@ export function useUpdateReview(businessId: number) {
       text,
       photos,
       keepPhotoIds,
+      showInCommunity,
       textChanged: _textChanged,
-    }: {
-      reviewId: number;
-      text: string;
-      photos: LocalReviewPhoto[];
-      keepPhotoIds: number[];
-      textChanged: boolean;
-    }) => reviewService.updateReview(reviewId, text, photos, keepPhotoIds),
+    }) =>
+      reviewService.updateReview(
+        reviewId,
+        text,
+        photos,
+        keepPhotoIds,
+        showInCommunity,
+      ),
     "update",
     true,
   );

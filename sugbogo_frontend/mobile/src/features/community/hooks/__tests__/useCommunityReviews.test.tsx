@@ -53,8 +53,17 @@ describe("useCommunityReviews", () => {
   });
 
   it("loads page one, preserves page order, and stops at the final page", async () => {
+    let resolveFirstPage!: (value: {
+      success: boolean;
+      data: CommunityReviewListResponse;
+    }) => void;
     (getCommunityReviews as jest.Mock)
-      .mockResolvedValueOnce({ success: true, data: page([8, 5], 1, true) })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstPage = resolve;
+          }),
+      )
       .mockResolvedValueOnce({ success: true, data: page([2], 2, false) });
     const { client, Wrapper } = setupClient();
     const { result, unmount } = await renderHook(() => useCommunityReviews(), {
@@ -62,6 +71,12 @@ describe("useCommunityReviews", () => {
     });
 
     expect(result.current.isInitialLoading).toBe(true);
+    await act(async () => {
+      resolveFirstPage({
+        success: true,
+        data: page([8, 5], 1, true),
+      });
+    });
     await waitFor(() =>
       expect(result.current.reviews.map((review) => review.id)).toEqual([8, 5]),
     );

@@ -64,6 +64,7 @@ class CommunityReviewService:
             )
             .filter(
                 REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+                REVW_SHOW_IN_COMMUNITY=True,
                 BUSN_ID__BUSN_STATUS=Business.BusinessStatus.ACTIVE,
             )
         )

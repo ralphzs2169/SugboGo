@@ -157,6 +157,7 @@ class ReviewService:
         text: str,
         photos: list | None = None,
         device_id: str | None = None,
+        show_in_community: bool = True,
     ) -> Review:
         """Create a review and queue sentiment after its transaction commits."""
         try:
@@ -182,6 +183,7 @@ class ReviewService:
                 BUSN_ID=business,
                 REVW_TEXT=text,
                 REVW_DEVICE_ID=device_id,
+                REVW_SHOW_IN_COMMUNITY=show_in_community,
             )
         except IntegrityError:
             raise ValidationError(
@@ -571,6 +573,7 @@ class ReviewService:
         text: str | None = None,
         photos: list | None = None,
         keep_photo_ids: list | None = None,
+        show_in_community: bool | None = None,
     ) -> Review:
         """Clear sentiment and queue rescoring only when review text changes."""
         review = ReviewService._get_review(
@@ -628,6 +631,14 @@ class ReviewService:
         ]
 
         text_changed = False
+
+        if show_in_community is not None and (
+            show_in_community != review.REVW_SHOW_IN_COMMUNITY
+        ):
+            review.REVW_SHOW_IN_COMMUNITY = show_in_community
+            review.save(
+                update_fields=["REVW_SHOW_IN_COMMUNITY", "REVW_UPDATED_AT"],
+            )
 
         try:
             if text is not None and text != review.REVW_TEXT:

@@ -365,6 +365,47 @@ describe("useBusinessReviews", () => {
     client.clear();
   });
 
+  it("invalidates Community and business review caches after a visibility-only edit", async () => {
+    (updateReview as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { id: 8, show_in_community: false },
+    });
+    const { client, Wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result, unmount } = await renderHook(() => useUpdateReview(20), {
+      wrapper: Wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        reviewId: 8,
+        photos: [],
+        showInCommunity: false,
+        textChanged: false,
+      });
+    });
+
+    expect(updateReview).toHaveBeenCalledWith(
+      8,
+      undefined,
+      [],
+      undefined,
+      false,
+    );
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: businessReviewPreviewKey(20),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: businessReviewsKey(20),
+    });
+    expect(mockStartSentimentSync).not.toHaveBeenCalled();
+    unmount();
+    client.clear();
+  });
+
   it("does not start synchronization for unrelated review mutations", async () => {
     (reportReview as jest.Mock).mockResolvedValue({
       success: true,

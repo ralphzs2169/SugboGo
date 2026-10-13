@@ -22,13 +22,20 @@ function appendPhotos(form: FormData, photos: LocalReviewPhoto[]) {
 }
 
 function reviewForm(
-  text: string,
+  text: string | undefined,
   photos: LocalReviewPhoto[],
   keepPhotoIds?: number[],
+  showInCommunity?: boolean,
 ) {
   const form = new FormData();
 
-  form.append("text", text);
+  if (text !== undefined) {
+    form.append("text", text);
+  }
+
+  if (showInCommunity !== undefined) {
+    form.append("show_in_community", String(showInCommunity));
+  }
 
   keepPhotoIds?.forEach((id) => {
     form.append("keep_photo_ids", String(id));
@@ -83,25 +90,27 @@ export function createReview(
   businessId: number,
   text: string,
   photos: LocalReviewPhoto[],
+  showInCommunity?: boolean,
 ): Promise<ApiResponse<ReviewCreateResult>> {
   return request(
     apiClient.post(
       `/reviews/business/${businessId}/`,
-      reviewForm(text, photos),
+      reviewForm(text, photos, undefined, showInCommunity),
     ),
   );
 }
 
 export function updateReview(
   reviewId: number,
-  text: string,
+  text: string | undefined,
   photos: LocalReviewPhoto[],
-  keepPhotoIds: number[],
+  keepPhotoIds?: number[],
+  showInCommunity?: boolean,
 ): Promise<ApiResponse<BusinessReview>> {
   return request(
     apiClient.patch(
       `/reviews/${reviewId}/`,
-      reviewForm(text, photos, keepPhotoIds),
+      reviewForm(text, photos, keepPhotoIds, showInCommunity),
     ),
   );
 }

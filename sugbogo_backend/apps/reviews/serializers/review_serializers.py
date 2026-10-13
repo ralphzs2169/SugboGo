@@ -34,6 +34,7 @@ class ReviewCreateSerializer(serializers.Serializer):
         allow_blank=True,
         allow_null=True,
     )
+    show_in_community = serializers.BooleanField(required=False)
     photos = serializers.ListField(
         child=serializers.ImageField(),
         required=False,
@@ -259,6 +260,14 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             "is_own_review",
             "active_dispute_id",
         )
+
+    def to_representation(self, instance):
+        """Expose the preference to its author, not other review readers."""
+        data = super().to_representation(instance)
+        if data.get("is_own_review"):
+            data["show_in_community"] = instance.REVW_SHOW_IN_COMMUNITY
+        return data
+
 
 class ReviewReportSerializer(serializers.Serializer):
     """Validates a business review report request."""
