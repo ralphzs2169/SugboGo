@@ -14,10 +14,10 @@ type Props = {
 };
 
 /**
- * Links a Community review to its Explorer business profile.
+ * Connects a Community review to its associated business.
  *
- * The full business row is pressable and retains useful identity and location
- * context even when the business does not have a display cover photo.
+ * Uses a subtle elbow arrow to visually associate the review with the
+ * business while keeping the row compact and fully pressable.
  */
 export default function CommunityBusinessLink({ business }: Props) {
   const openBusiness = () => {
@@ -29,16 +29,29 @@ export default function CommunityBusinessLink({ business }: Props) {
     });
   };
 
+  const details = [business.category.name, business.address]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <SafePressable
       testID={`community-business-${business.id}`}
       onPress={openBusiness}
       accessibilityRole="button"
       accessibilityLabel={`Open ${business.business_name} business profile`}
-      className="mt-3 cursor-pointer flex-row items-center rounded-xl border border-border-primary bg-background p-2.5 active:opacity-80"
+      className="min-h-12 flex-row items-center active:opacity-70"
     >
-      {/* Business cover */}
-      <View className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-surface-muted">
+      {/* Review-to-business connector */}
+      <View className="mr-2 items-center justify-center">
+        <MaterialCommunityIcons
+          name="subdirectory-arrow-right"
+          size={21}
+          color={theme.extends.colors.text.tertiary}
+        />
+      </View>
+
+      {/* Business thumbnail */}
+      <View className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-background">
         {business.display_cover_photo_url ? (
           <Image
             source={{ uri: business.display_cover_photo_url }}
@@ -47,57 +60,35 @@ export default function CommunityBusinessLink({ business }: Props) {
             transition={150}
           />
         ) : (
-          <View className="h-full w-full items-center justify-center bg-brand/10">
+          <View className="h-full w-full items-center justify-center">
             <MaterialCommunityIcons
               name="storefront-outline"
-              size={24}
-              color={theme.extends.colors.brand}
+              size={18}
+              color={theme.extends.colors.text.secondary}
             />
           </View>
         )}
       </View>
 
       {/* Business identity */}
-      <View className="ml-3 min-w-0 flex-1">
+      <View className="ml-2.5 min-w-0 flex-1">
         <AppText
-          weight="bold"
-          className="text-sm text-text-primary"
+          weight="medium"
+          className="text-[13px] text-text-primary"
           numberOfLines={1}
         >
           {business.business_name}
         </AppText>
 
-        <AppText
-          weight="medium"
-          className="mt-0.5 text-xs text-text-secondary"
-          numberOfLines={1}
-        >
-          {business.category.name}
-        </AppText>
-
-        {!!business.address && (
-          <View className="mt-1 flex-row items-center">
-            <MaterialCommunityIcons
-              name="map-marker-outline"
-              size={12}
-              color={theme.extends.colors.text.secondary}
-            />
-            <AppText
-              className="ml-1 min-w-0 flex-1 text-[11px] text-text-secondary"
-              numberOfLines={1}
-            >
-              {business.address}
-            </AppText>
-          </View>
+        {!!details && (
+          <AppText
+            className="mt-0.5 text-[11px] text-text-secondary"
+            numberOfLines={1}
+          >
+            {details}
+          </AppText>
         )}
       </View>
-
-      {/* Navigation affordance */}
-      <MaterialCommunityIcons
-        name="chevron-right"
-        size={20}
-        color={theme.extends.colors.text.tertiary}
-      />
     </SafePressable>
   );
 }
