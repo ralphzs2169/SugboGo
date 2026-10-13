@@ -8,6 +8,7 @@ from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
+from apps.reviews.services.review_report_service import ReviewReportService
 
 
 class ReviewModerationConsistencyService:
@@ -21,6 +22,7 @@ class ReviewModerationConsistencyService:
         previous_status = review.REVW_STATUS
 
         if previous_status == Review.ReviewStatus.REJECTED:
+            ReviewReportService.recompute_report_flag(review)
             return review, previous_status
 
         review.REVW_STATUS = Review.ReviewStatus.REJECTED
@@ -34,6 +36,7 @@ class ReviewModerationConsistencyService:
                 ),
             )
 
+        ReviewReportService.recompute_report_flag(review)
         ReviewModerationConsistencyService.refresh_excluded_review(
             business_id=review.BUSN_ID_id,
             review_id=review.REVW_ID,

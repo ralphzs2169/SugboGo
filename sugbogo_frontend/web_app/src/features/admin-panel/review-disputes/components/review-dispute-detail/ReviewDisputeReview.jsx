@@ -4,6 +4,7 @@ import { Flag, Quote, ThumbsUp } from "lucide-react";
 import UserAvatar from "@/shared/components/UserAvatar";
 import ReviewPhotoViewerModal from "@/shared/components/modals/ReviewPhotoViewerModal";
 import { formatRelativeDate } from "@/shared/utils/dateUtils";
+import { ReviewStatusBadge } from "../../../moderation/components/ReviewIdentityHeader";
 
 const MAX_REVIEW_PHOTO_PREVIEW = 4;
 
@@ -34,12 +35,17 @@ export default function ReviewDisputeReview({ review }) {
     <>
       <div>
         {/* Original review heading */}
-        <div className="flex items-center gap-2">
-          <Quote className="h-3.5 w-3.5 text-text-secondary" strokeWidth={2} />
-
-          <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
-            Original Review
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Quote className="h-3.5 w-3.5 text-text-secondary" strokeWidth={2} />
+            <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
+              Original Review
+            </h2>
+          </div>
+          <ReviewStatusBadge
+            status={review?.status}
+            variant={review?.status === "rejected" ? "dangerSoft" : undefined}
+          />
         </div>
         <div className="mt-4">
           {/* Reviewer identity */}
