@@ -1,10 +1,15 @@
 from django.urls import path
 
-from .views import DiscoveryScoreListView, DiscoveryScoreRecomputeView
+from .views import DiscoveryScoreListView, DiscoveryScoreRecomputeView, DiscoveryTrendView
 from .views import get_analytics_data
 
 urlpatterns = [
     path("", get_analytics_data, name="get_analytics_data"),
+    path(
+        "discovery-trend/",
+        DiscoveryTrendView.as_view(),
+        name="admin-discovery-trend",
+    ),
     path(
         "discovery-scores/",
         DiscoveryScoreListView.as_view(),

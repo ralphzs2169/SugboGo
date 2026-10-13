@@ -1,6 +1,6 @@
 # Analytics metric definitions and shared foundation
 
-This dictionary implements the definitions in `docs/analytics-plan.md` and the subsequently agreed Standard/Premium split. The repository is the implementation reference. Task 1 adds helpers and read-only aggregation only: no endpoints, entitlement checks, models, migrations, payment processing, new dependencies, or registered Django apps.
+This dictionary implements the definitions in `docs/analytics-plan.md` and the subsequently agreed Standard/Premium split. The repository is the implementation reference. Task 1 adds shared helpers and read-only aggregation; Task 2 adds admin overview and discovery-trend endpoints. Neither introduces entitlement checks, models, migrations, payment processing, new dependencies, or registered Django apps.
 
 ## Product access
 
@@ -25,8 +25,11 @@ Later endpoint work must keep Standard and Premium serializers/responses separat
 | Unanswered reviews | Eligible currently published reviews without a merchant reply. State explicitly whether the count covers the period's cohort or all current published reviews. | Period cohort or current snapshot, never an unlabeled mixture. | Standard review management. |
 | Median first-reply time | Median elapsed time from review creation to first merchant reply, among replied eligible period reviews. Pair with unanswered count to avoid hiding nonresponses. | Period review cohort; reply cutoff disclosed. | Premium. |
 | Discovery-active explorers | Distinct explorers with any supported visibility event in the selected period and scope. Count each explorer once across event types and businesses. | Period-wide distinct. Not full app MAU, account ACTIVE status, or last_login. | Admin platform activity; merchant equivalent means explorers engaging with that business. |
+| Active businesses | Businesses with current `BUSN_STATUS=ACTIVE`, independent of verification and owner account status, matching maintained explorer queries. | Current snapshot; historical value/change is null without retained status snapshots. | Admin. |
+| Approved businesses | Existing businesses with a linked merchant application whose current `MAPP_STATUS=APPROVED`. Includes subsequently suspended businesses; excludes unlinked approved applications. Not the legacy `BUSN_IS_VERIFIED` flag. | Current snapshot; historical value/change is null without retained inventory snapshots. | Admin. |
+| New explorer accounts | Accounts created in the selected period with current `USER_ROLE=EXPLORER`, including every account status. Group weekly using Manila Monday boundaries. | Period reporting against current role; later explorer-to-merchant changes revise results. | Admin. |
 
-Specialty/review/SQL metric implementations are not added in Task 1; this dictionary establishes their meaning for subsequent tasks. Existing application approval, resubmission and SLA definitions remain unchanged. Discovery Score is an opportunity/credibility ranking signal, not satisfaction, measured exposure or revenue; do not alter its computation.
+Task 2 implements SQL inventory/account counts and admin discovery reports; specialty/review metric implementations remain deferred. Existing application approval, resubmission and SLA definitions remain unchanged. Discovery Score is an opportunity/credibility ranking signal, not satisfaction, measured exposure or revenue; do not alter its computation.
 
 ## Reporting periods
 
@@ -57,6 +60,7 @@ Methods are added to the existing `VisibilityEventService`; existing methods are
 | `get_analytics_totals` | IMPRESSION, PROFILE_VISIT and SAVE recorded-event counts for the selected window. |
 | `get_analytics_series` | Observed bucket/type counts with Manila date and clipped UTC start/end. Sparse series: absent buckets are not fabricated. |
 | `count_analytics_explorers` | One period-wide distinct explorer count, optionally restricted to one event type. |
+| `get_analytics_explorer_series` | Distinct explorers per Manila day/week across businesses and supported event types. Bucket counts must not be summed to obtain period-wide distincts. |
 | `get_first_observed_events` | Earliest observed UTC timestamp per type across retained events in scope; null where none exists. No period filter. |
 
 All methods accept `business_ids=None` for the platform, `[id]` for a business, or an explicit set/list. `[]` is an empty scope, never platform-wide. Positive integer IDs are normalized using the existing helper. These internal reads do not enforce ownership or filter to currently active businesses: future endpoints must resolve authorization and the intended business population before calling them. Silently excluding a suspended business would alter historical reporting.
@@ -92,6 +96,7 @@ Stored AI summaries must retain their state, sampling disclosures, generated tim
 - Storage: manuscript examples use separate impression/profile-visit collections and Mongo-based reviews. Analytics uses the maintained unified Mongo visibility collection and SQL review/domain records instead; do not recreate manuscript schemas.
 - Date comparison: new shared reports use immediately preceding equal-duration windows. Existing application analytics keeps its established weekday-based comparisons.
 - Coverage: the earliest event is a first observation, not a certified tracking start. Complete tracking cannot be inferred from current availability.
+- Task 2 product decision: use approved-business inventory rather than the verified flag. Maintained application approval creates an active business without setting that flag. Analytics does not change that workflow or backfill flags.
 - Deferred: navigation-start analytics, conversion funnels, peer comparisons and historical specialty/score charts require later instrumentation, population definitions or retained history. Separate totals do not establish a conversion journey. Integrated payment processing remains excluded.
 
 ## Proposed indexes, not created
@@ -103,3 +108,5 @@ For later review using deployed query plans, consider `(occurred_at, event_type)
 ## Verification scope
 
 Tests cover Manila/UTC boundaries, default and custom periods, equal elapsed prior periods, daily/Monday-week grouping, clipped buckets, repeated explorers across dates/businesses/types, zero vs unavailable results, invalid scopes, source and cursor failures, cooldown recovery, first-observed events and metadata limitations. New service tests use in-memory fixtures and forbid index initialization; they do not require a real MongoDB service or create domain rows. A live Mongo compatibility/query-plan check is deferred until approved infrastructure validation.
+
+Task 2's SQL service tests require a disposable PostGIS test database. API access/contract tests and Mongo aggregation tests use in-memory fixtures/mocks. Refer to `sugbogo_backend/docs/admin-analytics-api-contract.md` for endpoint behavior, per-source metadata, and frontend acceptance checks. Visibility growth comparisons are deliberately null while coverage is unverified; there is no client-supplied coverage override.
