@@ -1,6 +1,7 @@
-import { ChevronDown, Flag, Image as ImageIcon, Search } from "lucide-react";
+import { Flag, Image as ImageIcon, Search } from "lucide-react";
 
 import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu";
+import SortMenu from "@/features/admin-panel/components/data-table/SortMenu";
 
 const REASON_OPTIONS = [
   { value: "text_flagged", label: "Text flagged" },
@@ -12,6 +13,11 @@ const REASON_OPTIONS = [
 const CONTENT_OPTIONS = [
   { value: "has_photos", label: "Has photos" },
   { value: "text_only", label: "Text only" },
+];
+
+const SORT_OPTIONS = [
+  { value: "oldest", label: "Oldest first" },
+  { value: "newest", label: "Newest first" },
 ];
 
 function QueueFilters({ filters, onChange }) {
@@ -49,19 +55,12 @@ function QueueFilters({ filters, onChange }) {
             },
           ]}
         />
-        <label className="relative inline-flex items-center">
-          <span className="sr-only">Sort under review queue</span>
-          <select
-            aria-label="Sort under review queue"
-            value={filters.ordering}
-            onChange={(event) => onChange("ordering", event.target.value)}
-            className="h-9 cursor-pointer appearance-none rounded-md border border-stroke-strong bg-background py-2 pl-3 pr-8 text-xs font-medium text-text-primary outline-none hover:bg-interaction-hover focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/10"
-          >
-            <option value="oldest">Oldest first</option>
-            <option value="newest">Newest first</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />
-        </label>
+        <SortMenu
+          value={filters.ordering}
+          options={SORT_OPTIONS}
+          onChange={(value) => onChange("ordering", value)}
+          ariaLabel="Sort under review queue"
+        />
       </div>
     </div>
   );

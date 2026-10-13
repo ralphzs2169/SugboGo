@@ -3,6 +3,7 @@ import { Flag } from "lucide-react";
 
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import ReviewContentCard from "../../moderation/components/ReviewContentCard";
+import ModerationDetailSkeleton from "../../moderation/components/ModerationDetailSkeleton";
 import ReviewIdentityHeader from "../../moderation/components/ReviewIdentityHeader";
 import ReviewStickyContextBar from "../../moderation/components/ReviewStickyContextBar";
 import useReviewStickyContext from "../../moderation/hooks/useReviewStickyContext";
@@ -34,7 +35,13 @@ function ReportedReviewDetail({ reviewId, onStale, onDecision, decisionPending }
     );
   }
   if (isLoading) {
-    return <div aria-busy="true" className="p-6 text-sm text-text-secondary">Loading reported review…</div>;
+    return (
+      <ModerationDetailSkeleton
+        label="Loading reported review"
+        sections={["Community Reports", "Individual Reports"]}
+        showDecision
+      />
+    );
   }
   if (error) {
     return (
@@ -52,15 +59,15 @@ function ReportedReviewDetail({ reviewId, onStale, onDecision, decisionPending }
   return (
     <div ref={scrollContainerRef} className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
       <ReviewStickyContextBar review={review} visible={showContextBar} statusVariant={review.status === "rejected" ? "dangerSoft" : undefined} />
-      <article className="space-y-6 p-5 sm:p-6">
+      <article className="space-y-6 p-5 pb-8 sm:p-6 sm:pb-8">
         <div ref={reviewHeaderRef}>
           <ReviewIdentityHeader review={review} statusVariant={review.status === "rejected" ? "dangerSoft" : undefined} />
         </div>
         <ReviewContentCard review={review} />
         <ReportSummary review={review} />
         <IndividualReports review={review} />
-        <AdminDecision review={review} onDecision={onDecision} pending={decisionPending} />
       </article>
+      <AdminDecision review={review} onDecision={onDecision} pending={decisionPending} />
     </div>
   );
 }

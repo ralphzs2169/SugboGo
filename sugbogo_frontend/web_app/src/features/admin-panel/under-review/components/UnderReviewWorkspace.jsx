@@ -4,13 +4,14 @@ import { Inbox } from "lucide-react";
 import toast from "react-hot-toast";
 
 import Button from "@/shared/components/Button";
-import Modal from "@/shared/components/modals/Modal";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import useDebounce from "@/shared/hooks/useDebounce";
+import ModerationQueueSkeleton from "../../moderation/components/ModerationQueueSkeleton";
 
 import useUnderReviewReviews from "../hooks/useUnderReviewReviews";
 import useUnderReviewDecisions from "../hooks/useUnderReviewDecisions";
 import { nextReviewId } from "../utils/underReviewPresentation";
+import DecisionDialog from "./DecisionDialog";
 import QueueFilters from "./QueueFilters";
 import QueueItem from "./QueueItem";
 import UnderReviewDetail from "./UnderReviewDetail";
@@ -27,7 +28,9 @@ export default function UnderReviewWorkspace() {
     ordering: "oldest",
   });
   const [page, setPage] = useState(1);
-  const [confirmReject, setConfirmReject] = useState(false);
+  const [decisionTarget, setDecisionTarget] = useState(null);
+  const [moderationNotes, setModerationNotes] = useState("");
+  const [decisionError, setDecisionError] = useState("");
   const debouncedSearch = useDebounce(filters.search);
   const params = useMemo(() => ({
     page,
@@ -71,29 +74,42 @@ export default function UnderReviewWorkspace() {
   }
 
   async function resolveReview(action) {
-    if (!selectedId) {
+    if (!selectedId || (action === "reject" && moderationNotes.trim().length < 20)) {
       return;
     }
 
+    setDecisionError("");
     try {
       if (action === "approve") {
         await approve(selectedId);
         toast.success("Review approved and published.");
       } else {
-        await reject(selectedId);
+        await reject({
+          reviewId: selectedId,
+          moderationNotes: moderationNotes.trim(),
+        });
         toast.success("Review rejected.");
       }
-      setConfirmReject(false);
+      setDecisionTarget(null);
+      setModerationNotes("");
       selectReview(nextReviewId(reviews, selectedId));
       if (reviews.length === 1 && page > 1) {
         setPage(page - 1);
       }
-    } catch (decisionError) {
-      const message = decisionError.response?.data?.message;
-      toast.error(message || "Unable to resolve this review. The queue will refresh.");
-      setConfirmReject(false);
-      selectReview(null);
-      await refetch();
+    } catch (error) {
+      const response = error.response?.data;
+      const fieldError = response?.errors?.moderation_notes;
+      const message = Array.isArray(fieldError)
+        ? fieldError.join(" ")
+        : fieldError || response?.message || "Unable to resolve this review. Please try again.";
+      if (action === "reject") {
+        setDecisionError(message);
+      } else {
+        toast.error(message);
+        setDecisionTarget(null);
+        selectReview(null);
+        await refetch();
+      }
     }
   }
 
@@ -115,11 +131,7 @@ export default function UnderReviewWorkspace() {
           <QueueFilters filters={filters} onChange={updateFilter} />
 
           {isLoading ? (
-            <div aria-busy="true" className="space-y-3 p-4">
-              {[1, 2, 3].map((item) => (
-                <div key={item} className="h-28 animate-pulse rounded-lg bg-surface" />
-              ))}
-            </div>
+            <ModerationQueueSkeleton label="Loading under-review reviews" />
           ) : error ? (
             <DataErrorState
               title="Unable to load reviews"
@@ -177,8 +189,12 @@ export default function UnderReviewWorkspace() {
           <UnderReviewDetail
             key={selectedId}
             reviewId={selectedId}
-            onApprove={() => resolveReview("approve")}
-            onReject={() => setConfirmReject(true)}
+            onApprove={() => setDecisionTarget("approve")}
+            onReject={() => {
+              setModerationNotes("");
+              setDecisionError("");
+              setDecisionTarget("reject");
+            }}
             onStale={() => {
               selectReview(null);
               refetch();
@@ -189,25 +205,25 @@ export default function UnderReviewWorkspace() {
         </main>
       </div>
 
-      <Modal
-        isOpen={confirmReject}
-        title="Reject review?"
-        description="This review will not be published. This decision cannot be undone here."
-        onClose={() => setConfirmReject(false)}
-      >
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setConfirmReject(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="danger"
-            loading={isRejecting}
-            onClick={() => resolveReview("reject")}
-          >
-            Reject Review
-          </Button>
-        </div>
-      </Modal>
+      <DecisionDialog
+        decision={decisionTarget}
+        reviewId={selectedId}
+        pending={isApproving || isRejecting}
+        notes={moderationNotes}
+        onNotesChange={(value) => {
+          setModerationNotes(value);
+          setDecisionError("");
+        }}
+        error={decisionError}
+        onClose={() => {
+          if (!isApproving && !isRejecting) {
+            setDecisionTarget(null);
+            setModerationNotes("");
+            setDecisionError("");
+          }
+        }}
+        onConfirm={() => resolveReview(decisionTarget)}
+      />
     </>
   );
 }

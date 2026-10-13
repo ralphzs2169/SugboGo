@@ -9,12 +9,12 @@ function ReasonBadges({ counts }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {visibleReasons.map(([reason]) => (
-        <span key={reason} className="inline-flex items-center rounded-md border border-stroke bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-secondary">
+        <span key={reason} className="inline-flex items-center rounded-full border border-stroke bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-secondary">
           {REPORT_REASONS[reason]}
         </span>
       ))}
       {reasons.length > 3 && (
-        <span className="inline-flex items-center rounded-md border border-stroke bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-secondary">
+        <span className="inline-flex items-center rounded-full border border-stroke bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-secondary">
           +{reasons.length - visibleReasons.length} more
         </span>
       )}

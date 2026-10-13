@@ -10,16 +10,16 @@ import { fetchClusters } from "../../cluster-category/services/clusterCategorySe
 import { formatReviewTimestamp } from "./reviewPresentation";
 
 const STATUS_PRESENTATION = {
-  published: { label: "Published", variant: "success" },
-  rejected: { label: "Rejected", variant: "muted" },
-  under_review: { label: "Under Review", variant: "info" },
+  published: { label: "Published", variant: "successSoft" },
+  rejected: { label: "Rejected", variant: "dangerSoft" },
+  under_review: { label: "Under Review", variant: "infoSoft" },
 };
 
 export function ReviewStatusBadge({ status, variant }) {
   const presentation = STATUS_PRESENTATION[status];
 
   return (
-    <StatusBadge variant={variant ?? presentation?.variant ?? "neutral"}>
+    <StatusBadge variant={variant ?? presentation?.variant ?? "mutedSoft"}>
       {presentation?.label ?? "Unknown status"}
     </StatusBadge>
   );

@@ -29,7 +29,7 @@ class ReportedReviewDecisionSerializer(serializers.Serializer):
 
 
 class ReportedReviewFilterSerializer(serializers.Serializer):
-    """Validate grouped queue search, reason, and sort options."""
+    """Validate grouped queue search, reason, status, and sort options."""
 
     search = serializers.CharField(
         max_length=200,
@@ -39,6 +39,13 @@ class ReportedReviewFilterSerializer(serializers.Serializer):
     )
     reason = serializers.ChoiceField(
         choices=ReviewReport.ReportType.choices,
+        required=False,
+    )
+    status = serializers.ChoiceField(
+        choices=(
+            Review.ReviewStatus.PUBLISHED,
+            Review.ReviewStatus.REJECTED,
+        ),
         required=False,
     )
     ordering = serializers.ChoiceField(

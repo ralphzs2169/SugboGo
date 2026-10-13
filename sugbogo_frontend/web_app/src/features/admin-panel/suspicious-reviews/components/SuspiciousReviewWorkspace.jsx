@@ -1,14 +1,15 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Inbox, Search } from "lucide-react";
+import { Inbox } from "lucide-react";
 
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import useDebounce from "@/shared/hooks/useDebounce";
+import ModerationQueueSkeleton from "../../moderation/components/ModerationQueueSkeleton";
 
 import { fetchSuspiciousReviews } from "../services/suspiciousReviewService";
-import { SIGNAL_LABELS } from "../utils/suspiciousReviewPresentation";
 import InvestigationDetail from "./InvestigationDetail";
+import QueueFilters from "./QueueFilters";
 import QueueItem from "./QueueItem";
 
 const PAGE_SIZE = 10;
@@ -63,32 +64,21 @@ export default function SuspiciousReviewWorkspace() {
   return (
     <div className="grid min-h-[620px] overflow-hidden rounded-xl border border-stroke bg-background lg:grid-cols-[minmax(320px,38%)_minmax(0,1fr)]">
       <aside aria-label="Suspicious review queue" className="min-w-0 border-b border-stroke lg:border-b-0 lg:border-r">
-        <div className="border-b border-stroke p-5">
+        <div className="px-4 pt-4">
           <h2 className="text-base font-semibold text-text-primary">Suspicious Reviews</h2>
           <p className="mt-1 text-sm text-text-secondary">Published reviews with advisory reliability signals.</p>
-          <label className="relative mt-4 block">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-text-secondary" />
-            <span className="sr-only">Search suspicious reviews</span>
-            <input type="search" value={search} onChange={(event) => changeFilter(setSearch, event.target.value)} placeholder="Search reviews, authors, businesses" className="w-full rounded-lg border border-stroke bg-background py-2.5 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-secondary focus:border-stroke-active focus:outline-none" />
-          </label>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <label className="text-xs font-medium text-text-secondary">Signal
-              <select aria-label="Signal" value={signal} onChange={(event) => changeFilter(setSignal, event.target.value)} className="mt-1 w-full rounded-lg border border-stroke bg-background px-2 py-2 text-sm text-text-primary">
-                <option value="">All signals</option>
-                {Object.entries(SIGNAL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </label>
-            <label className="text-xs font-medium text-text-secondary">Sort
-              <select aria-label="Sort" value={ordering} onChange={(event) => changeFilter(setOrdering, event.target.value)} className="mt-1 w-full rounded-lg border border-stroke bg-background px-2 py-2 text-sm text-text-primary">
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-              </select>
-            </label>
-          </div>
         </div>
+        <QueueFilters
+          search={search}
+          signal={signal}
+          ordering={ordering}
+          onSearchChange={(value) => changeFilter(setSearch, value)}
+          onSignalChange={(value) => changeFilter(setSignal, value)}
+          onOrderingChange={(value) => changeFilter(setOrdering, value)}
+        />
         <div aria-busy={isLoading || isFetching} className="lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
           {isLoading ? (
-            <p className="p-6 text-sm text-text-secondary">Loading suspicious reviews…</p>
+            <ModerationQueueSkeleton label="Loading suspicious reviews" />
           ) : error ? (
             <DataErrorState title="Unable to load suspicious reviews" message="The investigation queue could not be loaded." onRetry={refetch} />
           ) : reviews.length ? (

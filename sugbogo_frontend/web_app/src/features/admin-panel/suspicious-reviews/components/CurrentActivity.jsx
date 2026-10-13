@@ -1,76 +1,158 @@
-import { Link } from "react-router-dom";
+import { Activity, Clock3, Copy, UsersRound } from "lucide-react";
 
-import { formatDateTime } from "@/shared/utils/dateUtils";
-import { displayName, SIGNAL_LABELS } from "../utils/suspiciousReviewPresentation";
+import RelatedReviewRow from "./RelatedReviewRow";
+
+import { SIGNAL_LABELS } from "../utils/suspiciousReviewPresentation";
+
+const SIGNAL_ICONS = {
+  duplicate_content: Copy,
+  rapid_submission: Clock3,
+  shared_installation_accounts: UsersRound,
+};
+
+function mergeRelatedReviews(referencedReviews = [], currentReviews = []) {
+  const merged = new Map();
+
+  referencedReviews.forEach((review) => {
+    merged.set(review.id, {
+      ...review,
+      referencedAtDetection: true,
+      currentMatch: false,
+    });
+  });
+
+  currentReviews.forEach((review) => {
+    const existing = merged.get(review.id);
+
+    merged.set(review.id, {
+      ...existing,
+      ...review,
+      referencedAtDetection: existing?.referencedAtDetection ?? false,
+      currentMatch: true,
+    });
+  });
+
+  return Array.from(merged.values());
+}
+
+function EmptyMessage({ children }) {
+  return <p className="px-4 py-5 text-sm text-text-secondary">{children}</p>;
+}
+
+function SignalActivity({ reason, related, referencedReviews }) {
+  const Icon = SIGNAL_ICONS[reason] ?? Activity;
+  const isAccountSignal = reason === "shared_installation_accounts";
+  const hasBaseline = reason === "duplicate_content";
+
+  const reviews = hasBaseline
+    ? mergeRelatedReviews(referencedReviews, related?.reviews ?? [])
+    : (related?.reviews ?? []).map((review) => ({
+        ...review,
+        referencedAtDetection: false,
+        currentMatch: true,
+      }));
+
+  const windowUnavailable = Boolean(related?.window_unavailable);
+
+  let subtitle = null;
+  let count = null;
+
+  if (isAccountSignal && related?.distinct_account_count !== undefined) {
+    count = related.distinct_account_count;
+    subtitle = `${count === 1 ? "account" : "accounts"} currently retained`;
+  } else if (!isAccountSignal && !windowUnavailable) {
+    count = reviews.length;
+    subtitle = `related ${count === 1 ? "review" : "reviews"} available`;
+  }
+
+  return (
+    <article className="overflow-hidden rounded-lg border border-stroke bg-surface">
+      <header className="flex items-center justify-between gap-3 px-4 py-3.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-stroke bg-background text-text-secondary">
+            <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+          </span>
+
+          <div className="min-w-0">
+            <h4 className="truncate text-sm font-semibold text-text-primary">
+              {SIGNAL_LABELS[reason]}
+            </h4>
+
+            {subtitle && (
+              <p className="mt-0.5 text-xs text-text-secondary">
+                <span className="font-semibold tabular-nums text-text-primary">
+                  {count}
+                </span>{" "}
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="border-t border-stroke">
+        {windowUnavailable ? (
+          <EmptyMessage>
+            Current matches cannot be scoped to the original detection window
+            because the detection time is unavailable.
+          </EmptyMessage>
+        ) : reviews.length > 0 ? (
+          <div className="divide-y divide-stroke">
+            {reviews.map((item) => (
+              <RelatedReviewRow
+                key={item.id}
+                review={item}
+                hasBaseline={hasBaseline}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyMessage>
+            No related records are currently available.
+          </EmptyMessage>
+        )}
+      </div>
+    </article>
+  );
+}
 
 function CurrentActivity({ review }) {
   const activity = review.current_related_activity ?? {};
+  const referencedReviews = activity.referenced_reviews ?? [];
 
   return (
-    <section className="border-t border-stroke pt-5">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
-        Current Related Activity
-      </h3>
-      <p className="mt-1 text-sm text-text-secondary">
-        Live data currently available. This may differ if reviews were edited or deleted later.
+    <section
+      aria-label="Current related activity"
+      className="border-t border-stroke pt-6"
+    >
+      <div className="flex items-center gap-2">
+        <Activity
+          className="h-4 w-4 text-text-secondary"
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+
+        <h3 className="text-base font-semibold text-text-primary">
+          Current Related Activity
+        </h3>
+      </div>
+
+      <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-secondary">
+        Live records available now. They may differ from the detection-time
+        evidence if reviews were edited or deleted later.
       </p>
-      <div className="mt-4 space-y-5">
-        {activity.referenced_reviews?.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-text-primary">Retained reviews referenced at detection</h4>
-            <p className="mt-1 text-xs text-text-secondary">Current record details; text or status may have changed since detection.</p>
-            <div className="mt-2 space-y-2">
-              {activity.referenced_reviews.map((item) => (
-                <details key={item.id} id={`related-review-${item.id}`} className="rounded-lg border border-stroke p-3 text-sm">
-                  <summary className="cursor-pointer font-medium text-text-primary">Review #{item.id} · {item.status}</summary>
-                  <p className="mt-2 whitespace-pre-wrap text-text-primary">{item.text}</p>
-                  <p className="mt-2 text-text-secondary">
-                    <Link className="text-primary hover:underline" to={`/admin-panel/users/${item.author.id}`}>{displayName(item.author)}</Link>
-                    {" · "}
-                    <Link className="text-primary hover:underline" to={`/admin-panel/businesses/${item.business.id}`}>{item.business.name}</Link>
-                    {" · "}{formatDateTime(item.submitted_at)}
-                  </p>
-                </details>
-              ))}
-            </div>
-          </div>
-        )}
-        {review.reasons.map((reason) => {
-          const related = activity[reason];
-          return (
-            <div key={reason}>
-              <h4 className="text-sm font-semibold text-text-primary">
-                {SIGNAL_LABELS[reason]}
-              </h4>
-              {reason === "shared_installation_accounts" && related && (
-                <p className="mt-1 text-xs text-text-secondary">
-                  {related.distinct_account_count} distinct accounts currently retained
-                </p>
-              )}
-              {related?.window_unavailable ? (
-                <p className="mt-2 text-sm text-text-secondary">The detection time is unavailable, so current matches cannot be scoped to the original 30-day window.</p>
-              ) : !related?.reviews?.length ? (
-                <p className="mt-2 text-sm text-text-secondary">No related records currently available.</p>
-              ) : (
-                <ul className="mt-2 divide-y divide-stroke rounded-lg border border-stroke">
-                  {related.reviews.map((item) => (
-                    <li key={item.id} className="px-3 py-2 text-sm">
-                      <div className="flex flex-wrap justify-between gap-2">
-                        <span className="font-medium text-text-primary">Review #{item.id} · {item.status}</span>
-                        <span className="text-xs text-text-secondary">{formatDateTime(item.submitted_at)}</span>
-                      </div>
-                      <p className="mt-1 text-text-secondary">
-                        <Link className="text-primary hover:underline" to={`/admin-panel/users/${item.author.id}`}>{displayName(item.author)}</Link>
-                        {" · "}
-                        <Link className="text-primary hover:underline" to={`/admin-panel/businesses/${item.business.id}`}>{item.business.name}</Link>
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          );
-        })}
+
+      <div className="mt-5 space-y-4">
+        {review.reasons.map((reason) => (
+          <SignalActivity
+            key={reason}
+            reason={reason}
+            related={activity[reason]}
+            referencedReviews={
+              reason === "duplicate_content" ? referencedReviews : []
+            }
+          />
+        ))}
       </div>
     </section>
   );

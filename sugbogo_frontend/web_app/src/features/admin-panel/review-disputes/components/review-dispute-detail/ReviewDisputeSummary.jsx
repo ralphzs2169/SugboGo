@@ -25,7 +25,7 @@ export default function ReviewDisputeSummary({ dispute }) {
 
         <StatusBadge
           variant={
-            REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "neutral"
+            REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "mutedSoft"
           }
         >
           {formatLabel(dispute.status)}

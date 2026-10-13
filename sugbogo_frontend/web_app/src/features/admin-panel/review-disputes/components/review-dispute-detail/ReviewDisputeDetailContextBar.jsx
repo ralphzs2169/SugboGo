@@ -17,7 +17,7 @@ export default function ReviewDisputeDetailContextBar({ dispute }) {
   );
 
   const statusVariant =
-    REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "neutral";
+    REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "mutedSoft";
 
   return (
     <StickyContextBar>

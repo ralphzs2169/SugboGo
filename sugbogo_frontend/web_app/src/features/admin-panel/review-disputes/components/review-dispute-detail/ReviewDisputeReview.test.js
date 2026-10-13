@@ -40,7 +40,7 @@ test("dispute detail displays the published review status beside its heading", (
 
   assert.match(markup, /Original Review/);
   assert.match(markup, /Published/);
-  assert.match(markup, /bg-emerald-500/);
+  assert.match(markup, /border-success\/25 bg-success\/10 text-success/);
 });
 
 test("dispute detail displays a rejected review with the shared danger style", () => {

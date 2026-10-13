@@ -62,6 +62,16 @@ class AdminUnderReviewFilterSerializer(serializers.Serializer):
     )
 
 
+class AdminUnderReviewRejectSerializer(serializers.Serializer):
+    """Require an internal explanation for a human rejection decision."""
+
+    moderation_notes = serializers.CharField(
+        min_length=20,
+        max_length=2000,
+        trim_whitespace=True,
+    )
+
+
 class AdminUnderReviewListSerializer(serializers.ModelSerializer):
     """Serialize only the details needed to scan the held-review queue."""
 

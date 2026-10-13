@@ -31,11 +31,12 @@ after(async () => {
   await server?.close();
 });
 
-test("grouped queue forwards search, reason, sort, and pagination", async () => {
+test("grouped queue forwards search, reason, status, sort, and pagination", async () => {
   const calls = [];
   const params = {
     search: "Cafe",
     reason: "abuse",
+    status: "rejected",
     ordering: "oldest",
     page: 2,
     page_size: 10,

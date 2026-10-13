@@ -153,7 +153,7 @@ export default function getReviewDisputeColumns(onViewDispute) {
 
         return (
           <StatusBadge
-            variant={REVIEW_DISPUTE_STATUS_BADGE_VARIANT[status] || "neutral"}
+            variant={REVIEW_DISPUTE_STATUS_BADGE_VARIANT[status] || "mutedSoft"}
           >
             {formatLabel(status)}
           </StatusBadge>

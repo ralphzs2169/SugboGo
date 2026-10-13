@@ -22,8 +22,9 @@ export default function useUnderReviewDecisions() {
     onSuccess: (_, reviewId) => refreshReviews(reviewId),
   });
   const rejectMutation = useMutation({
-    mutationFn: rejectUnderReviewReview,
-    onSuccess: (_, reviewId) => refreshReviews(reviewId),
+    mutationFn: ({ reviewId, moderationNotes }) =>
+      rejectUnderReviewReview(reviewId, moderationNotes),
+    onSuccess: (_, { reviewId }) => refreshReviews(reviewId),
   });
 
   return {

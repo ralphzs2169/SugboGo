@@ -67,7 +67,7 @@ export default function ReviewDisputeHistory({
                     <StatusBadge
                       variant={
                         REVIEW_DISPUTE_STATUS_BADGE_VARIANT[attempt.status] ||
-                        "neutral"
+                        "mutedSoft"
                       }
                     >
                       {formatLabel(attempt.status)}
