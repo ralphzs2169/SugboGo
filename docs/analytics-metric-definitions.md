@@ -2,6 +2,8 @@
 
 This dictionary implements the definitions in `docs/analytics-plan.md` and the subsequently agreed Standard/Premium split. The repository is the implementation reference. Task 1 adds shared helpers and read-only aggregation; Task 2 adds admin overview and discovery-trend endpoints. Neither introduces entitlement checks, models, migrations, payment processing, new dependencies, or registered Django apps.
 
+Task 3 adds admin coverage, business attention and provisional low-exposure candidates without altering those boundaries.
+
 ## Product access
 
 Standard merchant analytics provides period counts and current snapshots: profile visits, distinct visitors, saves, current Pocket holders, valid specialty support, published review volume, unanswered reviews and reply rate. Premium includes expanded merchant analysis, historical charts, period comparisons, local peer benchmarks and reports. Existing public review summaries, sentiment and frequent mentions remain public; Premium is not exclusive access to those existing public fields.
@@ -28,6 +30,9 @@ Later endpoint work must keep Standard and Premium serializers/responses separat
 | Active businesses | Businesses with current `BUSN_STATUS=ACTIVE`, independent of verification and owner account status, matching maintained explorer queries. | Current snapshot; historical value/change is null without retained status snapshots. | Admin. |
 | Approved businesses | Existing businesses with a linked merchant application whose current `MAPP_STATUS=APPROVED`. Includes subsequently suspended businesses; excludes unlinked approved applications. Not the legacy `BUSN_IS_VERIFIED` flag. | Current snapshot; historical value/change is null without retained inventory snapshots. | Admin. |
 | New explorer accounts | Accounts created in the selected period with current `USER_ROLE=EXPLORER`, including every account status. Group weekly using Manila Monday boundaries. | Period reporting against current role; later explorer-to-merchant changes revise results. | Admin. |
+| Recorded coverage | Currently active businesses with at least one recorded PROFILE_VISIT in the period / currently active eligible businesses x 100, by current cluster/category. Overall coverage pools business counts. | Selected event period against current inventory/classification. Empty denominator gives null; failed tracking gives null visited counts/percentage. | Admin. |
+| Business attention | Profile visits, SAVE events, distinct savers per business in the period, plus current valid vouches and distinct supporters for active specialty links. | Period visibility plus explicitly current support; zero recorded visits retained after healthy reads. | Admin. |
+| Low recorded attention with specialty support | Currently active business with at most four recorded profile visits in the last 30 completed Manila days and at least five distinct current valid specialty supporters. | Fixed recent window excluding today, independent of selectable chart periods. Provisional while tracking coverage is unverified. | Admin. |
 
 Task 2 implements SQL inventory/account counts and admin discovery reports; specialty/review metric implementations remain deferred. Existing application approval, resubmission and SLA definitions remain unchanged. Discovery Score is an opportunity/credibility ranking signal, not satisfaction, measured exposure or revenue; do not alter its computation.
 
@@ -61,6 +66,7 @@ Methods are added to the existing `VisibilityEventService`; existing methods are
 | `get_analytics_series` | Observed bucket/type counts with Manila date and clipped UTC start/end. Sparse series: absent buckets are not fabricated. |
 | `count_analytics_explorers` | One period-wide distinct explorer count, optionally restricted to one event type. |
 | `get_analytics_explorer_series` | Distinct explorers per Manila day/week across businesses and supported event types. Bucket counts must not be summed to obtain period-wide distincts. |
+| `get_business_attention_metrics` | Explicit business-keyed profile visits, saves and period-wide distinct saver counts. Healthy missing business events give zero; failures raise the controlled tracking exception. |
 | `get_first_observed_events` | Earliest observed UTC timestamp per type across retained events in scope; null where none exists. No period filter. |
 
 All methods accept `business_ids=None` for the platform, `[id]` for a business, or an explicit set/list. `[]` is an empty scope, never platform-wide. Positive integer IDs are normalized using the existing helper. These internal reads do not enforce ownership or filter to currently active businesses: future endpoints must resolve authorization and the intended business population before calling them. Silently excluding a suspended business would alter historical reporting.
@@ -97,6 +103,8 @@ Stored AI summaries must retain their state, sampling disclosures, generated tim
 - Date comparison: new shared reports use immediately preceding equal-duration windows. Existing application analytics keeps its established weekday-based comparisons.
 - Coverage: the earliest event is a first observation, not a certified tracking start. Complete tracking cannot be inferred from current availability.
 - Task 2 product decision: use approved-business inventory rather than the verified flag. Maintained application approval creates an active business without setting that flag. Analytics does not change that workflow or backfill flags.
+- Task 3 product decision: low-exposure pilot thresholds are owned by admin analytics constants (30 completed days, at most four profile visits, at least five distinct valid supporters). A roughly monthly reporting window is consistent with comparable analytics patterns, but the numeric selection cutoffs are not industry-certified benchmarks.
+- Low-exposure window differs deliberately from selectable 30-day charts: it excludes today. Businesses created inside that window disclose shorter business histories; those created at/after its exclusive end have no observation opportunity and are not selected. Business-age flags do not certify actual tracking coverage.
 - Deferred: navigation-start analytics, conversion funnels, peer comparisons and historical specialty/score charts require later instrumentation, population definitions or retained history. Separate totals do not establish a conversion journey. Integrated payment processing remains excluded.
 
 ## Proposed indexes, not created
@@ -110,3 +118,5 @@ For later review using deployed query plans, consider `(occurred_at, event_type)
 Tests cover Manila/UTC boundaries, default and custom periods, equal elapsed prior periods, daily/Monday-week grouping, clipped buckets, repeated explorers across dates/businesses/types, zero vs unavailable results, invalid scopes, source and cursor failures, cooldown recovery, first-observed events and metadata limitations. New service tests use in-memory fixtures and forbid index initialization; they do not require a real MongoDB service or create domain rows. A live Mongo compatibility/query-plan check is deferred until approved infrastructure validation.
 
 Task 2's SQL service tests require a disposable PostGIS test database. API access/contract tests and Mongo aggregation tests use in-memory fixtures/mocks. Refer to `sugbogo_backend/docs/admin-analytics-api-contract.md` for endpoint behavior, per-source metadata, and frontend acceptance checks. Visibility growth comparisons are deliberately null while coverage is unverified; there is no client-supplied coverage override.
+
+Task 3's SQL/service and API pagination tests also require a disposable PostGIS test database. They cover current eligible populations, pooled percentages, valid versus cached specialty counts, distinct supporters, fixed-window boundaries, server-owned threshold overrides, globally sorted pagination, Mongo failures and preserved classification-management statistics. Real Mongo performance and business-population scale still require infrastructure validation.

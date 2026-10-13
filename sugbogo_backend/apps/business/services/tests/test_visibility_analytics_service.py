@@ -135,6 +135,21 @@ class VisibilityAnalyticsTests(SimpleTestCase):
         self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers, event_type="PROFILE_VISIT"), 2)
         self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers, event_type="SAVE"), 1)
 
+    def test_business_attention_counts_repeated_saves_without_repeating_savers(self):
+        self.documents.append(self.event("SAVE", 2, 20, self.START + timedelta(days=4)))
+        result = self.query(VisibilityEventService.get_business_attention_metrics, business_ids=[10, 20, 30])
+        self.assertEqual(result[10], {"profile_visits": 3, "saves": 0, "distinct_savers": 0})
+        self.assertEqual(result[20], {"profile_visits": 1, "saves": 2, "distinct_savers": 1})
+        self.assertEqual(result[30], {"profile_visits": 0, "saves": 0, "distinct_savers": 0})
+        self.assertEqual(self.query(VisibilityEventService.get_business_attention_metrics, business_ids=[]), {})
+
+    def test_business_attention_requires_explicit_scope_and_does_not_hide_failure(self):
+        with self.assertRaises(ValidationError):
+            self.query(VisibilityEventService.get_business_attention_metrics, business_ids=None)
+        with patch.object(self.collection, "aggregate", side_effect=AutoReconnect("Unavailable")):
+            with self.assertRaises(VisibilityTrackingUnavailable):
+                self.query(VisibilityEventService.get_business_attention_metrics, business_ids=[10])
+
     def test_distinct_series_counts_each_person_once_per_bucket_across_event_types(self):
         self.documents.append(self.event("IMPRESSION", 2, 20, self.START + timedelta(days=2)))
         rows = self.query(VisibilityEventService.get_analytics_explorer_series)

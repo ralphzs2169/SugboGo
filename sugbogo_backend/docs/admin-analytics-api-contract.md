@@ -131,3 +131,79 @@ Before rollout, infrastructure/backend owners must:
 6. Test frontend scenarios: healthy zero, partial coverage, null total, null series, missing prior period and unsupported snapshot comparison.
 
 No live MongoDB verification or database/index changes are implied by passing mocked tests. Exact validation commands and observed results should be recorded in the PR after approved execution.
+
+## Task 3: coverage and business attention
+
+Task 3 extends admin reporting; it does not add merchant analytics. All new GET endpoints require the same authenticated active admin/super-admin permissions. Existing overview, discovery trend, Discovery Score routes and taxonomy-management statistics remain unchanged.
+
+| Route | Selection |
+|---|---|
+| `/api/admin/analytics/coverage/` | Selectable `period`, custom dates, optional `cluster` and `category` IDs; returns overall, cluster and category coverage. |
+| `/api/admin/analytics/business-attention/` | Same period/filters plus `ordering`, `page`, `page_size`; returns paginated attention rows. |
+| `/api/admin/analytics/low-exposure/` | Optional classification filters, ordering/pagination; server-owned fixed dates and thresholds. Client period/date/threshold overrides are rejected. |
+
+Unknown/nonpositive taxonomy IDs and a category outside the supplied cluster are HTTP 400 validation errors. Current ACTIVE businesses define eligibility; approval/verification/owner status are not additional filters. Current classification/status may differ from historical state. Suspended businesses are excluded; no status-history reconstruction is attempted.
+
+### Coverage contract
+
+`data` contains `label`, `description`, `overall`, `clusters`, `categories`, `meta`, and `sources.domain`/`sources.visibility`.
+
+Overall/group counts contain `eligible_businesses`, `visited_businesses`, `zero_recorded_visit_businesses`, and `coverage_percentage`. Groups also include `id`, `name`.
+
+- Visited means at least one recorded PROFILE_VISIT in the selected period. Repeated visits do not increase the visited-business numerator.
+- Overall percentage pools eligible/visited business counts; it never averages group percentages.
+- Empty groups are retained. Zero eligible businesses gives null percentage, not 0%.
+- Successful zero recorded visits with nonempty eligibility gives 0%, disclosed as recorded/unverified coverage.
+- Mongo failure preserves SQL eligible counts but returns null visited/zero-visit counts and percentages.
+
+### Attention row and pagination contract
+
+Rows contain business/category/cluster IDs and names, `profile_visits`, `saves`, `distinct_savers`, `valid_vouches`, `distinct_supporters`, `specialty_support_as_of`, `business_created_at`, `has_full_business_window`, and `business_window_days`.
+
+`business_window_days` is the overlap of the business's creation history with the period, not a count of verified tracking days. Current support is not restricted to the event period; historical vouch totals are not reconstructed. Endorsements must have `VOUCH_EVIDENCE_IS_VALID=true` and a currently active business-specialty link. Suspicion alone does not redefine validity. Cached counters and Discovery Score are not used as support/attention metrics.
+
+Ordering supports ascending/descending `business_name`, `profile_visits`, `saves`, `distinct_savers`, `valid_vouches`, `distinct_supporters`. Default attention ordering is `-profile_visits`; default low-exposure ordering is `profile_visits`. Ties use ascending business ID. Sorting covers the whole filtered population before pagination.
+
+Pagination reuses `StandardPagination`: default page size 10, accepted sizes 1-100, positive integer pages, and out-of-range pages return HTTP 404. Existing `items` and `pagination` structure is preserved; endpoint-local metadata is added to `data` without modifying the global paginator.
+
+```text
+data:
+  items: [aggregate business rows]
+  pagination: {page, page_size, total_items, total_pages, has_next, has_previous}
+  label, description, ordering
+  meta
+  sources: {domain, visibility}
+  selection_status
+  thresholds
+```
+
+On Mongo failure, a requested visibility ordering or low-exposure classification returns HTTP 200 with `items=null`, `pagination=null`, and unavailable metadata. This is not an empty successful selection. Attention ordered by a SQL field can still return support rows with null visibility metrics. Never silently substitute a different ordering.
+
+### Fixed low-exposure policy
+
+Constants live in `apps/admin_operations/analytics/constants.py` and are consumed from that module at request time:
+
+```text
+LOW_EXPOSURE_WINDOW_DAYS = 30
+LOW_EXPOSURE_MAX_PROFILE_VISITS = 4
+LOW_EXPOSURE_MIN_DISTINCT_SUPPORTERS = 5
+```
+
+The recent window contains 30 completed Manila calendar dates, ending yesterday, converted into UTC `[start,end)` bounds. For a captured Manila date of 12 October 2026 it spans 12 September through 11 October inclusive. Selectable coverage/attention periods keep their existing include-today behavior.
+
+Threshold values are returned in `data.thresholds` with `excludes_today=true`, `is_pilot_policy=true`. They are operational pilot values, not objective business quality or a published competitor cutoff. The window choice was benchmarked against roughly monthly reporting patterns; see [Trustpilot's 28-day insights](https://help.trustpilot.com/s/article/Trustpilot-Analytics-TrustScore-insights?language=en_US) and [Yelp monthly reports](https://docs.developer.yelp.com/reference/create_monthly_reports_v3).
+
+Results use label `Low recorded attention with specialty support` and `selection_status=provisional` while tracking completeness is unverified. Newer businesses disclose `has_full_business_window=false`; businesses created at/after the period end are excluded because they had no observation opportunity. This is not a quality ranking, verified absence of exposure or automatic discovery promotion. No Discovery Score computation/configuration is involved.
+
+### Task 3 verification for members
+
+1. Verify coverage numerators/denominators with the same current active population, filters and UTC event bounds. Include empty groups and active businesses with no events.
+2. Test whole-population sorting with a high-visit business that would fall on a later SQL page, then verify page 1 contains it and ties remain stable across pages.
+3. Verify repeated saves by one explorer count as multiple recorded events where retained, but one period-wide saver for that business.
+4. Verify one supporter across multiple active specialties counts once as a supporter; invalid evidence/inactive specialties do not contribute. Do not compare against unfiltered cached totals.
+5. Test exact pilot boundaries: 4 vs 5 visits and 5 vs 4 distinct valid supporters. Overrides in tests must change the policy response and selection/window, confirming admin ownership of constants.
+6. Verify today is excluded from low-exposure activity and request date/threshold parameters cannot change its policy.
+7. Frontend must distinguish successful empty `items=[]` from unavailable `items=null`, preserve null percentages, show current-support timestamps and shorter business windows, and disclose provisional selection.
+8. Validate real MongoDB pipelines/index plans and representative population sizes before rollout. The initial implementation assembles filtered attention rows in memory to preserve cross-database sorting correctness; it is not a claim of large-population performance certification.
+
+Task 3 adds no migrations, dependencies, indexes or registered Django apps. Existing UTC event deduplication, evidence/scoring rules, prior analytics contracts and role permissions remain in place.

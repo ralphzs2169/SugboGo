@@ -1,2 +1,7 @@
 
 ANALYTICS_MINIMUM_TREND_SAMPLE_SIZE = 10
+
+# Approved pilot rules for recorded attention, not industry quality benchmarks.
+LOW_EXPOSURE_WINDOW_DAYS = 30
+LOW_EXPOSURE_MAX_PROFILE_VISITS = 4
+LOW_EXPOSURE_MIN_DISTINCT_SUPPORTERS = 5
