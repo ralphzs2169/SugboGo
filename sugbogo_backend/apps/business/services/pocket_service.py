@@ -18,6 +18,13 @@ class PocketService:
     """Handles creating, removing, and checking user business pockets."""
 
     @staticmethod
+    def get_current_holder_count(business_id, *, as_of):
+        """Count current distinct holders without treating retained rows as save history."""
+        return BusinessPocket.objects.filter(
+            BUSN_ID=business_id, PCKT_CREATED_AT__lte=as_of,
+        ).values("USER_ID").distinct().count()
+
+    @staticmethod
     @transaction.atomic
     def create_pocket(
         user: User,

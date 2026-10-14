@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.gis.geos import Point
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.business.models import (
@@ -14,6 +17,17 @@ from apps.users.models import User
 
 
 class BusinessPocketServiceTests(TestCase):
+    def test_current_holder_helper_uses_rows_and_excludes_future_creation(self):
+        cutoff = timezone.now()
+        pocket = BusinessPocket.objects.create(BUSN_ID=self.business, USER_ID=self.user)
+        future = BusinessPocket.objects.create(BUSN_ID=self.business, USER_ID=self.second_user)
+        BusinessPocket.objects.filter(pk=pocket.pk).update(PCKT_CREATED_AT=cutoff - timedelta(days=1))
+        BusinessPocket.objects.filter(pk=future.pk).update(PCKT_CREATED_AT=cutoff + timedelta(days=1))
+        Business.objects.filter(pk=self.business.pk).update(BUSN_POCKET_COUNT=999)
+        self.assertEqual(PocketService.get_current_holder_count(self.business.pk, as_of=cutoff), 1)
+        pocket.delete()
+        self.assertEqual(PocketService.get_current_holder_count(self.business.pk, as_of=cutoff), 0)
+
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(

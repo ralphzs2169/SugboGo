@@ -19,11 +19,18 @@ from pathlib import Path
 import cloudinary
 from celery.schedules import crontab
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
+
+# Development preview only; enabling enforcement also requires a real Plus entitlement check.
+_merchant_plus_enforced = os.getenv("MERCHANT_PLUS_ENFORCED", "False").strip().lower()
+if _merchant_plus_enforced not in {"true", "false"}:
+    raise ImproperlyConfigured("MERCHANT_PLUS_ENFORCED must be True or False.")
+MERCHANT_PLUS_ENFORCED = _merchant_plus_enforced == "true"
 
 if os.name == 'nt':
     GDAL_LIBRARY_PATH = os.environ.get("GDAL_LIBRARY_PATH")
@@ -188,6 +195,7 @@ INSTALLED_APPS = [
 
     # Merchant Operations
     'apps.merchant_operations.business_profile.apps.BusinessProfileConfig',
+    'apps.merchant_operations.merchant_analytics.apps.MerchantAnalyticsConfig',
 ]
 
 MIDDLEWARE = [

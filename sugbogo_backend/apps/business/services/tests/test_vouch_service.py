@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from decimal import Decimal
 from threading import Barrier
 
@@ -22,6 +23,25 @@ from apps.users.models import User
 
 
 class BusinessVouchServiceTests(TestCase):
+    def test_support_helper_includes_zero_active_specialties_and_valid_suspicious_evidence(self):
+        cutoff = timezone.now()
+        evidence = BusinessVouch.objects.create(
+            BUSN_ID=self.business, TAG_ID=self.spicy_tag, USER_ID=self.user,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.20"), VOUCH_FLAG_SUSPICIOUS=True,
+        )
+        invalid = BusinessVouch.objects.create(
+            BUSN_ID=self.business, TAG_ID=self.spicy_tag, USER_ID=self.second_user,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.20"), VOUCH_EVIDENCE_IS_VALID=False,
+        )
+        BusinessVouch.objects.filter(pk__in=(evidence.pk, invalid.pk)).update(VOUCH_CREATED_AT=cutoff - timedelta(days=1))
+        result = VouchService.get_current_specialty_support(self.business.pk, as_of=cutoff)
+        counts = {row["specialty_id"]: row for row in result}
+        self.assertEqual(counts[self.spicy_tag.pk]["valid_vouches"], 1)
+        self.assertEqual(counts[self.spicy_tag.pk]["distinct_supporters"], 1)
+        self.assertEqual(counts[self.traditional_tag.pk]["valid_vouches"], 0)
+        BusinessSpecialtyTag.objects.filter(pk=self.spicy_business_tag.pk).update(BST_IS_ACTIVE=False)
+        self.assertEqual([row["specialty_id"] for row in VouchService.get_current_specialty_support(self.business.pk, as_of=cutoff)], [self.traditional_tag.pk])
+
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(
