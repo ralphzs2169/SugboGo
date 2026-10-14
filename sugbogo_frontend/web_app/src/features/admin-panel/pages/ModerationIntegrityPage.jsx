@@ -4,7 +4,8 @@ import { Clock3, Flag, MessageSquareText, ShieldAlert } from "lucide-react";
 
 import PageHeader from "../components/PageHeader";
 import TableTabs from "../components/data-table/TableTabs";
-import ReviewDisputeManagementTable from "../review-disputes/components/ReviewDisputeManagementTable";
+import useModerationTabCounts from "../moderation/hooks/useModerationTabCounts";
+import ReviewDisputeWorkspace from "../review-disputes/components/ReviewDisputeWorkspace";
 import UnderReviewWorkspace from "../under-review/components/UnderReviewWorkspace";
 import SuspiciousReviewWorkspace from "../suspicious-reviews/components/SuspiciousReviewWorkspace";
 import ReportedReviewWorkspace from "../reported-reviews/components/ReportedReviewWorkspace";
@@ -27,6 +28,12 @@ export default function ModerationIntegrityPage() {
   const activeTab = VALID_TABS.has(requestedTab)
     ? requestedTab
     : "under-review";
+  const tabCounts = useModerationTabCounts();
+  const tabs = MODERATION_TABS.map((tab) => ({
+    ...tab,
+    count: tabCounts[tab.id].count,
+    countLoading: tabCounts[tab.id].isLoading,
+  }));
 
   useEffect(() => {
     if (requestedTab === activeTab) {
@@ -67,34 +74,28 @@ export default function ModerationIntegrityPage() {
       />
 
       <section>
-        {activeTab === "disputes" ? (
-          <ReviewDisputeManagementTable
-            tabs={MODERATION_TABS}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-          />
-        ) : (
-          <div className="relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2">
-            <nav
-              aria-label="Moderation & Integrity sections"
-              className="mb-6 overflow-x-auto pb-1"
-            >
-              <TableTabs
-                tabs={MODERATION_TABS}
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-              />
-            </nav>
+        <div className="relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2">
+          <nav
+            aria-label="Moderation & Integrity sections"
+            className="mb-6 overflow-x-auto pb-1"
+          >
+            <TableTabs
+              tabs={tabs}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
+          </nav>
 
-            {activeTab === "under-review" ? (
-              <UnderReviewWorkspace />
-            ) : activeTab === "suspicious" ? (
-              <SuspiciousReviewWorkspace />
-            ) : (
-              <ReportedReviewWorkspace />
-            )}
-          </div>
-        )}
+          {activeTab === "under-review" ? (
+            <UnderReviewWorkspace />
+          ) : activeTab === "suspicious" ? (
+            <SuspiciousReviewWorkspace />
+          ) : activeTab === "reported" ? (
+            <ReportedReviewWorkspace />
+          ) : (
+            <ReviewDisputeWorkspace />
+          )}
+        </div>
       </section>
     </>
   );

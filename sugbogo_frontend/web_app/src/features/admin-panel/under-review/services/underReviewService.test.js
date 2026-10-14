@@ -77,11 +77,13 @@ test("detail and decisions use the held-review Admin endpoints", async () => {
 
   await service.fetchUnderReviewReview(42);
   await service.approveUnderReviewReview(42);
-  await service.rejectUnderReviewReview(42);
+  await service.rejectUnderReviewReview(42, "The review contains threatening content.");
 
   assert.deepEqual(calls, [
     ["get", "/admin/under-review/42/"],
     ["post", "/admin/under-review/42/approve/"],
-    ["post", "/admin/under-review/42/reject/"],
+    ["post", "/admin/under-review/42/reject/", {
+      moderation_notes: "The review contains threatening content.",
+    }],
   ]);
 });

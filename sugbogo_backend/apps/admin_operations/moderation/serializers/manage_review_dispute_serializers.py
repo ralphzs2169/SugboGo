@@ -53,8 +53,13 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
         source="REVW_ID_id",
         read_only=True,
     )
+    review_text_preview = serializers.SerializerMethodField()
+    review_photo_count = serializers.SerializerMethodField()
     merchant = BusinessOwnerSerializer(
         source="USER_ID",
+        read_only=True,
+    )
+    attempt_number = serializers.IntegerField(
         read_only=True,
     )
 
@@ -69,8 +74,20 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
             "business_name",
             "business_cover_photo_url",
             "review_id",
+            "review_text_preview",
+            "review_photo_count",
             "merchant",
+            "attempt_number",
         )
+
+    def get_review_text_preview(self, dispute):
+        """Keep the original review text compact in the dispute queue."""
+        return dispute.REVW_ID.REVW_TEXT[:160]
+
+    def get_review_photo_count(self, dispute):
+        """Count the photos already prefetched with the disputed review."""
+        return len(dispute.REVW_ID.photos.all())
+
 
 class AdminReviewReplySerializer(serializers.ModelSerializer):
     """Serialize the merchant's response to the disputed review."""
@@ -115,6 +132,10 @@ class AdminDisputedReviewSerializer(serializers.ModelSerializer):
         source="REVW_CREATED_AT",
         read_only=True,
     )
+    edited_at = serializers.DateTimeField(
+        source="REVW_EDITED_AT",
+        read_only=True,
+    )
     like_count = serializers.IntegerField(
         source="REVW_LIKE_COUNT",
         read_only=True,
@@ -144,6 +165,7 @@ class AdminDisputedReviewSerializer(serializers.ModelSerializer):
             "status",
             "moderation_notes",
             "created_at",
+            "edited_at",
             "like_count",
             "report_count",
             "author",
@@ -261,6 +283,10 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
         source="USER_ID",
         read_only=True,
     )
+    merchant_id = serializers.IntegerField(
+        source="USER_ID_id",
+        read_only=True,
+    )
     review = AdminDisputedReviewSerializer(
         source="REVW_ID",
         read_only=True,
@@ -294,6 +320,7 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
             "updated_at",
             "business",
             "merchant",
+            "merchant_id",
             "review",
             "evidence",
             "attempt_number",

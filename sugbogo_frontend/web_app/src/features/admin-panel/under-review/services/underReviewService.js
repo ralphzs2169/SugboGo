@@ -17,7 +17,9 @@ export async function approveUnderReviewReview(reviewId) {
   return response.data.data;
 }
 
-export async function rejectUnderReviewReview(reviewId) {
-  const response = await apiClient.post(`${BASE_URL}${reviewId}/reject/`);
+export async function rejectUnderReviewReview(reviewId, moderationNotes) {
+  const response = await apiClient.post(`${BASE_URL}${reviewId}/reject/`, {
+    moderation_notes: moderationNotes,
+  });
   return response.data.data;
 }

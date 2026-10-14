@@ -1,33 +1,41 @@
-import { ExternalLink, FileSearch } from "lucide-react";
+import { ExternalLink, FileSearch, FileText } from "lucide-react";
 
 import { formatLabel } from "@/shared/utils/stringUtils";
 
 /**
- * Displays dispute evidence in a structured card with image thumbnails and
+ * Displays dispute evidence with image thumbnails and
  * document indicators, opening each evidence file in a new browser tab.
  */
 export default function ReviewDisputeEvidence({ evidence = [] }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-stroke bg-background">
+    <section
+      aria-label="Dispute evidence"
+      className="border-t border-stroke pt-5"
+    >
       {/* Section header */}
-      <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
-        <h2 className="text-sm font-semibold text-text-primary">Evidence</h2>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <FileSearch
+            className="h-4 w-4 text-text-secondary"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
 
-        <span className="text-xs font-medium text-text-secondary">
+          <h2 className="text-base font-semibold text-text-primary">
+            Evidence
+          </h2>
+        </div>
+
+        <span className="shrink-0 text-xs font-medium text-text-secondary">
           {evidence.length} {evidence.length === 1 ? "file" : "files"}
         </span>
       </div>
 
       {/* Evidence content */}
-      <div className="p-5">
+      <div className="mt-4">
         {evidence.length === 0 ? (
-          /* Empty evidence state */
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-text-secondary">
-              <FileSearch className="h-4 w-4" aria-hidden="true" />
-            </div>
-
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-text-primary">
                 No evidence submitted.
               </p>
@@ -38,7 +46,6 @@ export default function ReviewDisputeEvidence({ evidence = [] }) {
             </div>
           </div>
         ) : (
-          /* Evidence list */
           <div className="flex flex-wrap gap-3">
             {evidence.map((item, index) => {
               const isDocument = item.type === "document";
@@ -52,11 +59,26 @@ export default function ReviewDisputeEvidence({ evidence = [] }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Open ${fileName}`}
-                  className="group flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-stroke px-3 py-3 transition-colors hover:bg-surface-muted sm:w-64"
+                  className="
+                    group flex w-full min-w-0 items-center gap-3
+                    rounded-lg border border-stroke px-3 py-3
+                    transition-colors hover:bg-interaction-hover
+                    focus-visible:outline focus-visible:outline-2
+                    focus-visible:outline-offset-2
+                    focus-visible:outline-primary
+                    sm:w-64
+                  "
                 >
                   {/* Evidence preview */}
                   {isDocument ? (
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-surface-muted text-[10px] font-bold uppercase text-text-secondary">
+                    <div
+                      className="
+                        flex h-12 w-12 shrink-0 items-center
+                        justify-center rounded-md bg-surface-muted
+                        text-[10px] font-bold uppercase
+                        text-text-secondary
+                      "
+                    >
                       DOC
                     </div>
                   ) : (
@@ -86,11 +108,13 @@ export default function ReviewDisputeEvidence({ evidence = [] }) {
                     </p>
                   </div>
 
-                  {/* External navigation indicator */}
                   <ExternalLink
-                    size={14}
+                    className="
+                      h-3.5 w-3.5 shrink-0 text-text-secondary
+                      transition-colors group-hover:text-primary
+                    "
+                    strokeWidth={1.75}
                     aria-hidden="true"
-                    className="shrink-0 text-text-secondary transition-colors group-hover:text-text-primary"
                   />
                 </a>
               );

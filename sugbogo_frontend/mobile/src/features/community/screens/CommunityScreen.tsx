@@ -1,5 +1,5 @@
 import LottieView from "lottie-react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -23,12 +23,18 @@ import {
   type CommunityReviewFilters,
 } from "../types/communityReview.types";
 
+/** Thin gap between full-width posts. */
+function FeedSeparator() {
+  return <View className="h-2" />;
+}
+
 /**
  * Displays the production Community review feed.
  *
  * The screen coordinates authoritative taxonomy filters, backend pagination,
  * refresh and error states, defensive review deduplication, and tab-aware
- * spacing while dedicated components own review presentation.
+ * spacing while dedicated components own review presentation. Posts render
+ * edge to edge, like a social feed.
  */
 export default function CommunityScreen() {
   const bottomSpacing = useTabBarSpacing(20);
@@ -111,6 +117,13 @@ export default function CommunityScreen() {
     });
   };
 
+  const renderReview = useCallback(
+    ({ item }: { item: CommunityReview }) => (
+      <CommunityReviewCard review={item} />
+    ),
+    [],
+  );
+
   const shouldShowEndMessage =
     !community.isInitialLoading &&
     !community.error &&
@@ -130,11 +143,8 @@ export default function CommunityScreen() {
         testID="community-review-list"
         data={displayedReviews}
         keyExtractor={(review) => String(review.id)}
-        renderItem={({ item }) => (
-          <View className="px-4 pt-3">
-            <CommunityReviewCard review={item} />
-          </View>
-        )}
+        renderItem={renderReview}
+        ItemSeparatorComponent={FeedSeparator}
         ListHeaderComponent={
           <CommunityFilters
             clusters={taxonomy.options.clusters}

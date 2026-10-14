@@ -54,9 +54,9 @@ export default function UnderReviewFindings({ review }) {
     <section>
       <div className="flex items-center gap-2">
         <ShieldAlert className="h-4 w-4 text-text-secondary" />
-        <h3 className="text-sm font-semibold text-text-primary">Moderation findings</h3>
+        <h3 className="text-base font-semibold text-text-primary">Moderation findings</h3>
       </div>
-      <p className="mt-1 text-xs text-text-secondary">
+      <p className="mt-1 text-sm text-text-secondary">
         Moderation findings are supporting evidence for your decision.
       </p>
 

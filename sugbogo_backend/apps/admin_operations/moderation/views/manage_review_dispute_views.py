@@ -32,6 +32,7 @@ class AdminReviewDisputeListView(APIView):
             business_id=request.query_params.get("business"),
             review_id=request.query_params.get("review"),
             ordering=request.query_params.get("ordering"),
+            search=request.query_params.get("search"),
         )
 
         paginator = StandardPagination()

@@ -19,7 +19,8 @@ from apps.business.models import (
     Location,
 )
 from apps.review_disputes.models import MerchantReviewDispute
-from apps.reviews.models import BusinessReviewSummary, Review
+from apps.reviews.models import BusinessReviewSummary, Review, ReviewReport
+from apps.reviews.services.review_report_service import ReviewReportService
 from apps.users.models import ReputationEvent, User
 from apps.users.services.reputation_service import ReputationService
 from apps.admin_operations.activity_management.models import AdminActivity
@@ -207,10 +208,58 @@ class ManageReviewDisputeServiceTests(TestCase):
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
 
+    def test_uphold_clears_report_attention_without_resolving_pending_reports(self):
+        reporters = [
+            self.second_explorer,
+            User.objects.create_user(
+                email="third-reporter@example.com",
+                password=None,
+                USER_FNAME="Third",
+                USER_LNAME="Reporter",
+                USER_ROLE=User.UserRole.EXPLORER,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            ),
+            User.objects.create_user(
+                email="fourth-reporter@example.com",
+                password=None,
+                USER_FNAME="Fourth",
+                USER_LNAME="Reporter",
+                USER_ROLE=User.UserRole.EXPLORER,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            ),
+        ]
+        for reporter in reporters:
+            ReviewReportService.create_report(
+                user=reporter,
+                review_id=self.review.pk,
+                report_type=ReviewReport.ReportType.SPAM,
+            )
+
+        self.review.refresh_from_db()
+        self.assertTrue(self.review.REVW_IS_REPORT_FLAGGED)
+        dispute = self.create_dispute()
+
+        ManageReviewDisputeService.uphold_dispute(
+            dispute.pk,
+            actor=self.admin,
+        )
+
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
+        self.assertEqual(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+            ).count(),
+            3,
+        )
+
     def test_uphold_of_already_rejected_review_preserves_count(self):
         dispute = self.create_dispute()
         self.review.REVW_STATUS = Review.ReviewStatus.REJECTED
-        self.review.save(update_fields=["REVW_STATUS"])
+        self.review.REVW_IS_REPORT_FLAGGED = True
+        self.review.save(update_fields=["REVW_STATUS", "REVW_IS_REPORT_FLAGGED"])
         Business.objects.filter(pk=self.business.pk).update(
             BUSN_REVIEW_COUNT=1,
         )
@@ -221,7 +270,9 @@ class ManageReviewDisputeServiceTests(TestCase):
         )
 
         self.business.refresh_from_db()
+        self.review.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+        self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
 
     def test_dismiss_audits_actor_without_changing_review_or_refreshing_insights(self):
         dispute = self.create_dispute()

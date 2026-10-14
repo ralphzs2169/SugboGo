@@ -371,7 +371,12 @@ class ManageUnderReviewViewTests(TestCase):
         response = self.client.post(approve)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["status"], "published")
-        self.assertEqual(self.client.post(reject).status_code, 400)
+        self.assertEqual(
+            self.client.post(reject, {
+                "moderation_notes": "This content violates community guidelines.",
+            }).status_code,
+            400,
+        )
         self.assertEqual(
             AdminActivity.objects.get().AACT_ACTION,
             AdminActivity.Action.REVIEW_MODERATION_APPROVED,
@@ -385,11 +390,42 @@ class ManageUnderReviewViewTests(TestCase):
         """Rejecting held content records the decision without count loss."""
         response = self.client.post(
             reverse("admin-under-review-reject", args=[self.review.pk]),
+            {"moderation_notes": "  The content contains a direct threat.  "},
         )
         self.assertEqual(response.status_code, 200)
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+        self.review.refresh_from_db()
+        self.assertEqual(
+            self.review.REVW_MODERATION_NOTES,
+            "The content contains a direct threat.",
+        )
         self.assertEqual(
             AdminActivity.objects.get().AACT_ACTION,
             AdminActivity.Action.REVIEW_MODERATION_REJECTED,
         )
+
+    def test_reject_endpoint_validates_notes_and_keeps_them_internal(self):
+        """Only rejection accepts a substantive Admin-only note."""
+        url = reverse("admin-under-review-reject", args=[self.review.pk])
+        for payload in (
+            {},
+            {"moderation_notes": "   "},
+            {"moderation_notes": "  Too short  "},
+            {"moderation_notes": "x" * 2001},
+        ):
+            with self.subTest(payload=payload):
+                response = self.client.post(url, payload)
+                self.assertEqual(response.status_code, 400)
+
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(AdminActivity.objects.count(), 0)
+
+        response = self.client.post(url, {
+            "moderation_notes": "x" * 2000,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("moderation_notes", response.data["data"])
+        self.review.refresh_from_db()
+        self.assertEqual(len(self.review.REVW_MODERATION_NOTES), 2000)

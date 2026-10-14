@@ -99,7 +99,13 @@ class ManageUnderReviewService:
 
     @staticmethod
     @transaction.atomic
-    def resolve(review_id, *, actor, approve):
+    def resolve(
+        review_id,
+        *,
+        actor,
+        approve,
+        moderation_notes=None,
+    ):
         """Lock and resolve one held review with its AdminActivity record."""
         try:
             review = (
@@ -116,22 +122,37 @@ class ManageUnderReviewService:
                 "Only an under-review review can be resolved.",
             )
 
+        context = {
+            "review_id": review.REVW_ID,
+            "business_id": review.BUSN_ID_id,
+            "previous_review_status": Review.ReviewStatus.UNDER_REVIEW,
+        }
+
         if approve:
             resolved = ReviewService.publish_under_review(review_id)
             action = AdminActivity.Action.REVIEW_MODERATION_APPROVED
         else:
+            if not isinstance(moderation_notes, str):
+                raise ValidationError({
+                    "moderation_notes": "Moderation notes are required.",
+                })
+            note = moderation_notes.strip()
+            if len(note) < 20 or len(note) > 2000:
+                raise ValidationError({
+                    "moderation_notes": "Enter between 20 and 2000 characters.",
+                })
             resolved = ReviewService.reject_under_review(review_id)
+            resolved.REVW_MODERATION_NOTES = note
+            resolved.save(update_fields=["REVW_MODERATION_NOTES"])
             action = AdminActivity.Action.REVIEW_MODERATION_REJECTED
+            context["moderation_notes"] = note
+
+        context["review_status"] = resolved.REVW_STATUS
 
         AdminActivityService.record_user_action(
             actor=actor,
             target_user=review.USER_ID,
             action=action,
-            context={
-                "review_id": review.REVW_ID,
-                "business_id": review.BUSN_ID_id,
-                "previous_review_status": Review.ReviewStatus.UNDER_REVIEW,
-                "review_status": resolved.REVW_STATUS,
-            },
+            context=context,
         )
         return resolved

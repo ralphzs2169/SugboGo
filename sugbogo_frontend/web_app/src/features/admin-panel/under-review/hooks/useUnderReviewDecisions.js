@@ -15,6 +15,9 @@ export default function useUnderReviewDecisions() {
     await queryClient.invalidateQueries({
       queryKey: ["admin", "under-review", "list"],
     });
+    await queryClient.invalidateQueries({
+      queryKey: ["admin", "moderation-counts"],
+    });
   }
 
   const approveMutation = useMutation({
@@ -22,8 +25,9 @@ export default function useUnderReviewDecisions() {
     onSuccess: (_, reviewId) => refreshReviews(reviewId),
   });
   const rejectMutation = useMutation({
-    mutationFn: rejectUnderReviewReview,
-    onSuccess: (_, reviewId) => refreshReviews(reviewId),
+    mutationFn: ({ reviewId, moderationNotes }) =>
+      rejectUnderReviewReview(reviewId, moderationNotes),
+    onSuccess: (_, { reviewId }) => refreshReviews(reviewId),
   });
 
   return {

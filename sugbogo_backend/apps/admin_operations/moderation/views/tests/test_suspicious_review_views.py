@@ -265,6 +265,9 @@ class SuspiciousReviewViewTests(TestCase):
             ],
         )
         self.assertEqual(data["current_related_activity"][duplicate]["review_count"], 1)
+        self.assertFalse(
+            data["current_related_activity"][duplicate].get("window_unavailable", False)
+        )
         self.assertEqual(
             [item["id"] for item in data["current_related_activity"]["referenced_reviews"]],
             [prior.pk],
@@ -279,6 +282,123 @@ class SuspiciousReviewViewTests(TestCase):
             changed["current_related_activity"]["referenced_reviews"][0]["text"],
             "Changed later",
         )
+
+    def test_edit_duplicate_activity_uses_detection_time_window(self):
+        """Live matches use the edit detection time, not submission time."""
+        duplicate = Review.ReliabilityReason.DUPLICATE_CONTENT
+        detected_at = timezone.now()
+        matching = self.create_review(
+            "SAME words",
+            user=self.author,
+            business=self.create_business(),
+        )
+        changed = self.create_review(
+            "same words",
+            user=self.author,
+            business=self.create_business(),
+        )
+        older = self.create_review(
+            "same words",
+            user=self.author,
+            business=self.create_business(),
+        )
+        later = self.create_review(
+            "same words",
+            user=self.author,
+            business=self.create_business(),
+        )
+        Review.objects.filter(pk=matching.pk).update(
+            REVW_CREATED_AT=detected_at - timedelta(days=2),
+        )
+        Review.objects.filter(pk=changed.pk).update(
+            REVW_CREATED_AT=detected_at - timedelta(days=3),
+            REVW_TEXT="Changed after detection",
+        )
+        Review.objects.filter(pk=older.pk).update(
+            REVW_CREATED_AT=detected_at - timedelta(days=31),
+        )
+        Review.objects.filter(pk=later.pk).update(
+            REVW_CREATED_AT=detected_at + timedelta(days=1),
+        )
+        evidence = {
+            duplicate: {
+                "observed_at": detected_at.isoformat(),
+                "detected_during": "edit",
+                "prior_match_count": 2,
+                "matched_review_ids": [matching.pk, changed.pk],
+                "basis": "same_user",
+            },
+        }
+        review = self.create_review(
+            "same words",
+            [duplicate],
+            user=self.author,
+            evidence=evidence,
+        )
+        Review.objects.filter(pk=review.pk).update(
+            REVW_CREATED_AT=detected_at - timedelta(days=10),
+            REVW_EDITED_AT=detected_at,
+        )
+
+        data = self.client.get(
+            reverse("admin-suspicious-review-detail", args=[review.pk]),
+        ).data["data"]
+
+        self.assertEqual(
+            data["detection_evidence"][duplicate]["observed_at"],
+            detected_at.isoformat(),
+        )
+        self.assertEqual(
+            data["detection_evidence"][duplicate]["detected_during"],
+            "edit",
+        )
+        self.assertEqual(
+            [item["id"] for item in data["current_related_activity"][duplicate]["reviews"]],
+            [matching.pk],
+        )
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_missing_duplicate_detection_time_does_not_invent_live_window(self):
+        """Historical evidence without a time cannot define a live window."""
+        duplicate = Review.ReliabilityReason.DUPLICATE_CONTENT
+        matching = self.create_review(
+            "same words",
+            user=self.author,
+            business=self.create_business(),
+        )
+        evidence = {
+            duplicate: {
+                "prior_match_count": 1,
+                "matched_review_ids": [matching.pk],
+                "basis": "same_user",
+            },
+        }
+        review = self.create_review(
+            "same words",
+            [duplicate],
+            user=self.author,
+            evidence=evidence,
+        )
+
+        data = self.client.get(
+            reverse("admin-suspicious-review-detail", args=[review.pk]),
+        ).data["data"]
+
+        self.assertTrue(
+            data["current_related_activity"][duplicate]["window_unavailable"]
+        )
+        self.assertEqual(
+            data["current_related_activity"][duplicate]["reviews"],
+            [],
+        )
+        self.assertEqual(
+            data["current_related_activity"]["referenced_reviews"][0]["id"],
+            matching.pk,
+        )
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
 
     def test_installation_activity_uses_original_window_and_business(self):
         """Live rapid and account views use the saved review's relationships."""
