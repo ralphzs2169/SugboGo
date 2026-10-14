@@ -12,9 +12,12 @@ from rest_framework.test import APITestCase
 
 from apps.business.models import (
     Business,
+    BusinessSpecialtyTag,
+    BusinessVouch,
     Category,
     Cluster,
     Location,
+    SpecialtyTag,
 )
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import (
@@ -439,6 +442,42 @@ class ReviewViewTests(APITestCase):
             returned_ids,
             expected_ids,
         )
+
+    def test_review_cards_hide_inactive_vouched_specialties(self):
+        Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="Great food and service.",
+        )
+        tag = SpecialtyTag.objects.create(
+            TAG_NAME="Former Specialty",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+            BST_IS_ACTIVE=False,
+        )
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.explorer,
+            TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT=self.explorer.USER_REPUTATION,
+        )
+
+        list_response = self.client.get(self.list_url)
+        preview_response = self.client.get(self.preview_url)
+
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(preview_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            list_response.data["data"]["items"][0]["vouched_specialties"],
+            [],
+        )
+        self.assertEqual(
+            preview_response.data["data"]["reviews"][0]["vouched_specialties"],
+            [],
+        )
+        self.assertTrue(BusinessVouch.objects.exists())
 
     def test_review_list_paginates_after_ordering(self):
         """Return stable page boundaries through the standard list envelope."""

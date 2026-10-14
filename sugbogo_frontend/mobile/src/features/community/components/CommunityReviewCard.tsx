@@ -167,8 +167,8 @@ function CommunityReviewCard({ review }: Props) {
 
       {/* Specialty vouches */}
       {review.vouched_specialties.length > 0 && (
-        <View className="mt-2 px-4">
-          <View className="mb-1.5 flex-row items-center">
+        <View className="mt-3 px-4">
+          <View className="mb-2 flex-row items-center">
             <MaterialCommunityIcons
               name="heart-outline"
               size={14}
@@ -176,7 +176,7 @@ function CommunityReviewCard({ review }: Props) {
             />
             <AppText
               weight="medium"
-              className="ml-1 text-[11px] text-text-secondary"
+              className="ml-1.5 text-xs text-text-secondary"
             >
               Vouched for
             </AppText>
@@ -197,8 +197,15 @@ function CommunityReviewCard({ review }: Props) {
         </View>
       )}
 
+      {/* Merchant response */}
+      {review.reply && (
+        <View className="mt-3 px-4">
+          <MerchantReviewResponse reply={review.reply} />
+        </View>
+      )}
+
       {/* Helpful interaction */}
-      <View className="mt-1 flex-row items-center px-4">
+      <View className="mt-2 flex-row items-center px-4">
         <Pressable
           onPress={toggleHelpful}
           disabled={isLikePending}
@@ -212,7 +219,7 @@ function CommunityReviewCard({ review }: Props) {
             selected: review.is_liked,
             disabled: isLikePending,
           }}
-          className="min-h-12 flex-row items-center pr-3 active:opacity-70 disabled:opacity-50"
+          className="min-h-12 cursor-pointer flex-row items-center pr-3 active:opacity-70 disabled:opacity-50"
         >
           <MaterialCommunityIcons
             name={review.is_liked ? "thumb-up" : "thumb-up-outline"}
@@ -253,15 +260,8 @@ function CommunityReviewCard({ review }: Props) {
         )}
       </View>
 
-      {/* Merchant response */}
-      {review.reply && (
-        <View className="px-4 pb-2">
-          <MerchantReviewResponse reply={review.reply} />
-        </View>
-      )}
-
-      {/* Linked business (kept at the bottom so it doesn't compete with the review) */}
-      <View className="px-4 pb-4">
+      {/* Business context footer */}
+      <View className="mt-1 border-t border-border-primary px-4 pb-3 pt-2">
         <CommunityBusinessLink business={review.business} />
       </View>
 

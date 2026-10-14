@@ -11,7 +11,7 @@ from rest_framework.exceptions import (
     ValidationError,
 )
 
-from apps.business.models import Business, BusinessVouch
+from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
@@ -584,7 +584,7 @@ class ReviewService:
     def _attach_vouched_specialties(
         reviews,
     ):
-        """Attach each review author's business vouches to the review."""
+        """Attach each author's vouches for active business specialties."""
 
         reviews = list(
             reviews,
@@ -602,12 +602,19 @@ class ReviewService:
             for review in reviews
         }
 
+        active_specialties = BusinessSpecialtyTag.objects.filter(
+            BUSN_ID_id=OuterRef("BUSN_ID_id"),
+            TAG_ID_id=OuterRef("TAG_ID_id"),
+            BST_IS_ACTIVE=True,
+        )
+
         vouches = (
             BusinessVouch.objects
             .filter(
                 BUSN_ID_id__in=business_ids,
                 USER_ID__in=user_ids,
             )
+            .filter(Exists(active_specialties))
             .select_related(
                 "TAG_ID",
             )

@@ -44,11 +44,23 @@ function ReportedReviewDetail({ reviewId, onStale, onDecision, decisionPending }
     );
   }
   if (error) {
+    if (error.response?.status === 404) {
+      return (
+        <div className="flex min-h-96 flex-col items-center justify-center p-8 text-center text-text-secondary">
+          <Flag className="h-8 w-8" aria-hidden="true" />
+          <h2 className="mt-3 font-semibold text-text-primary">No pending reports for this review</h2>
+          <p className="mt-1 text-sm">This review is no longer in the active Reported queue.</p>
+          <button type="button" onClick={onStale} className="mt-4 text-sm font-medium text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">
+            Back to reported reviews
+          </button>
+        </div>
+      );
+    }
     return (
       <DataErrorState
         title="Unable to load this reported review"
         message="The review may no longer have pending reports."
-        onRetry={() => error.response?.status === 404 ? onStale() : refetch()}
+        onRetry={refetch}
       />
     );
   }

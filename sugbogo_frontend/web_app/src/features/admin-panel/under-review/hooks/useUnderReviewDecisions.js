@@ -15,6 +15,9 @@ export default function useUnderReviewDecisions() {
     await queryClient.invalidateQueries({
       queryKey: ["admin", "under-review", "list"],
     });
+    await queryClient.invalidateQueries({
+      queryKey: ["admin", "moderation-counts"],
+    });
   }
 
   const approveMutation = useMutation({

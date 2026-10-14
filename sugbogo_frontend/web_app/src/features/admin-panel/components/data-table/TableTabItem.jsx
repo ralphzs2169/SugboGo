@@ -36,6 +36,9 @@ function TableTabItem({ tab, isActive, onClick }) {
         {tab.count !== undefined && (
           <TableTabBadge count={tab.count} isActive={isActive} />
         )}
+        {tab.countLoading && (
+          <span aria-hidden="true" className="h-4 w-5 animate-pulse rounded-full bg-surface-muted" />
+        )}
       </span>
     </button>
   );

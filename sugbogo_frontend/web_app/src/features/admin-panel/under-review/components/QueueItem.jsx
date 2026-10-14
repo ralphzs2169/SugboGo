@@ -113,7 +113,7 @@ function QueueItem({ review, selected, onSelect }) {
               return (
                 <span
                   key={reason}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${presentation.textClassName} ${presentation.badgeClassName}`}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium ${presentation.textClassName} ${presentation.badgeClassName}`}
                 >
                   <Icon className={`h-3.5 w-3.5 ${presentation.iconClassName}`} aria-hidden="true" />
                   {presentation.label}

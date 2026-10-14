@@ -13,6 +13,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 
 from apps.business.models import (
     Business,
+    BusinessSpecialtyTag,
     BusinessVouch,
     Category,
     Cluster,
@@ -756,6 +757,11 @@ class ReviewServiceTests(TestCase):
             TAG_NAME="Authentic Cebuano Food",
         )
 
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+        )
+
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=self.user,
@@ -970,6 +976,15 @@ class ReviewServiceTests(TestCase):
             TAG_NAME="Authentic Food",
         )
 
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=first_tag,
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=second_tag,
+        )
+
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=self.user,
@@ -1015,6 +1030,70 @@ class ReviewServiceTests(TestCase):
                 first_tag.TAG_ID,
                 second_tag.TAG_ID,
             },
+        )
+
+    def test_inactive_specialty_vouch_is_hidden_from_review_responses(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great local restaurant.",
+        )
+        active_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Active Specialty",
+        )
+        inactive_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Inactive Specialty",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=active_tag,
+        )
+        inactive_link = BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=inactive_tag,
+        )
+
+        for tag in (active_tag, inactive_tag):
+            BusinessVouch.objects.create(
+                BUSN_ID=self.business,
+                USER_ID=self.user,
+                TAG_ID=tag,
+                VOUCH_REPUTATION_SNAPSHOT=self.user.USER_REPUTATION,
+            )
+
+        inactive_link.BST_IS_ACTIVE = False
+        inactive_link.save(
+            update_fields=["BST_IS_ACTIVE"],
+        )
+
+        listed_review = ReviewService.list_reviews(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )[0]
+        preview_review = ReviewService.get_review_preview(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )["reviews"][0]
+        detail_review = ReviewService.get_review_detail(
+            review_id=review.REVW_ID,
+            user=self.second_user,
+        )
+
+        for result in (listed_review, preview_review, detail_review):
+            self.assertEqual(
+                [
+                    vouch.TAG_ID_id
+                    for vouch in result.vouched_specialties
+                ],
+                [active_tag.TAG_ID],
+            )
+
+        self.assertEqual(
+            BusinessVouch.objects.filter(
+                BUSN_ID=self.business,
+                USER_ID=self.user,
+            ).count(),
+            2,
         )
 
     def test_merchant_cannot_review_own_business(self):
@@ -1923,6 +2002,11 @@ class ReviewServiceTests(TestCase):
 
         tag = SpecialtyTag.objects.create(
             TAG_NAME="Local Favorite",
+        )
+
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
         )
 
         BusinessVouch.objects.create(

@@ -69,12 +69,27 @@ function renderPage(url, {
   reportedBusinessDetails,
   reportedError,
   reportedDetailError,
+  reportedGone,
+  tabCounts,
+  countError,
 } = {}) {
   globalThis.window = {
     location: { search: new URL(url, "http://localhost").search },
   };
 
   const queryClient = new QueryClient();
+  for (const [tabId, count] of Object.entries(tabCounts ?? {})) {
+    queryClient.setQueryData(["admin", "moderation-counts", tabId], count);
+  }
+  if (countError) {
+    queryClient.getQueryCache().build(queryClient, {
+      queryKey: ["admin", "moderation-counts", countError],
+    }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: new Error("Count unavailable"),
+    });
+  }
   if (list) {
     queryClient.setQueryData(
       ["admin", "under-review", "list", {
@@ -189,6 +204,15 @@ function renderPage(url, {
       error: new Error("Review unavailable"),
     });
   }
+  if (reportedGone) {
+    queryClient.getQueryCache().build(queryClient, {
+      queryKey: ["admin", "reported-reviews", "detail", reportedGone],
+    }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: { response: { status: 404 } },
+    });
+  }
 
   return renderToString(
     React.createElement(
@@ -265,6 +289,33 @@ test("default and invalid tabs show the Under Review queue", () => {
     assert.match(html, /rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2/);
     assert.doesNotMatch(html, /Search review disputes/);
   }
+});
+
+test("moderation tabs show queue totals including zero without blocking navigation", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    { tabCounts: { "under-review": 8, suspicious: 12, reported: 0, disputes: 3 } },
+  );
+  const tabs = html.match(/<nav aria-label="Moderation &amp; Integrity sections"[\s\S]*?<\/nav>/)?.[0];
+
+  assert.ok(tabs);
+  assert.match(tabs, /Under Review[\s\S]*?>8<\/span>/);
+  assert.match(tabs, /Suspicious[\s\S]*?>12<\/span>/);
+  assert.match(tabs, /Reported[\s\S]*?>0<\/span>/);
+  assert.match(tabs, /Disputes[\s\S]*?>3<\/span>/);
+});
+
+test("moderation count loading and errors keep tabs usable without false zeros", () => {
+  const loading = renderPage("/admin-panel/moderation-integrity?tab=under-review");
+  assert.match(loading, /animate-pulse rounded-full bg-surface-muted/);
+  assert.match(loading, /Under Review Queue/);
+
+  const errored = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    { tabCounts: { "under-review": 4 }, countError: "reported" },
+  );
+  assert.match(errored, /Under Review Queue/);
+  assert.doesNotMatch(errored, /Reported[\s\S]{0,180}>0<\/span>/);
 });
 
 const heldReview = {
@@ -508,11 +559,13 @@ test("selected detail separates text and photo findings", () => {
   const header = html.match(/<header[^>]*>(.*?)<\/header>/s)?.[1];
   assert.ok(header);
   assert.match(html, /pointer-events-none sticky top-0 z-30 h-0/);
-  assert.match(html, /aria-hidden="true" class="flex h-12[^"]*bg-background\/80[^"]*backdrop-blur-md/);
+  assert.match(html, /aria-hidden="true" class="flex h-14[^"]*bg-background\/80[^"]*backdrop-blur-md/);
   assert.match(html, /class="min-h-0 flex-1 overflow-y-auto lg:max-h-/);
   assert.doesNotMatch(header, /sticky top-0/);
   assert.match(header, /flex flex-wrap items-start justify-between gap-2/);
-  assert.match(header, /mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1/);
+  assert.match(header, /items-start gap-x-3 gap-y-3/);
+  assert.match(header, /mt-0\.5 flex min-w-0 items-center gap-1\.5 text-xs text-text-secondary/);
+  assert.match(header, /border-t border-stroke pt-3 text-xs text-text-secondary/);
   assert.match(header, /ml-auto inline-flex shrink-0 items-center gap-1.5/);
   assert.match(header, /src="https:\/\/example.com\/business-cover.jpg"/);
   assert.match(header, /src="https:\/\/example.com\/author-avatar.jpg"/);
@@ -951,6 +1004,7 @@ test("Suspicious detail shares the compact blurred review header", () => {
   assert.match(stickyBar, /bg-background\/80/);
   assert.match(stickyBar, /backdrop-blur-md/);
   assert.match(stickyBar, /Review #<!-- -->83/);
+  assert.match(stickyBar, /Ana Cruz · Cebu Cafe/);
   assert.match(stickyBar, /Published/);
   assert.match(stickyBar, /aria-hidden="true"/);
 });
@@ -1112,6 +1166,27 @@ test("Reported tab renders one review group, counts, reasons, and filters", () =
   assert.match(html, /aria-haspopup="menu" aria-expanded="false"/);
   assert.match(html, /Search reported reviews/);
   assert.match(html, /Select a reported review/);
+});
+
+test("a Reported deep link selects the review's investigation", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList, reportedDetail: { ...reportedReview, text: "Full reported review", photos: [], reports: [] } },
+  );
+
+  assert.match(html, /aria-pressed="true"/);
+  assert.match(html, /Full reported review/);
+});
+
+test("a resolved Reported deep link does not invent an actionable case", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList: { ...reportedList, items: [] }, reportedGone: 91 },
+  );
+
+  assert.match(html, /No pending reports for this review/);
+  assert.match(html, /Back to reported reviews/);
+  assert.doesNotMatch(html, /Admin Decision/);
 });
 
 test("Reported queue reuses filter chips for reason and review status", () => {
@@ -1337,6 +1412,7 @@ test("Reported detail shares the compact blurred review header", () => {
   assert.match(stickyBar, /bg-background\/80/);
   assert.match(stickyBar, /backdrop-blur-md/);
   assert.match(stickyBar, /Review #<!-- -->91/);
+  assert.match(stickyBar, /Ana Cruz · Cebu Cafe/);
   assert.match(stickyBar, /Published/);
   assert.match(stickyBar, /aria-hidden="true"/);
 });
@@ -1511,7 +1587,7 @@ test("Rejected reviews with pending sibling reports stay inspectable", () => {
   assert.match(queue, /lucide-store/);
   assert.doesNotMatch(queue, /bg-emerald-500|Published/);
   assert.match(html, /pointer-events-none sticky top-0 z-30 h-0/);
-  assert.match(html, /aria-hidden="true" class="flex h-12[^"]*backdrop-blur-md/);
+  assert.match(html, /aria-hidden="true" class="flex h-14[^"]*backdrop-blur-md/);
   assert.match(html, /Previously rejected review/);
   assert.match(html, /lucide-store/);
   assert.match(html, /rounded-full border border-stroke object-cover/);
@@ -1614,12 +1690,15 @@ test("Reported loading, empty, list error, and detail error states render", () =
   ), /Unable to load this reported review/);
 });
 
-test("Disputes tab renders the existing dispute table controls", () => {
+test("Disputes tab renders the moderation queue workspace", () => {
   const html = renderPage(
     "/admin-panel/moderation-integrity?tab=disputes",
   );
 
   assert.ok(html.includes("Search review disputes"));
+  assert.ok(html.includes("Dispute Queue"));
+  assert.ok(html.includes("Select a dispute"));
+  assert.ok(!html.includes("data-table"));
   assert.ok(html.includes('aria-busy="true"'));
   assert.ok(html.includes("rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2"));
   assert.ok(html.indexOf("Under Review") < html.indexOf("Search review disputes"));

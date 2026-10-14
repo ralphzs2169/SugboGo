@@ -66,9 +66,9 @@ export default function ReviewIdentityHeader({ review, statusVariant }) {
       </div>
 
       {/* Review identity */}
-      <div className="mt-4 grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 sm:grid-cols-[5rem_minmax(0,1fr)]">
+      <div className="mt-4 grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-3 sm:grid-cols-[5rem_minmax(0,1fr)]">
         {/* Author */}
-        <span className="text-xs font-medium text-text-secondary">
+        <span className="pt-1 text-xs font-medium text-text-secondary">
           Author
         </span>
 
@@ -94,11 +94,11 @@ export default function ReviewIdentityHeader({ review, statusVariant }) {
         </div>
 
         {/* Business */}
-        <span className="text-xs font-medium text-text-secondary">
+        <span className="pt-1 text-xs font-medium text-text-secondary">
           Business
         </span>
 
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
             {review.business.cover_photo_url ? (
               <img
@@ -114,47 +114,43 @@ export default function ReviewIdentityHeader({ review, statusVariant }) {
             )}
           </span>
 
-          <Link
-            to={`/admin-panel/businesses/${review.business.id}`}
-            className={profileLinkClass}
-            title={review.business.name}
-          >
-            <span className="truncate">
-              {review.business.name}
-            </span>
+          <div className="min-w-0">
+            <Link
+              to={`/admin-panel/businesses/${review.business.id}`}
+              className={profileLinkClass}
+              title={review.business.name}
+            >
+              <span className="truncate">{review.business.name}</span>
 
-            <ExternalLink
-              className="h-3.5 w-3.5 shrink-0 text-text-secondary transition-colors group-hover:text-primary"
-              aria-hidden="true"
-            />
-          </Link>
+              <ExternalLink
+                className="h-3.5 w-3.5 shrink-0 text-text-secondary transition-colors group-hover:text-primary"
+                aria-hidden="true"
+              />
+            </Link>
+
+            {(review.business.cluster_name || review.business.category_name) && (
+              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
+                {review.business.cluster_name && (
+                  <ClusterDisplay
+                    clusterName={review.business.cluster_name}
+                    clusterIcon={clusterIcon}
+                    variant="small"
+                  />
+                )}
+                {review.business.cluster_name && review.business.category_name && (
+                  <span aria-hidden="true">·</span>
+                )}
+                {review.business.category_name && (
+                  <span className="truncate">{review.business.category_name}</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Business classification and submission date */}
+      {/* Submission date inside the header metadata row */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-stroke pt-3 text-xs text-text-secondary">
-        {(review.business.cluster_name ||
-          review.business.category_name) && (
-          <div className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
-            {review.business.cluster_name && (
-              <ClusterDisplay
-                clusterName={review.business.cluster_name}
-                clusterIcon={clusterIcon}
-                variant="small"
-              />
-            )}
-
-            {review.business.cluster_name &&
-              review.business.category_name && (
-                <span aria-hidden="true">·</span>
-              )}
-
-            {review.business.category_name && (
-              <span>{review.business.category_name}</span>
-            )}
-          </div>
-        )}
-
         <div className="ml-auto inline-flex shrink-0 items-center gap-1.5">
           <Clock3
             className="h-3.5 w-3.5"

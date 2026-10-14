@@ -1,62 +1,29 @@
-import { ArrowLeft } from "lucide-react";
-
-import StickyContextBar from "@/shared/components/StickyContextBar";
 import StatusBadge from "@/shared/components/StatusBadge";
-import useNavigateBack from "@/shared/hooks/useNavigateBack";
-
-import { REVIEW_DISPUTE_STATUS_BADGE_VARIANT } from "../../constants/reviewDisputeStatus";
 import { formatLabel } from "@/shared/utils/stringUtils";
 
-/**
- * Provides persistent dispute identity, business context, and status while
- * the administrator scrolls through a review dispute detail page.
- */
-export default function ReviewDisputeDetailContextBar({ dispute }) {
-  const handleBack = useNavigateBack(
-    "/admin-panel/moderation-integrity?tab=disputes",
-  );
+import { REVIEW_DISPUTE_STATUS_BADGE_VARIANT } from "../../constants/reviewDisputeStatus";
 
-  const statusVariant =
-    REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "mutedSoft";
-
+export default function ReviewDisputeDetailContextBar({ dispute, visible }) {
   return (
-    <StickyContextBar>
-      {/* Back navigation */}
-      <button
-        type="button"
-        onClick={handleBack}
-        className="inline-flex shrink-0 cursor-pointer items-center gap-2 text-sm font-medium transition-colors hover:text-text-primary"
+    <div className="pointer-events-none sticky top-0 z-30 h-0">
+      <div
+        aria-hidden={!visible}
+        className={`flex h-14 items-center justify-between gap-3 border-b border-stroke bg-background/80 px-5 backdrop-blur-md lg:px-6 ${visible ? "opacity-100" : "opacity-0"}`}
       >
-        <ArrowLeft size={17} strokeWidth={1.8} />
-        <span>Back to Disputes</span>
-      </button>
-
-      {/* Dispute context */}
-      <div className="flex min-w-0 items-center gap-3">
-        {/* Dispute identity */}
         <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <p className="shrink-0 text-sm font-semibold text-text-primary">
-              Dispute #{dispute.id}
-            </p>
-
-            <span className="text-xs text-text-secondary">·</span>
-
-            <p className="truncate text-sm text-text-secondary">
-              {dispute.business?.name || "Unnamed Business"}
-            </p>
-          </div>
-
-          <p className="hidden truncate text-xs text-text-secondary md:block">
-            Review #{dispute.review?.id} · Attempt #{dispute.attempt_number}
+          <p className="truncate text-sm font-semibold text-text-primary">
+            Dispute #{dispute.id}
+          </p>
+          <p className="truncate text-xs text-text-secondary">
+            {dispute.merchant?.name || "Merchant"} · {dispute.business?.name || "Business"} · Review #{dispute.review?.id}
           </p>
         </div>
-
-        {/* Dispute status */}
-        <StatusBadge variant={statusVariant}>
+        <StatusBadge
+          variant={REVIEW_DISPUTE_STATUS_BADGE_VARIANT[dispute.status] || "mutedSoft"}
+        >
           {formatLabel(dispute.status)}
         </StatusBadge>
       </div>
-    </StickyContextBar>
+    </div>
   );
 }

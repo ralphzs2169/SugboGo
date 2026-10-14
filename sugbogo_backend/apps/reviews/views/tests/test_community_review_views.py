@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 from apps.business.models import (
     Business,
     BusinessPhoto,
+    BusinessSpecialtyTag,
     BusinessVouch,
     Category,
     Cluster,
@@ -440,6 +441,14 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
             business=self.other_business,
             author=author,
         )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=food_tag,
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.other_business,
+            TAG_ID=art_tag,
+        )
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=author,
@@ -471,6 +480,45 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
                 for tag in items_by_id[art_review.pk]["vouched_specialties"]
             ],
             ["Local Art"],
+        )
+
+    def test_inactive_business_specialty_is_not_shown_as_review_vouch(self):
+        author = self._create_user(
+            prefix="inactive-specialty-reviewer",
+        )
+        review = self._create_review(
+            author=author,
+        )
+        tag = SpecialtyTag.objects.create(
+            TAG_NAME="Former Specialty",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+            BST_IS_ACTIVE=False,
+        )
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=author,
+            TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.50"),
+        )
+
+        items_by_id = {
+            item["id"]: item
+            for item in self._items()
+        }
+
+        self.assertEqual(
+            items_by_id[review.pk]["vouched_specialties"],
+            [],
+        )
+        self.assertTrue(
+            BusinessVouch.objects.filter(
+                BUSN_ID=self.business,
+                USER_ID=author,
+                TAG_ID=tag,
+            ).exists(),
         )
 
     def test_serializes_helpful_and_ownership_state_for_current_user(self):

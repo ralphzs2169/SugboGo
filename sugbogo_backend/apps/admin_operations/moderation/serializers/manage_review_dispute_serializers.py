@@ -53,6 +53,8 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
         source="REVW_ID_id",
         read_only=True,
     )
+    review_text_preview = serializers.SerializerMethodField()
+    review_photo_count = serializers.SerializerMethodField()
     merchant = BusinessOwnerSerializer(
         source="USER_ID",
         read_only=True,
@@ -72,9 +74,20 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
             "business_name",
             "business_cover_photo_url",
             "review_id",
+            "review_text_preview",
+            "review_photo_count",
             "merchant",
             "attempt_number",
         )
+
+    def get_review_text_preview(self, dispute):
+        """Keep the original review text compact in the dispute queue."""
+        return dispute.REVW_ID.REVW_TEXT[:160]
+
+    def get_review_photo_count(self, dispute):
+        """Count the photos already prefetched with the disputed review."""
+        return len(dispute.REVW_ID.photos.all())
+
 
 class AdminReviewReplySerializer(serializers.ModelSerializer):
     """Serialize the merchant's response to the disputed review."""

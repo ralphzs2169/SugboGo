@@ -60,7 +60,7 @@ function QueueItem({ review, selected, onSelect }) {
             {review.text_preview || "Photo review"}
           </p>
           <div className="mt-2">
-            <SignalBadges reasons={review.reasons} />
+            <SignalBadges reasons={review.reasons} roundedClassName="rounded-lg" />
           </div>
           {(review.photo_count > 0 || review.has_reply || review.is_edited) && (
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-secondary">

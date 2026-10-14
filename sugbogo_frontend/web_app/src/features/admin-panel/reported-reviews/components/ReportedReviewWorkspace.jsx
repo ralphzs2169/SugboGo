@@ -55,6 +55,7 @@ export default function ReportedReviewWorkspace() {
       decideReportedReview(reviewId, decision, adminNotes)
     ),
     onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "moderation-counts"] });
       setDecisionTarget(null);
       setNotes("");
       selectReview(null);

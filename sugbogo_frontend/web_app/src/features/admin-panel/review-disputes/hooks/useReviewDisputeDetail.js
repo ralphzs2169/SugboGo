@@ -7,6 +7,7 @@ export default function useReviewDispute(disputeId, { enabled = true } = {}) {
     queryKey: ["admin", "review-dispute", disputeId],
     queryFn: () => fetchReviewDispute(disputeId),
     enabled: enabled && Boolean(disputeId),
+    retryOnMount: false,
   });
 
   return {
