@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from datetime import timedelta
 from hashlib import blake2b
 
@@ -7,6 +8,7 @@ from django.db.models import Avg, Count, Exists, OuterRef, Q, Subquery
 from django.db.models.functions import Greatest
 from django.utils import timezone
 from rest_framework.exceptions import (
+    APIException,
     NotFound,
     PermissionDenied,
     ValidationError,
@@ -33,6 +35,24 @@ from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
 
 logger = logging.getLogger(__name__)
+
+
+class ReviewEditContentFlagged(APIException):
+    status_code = 400
+    default_detail = "Your changes did not pass the content safety check."
+    default_code = "REVIEW_EDIT_CONTENT_FLAGGED"
+
+
+class ReviewEditModerationUnavailable(APIException):
+    status_code = 503
+    default_detail = "The content check could not be completed. Please try again later."
+    default_code = "REVIEW_EDIT_MODERATION_UNAVAILABLE"
+
+
+class ReviewEditConflict(APIException):
+    status_code = 409
+    default_detail = "This review changed while you were editing. Reload it and try again."
+    default_code = "REVIEW_EDIT_CONFLICT"
 
 
 class ReviewService:
@@ -845,7 +865,6 @@ class ReviewService:
         return ReviewService._attach_vouched_specialties(reviews)
 
     @staticmethod
-    @transaction.atomic
     def update_review(
         user: User,
         review_id: int,
@@ -854,7 +873,160 @@ class ReviewService:
         keep_photo_ids: list | None = None,
         show_in_community: bool | None = None,
     ) -> Review:
-        """Clear sentiment and queue rescoring only when review text changes."""
+        """Moderate a proposed edit before changing its published content."""
+        try:
+            source = Review.objects.get(REVW_ID=review_id)
+        except Review.DoesNotExist:
+            raise NotFound("The review could not be found.") from None
+
+        if source.USER_ID_id != user.USER_ID:
+            raise PermissionDenied("You do not have permission to update this review.")
+        if source.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+            raise ValidationError("This review cannot be edited while it is under review.")
+
+        existing_photos = list(source.photos.all().order_by("RPHO_ID"))
+        source_identity = ReviewService._edit_source_identity(source, existing_photos)
+        existing_ids = {photo.RPHO_ID for photo in existing_photos}
+        if keep_photo_ids is None:
+            keep_ids = existing_ids
+        else:
+            keep_ids = set(keep_photo_ids)
+        if not keep_ids.issubset(existing_ids):
+            raise ValidationError("One or more review photos could not be found.")
+
+        new_photos = photos or []
+        if len(keep_ids) + len(new_photos) > MAX_REVIEW_PHOTOS:
+            raise ValidationError(
+                f"You can only upload a maximum of {MAX_REVIEW_PHOTOS} photos.",
+            )
+
+        proposed_text = source.REVW_TEXT if text is None else text
+        if not isinstance(proposed_text, str) or not proposed_text.strip():
+            raise ValidationError({"text": "Review text is required."})
+
+        retained_photos = [
+            photo
+            for photo in existing_photos
+            if photo.RPHO_ID in keep_ids
+        ]
+        moderation = None
+        if proposed_text != source.REVW_TEXT or new_photos:
+            try:
+                moderation = ReviewModerationService.moderate(
+                    text=proposed_text,
+                    photos=new_photos,
+                    image_urls=[
+                        photo.RPHO_PHOTO_URL
+                        for photo in retained_photos
+                    ],
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Review edit moderation could not be completed.",
+                    extra={
+                        "review_id": review_id,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                raise ReviewEditModerationUnavailable() from None
+
+            if (
+                not isinstance(moderation, dict)
+                or not isinstance(moderation.get("findings"), list)
+            ):
+                raise ReviewEditModerationUnavailable()
+            if moderation.get("outcome") == "flagged":
+                raise ReviewEditContentFlagged()
+            if (
+                moderation.get("incomplete") is True
+                or moderation.get("outcome") != "safe"
+            ):
+                raise ReviewEditModerationUnavailable()
+
+        uploaded_photos = []
+        try:
+            for photo in new_photos:
+                uploaded_photos.append(
+                    CloudinaryService.upload_image(
+                        photo,
+                        folder="sugbogo/reviews",
+                    ),
+                )
+
+            return ReviewService._save_review_update(
+                user=user,
+                review_id=review_id,
+                text=text,
+                photos=new_photos,
+                keep_photo_ids=keep_photo_ids,
+                show_in_community=show_in_community,
+                source_identity=source_identity,
+                uploaded_photos=uploaded_photos,
+                moderation=moderation,
+            )
+        except Exception:
+            for upload in uploaded_photos:
+                CloudinaryService.delete_image(upload["public_id"])
+            raise
+
+    @staticmethod
+    def _edit_source_identity(review: Review, photos: list) -> tuple:
+        """Identify the source content and status across the provider call."""
+        return (
+            review.REVW_STATUS,
+            review.REVW_TEXT,
+            review.REVW_SHOW_IN_COMMUNITY,
+            tuple(
+                (
+                    photo.RPHO_ID,
+                    photo.RPHO_PHOTO_URL,
+                    photo.RPHO_PHOTO_PUBLIC_ID,
+                )
+                for photo in photos
+            ),
+        )
+
+    @staticmethod
+    def _reconcile_removed_photo_findings(
+        review: Review,
+        retained_ids: set[int],
+    ) -> None:
+        """Remove findings for deleted images without claiming another AI check."""
+        metadata = review.REVW_MODERATION_DATA
+        if not isinstance(metadata, dict):
+            return
+        findings = metadata.get("findings")
+        if not isinstance(findings, list):
+            return
+
+        updated = deepcopy(metadata)
+        updated["findings"] = [
+            finding
+            for finding in findings
+            if not isinstance(finding, dict)
+            or finding.get("source") != "image"
+            or finding.get("photo_id") in retained_ids
+        ]
+        updated["image_count"] = len(retained_ids)
+        if updated == metadata:
+            return
+        review.REVW_MODERATION_DATA = updated
+        review.save(update_fields=["REVW_MODERATION_DATA", "REVW_UPDATED_AT"])
+
+    @staticmethod
+    @transaction.atomic
+    def _save_review_update(
+        user: User,
+        review_id: int,
+        text: str | None,
+        photos: list,
+        keep_photo_ids: list | None,
+        show_in_community: bool | None,
+        source_identity: tuple,
+        uploaded_photos: list,
+        moderation: dict | None,
+    ) -> Review:
+        """Apply accepted edit effects under a lock after checking its source."""
         review = ReviewService._get_review(
             review_id,
         )
@@ -864,14 +1036,14 @@ class ReviewService:
                 "You do not have permission to update this review.",
             )
 
+        existing_photos = list(review.photos.all().order_by("RPHO_ID"))
+        if ReviewService._edit_source_identity(review, existing_photos) != source_identity:
+            raise ReviewEditConflict()
+
         if review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
             raise ValidationError(
                 "This review cannot be edited while it is under review.",
             )
-
-        existing_photos = list(
-            review.photos.all(),
-        )
 
         had_photo_before_update = bool(
             existing_photos,
@@ -906,12 +1078,15 @@ class ReviewService:
                 f"You can only upload a maximum of {MAX_REVIEW_PHOTOS} photos.",
             )
 
-        uploaded_public_ids = []
-
         removed_photos = [
             photo
             for photo in existing_photos
             if photo.RPHO_ID not in keep_ids
+        ]
+        retained_photos = [
+            photo
+            for photo in existing_photos
+            if photo.RPHO_ID in keep_ids
         ]
 
         text_changed = False
@@ -924,75 +1099,81 @@ class ReviewService:
                 update_fields=["REVW_SHOW_IN_COMMUNITY", "REVW_UPDATED_AT"],
             )
 
-        try:
-            if text is not None and text != review.REVW_TEXT:
-                if not isinstance(text, str) or not text.strip():
-                    raise ValidationError({"text": "Review text is required."})
-                review.REVW_SENTIMENT_SCORE = None
-                review.REVW_SENTIMENT_LABEL = None
-                review.REVW_TEXT = text
-                review.REVW_IS_OUTLIER_SENTIMENT = False
-                text_changed = True
+        if text is not None and text != review.REVW_TEXT:
+            review.REVW_SENTIMENT_SCORE = None
+            review.REVW_SENTIMENT_LABEL = None
+            review.REVW_TEXT = text
+            review.REVW_IS_OUTLIER_SENTIMENT = False
+            text_changed = True
+            review.save(
+                update_fields=[
+                    "REVW_TEXT",
+                    "REVW_SENTIMENT_SCORE",
+                    "REVW_SENTIMENT_LABEL",
+                    "REVW_IS_OUTLIER_SENTIMENT",
+                    "REVW_UPDATED_AT",
+                ],
+            )
 
-                review.save(
-                    update_fields=[
-                        "REVW_TEXT",
-                        "REVW_SENTIMENT_SCORE",
-                        "REVW_SENTIMENT_LABEL",
-                        "REVW_IS_OUTLIER_SENTIMENT",
-                        "REVW_UPDATED_AT",
-                    ],
-                )
-
-            for photo in new_photos:
-                upload_result = CloudinaryService.upload_image(
-                    photo,
-                    folder="sugbogo/reviews",
-                )
-
-                public_id = upload_result["public_id"]
-
-                uploaded_public_ids.append(
-                    public_id,
-                )
-
+        created_photos = []
+        for upload in uploaded_photos:
+            created_photos.append(
                 ReviewPhoto.objects.create(
                     REVW_ID=review,
-                    RPHO_PHOTO_URL=upload_result["secure_url"],
-                    RPHO_PHOTO_PUBLIC_ID=public_id,
-                )
+                    RPHO_PHOTO_URL=upload["secure_url"],
+                    RPHO_PHOTO_PUBLIC_ID=upload["public_id"],
+                ),
+            )
 
-            for photo in removed_photos:
-                CloudinaryService.delete_image(
-                    photo.RPHO_PHOTO_PUBLIC_ID,
-                )
-
+        if removed_photos:
             ReviewPhoto.objects.filter(
                 RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
             ).delete()
-
-            if text_changed or new_photos or removed_photos:
-                review.REVW_EDITED_AT = timezone.now()
-                review.save(update_fields=["REVW_EDITED_AT"])
-
-            if (
-                new_photos
-                and not had_photo_before_update
-                and review.photos.exists()
-            ):
-                ReputationService.apply_review_photo_upgrade_reward(
-                    user_id=user.USER_ID,
-                    source_id=review.REVW_ID,
-                    business_id=review.BUSN_ID_id,
+            for photo in removed_photos:
+                transaction.on_commit(
+                    lambda public_id=photo.RPHO_PHOTO_PUBLIC_ID: (
+                        CloudinaryService.delete_image(public_id)
+                    ),
+                    robust=True,
                 )
 
-        except Exception:
-            for public_id in uploaded_public_ids:
-                CloudinaryService.delete_image(
-                    public_id,
-                )
+        if moderation is not None:
+            accepted_moderation = deepcopy(moderation)
+            assessed_photos = [*created_photos, *retained_photos]
+            for finding in accepted_moderation["findings"]:
+                if not isinstance(finding, dict):
+                    raise ReviewEditModerationUnavailable()
+                if finding.get("source") != "image":
+                    continue
+                index = finding.get("photo_index")
+                if not isinstance(index, int) or not 0 <= index < len(assessed_photos):
+                    raise ReviewEditModerationUnavailable()
+                finding["photo_id"] = assessed_photos[index].RPHO_ID
+            accepted_moderation["image_count"] = len(assessed_photos)
+            accepted_moderation["retryable"] = False
+            accepted_moderation["retry_exhausted"] = False
+            accepted_moderation["retry_attempt"] = 0
+            accepted_moderation["last_attempted_at"] = accepted_moderation.get(
+                "checked_at",
+            )
+            review.REVW_MODERATION_DATA = accepted_moderation
+            review.save(update_fields=["REVW_MODERATION_DATA", "REVW_UPDATED_AT"])
+        elif removed_photos:
+            ReviewService._reconcile_removed_photo_findings(
+                review,
+                {photo.RPHO_ID for photo in retained_photos},
+            )
 
-            raise
+        if text_changed or uploaded_photos or removed_photos:
+            review.REVW_EDITED_AT = timezone.now()
+            review.save(update_fields=["REVW_EDITED_AT"])
+
+        if uploaded_photos and not had_photo_before_update:
+            ReputationService.apply_review_photo_upgrade_reward(
+                user_id=user.USER_ID,
+                source_id=review.REVW_ID,
+                business_id=review.BUSN_ID_id,
+            )
 
         if text_changed:
             duplicate_already_recorded = (
@@ -1110,37 +1291,47 @@ class ReviewService:
         user: User,
         photo_id: int,
     ) -> None:
-        try:
-            photo = (
-                ReviewPhoto.objects
-                .select_for_update()
-                .select_related(
-                    "REVW_ID",
-                )
-                .get(
-                    RPHO_ID=photo_id,
-                )
-            )
-        except ReviewPhoto.DoesNotExist:
+        review_id = (
+            ReviewPhoto.objects
+            .filter(RPHO_ID=photo_id)
+            .values_list("REVW_ID_id", flat=True)
+            .first()
+        )
+        if review_id is None:
             raise NotFound(
                 "The review photo could not be found.",
             )
 
-        if photo.REVW_ID.USER_ID_id != user.USER_ID:
+        review = ReviewService._get_review(review_id)
+        photo = (
+            ReviewPhoto.objects
+            .select_for_update()
+            .filter(RPHO_ID=photo_id, REVW_ID_id=review_id)
+            .first()
+        )
+        if photo is None:
+            raise NotFound("The review photo could not be found.")
+
+        if review.USER_ID_id != user.USER_ID:
             raise PermissionDenied(
                 "You do not have permission to delete this review photo.",
             )
 
-        if photo.REVW_ID.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+        if review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
             raise ValidationError(
                 "This review cannot be edited while it is under review.",
             )
 
-        CloudinaryService.delete_image(
-            photo.RPHO_PHOTO_PUBLIC_ID,
-        )
-
+        public_id = photo.RPHO_PHOTO_PUBLIC_ID
         photo.delete()
+        ReviewService._reconcile_removed_photo_findings(
+            review,
+            set(review.photos.values_list("RPHO_ID", flat=True)),
+        )
+        transaction.on_commit(
+            lambda: CloudinaryService.delete_image(public_id),
+            robust=True,
+        )
 
     @staticmethod
     @transaction.atomic

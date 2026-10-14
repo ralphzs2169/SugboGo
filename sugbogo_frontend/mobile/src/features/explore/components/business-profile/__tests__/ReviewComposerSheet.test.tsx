@@ -1,5 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
 
 import {
   useCreateReview,
@@ -64,6 +66,7 @@ jest.mock("@/shared/components/Button", () => {
       disabled: boolean;
     }) => (
       <Pressable
+        testID="review-submit-button"
         accessibilityRole="button"
         disabled={props.disabled}
         onPress={props.onPress}
@@ -94,12 +97,19 @@ const review = {
 
 function showReview(existing?: BusinessReview) {
   return render(
-    <ReviewComposerSheet
-      businessId={20}
-      businessName="Sugbo Cafe"
-      sheetRef={sheetRef as never}
-      review={existing}
-    />,
+    <SafeAreaProvider
+      initialMetrics={{
+        frame: { x: 0, y: 0, width: 390, height: 844 },
+        insets: { top: 0, right: 0, bottom: 0, left: 0 },
+      }}
+    >
+      <ReviewComposerSheet
+        businessId={20}
+        businessName="Sugbo Cafe"
+        sheetRef={sheetRef as never}
+        review={existing}
+      />
+    </SafeAreaProvider>,
   );
 }
 
@@ -230,5 +240,186 @@ describe("ReviewComposerSheet Community visibility", () => {
     expect(Toast.show).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "success" }),
     );
+  });
+});
+
+describe("ReviewComposerSheet edit moderation feedback", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    update.mockRejectedValue(new Error("Edit rejected"));
+    (useCreateReview as jest.Mock).mockReturnValue({
+      mutateAsync: create,
+      isPending: false,
+      error: null,
+    });
+    (useUpdateReview as jest.Mock).mockReturnValue({
+      mutateAsync: update,
+      isPending: false,
+      error: null,
+    });
+  });
+
+  it("closes with success feedback after an accepted edit", async () => {
+    update.mockResolvedValue(review);
+    const screen = await showReview(review);
+    await settleForm();
+    await fireEvent.changeText(
+      screen.getByLabelText("Your review"),
+      "An accepted update with enough written detail.",
+    );
+    await fireEvent.press(screen.getByText("Save changes"));
+
+    await waitFor(() =>
+      expect(Toast.show).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "success", text1: "Review updated" }),
+      ),
+    );
+    expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
+  });
+
+  it.each([
+    [
+      "REVIEW_EDIT_CONTENT_FLAGGED",
+      "Changes not saved",
+      "Your updated review didn't pass our content safety check. Please revise your changes and try again.",
+    ],
+    [
+      "REVIEW_EDIT_MODERATION_UNAVAILABLE",
+      "Couldn't check your changes",
+      "We couldn't complete the content check right now. Your original review is unchanged. Please try again later.",
+    ],
+    [
+      "REVIEW_EDIT_CONFLICT",
+      "Review changed",
+      "This review was updated while you were editing. Please reload it before making changes.",
+    ],
+  ])("preserves the draft after %s", async (code, title, message) => {
+    update.mockRejectedValue({ success: false, code, message });
+    const screen = await showReview(review);
+    await settleForm();
+    await fireEvent.changeText(
+      screen.getByLabelText("Your review"),
+      "A changed review with enough written detail.",
+    );
+    await fireEvent.press(screen.getByText("Save changes"));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("review-edit-error-banner")).toBeTruthy(),
+    );
+    expect(screen.getByText(title)).toBeTruthy();
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.getByLabelText("Your review").props.value).toBe(
+      "A changed review with enough written detail.",
+    );
+    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    expect(Toast.show).not.toHaveBeenCalled();
+  });
+
+  it("preserves selected photos after a blocked edit", async () => {
+    update.mockRejectedValue({
+      success: false,
+      code: "REVIEW_EDIT_CONTENT_FLAGGED",
+      message: "Blocked",
+    });
+    (pickBusinessPhotos as jest.Mock).mockResolvedValue([
+      { uri: "file:///proposed.jpg", name: "proposed.jpg", type: "image/jpeg" },
+    ]);
+    const screen = await showReview(review);
+    await settleForm();
+    await fireEvent.press(screen.getByLabelText("Add review photo"));
+    await waitFor(() => expect(screen.getByText("1/3")).toBeTruthy());
+    await fireEvent.press(screen.getByText("Save changes"));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("review-edit-error-banner")).toBeTruthy(),
+    );
+    await waitFor(() => expect(screen.getByText("1/3")).toBeTruthy());
+    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByLabelText("Add review photo"));
+    expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
+  });
+
+  it("clears the banner as soon as the user retries", async () => {
+    let resolveRetry: ((value: BusinessReview) => void) | undefined;
+    update.mockRejectedValueOnce({
+      success: false,
+      code: "REVIEW_EDIT_MODERATION_UNAVAILABLE",
+      message: "Unavailable",
+    });
+    update.mockImplementationOnce(
+      () =>
+        new Promise<BusinessReview>((resolve) => {
+          resolveRetry = resolve;
+        }),
+    );
+    const screen = await showReview(review);
+    await settleForm();
+    await fireEvent.changeText(
+      screen.getByLabelText("Your review"),
+      "A proposed review with enough written detail.",
+    );
+    await fireEvent.press(screen.getByText("Save changes"));
+    await waitFor(() =>
+      expect(screen.getByTestId("review-edit-error-banner")).toBeTruthy(),
+    );
+
+    const retryPress = fireEvent.press(screen.getByText("Save changes"));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
+    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveRetry?.(review);
+    });
+    await retryPress;
+    await waitFor(() =>
+      expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(1),
+    );
+  });
+
+  it("clears the banner when the review changes and when retried", async () => {
+    update.mockRejectedValueOnce({
+      success: false,
+      code: "REVIEW_EDIT_CONTENT_FLAGGED",
+      message: "Blocked",
+    });
+    update.mockResolvedValueOnce(review);
+    const screen = await showReview(review);
+    await settleForm();
+    await fireEvent.changeText(
+      screen.getByLabelText("Your review"),
+      "A proposed review with enough written detail.",
+    );
+    await fireEvent.press(screen.getByText("Save changes"));
+    await waitFor(() =>
+      expect(screen.getByTestId("review-edit-error-banner")).toBeTruthy(),
+    );
+
+    await fireEvent.changeText(
+      screen.getByLabelText("Your review"),
+      "A revised review with enough written detail.",
+    );
+    expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
+    await fireEvent.press(screen.getByText("Save changes"));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
+    expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables submission while moderation is pending", async () => {
+    (useUpdateReview as jest.Mock).mockReturnValue({
+      mutateAsync: update,
+      isPending: true,
+      error: null,
+    });
+    const screen = await showReview(review);
+    await settleForm();
+    await fireEvent.changeText(
+      screen.getByLabelText("Your review"),
+      "A changed review with enough written detail.",
+    );
+    await fireEvent.press(screen.getByTestId("review-submit-button"));
+    expect(update).not.toHaveBeenCalled();
   });
 });

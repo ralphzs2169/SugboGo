@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import timedelta
 from io import BytesIO
 from unittest.mock import patch
@@ -20,18 +21,25 @@ from apps.business.models import (
     Location,
     SpecialtyTag,
 )
+from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
     ReviewLike,
     ReviewPhoto,
+    ReviewReport,
 )
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
-from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.review_service import (
+    ReviewEditConflict,
+    ReviewEditContentFlagged,
+    ReviewEditModerationUnavailable,
+    ReviewService,
+)
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.reviews.services.tests.test_review_moderation_service import (
     provider_response,
@@ -1242,6 +1250,169 @@ class ReviewServiceTests(TestCase):
 
         review.refresh_from_db()
         self.assertIsNone(review.REVW_EDITED_AT)
+        self.moderate_review.assert_called_once()
+
+    def test_safe_text_edit_replaces_current_moderation_evidence(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        previous_metadata = review.REVW_MODERATION_DATA
+        self.moderate_review.reset_mock()
+        self.moderate_review.return_value["checked_at"] = (
+            "2026-10-12T00:00:00+00:00"
+        )
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.pk,
+            text="A safe updated review.",
+        )
+
+        review.refresh_from_db()
+        self.moderate_review.assert_called_once_with(
+            text="A safe updated review.",
+            photos=[],
+            image_urls=[],
+        )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertNotEqual(review.REVW_MODERATION_DATA, previous_metadata)
+        self.assertEqual(review.REVW_MODERATION_DATA["outcome"], "safe")
+
+    def test_flagged_text_edit_preserves_published_review(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        original_metadata = deepcopy(review.REVW_MODERATION_DATA)
+        original_reliability = review.REVW_RELIABILITY_EVIDENCE
+        report = ReviewReport.objects.create(
+            REVW_ID=review,
+            USER_ID=self.second_user,
+            RREP_TYPE=ReviewReport.ReportType.SPAM,
+        )
+        dispute = MerchantReviewDispute.objects.create(
+            REVW_ID=review,
+            BUSN_ID=self.business,
+            USER_ID=self.business_owner,
+            MRDSP_REASON=MerchantReviewDispute.DisputeReason.FAKE_REVIEW,
+            MRDSP_DESCRIPTION="A pending merchant concern about this review.",
+        )
+        self.business.refresh_from_db()
+        original_count = self.business.BUSN_REVIEW_COUNT
+        self.moderate_review.return_value["outcome"] = "flagged"
+
+        with self.assertRaises(ReviewEditContentFlagged):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="A proposed unsafe review.",
+                show_in_community=False,
+            )
+
+        review.refresh_from_db()
+        self.business.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original review.")
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(review.REVW_MODERATION_DATA, original_metadata)
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, original_reliability)
+        self.assertTrue(review.REVW_SHOW_IN_COMMUNITY)
+        self.assertIsNone(review.REVW_EDITED_AT)
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, original_count)
+        report.refresh_from_db()
+        dispute.refresh_from_db()
+        self.assertEqual(report.RREP_STATUS, ReviewReport.ReportStatus.PENDING)
+        self.assertEqual(
+            dispute.MRDSP_STATUS,
+            MerchantReviewDispute.DisputeStatus.PENDING,
+        )
+
+    def test_unavailable_edit_preserves_published_review(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        original_metadata = deepcopy(review.REVW_MODERATION_DATA)
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+
+        with self.assertRaises(ReviewEditModerationUnavailable):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Proposed but unchecked text.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original review.")
+        self.assertEqual(review.REVW_MODERATION_DATA, original_metadata)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_moderation_exception_blocks_edit(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        self.moderate_review.side_effect = TimeoutError("provider unavailable")
+
+        with self.assertRaises(ReviewEditModerationUnavailable):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Proposed but unchecked text.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original review.")
+
+    def test_stale_moderation_cannot_overwrite_newer_text(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        def change_review_during_moderation(**kwargs):
+            Review.objects.filter(pk=review.pk).update(
+                REVW_TEXT="Newer accepted content.",
+            )
+            return {
+                "outcome": "safe",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "findings": [],
+            }
+
+        self.moderate_review.side_effect = change_review_during_moderation
+        with self.assertRaises(ReviewEditConflict):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Stale proposed content.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Newer accepted content.")
+
+    def test_editing_rejected_review_does_not_republish_it(self):
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Original rejected review.",
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.pk,
+            text="A safe edited rejected review.",
+        )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "A safe edited rejected review.")
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.REJECTED)
 
     def test_update_review_rejects_non_owner(self):
         review = ReviewService.create_review(
@@ -1328,6 +1499,237 @@ class ReviewServiceTests(TestCase):
         )
 
     @patch(
+        "apps.reviews.services.review_service.ReputationService.apply_review_photo_upgrade_reward",
+    )
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_flagged_photo_addition_never_uploads_or_saves(
+        self,
+        mock_upload,
+        mock_reward,
+    ):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        original_metadata = deepcopy(review.REVW_MODERATION_DATA)
+        self.moderate_review.return_value["outcome"] = "flagged"
+
+        with self.assertRaises(ReviewEditContentFlagged):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                photos=[self.create_test_image("unsafe.jpg")],
+            )
+
+        self.assertFalse(ReviewPhoto.objects.filter(REVW_ID=review).exists())
+        mock_upload.assert_not_called()
+        mock_reward.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_MODERATION_DATA, original_metadata)
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_flagged_replacement_preserves_original_photo(
+        self,
+        mock_upload,
+        mock_delete,
+    ):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        original = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://res.cloudinary.com/test/original.jpg",
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/original",
+        )
+        self.moderate_review.return_value["outcome"] = "flagged"
+
+        with self.assertRaises(ReviewEditContentFlagged):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                keep_photo_ids=[],
+                photos=[self.create_test_image("replacement.jpg")],
+            )
+
+        self.assertTrue(ReviewPhoto.objects.filter(pk=original.pk).exists())
+        mock_upload.assert_not_called()
+        mock_delete.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_unavailable_photo_assessment_preserves_original(self, mock_upload):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+
+        with self.assertRaises(ReviewEditModerationUnavailable):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Proposed combined text edit.",
+                photos=[self.create_test_image("unchecked.jpg")],
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original review.")
+        self.assertFalse(ReviewPhoto.objects.filter(REVW_ID=review).exists())
+        mock_upload.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_safe_combined_edit_links_image_finding_to_new_photo(self, mock_upload):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        mock_upload.return_value = {
+            "public_id": "sugbogo/reviews/accepted",
+            "secure_url": "https://res.cloudinary.com/test/accepted.jpg",
+        }
+        self.moderate_review.return_value["findings"] = [
+            {
+                "source": "image",
+                "photo_index": 0,
+                "flagged": False,
+            },
+        ]
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.pk,
+            text="Safe combined text change.",
+            photos=[self.create_test_image("accepted.jpg")],
+        )
+
+        review.refresh_from_db()
+        photo = ReviewPhoto.objects.get(REVW_ID=review)
+        self.assertEqual(review.REVW_TEXT, "Safe combined text change.")
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["findings"][0]["photo_id"],
+            photo.pk,
+        )
+        self.assertEqual(review.REVW_MODERATION_DATA["image_count"], 1)
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_safe_replacement_reassesses_retained_photo_and_rebinds_evidence(
+        self,
+        mock_upload,
+        mock_delete,
+    ):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        removed = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://res.cloudinary.com/test/removed.jpg",
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/removed",
+        )
+        retained = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://res.cloudinary.com/test/retained.jpg",
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/retained",
+        )
+        mock_upload.return_value = {
+            "public_id": "sugbogo/reviews/replacement",
+            "secure_url": "https://res.cloudinary.com/test/replacement.jpg",
+        }
+        self.moderate_review.reset_mock()
+        self.moderate_review.return_value["findings"] = [
+            {"source": "image", "photo_index": 0, "flagged": False},
+            {"source": "image", "photo_index": 1, "flagged": False},
+        ]
+        replacement = self.create_test_image("replacement.jpg")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                photos=[replacement],
+                keep_photo_ids=[retained.pk],
+            )
+
+        self.moderate_review.assert_called_once_with(
+            text="Original review.",
+            photos=[replacement],
+            image_urls=[retained.RPHO_PHOTO_URL],
+        )
+        self.assertFalse(ReviewPhoto.objects.filter(pk=removed.pk).exists())
+        replacement_record = ReviewPhoto.objects.get(
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/replacement",
+        )
+        review.refresh_from_db()
+        self.assertEqual(
+            [
+                finding["photo_id"]
+                for finding in review.REVW_MODERATION_DATA["findings"]
+            ],
+            [replacement_record.pk, retained.pk],
+        )
+        mock_delete.assert_called_once_with("sugbogo/reviews/removed")
+
+    def test_photo_removal_skips_ai_and_removes_stale_photo_finding(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://res.cloudinary.com/test/remove.jpg",
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/remove",
+        )
+        review.REVW_MODERATION_DATA = {
+            "outcome": "safe",
+            "image_count": 1,
+            "findings": [
+                {"source": "text", "flagged": False},
+                {"source": "image", "photo_id": photo.pk, "flagged": False},
+            ],
+        }
+        review.save(update_fields=["REVW_MODERATION_DATA"])
+        self.moderate_review.reset_mock()
+
+        with patch("apps.reviews.services.review_service.CloudinaryService.delete_image"):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                keep_photo_ids=[],
+            )
+
+        self.moderate_review.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_MODERATION_DATA["image_count"], 0)
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["findings"],
+            [{"source": "text", "flagged": False}],
+        )
+
+    def test_visibility_only_edit_skips_ai(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        self.moderate_review.reset_mock()
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.pk,
+            show_in_community=False,
+        )
+
+        self.moderate_review.assert_not_called()
+
+    @patch(
         "apps.reviews.services.review_service.CloudinaryService.delete_image",
     )
     @patch(
@@ -1364,13 +1766,14 @@ class ReviewServiceTests(TestCase):
             ),
         )
 
-        ReviewService.update_review(
-            user=self.user,
-            review_id=review.REVW_ID,
-            keep_photo_ids=[
-                first_photo.RPHO_ID,
-            ],
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.REVW_ID,
+                keep_photo_ids=[
+                    first_photo.RPHO_ID,
+                ],
+            )
 
         self.assertTrue(
             ReviewPhoto.objects.filter(
@@ -1799,10 +2202,11 @@ class ReviewServiceTests(TestCase):
             ),
         )
 
-        ReviewService.delete_photo(
-            user=self.user,
-            photo_id=photo.RPHO_ID,
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            ReviewService.delete_photo(
+                user=self.user,
+                photo_id=photo.RPHO_ID,
+            )
 
         self.assertFalse(
             ReviewPhoto.objects.filter(

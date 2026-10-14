@@ -2,6 +2,7 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import type { RefObject } from "react";
 import Toast from "react-native-toast-message";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import ReviewComposerSheet from "../ReviewComposerSheet";
 
@@ -21,6 +22,7 @@ jest.mock("../../../hooks/useBusinessReviews", () => ({
   }),
 }));
 jest.mock("@gorhom/bottom-sheet", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View, TextInput } = require("react-native");
   return {
     BottomSheetModal: View,
@@ -35,6 +37,7 @@ jest.mock("@/shared/components/form/FormTextArea", () => ({
     value: string;
     onChangeText: (value: string) => void;
   }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { TextInput } = require("react-native");
     return (
       <TextInput
@@ -51,6 +54,7 @@ jest.mock("@/shared/components/Button", () => ({
     title: string;
     onPress: () => void;
   }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Pressable, Text } = require("react-native");
     return (
       <Pressable onPress={onPress}>
@@ -96,11 +100,18 @@ describe("ReviewComposerSheet moderation response", () => {
       status,
     });
     const screen = await render(
-      <ReviewComposerSheet
-        businessId={20}
-        businessName="Sugbo Cafe"
-        sheetRef={sheetRef}
-      />,
+      <SafeAreaProvider
+        initialMetrics={{
+          frame: { x: 0, y: 0, width: 390, height: 844 },
+          insets: { top: 0, right: 0, bottom: 0, left: 0 },
+        }}
+      >
+        <ReviewComposerSheet
+          businessId={20}
+          businessName="Sugbo Cafe"
+          sheetRef={sheetRef}
+        />
+      </SafeAreaProvider>,
     );
     await act(async () => {
       fireEvent.changeText(
