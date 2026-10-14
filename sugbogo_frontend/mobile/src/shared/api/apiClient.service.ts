@@ -6,6 +6,7 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import { API_ERROR_CODE } from "@/shared/constants/errorCodes";
 import NetInfo from "@react-native-community/netinfo";
+import { queryClient } from "@/shared/query/queryClient";
 
 /**
  * Axios client for authenticated endpoints.
@@ -118,6 +119,7 @@ apiClient.interceptors.response.use(
         // and set a flag so the login screen can display a one-time
         // "Your session has expired" message.
         await clearTokens();
+        queryClient.clear();
         useAuthStore.getState().clearUser();
 
         useAuthStore.getState().setSessionExpired(true);
