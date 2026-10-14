@@ -2,6 +2,8 @@
 
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Concat
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import NotFound
 
 from apps.reviews.models import Review, ReviewPhoto, ReviewReply
@@ -78,54 +80,92 @@ class SuspiciousReviewService:
 
     @staticmethod
     def related_reviews(review):
-        """Query retained records using the original review's relationships."""
+        """Query retained records using each signal's original window."""
         reasons = set(review.REVW_RELIABILITY_REASONS)
         installation_id = review.REVW_INSTALLATION_ID
         has_installation = bool(installation_id and installation_id.strip())
         related = {}
 
         if Review.ReliabilityReason.DUPLICATE_CONTENT in reasons:
-            source_filter = Q(USER_ID_id=review.USER_ID_id)
-            if has_installation:
-                source_filter |= Q(REVW_INSTALLATION_ID=installation_id)
-            candidates = (
-                Review.objects
-                .select_related("USER_ID", "BUSN_ID")
-                .filter(
-                    source_filter,
-                    REVW_CREATED_AT__gte=(
-                        review.REVW_CREATED_AT - ReviewService.DUPLICATE_REVIEW_WINDOW
-                    ),
-                    REVW_CREATED_AT__lte=review.REVW_CREATED_AT,
+            evidence = review.REVW_RELIABILITY_EVIDENCE
+            duplicate_evidence = None
+            if isinstance(evidence, dict):
+                duplicate_evidence = evidence.get(
+                    Review.ReliabilityReason.DUPLICATE_CONTENT
                 )
-                .exclude(pk=review.pk)
-                .exclude(BUSN_ID_id=review.BUSN_ID_id)
-                .order_by("-REVW_CREATED_AT", "-REVW_ID")
-            )
-            normalized_text = " ".join(review.REVW_TEXT.split()).casefold()
-            related[Review.ReliabilityReason.DUPLICATE_CONTENT] = [
-                candidate
-                for candidate in candidates
-                if " ".join(candidate.REVW_TEXT.split()).casefold()
-                == normalized_text
-            ]
+            observed_at = None
+            if isinstance(duplicate_evidence, dict):
+                observed_at = duplicate_evidence.get("observed_at")
+            window_end = None
+            if isinstance(observed_at, str):
+                try:
+                    window_end = parse_datetime(observed_at)
+                except ValueError:
+                    pass
+
+            if window_end is None or timezone.is_naive(window_end):
+                related[Review.ReliabilityReason.DUPLICATE_CONTENT] = None
+            else:
+                source_filter = Q(USER_ID_id=review.USER_ID_id)
+                if has_installation:
+                    source_filter |= Q(REVW_INSTALLATION_ID=installation_id)
+                candidates = (
+                    Review.objects
+                    .select_related("USER_ID", "BUSN_ID")
+                    .filter(
+                        source_filter,
+                        REVW_CREATED_AT__gte=(
+                            window_end - ReviewService.DUPLICATE_REVIEW_WINDOW
+                        ),
+                        REVW_CREATED_AT__lte=window_end,
+                    )
+                    .exclude(pk=review.pk)
+                    .exclude(BUSN_ID_id=review.BUSN_ID_id)
+                    .order_by("-REVW_CREATED_AT", "-REVW_ID")
+                )
+                normalized_text = " ".join(review.REVW_TEXT.split()).casefold()
+                related[Review.ReliabilityReason.DUPLICATE_CONTENT] = [
+                    candidate
+                    for candidate in candidates
+                    if " ".join(candidate.REVW_TEXT.split()).casefold()
+                    == normalized_text
+                ]
 
         if (
             has_installation
             and Review.ReliabilityReason.RAPID_SUBMISSION in reasons
         ):
-            related[Review.ReliabilityReason.RAPID_SUBMISSION] = list(
-                Review.objects
-                .select_related("USER_ID", "BUSN_ID")
-                .filter(
-                    REVW_INSTALLATION_ID=installation_id,
-                    REVW_CREATED_AT__gte=(
-                        review.REVW_CREATED_AT - ReviewService.DEVICE_REVIEW_WINDOW
-                    ),
-                    REVW_CREATED_AT__lte=review.REVW_CREATED_AT,
+            evidence = review.REVW_RELIABILITY_EVIDENCE
+            rapid_evidence = None
+            if isinstance(evidence, dict):
+                rapid_evidence = evidence.get(
+                    Review.ReliabilityReason.RAPID_SUBMISSION
                 )
-                .order_by("-REVW_CREATED_AT", "-REVW_ID")
-            )
+            observed_at = None
+            if isinstance(rapid_evidence, dict):
+                observed_at = rapid_evidence.get("observed_at")
+            window_end = None
+            if isinstance(observed_at, str):
+                try:
+                    window_end = parse_datetime(observed_at)
+                except ValueError:
+                    pass
+
+            if window_end is None or timezone.is_naive(window_end):
+                related[Review.ReliabilityReason.RAPID_SUBMISSION] = None
+            else:
+                related[Review.ReliabilityReason.RAPID_SUBMISSION] = list(
+                    Review.objects
+                    .select_related("USER_ID", "BUSN_ID")
+                    .filter(
+                        REVW_INSTALLATION_ID=installation_id,
+                        REVW_CREATED_AT__gte=(
+                            window_end - ReviewService.DEVICE_REVIEW_WINDOW
+                        ),
+                        REVW_CREATED_AT__lte=window_end,
+                    )
+                    .order_by("-REVW_CREATED_AT", "-REVW_ID")
+                )
 
         if (
             has_installation

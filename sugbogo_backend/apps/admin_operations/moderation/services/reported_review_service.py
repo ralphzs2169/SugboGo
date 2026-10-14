@@ -84,6 +84,10 @@ class ReportedReviewService:
     def list_reviews(filters):
         """Filter and order review groups before pagination."""
         queryset = ReportedReviewService.queryset()
+        status = filters.get("status")
+        if status:
+            queryset = queryset.filter(REVW_STATUS=status)
+
         search = filters.get("search")
         if search:
             queryset = queryset.annotate(

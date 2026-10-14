@@ -13,6 +13,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 
 from apps.business.models import (
     Business,
+    BusinessSpecialtyTag,
     BusinessVouch,
     Category,
     Cluster,
@@ -756,6 +757,11 @@ class ReviewServiceTests(TestCase):
             TAG_NAME="Authentic Cebuano Food",
         )
 
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+        )
+
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=self.user,
@@ -970,6 +976,15 @@ class ReviewServiceTests(TestCase):
             TAG_NAME="Authentic Food",
         )
 
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=first_tag,
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=second_tag,
+        )
+
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=self.user,
@@ -1015,6 +1030,70 @@ class ReviewServiceTests(TestCase):
                 first_tag.TAG_ID,
                 second_tag.TAG_ID,
             },
+        )
+
+    def test_inactive_specialty_vouch_is_hidden_from_review_responses(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great local restaurant.",
+        )
+        active_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Active Specialty",
+        )
+        inactive_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Inactive Specialty",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=active_tag,
+        )
+        inactive_link = BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=inactive_tag,
+        )
+
+        for tag in (active_tag, inactive_tag):
+            BusinessVouch.objects.create(
+                BUSN_ID=self.business,
+                USER_ID=self.user,
+                TAG_ID=tag,
+                VOUCH_REPUTATION_SNAPSHOT=self.user.USER_REPUTATION,
+            )
+
+        inactive_link.BST_IS_ACTIVE = False
+        inactive_link.save(
+            update_fields=["BST_IS_ACTIVE"],
+        )
+
+        listed_review = ReviewService.list_reviews(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )[0]
+        preview_review = ReviewService.get_review_preview(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )["reviews"][0]
+        detail_review = ReviewService.get_review_detail(
+            review_id=review.REVW_ID,
+            user=self.second_user,
+        )
+
+        for result in (listed_review, preview_review, detail_review):
+            self.assertEqual(
+                [
+                    vouch.TAG_ID_id
+                    for vouch in result.vouched_specialties
+                ],
+                [active_tag.TAG_ID],
+            )
+
+        self.assertEqual(
+            BusinessVouch.objects.filter(
+                BUSN_ID=self.business,
+                USER_ID=self.user,
+            ).count(),
+            2,
         )
 
     def test_merchant_cannot_review_own_business(self):
@@ -1925,6 +2004,11 @@ class ReviewServiceTests(TestCase):
             TAG_NAME="Local Favorite",
         )
 
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+        )
+
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=self.user,
@@ -2427,6 +2511,7 @@ class ReviewServiceTests(TestCase):
                 self.assertNotIn("is_device_abuse_flagged", data)
                 self.assertNotIn("reliability_reasons", data)
                 self.assertNotIn("reliability_evidence", data)
+                self.assertNotIn("reliability_check_outcome", data)
                 self.assertNotIn("installation_id", data)
 
     def test_response_serializes_null_sentiment_and_false_flags(self):
@@ -2562,8 +2647,13 @@ class ReviewServiceTests(TestCase):
             self.business.pk,
             "A unique and useful review.",
         )
+        review.refresh_from_db()
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_third_normalized_match_from_same_user_flags_only_duplicate(self):
@@ -2582,6 +2672,7 @@ class ReviewServiceTests(TestCase):
             self.business.pk,
             "great place!",
         )
+        review.refresh_from_db()
         self.assertEqual(
             review.REVW_RELIABILITY_REASONS,
             [Review.ReliabilityReason.DUPLICATE_CONTENT],
@@ -2592,6 +2683,10 @@ class ReviewServiceTests(TestCase):
         self.assertCountEqual(evidence["matched_review_ids"], prior_ids)
         self.assertEqual(evidence["basis"], "same_user")
         self.assertIsNotNone(evidence["observed_at"])
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
         self.assertFalse(review.REVW_IS_REPORT_FLAGGED)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
 
@@ -2627,6 +2722,10 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(evidence["basis"], "same_user")
         self.assertEqual(evidence["detected_during"], "edit")
         self.assertIsNotNone(evidence["observed_at"])
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
@@ -2728,6 +2827,10 @@ class ReviewServiceTests(TestCase):
             [Review.ReliabilityReason.DUPLICATE_CONTENT],
         )
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, original_evidence)
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
 
     def test_unchanged_text_edit_does_not_check_duplicate(self):
         review = ReviewService.create_review(
@@ -2749,6 +2852,10 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
 
     def test_photo_only_edit_does_not_check_duplicate(self):
         review = ReviewService.create_review(
@@ -2775,6 +2882,10 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
 
     def test_edit_preserves_duplicate_detected_during_creation(self):
         for _ in range(2):
@@ -2909,6 +3020,10 @@ class ReviewServiceTests(TestCase):
     def test_historical_review_defaults_to_empty_reliability_evidence(self):
         review = self._create_signal_review()
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
 
     def test_duplicate_requires_exact_normalized_text_and_recent_history(self):
         first = ReviewService.create_review(
@@ -3051,6 +3166,159 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNAVAILABLE,
+        )
+
+    def test_heuristic_failure_does_not_change_ai_hold_or_fabricate_signals(self):
+        self.moderate_review.return_value["outcome"] = "flagged"
+        with patch.object(
+            ReviewService,
+            "_reliability_reasons",
+            side_effect=RuntimeError("Query failed"),
+        ):
+            review = ReviewService.create_review(
+                self.user,
+                self.business.pk,
+                "A held review despite a reliability outage.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNAVAILABLE,
+        )
+
+    def test_edit_detection_failure_preserves_history_and_can_recover(self):
+        rapid_reason = Review.ReliabilityReason.RAPID_SUBMISSION
+        evidence = {
+            rapid_reason: {
+                "observed_at": "2026-10-11T00:00:00+00:00",
+                "window_hours": 24,
+                "review_count": 11,
+            },
+        }
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Original review text.",
+        )
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_REASONS=[rapid_reason],
+            REVW_RELIABILITY_EVIDENCE=evidence,
+            REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+        )
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+            side_effect=RuntimeError("Duplicate lookup failed"),
+        ):
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="First edited review text.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNAVAILABLE,
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [rapid_reason])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+        with patch.object(
+            ReviewService,
+            "_installation_reliability_findings",
+        ) as installation_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="Second edited review text.",
+            )
+        installation_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [rapid_reason])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
+
+    def test_non_detection_edit_preserves_unknown_outcome(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Review with no new text.",
+        )
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_CHECK_OUTCOME=Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+        ) as duplicate_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text=review.REVW_TEXT,
+            )
+        duplicate_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+
+    def test_existing_duplicate_skips_reevaluation_and_preserves_outcome(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Review with a historical duplicate finding.",
+        )
+        duplicate_reason = Review.ReliabilityReason.DUPLICATE_CONTENT
+        evidence = {
+            duplicate_reason: {
+                "observed_at": "2026-10-11T00:00:00+00:00",
+                "detected_during": "submission",
+                "prior_match_count": 2,
+            },
+        }
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_REASONS=[duplicate_reason],
+            REVW_RELIABILITY_EVIDENCE=evidence,
+            REVW_RELIABILITY_CHECK_OUTCOME=Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+        ) as duplicate_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="Edited after the historical duplicate finding.",
+            )
+        duplicate_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [duplicate_reason])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
 
     def test_ai_hold_preserves_heuristic_reason_without_retry(self):
         self._create_bulk_history(10, "bulk-installation")

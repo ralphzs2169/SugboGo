@@ -23,7 +23,10 @@ jest.mock("../../api/reviewBusiness.service", () => ({
 describe("useReviewLike with filtered reviews", () => {
   it("updates and invalidates every review-list variant after a like", async () => {
     const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { gcTime: 0 },
+      },
     });
     const review = {
       id: 3,
@@ -57,10 +60,12 @@ describe("useReviewLike with filtered reviews", () => {
 
     /** Supplies the review mutation with its React Query cache. */
     function Wrapper({ children }: PropsWithChildren) {
-      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+      return (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
     }
 
-    const { result } = await renderHook(() => useReviewLike(20), {
+    const { result, unmount } = await renderHook(() => useReviewLike(20), {
       wrapper: Wrapper,
     });
 
@@ -81,6 +86,7 @@ describe("useReviewLike with filtered reviews", () => {
         ?.reviews[0].like_count,
     ).toBe(2);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: baseKey });
+    unmount();
     client.clear();
   });
 });

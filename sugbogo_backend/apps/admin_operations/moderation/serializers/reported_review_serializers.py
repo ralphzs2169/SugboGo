@@ -18,7 +18,9 @@ from apps.admin_operations.moderation.serializers.manage_review_dispute_serializ
 class ReportedReviewDecisionSerializer(serializers.Serializer):
     """Validate one Admin decision for all pending reports on a review."""
 
-    decision = serializers.ChoiceField(choices=("keep", "reject"))
+    decision = serializers.ChoiceField(
+        choices=("keep", "reject", "confirm", "dismiss"),
+    )
     admin_notes = serializers.CharField(
         min_length=MIN_MODERATION_NOTES_LENGTH,
         max_length=2000,
@@ -27,7 +29,7 @@ class ReportedReviewDecisionSerializer(serializers.Serializer):
 
 
 class ReportedReviewFilterSerializer(serializers.Serializer):
-    """Validate grouped queue search, reason, and sort options."""
+    """Validate grouped queue search, reason, status, and sort options."""
 
     search = serializers.CharField(
         max_length=200,
@@ -37,6 +39,13 @@ class ReportedReviewFilterSerializer(serializers.Serializer):
     )
     reason = serializers.ChoiceField(
         choices=ReviewReport.ReportType.choices,
+        required=False,
+    )
+    status = serializers.ChoiceField(
+        choices=(
+            Review.ReviewStatus.PUBLISHED,
+            Review.ReviewStatus.REJECTED,
+        ),
         required=False,
     )
     ordering = serializers.ChoiceField(

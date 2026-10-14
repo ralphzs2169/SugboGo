@@ -1,15 +1,22 @@
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from apps.admin_operations.moderation.serializers import (
+    AdminReviewDisputeListSerializer,
+)
+from apps.admin_operations.moderation.services.manage_review_dispute_service import (
+    ManageReviewDisputeService,
+)
 from apps.business.models import Business, Category, Cluster, Location
 from apps.review_disputes.models import (
     MerchantReviewDispute,
     MerchantReviewDisputeEvidence,
 )
-from apps.reviews.models import Review
+from apps.reviews.models import Review, ReviewPhoto
 from apps.users.models import User
 
 
@@ -208,6 +215,103 @@ class ManageReviewDisputeViewTestBase(TestCase):
 
 
 class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
+    def test_list_includes_original_review_preview_and_photo_count(self):
+        long_text = "A detailed account of the visit. " * 10
+        self.review.REVW_TEXT = long_text
+        self.review.save(update_fields=["REVW_TEXT"])
+        text_dispute = self.create_dispute()
+
+        photo_review = self.create_review(text="")
+        photo_dispute = self.create_dispute(review=photo_review)
+        ReviewPhoto.objects.create(
+            REVW_ID=photo_review,
+            RPHO_PHOTO_URL="https://example.com/photo-1.jpg",
+            RPHO_PHOTO_PUBLIC_ID="review-photo-1",
+        )
+        ReviewPhoto.objects.create(
+            REVW_ID=photo_review,
+            RPHO_PHOTO_URL="https://example.com/photo-2.jpg",
+            RPHO_PHOTO_PUBLIC_ID="review-photo-2",
+        )
+
+        empty_review = self.create_review(text="")
+        empty_dispute = self.create_dispute(review=empty_review)
+
+        response = self.client.get(self.list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        items = {
+            item["id"]: item
+            for item in response.data["data"]["items"]
+        }
+        self.assertEqual(
+            items[text_dispute.MRDSP_ID]["review_text_preview"],
+            long_text[:160],
+        )
+        self.assertEqual(
+            items[text_dispute.MRDSP_ID]["review_photo_count"],
+            0,
+        )
+        self.assertEqual(
+            items[photo_dispute.MRDSP_ID]["review_text_preview"],
+            "",
+        )
+        self.assertEqual(
+            items[photo_dispute.MRDSP_ID]["review_photo_count"],
+            2,
+        )
+        self.assertEqual(
+            items[empty_dispute.MRDSP_ID]["review_text_preview"],
+            "",
+        )
+        self.assertEqual(
+            items[empty_dispute.MRDSP_ID]["review_photo_count"],
+            0,
+        )
+        self.assertNotIn("review", items[text_dispute.MRDSP_ID])
+        self.assertNotIn("photos", items[text_dispute.MRDSP_ID])
+
+        disputes = list(ManageReviewDisputeService.list_disputes())
+        with self.assertNumQueries(0):
+            AdminReviewDisputeListSerializer(
+                disputes,
+                many=True,
+            ).data
+
+    def test_list_searches_cases_and_keeps_attempt_numbers_across_status_filters(self):
+        first_dispute = self.create_dispute(
+            dispute_status=MerchantReviewDispute.DisputeStatus.DISMISSED,
+        )
+        second_dispute = self.create_dispute(
+            description="Merchant provided receipt evidence.",
+        )
+        self.create_dispute(
+            review=self.create_review(),
+            description="Unrelated case.",
+        )
+
+        response = self.client.get(
+            self.list_url(),
+            {
+                "status": MerchantReviewDispute.DisputeStatus.PENDING,
+                "search": "receipt evidence",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["id"] for item in response.data["data"]["items"]],
+            [second_dispute.MRDSP_ID],
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["attempt_number"],
+            2,
+        )
+        self.assertNotEqual(
+            first_dispute.MRDSP_ID,
+            second_dispute.MRDSP_ID,
+        )
+
     def test_list_returns_successfully(self):
         dispute = self.create_dispute()
         self.merchant.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_2
@@ -544,6 +648,31 @@ class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
 
 
 class AdminReviewDisputeDetailViewTests(ManageReviewDisputeViewTestBase):
+    def test_detail_includes_admin_identity_and_review_edit_context(self):
+        edited_at = timezone.now()
+        self.review.REVW_EDITED_AT = edited_at
+        self.review.save(
+            update_fields=["REVW_EDITED_AT"],
+        )
+        dispute = self.create_dispute()
+
+        response = self.client.get(
+            self.detail_url(dispute.MRDSP_ID),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+        self.assertEqual(
+            response.data["data"]["merchant_id"],
+            self.merchant.USER_ID,
+        )
+        self.assertIsNotNone(
+            response.data["data"]["review"]["edited_at"],
+        )
+
     def test_get_dispute_successfully(self):
         dispute = self.create_dispute()
         self.explorer.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_4

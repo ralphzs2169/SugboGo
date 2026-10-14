@@ -62,6 +62,16 @@ class AdminUnderReviewFilterSerializer(serializers.Serializer):
     )
 
 
+class AdminUnderReviewRejectSerializer(serializers.Serializer):
+    """Require an internal explanation for a human rejection decision."""
+
+    moderation_notes = serializers.CharField(
+        min_length=20,
+        max_length=2000,
+        trim_whitespace=True,
+    )
+
+
 class AdminUnderReviewListSerializer(serializers.ModelSerializer):
     """Serialize only the details needed to scan the held-review queue."""
 
@@ -141,6 +151,9 @@ class AdminUnderReviewDetailSerializer(AdminUnderReviewListSerializer):
     photos = serializers.SerializerMethodField()
     moderation = serializers.SerializerMethodField()
     like_count = serializers.IntegerField(source="REVW_LIKE_COUNT")
+    reliability_check_outcome = serializers.CharField(
+        source="REVW_RELIABILITY_CHECK_OUTCOME"
+    )
     edited_at = serializers.DateTimeField(
         source="REVW_EDITED_AT",
         allow_null=True,
@@ -153,6 +166,7 @@ class AdminUnderReviewDetailSerializer(AdminUnderReviewListSerializer):
             "photos",
             "moderation",
             "like_count",
+            "reliability_check_outcome",
             "edited_at",
             "reply",
         )

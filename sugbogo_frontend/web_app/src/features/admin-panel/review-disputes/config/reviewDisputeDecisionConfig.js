@@ -89,4 +89,8 @@ const REVIEW_DISPUTE_DECISION_CONFIG = {
 
 export const MIN_MODERATION_NOTES_LENGTH = 20;
 
+export function appendDisputeTemplate(notes, text) {
+  return [notes.trim(), text].filter(Boolean).join("\n");
+}
+
 export default REVIEW_DISPUTE_DECISION_CONFIG;

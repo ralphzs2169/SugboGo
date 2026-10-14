@@ -43,6 +43,8 @@ export type BusinessReview = {
   is_liked: boolean;
   is_liked_by_owner: boolean;
   is_own_review: boolean;
+  /** Returned only for the authenticated review author. */
+  show_in_community?: boolean;
   has_reported: boolean;
   created_at: string;
   updated_at: string;

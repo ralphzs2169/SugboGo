@@ -31,11 +31,12 @@ after(async () => {
   await server?.close();
 });
 
-test("grouped queue forwards search, reason, sort, and pagination", async () => {
+test("grouped queue forwards search, reason, status, sort, and pagination", async () => {
   const calls = [];
   const params = {
     search: "Cafe",
     reason: "abuse",
+    status: "rejected",
     ordering: "oldest",
     page: 2,
     page_size: 10,
@@ -69,9 +70,13 @@ test("review decisions use one grouped endpoint with notes", async () => {
 
   await service.decideReportedReview(91, "keep", "No violation found on inspection.");
   await service.decideReportedReview(92, "reject", "Confirmed violation in review content.");
+  await service.decideReportedReview(93, "confirm", "Reports confirmed for rejected review.");
+  await service.decideReportedReview(94, "dismiss", "Reports dismissed for rejected review.");
 
   assert.deepEqual(calls, [
     ["/admin/review-reports/reviews/91/decision/", { decision: "keep", admin_notes: "No violation found on inspection." }],
     ["/admin/review-reports/reviews/92/decision/", { decision: "reject", admin_notes: "Confirmed violation in review content." }],
+    ["/admin/review-reports/reviews/93/decision/", { decision: "confirm", admin_notes: "Reports confirmed for rejected review." }],
+    ["/admin/review-reports/reviews/94/decision/", { decision: "dismiss", admin_notes: "Reports dismissed for rejected review." }],
   ]);
 });

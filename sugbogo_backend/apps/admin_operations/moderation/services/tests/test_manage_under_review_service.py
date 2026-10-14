@@ -128,9 +128,12 @@ class ManageUnderReviewServiceTests(TestCase):
         )
         self.assertEqual(activity.TARGET_USER_ID, self.author)
         self.assertEqual(activity.AACT_CONTEXT["review_id"], self.review.pk)
+        self.assertNotIn("moderation_notes", activity.AACT_CONTEXT)
+        self.assertIsNone(self.review.REVW_MODERATION_NOTES)
 
     def test_rejection_preserves_count_and_records_action_once(self):
         """A never-published review cannot decrement the public count."""
+        note = "The review contains threatening language after human review."
         with patch.object(
             ReviewService,
             "reject_under_review",
@@ -140,23 +143,45 @@ class ManageUnderReviewServiceTests(TestCase):
                 self.review.pk,
                 actor=self.admin,
                 approve=False,
+                moderation_notes=f"  {note}  ",
             )
             with self.assertRaises(ValidationError):
                 ManageUnderReviewService.resolve(
                     self.review.pk,
                     actor=self.admin,
                     approve=False,
+                    moderation_notes=note,
                 )
 
         reject.assert_called_once_with(self.review.pk)
         self.review.refresh_from_db()
         self.business.refresh_from_db()
         self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.assertEqual(self.review.REVW_MODERATION_NOTES, note)
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
         self.assertEqual(
             AdminActivity.objects.get().AACT_ACTION,
             AdminActivity.Action.REVIEW_MODERATION_REJECTED,
         )
+        self.assertEqual(
+            AdminActivity.objects.get().AACT_CONTEXT["moderation_notes"],
+            note,
+        )
+
+    def test_rejection_requires_valid_notes_before_transition(self):
+        """Direct service callers cannot bypass the rejection-note rule."""
+        for note in (None, "   ", "  Too short  ", "x" * 2001):
+            with self.subTest(note=note):
+                with self.assertRaises(ValidationError):
+                    ManageUnderReviewService.resolve(
+                        self.review.pk,
+                        actor=self.admin,
+                        approve=False,
+                        moderation_notes=note,
+                    )
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(AdminActivity.objects.count(), 0)
 
     def test_stale_opposite_decision_is_rejected(self):
         """An Admin cannot reject content another Admin already published."""

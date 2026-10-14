@@ -65,6 +65,7 @@ class SuspiciousReviewListSerializer(serializers.ModelSerializer):
         return {
             "id": review.BUSN_ID_id,
             "name": review.BUSN_ID.BUSN_NAME,
+            "cover_photo_url": review.BUSN_ID.BUSN_COVER_PHOTO_URL,
         }
 
     def get_text_preview(self, review):
@@ -109,6 +110,9 @@ class SuspiciousReviewDetailSerializer(serializers.ModelSerializer):
     submitted_at = serializers.DateTimeField(source="REVW_CREATED_AT")
     status = serializers.CharField(source="REVW_STATUS")
     reasons = serializers.ListField(source="REVW_RELIABILITY_REASONS")
+    reliability_check_outcome = serializers.CharField(
+        source="REVW_RELIABILITY_CHECK_OUTCOME"
+    )
     detection_evidence = serializers.SerializerMethodField()
     current_related_activity = serializers.SerializerMethodField()
     like_count = serializers.IntegerField(source="REVW_LIKE_COUNT")
@@ -130,6 +134,7 @@ class SuspiciousReviewDetailSerializer(serializers.ModelSerializer):
             "submitted_at",
             "status",
             "reasons",
+            "reliability_check_outcome",
             "detection_evidence",
             "current_related_activity",
             "like_count",
@@ -193,6 +198,13 @@ class SuspiciousReviewDetailSerializer(serializers.ModelSerializer):
         related = self.context.get("related_reviews", {})
         activity = {}
         for reason, reviews in related.items():
+            if reviews is None:
+                activity[reason] = {
+                    "reviews": [],
+                    "review_count": 0,
+                    "window_unavailable": True,
+                }
+                continue
             activity[reason] = {
                 "reviews": RelatedReviewSerializer(reviews, many=True).data,
                 "review_count": len(reviews),

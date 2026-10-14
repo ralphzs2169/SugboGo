@@ -7,6 +7,7 @@ from apps.admin_operations.moderation.serializers.manage_under_review_serializer
     AdminUnderReviewDetailSerializer,
     AdminUnderReviewFilterSerializer,
     AdminUnderReviewListSerializer,
+    AdminUnderReviewRejectSerializer,
 )
 from apps.admin_operations.moderation.services.manage_under_review_service import (
     ManageUnderReviewService,
@@ -78,10 +79,13 @@ class AdminUnderReviewRejectView(APIView):
 
     def post(self, request, review_id):
         """Apply the canonical rejection transition and audit it."""
+        input_serializer = AdminUnderReviewRejectSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
         review = ManageUnderReviewService.resolve(
             review_id,
             actor=request.user,
             approve=False,
+            moderation_notes=input_serializer.validated_data["moderation_notes"],
         )
         return success_response(
             data={"id": review.REVW_ID, "status": review.REVW_STATUS},

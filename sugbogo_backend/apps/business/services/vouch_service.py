@@ -72,6 +72,11 @@ class VouchService:
                 "You cannot vouch for your own business.",
             )
 
+        if business.BUSN_STATUS != Business.BusinessStatus.ACTIVE:
+            raise ValidationError(
+                "You cannot vouch for an inactive business.",
+            )
+
         try:
             tag = SpecialtyTag.objects.get(
                 TAG_ID=tag_id,
@@ -145,10 +150,14 @@ class VouchService:
         tag_id: int,
     ) -> None:
         try:
-            vouch = BusinessVouch.objects.get(
-                BUSN_ID=business_id,
-                USER_ID=user,
-                TAG_ID=tag_id,
+            vouch = (
+                BusinessVouch.objects
+                .select_for_update()
+                .get(
+                    BUSN_ID=business_id,
+                    USER_ID=user,
+                    TAG_ID=tag_id,
+                )
             )
         except BusinessVouch.DoesNotExist:
             raise NotFound(
