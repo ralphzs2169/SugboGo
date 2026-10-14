@@ -222,6 +222,49 @@ class BusinessVouchViewTests(APITestCase):
             self.business.vouches.exists(),
         )
 
+    def test_create_vouch_rejects_suspended_business(self):
+        self.business.BUSN_STATUS = Business.BusinessStatus.SUSPENDED
+        self.business.save(
+            update_fields=["BUSN_STATUS"],
+        )
+
+        response = self.client.post(
+            self.url,
+            {"tag_id": self.spicy_tag.TAG_ID},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["message"],
+            "You cannot vouch for an inactive business.",
+        )
+        self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+        self.assertFalse(self.business.vouches.exists())
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_VOUCH_COUNT, 0)
+
+    def test_merchant_cannot_vouch_for_suspended_business(self):
+        self.second_user.USER_ROLE = User.UserRole.MERCHANT
+        self.second_user.save(
+            update_fields=["USER_ROLE"],
+        )
+        self.client.force_authenticate(self.second_user)
+        self.business.BUSN_STATUS = Business.BusinessStatus.SUSPENDED
+        self.business.save(
+            update_fields=["BUSN_STATUS"],
+        )
+
+        response = self.client.post(
+            self.url,
+            {"tag_id": self.spicy_tag.TAG_ID},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+        self.assertFalse(self.business.vouches.exists())
+
     def test_create_vouch_rejects_missing_tag_id(self):
         payload = {
             "installation_id": "test-device-001",

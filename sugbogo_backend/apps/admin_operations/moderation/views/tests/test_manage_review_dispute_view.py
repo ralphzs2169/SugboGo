@@ -1,6 +1,7 @@
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -208,6 +209,40 @@ class ManageReviewDisputeViewTestBase(TestCase):
 
 
 class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
+    def test_list_searches_cases_and_keeps_attempt_numbers_across_status_filters(self):
+        first_dispute = self.create_dispute(
+            dispute_status=MerchantReviewDispute.DisputeStatus.DISMISSED,
+        )
+        second_dispute = self.create_dispute(
+            description="Merchant provided receipt evidence.",
+        )
+        self.create_dispute(
+            review=self.create_review(),
+            description="Unrelated case.",
+        )
+
+        response = self.client.get(
+            self.list_url(),
+            {
+                "status": MerchantReviewDispute.DisputeStatus.PENDING,
+                "search": "receipt evidence",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["id"] for item in response.data["data"]["items"]],
+            [second_dispute.MRDSP_ID],
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["attempt_number"],
+            2,
+        )
+        self.assertNotEqual(
+            first_dispute.MRDSP_ID,
+            second_dispute.MRDSP_ID,
+        )
+
     def test_list_returns_successfully(self):
         dispute = self.create_dispute()
         self.merchant.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_2
@@ -544,6 +579,31 @@ class AdminReviewDisputeListViewTests(ManageReviewDisputeViewTestBase):
 
 
 class AdminReviewDisputeDetailViewTests(ManageReviewDisputeViewTestBase):
+    def test_detail_includes_admin_identity_and_review_edit_context(self):
+        edited_at = timezone.now()
+        self.review.REVW_EDITED_AT = edited_at
+        self.review.save(
+            update_fields=["REVW_EDITED_AT"],
+        )
+        dispute = self.create_dispute()
+
+        response = self.client.get(
+            self.detail_url(dispute.MRDSP_ID),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+        self.assertEqual(
+            response.data["data"]["merchant_id"],
+            self.merchant.USER_ID,
+        )
+        self.assertIsNotNone(
+            response.data["data"]["review"]["edited_at"],
+        )
+
     def test_get_dispute_successfully(self):
         dispute = self.create_dispute()
         self.explorer.USER_AVATAR_KEY = User.AvatarKey.EXPLORER_AVATAR_4
