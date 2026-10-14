@@ -10,6 +10,12 @@ import { useLogout } from "../useLogout";
 jest.mock("@/shared/api/storage.service", () => ({
   clearTokens: jest.fn(),
 }));
+jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
+  clearOfflineAccess: jest.fn(),
+}));
+jest.mock("@/features/offline-routes/services/savedJourneys.service", () => ({
+  clearSavedJourneys: jest.fn(),
+}));
 jest.mock("@/features/merchant/stores/merchantRegistrationStore", () => ({
   useMerchantRegistrationStore: {
     getState: () => ({ reset: jest.fn() }),

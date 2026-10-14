@@ -6,6 +6,7 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import { API_ERROR_CODE } from "@/shared/constants/errorCodes";
 import NetInfo from "@react-native-community/netinfo";
+import { isTransportError } from "@/shared/utils/isTransportError";
 
 /**
  * Axios client for authenticated endpoints.
@@ -112,17 +113,22 @@ apiClient.interceptors.response.use(
         };
 
         return apiClient(originalRequest);
-      } catch {
+      } catch (refreshError) {
+        // A failed network exchange does not prove that the refresh token was rejected.
+        if (isTransportError(refreshError)) {
+          return Promise.reject(createApiError(API_ERROR_CODE.NETWORK_ERROR));
+        }
         // Refreshing failed, meaning the session is no longer valid.
         // Clear the local session, redirect the user to the login screen,
         // and set a flag so the login screen can display a one-time
         // "Your session has expired" message.
-        await clearTokens();
-        useAuthStore.getState().clearUser();
-
-        useAuthStore.getState().setSessionExpired(true);
-
-        router.replace("/(auth)/login");
+        try {
+          await clearTokens();
+        } finally {
+          useAuthStore.getState().clearUser();
+          useAuthStore.getState().setSessionExpired(true);
+          router.replace("/(auth)/login");
+        }
 
         return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
       }

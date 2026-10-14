@@ -21,9 +21,12 @@ import { useAuthStore } from "../../store/auth.store";
 
 const mockSetUser = jest.fn();
 
-jest.mock("@/shared/api/storage", () => ({
+jest.mock("@/shared/api/storage.service", () => ({
   saveAccessToken: jest.fn(),
   saveRefreshToken: jest.fn(),
+}));
+jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
+  clearOfflineAccess: jest.fn(),
 }));
 
 jest.mock("../../store/auth.store", () => ({
