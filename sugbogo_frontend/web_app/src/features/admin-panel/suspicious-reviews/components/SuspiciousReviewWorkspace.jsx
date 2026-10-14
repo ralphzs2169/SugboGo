@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Inbox } from "lucide-react";
@@ -8,6 +8,7 @@ import useDebounce from "@/shared/hooks/useDebounce";
 import ModerationQueueSkeleton from "../../moderation/components/ModerationQueueSkeleton";
 
 import { fetchSuspiciousReviews } from "../services/suspiciousReviewService";
+import { firstReviewOnLoadedPage } from "../utils/queueSelection";
 import InvestigationDetail from "./InvestigationDetail";
 import QueueFilters from "./QueueFilters";
 import QueueItem from "./QueueItem";
@@ -21,6 +22,7 @@ export default function SuspiciousReviewWorkspace() {
   const [signal, setSignal] = useState("");
   const [ordering, setOrdering] = useState("newest");
   const [page, setPage] = useState(1);
+  const pageToSelect = useRef(null);
   const debouncedSearch = useDebounce(search);
   const params = useMemo(() => ({
     page,
@@ -29,7 +31,7 @@ export default function SuspiciousReviewWorkspace() {
     signal: signal || undefined,
     ordering,
   }), [page, debouncedSearch, signal, ordering]);
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useQuery({
     queryKey: ["admin", "suspicious-reviews", "list", params],
     queryFn: () => fetchSuspiciousReviews(params),
     placeholderData: keepPreviousData,
@@ -37,6 +39,29 @@ export default function SuspiciousReviewWorkspace() {
   });
   const reviews = data?.items ?? [];
   const pagination = data?.pagination;
+
+  useEffect(() => {
+    const nextReviewId = firstReviewOnLoadedPage({
+      targetPage: pageToSelect.current,
+      loadedPage: pagination?.page,
+      isLoading,
+      isPlaceholderData,
+      error,
+      reviews: data?.items ?? [],
+    });
+    if (nextReviewId === undefined) {
+      return;
+    }
+
+    if (nextReviewId !== null) {
+      setSearchParams((previous) => {
+        const next = new URLSearchParams(previous);
+        next.set("suspicious_id", String(nextReviewId));
+        return next;
+      });
+    }
+    pageToSelect.current = null;
+  }, [page, isLoading, isPlaceholderData, error, pagination?.page, data?.items, setSearchParams]);
 
   function selectReview(reviewId) {
     setSearchParams((previous) => {
@@ -53,6 +78,13 @@ export default function SuspiciousReviewWorkspace() {
   function changeFilter(setter, value) {
     setter(value);
     setPage(1);
+    pageToSelect.current = null;
+    selectReview(null);
+  }
+
+  function changePage(nextPage) {
+    pageToSelect.current = nextPage;
+    setPage(nextPage);
     selectReview(null);
   }
 
@@ -77,7 +109,7 @@ export default function SuspiciousReviewWorkspace() {
           onOrderingChange={(value) => changeFilter(setOrdering, value)}
         />
         <div aria-busy={isLoading || isFetching} className="lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
-          {isLoading ? (
+          {isLoading || isPlaceholderData ? (
             <ModerationQueueSkeleton label="Loading suspicious reviews" />
           ) : error ? (
             <DataErrorState title="Unable to load suspicious reviews" message="The investigation queue could not be loaded." onRetry={refetch} />
@@ -89,9 +121,9 @@ export default function SuspiciousReviewWorkspace() {
         </div>
         {pagination && pagination.total_pages > 1 && (
           <div className="flex items-center justify-between border-t border-stroke px-4 py-3 text-sm text-text-secondary">
-            <button type="button" disabled={!pagination.has_previous} onClick={() => setPage((value) => value - 1)} className="disabled:opacity-40">Previous</button>
+            <button type="button" disabled={isFetching || !pagination.has_previous} onClick={() => changePage(page - 1)} className="disabled:opacity-40">Previous</button>
             <span>Page {pagination.page} of {pagination.total_pages}</span>
-            <button type="button" disabled={!pagination.has_next} onClick={() => setPage((value) => value + 1)} className="disabled:opacity-40">Next</button>
+            <button type="button" disabled={isFetching || !pagination.has_next} onClick={() => changePage(page + 1)} className="disabled:opacity-40">Next</button>
           </div>
         )}
       </aside>

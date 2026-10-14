@@ -65,6 +65,7 @@ class SuspiciousReviewListSerializer(serializers.ModelSerializer):
         return {
             "id": review.BUSN_ID_id,
             "name": review.BUSN_ID.BUSN_NAME,
+            "cover_photo_url": review.BUSN_ID.BUSN_COVER_PHOTO_URL,
         }
 
     def get_text_preview(self, review):

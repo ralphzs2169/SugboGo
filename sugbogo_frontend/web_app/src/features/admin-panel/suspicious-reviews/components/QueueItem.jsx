@@ -1,23 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
 import { Image as ImageIcon, MessageSquare, Pencil, Store } from "lucide-react";
 
 import UserAvatar from "@/shared/components/UserAvatar";
 import { formatDateTime } from "@/shared/utils/dateUtils";
-import { fetchBusiness } from "../../businesses/services/businessService";
 import { formatModerationQueueTime } from "../../moderation/components/reviewPresentation";
 import { displayName } from "../utils/suspiciousReviewPresentation";
 import SignalBadges from "./SignalBadges";
 
 function QueueItem({ review, selected, onSelect }) {
-  const { data: businessDetails } = useQuery({
-    queryKey: ["admin", "businesses", "detail", review.business.id],
-    queryFn: () => fetchBusiness(review.business.id),
-    enabled: Boolean(review.business.id) && !review.business.cover_photo_url,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-  const businessCoverUrl = review.business.cover_photo_url || businessDetails?.cover_photo_url;
-
   return (
     <button
       type="button"
@@ -46,8 +35,8 @@ function QueueItem({ review, selected, onSelect }) {
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
-              {businessCoverUrl ? (
-                <img src={businessCoverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+              {review.business.cover_photo_url ? (
+                <img src={review.business.cover_photo_url} alt="" loading="lazy" className="h-full w-full object-cover" />
               ) : (
                 <Store className="h-3.5 w-3.5" aria-hidden="true" />
               )}

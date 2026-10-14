@@ -5,6 +5,7 @@ import UserAvatar from "@/shared/components/UserAvatar";
 import { formatDateTime } from "@/shared/utils/dateUtils";
 import { ReviewStatusBadge } from "../../moderation/components/ReviewIdentityHeader";
 import { displayName } from "../utils/suspiciousReviewPresentation";
+import { relatedReviewTargetId } from "../utils/relatedReviewNavigation";
 
 function relationshipText(review, hasBaseline) {
   if (!hasBaseline) {
@@ -26,14 +27,15 @@ function relationshipText(review, hasBaseline) {
   return null;
 }
 
-function RelatedReviewRow({ review, hasBaseline }) {
+function RelatedReviewRow({ review, hasBaseline, reason }) {
   const { author, business } = review;
   const relationship = relationshipText(review, hasBaseline);
 
   return (
     <article
-      id={`related-review-${review.id}`}
-      className="scroll-mt-24 px-4 py-4 transition-colors hover:bg-interaction-hover"
+      id={relatedReviewTargetId(reason, review.id)}
+      tabIndex={-1}
+      className="scroll-mt-24 px-4 py-4 transition-colors hover:bg-interaction-hover focus:outline focus:outline-2 focus:outline-offset-[-2px] focus:outline-info/40"
     >
       {/* Review identity */}
       <div className="flex min-w-0 items-start justify-between gap-4">

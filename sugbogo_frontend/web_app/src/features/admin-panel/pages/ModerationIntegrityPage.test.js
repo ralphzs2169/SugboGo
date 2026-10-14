@@ -14,6 +14,7 @@ let getLegacyModerationDestination;
 let DecisionDialog;
 let ReportedQueueFilters;
 let SuspiciousQueueFilters;
+let SuspiciousCurrentActivity;
 let UnderReviewDecisionDialog;
 let UnderReviewQueueFilters;
 
@@ -42,6 +43,9 @@ before(async () => {
   ));
   ({ default: SuspiciousQueueFilters } = await server.ssrLoadModule(
     "/src/features/admin-panel/suspicious-reviews/components/QueueFilters.jsx",
+  ));
+  ({ default: SuspiciousCurrentActivity } = await server.ssrLoadModule(
+    "/src/features/admin-panel/suspicious-reviews/components/CurrentActivity.jsx",
   ));
   ({ default: UnderReviewDecisionDialog } = await server.ssrLoadModule(
     "/src/features/admin-panel/under-review/components/DecisionDialog.jsx",
@@ -872,6 +876,66 @@ test("Suspicious queue uses review identity and neutral context without likes", 
   assert.doesNotMatch(queue, /12 likes/);
 });
 
+test("Suspicious queue uses the API cover and keeps the Store fallback", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious",
+    {
+      suspiciousList: {
+        items: [
+          {
+            ...suspiciousReview,
+            business: {
+              ...suspiciousReview.business,
+              cover_photo_url: "https://example.com/queue-cover.jpg",
+            },
+          },
+          {
+            ...suspiciousReview,
+            id: 84,
+            business: {
+              ...suspiciousReview.business,
+              cover_photo_url: null,
+            },
+          },
+        ],
+        pagination: { page: 1, total_pages: 1 },
+      },
+    },
+  );
+  const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
+
+  assert.match(queue, /src="https:\/\/example.com\/queue-cover.jpg"/);
+  assert.match(queue, /lucide-store/);
+});
+
+test("Suspicious related activity gives repeated records one target per signal", () => {
+  const related = {
+    id: 41,
+    status: "published",
+    text: "Related review",
+    author: suspiciousReview.author,
+    business: suspiciousReview.business,
+  };
+  const html = renderToString(React.createElement(
+    MemoryRouter,
+    null,
+    React.createElement(SuspiciousCurrentActivity, {
+      review: {
+        reasons: ["duplicate_content", "rapid_submission"],
+        current_related_activity: {
+          referenced_reviews: [related],
+          duplicate_content: { reviews: [related, related] },
+          rapid_submission: { reviews: [related, related] },
+        },
+      },
+    }),
+  ));
+
+  assert.equal((html.match(/id="related-review-duplicate_content-41"/g) ?? []).length, 1);
+  assert.equal((html.match(/id="related-review-rapid_submission-41"/g) ?? []).length, 1);
+  assert.equal((html.match(/tabindex="-1"/g) ?? []).length, 2);
+});
+
 test("selected Suspicious detail separates detection evidence and live activity", () => {
   const html = renderPage(
     "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
@@ -930,6 +994,9 @@ test("selected Suspicious detail separates detection evidence and live activity"
   assert.match(html, /Current Related Activity/);
   assert.match(html, /Live records available now/);
   assert.match(html, /Original matching review/);
+  assert.match(html, /data-suspicious-investigation-scroll="true"/);
+  assert.match(html, /id="related-review-duplicate_content-41" tabindex="-1"/);
+  assert.match(html, /focus:outline-info\/40/);
   assert.match(html, /Present at detection · No longer related/);
   assert.match(html, /No related records are currently available/);
   assert.doesNotMatch(html, /Merchant Response/);

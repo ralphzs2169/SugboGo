@@ -17,6 +17,12 @@ from apps.admin_operations.business_management.serializers.manage_business_seria
 from apps.admin_operations.moderation.serializers.manage_under_review_serializers import (
     AdminUnderReviewDetailSerializer,
 )
+from apps.admin_operations.moderation.serializers.suspicious_review_serializers import (
+    SuspiciousReviewListSerializer,
+)
+from apps.admin_operations.moderation.services.suspicious_review_service import (
+    SuspiciousReviewService,
+)
 from apps.business.models import Business
 from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
@@ -220,6 +226,10 @@ class SuspiciousReviewViewTests(TestCase):
         self.assertTrue(queue["has_reply"])
         self.assertTrue(queue["is_edited"])
         self.assertNotIn("like_count", queue)
+        self.assertEqual(
+            queue["business"]["cover_photo_url"],
+            "https://example.com/cover.jpg",
+        )
 
         detail = self.client.get(
             reverse("admin-suspicious-review-detail", args=[review.pk]),
@@ -239,6 +249,40 @@ class SuspiciousReviewViewTests(TestCase):
         self.assertEqual(
             detail["business"]["category_name"],
             self.business.CTGRY_ID.CTGRY_NAME,
+        )
+
+    def test_queue_cover_uses_joined_business_without_per_review_queries(self):
+        """A paginated queue includes nullable covers from its existing join."""
+        reason = Review.ReliabilityReason.RAPID_SUBMISSION
+        first = self.create_review("First signaled review", [reason])
+        second = self.create_review("Second signaled review", [reason])
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+
+        with self.assertNumQueries(1):
+            items = SuspiciousReviewListSerializer(
+                SuspiciousReviewService.list_reviews({})[:2],
+                many=True,
+            ).data
+
+        self.assertEqual({item["id"] for item in items}, {first.pk, second.pk})
+        self.assertTrue(
+            all(
+                item["business"]["cover_photo_url"]
+                == "https://example.com/cover.jpg"
+                for item in items
+            ),
+        )
+
+        self.business.BUSN_COVER_PHOTO_URL = None
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+        response = self.client.get(reverse("admin-suspicious-review-list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            all(
+                item["business"]["cover_photo_url"] is None
+                for item in response.data["data"]["items"]
+            ),
         )
 
     def test_search_signal_sort_and_pagination(self):

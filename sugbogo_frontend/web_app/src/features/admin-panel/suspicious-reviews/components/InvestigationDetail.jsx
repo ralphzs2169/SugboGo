@@ -44,7 +44,7 @@ function InvestigationDetail({ reviewId, onStale }) {
   }
 
   return (
-    <div ref={scrollContainerRef} className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
+    <div ref={scrollContainerRef} data-suspicious-investigation-scroll className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
       <ReviewStickyContextBar review={review} visible={showContextBar} />
       <article className="space-y-6 p-5 sm:p-6">
         <div ref={reviewHeaderRef}>
