@@ -226,6 +226,7 @@ class ReviewViewTests(APITestCase):
         self.assertNotIn("report_count", response.data["data"])
         self.assertNotIn("is_report_flagged", response.data["data"])
         self.assertNotIn("reliability_reasons", response.data["data"])
+        self.assertNotIn("reliability_check_outcome", response.data["data"])
         self.assertNotIn("installation_id", response.data["data"])
         self.assertNotIn("is_device_abuse_flagged", response.data["data"])
 

@@ -11,6 +11,18 @@ from rest_framework.test import APIClient
 from apps.admin_operations.moderation.services.tests.test_manage_under_review_service import (
     create_under_review_context,
 )
+from apps.admin_operations.business_management.serializers.manage_business_serializers import (
+    AdminReviewResponseSerializer,
+)
+from apps.admin_operations.moderation.serializers.manage_under_review_serializers import (
+    AdminUnderReviewDetailSerializer,
+)
+from apps.admin_operations.moderation.serializers.suspicious_review_serializers import (
+    SuspiciousReviewListSerializer,
+)
+from apps.admin_operations.moderation.services.suspicious_review_service import (
+    SuspiciousReviewService,
+)
 from apps.business.models import Business
 from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
@@ -139,6 +151,57 @@ class SuspiciousReviewViewTests(TestCase):
                 )
                 self.assertEqual(self.client.get(detail).status_code, expected)
 
+    def test_admin_reliability_outcome_is_separate_from_queue_eligibility(self):
+        """Only saved signals enter Suspicious, regardless of check outcome."""
+        reason = Review.ReliabilityReason.RAPID_SUBMISSION
+        signaled = self.create_review("Signaled review", [reason])
+        clean_failure = self.create_review("Unsignaled failed check")
+        held = self.create_review(
+            "Held review",
+            status=Review.ReviewStatus.UNDER_REVIEW,
+        )
+
+        for outcome in Review.ReliabilityCheckOutcome.values:
+            with self.subTest(outcome=outcome):
+                Review.objects.filter(pk=signaled.pk).update(
+                    REVW_RELIABILITY_CHECK_OUTCOME=outcome,
+                )
+                detail = self.client.get(
+                    reverse("admin-suspicious-review-detail", args=[signaled.pk]),
+                )
+                self.assertEqual(detail.status_code, 200)
+                self.assertEqual(
+                    detail.data["data"]["reliability_check_outcome"],
+                    outcome,
+                )
+                self.assertNotIn("error_type", str(detail.data["data"]))
+
+        Review.objects.filter(pk=clean_failure.pk).update(
+            REVW_RELIABILITY_CHECK_OUTCOME=(
+                Review.ReliabilityCheckOutcome.UNAVAILABLE
+            ),
+        )
+        queue = self.client.get(reverse("admin-suspicious-review-list"))
+        self.assertEqual(queue.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in queue.data["data"]["items"]],
+            [signaled.pk],
+        )
+
+        clean_failure.refresh_from_db()
+        self.assertEqual(
+            AdminReviewResponseSerializer(clean_failure).data[
+                "reliability_check_outcome"
+            ],
+            Review.ReliabilityCheckOutcome.UNAVAILABLE,
+        )
+        self.assertEqual(
+            AdminUnderReviewDetailSerializer(held).data[
+                "reliability_check_outcome"
+            ],
+            Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+
     def test_admin_presentation_context_is_kept_in_admin_responses(self):
         """Queue context and full review identity use existing review records."""
         review = self.create_review(
@@ -163,6 +226,10 @@ class SuspiciousReviewViewTests(TestCase):
         self.assertTrue(queue["has_reply"])
         self.assertTrue(queue["is_edited"])
         self.assertNotIn("like_count", queue)
+        self.assertEqual(
+            queue["business"]["cover_photo_url"],
+            "https://example.com/cover.jpg",
+        )
 
         detail = self.client.get(
             reverse("admin-suspicious-review-detail", args=[review.pk]),
@@ -182,6 +249,40 @@ class SuspiciousReviewViewTests(TestCase):
         self.assertEqual(
             detail["business"]["category_name"],
             self.business.CTGRY_ID.CTGRY_NAME,
+        )
+
+    def test_queue_cover_uses_joined_business_without_per_review_queries(self):
+        """A paginated queue includes nullable covers from its existing join."""
+        reason = Review.ReliabilityReason.RAPID_SUBMISSION
+        first = self.create_review("First signaled review", [reason])
+        second = self.create_review("Second signaled review", [reason])
+        self.business.BUSN_COVER_PHOTO_URL = "https://example.com/cover.jpg"
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+
+        with self.assertNumQueries(1):
+            items = SuspiciousReviewListSerializer(
+                SuspiciousReviewService.list_reviews({})[:2],
+                many=True,
+            ).data
+
+        self.assertEqual({item["id"] for item in items}, {first.pk, second.pk})
+        self.assertTrue(
+            all(
+                item["business"]["cover_photo_url"]
+                == "https://example.com/cover.jpg"
+                for item in items
+            ),
+        )
+
+        self.business.BUSN_COVER_PHOTO_URL = None
+        self.business.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+        response = self.client.get(reverse("admin-suspicious-review-list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            all(
+                item["business"]["cover_photo_url"] is None
+                for item in response.data["data"]["items"]
+            ),
         )
 
     def test_search_signal_sort_and_pagination(self):
@@ -413,6 +514,11 @@ class SuspiciousReviewViewTests(TestCase):
                 shared: {"distinct_account_count": 4},
             },
         )
+        evidence = review.REVW_RELIABILITY_EVIDENCE
+        evidence[rapid]["observed_at"] = review.REVW_CREATED_AT.isoformat()
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_EVIDENCE=evidence,
+        )
         related = self.create_review(
             "Related review",
             installation_id="private-installation",
@@ -442,6 +548,131 @@ class SuspiciousReviewViewTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [rapid, shared])
+
+    def test_rapid_activity_uses_detection_observation_window(self):
+        """Live activity uses the saved observation and inclusive boundaries."""
+        rapid = Review.ReliabilityReason.RAPID_SUBMISSION
+        review = self.create_review(
+            "Detected review",
+            [rapid],
+            installation_id="rapid-installation",
+        )
+        observed_at = timezone.now()
+        window_start = observed_at - timedelta(hours=24)
+        evidence = {
+            rapid: {
+                "observed_at": observed_at.isoformat(),
+                "review_count": 11,
+                "window_hours": 24,
+            },
+        }
+        Review.objects.filter(pk=review.pk).update(
+            REVW_CREATED_AT=observed_at - timedelta(days=10),
+            REVW_RELIABILITY_EVIDENCE=evidence,
+        )
+        candidates = [
+            (
+                "At start",
+                window_start,
+                "rapid-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+            (
+                "At end",
+                observed_at,
+                "rapid-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+            (
+                "Rejected related",
+                observed_at - timedelta(hours=1),
+                "rapid-installation",
+                Review.ReviewStatus.REJECTED,
+            ),
+            (
+                "Before start",
+                window_start - timedelta(microseconds=1),
+                "rapid-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+            (
+                "After end",
+                observed_at + timedelta(microseconds=1),
+                "rapid-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+            (
+                "Different installation",
+                observed_at - timedelta(hours=1),
+                "other-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+        ]
+        included_ids = set()
+        for text, created_at, installation_id, status in candidates:
+            related = self.create_review(
+                text,
+                status=status,
+                installation_id=installation_id,
+            )
+            Review.objects.filter(pk=related.pk).update(
+                REVW_CREATED_AT=created_at,
+            )
+            if text in {"At start", "At end", "Rejected related"}:
+                included_ids.add(related.pk)
+
+        data = self.client.get(
+            reverse("admin-suspicious-review-detail", args=[review.pk]),
+        ).data["data"]
+
+        activity = data["current_related_activity"][rapid]
+        self.assertEqual(
+            {item["id"] for item in activity["reviews"]},
+            included_ids,
+        )
+        self.assertEqual(activity["review_count"], 3)
+        self.assertEqual(data["detection_evidence"][rapid]["review_count"], 11)
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
+
+    def test_rapid_activity_without_valid_observation_has_no_live_window(self):
+        """Legacy or invalid evidence must not invent a creation-time window."""
+        rapid = Review.ReliabilityReason.RAPID_SUBMISSION
+        observations = [
+            None,
+            "not-a-date",
+            "2026-10-10T12:00:00",
+        ]
+        for observed_at in observations:
+            with self.subTest(observed_at=observed_at):
+                rapid_evidence = {
+                    "review_count": 11,
+                    "window_hours": 24,
+                }
+                if observed_at is not None:
+                    rapid_evidence["observed_at"] = observed_at
+                evidence = {rapid: rapid_evidence}
+                review = self.create_review(
+                    "Legacy rapid review",
+                    [rapid],
+                    installation_id="rapid-installation",
+                    evidence=evidence,
+                )
+
+                data = self.client.get(
+                    reverse("admin-suspicious-review-detail", args=[review.pk]),
+                ).data["data"]
+
+                self.assertEqual(
+                    data["current_related_activity"][rapid],
+                    {
+                        "reviews": [],
+                        "review_count": 0,
+                        "window_unavailable": True,
+                    },
+                )
+                review.refresh_from_db()
+                self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
 
     def test_ordinary_review_response_omits_reliability_evidence(self):
         """The public review serializer exposes no investigation data."""

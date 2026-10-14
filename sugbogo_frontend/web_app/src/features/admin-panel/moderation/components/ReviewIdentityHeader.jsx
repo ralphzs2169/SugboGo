@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Clock3, ExternalLink, Store } from "lucide-react";
+import { ExternalLink, Store } from "lucide-react";
 
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 import StatusBadge from "@/shared/components/StatusBadge";
@@ -79,18 +79,27 @@ export default function ReviewIdentityHeader({ review, statusVariant }) {
             size="sm"
           />
 
-          <Link
-            to={`/admin-panel/users/${review.author.id}`}
-            className={profileLinkClass}
-            title={authorName}
-          >
-            <span className="truncate">{authorName}</span>
+          <div className="min-w-0">
+            <Link
+              to={`/admin-panel/users/${review.author.id}`}
+              className={profileLinkClass}
+              title={authorName}
+            >
+              <span className="truncate">{authorName}</span>
 
-            <ExternalLink
-              className="h-3.5 w-3.5 shrink-0 text-text-secondary transition-colors group-hover:text-primary"
-              aria-hidden="true"
-            />
-          </Link>
+              <ExternalLink
+                className="h-3.5 w-3.5 shrink-0 text-text-secondary transition-colors group-hover:text-primary"
+                aria-hidden="true"
+              />
+            </Link>
+
+            <p className="mt-0.5 text-xs text-text-secondary">
+              Submitted {" "}
+              <time dateTime={review.submitted_at}>
+                {formatReviewTimestamp(review.submitted_at)}
+              </time>
+            </p>
+          </div>
         </div>
 
         {/* Business */}
@@ -149,19 +158,6 @@ export default function ReviewIdentityHeader({ review, statusVariant }) {
         </div>
       </div>
 
-      {/* Submission date inside the header metadata row */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-stroke pt-3 text-xs text-text-secondary">
-        <div className="ml-auto inline-flex shrink-0 items-center gap-1.5">
-          <Clock3
-            className="h-3.5 w-3.5"
-            aria-hidden="true"
-          />
-
-          <time dateTime={review.submitted_at}>
-            {formatReviewTimestamp(review.submitted_at)}
-          </time>
-        </div>
-      </div>
     </header>
   );
 }

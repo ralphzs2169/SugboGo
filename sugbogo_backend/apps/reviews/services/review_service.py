@@ -1,7 +1,8 @@
 import logging
 from datetime import timedelta
+from hashlib import blake2b
 
-from django.db import IntegrityError, models, transaction
+from django.db import IntegrityError, connection, models, transaction
 from django.db.models import Avg, Count, Exists, OuterRef, Q, Subquery
 from django.db.models.functions import Greatest
 from django.utils import timezone
@@ -44,6 +45,35 @@ class ReviewService:
     DEVICE_REVIEW_WINDOW = timedelta(hours=24)
     DUPLICATE_REVIEW_WINDOW = timedelta(days=30)
     DUPLICATE_PRIOR_MATCHES = 2
+
+    @staticmethod
+    def _lock_reliability_creation_keys(
+        user_id: int,
+        installation_id: str | None,
+    ) -> None:
+        """Serialize overlapping review creations before detection queries run."""
+        if connection.vendor != "postgresql":
+            return
+
+        keys = [f"review-reliability:user:{user_id}"]
+        if installation_id is not None and installation_id.strip():
+            keys.append(f"review-reliability:installation:{installation_id}")
+
+        # Stable, ordered keys avoid process-local mutexes and lock-order deadlocks.
+        lock_ids = sorted(
+            int.from_bytes(
+                blake2b(key.encode("utf-8"), digest_size=8).digest(),
+                byteorder="big",
+                signed=True,
+            )
+            for key in keys
+        )
+        with connection.cursor() as cursor:
+            for lock_id in lock_ids:
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(%s)",
+                    [lock_id],
+                )
 
     @staticmethod
     def _queue_sentiment_after_commit(review_id: int, business_id: int) -> None:
@@ -391,6 +421,10 @@ class ReviewService:
                 uploaded_photos.append(upload_result)
 
             with transaction.atomic():
+                ReviewService._lock_reliability_creation_keys(
+                    user.USER_ID,
+                    installation_id,
+                )
                 try:
                     review = Review.objects.create(
                         USER_ID=user,
@@ -422,6 +456,9 @@ class ReviewService:
                             reliability_reasons,
                             reliability_evidence,
                         ) = ReviewService._reliability_reasons(review)
+                    reliability_check_outcome = (
+                        Review.ReliabilityCheckOutcome.CHECKED
+                    )
                 except Exception as exc:
                     logger.error(
                         "Review reliability evaluation failed.",
@@ -432,9 +469,13 @@ class ReviewService:
                     )
                     reliability_reasons = []
                     reliability_evidence = {}
+                    reliability_check_outcome = (
+                        Review.ReliabilityCheckOutcome.UNAVAILABLE
+                    )
 
                 review.REVW_RELIABILITY_REASONS = reliability_reasons
                 review.REVW_RELIABILITY_EVIDENCE = reliability_evidence
+                review.REVW_RELIABILITY_CHECK_OUTCOME = reliability_check_outcome
                 installation_reasons = {
                     Review.ReliabilityReason.RAPID_SUBMISSION,
                     Review.ReliabilityReason.SHARED_INSTALLATION_ACCOUNTS,
@@ -447,6 +488,7 @@ class ReviewService:
                         "REVW_MODERATION_DATA",
                         "REVW_RELIABILITY_REASONS",
                         "REVW_RELIABILITY_EVIDENCE",
+                        "REVW_RELIABILITY_CHECK_OUTCOME",
                         "REVW_IS_DEVICE_ABUSE_FLAGGED",
                         "REVW_UPDATED_AT",
                     ],
@@ -953,9 +995,20 @@ class ReviewService:
             raise
 
         if text_changed:
+            duplicate_already_recorded = (
+                Review.ReliabilityReason.DUPLICATE_CONTENT
+                in review.REVW_RELIABILITY_REASONS
+            )
             try:
                 with transaction.atomic():
                     ReviewService._record_edit_duplicate_content(review)
+                    if not duplicate_already_recorded:
+                        review.REVW_RELIABILITY_CHECK_OUTCOME = (
+                            Review.ReliabilityCheckOutcome.CHECKED
+                        )
+                        review.save(
+                            update_fields=["REVW_RELIABILITY_CHECK_OUTCOME"],
+                        )
             except Exception as exc:
                 logger.error(
                     "Review edit duplicate reliability evaluation failed.",
@@ -963,6 +1016,12 @@ class ReviewService:
                         "review_id": review.REVW_ID,
                         "error_type": type(exc).__name__,
                     },
+                )
+                review.REVW_RELIABILITY_CHECK_OUTCOME = (
+                    Review.ReliabilityCheckOutcome.UNAVAILABLE
+                )
+                review.save(
+                    update_fields=["REVW_RELIABILITY_CHECK_OUTCOME"],
                 )
             BusinessReviewSummaryService.recompute_sentiment(
                 review.BUSN_ID_id,

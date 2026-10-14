@@ -135,18 +135,37 @@ class SuspiciousReviewService:
             has_installation
             and Review.ReliabilityReason.RAPID_SUBMISSION in reasons
         ):
-            related[Review.ReliabilityReason.RAPID_SUBMISSION] = list(
-                Review.objects
-                .select_related("USER_ID", "BUSN_ID")
-                .filter(
-                    REVW_INSTALLATION_ID=installation_id,
-                    REVW_CREATED_AT__gte=(
-                        review.REVW_CREATED_AT - ReviewService.DEVICE_REVIEW_WINDOW
-                    ),
-                    REVW_CREATED_AT__lte=review.REVW_CREATED_AT,
+            evidence = review.REVW_RELIABILITY_EVIDENCE
+            rapid_evidence = None
+            if isinstance(evidence, dict):
+                rapid_evidence = evidence.get(
+                    Review.ReliabilityReason.RAPID_SUBMISSION
                 )
-                .order_by("-REVW_CREATED_AT", "-REVW_ID")
-            )
+            observed_at = None
+            if isinstance(rapid_evidence, dict):
+                observed_at = rapid_evidence.get("observed_at")
+            window_end = None
+            if isinstance(observed_at, str):
+                try:
+                    window_end = parse_datetime(observed_at)
+                except ValueError:
+                    pass
+
+            if window_end is None or timezone.is_naive(window_end):
+                related[Review.ReliabilityReason.RAPID_SUBMISSION] = None
+            else:
+                related[Review.ReliabilityReason.RAPID_SUBMISSION] = list(
+                    Review.objects
+                    .select_related("USER_ID", "BUSN_ID")
+                    .filter(
+                        REVW_INSTALLATION_ID=installation_id,
+                        REVW_CREATED_AT__gte=(
+                            window_end - ReviewService.DEVICE_REVIEW_WINDOW
+                        ),
+                        REVW_CREATED_AT__lte=window_end,
+                    )
+                    .order_by("-REVW_CREATED_AT", "-REVW_ID")
+                )
 
         if (
             has_installation

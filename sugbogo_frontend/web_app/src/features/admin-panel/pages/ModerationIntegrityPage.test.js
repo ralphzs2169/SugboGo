@@ -14,6 +14,7 @@ let getLegacyModerationDestination;
 let DecisionDialog;
 let ReportedQueueFilters;
 let SuspiciousQueueFilters;
+let SuspiciousCurrentActivity;
 let UnderReviewDecisionDialog;
 let UnderReviewQueueFilters;
 
@@ -42,6 +43,9 @@ before(async () => {
   ));
   ({ default: SuspiciousQueueFilters } = await server.ssrLoadModule(
     "/src/features/admin-panel/suspicious-reviews/components/QueueFilters.jsx",
+  ));
+  ({ default: SuspiciousCurrentActivity } = await server.ssrLoadModule(
+    "/src/features/admin-panel/suspicious-reviews/components/CurrentActivity.jsx",
   ));
   ({ default: UnderReviewDecisionDialog } = await server.ssrLoadModule(
     "/src/features/admin-panel/under-review/components/DecisionDialog.jsx",
@@ -581,16 +585,17 @@ test("selected detail separates text and photo findings", () => {
   assert.match(header, /Restaurants/);
   assert.match(header, /Oct 10, 2026 ·/);
   assert.match(html, /Review photos/);
-  const reviewContent = html.match(/<section class="[^"]*rounded-lg border border-stroke bg-surface p-4[^"]*">(.*?)<\/section>/s)?.[1];
+  const reviewContent = html.match(/<section aria-label="Review content" class="[^"]*rounded-lg border border-stroke bg-surface p-4[^"]*">(.*?)<\/section>/s)?.[1];
   assert.ok(reviewContent);
-  assert.match(reviewContent, /lucide-quote/);
+  assert.doesNotMatch(reviewContent, /lucide-quote|REVIEW CONTENT/);
   assert.match(reviewContent, /lucide-thumbs-up/);
   assert.doesNotMatch(reviewContent, /lucide-heart/);
-  assert.match(reviewContent.replaceAll("<!-- -->", ""), /12 likes/);
-  assert.match(reviewContent.replaceAll("<!-- -->", ""), /2 photos/);
+  assert.match(reviewContent.replaceAll("<!-- -->", ""), /12 found this helpful/);
+  assert.match(reviewContent.replaceAll("<!-- -->", ""), /Review photos \(2\)/);
+  assert.doesNotMatch(reviewContent.replaceAll("<!-- -->", ""), />2 photos</);
   assert.match(reviewContent, /Edited Oct 11, 2026 ·/);
   assert.match(reviewContent, /Merchant Response/);
-  assert.match(reviewContent, /border-l-2 border-primary bg-surface-muted\/40/);
+  assert.match(reviewContent, /border-l-2 border-l-primary/);
   assert.match(reviewContent, /Thank you for sharing your visit/);
   assert.match(reviewContent, /dateTime="2026-10-11T02:15:00Z"/);
   assert.doesNotMatch(header, /12 likes|2 photos|Edited|Merchant reply/);
@@ -789,6 +794,7 @@ const suspiciousReview = {
   first_photo_url: "https://example.com/photo.jpg",
   photo_count: 2,
   submitted_at: "2026-10-10T09:00:00Z",
+  reliability_check_outcome: "checked",
   reasons: ["duplicate_content", "rapid_submission"],
 };
 
@@ -870,6 +876,66 @@ test("Suspicious queue uses review identity and neutral context without likes", 
   assert.doesNotMatch(queue, /12 likes/);
 });
 
+test("Suspicious queue uses the API cover and keeps the Store fallback", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious",
+    {
+      suspiciousList: {
+        items: [
+          {
+            ...suspiciousReview,
+            business: {
+              ...suspiciousReview.business,
+              cover_photo_url: "https://example.com/queue-cover.jpg",
+            },
+          },
+          {
+            ...suspiciousReview,
+            id: 84,
+            business: {
+              ...suspiciousReview.business,
+              cover_photo_url: null,
+            },
+          },
+        ],
+        pagination: { page: 1, total_pages: 1 },
+      },
+    },
+  );
+  const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
+
+  assert.match(queue, /src="https:\/\/example.com\/queue-cover.jpg"/);
+  assert.match(queue, /lucide-store/);
+});
+
+test("Suspicious related activity gives repeated records one target per signal", () => {
+  const related = {
+    id: 41,
+    status: "published",
+    text: "Related review",
+    author: suspiciousReview.author,
+    business: suspiciousReview.business,
+  };
+  const html = renderToString(React.createElement(
+    MemoryRouter,
+    null,
+    React.createElement(SuspiciousCurrentActivity, {
+      review: {
+        reasons: ["duplicate_content", "rapid_submission"],
+        current_related_activity: {
+          referenced_reviews: [related],
+          duplicate_content: { reviews: [related, related] },
+          rapid_submission: { reviews: [related, related] },
+        },
+      },
+    }),
+  ));
+
+  assert.equal((html.match(/id="related-review-duplicate_content-41"/g) ?? []).length, 1);
+  assert.equal((html.match(/id="related-review-rapid_submission-41"/g) ?? []).length, 1);
+  assert.equal((html.match(/tabindex="-1"/g) ?? []).length, 2);
+});
+
 test("selected Suspicious detail separates detection evidence and live activity", () => {
   const html = renderPage(
     "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
@@ -902,22 +968,65 @@ test("selected Suspicious detail separates detection evidence and live activity"
         current_related_activity: {
           duplicate_content: { review_count: 0, reviews: [] },
           rapid_submission: { review_count: 0, reviews: [] },
+          referenced_reviews: [{
+            id: 41,
+            author: suspiciousReview.author,
+            business: suspiciousReview.business,
+            status: "published",
+            text: "Original matching review",
+            submitted_at: "2026-10-09T09:00:00Z",
+          }],
         },
       },
     },
   );
-  assert.match(html, /Why It Was Flagged/);
-  assert.match(html, /Stored evidence from when each reliability signal was first detected/);
+  assert.match(html, /Suspicious Activity Signals/);
+  assert.match(html, /Reliability Check: <!-- -->Completed/);
+  assert.match(html, /Why This Review Was Flagged/);
+  assert.match(html, /Stored evidence from when each suspicious activity signal was detected/);
   assert.equal((html.match(/Detected during review submission/g) ?? []).length, 2);
-  assert.match(html, /Same normalized review text detected/);
-  assert.match(html, /2<!-- --> prior matching reviews/);
-  assert.match(html, /Review #<!-- -->47<!-- --> · unavailable\/deleted/);
-  assert.match(html, /11<!-- --> reviews with the same app installation identifier within <!-- -->24<!-- --> hours/);
+  assert.match(html, /The same normalized review text was detected in previous reviews/);
+  assert.match(html, /Prior matches/);
+  assert.match(html, /Reviews detected/);
+  assert.match(html, /Time window/);
+  assert.match(html, /Detection-time matching reviews/);
+  assert.match(html, /aria-expanded="false"/);
   assert.match(html, /Current Related Activity/);
-  assert.match(html, /Live data currently available/);
-  assert.match(html, /lucide-store/);
-  assert.match(html, /rounded-full border border-stroke object-cover/);
+  assert.match(html, /Live records available now/);
+  assert.match(html, /Original matching review/);
+  assert.match(html, /data-suspicious-investigation-scroll="true"/);
+  assert.match(html, /id="related-review-duplicate_content-41" tabindex="-1"/);
+  assert.match(html, /focus:outline-info\/40/);
+  assert.match(html, /Present at detection · No longer related/);
+  assert.match(html, /No related records are currently available/);
+  assert.doesNotMatch(html, /Merchant Response/);
   assert.doesNotMatch(html, /Highly similar content|private-installation/);
+});
+
+test("Suspicious detail distinguishes unavailable and historical reliability checks", () => {
+  for (const [outcome, label] of [
+    ["unavailable", "Unavailable"],
+    ["unknown", "Historical outcome unknown"],
+  ]) {
+    const html = renderPage(
+      "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+      {
+        suspiciousDetail: {
+          ...suspiciousReview,
+          reliability_check_outcome: outcome,
+          text: "Review with a historical reliability signal",
+          status: "published",
+          photos: [],
+          detection_evidence: {},
+          current_related_activity: {},
+        },
+      },
+    );
+
+    assert.match(html.replaceAll("<!-- -->", ""), new RegExp(`Reliability Check: ${label}`));
+    assert.match(html, /Suspicious Activity Signals/);
+    assert.doesNotMatch(html, /Reject Review|Approve &amp; Publish/);
+  }
 });
 
 test("Suspicious edit duplicate uses stored detection context, not latest edit time", () => {
@@ -948,7 +1057,10 @@ test("Suspicious edit duplicate uses stored detection context, not latest edit t
   );
 
   assert.match(html, /Detected during review edit/);
-  assert.match(html.replaceAll("<!-- -->", ""), /Observed Oct 11, 2026/);
+  assert.match(
+    html.replaceAll("<!-- -->", ""),
+    /Observed\s*<time[^>]*>Oct 11, 2026/,
+  );
   assert.doesNotMatch(html, /Detection-time evidence recorded when the review was submitted/);
 });
 
@@ -979,9 +1091,28 @@ test("Suspicious legacy evidence does not claim an unknown detection stage or wi
     },
   );
 
-  assert.match(html, /Detection stage not recorded for this historical review/);
-  assert.match(html, /current matches cannot be scoped to the original 30-day window/);
+  assert.match(html, /Detection stage not recorded/);
+  assert.match(html, /Current matches cannot be scoped to the original detection window/);
   assert.doesNotMatch(html, /Detected during review submission|No related records currently available/);
+});
+
+test("Suspicious detail identifies missing historical evidence", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    {
+      suspiciousDetail: {
+        ...suspiciousReview,
+        text: "Review with legacy signals",
+        status: "published",
+        photos: [],
+        detection_evidence: {},
+        current_related_activity: {},
+      },
+    },
+  );
+
+  assert.match(html, /Detection-time details were not recorded for this historical review/);
+  assert.doesNotMatch(html, /Detected during review submission|Merchant Response/);
 });
 
 test("Suspicious detail shares the compact blurred review header", () => {
@@ -1055,13 +1186,15 @@ test("Suspicious detail uses linked review identity and content context", () => 
   assert.match(header, /lucide-utensils/);
   assert.match(header, /Restaurants/);
   assert.match(header, /Oct 10, 2026 ·/);
-  assert.match(html, /lucide-quote/);
+  assert.match(html, /Full review text/);
+  assert.match(html, /Review photos \(<!-- -->1<!-- -->\)/);
+  assert.match(html, /View review photo 1/);
   assert.match(html, /lucide-thumbs-up/);
   assert.match(html.replaceAll("<!-- -->", ""), /4 found this helpful/);
   assert.match(html, /Edited Oct 11, 2026 ·/);
   assert.match(html, /Merchant Response/);
   assert.match(html, /Thank you for the feedback/);
-  assert.match(html, /Why It Was Flagged/);
+  assert.match(html, /Why This Review Was Flagged/);
   assert.match(html, /Current Related Activity/);
   assert.doesNotMatch(html, /User \/ Business Context/);
 });
@@ -1092,8 +1225,11 @@ test("shared installation evidence shows historical and current account counts s
     },
   );
   assert.match(html, /Shared Installation \/ Accounts/);
-  assert.match(html, /4<!-- --> distinct accounts/);
-  assert.match(html, /2<!-- --> distinct accounts currently retained/);
+  assert.match(html, /Distinct accounts<\/dt>\s*<dd[^>]*>4<\/dd>/);
+  assert.match(
+    html.replaceAll("<!-- -->", ""),
+    /2<\/span>\s*accounts currently retained/,
+  );
 });
 
 test("Suspicious empty and loading states render", () => {
@@ -1486,9 +1622,9 @@ test("Reported detail uses linked review identity and full content context", () 
   assert.match(header, /lucide-utensils/);
   assert.match(header, /Restaurants/);
   assert.match(header, /Oct 10, 2026 ·/);
-  assert.match(html, /lucide-quote/);
+  assert.doesNotMatch(html, /lucide-quote|REVIEW CONTENT/);
   assert.match(html, /lucide-thumbs-up/);
-  assert.match(html.replaceAll("<!-- -->", ""), /6 likes/);
+  assert.match(html.replaceAll("<!-- -->", ""), /6 found this helpful/);
   assert.match(html, /Edited Oct 11, 2026 ·/);
   assert.match(html, /Merchant Response/);
   assert.match(html, /We will follow up with the guest/);

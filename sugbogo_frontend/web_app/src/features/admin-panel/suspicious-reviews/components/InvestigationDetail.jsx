@@ -32,7 +32,7 @@ function InvestigationDetail({ reviewId, onStale }) {
     return (
       <ModerationDetailSkeleton
         label="Loading investigation"
-        sections={["Reliability Signals", "Why It Was Flagged", "Current Related Activity"]}
+        sections={["Suspicious Activity Signals", "Why It Was Flagged", "Current Related Activity"]}
       />
     );
   }
@@ -44,20 +44,27 @@ function InvestigationDetail({ reviewId, onStale }) {
   }
 
   return (
-    <div ref={scrollContainerRef} className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
+    <div ref={scrollContainerRef} data-suspicious-investigation-scroll className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
       <ReviewStickyContextBar review={review} visible={showContextBar} />
       <article className="space-y-6 p-5 sm:p-6">
         <div ref={reviewHeaderRef}>
           <ReviewIdentityHeader review={review} />
         </div>
         <ReviewContentCard review={review} />
-        <section aria-label="Reliability signals" className="space-y-2">
+        <section aria-label="Suspicious Activity Signals" className="space-y-2">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-text-secondary" strokeWidth={1.75} aria-hidden="true" />
-            <h3 className="text-base font-semibold text-text-primary">Reliability Signals</h3>
+            <h3 className="text-base font-semibold text-text-primary">Suspicious Activity Signals</h3>
           </div>
           <SignalBadges reasons={review.reasons} />
         </section>
+        <p aria-label="Reliability Check" className="text-xs text-text-secondary">
+          Reliability Check: {review.reliability_check_outcome === "checked"
+            ? "Completed"
+            : review.reliability_check_outcome === "unavailable"
+              ? "Unavailable"
+              : "Historical outcome unknown"}
+        </p>
         <DetectionEvidence review={review} />
         <CurrentActivity review={review} />
       </article>

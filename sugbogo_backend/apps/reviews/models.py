@@ -18,6 +18,13 @@ class Review(models.Model):
             "Shared installation accounts",
         )
 
+    class ReliabilityCheckOutcome(models.TextChoices):
+        """Outcome of the latest applicable advisory reliability assessment."""
+
+        UNKNOWN = "unknown", "Unknown"
+        CHECKED = "checked", "Checked"
+        UNAVAILABLE = "unavailable", "Unavailable"
+
     class ReviewStatus(models.TextChoices):
         PUBLISHED = "published", "Published"
         UNDER_REVIEW = "under_review", "Under review"
@@ -86,6 +93,11 @@ class Review(models.Model):
     REVW_RELIABILITY_EVIDENCE = models.JSONField(
         default=dict,
         blank=True,
+    )
+    REVW_RELIABILITY_CHECK_OUTCOME = models.CharField(
+        max_length=20,
+        choices=ReliabilityCheckOutcome.choices,
+        default=ReliabilityCheckOutcome.UNKNOWN,
     )
 
     REVW_SENTIMENT_SCORE = models.FloatField(

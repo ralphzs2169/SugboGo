@@ -12,6 +12,7 @@ import {
   BASIS_LABELS,
   SIGNAL_LABELS,
 } from "../utils/suspiciousReviewPresentation";
+import { focusMatchingReview } from "../utils/relatedReviewNavigation";
 
 function detectionContext(item) {
   if (item.detected_during === "edit") {
@@ -58,24 +59,7 @@ function MatchingReviews({ reviews }) {
   }
 
   function handleViewReview(reviewId) {
-    const target = document.getElementById(`related-review-${reviewId}`);
-
-    if (!target) {
-      return;
-    }
-
-    target.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-
-    // Give the scroll time to settle, then focus the destination
-    // without triggering a second jump.
-    window.setTimeout(() => {
-      target.focus({
-        preventScroll: true,
-      });
-    }, 450);
+    focusMatchingReview(reviewId);
   }
 
   return (

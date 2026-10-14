@@ -44,13 +44,10 @@ function SignalActivity({ reason, related, referencedReviews }) {
   const isAccountSignal = reason === "shared_installation_accounts";
   const hasBaseline = reason === "duplicate_content";
 
-  const reviews = hasBaseline
-    ? mergeRelatedReviews(referencedReviews, related?.reviews ?? [])
-    : (related?.reviews ?? []).map((review) => ({
-        ...review,
-        referencedAtDetection: false,
-        currentMatch: true,
-      }));
+  const reviews = mergeRelatedReviews(
+    hasBaseline ? referencedReviews : [],
+    related?.reviews ?? [],
+  );
 
   const windowUnavailable = Boolean(related?.window_unavailable);
 
@@ -103,6 +100,7 @@ function SignalActivity({ reason, related, referencedReviews }) {
                 key={item.id}
                 review={item}
                 hasBaseline={hasBaseline}
+                reason={reason}
               />
             ))}
           </div>
@@ -143,7 +141,7 @@ function CurrentActivity({ review }) {
       </p>
 
       <div className="mt-5 space-y-4">
-        {review.reasons.map((reason) => (
+        {[...new Set(review.reasons)].map((reason) => (
           <SignalActivity
             key={reason}
             reason={reason}
