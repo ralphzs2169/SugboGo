@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useRef, useState } from "react";
@@ -15,7 +16,7 @@ import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
-import FilterChip from "@/shared/components/FilterChip";
+import SafePressable from "@/shared/components/SafePressable";
 import Skeleton from "@/shared/components/Skeleton";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -120,28 +121,34 @@ export default function VouchHistoryScreen() {
       {/* Summary totals and server ordering */}
       <View className="px-4 pb-4 pt-4">
         {history.summary ? (
-          <View className="flex-row gap-6">
-            <View>
+          <View className="flex-row gap-3">
+            <View className="min-w-0 flex-1 rounded-3xl bg-[#ff9428fd] p-md">
               <AppText
-                weight="bold"
-                className="text-lg text-text-primary"
+                weight="extrabold"
+                className="text-h1 text-white"
                 testID="history-business-total"
               >
                 {history.summary.total_businesses}
               </AppText>
-              <AppText className="text-xs text-text-secondary">
+              <AppText
+                weight="extrabold"
+                className="mt-xs text-body text-white"
+              >
                 Businesses vouched
               </AppText>
             </View>
-            <View>
+            <View className="min-w-0 flex-1 rounded-3xl bg-[#ff9428fd] p-md">
               <AppText
-                weight="bold"
-                className="text-lg text-text-primary"
+                weight="extrabold"
+                className="text-h1 text-white"
                 testID="history-specialty-total"
               >
                 {history.summary.total_specialty_vouches}
               </AppText>
-              <AppText className="text-xs text-text-secondary">
+              <AppText
+                weight="extrabold"
+                className="mt-xs text-body text-white"
+              >
                 Specialty vouches
               </AppText>
             </View>
@@ -149,21 +156,39 @@ export default function VouchHistoryScreen() {
         ) : history.isLoading ? (
           <Skeleton className="h-12 w-4/5 rounded-md" />
         ) : null}
-        <View className="mt-4 flex-row gap-2">
-          <FilterChip
-            label="Newest"
-            selected={ordering === "newest"}
-            showSelectedCheck
-            onPress={() => changeOrdering("newest")}
-            accessibilityLabel="Sort history by Newest"
-          />
-          <FilterChip
-            label="Oldest"
-            selected={ordering === "oldest"}
-            showSelectedCheck
-            onPress={() => changeOrdering("oldest")}
-            accessibilityLabel="Sort history by Oldest"
-          />
+        {/* Compact segmented sorting control */}
+        <View className="mt-4 flex-row rounded-full bg-surface-muted p-xs">
+          {(["newest", "oldest"] as const).map((value) => {
+            const selected = ordering === value;
+            const label = value === "newest" ? "Newest" : "Oldest";
+            return (
+              <SafePressable
+                key={value}
+                onPress={() => changeOrdering(value)}
+                accessibilityLabel={`Sort history by ${label}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                hitSlop={{ top: 4, bottom: 4 }}
+                className={`min-h-[40px] min-w-0 flex-1 cursor-pointer flex-row items-center justify-center gap-xs rounded-full px-sm py-sm active:opacity-75 ${selected ? " bg-brand " : "bg-surface-muted"}`}
+              >
+                {selected && (
+                  <MaterialCommunityIcons
+                    name="check"
+                    size={14}
+                    color={theme.extends.colors.surface}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+                )}
+                <AppText
+                  weight={selected ? "semibold" : "medium"}
+                  className={`text-small ${selected ? "text-white" : "text-text-primary"}`}
+                >
+                  {label}
+                </AppText>
+              </SafePressable>
+            );
+          })}
         </View>
       </View>
 
