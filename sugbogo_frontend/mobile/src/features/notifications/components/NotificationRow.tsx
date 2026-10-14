@@ -14,19 +14,25 @@ type Props = {
   notification: NotificationItem;
   isPending?: boolean;
   disabled?: boolean;
-  onMarkRead: (notificationId: number) => void;
+  isNavigable?: boolean;
+  isUnavailable?: boolean;
+  destinationLabel?: string;
+  onPress: (notification: NotificationItem) => void;
 };
 
-/** Renders one compact inbox row and makes only unread items actionable. */
+/** Renders one compact inbox row with truthful read and destination affordances. */
 export default function NotificationRow({
   notification,
   isPending = false,
   disabled = false,
-  onMarkRead,
+  isNavigable = false,
+  isUnavailable = false,
+  destinationLabel,
+  onPress,
 }: Props) {
   const { icon } = getNotificationPresentation(notification.type);
   const timestamp = formatNotificationTime(notification.created_at);
-  const isActionable = !notification.is_read;
+  const isActionable = !notification.is_read || isNavigable || isUnavailable;
 
   const content = (
     <View
@@ -55,13 +61,7 @@ export default function NotificationRow({
             {notification.title}
           </AppText>
 
-          {isPending ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.extends.colors.brand}
-              accessibilityLabel="Marking notification as read"
-            />
-          ) : !notification.is_read ? (
+          {!notification.is_read ? (
             <View
               testID="notification-unread-indicator"
               className="mt-1.5 h-2 w-2 rounded-full bg-brand"
@@ -80,6 +80,23 @@ export default function NotificationRow({
           </AppText>
         ) : null}
       </View>
+
+      {isPending ? (
+        <ActivityIndicator
+          size="small"
+          color={theme.extends.colors.brand}
+          accessibilityLabel="Opening notification"
+        />
+      ) : isNavigable ? (
+        <MaterialCommunityIcons
+          testID="notification-destination-indicator"
+          name="chevron-right"
+          size={20}
+          color={theme.extends.colors.text.tertiary}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      ) : null}
     </View>
   );
 
@@ -96,11 +113,17 @@ export default function NotificationRow({
 
   return (
     <Pressable
-      onPress={() => onMarkRead(notification.id)}
+      onPress={() => onPress(notification)}
       disabled={disabled || isPending}
       accessibilityRole="button"
-      accessibilityLabel={`Unread notification. ${notification.title}. ${notification.body}`}
-      accessibilityHint="Marks this notification as read"
+      accessibilityLabel={`${notification.is_read ? "Read" : "Unread"} notification. ${notification.title}. ${notification.body}`}
+      accessibilityHint={
+        isNavigable
+          ? `Opens the ${destinationLabel ?? "notification destination"}`
+          : isUnavailable
+            ? "Shows why the notification destination is unavailable"
+            : "Marks this notification as read"
+      }
       accessibilityState={{ disabled: disabled || isPending, busy: isPending }}
       className="cursor-pointer active:opacity-75"
     >

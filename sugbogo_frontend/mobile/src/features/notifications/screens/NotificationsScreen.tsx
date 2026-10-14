@@ -25,12 +25,14 @@ import NotificationFilters from "../components/NotificationFilters";
 import NotificationListSkeleton from "../components/NotificationListSkeleton";
 import NotificationRow from "../components/NotificationRow";
 import { useNotificationMutations } from "../hooks/useNotificationMutations";
+import { useNotificationNavigation } from "../hooks/useNotificationNavigation";
 import { useNotificationRefreshLifecycle } from "../hooks/useNotificationRefreshLifecycle";
 import {
   useNotifications,
   useNotificationUnreadCount,
 } from "../hooks/useNotifications";
 import type { NotificationFilter } from "../types/notification.types";
+import { resolveNotificationDestination } from "../utils/notificationDestination";
 
 function showMutationError(error: unknown, title: string) {
   const response = error as Partial<ApiResponse<unknown>> | null;
@@ -67,6 +69,9 @@ export default function NotificationsScreen() {
   const inbox = useNotifications(filter);
   const unread = useNotificationUnreadCount();
   const mutations = useNotificationMutations();
+  const navigation = useNotificationNavigation({
+    markRead: mutations.markRead,
+  });
   useNotificationRefreshLifecycle();
 
   const loadedUnreadCount = inbox.notifications.filter(
@@ -75,7 +80,10 @@ export default function NotificationsScreen() {
   const fallbackUnreadCount =
     filter === "unread" && inbox.hasData ? inbox.totalItems : loadedUnreadCount;
   const effectiveUnreadCount = unread.unreadCount ?? fallbackUnreadCount;
-  const isMutating = mutations.isMarkingOneRead || mutations.isMarkingAllRead;
+  const isMutating =
+    mutations.isMarkingOneRead ||
+    mutations.isMarkingAllRead ||
+    navigation.isHandlingNotification;
   const canMarkAllRead = effectiveUnreadCount > 0 && !isMutating;
   const initialLoadFailed = Boolean(inbox.error && !inbox.hasData);
   const refreshFailed = Boolean(
@@ -107,18 +115,6 @@ export default function NotificationsScreen() {
       await Promise.all([inbox.refetch(), unread.refetch()]);
     } finally {
       setIsRefreshing(false);
-    }
-  }
-
-  async function markRead(notificationId: number) {
-    if (isMutating) {
-      return;
-    }
-
-    try {
-      await mutations.markRead(notificationId);
-    } catch (error) {
-      showMutationError(error, "Couldn't mark notification as read");
     }
   }
 
@@ -221,14 +217,27 @@ export default function NotificationsScreen() {
           testID="notification-list"
           data={inbox.notifications}
           keyExtractor={(notification) => String(notification.id)}
-          renderItem={({ item }) => (
-            <NotificationRow
-              notification={item}
-              isPending={mutations.pendingNotificationId === item.id}
-              disabled={isMutating}
-              onMarkRead={(notificationId) => void markRead(notificationId)}
-            />
-          )}
+          renderItem={({ item }) => {
+            const resolution = resolveNotificationDestination(item);
+
+            return (
+              <NotificationRow
+                notification={item}
+                isPending={navigation.pendingNotificationId === item.id}
+                disabled={isMutating}
+                isNavigable={resolution.kind === "destination"}
+                isUnavailable={resolution.kind === "unavailable"}
+                destinationLabel={
+                  resolution.kind === "destination"
+                    ? resolution.destination.label
+                    : undefined
+                }
+                onPress={(notification) =>
+                  void navigation.handleNotificationPress(notification)
+                }
+              />
+            );
+          }}
           ItemSeparatorComponent={() => (
             <View className="ml-[72px] mr-5 h-px bg-border-primary" />
           )}

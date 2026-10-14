@@ -5,6 +5,7 @@ import NotificationsScreen from "../NotificationsScreen";
 const mockUseNotifications = jest.fn();
 const mockUseUnreadCount = jest.fn();
 const mockUseMutations = jest.fn();
+const mockUseNavigation = jest.fn();
 
 jest.mock("../../hooks/useNotifications", () => ({
   useNotifications: (filter: "all" | "unread") => mockUseNotifications(filter),
@@ -12,6 +13,9 @@ jest.mock("../../hooks/useNotifications", () => ({
 }));
 jest.mock("../../hooks/useNotificationMutations", () => ({
   useNotificationMutations: () => mockUseMutations(),
+}));
+jest.mock("../../hooks/useNotificationNavigation", () => ({
+  useNotificationNavigation: () => mockUseNavigation(),
 }));
 jest.mock("../../hooks/useNotificationRefreshLifecycle", () => ({
   useNotificationRefreshLifecycle: jest.fn(),
@@ -26,6 +30,7 @@ const refetch = jest.fn().mockResolvedValue(undefined);
 const fetchNextPage = jest.fn().mockResolvedValue(undefined);
 const markRead = jest.fn().mockResolvedValue(undefined);
 const markAllRead = jest.fn().mockResolvedValue(undefined);
+const handleNotificationPress = jest.fn().mockResolvedValue(undefined);
 
 const baseInbox = {
   notifications: [],
@@ -61,6 +66,11 @@ describe("NotificationsScreen", () => {
       pendingNotificationId: null,
       isMarkingOneRead: false,
       isMarkingAllRead: false,
+    });
+    mockUseNavigation.mockReturnValue({
+      handleNotificationPress,
+      pendingNotificationId: null,
+      isHandlingNotification: false,
     });
   });
 
@@ -114,7 +124,7 @@ describe("NotificationsScreen", () => {
     });
   });
 
-  it("marks unread rows and all notifications without adding navigation", async () => {
+  it("delegates unread row interaction and still marks all notifications", async () => {
     mockUseNotifications.mockReturnValue({
       ...baseInbox,
       totalItems: 1,
@@ -154,7 +164,9 @@ describe("NotificationsScreen", () => {
     );
 
     await waitFor(() => {
-      expect(markRead).toHaveBeenCalledWith(8);
+      expect(handleNotificationPress).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 8 }),
+      );
       expect(markAllRead).toHaveBeenCalledTimes(1);
     });
   });
