@@ -227,9 +227,11 @@ superseded; clients consuming that shape need an integration update.
 - Removing one endorsement retains the row when another eligible endorsement
   remains. Removing the last removes the row. Re-vouching creates a new nested
   vouch ID/timestamp while preserving the business row ID and can move the row.
-- Refresh history/counts after mutations and reset pagination when ordering
-  changes. Format `last_vouched_at` for the business row and nested `created_at`
-  for individual endorsements as ISO timestamps in the user's timezone.
+- Refresh history/counts after mutations. Switching Newest/Oldest changes the
+  React Query ordering variant and returns the mobile list to the top. An
+  uncached variant fetches page 1; a cached variant may restore previously loaded
+  pages. Format `last_vouched_at` for the business row and nested `created_at` for
+  individual endorsements as ISO timestamps in the user's timezone.
 
 This document adds the backend API contract and handoff. Any maintained external
 API collection/catalog and frontend integration documentation should add this
@@ -291,4 +293,301 @@ the exact same SHA-256 hash before and after this task.
 The earlier per-specialty implementation's 43-test run is historical; the results
 above validate the grouping change. The full backend suite and live
 frontend/provider/worker integration were not run. No changes were staged,
-committed or pushed for Task 1.
+committed or pushed at that implementation-validation stage. Task 1 was later
+committed as `680a49adc432804f5137a28240fdd2d594bd11c0`
+(`refactor: group vouch history by business`).
+
+## Task 2 mobile integration (2026-10-11)
+
+The existing Explorer Profile > Your Activity > Vouch History entry and
+`src/app/(explorer)/profile/vouch-history.tsx` route now render a production
+server-backed screen. No route/layout changes were necessary. Backend behavior,
+dependencies and authentication infrastructure are unchanged.
+
+The implementation follows the mobile architecture and UI/UX skills and the
+repository instructions. Relevant [Expo v57 reference](https://docs.expo.dev/versions/v57.0.0/),
+[Router](https://docs.expo.dev/versions/v57.0.0/sdk/router/) and
+[Image](https://docs.expo.dev/versions/v57.0.0/sdk/image/) documentation was read
+before implementation.
+
+### Mobile files
+
+All paths in this table are relative to `sugbogo_frontend/mobile/`.
+
+| File | Change and responsibility |
+| --- | --- |
+| `src/features/profile/screens/VouchHistoryScreen.tsx` | Modified: summary, server ordering, business pages, refresh, request recovery, persistent business selection and screen-owned mutation/pending protection. |
+| `src/features/profile/components/vouch-history/VouchHistoryItem.tsx` | Modified: business identity/photo fallback, all returned endorsements, latest date, business navigation and three-dot Manage Vouch action. |
+| `src/features/explore/hooks/useBusinessVouch.tsx` | Modified: adds history and review-cache invalidation to the existing mutation settlement; mutation requests, optimistic updates and rollback remain unchanged. |
+| `src/features/profile/types/vouchHistory.types.ts` | Created: exact grouped history, endorsement, ordering and summary response types using existing business field types. |
+| `src/features/profile/api/vouchHistory.service.ts` | Created: typed history GET using the existing authenticated API client and request wrapper. |
+| `src/features/profile/hooks/vouchHistoryQueryKeys.ts` | Created: stable history prefix with authenticated user ID and ordering variants. |
+| `src/features/profile/hooks/useVouchHistory.ts` | Created: infinite query, server page order, complete summary and distinct request states. |
+| `src/features/profile/components/vouch-history/ManageVouchBottomSheet.tsx` | Created: selected business, current detail query, existing reactions, screen-supplied pending/action state, retry, dismissal and Android back handler. |
+| `src/features/profile/components/vouch-history/VouchHistorySkeleton.tsx` | Created: initial history placeholders using shared Skeleton. |
+| `src/features/profile/components/vouch-history/VouchHistoryEmptyState.tsx` | Created: successful empty-history guidance using existing mascot and text components. |
+| `src/features/profile/__tests__/vouchHistory.fixtures.ts` | Created: typed history/detail/page fixtures shared by focused tests. |
+| `src/features/profile/api/__tests__/vouchHistory.service.test.ts` | Created: endpoint, ordering/page parameters and request-error normalization tests. |
+| `src/features/profile/hooks/__tests__/useVouchHistory.test.tsx` | Created: authentication gating, account/order cache separation, pagination, totals and error recovery tests. |
+| `src/features/profile/screens/__tests__/VouchHistoryScreen.test.tsx` | Created: screen states, ordering, navigation, persistent sheet, independent mutations, back-handler lifecycle and mutation recovery tests using real query/mutation hooks. |
+| `src/features/explore/hooks/__tests__/vouchHistoryCache.test.tsx` | Created: history/review invalidation, existing POST/DELETE use, optimistic state, pending state and cache rollback tests. |
+| `src/features/profile/components/vouch-history/EditVouchModal.tsx` | Deleted: obsolete single-tag replacement prototype. Its sole consumer was the replaced mock history screen; no references remain. |
+
+This handoff document is also modified. No other backend files changed for
+Task 2. The pre-existing `MapView.tsx` modification is excluded and remains
+unstaged; its SHA-256 is still
+`4160478F1A905E4D3B61200BEA7AE9B94B76DB30F6B239CF1A4D661D601B48A1`.
+
+### Data and interaction behavior
+
+- History calls `/explorer/explore/vouch-history/` through the existing client
+  base URL, with `ordering` and `page`. It uses the backend's default page size
+  of 10; there is no client page-size selector or user-selection parameter.
+- Query keys are `["explorer-vouch-history", userId, ordering]`. The authenticated
+  user ID separates caches; it is not sent as a request parameter. Requests are
+  disabled until the user ID is available.
+- Cards use the business ID and show every `vouches[]` specialty. They display
+  `last_vouched_at` with the existing date formatter. No client sorting or
+  truncation of endorsements is performed.
+- The two summary values come from the first loaded page's full-history
+  `summary`, never from loaded item or endorsement counts.
+- Newest/Oldest changes the query variant and returns the scroll position to the
+  top. The backend remains responsible for both business and endorsement order.
+- Initial skeleton, successful empty state, initial Retry, refresh recovery,
+  next-page Lottie loading and next-page Retry are distinct. Refresh/next-page
+  failures preserve loaded rows. Failed next pages require explicit Retry rather
+  than repeated automatic requests; concurrent page/refresh requests are guarded.
+- The three-dot action opens Manage Vouch directly. There is no bulk removal,
+  local search or specialty-switch replacement action.
+- Manage Vouch is mounted by the screen, outside FlatList rows. A selected
+  business snapshot supplies identity during detail loading; reaction flags and
+  counts come from `useExploreBusinessProfile` under the existing business-detail
+  key. Partial history rows are never written into the detail cache.
+- Existing `BusinessSpecialtyVouchCard` and `useBusinessVouch` handle independent
+  toggles. The screen owns the mutation hook, synchronous request guard and
+  pending business ID; dismissing/unmounting the sheet does not reset them.
+  Reopened sheets keep their reactions disabled until the original request and
+  settlement callbacks finish, whether it succeeds or fails. The business ID
+  passed to the mutation hook remains pinned to that request during settlement,
+  even if selection is cleared or another business is selected. The protection
+  is local to this screen's Manage Vouch flow, not a global application lock.
+  Owner restrictions and unavailable-detail recovery are preserved.
+- Removing one endorsement retains the card if others remain. Removing the last
+  removes the history card after refetch, but never dismisses the sheet. The
+  business detail still permits adding another specialty until the user closes
+  the sheet. Re-vouching adopts the backend's new vouch ID/timestamp and order.
+- Close, backdrop/swipe dismissal and Android back dismiss the sheet. The back
+  listener is registered only while open and removed on closure/unmount.
+
+### Cache synchronization
+
+The existing optimistic changes to business detail, new businesses, discovery,
+recommendations, discovery results, Similar Places and collection caches remain
+intact, including rollback and existing recommendation/list ordering behavior.
+
+Mutation settlement now also invalidates the complete history prefix and the
+business's `business-review-preview` / `business-reviews` prefixes, including
+filtered review variants containing current `vouched_specialties`. Existing
+business-detail, new-business and discovery invalidation remains intact.
+Active matching queries refetch; inactive variants become stale for their next
+use. History rows and totals are not synthesized optimistically: successful
+server reads determine eligibility, original IDs, timestamps and page order.
+
+### Historical Task 2 validation (2026-10-11)
+
+Executed from `sugbogo_frontend/mobile/` using installed dependencies:
+
+```powershell
+.\node_modules\.bin\jest.cmd --runInBand --watch=false --runTestsByPath src/features/profile/api/__tests__/vouchHistory.service.test.ts src/features/profile/hooks/__tests__/useVouchHistory.test.tsx src/features/profile/screens/__tests__/VouchHistoryScreen.test.tsx src/features/explore/hooks/__tests__/vouchHistoryCache.test.tsx src/features/explore/hooks/__tests__/similarBusinessCache.test.tsx src/features/explore/hooks/__tests__/visibilityHooks.test.tsx src/features/profile/screens/__tests__/ProfileInterestsEntry.test.tsx
+```
+
+Initial result before the pending-request lifecycle fix: **46 tests passed**,
+0 failed, across **7 suites**, in **19.742 seconds**.
+This includes 32 new tests (3 API, 6 history hook, 19 screen/management, 4 cache)
+and 14 existing regression tests. The combined runner initially warned that
+asynchronous work remained after the assertions finished, then exited with
+code **0** when polled later. The cause of that delay was not established.
+An isolated run of all four new suites with `--detectOpenHandles` passed all
+**32 tests**, exited with code **0**, and reported no open handles, in
+**39.399 seconds**. No `--forceExit` workaround was used.
+
+Screen tests retain real history, detail and mutation hooks while mocking API
+responses, native image/animation rendering, list scrolling and sheet transitions.
+They verify removal of one versus the last endorsement, persistent selection,
+re-vouching, backend reorder, rollback and repeat-press protection. Android back
+handler registration/dismissal/cleanup is unit tested; actual OS interaction is
+not validated by these mocks.
+
+At that validation stage, the whole-project command
+`.\node_modules\.bin\tsc.cmd --noEmit --incremental false --pretty false`
+exited **1** with **40 diagnostics**. The historical validation report recorded
+matching pre-implementation diagnostics and no new errors in changed/new files.
+Issues at that stage included generated route types, stale test imports/fixtures,
+registration location types and missing installed module declarations. The global
+type check failed then; the current result is recorded below.
+
+Targeted ESLint on all 15 new/modified TypeScript files passed with **0 errors,
+0 warnings**. Prettier check passed for all 14 new/modified profile and test
+files; the existing mutation hook's unrelated formatting was preserved.
+`git diff --check` passed after the documentation update. Final scope checks
+found only the listed Task 2 files plus the pre-existing unstaged `MapView.tsx`
+change. The Git index is empty and HEAD remains the Task 1 commit above.
+
+At that implementation-validation stage, real authenticated API integration,
+native sheet presentation/swipe/backdrop transitions, Android back dispatch,
+safe areas, large system text and scroll position required device verification.
+No full frontend/backend suite, native build or live backend/device integration
+was run at that stage. Subsequent APK testing is recorded below. The page-number
+concurrency limits described above remain. Explicit logout clears QueryClient;
+the pre-existing token-expiration path does not explicitly clear all server
+caches, so history deliberately uses user-scoped keys without refactoring auth.
+
+Nothing is staged, committed or pushed for Task 2. Backend mutation behavior,
+database models/constraints/scoring, dependencies, routes and `MapView.tsx` are
+unchanged by this task.
+
+### Pending-request lifecycle fix (2026-10-11)
+
+The final review found that dismissing Manage Vouch unmounted its local pending
+guard and mutation observer. Reopening it while an earlier request was still
+running could therefore permit a conflicting specialty action.
+
+The screen now owns `useBusinessVouch`, the synchronous request guard and the
+pending business ID. The sheet receives the pending state and toggle callback.
+Its dismissal still clears selection and unmounts the sheet, while the mutation
+and protection remain alive in the mounted screen. The original business ID
+stays pinned through mutation/settlement so existing rollback and invalidation
+callbacks retain their correct target. Success/error feedback is unchanged and
+interaction becomes available again after success or failure. This introduces
+no global lock and makes no changes to the shared mutation hook or backend.
+
+Only four existing Task 2 working-tree files changed for this fix:
+
+- `src/features/profile/screens/VouchHistoryScreen.tsx`: persistent mutation
+  ownership, request guard, business target and existing toast/error handling.
+- `src/features/profile/components/vouch-history/ManageVouchBottomSheet.tsx`:
+  delegates mutations and uses screen-supplied pending state; retains current
+  business-detail, ownership/error guards and native dismissal behavior.
+- `src/features/profile/screens/__tests__/VouchHistoryScreen.test.tsx`: three
+  lifecycle regression cases; the uninterrupted-session repeat-press test remains.
+- This handoff document: corrected ownership/protection description and actual
+  fix validation results. Mobile paths above are relative to
+  `sugbogo_frontend/mobile/`.
+
+The delayed-success and delayed-failure reopen tests both failed against the
+previous implementation because reactions were enabled after reopening. They
+now verify blocked conflicting requests, settlement, correct detail/history
+state, failure feedback and a subsequent successful specialty action. A third
+case checks correct business-cache invalidation when settlement happens while
+the sheet remains closed.
+
+Validation from `sugbogo_frontend/mobile/`:
+
+```powershell
+.\node_modules\.bin\jest.cmd --runInBand --watch=false --detectOpenHandles --runTestsByPath src/features/profile/api/__tests__/vouchHistory.service.test.ts src/features/profile/hooks/__tests__/useVouchHistory.test.tsx src/features/profile/screens/__tests__/VouchHistoryScreen.test.tsx src/features/explore/hooks/__tests__/vouchHistoryCache.test.tsx src/features/explore/hooks/__tests__/similarBusinessCache.test.tsx src/features/explore/hooks/__tests__/visibilityHooks.test.tsx src/features/profile/screens/__tests__/ProfileInterestsEntry.test.tsx
+.\node_modules\.bin\tsc.cmd --noEmit --incremental false --pretty false
+.\node_modules\.bin\eslint.cmd src/features/profile/screens/VouchHistoryScreen.tsx src/features/profile/components/vouch-history/ManageVouchBottomSheet.tsx src/features/profile/screens/__tests__/VouchHistoryScreen.test.tsx
+.\node_modules\.bin\prettier.cmd --check src/features/profile/screens/VouchHistoryScreen.tsx src/features/profile/components/vouch-history/ManageVouchBottomSheet.tsx src/features/profile/screens/__tests__/VouchHistoryScreen.test.tsx
+git diff --check
+```
+
+- The combined run completed its assertions with **49 tests passed**, 0 failed,
+  across **7 suites**, in **55.835 seconds**. This includes 35 Task 2 tests
+  (22 screen tests) and 14 existing regressions. The combined process initially
+  lingered after the assertions, then exited with code **0** when polled later.
+  The cause of that cleanup delay was not established.
+- An isolated run of all four Task 2 suites with the same options and
+  `--detectOpenHandles` passed **35 tests**, 0 failed, in **22.237 seconds**,
+  exited **0** and reported no open handles. No `--forceExit` was used.
+- The initial focused post-fix run passed the three lifecycle regressions plus
+  the existing uninterrupted repeat-press case: **4 passed**, 18 intentionally
+  skipped, exit **0**.
+- At this historical fix-validation stage, TypeScript exited **1** with
+  **40 diagnostics**. The fix report recorded matching before/after outputs
+  and no new diagnostics. This is not the current diagnostic count; the global
+  type-check failure remains unresolved.
+- Targeted ESLint exited **0**, with no errors/warnings. Prettier check passed
+  for all three changed TypeScript files. Diff whitespace check passed,
+  including the handoff changes.
+
+The guard is scoped to the mounted Vouch History screen's Manage Vouch flow;
+other app screens are not globally locked. At that fix-validation stage, native
+dismissal/reopening under slow success/failure, Android back/swipe/backdrop
+behavior and authenticated device/API integration had not been manually verified.
+No native build or full application suite was run. The earlier multi-page and
+sort-in-flight automated coverage gaps were outside this focused fix; subsequent
+manual multi-page results are recorded below.
+
+No files were created or deleted by this fix. Scope/hash checks found only the
+four files above changed from the start of the fix. `MapView.tsx` retained the
+same recorded SHA-256 and remains unstaged. Nothing was staged, committed or
+pushed; HEAD remains the Task 1 commit.
+
+## Final validation and APK testing (2026-10-14)
+
+These results describe the latest reported runs and developer testing in this
+session. They supersede earlier current-state descriptions without replacing
+the historical validation records above, and do not guarantee future runs.
+
+### Mobile automated validation
+
+From `sugbogo_frontend/mobile/`, the seven targeted Jest suites were rerun using
+`--runInBand --watch=false --detectOpenHandles --runTestsByPath` and the same
+seven paths listed in the fix-validation command above. **7 suites and 49 tests
+passed**, zero failures/skips, exit **0**, with a Jest-reported test duration of
+**20.602 seconds**. No snapshots or open-handle warnings were reported. The
+process exited normally after a several-minute cleanup delay whose cause remains
+unexplained; no `--forceExit` was used. Delayed success/failure across sheet
+dismissal/reopening, settlement against the original business while dismissed
+and uninterrupted repeat-press protection all passed.
+
+- Targeted ESLint passed on **15 Task 2 TypeScript files**, zero errors/warnings,
+  exit **0**, without autofix.
+- Prettier `--check` passed on **14 files**, exit **0**, without writing files.
+  `src/features/explore/hooks/useBusinessVouch.tsx` was excluded because of its
+  known unrelated formatting differences; this check does not certify that
+  file's formatting. `MapView.tsx` was excluded from both targeted checks.
+- `.\node_modules\.bin\tsc.cmd --noEmit --incremental false --pretty false`
+  exited **1** with **25 diagnostics across 16 files unchanged from HEAD**.
+  None were reported in the 15 Task 2 TypeScript files. This is 15 fewer than the
+  historical 40. Stale interest-hook imports and a missing required `icon` in
+  an existing Similar Places fixture were verified in HEAD. The original
+  diagnostic-by-diagnostic baseline was unavailable, so the exact membership
+  changes and cause of the count reduction were not independently established.
+  No new Task 2 diagnostic was identified; the whole-project type check fails.
+
+The final backend regression run also passed **124 tests**, including 27 seeder
+tests and 97 existing regressions, in **238.855 seconds**, exit **0**. System,
+migration consistency and whitespace checks passed. Database isolation and
+development-record preservation are recorded in the
+[seeder validation report](development-business-listings-seeder.md).
+
+### Completed manual APK testing
+
+Developers reported these scenarios passed using the installed Android
+development APK with Metro and the local backend:
+
+- Business-grouped history, all current endorsements and full-history summary
+  counts, with the expected business information and latest-vouched date.
+- Adding/removing specialties through business profiles and Manage Vouch;
+  multiple endorsements remain grouped in one business card.
+- Removing the final endorsement removes the card while the sheet stays usable;
+  re-vouching from that open sheet restores the business.
+- Newest/Oldest ordering, including multi-page order, and pull-to-refresh of
+  multiple pages without missing or duplicate business cards.
+- The default page size is 10 businesses. With an 11th business, backend logs
+  confirmed page 1 and page 2 returned HTTP 200 and all 11 businesses were
+  accessible without duplicates. Additional specialties did not consume more
+  business pagination slots.
+- Removing one of two endorsements changed totals from 11 businesses / 12
+  endorsements to 11 / 11; removing the final endorsement then changed them
+  to 10 / 10, while the remaining businesses stayed accessible.
+
+### Remaining optional device verification
+
+Network-error recovery and delayed mutations with sheet dismissal/reopening have
+not been manually verified on the phone. Automated tests cover the relevant
+request-state and pending-protection cases; native behavior for those scenarios
+still needs optional device verification. No additional native gesture, safe-area
+or large-text certification is implied by the completed scenarios above. Existing
+page-number concurrency limits and automated sort-in-flight coverage gaps remain.
