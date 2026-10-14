@@ -21,7 +21,7 @@ after(async () => {
   await server?.close();
 });
 
-function renderReview(status) {
+function renderReview(status, reviewOverrides = {}) {
   return renderToStaticMarkup(
     React.createElement(ReviewDisputeReview, {
       review: {
@@ -29,7 +29,9 @@ function renderReview(status) {
         author: { first_name: "Sample", last_name: "Explorer" },
         text: "Review content",
         photos: [],
+        like_count: 2,
         report_count: 0,
+        ...reviewOverrides,
       },
     }),
   );
@@ -39,6 +41,8 @@ test("dispute detail displays the published review status beside its heading", (
   const markup = renderReview("published");
 
   assert.match(markup, /Original Review/);
+  assert.match(markup, /Sample Explorer/);
+  assert.match(markup.replaceAll("<!-- -->", ""), /2 found this helpful/);
   assert.match(markup, /Published/);
   assert.match(markup, /border-success\/25 bg-success\/10 text-success/);
 });
@@ -49,4 +53,11 @@ test("dispute detail displays a rejected review with the shared danger style", (
   assert.match(markup, /Original Review/);
   assert.match(markup, /Rejected/);
   assert.match(markup, /bg-danger\/10/);
+});
+
+test("dispute review preserves an edited flag when no edit timestamp is available", () => {
+  const markup = renderReview("published", { is_edited: true });
+
+  assert.match(markup, />Edited</);
+  assert.doesNotMatch(markup, /Edited Oct/);
 });

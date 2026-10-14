@@ -8,7 +8,7 @@ export default function ReviewContentCard({ review }) {
   const [photoViewerIndex, setPhotoViewerIndex] = useState(null);
 
   const photos = review.photos ?? [];
-  const likeCount = review.like_count ?? 0;
+  const hasLikeCount = typeof review.like_count === "number";
 
   return (
     <section
@@ -35,14 +35,14 @@ export default function ReviewContentCard({ review }) {
             </h4>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="mt-3 flex flex-wrap gap-3">
             {photos.map((photo, index) => (
               <button
                 key={photo.id}
                 type="button"
                 onClick={() => setPhotoViewerIndex(index)}
                 className="
-                  cursor-pointer overflow-hidden rounded-lg
+                  w-full max-w-[200px] cursor-pointer overflow-hidden rounded-lg
                   border border-stroke text-left
                   transition-colors hover:bg-interaction-hover
                   focus-visible:outline focus-visible:outline-2
@@ -66,41 +66,34 @@ export default function ReviewContentCard({ review }) {
       )}
 
       {/* Review metadata */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-text-secondary">
-        <span className="inline-flex items-center gap-1.5">
-          <ThumbsUp
-            className="h-3.5 w-3.5"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          {likeCount} found this helpful
-        </span>
+      {(hasLikeCount || review.is_edited) && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-text-secondary">
+          {hasLikeCount && (
+            <span className="inline-flex items-center gap-1.5">
+              <ThumbsUp
+                className="h-3.5 w-3.5"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
+              {review.like_count} found this helpful
+            </span>
+          )}
 
-        {photos.length > 0 && (
-          <span className="inline-flex items-center gap-1.5">
-            <ImageIcon
-              className="h-3.5 w-3.5"
-              strokeWidth={1.75}
-              aria-hidden="true"
-            />
-            {photos.length} {photos.length === 1 ? "photo" : "photos"}
-          </span>
-        )}
+          {review.is_edited && (
+            <span className="inline-flex items-center gap-1.5">
+              <Pencil
+                className="h-3.5 w-3.5"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
 
-        {review.is_edited && (
-          <span className="inline-flex items-center gap-1.5">
-            <Pencil
-              className="h-3.5 w-3.5"
-              strokeWidth={1.75}
-              aria-hidden="true"
-            />
-
-            {review.edited_at
-              ? `Edited ${formatReviewTimestamp(review.edited_at)}`
-              : "Edited"}
-          </span>
-        )}
-      </div>
+              {review.edited_at
+                ? `Edited ${formatReviewTimestamp(review.edited_at)}`
+                : "Edited"}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Merchant response — only shown when a reply exists */}
       {review.reply && (

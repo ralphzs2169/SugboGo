@@ -85,7 +85,7 @@ export default function ReviewDisputeReview({ review }) {
       <ReviewContentCard
         review={{
           ...review,
-          is_edited: Boolean(review?.edited_at),
+          is_edited: review?.is_edited ?? Boolean(review?.edited_at),
         }}
       />
     </section>

@@ -581,16 +581,17 @@ test("selected detail separates text and photo findings", () => {
   assert.match(header, /Restaurants/);
   assert.match(header, /Oct 10, 2026 ·/);
   assert.match(html, /Review photos/);
-  const reviewContent = html.match(/<section class="[^"]*rounded-lg border border-stroke bg-surface p-4[^"]*">(.*?)<\/section>/s)?.[1];
+  const reviewContent = html.match(/<section aria-label="Review content" class="[^"]*rounded-lg border border-stroke bg-surface p-4[^"]*">(.*?)<\/section>/s)?.[1];
   assert.ok(reviewContent);
-  assert.match(reviewContent, /lucide-quote/);
+  assert.doesNotMatch(reviewContent, /lucide-quote|REVIEW CONTENT/);
   assert.match(reviewContent, /lucide-thumbs-up/);
   assert.doesNotMatch(reviewContent, /lucide-heart/);
-  assert.match(reviewContent.replaceAll("<!-- -->", ""), /12 likes/);
-  assert.match(reviewContent.replaceAll("<!-- -->", ""), /2 photos/);
+  assert.match(reviewContent.replaceAll("<!-- -->", ""), /12 found this helpful/);
+  assert.match(reviewContent.replaceAll("<!-- -->", ""), /Review photos \(2\)/);
+  assert.doesNotMatch(reviewContent.replaceAll("<!-- -->", ""), />2 photos</);
   assert.match(reviewContent, /Edited Oct 11, 2026 ·/);
   assert.match(reviewContent, /Merchant Response/);
-  assert.match(reviewContent, /border-l-2 border-primary bg-surface-muted\/40/);
+  assert.match(reviewContent, /border-l-2 border-l-primary/);
   assert.match(reviewContent, /Thank you for sharing your visit/);
   assert.match(reviewContent, /dateTime="2026-10-11T02:15:00Z"/);
   assert.doesNotMatch(header, /12 likes|2 photos|Edited|Merchant reply/);
@@ -915,8 +916,8 @@ test("selected Suspicious detail separates detection evidence and live activity"
       },
     },
   );
-  assert.match(html, /Reliability Signals/);
-  assert.match(html, /Latest reliability check: <!-- -->Completed/);
+  assert.match(html, /Suspicious Activity Signals/);
+  assert.match(html, /Reliability Check: <!-- -->Completed/);
   assert.match(html, /Why This Review Was Flagged/);
   assert.match(html, /Stored evidence from when each suspicious activity signal was detected/);
   assert.equal((html.match(/Detected during review submission/g) ?? []).length, 2);
@@ -955,8 +956,8 @@ test("Suspicious detail distinguishes unavailable and historical reliability che
       },
     );
 
-    assert.match(html.replaceAll("<!-- -->", ""), new RegExp(`Latest reliability check: ${label}`));
-    assert.match(html, /Reliability Signals/);
+    assert.match(html.replaceAll("<!-- -->", ""), new RegExp(`Reliability Check: ${label}`));
+    assert.match(html, /Suspicious Activity Signals/);
     assert.doesNotMatch(html, /Reject Review|Approve &amp; Publish/);
   }
 });
@@ -1554,9 +1555,9 @@ test("Reported detail uses linked review identity and full content context", () 
   assert.match(header, /lucide-utensils/);
   assert.match(header, /Restaurants/);
   assert.match(header, /Oct 10, 2026 ·/);
-  assert.match(html, /lucide-quote/);
+  assert.doesNotMatch(html, /lucide-quote|REVIEW CONTENT/);
   assert.match(html, /lucide-thumbs-up/);
-  assert.match(html.replaceAll("<!-- -->", ""), /6 likes/);
+  assert.match(html.replaceAll("<!-- -->", ""), /6 found this helpful/);
   assert.match(html, /Edited Oct 11, 2026 ·/);
   assert.match(html, /Merchant Response/);
   assert.match(html, /We will follow up with the guest/);
