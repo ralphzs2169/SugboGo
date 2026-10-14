@@ -413,6 +413,11 @@ class SuspiciousReviewViewTests(TestCase):
                 shared: {"distinct_account_count": 4},
             },
         )
+        evidence = review.REVW_RELIABILITY_EVIDENCE
+        evidence[rapid]["observed_at"] = review.REVW_CREATED_AT.isoformat()
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_EVIDENCE=evidence,
+        )
         related = self.create_review(
             "Related review",
             installation_id="private-installation",
@@ -442,6 +447,131 @@ class SuspiciousReviewViewTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [rapid, shared])
+
+    def test_rapid_activity_uses_detection_observation_window(self):
+        """Live activity uses the saved observation and inclusive boundaries."""
+        rapid = Review.ReliabilityReason.RAPID_SUBMISSION
+        review = self.create_review(
+            "Detected review",
+            [rapid],
+            installation_id="rapid-installation",
+        )
+        observed_at = timezone.now()
+        window_start = observed_at - timedelta(hours=24)
+        evidence = {
+            rapid: {
+                "observed_at": observed_at.isoformat(),
+                "review_count": 11,
+                "window_hours": 24,
+            },
+        }
+        Review.objects.filter(pk=review.pk).update(
+            REVW_CREATED_AT=observed_at - timedelta(days=10),
+            REVW_RELIABILITY_EVIDENCE=evidence,
+        )
+        candidates = [
+            (
+                "At start",
+                window_start,
+                "rapid-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+            (
+                "At end",
+                observed_at,
+                "rapid-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+            (
+                "Rejected related",
+                observed_at - timedelta(hours=1),
+                "rapid-installation",
+                Review.ReviewStatus.REJECTED,
+            ),
+            (
+                "Before start",
+                window_start - timedelta(microseconds=1),
+                "rapid-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+            (
+                "After end",
+                observed_at + timedelta(microseconds=1),
+                "rapid-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+            (
+                "Different installation",
+                observed_at - timedelta(hours=1),
+                "other-installation",
+                Review.ReviewStatus.PUBLISHED,
+            ),
+        ]
+        included_ids = set()
+        for text, created_at, installation_id, status in candidates:
+            related = self.create_review(
+                text,
+                status=status,
+                installation_id=installation_id,
+            )
+            Review.objects.filter(pk=related.pk).update(
+                REVW_CREATED_AT=created_at,
+            )
+            if text in {"At start", "At end", "Rejected related"}:
+                included_ids.add(related.pk)
+
+        data = self.client.get(
+            reverse("admin-suspicious-review-detail", args=[review.pk]),
+        ).data["data"]
+
+        activity = data["current_related_activity"][rapid]
+        self.assertEqual(
+            {item["id"] for item in activity["reviews"]},
+            included_ids,
+        )
+        self.assertEqual(activity["review_count"], 3)
+        self.assertEqual(data["detection_evidence"][rapid]["review_count"], 11)
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
+
+    def test_rapid_activity_without_valid_observation_has_no_live_window(self):
+        """Legacy or invalid evidence must not invent a creation-time window."""
+        rapid = Review.ReliabilityReason.RAPID_SUBMISSION
+        observations = [
+            None,
+            "not-a-date",
+            "2026-10-10T12:00:00",
+        ]
+        for observed_at in observations:
+            with self.subTest(observed_at=observed_at):
+                rapid_evidence = {
+                    "review_count": 11,
+                    "window_hours": 24,
+                }
+                if observed_at is not None:
+                    rapid_evidence["observed_at"] = observed_at
+                evidence = {rapid: rapid_evidence}
+                review = self.create_review(
+                    "Legacy rapid review",
+                    [rapid],
+                    installation_id="rapid-installation",
+                    evidence=evidence,
+                )
+
+                data = self.client.get(
+                    reverse("admin-suspicious-review-detail", args=[review.pk]),
+                ).data["data"]
+
+                self.assertEqual(
+                    data["current_related_activity"][rapid],
+                    {
+                        "reviews": [],
+                        "review_count": 0,
+                        "window_unavailable": True,
+                    },
+                )
+                review.refresh_from_db()
+                self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
 
     def test_ordinary_review_response_omits_reliability_evidence(self):
         """The public review serializer exposes no investigation data."""
