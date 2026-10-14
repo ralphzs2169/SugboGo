@@ -25,6 +25,7 @@ from apps.reviews.services.tests.test_business_review_summary_service import (
 
 class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
     INSIGHT_FIELDS = {
+        "policy",
         "state",
         "state_message",
         "content_available",
@@ -303,6 +304,8 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.OUTDATED,
             BRSU_NARRATIVE="Visitors praised the service in the prior window.",
             BRSU_KEYWORD_TAGS=[{"text": "friendly service", "count": 3}],
+            BRSU_ELIGIBLE_REVIEW_COUNT=5,
+            BRSU_ANALYZED_REVIEW_COUNT=5,
         )
 
         insights = self.client.get(self.url).data["data"]["review_insights"]

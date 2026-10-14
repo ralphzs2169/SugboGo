@@ -148,7 +148,11 @@ def _matches(value, aliases):
 
 def _evaluate_insight_scenario(scenario, generator):
     reviews = [(review["id"], review["text"]) for review in scenario["reviews"]]
-    parsed = ReviewKeywordService._parse(generator(reviews), reviews)
+    parsed = ReviewKeywordService._parse(
+        generator(reviews),
+        reviews,
+        minimum_support=ReviewKeywordService.MIN_REVIEW_COUNT,
+    )
     expected_themes = scenario["expected_themes"]
     matched_expected = set()
     matched_generated = 0

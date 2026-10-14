@@ -1,6 +1,7 @@
 """Compose merchant aggregates and conservative deterministic findings without provider calls."""
 
 from apps.shared.analytics.metadata import build_meta
+from apps.shared.analytics.policy import current_policy, with_policy_snapshot
 
 from .peer_analytics_service import PeerAnalyticsService
 from .premium_review_insights_service import PremiumReviewInsightsService
@@ -55,6 +56,7 @@ class MerchantReportService:
         return findings, actions
 
     @classmethod
+    @with_policy_snapshot
     def get_report(cls, user, period, *, interval="daily"):
         """Compose services directly while preserving each section's measurement and availability metadata."""
         standard = StandardAnalyticsService.get_report(user, period)
@@ -72,7 +74,8 @@ class MerchantReportService:
             if section["meta"]["is_partial"]:
                 reasons.append(f"{name}_partial")
         return {
-            "business": standard["business"], "report_version": "1", "snapshot_as_of": period.generated_at.isoformat(),
+            "business": standard["business"], "report_version": "1", "policy_version": current_policy().version,
+            "snapshot_as_of": period.generated_at.isoformat(),
             "results": {"standard": standard, "premium": premium},
             "changes": {
                 "visibility": {name: metric["change"] for name, metric in premium["visibility"]["metrics"].items()},

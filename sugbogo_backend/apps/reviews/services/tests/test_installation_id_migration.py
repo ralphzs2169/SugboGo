@@ -92,6 +92,7 @@ class InstallationIdMigrationTests(TransactionTestCase):
             ("business", "0027_clusterdiscoveryshortcut"),
             ("reviews", "0011_review_revw_moderation_data"),
         ]
+        latest_targets = MigrationExecutor(connection).loader.graph.leaf_nodes()
 
         try:
             executor = MigrationExecutor(connection)
@@ -113,7 +114,7 @@ class InstallationIdMigrationTests(TransactionTestCase):
                 "vouch-installation",
             )
         finally:
-            MigrationExecutor(connection).migrate(current)
+            MigrationExecutor(connection).migrate(latest_targets)
 
         self.assertEqual(
             Review.objects.get(pk=review.pk).REVW_INSTALLATION_ID,
