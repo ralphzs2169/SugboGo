@@ -1,5 +1,7 @@
 # Analytics metric definitions and shared foundation
 
+See [analytics scope, approved decisions, and progress](analytics-scope-traceability.md) for the 14 October 2026 product decisions, manuscript traceability, implementation evidence, and future branch order. Approved future directions do not change the implemented metric contracts until their own branches are completed.
+
 This dictionary implements the definitions in `docs/analytics-plan.md` and the subsequently agreed Standard/Premium split. The repository is the implementation reference. Task 1 adds shared helpers and read-only aggregation; Task 2 adds admin overview and discovery-trend endpoints. Neither introduces entitlement checks, models, migrations, payment processing, new dependencies, or registered Django apps.
 
 Task 3 adds admin coverage, business attention and provisional low-exposure candidates without altering those boundaries.
