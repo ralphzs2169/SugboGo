@@ -1332,7 +1332,7 @@ class ReviewDetailViewTests(APITestCase):
                 "findings": [],
             },
         )
-        moderation_patcher.start()
+        self.moderate_review = moderation_patcher.start()
         self.addCleanup(moderation_patcher.stop)
 
         self.merchant = User.objects.create_user(
@@ -1445,6 +1445,58 @@ class ReviewDetailViewTests(APITestCase):
             self.review.REVW_TEXT,
             "Persisted update.",
         )
+
+    def test_flagged_edit_returns_stable_code_without_changing_review(self):
+        self.moderate_review.return_value["outcome"] = "flagged"
+
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "Proposed unsafe update."},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "REVIEW_EDIT_CONTENT_FLAGGED")
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_TEXT, "Original review.")
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_unavailable_edit_returns_stable_code_without_changing_review(self):
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "Proposed unchecked update."},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["code"], "REVIEW_EDIT_MODERATION_UNAVAILABLE")
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_TEXT, "Original review.")
+
+    def test_stale_edit_returns_conflict_code(self):
+        def concurrent_change(**kwargs):
+            Review.objects.filter(pk=self.review.pk).update(
+                REVW_TEXT="Newer accepted update.",
+            )
+            return {
+                "outcome": "safe",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "findings": [],
+            }
+
+        self.moderate_review.side_effect = concurrent_change
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "Older proposed update."},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "REVIEW_EDIT_CONFLICT")
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_TEXT, "Newer accepted update.")
 
     def test_visibility_only_update_round_trips_and_preserves_other_edits(self):
         response = self.client.patch(

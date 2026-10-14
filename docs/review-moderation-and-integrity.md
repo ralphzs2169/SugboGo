@@ -49,7 +49,7 @@ flowchart TD
 
 SugboGo also recognizes a **Flagged** review status, but the current new-review submission and Under Review decision path does not assign it as a routine outcome. It should not be confused with a reliability signal or a community-report attention indicator.
 
-Review authors can edit review text or photos after submission, except while the review is **Under Review**. A changed text may be checked for a newly detectable **Duplicate Content** reliability signal; earlier signals and their observations remain recorded. The current edit path does **not** rerun the automated AI content assessment. The review's existing publication status is not changed solely because it was edited. An author can also delete their review, which removes the review rather than creating a moderation decision.
+Review authors can edit review text or photos after submission, except while the review is **Under Review**. Proposed changes to text or newly added or replacement photos receive automated content assessment before they are saved. Safe edits are accepted; concerning content or an unavailable assessment leaves the previously published review unchanged. Removing a photo or changing only the community visibility preference does not require another content assessment. Blocked edits are not sent to the Admin Under Review queue. A changed text may separately be checked for a newly detectable **Duplicate Content** reliability signal after the edit is accepted; earlier reliability observations remain recorded. An author can also delete their review, which removes the review rather than creating a moderation decision.
 
 Merchants can provide a reply to a review of their own business. The review and any available reply are shown as context in the administrator investigation panels.
 
@@ -193,7 +193,7 @@ The system offers several ways for a concern to reach an administrator without t
 
 - Automated content findings and local language rules cannot fully judge context, intent, or truthfulness; a held review may be legitimate.
 - A provider failure means some content was not checked. Limited automatic rechecks may help, but an unresolved failure remains for administrator judgment.
-- **Later edits do not currently trigger another AI content assessment.** A changed review text can be checked for a new Duplicate Content signal, which is a different assessment.
+- Changed review text and newly added or replacement photos are assessed before an edit is saved. If content is flagged or assessment is unavailable, the original review remains unchanged; photo removal and visibility-only changes do not require reassessment. Review Reliability is a separate advisory check.
 - Suspicious patterns are advisory. Shared app installation activity does not prove that accounts belong to one person, and legitimate users may trigger a signal.
 - Community reports are allegations. Three pending reports raise attention but do not automatically reject or hide a review.
 - A merchant dispute is a challenge, not proof that the original review is inaccurate. Administrators must assess the review and supporting material.

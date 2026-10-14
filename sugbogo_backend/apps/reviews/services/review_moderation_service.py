@@ -189,7 +189,7 @@ class ReviewModerationService:
                 inputs.append(
                     (
                         "image",
-                        index,
+                        len(photos or []) + index,
                         ReviewModerationService._stored_image_input(image_url),
                     ),
                 )

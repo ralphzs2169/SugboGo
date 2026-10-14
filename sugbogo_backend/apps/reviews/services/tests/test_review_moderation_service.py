@@ -199,6 +199,30 @@ class ReviewModerationServiceTests(SimpleTestCase):
         )
 
     @patch("apps.reviews.services.review_moderation_service.OpenAI")
+    def test_new_and_retained_images_have_distinct_finding_indices(
+        self,
+        openai_client,
+    ):
+        create = openai_client.return_value.moderations.create
+        create.side_effect = [
+            provider_response(request_id="text"),
+            provider_response(request_id="new-photo"),
+            provider_response(request_id="retained-photo"),
+        ]
+        result = ReviewModerationService.moderate(
+            text="An edited review with two photos.",
+            photos=[uploaded_image("new.jpg", b"new-image")],
+            image_urls=["https://res.cloudinary.com/test/retained.jpg"],
+        )
+
+        self.assertEqual(result["outcome"], "safe")
+        self.assertEqual(result["image_count"], 2)
+        self.assertEqual(
+            [finding["photo_index"] for finding in result["findings"][1:]],
+            [0, 1],
+        )
+
+    @patch("apps.reviews.services.review_moderation_service.OpenAI")
     def test_valid_flag_before_later_provider_failure_stays_flagged(
         self,
         openai_client,

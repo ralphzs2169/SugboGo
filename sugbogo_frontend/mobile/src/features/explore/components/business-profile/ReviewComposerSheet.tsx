@@ -51,6 +51,32 @@ type ReviewErrors = {
 
 const MIN_REVIEW_LENGTH = 25;
 const MAX_REVIEW_LENGTH = 1000;
+const REVIEW_EDIT_FEEDBACK = {
+  REVIEW_EDIT_CONTENT_FLAGGED: {
+    title: "Changes not saved",
+    message:
+      "Your updated review didn't pass our content safety check. Please revise your changes and try again.",
+  },
+  REVIEW_EDIT_MODERATION_UNAVAILABLE: {
+    title: "Couldn't check your changes",
+    message:
+      "We couldn't complete the content check right now. Your original review is unchanged. Please try again later.",
+  },
+  REVIEW_EDIT_CONFLICT: {
+    title: "Review changed",
+    message:
+      "This review was updated while you were editing. Please reload it before making changes.",
+  },
+} as const;
+
+type ReviewEditFeedbackCode = keyof typeof REVIEW_EDIT_FEEDBACK;
+
+function isReviewEditFeedbackCode(code: unknown): code is ReviewEditFeedbackCode {
+  return (
+    typeof code === "string" &&
+    Object.prototype.hasOwnProperty.call(REVIEW_EDIT_FEEDBACK, code)
+  );
+}
 
 /**
  * Compact card showing which business the review is for.
@@ -149,6 +175,9 @@ export default function ReviewComposerSheet({
   const [originalShowInCommunity, setOriginalShowInCommunity] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [errors, setErrors] = useState<ReviewErrors>({});
+  const [editFeedback, setEditFeedback] = useState<ReviewEditFeedbackCode | null>(
+    null,
+  );
 
   const isEditing = Boolean(review);
   const isPending = isCreatePending || isUpdatePending;
@@ -183,6 +212,7 @@ export default function ReviewComposerSheet({
     setShowInCommunity(initialCommunity);
     setOriginalShowInCommunity(initialCommunity);
     setErrors({});
+    setEditFeedback(null);
   }
 
   function clearFieldError(field: keyof ReviewErrors) {
@@ -224,6 +254,7 @@ export default function ReviewComposerSheet({
       }
 
       setPhotos((current) => current.concat(selectedPhotos));
+      setEditFeedback(null);
     } finally {
       setIsPicking(false);
     }
@@ -237,6 +268,7 @@ export default function ReviewComposerSheet({
     setExistingPhotos((current) =>
       current.filter((photo) => photo.id !== photoId),
     );
+    setEditFeedback(null);
   }
 
   function removePhoto(index: number) {
@@ -247,12 +279,15 @@ export default function ReviewComposerSheet({
     setPhotos((current) =>
       current.filter((_, photoIndex) => photoIndex !== index),
     );
+    setEditFeedback(null);
   }
 
   async function submit() {
     if (!canSubmit) {
       return;
     }
+
+    setEditFeedback(null);
 
     const validationErrors = validate();
 
@@ -274,6 +309,7 @@ export default function ReviewComposerSheet({
           textChanged,
         });
 
+        setEditFeedback(null);
         Toast.show({ type: "success", text1: "Review updated" });
       } else {
         const created = await createReview({
@@ -294,8 +330,12 @@ export default function ReviewComposerSheet({
       }
 
       sheetRef.current?.dismiss();
-    } catch {
-      // Mutation error state handles API feedback.
+    } catch (error) {
+      const response = error as Partial<ApiResponse<unknown>>;
+      if (review && isReviewEditFeedbackCode(response?.code)) {
+        setEditFeedback(response.code);
+      }
+      // Other mutation errors retain their existing API feedback.
     }
   }
 
@@ -332,6 +372,14 @@ export default function ReviewComposerSheet({
     }
 
     const response = error as unknown as ApiResponse<unknown>;
+
+    if (
+      !response.success &&
+      isEditing &&
+      isReviewEditFeedbackCode(response.code)
+    ) {
+      return;
+    }
 
     if (!response.success && !handleSystemError(response)) {
       Toast.show({
@@ -434,7 +482,10 @@ export default function ReviewComposerSheet({
               label="Your review"
               showLabel={false}
               value={text}
-              onChangeText={setText}
+              onChangeText={(value) => {
+                setText(value);
+                setEditFeedback(null);
+              }}
               onFocus={() => clearFieldError("text")}
               placeholder="What stood out about your visit?"
               maxLength={MAX_REVIEW_LENGTH}
@@ -559,7 +610,10 @@ export default function ReviewComposerSheet({
 
               <Switch
                 value={showInCommunity}
-                onValueChange={setShowInCommunity}
+                onValueChange={(value) => {
+                  setShowInCommunity(value);
+                  setEditFeedback(null);
+                }}
                 disabled={isPending}
                 accessibilityRole="switch"
                 accessibilityLabel="Show in Community"
@@ -579,6 +633,29 @@ export default function ReviewComposerSheet({
           className="border-t border-border-primary bg-surface px-screen-x pt-3"
           style={{ paddingBottom: insets.bottom + 12 }}
         >
+          {editFeedback && (
+            <View
+              testID="review-edit-error-banner"
+              accessible
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={`${REVIEW_EDIT_FEEDBACK[editFeedback].title}. ${REVIEW_EDIT_FEEDBACK[editFeedback].message}`}
+              className="mb-3 flex-row items-start rounded-xl border border-border-error/25 bg-error px-3 py-2.5"
+            >
+              <MaterialCommunityIcons
+                name="alert-circle-outline"
+                size={18}
+                color={theme.extends.colors.error}
+              />
+              <View className="ml-2 min-w-0 flex-1">
+                <AppText weight="semibold" className="text-sm text-text-error">
+                  {REVIEW_EDIT_FEEDBACK[editFeedback].title}
+                </AppText>
+                <AppText className="mt-0.5 text-xs leading-4 text-text-error">
+                  {REVIEW_EDIT_FEEDBACK[editFeedback].message}
+                </AppText>
+              </View>
+            </View>
+          )}
           <Button
             title={isEditing ? "Save changes" : "Submit review"}
             onPress={submit}
