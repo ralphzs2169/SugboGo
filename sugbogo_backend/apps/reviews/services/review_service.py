@@ -1,7 +1,8 @@
 import logging
 from datetime import timedelta
+from hashlib import blake2b
 
-from django.db import IntegrityError, models, transaction
+from django.db import IntegrityError, connection, models, transaction
 from django.db.models import Avg, Count, Exists, OuterRef, Q, Subquery
 from django.db.models.functions import Greatest
 from django.utils import timezone
@@ -44,6 +45,35 @@ class ReviewService:
     DEVICE_REVIEW_WINDOW = timedelta(hours=24)
     DUPLICATE_REVIEW_WINDOW = timedelta(days=30)
     DUPLICATE_PRIOR_MATCHES = 2
+
+    @staticmethod
+    def _lock_reliability_creation_keys(
+        user_id: int,
+        installation_id: str | None,
+    ) -> None:
+        """Serialize overlapping review creations before detection queries run."""
+        if connection.vendor != "postgresql":
+            return
+
+        keys = [f"review-reliability:user:{user_id}"]
+        if installation_id is not None and installation_id.strip():
+            keys.append(f"review-reliability:installation:{installation_id}")
+
+        # Stable, ordered keys avoid process-local mutexes and lock-order deadlocks.
+        lock_ids = sorted(
+            int.from_bytes(
+                blake2b(key.encode("utf-8"), digest_size=8).digest(),
+                byteorder="big",
+                signed=True,
+            )
+            for key in keys
+        )
+        with connection.cursor() as cursor:
+            for lock_id in lock_ids:
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(%s)",
+                    [lock_id],
+                )
 
     @staticmethod
     def _queue_sentiment_after_commit(review_id: int, business_id: int) -> None:
@@ -391,6 +421,10 @@ class ReviewService:
                 uploaded_photos.append(upload_result)
 
             with transaction.atomic():
+                ReviewService._lock_reliability_creation_keys(
+                    user.USER_ID,
+                    installation_id,
+                )
                 try:
                     review = Review.objects.create(
                         USER_ID=user,
