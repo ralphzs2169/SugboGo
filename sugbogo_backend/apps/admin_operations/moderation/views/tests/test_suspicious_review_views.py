@@ -11,6 +11,12 @@ from rest_framework.test import APIClient
 from apps.admin_operations.moderation.services.tests.test_manage_under_review_service import (
     create_under_review_context,
 )
+from apps.admin_operations.business_management.serializers.manage_business_serializers import (
+    AdminReviewResponseSerializer,
+)
+from apps.admin_operations.moderation.serializers.manage_under_review_serializers import (
+    AdminUnderReviewDetailSerializer,
+)
 from apps.business.models import Business
 from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
@@ -138,6 +144,57 @@ class SuspiciousReviewViewTests(TestCase):
                     expected,
                 )
                 self.assertEqual(self.client.get(detail).status_code, expected)
+
+    def test_admin_reliability_outcome_is_separate_from_queue_eligibility(self):
+        """Only saved signals enter Suspicious, regardless of check outcome."""
+        reason = Review.ReliabilityReason.RAPID_SUBMISSION
+        signaled = self.create_review("Signaled review", [reason])
+        clean_failure = self.create_review("Unsignaled failed check")
+        held = self.create_review(
+            "Held review",
+            status=Review.ReviewStatus.UNDER_REVIEW,
+        )
+
+        for outcome in Review.ReliabilityCheckOutcome.values:
+            with self.subTest(outcome=outcome):
+                Review.objects.filter(pk=signaled.pk).update(
+                    REVW_RELIABILITY_CHECK_OUTCOME=outcome,
+                )
+                detail = self.client.get(
+                    reverse("admin-suspicious-review-detail", args=[signaled.pk]),
+                )
+                self.assertEqual(detail.status_code, 200)
+                self.assertEqual(
+                    detail.data["data"]["reliability_check_outcome"],
+                    outcome,
+                )
+                self.assertNotIn("error_type", str(detail.data["data"]))
+
+        Review.objects.filter(pk=clean_failure.pk).update(
+            REVW_RELIABILITY_CHECK_OUTCOME=(
+                Review.ReliabilityCheckOutcome.UNAVAILABLE
+            ),
+        )
+        queue = self.client.get(reverse("admin-suspicious-review-list"))
+        self.assertEqual(queue.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in queue.data["data"]["items"]],
+            [signaled.pk],
+        )
+
+        clean_failure.refresh_from_db()
+        self.assertEqual(
+            AdminReviewResponseSerializer(clean_failure).data[
+                "reliability_check_outcome"
+            ],
+            Review.ReliabilityCheckOutcome.UNAVAILABLE,
+        )
+        self.assertEqual(
+            AdminUnderReviewDetailSerializer(held).data[
+                "reliability_check_outcome"
+            ],
+            Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
 
     def test_admin_presentation_context_is_kept_in_admin_responses(self):
         """Queue context and full review identity use existing review records."""

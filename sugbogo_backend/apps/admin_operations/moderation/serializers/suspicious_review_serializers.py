@@ -109,6 +109,9 @@ class SuspiciousReviewDetailSerializer(serializers.ModelSerializer):
     submitted_at = serializers.DateTimeField(source="REVW_CREATED_AT")
     status = serializers.CharField(source="REVW_STATUS")
     reasons = serializers.ListField(source="REVW_RELIABILITY_REASONS")
+    reliability_check_outcome = serializers.CharField(
+        source="REVW_RELIABILITY_CHECK_OUTCOME"
+    )
     detection_evidence = serializers.SerializerMethodField()
     current_related_activity = serializers.SerializerMethodField()
     like_count = serializers.IntegerField(source="REVW_LIKE_COUNT")
@@ -130,6 +133,7 @@ class SuspiciousReviewDetailSerializer(serializers.ModelSerializer):
             "submitted_at",
             "status",
             "reasons",
+            "reliability_check_outcome",
             "detection_evidence",
             "current_related_activity",
             "like_count",

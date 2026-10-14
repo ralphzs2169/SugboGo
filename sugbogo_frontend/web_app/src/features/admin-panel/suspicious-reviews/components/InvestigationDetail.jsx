@@ -56,6 +56,13 @@ function InvestigationDetail({ reviewId, onStale }) {
             <ShieldAlert className="h-4 w-4 text-text-secondary" strokeWidth={1.75} aria-hidden="true" />
             <h3 className="text-base font-semibold text-text-primary">Reliability Signals</h3>
           </div>
+          <p className="text-xs text-text-secondary">
+            Latest reliability check: {review.reliability_check_outcome === "checked"
+              ? "Completed"
+              : review.reliability_check_outcome === "unavailable"
+                ? "Unavailable"
+                : "Historical outcome unknown"}
+          </p>
           <SignalBadges reasons={review.reasons} />
         </section>
         <DetectionEvidence review={review} />

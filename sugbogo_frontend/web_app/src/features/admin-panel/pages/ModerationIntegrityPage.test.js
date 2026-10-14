@@ -789,6 +789,7 @@ const suspiciousReview = {
   first_photo_url: "https://example.com/photo.jpg",
   photo_count: 2,
   submitted_at: "2026-10-10T09:00:00Z",
+  reliability_check_outcome: "checked",
   reasons: ["duplicate_content", "rapid_submission"],
 };
 
@@ -915,6 +916,7 @@ test("selected Suspicious detail separates detection evidence and live activity"
     },
   );
   assert.match(html, /Reliability Signals/);
+  assert.match(html, /Latest reliability check: <!-- -->Completed/);
   assert.match(html, /Why This Review Was Flagged/);
   assert.match(html, /Stored evidence from when each suspicious activity signal was detected/);
   assert.equal((html.match(/Detected during review submission/g) ?? []).length, 2);
@@ -931,6 +933,32 @@ test("selected Suspicious detail separates detection evidence and live activity"
   assert.match(html, /No related records are currently available/);
   assert.doesNotMatch(html, /Merchant Response/);
   assert.doesNotMatch(html, /Highly similar content|private-installation/);
+});
+
+test("Suspicious detail distinguishes unavailable and historical reliability checks", () => {
+  for (const [outcome, label] of [
+    ["unavailable", "Unavailable"],
+    ["unknown", "Historical outcome unknown"],
+  ]) {
+    const html = renderPage(
+      "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+      {
+        suspiciousDetail: {
+          ...suspiciousReview,
+          reliability_check_outcome: outcome,
+          text: "Review with a historical reliability signal",
+          status: "published",
+          photos: [],
+          detection_evidence: {},
+          current_related_activity: {},
+        },
+      },
+    );
+
+    assert.match(html.replaceAll("<!-- -->", ""), new RegExp(`Latest reliability check: ${label}`));
+    assert.match(html, /Reliability Signals/);
+    assert.doesNotMatch(html, /Reject Review|Approve &amp; Publish/);
+  }
 });
 
 test("Suspicious edit duplicate uses stored detection context, not latest edit time", () => {
