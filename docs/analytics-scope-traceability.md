@@ -96,6 +96,8 @@ Cluster/category are taxonomy filters, not geographic districts. District report
 
 ### D8. Mock Premium activation remains a proposed implementation task
 
+**Implementation update:** the later `feat/merchant-plus-mock-entitlements` task received separate approval for a persistent demo model, generated migration, service/gate integration and APIs. Its separately approved verification passed 253 analytics/helper tests, including 27 new mock-entitlement tests and both PostgreSQL concurrency tests, on 14 October 2026. Django checks and migration drift checks passed; the disposable test database was removed. The application database and local .env were not changed. Live demonstration and frontend acceptance remain outstanding. See [the mock Plus API contract](../sugbogo_backend/docs/merchant-plus-mock-api-contract.md). The paragraphs below retain the original decision-stage boundary; they are not a claim that the later approved files remain unimplemented.
+
 The manuscript excludes integrated real-time payment processing. Proposed demo activation must accept no money, card/bank details, or real transaction claims. Existing `HasMerchantPlus` is implemented, but enforcement off permits previews and enforcement on currently fails closed for all merchants. There is no persistent per-merchant entitlement yet.
 
 Proposed status, mock-activation and mock-reset APIs should derive the owned business from authentication, grant only after simulated success, preserve existing access after failure/cancellation, and make repeated success idempotent. Explicit mock mode must control mutation availability and whether mock grants count toward enforced access. Demonstrate denial, activation, granted access, and reset with enforcement on. Production enforcement must not accept demo entitlements when mock mode is disabled.
@@ -148,6 +150,8 @@ Known definitions remain explicit: current active/approved business inventory ha
 ## Verification evidence and outstanding acceptance
 
 The recorded peer/report branch verification ran **226 tests successfully**, including **28 new peer/report tests**, with Django checks, Python syntax checks, whitespace checks, and disposable PostgreSQL/PostGIS test database cleanup. This was a prior task run, before this documentation branch pulled latest main. It is **not** evidence that all 226 were rerun on `e09a923a`, nor a claim that the entire repository suite passed. Mock Mongo outage logs were intentional simulated tests, not live outage exercises.
+
+Later evidence: the mock-entitlement implementation based on that updated main passed **253 tests** in the same admin/merchant/shared-analytics selection, including the new demo tests, on 14 October 2026. This is a combined targeted analytics regression run, not an all-repository test result. It supersedes the earlier lack of combined analytics verification for this branch's base, without establishing live tracking completeness. Do not sum 226 and 253 as distinct tests.
 
 Main now includes additional review/community/moderation changes. They were pulled, not reimplemented or migrated by this branch. Keep published-state and retained-evidence semantics aligned with [review moderation/integrity](review-moderation-and-integrity.md) and [review reliability](review-reliability.md); advisory flags do not establish abuse. Run relevant combined regressions during the next approved verification task.
 

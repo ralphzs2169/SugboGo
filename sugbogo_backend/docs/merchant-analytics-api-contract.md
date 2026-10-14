@@ -1,6 +1,6 @@
 # Merchant analytics and Merchant Plus gate
 
-The registered `apps.merchant_operations.merchant_analytics` follows the existing `business_profile` services/serializers/views layout. It has no models, migrations or dependencies. All analytics methods are read-only; no index creation, event writes, Discovery Score changes, Gemini calls or payments are introduced.
+The registered `apps.merchant_operations.merchant_analytics` follows the existing `business_profile` services/serializers/views layout. Analytics GET methods remain read-only. The separately approved mock Plus task adds a demo entitlement model/migration and mutation APIs; see [the simulation API contract](merchant-plus-mock-api-contract.md). No index creation, event writes, Discovery Score changes, Gemini calls or payments are introduced by analytics requests.
 
 ## Standard endpoint
 
@@ -53,16 +53,17 @@ Mongo failures preserve available SQL data and return null affected visibility m
 
 ## Ralph: where Premium enforcement lives
 
-All seven Premium view classes, including peers and the composed report, inherit the same authentication, merchant-role and `HasMerchantPlus` permissions. With `MERCHANT_PLUS_ENFORCED=False`, active merchants can preview them. With enforcement enabled, the current entitlement stub denies access before ownership/service queries. A future approved server entitlement lookup can grant access without changing endpoint permissions. No client entitlement claim is accepted.
+All seven Premium view classes, including peers and the composed report, inherit the same authentication, merchant-role and `HasMerchantPlus` permissions. With `MERCHANT_PLUS_ENFORCED=False`, active merchants can preview them. With enforcement enabled, access is granted only to active owned-business demo entitlements while explicit mock mode is enabled; otherwise it fails closed. A future real entitlement integration remains separate. No client ownership/entitlement claim is accepted.
 
 | Location | Responsibility |
 |---|---|
 | `config/settings.py`: `MERCHANT_PLUS_ENFORCED` | Server enforcement toggle, default False; accepts True/False and rejects invalid values. |
-| `merchant_analytics/entitlements.py`: `merchant_has_plus_access(user)` | Returns True while enforcement is off; currently False when enabled. Replace the final return with the approved plan check later. |
+| `config/settings.py`: `MERCHANT_PLUS_MOCK_ENABLED` | Default False; enables demo mutations and recognition of demo grants under enforcement. Keep off outside explicit demonstrations. |
+| `merchant_analytics/entitlements.py`: `merchant_has_plus_access(user)` | Preview bypass when enforcement off; owned demo lookup only under mock enforcement; real paid lookup remains future work. |
 | `merchant_analytics/permissions.py`: `HasMerchantPlus` | Every Premium view uses this; denial returns HTTP 403 with code PLUS_REQUIRED. |
 | `serializers/standard_analytics_serializers.py` | Standard allowlist; never add Premium values and merely hide them in the UI. |
 
-The Plus permission does not replace role or ownership checks. Existing public review summaries remain public. Anonymous category/cluster peers and the JSON report are implemented below; PDF exports and the real entitlement lookup remain future tasks. Keep enforcement disabled for the agreed development preview. Before enabling it for paying users, coordinate the entitlement structure with Ralph and test eligible/denied accounts. No plan model/payment processing is introduced here.
+The Plus permission does not replace role or ownership checks. Existing public review summaries remain public. Anonymous category/cluster peers and the JSON report are implemented below; PDF exports and real paid entitlement lookup remain future tasks. Use enforcement True and mock True for the deny/activate/reset demonstration; preview mode remains available when enforcement is False. Persistent demo access is not payment verification or a pricing-plan model. See the simulation contract for migration approval and the configuration matrix.
 
 ## Premium endpoint contract
 
@@ -192,7 +193,7 @@ Automated Mongo tests use the existing read-only in-memory collection; live data
 
 1. With enforcement off, authenticate as merchant A and GET all five routes. Repeat as merchant B with distinct fixtures; each response must contain only its owned business aggregates.
 2. Try business_id/user_id/plus query overrides; expect 400. Anonymous, explorer/admin/superadmin, and inactive merchant requests must be rejected.
-3. Enable enforcement and restart the server: every Premium route must return 403 PLUS_REQUIRED with the existing stub; Standard remains accessible. Test future entitlement approval through the server-side test mock only.
+3. Enable enforcement with mock mode disabled: every Premium route returns 403 PLUS_REQUIRED; Standard remains accessible. With mock mode enabled, verify demo activation/reset for two owners through the real new APIs after approved migration deployment.
 4. Check 7/30/90/custom Manila boundaries and daily/weekly visibility. Add one visitor across multiple days: period uniques must remain one; SAVE-only users must not count as profile visitors.
 5. Check healthy empty data versus simulated Mongo failure: zero/[] versus null/unavailable. No numerical visibility growth is expected while coverage is unverified.
 6. Check vouch deletion/invalid evidence/inactive specialty behavior and labels. Check missing, pending, insufficient, ready, outdated, invalidated and sampled stored insights; GET requests must neither write summaries nor trigger Gemini.
@@ -213,7 +214,7 @@ These automated tests use a mocked read-only Mongo collection. Live Mongo aggreg
 3. Compare stored profile/SAVE observations using the exact UTC bounds. Repeat a visitor over multiple dates; confirm one period-wide visitor. Unsave and confirm holder count falls while prior SAVE events remain.
 4. Confirm zero-support active specialties, inactive links, invalid evidence and valid suspicious evidence follow existing rules. Never compare against unfiltered cached totals.
 5. Validate published/rejected/under-review reviews, old unanswered backlog, replies after the selected end but before generated cutoff, future/negative replies, and null denominator vs 0% response.
-6. With enforcement off, the Standard response must still contain no Premium/comparison fields. With enforcement on, Standard remains available and all seven Premium routes deny with `PLUS_REQUIRED` until the real entitlement check is implemented.
+6. With enforcement off, Standard must still contain no Premium/comparison fields. With enforcement on, Standard remains available; all seven Premium routes require eligible owned demo access under explicit mock mode or deny with PLUS_REQUIRED. Real paid entitlements remain unimplemented.
 7. Check that Mongo failure produces null visibility/partial metadata while SQL metrics remain readable. Preserve legitimate healthy zeros.
 8. Frontend should display event counts, current snapshots, cohort percentages and cutoff labels distinctly; no trend arrows or Premium numbers should be synthesized from this response.
 

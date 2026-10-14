@@ -26,11 +26,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
-# Development preview only; enabling enforcement also requires a real Plus entitlement check.
+# Enforcement-off preserves previews; demo grants count only under explicit mock mode.
 _merchant_plus_enforced = os.getenv("MERCHANT_PLUS_ENFORCED", "False").strip().lower()
 if _merchant_plus_enforced not in {"true", "false"}:
     raise ImproperlyConfigured("MERCHANT_PLUS_ENFORCED must be True or False.")
 MERCHANT_PLUS_ENFORCED = _merchant_plus_enforced == "true"
+
+_merchant_plus_mock_enabled = os.getenv("MERCHANT_PLUS_MOCK_ENABLED", "False").strip().lower()
+if _merchant_plus_mock_enabled not in {"true", "false"}:
+    raise ImproperlyConfigured("MERCHANT_PLUS_MOCK_ENABLED must be True or False.")
+MERCHANT_PLUS_MOCK_ENABLED = _merchant_plus_mock_enabled == "true"
 
 if os.name == 'nt':
     GDAL_LIBRARY_PATH = os.environ.get("GDAL_LIBRARY_PATH")
