@@ -2,11 +2,18 @@ import type { LocationObject } from "expo-location";
 import { useEffect, useRef } from "react";
 import { Platform, View } from "react-native";
 import ClusteredMapView from "react-native-map-clustering";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  type Region,
+} from "react-native-maps";
 
 import { theme } from "@/constants/theme";
 import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 import MapMarker from "@/shared/components/MapMarker";
+
+import type { MapBounds } from "../types/mapDiscovery.types";
+import { regionToBounds } from "../utils/mapViewport";
 
 export type BusinessMapMarker = {
   id: number;
@@ -20,6 +27,12 @@ type Props = {
   interactive?: boolean;
   trackMarkerUpdates?: boolean;
   onBusinessPress?: (businessId: number) => void;
+  autoCenterOnLocation?: boolean;
+  showsUserLocation?: boolean;
+  onMapReady?: (map: MapView) => void;
+  onViewportChange?: (bounds: MapBounds) => void;
+  onViewportChanging?: () => void;
+  onMapInteraction?: () => void;
 };
 
 const DEFAULT_REGION = {
@@ -44,11 +57,56 @@ export default function BusinessDiscoveryMap({
   interactive = true,
   trackMarkerUpdates = false,
   onBusinessPress,
+  autoCenterOnLocation = true,
+  showsUserLocation = userLocation !== null,
+  onMapReady,
+  onViewportChange,
+  onViewportChanging,
+  onMapInteraction,
 }: Props) {
   const mapRef = useRef<MapView>(null);
+  const boundaryReadId = useRef(0);
+  const isMounted = useRef(true);
 
   useEffect(() => {
-    if (!userLocation) {
+    isMounted.current = true;
+
+    return () => {
+      isMounted.current = false;
+      boundaryReadId.current += 1;
+    };
+  }, []);
+
+  const reportViewport = async (region: Region) => {
+    if (!onViewportChange) {
+      return;
+    }
+
+    const readId = ++boundaryReadId.current;
+    let bounds = regionToBounds(region);
+
+    try {
+      const boundaries = await mapRef.current?.getMapBoundaries();
+
+      if (boundaries) {
+        bounds = {
+          north: boundaries.northEast.latitude,
+          south: boundaries.southWest.latitude,
+          east: boundaries.northEast.longitude,
+          west: boundaries.southWest.longitude,
+        };
+      }
+    } catch {
+      // Region deltas are the fallback for providers without native boundaries.
+    }
+
+    if (isMounted.current && readId === boundaryReadId.current) {
+      onViewportChange(bounds);
+    }
+  };
+
+  useEffect(() => {
+    if (!autoCenterOnLocation || !userLocation) {
       return;
     }
 
@@ -61,7 +119,7 @@ export default function BusinessDiscoveryMap({
       },
       500,
     );
-  }, [userLocation]);
+  }, [autoCenterOnLocation, userLocation]);
 
   return (
     <View className="flex-1 overflow-hidden">
@@ -71,12 +129,27 @@ export default function BusinessDiscoveryMap({
         provider={PROVIDER_GOOGLE}
         customMapStyle={MAP_STYLE}
         initialRegion={DEFAULT_REGION}
+        onMapReady={() => {
+          if (mapRef.current) {
+            onMapReady?.(mapRef.current);
+          }
+
+          void reportViewport(DEFAULT_REGION);
+        }}
+        onRegionChange={() => {
+          boundaryReadId.current += 1;
+          onViewportChanging?.();
+        }}
+        onRegionChangeComplete={(region) => {
+          void reportViewport(region);
+        }}
+        onTouchStart={onMapInteraction}
         style={{
           width: "100%",
           height: "100%",
         }}
         pointerEvents={interactive ? "auto" : "none"}
-        showsUserLocation={userLocation !== null}
+        showsUserLocation={showsUserLocation}
         showsMyLocationButton={false}
         scrollEnabled={interactive}
         zoomEnabled={interactive}

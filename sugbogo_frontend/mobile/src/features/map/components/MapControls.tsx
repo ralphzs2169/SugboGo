@@ -2,8 +2,7 @@ import { View, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
-
-const TAB_BAR_HEIGHT = 75;
+import { TAB_BAR_HEIGHT } from "@/shared/constants/layout";
 
 type Props = {
   onZoomIn: () => void;
@@ -12,6 +11,7 @@ type Props = {
   isPreviewCardOpen: boolean;
 };
 
+/** Provides the existing discovery zoom and recenter actions above the tab bar. */
 export default function MapControls({
   onZoomIn,
   onZoomOut,
@@ -32,7 +32,9 @@ export default function MapControls({
       >
         <Pressable
           onPress={onZoomIn}
-          className="h-10 w-10 items-center justify-center"
+          accessibilityRole="button"
+          accessibilityLabel="Zoom in"
+          className="h-12 w-12 cursor-pointer items-center justify-center active:opacity-70"
         >
           <MaterialCommunityIcons
             name="plus"
@@ -43,7 +45,9 @@ export default function MapControls({
         <View style={{ height: 1, backgroundColor: "#E5E7EB" }} />
         <Pressable
           onPress={onZoomOut}
-          className="h-10 w-10 items-center justify-center"
+          accessibilityRole="button"
+          accessibilityLabel="Zoom out"
+          className="h-12 w-12 cursor-pointer items-center justify-center active:opacity-70"
         >
           <MaterialCommunityIcons
             name="minus"
@@ -55,7 +59,9 @@ export default function MapControls({
 
       <Pressable
         onPress={onLocateMe}
-        className="mt-sm h-12 w-12 items-center justify-center rounded-full bg-brand"
+        accessibilityRole="button"
+        accessibilityLabel="Locate me"
+        className="mt-sm h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-brand active:opacity-70"
         style={{ elevation: 4 }}
       >
         <MaterialCommunityIcons
