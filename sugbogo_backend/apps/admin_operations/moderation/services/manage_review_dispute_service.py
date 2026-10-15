@@ -135,16 +135,26 @@ class ManageReviewDisputeService:
         *,
         for_update: bool = False,
     ) -> MerchantReviewDispute:
-        """Retrieves dispute details and optionally locks its decision state."""
+        """Retrieve a dispute, locking its review before its decision state."""
         try:
             queryset = ManageReviewDisputeService._detail_queryset()
             if for_update:
+                review_id = (
+                    MerchantReviewDispute.objects
+                    .values_list("REVW_ID_id", flat=True)
+                    .get(MRDSP_ID=dispute_id)
+                )
+                # Match deletion's parent-first order before locking the dispute.
+                Review.objects.select_for_update(of=("self",)).get(
+                    REVW_ID=review_id,
+                )
+                queryset = queryset.filter(REVW_ID_id=review_id)
                 queryset = queryset.select_for_update(of=("self",))
             return queryset.get(MRDSP_ID=dispute_id)
-        except MerchantReviewDispute.DoesNotExist:
+        except (Review.DoesNotExist, MerchantReviewDispute.DoesNotExist):
             raise NotFound(
                 "The review dispute could not be found.",
-            )
+            ) from None
 
 
     @staticmethod
