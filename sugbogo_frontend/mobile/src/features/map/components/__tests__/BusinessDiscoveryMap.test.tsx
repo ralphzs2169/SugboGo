@@ -6,6 +6,7 @@ import BusinessDiscoveryMap from "../BusinessDiscoveryMap";
 
 const mockNativeMap = {
   animateToRegion: jest.fn(),
+  animateCamera: jest.fn(),
   getMapBoundaries: jest.fn(),
 };
 
@@ -13,12 +14,68 @@ jest.mock("react-native-map-clustering", () => {
   const React = jest.requireActual("react");
   const { View } = jest.requireActual("react-native");
   return React.forwardRef(function MockClusteredMap(
-    props: object,
+    props: { mapRef: (map: unknown) => void },
     ref: unknown,
   ) {
-    React.useImperativeHandle(ref, () => mockNativeMap);
+    const { mapRef } = props;
+    React.useLayoutEffect(() => {
+      mapRef(mockNativeMap);
+    }, [mapRef]);
     return <View testID="clustered-map" {...props} />;
   });
+});
+
+it("queues search focus until native readiness and layout, then uses the camera API once", async () => {
+  const target = { latitude: 10.8, longitude: 123.8 };
+  const screen = await render(
+    <BusinessDiscoveryMap
+      businesses={[]}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      focusTarget={target}
+      previewBottomInset={260}
+    />,
+  );
+  const map = () => screen.getByTestId("clustered-map");
+  expect(mockNativeMap.animateCamera).not.toHaveBeenCalled();
+  await fireEvent(map(), "mapReady");
+  expect(mockNativeMap.animateCamera).not.toHaveBeenCalled();
+  await fireEvent(map(), "layout", {
+    nativeEvent: { layout: { height: 800 } },
+  });
+  await waitFor(() =>
+    expect(mockNativeMap.animateCamera).toHaveBeenCalledWith(
+      { center: target, zoom: 16, pitch: 0, heading: 0 },
+      { duration: 500 },
+    ),
+  );
+  expect(map().props.mapPadding.bottom).toBe(260);
+  await screen.rerender(
+    <BusinessDiscoveryMap
+      businesses={[{ id: 1, ...target }]}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      focusTarget={target}
+      previewBottomInset={240}
+    />,
+  );
+  expect(mockNativeMap.animateCamera).toHaveBeenCalledTimes(1);
+});
+
+it("distinguishes native gestures from programmatic region changes", async () => {
+  const onMapInteraction = jest.fn();
+  const screen = await render(
+    <BusinessDiscoveryMap
+      businesses={[]}
+      userLocation={null}
+      onMapInteraction={onMapInteraction}
+    />,
+  );
+  const map = screen.getByTestId("clustered-map");
+  await fireEvent(map, "regionChange", region, { isGesture: false });
+  expect(onMapInteraction).not.toHaveBeenCalled();
+  await fireEvent(map, "regionChange", region, { isGesture: true });
+  expect(onMapInteraction).toHaveBeenCalledTimes(1);
 });
 jest.mock("react-native-maps", () => {
   const { View } = jest.requireActual("react-native");
@@ -139,7 +196,7 @@ it("distinguishes the selected standard marker and keeps selection separate from
   const onBusinessPress = jest.fn();
   const businesses = [
     { id: 42, latitude: 10.31, longitude: 123.91 },
-    { id: 77, latitude: 10.32, longitude: 123.92 },
+    { id: 77, latitude: 10.32, longitude: 123.92, is_hidden_gem: true },
   ];
   const screen = await render(
     <BusinessDiscoveryMap
@@ -148,12 +205,17 @@ it("distinguishes the selected standard marker and keeps selection separate from
       autoCenterOnLocation={false}
       selectedBusinessId={42}
       onBusinessPress={onBusinessPress}
+      dimUnselectedMarkers
     />,
   );
   const markers = screen.getAllByTestId("business-marker");
   expect(markers[0].props.accessibilityState.selected).toBe(true);
   expect(markers[1].props.accessibilityState.selected).toBe(false);
-  expect(screen.getAllByText("Selected")).toHaveLength(1);
+  expect(markers.map((marker) => marker.props.opacity)).toEqual([1, 0.55]);
+  expect(screen.getAllByTestId("shared-marker")[1].props.variant).toBe(
+    "hidden-gem",
+  );
+  expect(screen.queryByText("Selected")).toBeNull();
   await fireEvent(markers[1], "press");
   expect(onBusinessPress).toHaveBeenCalledWith(77);
   await screen.rerender(
@@ -163,6 +225,7 @@ it("distinguishes the selected standard marker and keeps selection separate from
       autoCenterOnLocation={false}
       selectedBusinessId={77}
       onBusinessPress={onBusinessPress}
+      dimUnselectedMarkers
     />,
   );
   expect(
@@ -171,6 +234,24 @@ it("distinguishes the selected standard marker and keeps selection separate from
   ).toBe(true);
   expect(mockNativeMap.animateToRegion).not.toHaveBeenCalled();
   expect(screen.getByTestId("clustered-map").props.scrollEnabled).toBe(true);
+  expect(
+    screen
+      .getAllByTestId("business-marker")
+      .map((marker) => marker.props.opacity),
+  ).toEqual([0.55, 1]);
+  await screen.rerender(
+    <BusinessDiscoveryMap
+      businesses={businesses}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      dimUnselectedMarkers
+    />,
+  );
+  expect(
+    screen
+      .getAllByTestId("business-marker")
+      .map((marker) => marker.props.opacity),
+  ).toEqual([1, 1]);
 });
 
 it("keeps mixed gem and regular markers clusterable and preserves selected gem identity", async () => {
@@ -192,8 +273,11 @@ it("keeps mixed gem and regular markers clusterable and preserves selected gem i
     "business",
     "business",
   ]);
-  expect(screen.getByText("Selected")).toBeTruthy();
+  expect(screen.queryByText("Selected")).toBeNull();
   const nativeMarkers = screen.getAllByTestId("business-marker");
+  expect(nativeMarkers.map((marker) => marker.props.opacity)).toEqual([
+    1, 1, 1,
+  ]);
   expect(nativeMarkers[0].props.accessibilityState.selected).toBe(true);
   expect(screen.getByTestId("clustered-map").props.clusteringEnabled).toBe(
     true,
@@ -213,5 +297,5 @@ it("keeps mixed gem and regular markers clusterable and preserves selected gem i
   expect(screen.getAllByTestId("shared-marker")[0].props.variant).toBe(
     "business",
   );
-  expect(screen.getByText("Selected")).toBeTruthy();
+  expect(screen.queryByText("Selected")).toBeNull();
 });

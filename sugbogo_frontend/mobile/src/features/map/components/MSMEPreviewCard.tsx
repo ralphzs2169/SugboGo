@@ -18,7 +18,7 @@ type Props = {
   onViewBusiness: () => void;
 };
 
-const VISIBLE_TAG_COUNT = 2;
+const VISIBLE_TAG_COUNT = 1;
 
 /**
  * Presents a concise API-backed business preview without moving the map.
@@ -38,11 +38,7 @@ export default function MSMEPreviewCard({
   const clusterIcon = CLUSTER_ICONS[business.cluster?.icon] ?? "store-outline";
   const classification =
     business.category?.name?.trim() || business.cluster?.name?.trim();
-  const address = [
-    business.location?.address,
-    business.location?.city,
-    business.location?.province,
-  ]
+  const address = [business.location?.city, business.location?.province]
     .filter((part) => part?.trim())
     .join(", ");
   const tags = business.specialty_tags ?? [];
@@ -51,8 +47,8 @@ export default function MSMEPreviewCard({
 
   return (
     <View
-      className="gap-3 rounded-card border border-border-primary bg-surface p-3"
-      style={[shadows.floating, { maxHeight: height * 0.45 }]}
+      className="gap-2 rounded-card border border-border-primary bg-surface p-3"
+      style={[shadows.floating, { maxHeight: height * 0.38 }]}
     >
       {/* Bounded identity and specialties leave the map visible. */}
       <ScrollView
@@ -60,7 +56,7 @@ export default function MSMEPreviewCard({
         showsVerticalScrollIndicator
       >
         <View className="flex-row items-start gap-3">
-          <View className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-surface-secondary">
+          <View className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-secondary">
             {photo ? (
               <Image
                 key={photo}
@@ -99,7 +95,7 @@ export default function MSMEPreviewCard({
               {business.business_name}
             </AppText>
             {business.is_hidden_gem === true && (
-              <View className="mt-1 flex-row items-center gap-1 self-start rounded-full bg-brand/10 px-2 py-1">
+              <View className="mt-1 flex-row items-center gap-1 self-start">
                 <MaterialCommunityIcons
                   name="diamond-stone"
                   size={14}
@@ -125,7 +121,7 @@ export default function MSMEPreviewCard({
             )}
             <AppText
               className="mt-1 text-xs text-text-secondary"
-              numberOfLines={2}
+              numberOfLines={1}
             >
               {address || "Address unavailable"}
             </AppText>
@@ -147,7 +143,7 @@ export default function MSMEPreviewCard({
 
         {/* Reuse Explore's soft display chips without inventing vouch state. */}
         {visibleTags.length > 0 && (
-          <View className="mt-3 flex-row flex-wrap items-center">
+          <View className="mt-1 flex-row flex-wrap items-center">
             {visibleTags.map((tag) => (
               <View key={tag.id} className="max-w-full shrink">
                 <SpecialtyTagChip tag={tag} size="small" showIcon />

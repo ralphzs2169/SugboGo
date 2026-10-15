@@ -17,15 +17,11 @@ from .operating_hours_filter_service import apply_open_now_filter
 
 
 class MapDiscoveryService:
-    """Build bounded public map queries independently of global gem membership."""
+    """Build compact public map queries independently of global gem membership."""
 
     @staticmethod
-    def list_viewport_businesses(
+    def list_directory_businesses(
         *,
-        north,
-        south,
-        east,
-        west,
         category=None,
         cluster=None,
         specialty_tag=None,
@@ -33,17 +29,7 @@ class MapDiscoveryService:
         open_now=False,
         business=None,
     ):
-        """Return a lazy, optimized queryset inside previously validated map bounds."""
-        viewport = Polygon.from_bbox(
-            (
-                west,
-                south,
-                east,
-                north,
-            ),
-        )
-        viewport.srid = 4326
-
+        """Return all eligible map businesses with shared filters and ID ordering."""
         active_specialties = (
             BusinessSpecialtyTag.objects
             .filter(
@@ -70,9 +56,6 @@ class MapDiscoveryService:
 
         queryset = (
             DiscoveryFeedService.list_eligible_businesses()
-            .filter(
-                LOCT_ID__LOCT_POINT__intersects=viewport,
-            )
             .select_related(
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
@@ -113,7 +96,6 @@ class MapDiscoveryService:
                 ),
             )
             .order_by(
-                "-is_hidden_gem",
                 "BUSN_ID",
             )
         )
@@ -141,3 +123,36 @@ class MapDiscoveryService:
             )
 
         return queryset
+
+    @staticmethod
+    def list_viewport_businesses(
+        *,
+        north,
+        south,
+        east,
+        west,
+        **filters,
+    ):
+        """Retain the viewport endpoint's geographic restriction and gem-first order."""
+        viewport = Polygon.from_bbox(
+            (
+                west,
+                south,
+                east,
+                north,
+            ),
+        )
+        viewport.srid = 4326
+
+        return (
+            MapDiscoveryService.list_directory_businesses(
+                **filters,
+            )
+            .filter(
+                LOCT_ID__LOCT_POINT__intersects=viewport,
+            )
+            .order_by(
+                "-is_hidden_gem",
+                "BUSN_ID",
+            )
+        )

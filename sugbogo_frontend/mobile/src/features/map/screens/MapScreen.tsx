@@ -13,7 +13,6 @@ import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
@@ -24,23 +23,20 @@ import MapControls from "../components/MapControls";
 import MapSearchOverlay from "../components/MapSearchOverlay";
 import MSMEPreviewCard from "../components/MSMEPreviewCard";
 import MapBusinessSearchSheet from "../components/MapBusinessSearchSheet";
-import useMapDiscovery from "../hooks/useMapDiscovery";
-import useMapViewport from "../hooks/useMapViewport";
+import useMapDirectory from "../hooks/useMapDirectory";
 import {
   DEFAULT_MAP_FILTERS,
   type MapBounds,
   type MapDiscoveryFilters,
 } from "../types/mapDiscovery.types";
-import { isViewportLimitError } from "../utils/mapViewport";
 
 /**
- * Discovers live businesses in explicitly searched map viewports.
- * Camera movement stays local until Search this area is pressed.
+ * Discovers businesses from a complete cached directory with local map filters.
+ * Camera movement is independent of business data loading.
  */
 export default function MapScreen() {
   const navigation = useNavigation();
   const userLocation = useUserLocation();
-  const viewport = useMapViewport();
   const [filters, setFilters] =
     useState<MapDiscoveryFilters>(DEFAULT_MAP_FILTERS);
   const [draftFilters, setDraftFilters] = useState<ExploreResultsCriteria>({
@@ -50,12 +46,9 @@ export default function MapScreen() {
   const taxonomy = useExploreFilterOptions();
   const [isLoadingFilters, setIsLoadingFilters] = useState(false);
   const [showFilterError, setShowFilterError] = useState(false);
-  const [isApplyingFilters, setIsApplyingFilters] = useState(false);
-  const applyingFilters = useRef(false);
   const searchSheetRef = useRef<BottomSheetModal | null>(null);
   const filterSheetRef = useRef<BottomSheetModal | null>(null);
   const filterSheetOpen = useRef(false);
-  const discovery = useMapDiscovery(viewport.committedBounds, filters);
   const [searchTarget, setSearchTarget] = useState<{
     id: number;
     latitude: number;
@@ -66,44 +59,27 @@ export default function MapScreen() {
     longitude: number;
     started: boolean;
   } | null>(null);
-  const targetBounds = useMemo(
-    () =>
-      searchTarget
-        ? {
-            north: searchTarget.latitude + 0.001,
-            south: searchTarget.latitude - 0.001,
-            east: searchTarget.longitude + 0.001,
-            west: searchTarget.longitude - 0.001,
-          }
-        : null,
-    [searchTarget],
-  );
-  const targetQuery = useMapDiscovery(targetBounds, {
-    ...DEFAULT_MAP_FILTERS,
-    businessId: searchTarget?.id,
-  });
+  const discovery = useMapDirectory(filters, searchTarget?.id);
+  useEffect(() => {
+    if (!searchTarget) {
+      destination.current = null;
+    }
+  }, [searchTarget]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(
     null,
   );
   const [mapInstance, setMapInstance] = useState<RNMapView | null>(null);
   const [previewHeight, setPreviewHeight] = useState(0);
+  const [isSearchTransition, setIsSearchTransition] = useState(false);
+  const [selectionUnavailable, setSelectionUnavailable] = useState(false);
   const hasInteracted = useRef(false);
   const hasHandledInitialLocation = useRef(false);
-  const searchAfterInitialCenter = useRef(false);
-  const initialCenterStarted = useRef(false);
   const bottomSpacing = useTabBarSpacing(16);
-  const limitError = isViewportLimitError(discovery.error);
-  const { onViewportChange } = viewport;
-  useEffect(() => {
-    if (mapInstance && destination.current && !destination.current.started) {
-      mapInstance.animateToRegion({
-        latitude: destination.current.latitude,
-        longitude: destination.current.longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      });
+  const handleFocusStart = useCallback(() => {
+    if (destination.current) {
+      destination.current.started = true;
     }
-  }, [mapInstance]);
+  }, []);
   const filterCount =
     filters.categoryIds.length +
     Number(filters.clusterId !== null) +
@@ -112,7 +88,7 @@ export default function MapScreen() {
     Number(filters.openNow);
 
   useQueryErrorNotification({
-    error: targetQuery.error,
+    error: discovery.selectionError,
     toastId: "map-search-selection",
     title: "Could not load selected business",
     fallbackMessage: "Retry loading this search selection.",
@@ -139,10 +115,16 @@ export default function MapScreen() {
   }, []);
 
   useQueryErrorNotification({
-    error: limitError ? null : discovery.error,
+    error: discovery.error,
     toastId: "map-discovery-error",
     title: "Could not load businesses",
-    fallbackMessage: "Please try searching this area again.",
+    fallbackMessage: "Please retry loading the business directory.",
+  });
+  useQueryErrorNotification({
+    error: discovery.openNowError,
+    toastId: "map-open-now",
+    title: "Could not check opening hours",
+    fallbackMessage: "Retry checking which businesses are open.",
   });
 
   useEffect(() => {
@@ -157,7 +139,6 @@ export default function MapScreen() {
     hasHandledInitialLocation.current = true;
 
     if (userLocation.location && !hasInteracted.current) {
-      searchAfterInitialCenter.current = true;
       mapInstance.animateToRegion({
         latitude: userLocation.location.coords.latitude,
         longitude: userLocation.location.coords.longitude,
@@ -167,49 +148,35 @@ export default function MapScreen() {
     }
   }, [mapInstance, userLocation.location, userLocation.status]);
 
-  const handleViewportChange = useCallback(
-    (bounds: MapBounds) => {
-      if (destination.current) {
-        const target = destination.current;
-        const latitudeOffset = Math.abs(
-          (bounds.north + bounds.south) / 2 - target.latitude,
-        );
-        const longitudeOffset = Math.abs(
-          (bounds.east + bounds.west) / 2 - target.longitude,
-        );
-        if (
-          !target.started ||
-          latitudeOffset > (bounds.north - bounds.south) * 0.2 ||
-          longitudeOffset > (bounds.east - bounds.west) * 0.2
-        ) {
-          return;
-        }
-        destination.current = null;
-        onViewportChange(bounds, true);
+  const handleViewportChange = useCallback((bounds: MapBounds) => {
+    if (destination.current) {
+      const target = destination.current;
+      const latitudeOffset = Math.abs(
+        (bounds.north + bounds.south) / 2 - target.latitude,
+      );
+      const longitudeOffset = Math.abs(
+        (bounds.east + bounds.west) / 2 - target.longitude,
+      );
+      if (
+        !target.started ||
+        latitudeOffset > (bounds.north - bounds.south) * 0.5 ||
+        longitudeOffset > (bounds.east - bounds.west) * 0.5
+      ) {
         return;
       }
-      // Ignore a ready-time read that finishes before native centering starts.
-      if (searchAfterInitialCenter.current && !initialCenterStarted.current) {
-        return;
-      }
+      destination.current = null;
+      setIsSearchTransition(false);
+    }
+  }, []);
 
-      onViewportChange(bounds, searchAfterInitialCenter.current);
-      searchAfterInitialCenter.current = false;
-    },
-    [onViewportChange],
-  );
-
-  const targetBusiness = targetQuery.businesses.find(
-    (business) => business.id === selectedBusinessId,
-  );
+  const targetBusiness = discovery.selectedSearchBusiness;
   const displayedBusinesses = useMemo(() => {
+    const pinned = targetBusiness;
     if (
-      targetBusiness &&
-      !discovery.businesses.some(
-        (business) => business.id === targetBusiness.id,
-      )
+      pinned &&
+      !discovery.businesses.some((business) => business.id === pinned.id)
     ) {
-      return [...discovery.businesses, targetBusiness];
+      return [...discovery.businesses, pinned];
     }
     return discovery.businesses;
   }, [discovery.businesses, targetBusiness]);
@@ -233,44 +200,20 @@ export default function MapScreen() {
   if (
     selectedBusinessId !== null &&
     !selectedBusiness &&
-    !(searchTarget?.id === selectedBusinessId && !targetQuery.pagination)
+    !(searchTarget?.id === selectedBusinessId && !discovery.selectionResolved)
   ) {
+    setSelectionUnavailable(searchTarget !== null);
     setSelectedBusinessId(null);
     setSearchTarget(null);
+    setIsSearchTransition(false);
   }
 
   const clearSelection = () => {
+    setSelectionUnavailable(false);
     setSelectedBusinessId(null);
     setSearchTarget(null);
     destination.current = null;
-  };
-
-  const applyMapFilters = async (next: MapDiscoveryFilters) => {
-    if (applyingFilters.current) {
-      return;
-    }
-    applyingFilters.current = true;
-    setIsApplyingFilters(true);
-    let bounds = viewport.viewedBounds;
-    try {
-      const visible = await mapInstance?.getMapBoundaries();
-      if (visible) {
-        bounds = {
-          north: visible.northEast.latitude,
-          south: visible.southWest.latitude,
-          east: visible.northEast.longitude,
-          west: visible.southWest.longitude,
-        };
-      }
-    } catch {
-      // Providers without boundaries retain the last completed visible region.
-    }
-    setFilters(next);
-    if (bounds) {
-      onViewportChange(bounds, true);
-    }
-    applyingFilters.current = false;
-    setIsApplyingFilters(false);
+    setIsSearchTransition(false);
   };
 
   const openFilters = async () => {
@@ -302,8 +245,9 @@ export default function MapScreen() {
       return;
     }
     hasInteracted.current = true;
+    setSelectionUnavailable(false);
     hasHandledInitialLocation.current = true;
-    searchAfterInitialCenter.current = false;
+    setIsSearchTransition(true);
     setSelectedBusinessId(business.id);
     setSearchTarget({
       id: business.id,
@@ -315,12 +259,6 @@ export default function MapScreen() {
       longitude: business.location.longitude,
       started: false,
     };
-    mapInstance?.animateToRegion({
-      latitude: business.location.latitude,
-      longitude: business.location.longitude,
-      latitudeDelta: 0.02,
-      longitudeDelta: 0.02,
-    });
   };
 
   const viewBusiness = () => {
@@ -338,6 +276,8 @@ export default function MapScreen() {
 
   const zoom = async (amount: number) => {
     hasInteracted.current = true;
+    destination.current = null;
+    setIsSearchTransition(false);
 
     try {
       const camera = await mapInstance?.getCamera();
@@ -369,6 +309,8 @@ export default function MapScreen() {
       return;
     }
 
+    destination.current = null;
+    setIsSearchTransition(false);
     mapInstance?.animateToRegion({
       latitude: result.location.coords.latitude,
       longitude: result.location.coords.longitude,
@@ -378,18 +320,21 @@ export default function MapScreen() {
   };
 
   let statusMessage: string | null = null;
-
-  if (viewport.needsZoom || limitError) {
-    statusMessage = "Zoom in to search this area";
-  } else if (discovery.isFetching || !viewport.committedBounds) {
-    statusMessage = "Loading businesses…";
-  } else if (!discovery.error && discovery.pagination?.has_next) {
-    statusMessage = `Showing ${discovery.businesses.length} of ${discovery.pagination.total_items} businesses in the searched area. Zoom in for more complete results.`;
-  } else if (!discovery.error && discovery.businesses.length === 0) {
+  if (selectionUnavailable) {
+    statusMessage = "This business is no longer available. Try another search.";
+  } else if (discovery.isLoading) {
+    statusMessage = "Loading business directory…";
+  } else if (discovery.isLoadingOpenNow) {
+    statusMessage = "Checking opening hours…";
+  } else if (
+    !discovery.error &&
+    !discovery.openNowError &&
+    discovery.businesses.length === 0
+  ) {
     statusMessage =
       filterCount > 0
-        ? "No businesses match these map filters. Clear or adjust filters, or search another area."
-        : "No businesses in the searched area. Move the map and search another area.";
+        ? "No businesses match these map filters. Clear or adjust filters."
+        : "No businesses are available yet.";
   }
 
   return (
@@ -400,41 +345,38 @@ export default function MapScreen() {
         userLocation={userLocation.location}
         showsUserLocation={userLocation.status === "available"}
         autoCenterOnLocation={false}
+        focusTarget={isSearchTransition ? searchTarget : null}
+        onFocusStart={handleFocusStart}
+        previewBottomInset={
+          selectedBusiness ? bottomSpacing + previewHeight + 12 : 0
+        }
         onMapReady={setMapInstance}
         onViewportChange={handleViewportChange}
-        onViewportChanging={() => {
-          if (destination.current) {
-            destination.current.started = true;
-          }
-          if (searchAfterInitialCenter.current) {
-            initialCenterStarted.current = true;
-          }
-
-          viewport.onViewportChanging();
-        }}
         onMapInteraction={() => {
           hasInteracted.current = true;
-          searchAfterInitialCenter.current = false;
           destination.current = null;
+          setIsSearchTransition(false);
         }}
         onBusinessPress={(id) => {
+          setSelectionUnavailable(false);
           setSelectedBusinessId(id);
           if (id !== searchTarget?.id) {
             setSearchTarget(null);
           }
         }}
         selectedBusinessId={selectedBusiness?.id ?? null}
+        dimUnselectedMarkers
       />
       <MapSearchOverlay
         filters={filters}
+        hideQuickFilters={selectedBusinessId !== null}
         filterCount={filterCount}
         onSearch={() => presentBottomSheet(searchSheetRef)}
         onFilters={() => void openFilters()}
         onToggleQuick={(key) =>
-          void applyMapFilters({ ...filters, [key]: !filters[key] })
+          setFilters({ ...filters, [key]: !filters[key] })
         }
-        onClear={() => void applyMapFilters(DEFAULT_MAP_FILTERS)}
-        disabled={viewport.isMoving || isApplyingFilters}
+        onClear={() => setFilters(DEFAULT_MAP_FILTERS)}
       />
       <MapControls
         onZoomIn={() => void zoom(1)}
@@ -445,7 +387,7 @@ export default function MapScreen() {
         }
       />
 
-      {/* Nonblocking discovery feedback and explicit viewport search */}
+      {/* Nonblocking directory feedback */}
       <View
         className="absolute left-md right-md gap-sm"
         style={{ bottom: bottomSpacing }}
@@ -470,49 +412,25 @@ export default function MapScreen() {
               />
             </View>
           )}
-          {searchTarget && targetQuery.isFetching && !targetBusiness && (
+          {searchTarget && discovery.isLoadingSelection && !targetBusiness && (
             <View className="rounded-card bg-surface p-md">
               <AppText className="text-sm text-text-secondary">
                 Loading selected business…
               </AppText>
             </View>
           )}
-          {targetQuery.error && (
+          {discovery.selectionError && (
             <View className="rounded-card bg-surface">
               <ErrorState
                 size="section"
                 title="Could not load selected business"
                 description="The map is still available."
                 primaryActionTitle="Retry"
-                onPrimaryAction={() => void targetQuery.refetch()}
+                onPrimaryAction={() => void discovery.refetchSelection()}
               />
             </View>
           )}
-          {targetBusiness &&
-            !discovery.businesses.some(
-              (business) => business.id === targetBusiness.id,
-            ) && (
-              <View className="rounded-card bg-surface p-md">
-                <AppText className="text-small text-text-secondary">
-                  {filterCount
-                    ? "Your search selection is shown separately from the active map filters."
-                    : "Your search selection is shown alongside this area's results."}
-                </AppText>
-              </View>
-            )}
-          {viewport.canSearch && (
-            <Button
-              title="Search this area"
-              rounded="full"
-              className="self-center"
-              onPress={() => {
-                clearSelection();
-                viewport.searchThisArea();
-              }}
-            />
-          )}
-
-          {statusMessage && (
+          {statusMessage && !selectedBusiness && (
             <View className="flex-row items-center gap-sm rounded-card bg-surface p-md">
               {discovery.isFetching && (
                 <ActivityIndicator color={theme.extends.colors.brand} />
@@ -526,16 +444,27 @@ export default function MapScreen() {
             </View>
           )}
 
-          {discovery.error && !limitError && (
+          {discovery.error && (
             <View className="rounded-card bg-surface">
               <ErrorState
                 size="section"
                 title="Could not load businesses"
-                description="The map is still available. Retry the searched area or search another area."
+                description="The complete directory could not be loaded. Any previous complete results remain available."
                 primaryActionTitle="Retry"
                 onPrimaryAction={() => {
                   void discovery.refetch();
                 }}
+              />
+            </View>
+          )}
+          {discovery.openNowError && (
+            <View className="rounded-card bg-surface">
+              <ErrorState
+                size="section"
+                title="Could not check opening hours"
+                description="Opening information could not be refreshed. Retry or turn off Open Now."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void discovery.refetchOpenNow()}
               />
             </View>
           )}
@@ -544,6 +473,7 @@ export default function MapScreen() {
         {/* Full-width preview owns no camera or server state. */}
         {selectedBusiness && (
           <View
+            testID="business-preview-anchor"
             onLayout={(event) => {
               setPreviewHeight(event.nativeEvent.layout.height);
             }}
@@ -571,7 +501,7 @@ export default function MapScreen() {
           filterSheetOpen.current = false;
         }}
         onApply={() => {
-          applyMapFilters({
+          setFilters({
             ...filters,
             clusterId: draftFilters.clusterId,
             categoryIds: draftFilters.categoryIds,

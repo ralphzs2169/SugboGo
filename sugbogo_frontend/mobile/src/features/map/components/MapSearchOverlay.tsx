@@ -15,6 +15,7 @@ type Props = {
   onToggleQuick: (key: "hiddenGems" | "openNow") => void;
   onClear: () => void;
   disabled?: boolean;
+  hideQuickFilters?: boolean;
 };
 
 /** Keeps global search distinct from compact controls for the visible map area. */
@@ -26,6 +27,7 @@ export default function MapSearchOverlay({
   onToggleQuick,
   onClear,
   disabled = false,
+  hideQuickFilters = false,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -54,68 +56,74 @@ export default function MapSearchOverlay({
       </Pressable>
 
       {/* These controls filter the visible area; location remains a separate control. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="mt-2 flex-none"
-        contentContainerClassName="gap-2"
-      >
-        <Pressable
-          onPress={onFilters}
-          accessibilityRole="button"
-          accessibilityLabel={`Map filters${filterCount ? `, ${filterCount} active` : ""}`}
-          accessibilityState={{ selected: filterCount > 0 }}
-          className="min-h-12 cursor-pointer flex-row items-center gap-2 rounded-full border border-border-primary bg-surface px-4 active:opacity-70"
+      {!hideQuickFilters && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="mt-2 flex-none"
+          contentContainerClassName="gap-2"
         >
-          <MaterialCommunityIcons
-            name="tune-variant"
-            size={18}
-            color={theme.extends.colors.text.primary}
-          />
-          <AppText weight="semibold" className="text-sm text-text-primary">
-            Filters{filterCount ? ` (${filterCount})` : ""}
-          </AppText>
-        </Pressable>
-        {(
-          [
-            { key: "hiddenGems", label: "Hidden Gems", icon: "diamond-stone" },
-            { key: "openNow", label: "Open Now", icon: "clock-outline" },
-          ] as const
-        ).map((filter) => (
           <Pressable
-            key={filter.key}
-            onPress={() => onToggleQuick(filter.key)}
-            disabled={disabled}
+            onPress={onFilters}
             accessibilityRole="button"
-            accessibilityLabel={filter.label}
-            accessibilityState={{ selected: filters[filter.key], disabled }}
-            className={`min-h-12 cursor-pointer flex-row items-center gap-2 rounded-full border px-4 active:opacity-70 ${filters[filter.key] ? "border-brand bg-surface" : "border-border-primary bg-surface"} ${disabled ? "opacity-50" : ""}`}
+            accessibilityLabel={`Map filters${filterCount ? `, ${filterCount} active` : ""}`}
+            accessibilityState={{ selected: filterCount > 0 }}
+            className="min-h-12 cursor-pointer flex-row items-center gap-2 rounded-full border border-border-primary bg-surface px-4 active:opacity-70"
           >
             <MaterialCommunityIcons
-              name={filters[filter.key] ? "check-circle" : filter.icon}
+              name="tune-variant"
               size={18}
-              color={theme.extends.colors.brand}
+              color={theme.extends.colors.text.primary}
             />
             <AppText weight="semibold" className="text-sm text-text-primary">
-              {filter.label}
+              Filters{filterCount ? ` (${filterCount})` : ""}
             </AppText>
           </Pressable>
-        ))}
-        {filterCount > 0 && (
-          <Pressable
-            onPress={onClear}
-            disabled={disabled}
-            accessibilityRole="button"
-            accessibilityLabel="Clear map filters"
-            accessibilityState={{ disabled }}
-            className="min-h-12 cursor-pointer justify-center rounded-full bg-surface px-4 active:opacity-70"
-          >
-            <AppText weight="semibold" className="text-sm text-text-primary">
-              Clear
-            </AppText>
-          </Pressable>
-        )}
-      </ScrollView>
+          {(
+            [
+              {
+                key: "hiddenGems",
+                label: "Hidden Gems",
+                icon: "diamond-stone",
+              },
+              { key: "openNow", label: "Open Now", icon: "clock-outline" },
+            ] as const
+          ).map((filter) => (
+            <Pressable
+              key={filter.key}
+              onPress={() => onToggleQuick(filter.key)}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={filter.label}
+              accessibilityState={{ selected: filters[filter.key], disabled }}
+              className={`min-h-12 cursor-pointer flex-row items-center gap-2 rounded-full border px-4 active:opacity-70 ${filters[filter.key] ? "border-brand bg-surface" : "border-border-primary bg-surface"} ${disabled ? "opacity-50" : ""}`}
+            >
+              <MaterialCommunityIcons
+                name={filters[filter.key] ? "check-circle" : filter.icon}
+                size={18}
+                color={theme.extends.colors.brand}
+              />
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                {filter.label}
+              </AppText>
+            </Pressable>
+          ))}
+          {filterCount > 0 && (
+            <Pressable
+              onPress={onClear}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel="Clear map filters"
+              accessibilityState={{ disabled }}
+              className="min-h-12 cursor-pointer justify-center rounded-full bg-surface px-4 active:opacity-70"
+            >
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                Clear
+              </AppText>
+            </Pressable>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }

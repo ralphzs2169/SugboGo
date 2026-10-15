@@ -42,10 +42,10 @@ it("shows API identity, concise specialty chips, and working close/profile actio
   );
   expect(screen.getByText(business.business_name)).toBeTruthy();
   expect(screen.getByText("Cafe")).toBeTruthy();
-  expect(screen.getByText("Real Street, Cebu City, Cebu")).toBeTruthy();
+  expect(screen.getByText("Cebu City, Cebu")).toBeTruthy();
   expect(screen.getByText("Local Coffee")).toBeTruthy();
-  expect(screen.getByText("Local Pastries")).toBeTruthy();
-  expect(screen.getByText("+1 more")).toBeTruthy();
+  expect(screen.queryByText("Local Pastries")).toBeNull();
+  expect(screen.getByText("+2 more")).toBeTruthy();
   expect(screen.queryByText("Family Friendly")).toBeNull();
   expect(screen.getByText("Hidden Gem")).toBeTruthy();
   await fireEvent.press(

@@ -9,6 +9,7 @@ from core.pagination import StandardPagination
 from ..serializers.map_discovery_serializers import (
     MapDiscoveryBusinessSerializer,
     MapDiscoveryQuerySerializer,
+    MapDirectoryQuerySerializer,
 )
 from ..services.map_discovery_service import MapDiscoveryService
 
@@ -34,19 +35,22 @@ class MapDiscoveryView(APIView):
         ),
     )
 
+    query_serializer_class = MapDiscoveryQuerySerializer
+    list_businesses = staticmethod(MapDiscoveryService.list_viewport_businesses)
+
     def get(
         self,
         request,
     ):
         """Return one bounded marker page with global Hidden Gem indicators."""
-        query_serializer = MapDiscoveryQuerySerializer(
+        query_serializer = self.query_serializer_class(
             data=request.query_params,
         )
         query_serializer.is_valid(
             raise_exception=True,
         )
 
-        businesses = MapDiscoveryService.list_viewport_businesses(
+        businesses = self.list_businesses(
             **query_serializer.validated_data,
         )
         paginator = MapDiscoveryPagination()
@@ -62,3 +66,10 @@ class MapDiscoveryView(APIView):
         return paginator.get_paginated_response(
             serializer.data,
         )
+
+
+class MapDirectoryView(MapDiscoveryView):
+    """Serve every eligible map business through bounded, deterministic pages."""
+
+    query_serializer_class = MapDirectoryQuerySerializer
+    list_businesses = staticmethod(MapDiscoveryService.list_directory_businesses)

@@ -1,5 +1,64 @@
 # Explorer map discovery
 
+## Global map directory
+
+`GET /api/explorer/explore/map/businesses/`
+
+This additive endpoint supplies all publicly eligible businesses through bounded
+pages, independently of camera position. It has the same Explorer/Merchant
+permissions, active-business eligibility, compact `items` serializer, pagination
+envelope, photo fallback, and global `is_hidden_gem` annotation as the viewport
+endpoint below. Verification is not required. No location or service-area
+rectangle is required; eligibility is not restricted to the current viewport.
+
+Supported optional parameters are `page`, `page_size`, `cluster`, repeated
+`category`, `specialty_tag`, `hidden_gems`, `open_now`, and `business`, with the
+same filter validation and semantics documented below. Default and maximum page
+size use `MAP_DISCOVERY_MAX_MARKERS` (200 by default). Results are ordered by
+business ID ascending, independently of gem status, to keep pagination stable
+across score changes. The viewport endpoint retains its gem-first ordering.
+
+Shared queryset construction retains joined locations/taxonomy, active specialty
+prefetching, SQL cover fallback, and the global gem subquery. A nonempty directory
+page uses three queries, including the total count. `open_now` reuses the existing
+Asia/Manila weekly-hours SQL calculation; schedules are not downloaded to mobile.
+
+### Mobile directory loading and freshness
+
+Map Discovery requests every page until `has_next` is false, deduplicating IDs.
+The loader verifies page progression, consistent totals, and the final unique
+record count. Only a complete download replaces the React Query cache. Later-page
+failures or detected directory changes expose Retry and retain any previous
+complete snapshot; no first page is presented as the complete directory.
+
+The directory has a five-minute stale time. Cluster/category/specialty and Hidden
+Gems filters run locally with category OR and cross-filter AND semantics. Active
+specialties and gem membership remain server-authoritative. Applying or clearing
+these filters, and panning/zooming the map, never reload the directory. There is
+no Search this area action or oversized-viewport message in the directory UI.
+
+Open Now loads every page with `open_now=true` and separately caches the eligible
+business IDs. Its stale time is 30 seconds with a 60-second refresh interval while
+enabled, screen-focused, and app-active. Polling stops after errors and while
+inactive; stale queries refresh on returning. Loading or refresh failures are
+shown separately from empty filtered results. Turning the filter off restores
+the complete directory without another base request while the cache is fresh.
+
+Global text search continues to use Explore discovery. Selections resolve from
+the unfiltered directory, with an unfiltered `business=<id>` directory lookup
+when missing from the cache. A search selection may remain visible despite map
+filters and is merged once by ID. Unavailable businesses clear selection with a
+message. Camera readiness/layout, selected-marker clustering exclusion, and
+preview navigation are independent of directory loading.
+
+Page-number pagination is not a cross-request snapshot. Stable ordering and
+client consistency checks reduce omissions but cannot detect every concurrent
+insert/delete combination. A snapshot/version or cursor contract remains future
+work if directory size or churn warrants it. Open Now reflects stored weekly
+hours, not holiday exceptions or live merchant presence.
+
+## Viewport endpoint (preserved)
+
 `GET /api/explorer/explore/map/`
 
 Requires an authenticated active Explorer or Merchant, matching the existing

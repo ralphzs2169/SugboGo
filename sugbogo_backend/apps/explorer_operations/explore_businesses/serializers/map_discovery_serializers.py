@@ -13,7 +13,24 @@ from .explore_business_serializer import (
 )
 
 
-class MapDiscoveryQuerySerializer(TaxonomyFilterQuerySerializer):
+class MapDirectoryQuerySerializer(TaxonomyFilterQuerySerializer):
+    """Validate compact directory filters without geographic restrictions."""
+
+    hidden_gems = serializers.BooleanField(
+        required=False,
+        default=False,
+    )
+    open_now = serializers.BooleanField(
+        required=False,
+        default=False,
+    )
+    business = serializers.IntegerField(
+        min_value=1,
+        required=False,
+    )
+
+
+class MapDiscoveryQuerySerializer(MapDirectoryQuerySerializer):
     """Validate a finite, non-crossing viewport before any database queries."""
 
     north = serializers.FloatField(
@@ -31,18 +48,6 @@ class MapDiscoveryQuerySerializer(TaxonomyFilterQuerySerializer):
     west = serializers.FloatField(
         min_value=-180,
         max_value=180,
-    )
-    hidden_gems = serializers.BooleanField(
-        required=False,
-        default=False,
-    )
-    open_now = serializers.BooleanField(
-        required=False,
-        default=False,
-    )
-    business = serializers.IntegerField(
-        min_value=1,
-        required=False,
     )
 
     def validate(

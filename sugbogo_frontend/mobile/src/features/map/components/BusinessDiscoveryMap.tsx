@@ -1,5 +1,5 @@
 import type { LocationObject } from "expo-location";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, View } from "react-native";
 import ClusteredMapView from "react-native-map-clustering";
 import MapView, {
@@ -11,7 +11,6 @@ import MapView, {
 import { theme } from "@/constants/theme";
 import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 import MapMarker from "@/shared/components/MapMarker";
-import AppText from "@/shared/components/AppText";
 
 import type { MapBounds } from "../types/mapDiscovery.types";
 import { regionToBounds } from "../utils/mapViewport";
@@ -30,12 +29,16 @@ type Props = {
   trackMarkerUpdates?: boolean;
   onBusinessPress?: (businessId: number) => void;
   selectedBusinessId?: number | null;
+  dimUnselectedMarkers?: boolean;
   autoCenterOnLocation?: boolean;
   showsUserLocation?: boolean;
   onMapReady?: (map: MapView) => void;
   onViewportChange?: (bounds: MapBounds) => void;
   onViewportChanging?: () => void;
   onMapInteraction?: () => void;
+  focusTarget?: { latitude: number; longitude: number } | null;
+  previewBottomInset?: number;
+  onFocusStart?: () => void;
 };
 
 const DEFAULT_REGION = {
@@ -61,16 +64,47 @@ export default function BusinessDiscoveryMap({
   trackMarkerUpdates = false,
   onBusinessPress,
   selectedBusinessId = null,
+  dimUnselectedMarkers = false,
   autoCenterOnLocation = true,
   showsUserLocation = userLocation !== null,
   onMapReady,
   onViewportChange,
   onViewportChanging,
   onMapInteraction,
+  focusTarget = null,
+  previewBottomInset = 0,
+  onFocusStart,
 }: Props) {
   const mapRef = useRef<MapView>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [mapHeight, setMapHeight] = useState(0);
   const boundaryReadId = useRef(0);
   const isMounted = useRef(true);
+  const captureMap = useCallback((map: unknown) => {
+    mapRef.current = map as MapView | null;
+  }, []);
+
+  useEffect(() => {
+    if (!isReady || !mapHeight || !focusTarget) {
+      return;
+    }
+
+    // Dispatch after the sheet/keyboard has restored the native map's layout.
+    // A center/zoom camera command does not depend on Android bounds fitting.
+    const frame = requestAnimationFrame(() => {
+      onFocusStart?.();
+      mapRef.current?.animateCamera(
+        {
+          center: focusTarget,
+          zoom: 16,
+          pitch: 0,
+          heading: 0,
+        },
+        { duration: 500 },
+      );
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusTarget, isReady, mapHeight, onFocusStart]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -129,18 +163,24 @@ export default function BusinessDiscoveryMap({
     <View className="flex-1 overflow-hidden">
       {/* Clustered discovery map */}
       <ClusteredMapView
-        ref={mapRef}
+        mapRef={captureMap}
         provider={PROVIDER_GOOGLE}
         customMapStyle={MAP_STYLE}
         initialRegion={DEFAULT_REGION}
+        mapPadding={{ top: 0, left: 0, right: 0, bottom: previewBottomInset }}
+        onLayout={(event) => setMapHeight(event.nativeEvent.layout.height)}
         onMapReady={() => {
+          setIsReady(true);
           if (mapRef.current) {
             onMapReady?.(mapRef.current);
           }
 
           void reportViewport(DEFAULT_REGION);
         }}
-        onRegionChange={() => {
+        onRegionChange={(_region, details) => {
+          if (details?.isGesture) {
+            onMapInteraction?.();
+          }
           boundaryReadId.current += 1;
           onViewportChanging?.();
         }}
@@ -169,39 +209,47 @@ export default function BusinessDiscoveryMap({
         })}
       >
         {/* Business locations */}
-        {businesses.map((business) => (
-          <Marker
-            key={`${business.id}-${selectedBusinessId === business.id}-${business.is_hidden_gem === true}`}
-            identifier={String(business.id)}
-            zIndex={selectedBusinessId === business.id ? 1 : 0}
-            accessibilityState={{
-              selected: selectedBusinessId === business.id,
-            }}
-            coordinate={{
-              latitude: business.latitude,
-              longitude: business.longitude,
-            }}
-            tracksViewChanges={trackMarkerUpdates}
-            onPress={() => {
-              onBusinessPress?.(business.id);
-            }}
-          >
-            <View collapsable={false} className="items-center">
-              {selectedBusinessId === business.id && (
-                <View className="mb-1 rounded-full border border-brand bg-surface px-2 py-1">
-                  <AppText weight="bold" className="text-xs text-text-primary">
-                    Selected
-                  </AppText>
-                </View>
-              )}
-              <MapMarker
-                variant={
-                  business.is_hidden_gem === true ? "hidden-gem" : "business"
-                }
-              />
-            </View>
-          </Marker>
-        ))}
+        {businesses.map((business) => {
+          const isSelected = selectedBusinessId === business.id;
+
+          return (
+            <Marker
+              key={`${business.id}-${isSelected}-${business.is_hidden_gem === true}`}
+              identifier={String(business.id)}
+              {...{ cluster: !isSelected }}
+              // The marker's bottom edge is the exact coordinate dot.
+              anchor={{ x: 0.5, y: 1 }}
+              zIndex={isSelected ? 1 : 0}
+              opacity={
+                dimUnselectedMarkers &&
+                selectedBusinessId !== null &&
+                !isSelected
+                  ? 0.55
+                  : 1
+              }
+              accessibilityState={{
+                selected: isSelected,
+              }}
+              coordinate={{
+                latitude: business.latitude,
+                longitude: business.longitude,
+              }}
+              tracksViewChanges={trackMarkerUpdates}
+              onPress={() => {
+                onBusinessPress?.(business.id);
+              }}
+            >
+              <View collapsable={false}>
+                <MapMarker
+                  variant={
+                    business.is_hidden_gem === true ? "hidden-gem" : "business"
+                  }
+                  selected={isSelected}
+                />
+              </View>
+            </Marker>
+          );
+        })}
       </ClusteredMapView>
     </View>
   );

@@ -2,11 +2,17 @@ from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from apps.business.models import BusinessPhoto, BusinessSpecialtyTag, SpecialtyTag
+from apps.business.models import (
+    BusinessPhoto,
+    BusinessSpecialtyTag,
+    Category,
+    SpecialtyTag,
+)
 from apps.users.models import User
 from core.tests.assertions import APIResponseAssertionsMixin
 
 from ...services.tests.map_discovery_test_mixin import MapDiscoveryTestMixin
+from ...services.tests import test_map_discovery_filters as map_filter_tests
 
 
 class MapDiscoveryViewTests(
@@ -304,3 +310,125 @@ class MapDiscoveryViewTests(
         self.explorer.USER_ROLE = User.UserRole.MERCHANT
         response = self.client.get(self.url, self.bounds)
         self.assertSuccessResponse(response, message="Success.")
+
+
+class MapDirectoryViewTests(MapDiscoveryTestMixin, APITestCase):
+    """Exercise global directory coverage, stable pages, and shared compact queries."""
+
+    def setUp(self):
+        """Authenticate the same Explorer role as viewport discovery."""
+        super().setUp()
+        self.client.force_authenticate(self.explorer)
+        self.url = reverse("map-directory")
+
+    @override_settings(MAP_DISCOVERY_MAX_MARKERS=2)
+    def test_global_pages_keep_id_order_and_exclude_suspended_businesses(self):
+        first = self.create_business(
+            latitude=11.2,
+        )
+        second = self.create_business(
+            longitude=125,
+            score="1.00000",
+        )
+        third = self.create_business()
+        self.create_business(status_value="suspended")
+
+        first_page = self.client.get(self.url)
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(
+            [
+                item["id"]
+                for item in first_page.data["data"]["items"]
+            ],
+            [first.BUSN_ID, second.BUSN_ID],
+        )
+        self.assertTrue(first_page.data["data"]["pagination"]["has_next"])
+        self.assertEqual(
+            first_page.data["data"]["pagination"]["total_items"],
+            3,
+        )
+        second_page = self.client.get(
+            self.url,
+            {"page": 2},
+        )
+        self.assertEqual(
+            [
+                item["id"]
+                for item in second_page.data["data"]["items"]
+            ],
+            [third.BUSN_ID],
+        )
+        self.assertFalse(second_page.data["data"]["pagination"]["has_next"])
+        self.assertTrue(first_page.data["data"]["items"][1]["is_hidden_gem"])
+
+    def test_global_serialization_retains_three_queries_and_compact_contract(self):
+        self.create_business()
+        self.create_business(latitude=11)
+        with self.assertNumQueries(3):
+            response = self.client.get(self.url)
+        item = response.data["data"]["items"][0]
+        self.assertEqual(
+            set(item),
+            {
+                "id",
+                "business_name",
+                "cover_photo_url",
+                "display_cover_photo_url",
+                "cluster",
+                "category",
+                "location",
+                "specialty_tags",
+                "is_hidden_gem",
+            },
+        )
+
+    def test_global_route_preserves_permissions_and_empty_response(self):
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.data["data"]["items"],
+            [],
+        )
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self.url).status_code, 401)
+        self.explorer.USER_ROLE = User.UserRole.ADMIN
+        self.client.force_authenticate(self.explorer)
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+
+
+class MapDirectoryFilterTests(map_filter_tests.MapDiscoveryFilterTests):
+    """Apply the existing taxonomy, global gem, and overnight-hour tests to the directory."""
+
+    def setUp(self):
+        """Run the shared filter fixtures through the global route without bounds."""
+        super().setUp()
+        self.url = reverse("map-directory")
+        self.bounds = {}
+
+    def test_filters_do_not_promote_an_outsider_into_global_gems(self):
+        """Keep global membership when taxonomy excludes the higher-ranked gems."""
+        for _ in range(10):
+            self.create_business(
+                score="1.00000",
+            )
+        outsider = self.create_business(
+            score="0.10000",
+        )
+        category = Category.objects.create(
+            CTGRY_NAME="Directory Outsider",
+            CLUS_ID=self.cluster,
+        )
+        outsider.CTGRY_ID = category
+        outsider.save()
+        self.assertEqual(
+            self.result_ids(
+                category=[category.CTGRY_ID],
+                hidden_gems=True,
+            ),
+            [],
+        )
+        self.assertEqual(
+            self.result_ids(
+                category=[category.CTGRY_ID],
+            ),
+            [outsider.BUSN_ID],
+        )

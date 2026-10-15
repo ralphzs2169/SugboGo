@@ -22,6 +22,7 @@ type Props = {
   variant: MapMarkerVariant;
   imageUrl?: string | null;
   avatarKey?: string | null;
+  selected?: boolean;
 };
 
 type MarkerConfig = {
@@ -29,12 +30,16 @@ type MarkerConfig = {
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 };
 
+const GEM_FILL = "#FBBF24";
+const GEM_ACCENT = "#D97706";
+const GEM_ICON = "#78350F";
+
 const MARKERS: Record<MapMarkerVariant, MarkerConfig> = {
   business: {
     color: theme.extends.colors.brand,
   },
   "hidden-gem": {
-    color: theme.extends.colors.surface,
+    color: GEM_FILL,
     icon: "diamond-stone",
   },
   google: {
@@ -72,6 +77,11 @@ const MARKERS: Record<MapMarkerVariant, MarkerConfig> = {
 
 const IDENTITY_MARKER_SIZE = 28;
 const IDENTITY_MARKER_BORDER_WIDTH = 2;
+const IDENTITY_OUTER_SIZE =
+  IDENTITY_MARKER_SIZE + IDENTITY_MARKER_BORDER_WIDTH * 2;
+// Fixed box so selecting a marker never changes its native bounds/anchor.
+const IDENTITY_BOX_SIZE = 48;
+const SELECTED_SCALE = 1.1;
 const COORDINATE_STAND_HEIGHT = 8;
 const COORDINATE_DOT_SIZE = 5;
 
@@ -102,8 +112,14 @@ function darkenHexColor(color: string, amount = 0.18) {
  *
  * Uses compact circular identity markers for the Explorer and businesses,
  * while transit and generic locations use the shared teardrop marker style.
+ * Selected identity markers get a soft halo ring and a slight scale-up.
  */
-export default function MapMarker({ variant, imageUrl, avatarKey }: Props) {
+export default function MapMarker({
+  variant,
+  imageUrl,
+  avatarKey,
+  selected = false,
+}: Props) {
   const marker = MARKERS[variant];
   const borderColor = darkenHexColor(marker.color);
 
@@ -114,6 +130,8 @@ export default function MapMarker({ variant, imageUrl, avatarKey }: Props) {
   const usesCircularIdentity = isExplorer || isBusiness || isHiddenGem;
 
   if (usesCircularIdentity) {
+    const accent = isHiddenGem ? GEM_ACCENT : theme.extends.colors.brand;
+
     return (
       <View
         className="items-center"
@@ -122,50 +140,114 @@ export default function MapMarker({ variant, imageUrl, avatarKey }: Props) {
           accessibilityLabel: "Hidden Gem",
         })}
       >
-        {/* Circular location identity */}
         <View
-          className="items-center justify-center overflow-hidden rounded-full border-2 border-brand"
           style={{
-            width: IDENTITY_MARKER_SIZE + IDENTITY_MARKER_BORDER_WIDTH * 2,
-            height: IDENTITY_MARKER_SIZE + IDENTITY_MARKER_BORDER_WIDTH * 2,
-            backgroundColor: marker.color,
-            shadowColor: "#000",
-            shadowOpacity: 0.18,
-            shadowRadius: 4,
-            shadowOffset: {
-              width: 0,
-              height: 2,
-            },
-            elevation: 5,
+            width: IDENTITY_BOX_SIZE,
+            height: IDENTITY_BOX_SIZE,
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          {isExplorer ? (
-            <Avatar
-              imageUrl={imageUrl}
-              avatarKey={avatarKey}
-              size={IDENTITY_MARKER_SIZE}
-            />
-          ) : isHiddenGem ? (
-            <MaterialCommunityIcons
-              name={marker.icon ?? "diamond-stone"}
-              size={18}
-              color={theme.extends.colors.text.primary}
-            />
-          ) : imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
+          {/* Selected halo */}
+          {selected && (
+            <View
               style={{
-                width: IDENTITY_MARKER_SIZE,
-                height: IDENTITY_MARKER_SIZE,
+                position: "absolute",
+                width: IDENTITY_BOX_SIZE,
+                height: IDENTITY_BOX_SIZE,
+                borderRadius: IDENTITY_BOX_SIZE / 2,
+                backgroundColor: accent,
+                opacity: 0.25,
               }}
-              contentFit="cover"
             />
-          ) : (
-            <MaterialCommunityIcons
-              name="store-outline"
-              size={16}
-              color="#FFFFFF"
+          )}
+          {selected && (
+            <View
+              style={{
+                position: "absolute",
+                width: IDENTITY_BOX_SIZE - 6,
+                height: IDENTITY_BOX_SIZE - 6,
+                borderRadius: (IDENTITY_BOX_SIZE - 6) / 2,
+                borderWidth: 2,
+                borderColor: accent,
+              }}
             />
+          )}
+
+          {/* Circular location identity */}
+          <View
+            className="items-center justify-center overflow-hidden rounded-full"
+            style={{
+              width: IDENTITY_OUTER_SIZE,
+              height: IDENTITY_OUTER_SIZE,
+              backgroundColor: marker.color,
+              borderWidth: IDENTITY_MARKER_BORDER_WIDTH,
+              borderColor: "#FFFFFF",
+              transform: [{ scale: selected ? SELECTED_SCALE : 1 }],
+              shadowColor: "#000",
+              shadowOpacity: 0.22,
+              shadowRadius: 4,
+              shadowOffset: {
+                width: 0,
+                height: 2,
+              },
+              elevation: 5,
+            }}
+          >
+            {isExplorer ? (
+              <Avatar
+                imageUrl={imageUrl}
+                avatarKey={avatarKey}
+                size={IDENTITY_MARKER_SIZE}
+              />
+            ) : isHiddenGem ? (
+              <MaterialCommunityIcons
+                name={marker.icon ?? "diamond-stone"}
+                size={18}
+                color={GEM_ICON}
+              />
+            ) : imageUrl ? (
+              <Image
+                source={{ uri: imageUrl }}
+                style={{
+                  width: IDENTITY_MARKER_SIZE,
+                  height: IDENTITY_MARKER_SIZE,
+                }}
+                contentFit="cover"
+              />
+            ) : (
+              <MaterialCommunityIcons
+                name="store-outline"
+                size={16}
+                color="#FFFFFF"
+              />
+            )}
+          </View>
+
+          {/* Hidden gem sparkle badge */}
+          {isHiddenGem && (
+            <View
+              className="items-center justify-center rounded-full"
+              style={{
+                position: "absolute",
+                top: 3,
+                right: 3,
+                width: 15,
+                height: 15,
+                backgroundColor: "#FFFFFF",
+                borderWidth: 1.5,
+                borderColor: GEM_ACCENT,
+                // Must exceed the circle's elevation or Android draws it behind.
+                elevation: 8,
+                zIndex: 2,
+              }}
+            >
+              <MaterialCommunityIcons
+                name="star-four-points"
+                size={9}
+                color={GEM_ACCENT}
+              />
+            </View>
           )}
         </View>
 
@@ -174,7 +256,12 @@ export default function MapMarker({ variant, imageUrl, avatarKey }: Props) {
           style={{
             width: 2,
             height: COORDINATE_STAND_HEIGHT,
-            backgroundColor: theme.extends.colors.text.secondary,
+            // Pull the stand up over the box's transparent bottom padding
+            // so it touches the circle.
+            marginTop: -(IDENTITY_BOX_SIZE - IDENTITY_OUTER_SIZE) / 2,
+            backgroundColor: isHiddenGem
+              ? GEM_ACCENT
+              : theme.extends.colors.text.secondary,
           }}
         />
 
@@ -184,7 +271,7 @@ export default function MapMarker({ variant, imageUrl, avatarKey }: Props) {
             width: COORDINATE_DOT_SIZE,
             height: COORDINATE_DOT_SIZE,
             borderRadius: COORDINATE_DOT_SIZE / 2,
-            backgroundColor: theme.extends.colors.brand,
+            backgroundColor: accent,
           }}
         />
       </View>

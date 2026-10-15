@@ -21,7 +21,9 @@ it("uses the gem glyph and accessible identity even when an image is supplied", 
     <MapMarker variant="hidden-gem" imageUrl="https://example.com/photo.jpg" />,
   );
   expect(screen.getByLabelText("Hidden Gem")).toBeTruthy();
-  expect(screen.getByTestId("marker-icon").props.name).toBe("diamond-stone");
+  expect(
+    screen.getAllByTestId("marker-icon").map((icon) => icon.props.name),
+  ).toContain("diamond-stone");
 });
 
 it.each([

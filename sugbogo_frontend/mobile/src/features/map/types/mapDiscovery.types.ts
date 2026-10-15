@@ -19,7 +19,6 @@ export type MapDiscoveryFilters = {
   specialtyTagId: number | null;
   hiddenGems: boolean;
   openNow: boolean;
-  businessId?: number;
 };
 
 export const DEFAULT_MAP_FILTERS: MapDiscoveryFilters = {
