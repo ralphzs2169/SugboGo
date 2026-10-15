@@ -62,4 +62,5 @@ identifiers were previously lost, or promise instantaneous invalidation of CDN c
 The existing dispute-evidence upload finalization race remains separate: an upload
 not yet committed when deletion captures assets cannot be included in its manifest.
 Individual photo/reply/evidence deletion and unrelated Cloudinary consumers retain
-their existing behavior. Task 3B.4 closure notifications are not implemented.
+their existing behavior. Task 3B.4 adds transactional closure notices independently
+of this cleanup worker; see `review-deletion-notifications.md`.

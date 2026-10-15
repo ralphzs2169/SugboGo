@@ -16,6 +16,7 @@ from rest_framework.exceptions import (
 
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.activity_management.services import AdminActivityService
+from apps.notifications.services.notification_event_service import NotificationEventService
 from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
@@ -1230,7 +1231,7 @@ class ReviewService:
         user: User,
         review_id: int,
     ) -> None:
-        """Audit author removal, hard-delete the review, and refresh its insights."""
+        """Audit removal, notify pending cases, and hard-delete the review atomically."""
         review = ReviewService._get_review(
             review_id,
         )
@@ -1279,7 +1280,7 @@ class ReviewService:
         review: Review,
         actor: User,
     ) -> None:
-        """Snapshot pending cases while the deletion transaction holds the review lock."""
+        """Audit removal and notify submitters from the same locked case snapshot."""
         pending_reports = list(
             ReviewReport.objects
             .select_for_update(of=("self",))
@@ -1288,7 +1289,7 @@ class ReviewService:
                 RREP_STATUS=ReviewReport.ReportStatus.PENDING,
             )
             .order_by("RREP_ID")
-            .values("RREP_ID", "RREP_STATUS")
+            .values("RREP_ID", "RREP_STATUS", "USER_ID_id")
         )
         pending_disputes = list(
             MerchantReviewDispute.objects
@@ -1298,7 +1299,7 @@ class ReviewService:
                 MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
             )
             .order_by("MRDSP_ID")
-            .values("MRDSP_ID", "MRDSP_STATUS")
+            .values("MRDSP_ID", "MRDSP_STATUS", "USER_ID_id")
         )
         context = {
             "review_id": review.pk,
@@ -1334,6 +1335,11 @@ class ReviewService:
             target_user=actor,
             action=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
             context=context,
+        )
+        NotificationEventService.review_cases_closed_by_author(
+            author_id=review.USER_ID_id,
+            pending_reports=pending_reports,
+            pending_disputes=pending_disputes,
         )
 
     @staticmethod

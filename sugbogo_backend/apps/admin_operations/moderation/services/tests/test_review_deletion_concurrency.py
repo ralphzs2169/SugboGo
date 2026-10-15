@@ -247,6 +247,7 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
             AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
         )
         self.assertEqual(deletion_events.count(), int(deleted))
+        closure_count = 0
         if deleted:
             audit = deletion_events.get()
             context = audit.AACT_CONTEXT
@@ -260,6 +261,23 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
             if hasattr(self, "report") and not first.startswith("report"):
                 expected_reports = [{"id": self.report.pk, "previous_status": "pending"}]
             self.assertEqual(context["pending_reports"], expected_reports)
+            closure_count = len(expected_disputes) + len(expected_reports)
+            closure_notices = Notification.objects.filter(
+                NOTF_TYPE__in=(
+                    "review_report_closed_by_author",
+                    "review_dispute_closed_by_author",
+                ),
+            )
+            self.assertEqual(closure_notices.count(), closure_count)
+            self.assertFalse(closure_notices.filter(USER_ID=self.explorer).exists())
+            self.assertEqual(
+                closure_notices.filter(NOTF_TYPE="review_report_closed_by_author").count(),
+                len(expected_reports),
+            )
+            for notice in closure_notices:
+                self.assertEqual(notice.NOTF_TARGET_TYPE, "")
+                self.assertIsNone(notice.NOTF_TARGET_ID)
+                self.assertIn("without an Admin decision", notice.NOTF_BODY)
             if penalized or first == "held_reject":
                 expected_status = "rejected"
             elif first == "delete":
@@ -280,7 +298,7 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
                 self.explorer.USER_REPUTATION,
                 self.starting_reputation + event.REVT_APPLIED_CHANGE,
             )
-            self.assertEqual(Notification.objects.count(), 2)
+            self.assertEqual(Notification.objects.count(), 2 + closure_count)
             self.assertEqual(
                 Notification.objects.filter(NOTF_TYPE="review_rejected").count(),
                 1,
@@ -297,7 +315,7 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
                 self.assertEqual(self.explorer.USER_REPUTATION, self.starting_reputation)
             self.assertEqual(
                 Notification.objects.count(),
-                int(first in ("dismiss", "report_reject")),
+                int(first in ("dismiss", "report_reject")) + closure_count,
             )
 
     def _prepare_report(self):
@@ -444,4 +462,8 @@ class DeletedReviewResourceTests(TestCase):
             1,
         )
         self.assertFalse(ReputationEvent.objects.exists())
-        self.assertFalse(Notification.objects.exists())
+        self.assertEqual(Notification.objects.count(), 1)
+        self.assertEqual(
+            Notification.objects.get().NOTF_TYPE,
+            "review_dispute_closed_by_author",
+        )

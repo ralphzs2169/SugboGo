@@ -133,7 +133,8 @@ class ReviewDeletionAuditTests(TestCase):
             [{"id": dispute.pk, "previous_status": "pending"}],
         )
         self.assertEqual(AdminActivity.objects.count(), 1)
-        self.assertFalse(Notification.objects.exists())
+        self.assertEqual(Notification.objects.count(), 2)
+        self.assertFalse(Notification.objects.filter(USER_ID=self.explorer).exists())
         self.assertFalse(ReputationEvent.objects.exists())
         self.explorer.refresh_from_db()
         self.assertEqual(self.explorer.USER_REPUTATION, initial_reputation)

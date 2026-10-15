@@ -35,8 +35,10 @@ Audit and database deletion roll back together. The review lock prevents concurr
 deletions from recording the same removal twice.
 
 Records use the existing Admin/Super Admin user-history endpoint and permissions.
-No public or author-facing audit endpoint is added. Notifications, reputation,
-and review insight/moderation task scheduling are unchanged. External media is
+No public or author-facing audit endpoint is added. Pending-case submitters receive
+untargeted author-removal closure notices in the same transaction, as described in
+`review-deletion-notifications.md`. Reputation and review insight/moderation task
+scheduling are unchanged. External media is
 registered transactionally for durable post-commit cleanup as described in
 `review-media-cleanup.md`.
 
@@ -50,4 +52,4 @@ PROTECT; retention/account-erasure policy must account for those references. A
 retention duration cannot be inferred from current settings.
 
 Cloudinary transaction safety and dispute-evidence cleanup are handled by Task 3B.3.
-Author-removal closure notifications remain Task 3B.4.
+Author-removal closure notifications are handled by Task 3B.4.
