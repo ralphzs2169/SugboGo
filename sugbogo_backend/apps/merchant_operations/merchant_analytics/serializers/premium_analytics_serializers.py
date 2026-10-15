@@ -128,6 +128,7 @@ class ReviewBucketSerializer(ReviewMeasuresSerializer, BucketSerializer):
 class PremiumReviewPerformanceSerializer(PremiumReportSerializer):
     """Keep selected review cohorts distinct from current unanswered backlog."""
 
+    policy_version = serializers.IntegerField()
     interval = serializers.CharField()
     current = ReviewCohortSerializer()
     previous = ReviewCohortSerializer()

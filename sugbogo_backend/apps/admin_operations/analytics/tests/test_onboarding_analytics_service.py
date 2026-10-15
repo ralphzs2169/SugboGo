@@ -47,7 +47,10 @@ class OnboardingAnalyticsServiceTests(TestCase):
 
     @override_settings(TIME_ZONE="UTC")
     def test_existing_statistics_are_reused_unchanged_under_native_timezone(self):
-        statistics = {"pending_review": 7, "approval_rate": None, "existing_key": [1, 2]}
+        statistics = {
+            "pending_review": 7, "approval_rate": None, "existing_key": [1, 2],
+            "policy_version": 1, "comparison_minimum_sample": 10,
+        }
         with timezone.override(MANILA), patch.object(
             MerchantApplicationAnalyticsService, "get_application_statistics",
             side_effect=lambda: (self.assertEqual(timezone.get_current_timezone_name(), "UTC") or statistics),

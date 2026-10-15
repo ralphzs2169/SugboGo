@@ -15,6 +15,8 @@ class PeerGroupSerializer(serializers.Serializer):
     scope = serializers.ChoiceField(choices=("category", "cluster"))
     size = serializers.IntegerField()
     minimum_size = serializers.IntegerField()
+    policy_version = serializers.IntegerField()
+    positive_share_min_classified_reviews = serializers.IntegerField()
     fallback_reason = serializers.CharField(allow_null=True)
     eligibility = serializers.CharField()
 
@@ -79,6 +81,7 @@ class MerchantReportSerializer(PremiumReportSerializer):
     """Expose sanitized section results, peer medians, and deterministic findings only."""
 
     report_version = serializers.CharField()
+    policy_version = serializers.IntegerField()
     snapshot_as_of = serializers.CharField()
     results = ReportResultsSerializer()
     changes = ReportChangesSerializer()

@@ -13,6 +13,8 @@ class LegacyOnboardingMetaSerializer(serializers.Serializer):
     selected_period_applies = serializers.BooleanField()
     weekly_window = serializers.DictField(child=serializers.CharField())
     daily_history_days = serializers.IntegerField()
+    policy_version = serializers.IntegerField()
+    comparison_minimum_sample = serializers.IntegerField()
     definitions = serializers.CharField()
     exception = serializers.CharField()
 

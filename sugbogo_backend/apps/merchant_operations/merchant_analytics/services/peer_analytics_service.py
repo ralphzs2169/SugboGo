@@ -7,7 +7,7 @@ from django.db.models import Count, Exists, OuterRef, Q
 from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
 from apps.merchant_operations.business_profile.services.business_profile_service import BusinessProfileService
-from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+from apps.shared.analytics.policy import current_policy, with_policy_snapshot
 from apps.reviews.models import Review
 from apps.shared.analytics.metadata import build_meta
 
@@ -34,7 +34,7 @@ class PeerAnalyticsService:
             BUSN_CREATED_AT__lte=period.generated_at,
         ).exclude(pk=business.pk).order_by("BUSN_ID")
         category_ids = list(eligible.filter(CTGRY_ID_id=business.CTGRY_ID_id).values_list("pk", flat=True))
-        if len(category_ids) >= constants.MIN_PEER_GROUP_SIZE:
+        if len(category_ids) >= current_policy()["peer_min_businesses"]:
             return category_ids, "category", None
         return list(eligible.values_list("pk", flat=True)), "cluster", "category_group_too_small"
 
@@ -94,17 +94,21 @@ class PeerAnalyticsService:
         return {row["BUSN_ID"]: row for row in rows}
 
     @classmethod
+    @with_policy_snapshot
     def get_report(cls, user, period):
         """Derive ownership and return only group metadata and disclosure-safe comparisons."""
         business = BusinessProfileService.get_business_for_merchant(user)
+        policy = current_policy()
         peer_ids, scope, fallback = cls.select_group(business, period)
         group = {
-            "scope": scope, "size": len(peer_ids), "minimum_size": constants.MIN_PEER_GROUP_SIZE,
+            "scope": scope, "size": len(peer_ids), "minimum_size": policy["peer_min_businesses"],
+            "policy_version": policy.version,
+            "positive_share_min_classified_reviews": policy["peer_positive_share_min_reviews"],
             "fallback_reason": fallback,
             "eligibility": "Current active businesses in the same cluster; merchant excluded.",
         }
         reasons = ["current_state_reporting", "peer_lifetimes_not_normalized"]
-        if len(peer_ids) < constants.MIN_PEER_GROUP_SIZE:
+        if len(peer_ids) < policy["peer_min_businesses"]:
             return {
                 "business": owned_business_data(business), "status": "insufficient_data",
                 "reason": "peer_group_too_small", "group": group,
@@ -136,12 +140,12 @@ class PeerAnalyticsService:
         sentiments = cls.sentiment_counts(ids, period)
         own = sentiments.get(business.pk, {"classified": 0, "positive": 0})
         valid_peers = [sentiments[pk] for pk in peer_ids if pk in sentiments
-                       and sentiments[pk]["classified"] >= MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS]
-        if own["classified"] < MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS:
+                       and sentiments[pk]["classified"] >= policy["peer_positive_share_min_reviews"]]
+        if own["classified"] < policy["peer_positive_share_min_reviews"]:
             metrics["positive_review_share"] = cls.unavailable_metric(
                 "positive_review_share", "merchant_sentiment_sample_too_small", sample_size=len(valid_peers),
             )
-        elif len(valid_peers) < constants.MIN_PEER_GROUP_SIZE:
+        elif len(valid_peers) < policy["peer_min_businesses"]:
             metrics["positive_review_share"] = cls.unavailable_metric(
                 "positive_review_share", "peer_sentiment_sample_too_small", sample_size=len(valid_peers),
             )

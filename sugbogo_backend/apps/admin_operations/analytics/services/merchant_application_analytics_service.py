@@ -3,9 +3,7 @@ from datetime import timedelta
 from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 
-from apps.admin_operations.analytics.constants import (
-    ANALYTICS_MINIMUM_TREND_SAMPLE_SIZE,
-)
+from apps.shared.analytics.policy import current_policy, with_policy_snapshot
 from apps.merchant_application.constants import (
     APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
     APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
@@ -22,6 +20,7 @@ class MerchantApplicationAnalyticsService:
     """Provides analytics and metrics for merchant applications."""
 
     @staticmethod
+    @with_policy_snapshot
     def get_application_statistics():
         """Retrieve aggregate merchant application statistics."""
 
@@ -54,6 +53,8 @@ class MerchantApplicationAnalyticsService:
 
         return {
             **statistics,
+            "policy_version": current_policy().version,
+            "comparison_minimum_sample": current_policy()["onboarding_comparison_min_sample"],
             "approval_rate": (
                 MerchantApplicationAnalyticsService
                 .get_approval_rate()
@@ -152,7 +153,7 @@ class MerchantApplicationAnalyticsService:
         previous_value,
         current_sample_size,
         previous_sample_size,
-        minimum_sample_size=ANALYTICS_MINIMUM_TREND_SAMPLE_SIZE,
+        minimum_sample_size=None,
         unit="count",
     ):
         """
@@ -162,6 +163,9 @@ class MerchantApplicationAnalyticsService:
         Rate-based trends are expressed in percentage points.
         """
 
+        # Only interpretation eligibility is configurable; existing populations/windows remain intact.
+        if minimum_sample_size is None:
+            minimum_sample_size = current_policy()["onboarding_comparison_min_sample"]
         if (
             current_sample_size < minimum_sample_size
             or previous_sample_size < minimum_sample_size

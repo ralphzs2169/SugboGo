@@ -6,7 +6,7 @@ from django.db.models import Count, Exists, F, OuterRef, Q
 from django.db.models.functions import TruncWeek
 
 from apps.merchant_operations.business_profile.services.business_profile_service import BusinessProfileService
-from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+from apps.shared.analytics.policy import current_policy, with_policy_snapshot
 from apps.reviews.models import Review, ReviewReply
 from apps.shared.analytics.comparisons import compare_values
 from apps.shared.analytics.date_ranges import MANILA
@@ -39,7 +39,7 @@ class PremiumReviewPerformanceService:
             "reply_rate": round(replied / published * 100, 2) if published else None,
             "classified_review_count": classified,
             "unclassified_review_count": published - classified,
-            "has_sufficient_sentiment_data": classified >= MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS,
+            "has_sufficient_sentiment_data": classified >= current_policy()["sentiment_min_classified_reviews"],
             "sentiment": {label: {"count": counts[label],
                                   "percentage": round(counts[label] / classified * 100, 2) if classified else None}
                           for label in ("positive", "neutral", "negative")},
@@ -58,6 +58,7 @@ class PremiumReviewPerformanceService:
         return cohort, measures
 
     @classmethod
+    @with_policy_snapshot
     def get_report(cls, user, period):
         """Expose weekly creation cohorts, current backlog, and equal-duration comparisons."""
         business = BusinessProfileService.get_business_for_merchant(user)
@@ -80,7 +81,8 @@ class PremiumReviewPerformanceService:
             Q(RPLY_CREATED_AT__gt=period.generated_at) | Q(RPLY_CREATED_AT__lt=F("REVW_ID__REVW_CREATED_AT")),
         ).count()
         return {
-            "business": owned_business_data(business), "interval": "weekly", "current": current, "previous": previous,
+            "business": owned_business_data(business), "policy_version": current_policy().version,
+            "interval": "weekly", "current": current, "previous": previous,
             "reply_rate_change": compare_values(
                 current=current["reply_rate"], previous=previous["reply_rate"],
                 current_sample_size=current["published_review_count"], previous_sample_size=previous["published_review_count"],

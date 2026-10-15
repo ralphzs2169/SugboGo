@@ -3,7 +3,6 @@ from django.db import models
 from apps.business.models.business_core_models import (
     Business,
 )
-from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
 from apps.users.models import User
 
 
@@ -470,6 +469,9 @@ class BusinessReviewSummary(models.Model):
         choices=GenerationState.choices,
         default=GenerationState.PENDING,
     )
+    # Policy provenance is unknown for pre-existing summaries; never invent a historical version.
+    BRSU_GENERATION_POLICY_VERSION = models.PositiveBigIntegerField(null=True, blank=True)
+    BRSU_GENERATION_POLICY_VALUES = models.JSONField(default=dict, blank=True)
     BRSU_GENERATED_AT = models.DateTimeField(
         null=True,
         blank=True,
@@ -549,9 +551,11 @@ class BusinessReviewSummary(models.Model):
     @property
     def overall_vibe(self):
         """Derives the dominant review vibe when classified data is sufficient."""
+        from apps.shared.analytics.policy import current_policy
+
         if (
             self.BRSU_CLASSIFIED_REVIEW_COUNT
-            < MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+            < current_policy()["sentiment_min_classified_reviews"]
         ):
             return None
 

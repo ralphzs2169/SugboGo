@@ -1,8 +1,7 @@
 from rest_framework import serializers
 
-from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+from apps.shared.analytics.policy import current_policy, policy_scope
 from apps.reviews.models import BusinessReviewSummary
-from apps.reviews.services.review_keyword_service import ReviewKeywordService
 
 
 class FrequentMentionSerializer(serializers.Serializer):
@@ -25,10 +24,8 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         BusinessReviewSummary.GenerationState.READY: "Review insights are ready.",
     }
 
-    state = serializers.CharField(
-        source="BRSU_GENERATION_STATE",
-        read_only=True,
-    )
+    state = serializers.SerializerMethodField()
+    policy = serializers.SerializerMethodField()
     state_message = serializers.SerializerMethodField()
     content_available = serializers.SerializerMethodField()
     narrative = serializers.SerializerMethodField()
@@ -81,18 +78,63 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    @staticmethod
-    def _has_publishable_content(instance):
+    def to_representation(self, instance):
+        """Resolve one policy snapshot even when serialization runs outside request middleware."""
+        with policy_scope():
+            return super().to_representation(instance)
+
+    def get_policy(self, instance):
+        """Disclose current and original policy separately without relabeling older content."""
+        policy = current_policy()
+        generated = instance.BRSU_GENERATION_POLICY_VALUES
+        return {"current_version": policy.version,
+                "generated_version": instance.BRSU_GENERATION_POLICY_VERSION,
+                "provenance": "legacy_unknown" if instance.BRSU_GENERATION_POLICY_VERSION is None else "recorded",
+                "generation_rules_match": None if not generated else generated == policy.review_rules,
+                "thresholds": {name: policy[name] for name in (
+                    "sentiment_min_classified_reviews", "narrative_min_eligible_reviews", "mention_min_supporting_reviews")}}
+
+    def get_state(self, instance):
+        """Label incompatible stored generation rules outdated without writing during a read."""
+        generated = instance.BRSU_GENERATION_POLICY_VALUES
+        if (generated and generated != current_policy().review_rules
+                and instance.BRSU_GENERATION_STATE in {BusinessReviewSummary.GenerationState.READY, BusinessReviewSummary.GenerationState.OUTDATED, BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS}):
+            return BusinessReviewSummary.GenerationState.OUTDATED
+        if (instance.BRSU_GENERATION_STATE == BusinessReviewSummary.GenerationState.READY
+                and instance.BRSU_ELIGIBLE_REVIEW_COUNT < current_policy()["narrative_min_eligible_reviews"]):
+            return BusinessReviewSummary.GenerationState.OUTDATED
+        return instance.BRSU_GENERATION_STATE
+
+    def _has_publishable_content(self, instance):
+        """Retain stored content only when it meets current narrative eligibility and existing evidence state."""
         if instance.BRSU_GENERATION_STATE not in {
             BusinessReviewSummary.GenerationState.READY,
             BusinessReviewSummary.GenerationState.OUTDATED,
         }:
             return False
-        return bool((instance.BRSU_NARRATIVE or "").strip())
+        return bool((instance.BRSU_NARRATIVE or "").strip()) and (
+            instance.BRSU_ELIGIBLE_REVIEW_COUNT >= current_policy()["narrative_min_eligible_reviews"]
+        )
 
     def get_state_message(self, instance):
+        """Explain policy-based unavailability and retained stale content using the effective rules."""
+        if (instance.BRSU_GENERATION_STATE != BusinessReviewSummary.GenerationState.PENDING
+                and instance.BRSU_ELIGIBLE_REVIEW_COUNT < current_policy()["narrative_min_eligible_reviews"]):
+            minimum = current_policy()["narrative_min_eligible_reviews"]
+            if minimum == 5:
+                return self.STATE_MESSAGES[BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS]
+            return f"At least {minimum} eligible recent reviews are required."
+        if (instance.BRSU_GENERATION_POLICY_VALUES
+                and instance.BRSU_GENERATION_POLICY_VALUES != current_policy().review_rules
+                and self.get_state(instance) == BusinessReviewSummary.GenerationState.OUTDATED):
+            return "Review insight policy changed; stored insights are awaiting refresh."
+        if instance.BRSU_GENERATION_STATE == BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS:
+            minimum = current_policy()["narrative_min_eligible_reviews"]
+            if minimum == 5:
+                return self.STATE_MESSAGES[BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS]
+            return f"At least {minimum} eligible recent reviews are required."
         if (
-            instance.BRSU_GENERATION_STATE
+            self.get_state(instance)
             == BusinessReviewSummary.GenerationState.OUTDATED
         ):
             if self._has_publishable_content(instance):
@@ -103,22 +145,27 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         return self.STATE_MESSAGES.get(instance.BRSU_GENERATION_STATE)
 
     def get_content_available(self, instance):
+        """Report current policy eligibility without regenerating or modifying stored content."""
         return self._has_publishable_content(instance)
 
     def get_narrative(self, instance):
+        """Return a stored narrative only when its current rendering gate permits it."""
         if not self._has_publishable_content(instance):
             return None
         return instance.BRSU_NARRATIVE
 
     def get_frequent_mentions(self, instance):
+        """Filter stored mentions by current support requirements without adding polarity."""
         if not self._has_publishable_content(instance):
             return []
         return FrequentMentionSerializer(
-            instance.BRSU_KEYWORD_TAGS,
+            [tag for tag in instance.BRSU_KEYWORD_TAGS if isinstance(tag, dict)
+             and type(tag.get("count")) is int and tag["count"] >= current_policy()["mention_min_supporting_reviews"]],
             many=True,
         ).data
 
     def get_is_sampled(self, instance):
+        """Disclose the original generation sample rather than inventing new coverage."""
         return (
             instance.BRSU_ANALYZED_REVIEW_COUNT > 0
             and instance.BRSU_ANALYZED_REVIEW_COUNT
@@ -140,16 +187,18 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         """Reports whether the stored classified count meets the display threshold."""
         return (
             instance.BRSU_CLASSIFIED_REVIEW_COUNT
-            >= MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+            >= current_policy()["sentiment_min_classified_reviews"]
         )
 
     @staticmethod
     def get_minimum_eligible_review_count(_instance):
-        return ReviewKeywordService.MIN_ELIGIBLE_REVIEWS
+        """Expose the effective narrative threshold to existing frontend consumers."""
+        return current_policy()["narrative_min_eligible_reviews"]
 
     class Meta:
         model = BusinessReviewSummary
         fields = (
+            "policy",
             "state",
             "state_message",
             "content_available",
