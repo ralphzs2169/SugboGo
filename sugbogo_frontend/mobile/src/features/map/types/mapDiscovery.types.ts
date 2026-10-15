@@ -4,6 +4,7 @@ import type {
   ExploreBusinessLocation,
   ExploreBusinessPagination,
 } from "@/features/explore/types/exploreBusiness.types";
+import type { SpecialtyTagColor } from "@/shared/types/specialtyTag.types";
 
 export type MapBounds = {
   north: number;
@@ -23,7 +24,7 @@ export type MapDiscoveryBusiness = {
   specialty_tags: {
     id: number;
     name: string;
-    color: string;
+    color: SpecialtyTagColor;
     icon: string | null;
   }[];
   is_hidden_gem: boolean;

@@ -6,6 +6,12 @@ import useUserLocation from "@/shared/hooks/useUserLocation";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { getMapDiscoveryBusinesses } from "../../api/mapDiscovery.service";
 import MapScreen from "../MapScreen";
+import { router, useNavigation } from "expo-router";
+
+jest.mock("expo-router", () => ({
+  router: { push: jest.fn() },
+  useNavigation: jest.fn(),
+}));
 
 jest.mock("../../api/mapDiscovery.service", () => ({
   getMapDiscoveryBusinesses: jest.fn(),
@@ -38,6 +44,12 @@ const business = {
   id: 42,
   business_name: "Real Cebu Cafe",
   category: { id: 3, name: "Cafe" },
+  cluster: { id: 1, name: "Culinary", icon: "coffee" },
+  display_cover_photo_url: null,
+  cover_photo_url: null,
+  specialty_tags: [
+    { id: 4, name: "Local Coffee", color: "blue", icon: "coffee" },
+  ],
   location: {
     address: "Real Street",
     city: "Cebu City",
@@ -80,6 +92,7 @@ function setup() {
 }
 
 beforeEach(() => {
+  (useNavigation as jest.Mock).mockReturnValue({ isFocused: () => true });
   (useUserLocation as jest.Mock).mockReturnValue({
     status: "denied",
     location: null,
@@ -359,4 +372,74 @@ it("does not let a stale response replace the current searched area's markers", 
     resolveOld(response());
   });
   expect(screen.getByTestId("discovery-map").props.businesses[0].id).toBe(99);
+});
+
+it("switches and dismisses previews without fetching or moving the map and opens the real profile", async () => {
+  (getMapDiscoveryBusinesses as jest.Mock).mockResolvedValue(
+    response([
+      business,
+      { ...business, id: 77, business_name: "Another Cebu Cafe" },
+    ]),
+  );
+  const screen = await setup();
+  const nativeMap = { animateToRegion: jest.fn(), animateCamera: jest.fn() };
+  const map = () => screen.getByTestId("discovery-map");
+  await fireEvent(map(), "mapReady", nativeMap);
+  await fireEvent(map(), "viewportChange", initialBounds);
+  await waitFor(() => expect(map().props.businesses).toHaveLength(2));
+  await fireEvent(map(), "businessPress", 42);
+  expect(map().props.selectedBusinessId).toBe(42);
+  expect(screen.getByText("Real Cebu Cafe")).toBeTruthy();
+  await fireEvent(map(), "businessPress", 77);
+  expect(map().props.selectedBusinessId).toBe(77);
+  expect(screen.queryByText("Real Cebu Cafe")).toBeNull();
+  await fireEvent.press(screen.getByText("View Business"));
+  expect(router.push).toHaveBeenCalledWith({
+    pathname: "/(explorer)/business/[businessId]",
+    params: { businessId: "77" },
+  });
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Close business preview" }),
+  );
+  expect(map().props.selectedBusinessId).toBeNull();
+  expect(screen.queryByText("View Business")).toBeNull();
+  expect(nativeMap.animateToRegion).not.toHaveBeenCalled();
+  expect(nativeMap.animateCamera).not.toHaveBeenCalled();
+  expect(getMapDiscoveryBusinesses).toHaveBeenCalledTimes(1);
+});
+
+it("clears a disappeared selection permanently when refreshed results no longer contain it", async () => {
+  (getMapDiscoveryBusinesses as jest.Mock)
+    .mockResolvedValueOnce(response())
+    .mockResolvedValueOnce(response([]))
+    .mockResolvedValueOnce(response());
+  const screen = await setup();
+  const map = () => screen.getByTestId("discovery-map");
+  await fireEvent(map(), "viewportChange", initialBounds);
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  await fireEvent(map(), "businessPress", 42);
+  expect(screen.getByText("Real Cebu Cafe")).toBeTruthy();
+  await act(async () => {
+    await clients[0].invalidateQueries({ queryKey: ["map-discovery"] });
+  });
+  await waitFor(() => expect(map().props.businesses).toHaveLength(0));
+  expect(map().props.selectedBusinessId).toBeNull();
+  expect(screen.queryByText("Real Cebu Cafe")).toBeNull();
+  await act(async () => {
+    await clients[0].invalidateQueries({ queryKey: ["map-discovery"] });
+  });
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  expect(map().props.selectedBusinessId).toBeNull();
+  expect(screen.queryByText("View Business")).toBeNull();
+});
+
+it("does not navigate after the map screen loses focus", async () => {
+  (useNavigation as jest.Mock).mockReturnValue({ isFocused: () => false });
+  const screen = await setup();
+  const map = () => screen.getByTestId("discovery-map");
+  await fireEvent(map(), "viewportChange", initialBounds);
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  await fireEvent(map(), "businessPress", 42);
+  await fireEvent.press(screen.getByText("View Business"));
+  expect(router.push).not.toHaveBeenCalled();
 });

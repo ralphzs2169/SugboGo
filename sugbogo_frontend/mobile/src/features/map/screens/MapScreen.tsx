@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, View } from "react-native";
 import type RNMapView from "react-native-maps";
+import { router, useNavigation } from "expo-router";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -13,6 +14,7 @@ import useUserLocation from "@/shared/hooks/useUserLocation";
 import BusinessDiscoveryMap from "../components/BusinessDiscoveryMap";
 import MapControls from "../components/MapControls";
 import MapSearchOverlay from "../components/MapSearchOverlay";
+import MSMEPreviewCard from "../components/MSMEPreviewCard";
 import useMapDiscovery from "../hooks/useMapDiscovery";
 import useMapViewport from "../hooks/useMapViewport";
 import type { MapBounds } from "../types/mapDiscovery.types";
@@ -23,6 +25,7 @@ import { isViewportLimitError } from "../utils/mapViewport";
  * Camera movement stays local until Search this area is pressed.
  */
 export default function MapScreen() {
+  const navigation = useNavigation();
   const userLocation = useUserLocation();
   const viewport = useMapViewport();
   const discovery = useMapDiscovery(viewport.committedBounds);
@@ -30,6 +33,7 @@ export default function MapScreen() {
     null,
   );
   const [mapInstance, setMapInstance] = useState<RNMapView | null>(null);
+  const [previewHeight, setPreviewHeight] = useState(0);
   const hasInteracted = useRef(false);
   const hasHandledInitialLocation = useRef(false);
   const searchAfterInitialCenter = useRef(false);
@@ -93,6 +97,24 @@ export default function MapScreen() {
   const selectedBusiness = discovery.businesses.find(
     (business) => business.id === selectedBusinessId,
   );
+
+  // Reset vanished IDs before rendering so a later response cannot reopen them.
+  if (selectedBusinessId !== null && !selectedBusiness) {
+    setSelectedBusinessId(null);
+  }
+
+  const viewBusiness = () => {
+    if (!selectedBusiness || !navigation.isFocused()) {
+      return;
+    }
+
+    router.push({
+      pathname: "/(explorer)/business/[businessId]",
+      params: {
+        businessId: String(selectedBusiness.id),
+      },
+    });
+  };
 
   const zoom = async (amount: number) => {
     hasInteracted.current = true;
@@ -170,87 +192,78 @@ export default function MapScreen() {
           searchAfterInitialCenter.current = false;
         }}
         onBusinessPress={setSelectedBusinessId}
+        selectedBusinessId={selectedBusiness?.id ?? null}
       />
       <MapSearchOverlay />
       <MapControls
         onZoomIn={() => void zoom(1)}
         onZoomOut={() => void zoom(-1)}
         onLocateMe={() => void locateMe()}
-        isPreviewCardOpen={Boolean(selectedBusiness)}
+        bottomOffset={
+          selectedBusiness ? bottomSpacing + previewHeight + 12 : bottomSpacing
+        }
       />
 
       {/* Nonblocking discovery feedback and explicit viewport search */}
       <View
-        className="absolute left-md right-20 gap-sm"
+        className="absolute left-md right-md gap-sm"
         style={{ bottom: bottomSpacing }}
         pointerEvents="box-none"
       >
-        {viewport.canSearch && (
-          <Button
-            title="Search this area"
-            rounded="full"
-            className="self-center"
-            onPress={() => {
-              setSelectedBusinessId(null);
-              viewport.searchThisArea();
-            }}
-          />
-        )}
-
-        {statusMessage && (
-          <View className="flex-row items-center gap-sm rounded-card bg-surface p-md">
-            {discovery.isFetching && (
-              <ActivityIndicator color={theme.extends.colors.brand} />
-            )}
-            <AppText
-              className="flex-1 text-small text-text-secondary"
-              accessibilityLiveRegion="polite"
-            >
-              {statusMessage}
-            </AppText>
-          </View>
-        )}
-
-        {discovery.error && !limitError && (
-          <View className="rounded-card bg-surface">
-            <ErrorState
-              size="section"
-              title="Could not load businesses"
-              description="The map is still available. Retry the searched area or search another area."
-              primaryActionTitle="Retry"
-              onPrimaryAction={() => {
-                void discovery.refetch();
+        <View className="mr-16 gap-sm" pointerEvents="box-none">
+          {viewport.canSearch && (
+            <Button
+              title="Search this area"
+              rounded="full"
+              className="self-center"
+              onPress={() => {
+                setSelectedBusinessId(null);
+                viewport.searchThisArea();
               }}
             />
-          </View>
-        )}
+          )}
 
-        {/* API-backed identity only; full preview and navigation belong to Task 3. */}
+          {statusMessage && (
+            <View className="flex-row items-center gap-sm rounded-card bg-surface p-md">
+              {discovery.isFetching && (
+                <ActivityIndicator color={theme.extends.colors.brand} />
+              )}
+              <AppText
+                className="flex-1 text-small text-text-secondary"
+                accessibilityLiveRegion="polite"
+              >
+                {statusMessage}
+              </AppText>
+            </View>
+          )}
+
+          {discovery.error && !limitError && (
+            <View className="rounded-card bg-surface">
+              <ErrorState
+                size="section"
+                title="Could not load businesses"
+                description="The map is still available. Retry the searched area or search another area."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => {
+                  void discovery.refetch();
+                }}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Full-width preview owns no camera or server state. */}
         {selectedBusiness && (
-          <View className="gap-xs rounded-card bg-surface p-md">
-            <AppText weight="bold" className="text-body text-text-primary">
-              {selectedBusiness.business_name}
-            </AppText>
-            <AppText className="text-small text-text-secondary">
-              {selectedBusiness.category.name}
-            </AppText>
-            <AppText
-              className="text-small text-text-secondary"
-              numberOfLines={2}
-            >
-              {[
-                selectedBusiness.location.address,
-                selectedBusiness.location.city,
-                selectedBusiness.location.province,
-              ]
-                .filter(Boolean)
-                .join(", ")}
-            </AppText>
-            <Button
-              title="Close"
-              variant="outline"
-              size="sm"
-              onPress={() => setSelectedBusinessId(null)}
+          <View
+            onLayout={(event) => {
+              setPreviewHeight(event.nativeEvent.layout.height);
+            }}
+          >
+            <MSMEPreviewCard
+              key={selectedBusiness.id}
+              business={selectedBusiness}
+              onClose={() => setSelectedBusinessId(null)}
+              onViewBusiness={viewBusiness}
             />
           </View>
         )}

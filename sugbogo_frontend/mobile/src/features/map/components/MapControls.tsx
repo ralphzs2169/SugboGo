@@ -8,7 +8,7 @@ type Props = {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onLocateMe: () => void;
-  isPreviewCardOpen: boolean;
+  bottomOffset?: number;
 };
 
 /** Provides the existing discovery zoom and recenter actions above the tab bar. */
@@ -16,7 +16,7 @@ export default function MapControls({
   onZoomIn,
   onZoomOut,
   onLocateMe,
-  isPreviewCardOpen,
+  bottomOffset,
 }: Props) {
   const insets = useSafeAreaInsets();
   const baseOffset = insets.bottom + TAB_BAR_HEIGHT + 16;
@@ -24,7 +24,7 @@ export default function MapControls({
   return (
     <View
       className="absolute right-md"
-      style={{ bottom: isPreviewCardOpen ? baseOffset + 180 : baseOffset }}
+      style={{ bottom: bottomOffset ?? baseOffset }}
     >
       <View
         className="overflow-hidden rounded-input bg-surface"

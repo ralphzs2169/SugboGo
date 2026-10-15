@@ -134,3 +134,41 @@ it("discards a native boundary read when a newer camera movement starts", async 
   expect(onViewportChange).not.toHaveBeenCalled();
   expect(onViewportChanging).toHaveBeenCalled();
 });
+
+it("distinguishes the selected standard marker and keeps selection separate from the camera", async () => {
+  const onBusinessPress = jest.fn();
+  const businesses = [
+    { id: 42, latitude: 10.31, longitude: 123.91 },
+    { id: 77, latitude: 10.32, longitude: 123.92 },
+  ];
+  const screen = await render(
+    <BusinessDiscoveryMap
+      businesses={businesses}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      selectedBusinessId={42}
+      onBusinessPress={onBusinessPress}
+    />,
+  );
+  const markers = screen.getAllByTestId("business-marker");
+  expect(markers[0].props.accessibilityState.selected).toBe(true);
+  expect(markers[1].props.accessibilityState.selected).toBe(false);
+  expect(screen.getAllByText("Selected")).toHaveLength(1);
+  await fireEvent(markers[1], "press");
+  expect(onBusinessPress).toHaveBeenCalledWith(77);
+  await screen.rerender(
+    <BusinessDiscoveryMap
+      businesses={businesses}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      selectedBusinessId={77}
+      onBusinessPress={onBusinessPress}
+    />,
+  );
+  expect(
+    screen.getAllByTestId("business-marker")[1].props.accessibilityState
+      .selected,
+  ).toBe(true);
+  expect(mockNativeMap.animateToRegion).not.toHaveBeenCalled();
+  expect(screen.getByTestId("clustered-map").props.scrollEnabled).toBe(true);
+});

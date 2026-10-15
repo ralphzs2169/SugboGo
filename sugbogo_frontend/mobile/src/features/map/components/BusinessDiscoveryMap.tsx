@@ -11,6 +11,7 @@ import MapView, {
 import { theme } from "@/constants/theme";
 import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 import MapMarker from "@/shared/components/MapMarker";
+import AppText from "@/shared/components/AppText";
 
 import type { MapBounds } from "../types/mapDiscovery.types";
 import { regionToBounds } from "../utils/mapViewport";
@@ -27,6 +28,7 @@ type Props = {
   interactive?: boolean;
   trackMarkerUpdates?: boolean;
   onBusinessPress?: (businessId: number) => void;
+  selectedBusinessId?: number | null;
   autoCenterOnLocation?: boolean;
   showsUserLocation?: boolean;
   onMapReady?: (map: MapView) => void;
@@ -57,6 +59,7 @@ export default function BusinessDiscoveryMap({
   interactive = true,
   trackMarkerUpdates = false,
   onBusinessPress,
+  selectedBusinessId = null,
   autoCenterOnLocation = true,
   showsUserLocation = userLocation !== null,
   onMapReady,
@@ -167,7 +170,12 @@ export default function BusinessDiscoveryMap({
         {/* Business locations */}
         {businesses.map((business) => (
           <Marker
-            key={business.id}
+            key={`${business.id}-${selectedBusinessId === business.id}`}
+            identifier={String(business.id)}
+            zIndex={selectedBusinessId === business.id ? 1 : 0}
+            accessibilityState={{
+              selected: selectedBusinessId === business.id,
+            }}
             coordinate={{
               latitude: business.latitude,
               longitude: business.longitude,
@@ -177,7 +185,14 @@ export default function BusinessDiscoveryMap({
               onBusinessPress?.(business.id);
             }}
           >
-            <View collapsable={false}>
+            <View collapsable={false} className="items-center">
+              {selectedBusinessId === business.id && (
+                <View className="mb-1 rounded-full border border-brand bg-surface px-2 py-1">
+                  <AppText weight="bold" className="text-xs text-text-primary">
+                    Selected
+                  </AppText>
+                </View>
+              )}
               <MapMarker variant="business" />
             </View>
           </Marker>
