@@ -1,7 +1,10 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import type { CommunityReviewListResponse } from "@/features/community/types/communityReview.types";
+import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
+import type { MyReviewPage } from "@/features/profile/types/myReview.types";
 import type {
   BusinessReview,
   BusinessReviewListResponse,
@@ -35,6 +38,111 @@ export function invalidateBusinessCardCollections(queryClient: QueryClient) {
     BUSINESS_CARD_COLLECTION_QUERY_KEYS.map((queryKey) =>
       queryClient.invalidateQueries({ queryKey }),
     ),
+  );
+}
+
+/** Applies a confirmed edit while preserving business metadata and server totals. */
+export function updateReviewInCaches(
+  queryClient: QueryClient,
+  businessId: number,
+  authorUserId: number | null,
+  review: BusinessReview,
+) {
+  if (authorUserId !== null) {
+    queryClient.setQueryData<InfiniteData<MyReviewPage>>(
+      myReviewsKey(authorUserId),
+      (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          pages: current.pages.map((page) => ({
+            ...page,
+            items: page.items.map((item) =>
+              item.id === review.id ? { ...item, ...review } : item,
+            ),
+          })),
+        };
+      },
+    );
+  }
+  // Do not copy author-specific response flags into another account's cache.
+  if (authorUserId !== (useAuthStore.getState().user?.id ?? null)) return;
+  queryClient.setQueryData<BusinessReviewPreview>(
+    businessReviewPreviewKey(businessId),
+    (current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        reviews: current.reviews
+          .filter(
+            (item) => item.id !== review.id || review.status === "published",
+          )
+          .map((item) =>
+            item.id === review.id ? { ...item, ...review } : item,
+          ),
+        user_review:
+          current.user_review?.id === review.id
+            ? { ...current.user_review, ...review }
+            : current.user_review,
+      };
+    },
+  );
+  queryClient.setQueriesData<
+    | InfiniteData<BusinessReviewListResponse>
+    | { reviews: BusinessReview[]; totalCount: number }
+  >({ queryKey: businessReviewsKey(businessId) }, (current) => {
+    if (!current) return current;
+    if ("pages" in current) {
+      return {
+        ...current,
+        pages: current.pages.map((page) => ({
+          ...page,
+          items: page.items
+            .filter(
+              (item) => item.id !== review.id || review.status === "published",
+            )
+            .map((item) =>
+              item.id === review.id ? { ...item, ...review } : item,
+            ),
+        })),
+      };
+    }
+    return {
+      ...current,
+      reviews: current.reviews.map((item) =>
+        item.id === review.id ? { ...item, ...review } : item,
+      ),
+    };
+  });
+  queryClient.setQueriesData<InfiniteData<CommunityReviewListResponse>>(
+    { queryKey: COMMUNITY_REVIEWS_QUERY_KEY },
+    (current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        pages: current.pages.map((page) => ({
+          ...page,
+          items: page.items
+            .filter(
+              (item) =>
+                item.id !== review.id ||
+                (review.status === "published" &&
+                  review.show_in_community !== false),
+            )
+            .map((item) =>
+              item.id === review.id
+                ? {
+                    ...item,
+                    text: review.text,
+                    photos: review.photos,
+                    reply: review.reply,
+                    updated_at: review.updated_at,
+                  }
+                : item,
+            ),
+        })),
+      };
+    },
   );
 }
 

@@ -32,6 +32,7 @@ import { useReviewDerivedDataSyncActions } from "./ReviewDerivedDataSyncProvider
 import {
   invalidateBusinessCardCollections,
   removeDeletedReviewFromPublicCaches,
+  updateReviewInCaches,
 } from "../utils/reviewCache.utils";
 import {
   businessReviewPreviewKey,
@@ -87,6 +88,30 @@ function useReviewMutation<TVariables, TResult>(
     },
 
     onSuccess: async (result, variables, context) => {
+      if (sync === "update") {
+        await Promise.all([
+          ...(context.authorUserId !== null
+            ? [
+                queryClient.cancelQueries({
+                  queryKey: myReviewsKey(context.authorUserId),
+                }),
+              ]
+            : []),
+          queryClient.cancelQueries({
+            queryKey: businessReviewPreviewKey(businessId),
+          }),
+          queryClient.cancelQueries({
+            queryKey: businessReviewsKey(businessId),
+          }),
+          queryClient.cancelQueries({ queryKey: COMMUNITY_REVIEWS_QUERY_KEY }),
+        ]);
+        updateReviewInCaches(
+          queryClient,
+          businessId,
+          context.authorUserId,
+          result as BusinessReview,
+        );
+      }
       if (sync === "delete") {
         // Discard pre-deletion responses before removing cached public content.
         await Promise.all([
@@ -188,6 +213,7 @@ function useReviewMutation<TVariables, TResult>(
 
       if (sync === "delete") {
         startGeneratedInsightsSync({
+          requiresPostMutationUpdate: true,
           baselineGeneratedAt: context.baselineGeneratedAt,
           baselineUpdatedAt: context.baselineInsightsUpdatedAt,
           baselineState: context.baselineInsightsState,

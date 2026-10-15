@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
 import PhotoPreview from "@/features/merchant/components/registration/business-photos/PhotoPreview";
 import AppText from "@/shared/components/AppText";
@@ -48,6 +49,7 @@ type Props = {
   coverPhotoUrl?: string | null;
   sheetRef: React.RefObject<BottomSheetModal | null>;
   review?: EditableReview | null;
+  onDismiss?: () => void;
 };
 
 type ReviewErrors = {
@@ -157,9 +159,18 @@ export default function ReviewComposerSheet({
   coverPhotoUrl,
   sheetRef,
   review,
+  onDismiss,
 }: Props) {
   const insets = useSafeAreaInsets();
   const submissionPending = useRef(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const {
     mutateAsync: createReview,
@@ -249,6 +260,9 @@ export default function ReviewComposerSheet({
     }
 
     setIsPicking(true);
+    const pickingUserId = useAuthStore.getState().user?.id;
+    const isCurrentPicker = () =>
+      mounted.current && useAuthStore.getState().user?.id === pickingUserId;
 
     try {
       const selectedPhotos = await pickBusinessPhotos({
@@ -256,14 +270,23 @@ export default function ReviewComposerSheet({
         maxPhotos: MAX_REVIEW_PHOTOS,
       });
 
+      if (!isCurrentPicker()) return;
+
       if (selectedPhotos.length === 0) {
         return;
       }
 
       setPhotos((current) => current.concat(selectedPhotos));
       setEditFeedback(null);
+    } catch (error) {
+      if (!isCurrentPicker()) return;
+      Toast.show({
+        type: "error",
+        text1: "Unable to add photos",
+        text2: error instanceof Error ? error.message : "Please try again.",
+      });
     } finally {
-      setIsPicking(false);
+      if (isCurrentPicker()) setIsPicking(false);
     }
   }
 
@@ -304,6 +327,9 @@ export default function ReviewComposerSheet({
     }
 
     submissionPending.current = true;
+    const submittingUserId = useAuthStore.getState().user?.id;
+    const isCurrentSubmission = () =>
+      mounted.current && useAuthStore.getState().user?.id === submittingUserId;
 
     try {
       if (review) {
@@ -318,6 +344,8 @@ export default function ReviewComposerSheet({
           textChanged,
         });
 
+        if (!isCurrentSubmission()) return;
+
         setEditFeedback(null);
         Toast.show({ type: "success", text1: "Review updated" });
       } else {
@@ -326,6 +354,8 @@ export default function ReviewComposerSheet({
           photos,
           showInCommunity,
         });
+
+        if (!isCurrentSubmission()) return;
 
         if (created.status === "under_review") {
           Toast.show({
@@ -340,6 +370,7 @@ export default function ReviewComposerSheet({
 
       sheetRef.current?.dismiss();
     } catch (error) {
+      if (!isCurrentSubmission()) return;
       const response = error as Partial<ApiError>;
       if (review && isReviewEditFeedbackCode(response?.code)) {
         setEditFeedback(response.code);
@@ -406,6 +437,7 @@ export default function ReviewComposerSheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
+      onDismiss={onDismiss}
       snapPoints={["90%"]}
       enableDynamicSizing={false}
       enablePanDownToClose={!isPending}

@@ -1,26 +1,27 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
-import type { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import ReviewComposerSheet from "@/features/explore/components/business-profile/ReviewComposerSheet";
 import { ReviewDerivedDataSyncProvider } from "@/features/explore/hooks/ReviewDerivedDataSyncProvider";
-import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
+import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import {
   defaultStackScreenOptions,
   slideFromRight,
 } from "@/shared/navigation/stackOptions";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import MyReviewCard from "../components/reviews/MyReviewCard";
 import MyReviewDeleteConfirmation from "../components/reviews/MyReviewDeleteConfirmation";
@@ -30,14 +31,23 @@ import type { MyReview } from "../types/myReview.types";
 
 type SelectedReview = { userId: number; review: MyReview };
 
-/** Coordinates private review history, refresh, pagination, and section recovery. */
+const SIGN_IN_ROUTE = "/(auth)/login";
+
+/**
+ * Displays authenticated review history in a full-width, separated list.
+ *
+ * Coordinates pagination, editing, deletion, and business-specific review
+ * synchronization while preserving the existing SugboGo interaction patterns.
+ */
 export default function ReviewsSubmittedScreen() {
   const history = useMyReviews();
   const insets = useSafeAreaInsets();
+
   const paginationArmed = useRef(false);
   const paginationPending = useRef(false);
   const actionsRef = useRef<BottomSheetModal | null>(null);
   const composerRef = useRef<BottomSheetModal | null>(null);
+
   const [actionReview, setActionReview] = useState<SelectedReview | null>(null);
   const [deletingReview, setDeletingReview] = useState<SelectedReview | null>(
     null,
@@ -48,29 +58,60 @@ export default function ReviewsSubmittedScreen() {
   const [syncBusinesses, setSyncBusinesses] = useState<
     { userId: number; businessId: number }[]
   >([]);
-  const isConfirmingDeletion =
-    history.isEnabled && deletingReview?.userId === history.userId;
 
-  const canManage = (review: MyReview) =>
-    history.isEnabled &&
-    review.author.id === history.userId &&
-    review.is_own_review;
+  const isEnabled = history.isEnabled;
+  const userId = history.userId;
+  const isConfirmingDeletion = isEnabled && deletingReview?.userId === userId;
+
+  const canManage = useCallback(
+    (review: MyReview) =>
+      isEnabled && review.author.id === userId && review.is_own_review,
+    [isEnabled, userId],
+  );
 
   const canEdit = (review: MyReview) =>
     canManage(review) && review.status !== "under_review";
 
-  const openActions = (review: MyReview) => {
-    if (!canManage(review) || history.userId === null || isConfirmingDeletion)
-      return;
-    setActionReview({ userId: history.userId, review });
-    presentBottomSheet(actionsRef);
+  /** Returns the selected review only if it is still safe to act on. */
+  const getActionableReview = (predicate: (review: MyReview) => boolean) => {
+    if (
+      !actionReview ||
+      isConfirmingDeletion ||
+      actionReview.userId !== userId ||
+      !predicate(actionReview.review)
+    ) {
+      return null;
+    }
+
+    return actionReview;
   };
+
+  const openActions = useCallback(
+    (review: MyReview) => {
+      if (!canManage(review) || userId === null || isConfirmingDeletion) return;
+
+      setActionReview({ userId, review });
+      presentBottomSheet(actionsRef);
+    },
+    [canManage, userId, isConfirmingDeletion],
+  );
+
+  const renderReview = useCallback(
+    ({ item }: { item: MyReview }) => (
+      <MyReviewCard
+        review={item}
+        onActions={canManage(item) ? openActions : undefined}
+      />
+    ),
+    [canManage, openActions],
+  );
 
   const registerSyncBusiness = (selected: SelectedReview) => {
     setSyncBusinesses((current) => {
       const businesses = current.filter(
         (item) => item.userId === selected.userId,
       );
+
       if (
         businesses.some(
           (item) => item.businessId === selected.review.business.id,
@@ -78,6 +119,7 @@ export default function ReviewsSubmittedScreen() {
       ) {
         return businesses;
       }
+
       return [
         ...businesses,
         {
@@ -89,46 +131,32 @@ export default function ReviewsSubmittedScreen() {
   };
 
   const openEditor = () => {
-    if (
-      !actionReview ||
-      isConfirmingDeletion ||
-      actionReview.userId !== history.userId ||
-      !canEdit(actionReview.review)
-    )
-      return;
+    const selected = getActionableReview(canEdit);
+    if (!selected) return;
 
-    // Keep a stable edit snapshot so history refetches cannot replace a draft.
-    setEditingReview(actionReview);
-    registerSyncBusiness(actionReview);
+    setEditingReview(selected);
+    registerSyncBusiness(selected);
     presentBottomSheet(composerRef);
   };
 
   const openDeleteConfirmation = () => {
-    if (
-      !actionReview ||
-      isConfirmingDeletion ||
-      actionReview.userId !== history.userId ||
-      !canManage(actionReview.review)
-    )
-      return;
+    const selected = getActionableReview(canManage);
+    if (!selected) return;
 
-    registerSyncBusiness(actionReview);
-    setDeletingReview(actionReview);
+    registerSyncBusiness(selected);
+    setDeletingReview(selected);
   };
 
   const currentEditor =
-    history.isEnabled && editingReview?.userId === history.userId
-      ? editingReview.review
-      : null;
+    isEnabled && editingReview?.userId === userId ? editingReview.review : null;
+
   const currentDeletion =
-    history.isEnabled && deletingReview?.userId === history.userId
-      ? deletingReview
-      : null;
+    isEnabled && deletingReview?.userId === userId ? deletingReview : null;
 
   useEffect(() => {
     paginationArmed.current = false;
     paginationPending.current = false;
-  }, [history.userId]);
+  }, [userId]);
 
   useQueryErrorNotification({
     error: history.error,
@@ -139,28 +167,30 @@ export default function ReviewsSubmittedScreen() {
 
   const loadNextPage = (retry = false) => {
     if (
-      !history.isEnabled ||
+      !isEnabled ||
       paginationPending.current ||
       (!retry && (!paginationArmed.current || history.isFetchNextPageError)) ||
       !history.hasNextPage ||
       history.isFetchingNextPage ||
       history.isFetching
-    )
+    ) {
       return;
+    }
 
     paginationPending.current = true;
     paginationArmed.current = false;
+
     void history.fetchNextPage().finally(() => {
       paginationPending.current = false;
     });
   };
 
   const initialLoading =
-    history.isAuthLoading || (history.isEnabled && history.isPending);
+    history.isAuthLoading || (isEnabled && history.isPending);
   const hasReviews = history.reviews.length > 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-surface">
       {/* Profile stack header */}
       <Stack.Screen
         options={{
@@ -170,33 +200,32 @@ export default function ReviewsSubmittedScreen() {
         }}
       />
 
-      {/* Author history and refresh */}
+      {/* Full-width review history */}
       <FlatList
-        key={history.userId ?? "signed-out"}
+        key={userId ?? "signed-out"}
         testID="my-reviews-list"
         data={history.reviews}
         keyExtractor={(review) => String(review.id)}
-        renderItem={({ item }) => (
-          <MyReviewCard
-            review={item}
-            onActions={canManage(item) ? () => openActions(item) : undefined}
-          />
-        )}
+        renderItem={renderReview}
+        className="flex-1 bg-surface"
         contentContainerStyle={{
-          padding: 16,
           paddingBottom: insets.bottom + 24,
           flexGrow: 1,
         }}
         ItemSeparatorComponent={ReviewSeparator}
         ListHeaderComponent={
           hasReviews ? (
-            <View className="pb-4">
-              <AppText weight="semibold" className="text-sm text-text-primary">
-                {history.totalCount} submitted{" "}
+            <View className="px-4 pb-3 pt-5">
+              <AppText
+                accessibilityRole="header"
+                weight="bold"
+                className="text-xl text-text-primary"
+              >
+                {history.totalCount}{" "}
                 {history.totalCount === 1 ? "review" : "reviews"}
               </AppText>
-              <AppText className="mt-1 text-xs text-text-secondary">
-                Newest first · Includes unpublished reviews
+              <AppText className="mt-0.5 text-sm text-text-secondary">
+                Newest first · Includes unpublished
               </AppText>
             </View>
           ) : null
@@ -204,11 +233,36 @@ export default function ReviewsSubmittedScreen() {
         ListEmptyComponent={
           initialLoading ? (
             <MyReviewsSkeleton />
-          ) : !history.isEnabled ? (
-            <View className="py-10">
-              <AppText className="text-center text-text-secondary">
-                Sign in to view your reviews.
+          ) : !isEnabled ? (
+            <View
+              testID="my-reviews-signed-out"
+              className="items-center px-4 py-10"
+            >
+              <View className="h-20 w-20 items-center justify-center rounded-full bg-surface-muted">
+                <MaterialCommunityIcons
+                  name="account-circle-outline"
+                  size={40}
+                  color={theme.extends.colors.text.secondary}
+                />
+              </View>
+              <AppText
+                weight="bold"
+                className="mt-4 text-center text-lg text-text-primary"
+              >
+                Sign in to see your reviews
               </AppText>
+              <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+                Your review history and any replies from businesses will show up
+                here.
+              </AppText>
+              <Button
+                title="Sign in"
+                onPress={() => router.push(SIGN_IN_ROUTE)}
+                variant="primary"
+                rounded="full"
+                size="sm"
+                className="mt-5"
+              />
             </View>
           ) : history.error ? (
             <ErrorState
@@ -257,7 +311,7 @@ export default function ReviewsSubmittedScreen() {
               />
             </View>
           ) : hasReviews && history.error ? (
-            <View className="py-4">
+            <View className="px-4 py-4">
               <ErrorState
                 size="section"
                 title={
@@ -287,20 +341,24 @@ export default function ReviewsSubmittedScreen() {
         refreshControl={
           <RefreshControl
             refreshing={history.isRefetching && !history.isFetchingNextPage}
-            enabled={history.isEnabled}
+            enabled={isEnabled}
             onRefresh={() => {
-              if (history.isEnabled && !history.isFetching)
-                void history.refetch();
+              if (isEnabled && !history.isFetching) void history.refetch();
             }}
             tintColor={theme.extends.colors.brand}
           />
         }
       />
 
-      {/* Contextual actions respect editing restrictions across all statuses. */}
+      {/* Contextual edit and delete actions */}
       <ActionBottomSheet
-        key={`review-actions-${history.userId ?? "signed-out"}`}
+        key={`review-actions-${userId ?? "signed-out"}`}
         sheetRef={actionsRef}
+        onDismiss={() =>
+          setActionReview((current) =>
+            current === actionReview ? null : current,
+          )
+        }
         options={[
           ...(actionReview && canEdit(actionReview.review)
             ? [{ label: "Edit my review", value: "edit" }]
@@ -317,9 +375,9 @@ export default function ReviewsSubmittedScreen() {
         }}
       />
 
-      {/* Keep business synchronization mounted after edit/delete dialogs close. */}
+      {/* Business-specific edit and deletion synchronization */}
       {syncBusinesses
-        .filter((item) => history.isEnabled && item.userId === history.userId)
+        .filter((item) => isEnabled && item.userId === userId)
         .map((item) => (
           <ReviewDerivedDataSyncProvider
             key={`review-sync-${item.userId}-${item.businessId}`}
@@ -332,10 +390,15 @@ export default function ReviewsSubmittedScreen() {
                 coverPhotoUrl={currentEditor.business.display_cover_photo_url}
                 sheetRef={composerRef}
                 review={currentEditor}
+                onDismiss={() =>
+                  setEditingReview((current) =>
+                    current === editingReview ? null : current,
+                  )
+                }
               />
             )}
 
-            {/* Confirmed deletion uses the same business synchronization owner. */}
+            {/* Confirmed review deletion */}
             {currentDeletion?.review.business.id === item.businessId && (
               <MyReviewDeleteConfirmation
                 key={`${currentDeletion.userId}-${currentDeletion.review.id}`}
@@ -354,7 +417,7 @@ export default function ReviewsSubmittedScreen() {
   );
 }
 
-/** Separates individual submissions without nested borders. */
+/** Separates review rows with a subtle inset divider. */
 function ReviewSeparator() {
-  return <View className="h-3" />;
+  return <View className="mx-4 h-px bg-border-primary" />;
 }

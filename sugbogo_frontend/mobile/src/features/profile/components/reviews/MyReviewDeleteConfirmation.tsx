@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Toast from "react-native-toast-message";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -21,6 +21,13 @@ export default function MyReviewDeleteConfirmation({
 }) {
   const deletion = useDeleteReview(review.business.id);
   const submissionPending = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const cancel = () => {
     if (!submissionPending.current && !deletion.isPending) onClose();
@@ -40,6 +47,8 @@ export default function MyReviewDeleteConfirmation({
     submissionPending.current = true;
     try {
       await deletion.mutateAsync({ reviewId: review.id });
+      if (!mounted.current || useAuthStore.getState().user?.id !== userId)
+        return;
       onClose();
       Toast.show({
         type: "success",
@@ -47,6 +56,8 @@ export default function MyReviewDeleteConfirmation({
         visibilityTime: 1500,
       });
     } catch (error) {
+      if (!mounted.current || useAuthStore.getState().user?.id !== userId)
+        return;
       const response = error as ApiResponse<unknown>;
       if (!response.success && !handleSystemError(response)) {
         Toast.show({
