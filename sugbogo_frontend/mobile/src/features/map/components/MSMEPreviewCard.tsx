@@ -8,6 +8,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
+import { GEM_ACCENT, GEM_FILL, GEM_ICON } from "@/shared/styles/hiddenGems";
 import { shadows } from "@/shared/styles/shadows";
 
 import type { MapDiscoveryBusiness } from "../types/mapDiscovery.types";
@@ -18,8 +19,45 @@ type Props = {
   onViewBusiness: () => void;
 };
 
-const VISIBLE_TAG_COUNT = 1;
+type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
+
 export const PREVIEW_MAX_HEIGHT_RATIO = 0.38;
+
+const PHOTO_SIZE = 72;
+const MEDALLION_SIZE = 24;
+
+/**
+ * Single-line metadata row with a leading icon, used for category and address.
+ */
+function InfoRow({
+  icon,
+  text,
+  muted = false,
+}: {
+  icon: IconName;
+  text: string;
+  muted?: boolean;
+}) {
+  return (
+    <View className="mt-1 flex-row items-center gap-1.5">
+      <MaterialCommunityIcons
+        name={icon}
+        size={14}
+        color={theme.extends.colors.text.secondary}
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+      />
+      <AppText
+        className={`min-w-0 flex-1 text-xs ${
+          muted ? "italic text-text-secondary/70" : "text-text-secondary"
+        }`}
+        numberOfLines={1}
+      >
+        {text}
+      </AppText>
+    </View>
+  );
+}
 
 /**
  * Presents a concise API-backed business preview without moving the map.
@@ -36,19 +74,21 @@ export default function MSMEPreviewCard({
     business.display_cover_photo_url,
     business.cover_photo_url,
   ].find((url) => url?.trim() && !failedPhotos.includes(url));
-  const clusterIcon = CLUSTER_ICONS[business.cluster?.icon] ?? "store-outline";
+  const clusterIconKey = business.cluster?.icon;
+  const clusterIcon: IconName =
+    (clusterIconKey ? CLUSTER_ICONS[clusterIconKey] : undefined) ??
+    "store-outline";
   const classification =
     business.category?.name?.trim() || business.cluster?.name?.trim();
   const address = [business.location?.city, business.location?.province]
     .filter((part) => part?.trim())
     .join(", ");
   const tags = business.specialty_tags ?? [];
-  const visibleTags = tags.slice(0, VISIBLE_TAG_COUNT);
-  const remainingTagCount = tags.length - visibleTags.length;
+  const isHiddenGem = business.is_hidden_gem === true;
 
   return (
     <View
-      className="gap-2 rounded-card border border-border-primary bg-surface p-3"
+      className="gap-3 rounded-card border border-border-primary bg-surface p-3"
       style={[
         shadows.floating,
         { maxHeight: height * PREVIEW_MAX_HEIGHT_RATIO },
@@ -57,39 +97,82 @@ export default function MSMEPreviewCard({
       {/* Bounded identity and specialties leave the map visible. */}
       <ScrollView
         style={{ flexGrow: 0, flexShrink: 1 }}
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={false}
       >
         <View className="flex-row items-start gap-3">
-          <View className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-secondary">
-            {photo ? (
-              <Image
-                key={photo}
-                source={{ uri: photo }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-                accessibilityLabel={`${business.business_name} cover photo`}
-                onError={() => {
-                  setFailedPhotos((previous) => [...previous, photo]);
-                }}
-              />
-            ) : (
+          {/* Wrapper lets the gem medallion overlap the photo's corner. */}
+          <View
+            className="shrink-0"
+            style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
+          >
+            <View
+              className="h-full w-full overflow-hidden rounded-xl bg-surface-secondary"
+              style={{
+                borderWidth: isHiddenGem ? 2 : 0,
+                borderColor: GEM_FILL,
+              }}
+            >
+              {photo ? (
+                <Image
+                  key={photo}
+                  source={{ uri: photo }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  transition={150}
+                  accessibilityLabel={`${business.business_name} cover photo`}
+                  onError={() => {
+                    setFailedPhotos((previous) => [...previous, photo]);
+                  }}
+                />
+              ) : (
+                <View
+                  className="h-full w-full items-center justify-center bg-brand/8"
+                  accessibilityLabel="Business photo unavailable"
+                  accessible
+                >
+                  <MaterialCommunityIcons
+                    name={clusterIcon}
+                    size={32}
+                    color={theme.extends.colors.brand}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+                </View>
+              )}
+            </View>
+
+            {/* Same medallion as the map marker: violet fill, white ring, diamond. */}
+            {isHiddenGem && (
               <View
-                className="h-full w-full items-center justify-center bg-brand/8"
-                accessibilityLabel="Business photo unavailable"
+                className="items-center justify-center rounded-full"
                 accessible
+                accessibilityLabel="Hidden Gem"
+                style={{
+                  position: "absolute",
+                  right: -6,
+                  bottom: -6,
+                  width: MEDALLION_SIZE,
+                  height: MEDALLION_SIZE,
+                  backgroundColor: GEM_FILL,
+                  borderWidth: 2,
+                  borderColor: "#FFFFFF",
+                  elevation: 4,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.2,
+                  shadowRadius: 3,
+                  shadowOffset: { width: 0, height: 1 },
+                }}
               >
                 <MaterialCommunityIcons
-                  name={clusterIcon}
-                  size={32}
-                  color={theme.extends.colors.brand}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
+                  name="diamond-stone"
+                  size={12}
+                  color={GEM_ICON}
                 />
               </View>
             )}
           </View>
 
-          <View className="min-w-0 flex-1 pr-12">
+          <View className="min-w-0 flex-1 pr-10">
             <AppText
               weight="bold"
               className="text-base leading-5 text-text-primary"
@@ -98,66 +181,41 @@ export default function MSMEPreviewCard({
             >
               {business.business_name}
             </AppText>
-            {business.is_hidden_gem === true && (
-              <View className="mt-1 flex-row items-center gap-1 self-start">
-                <MaterialCommunityIcons
-                  name="diamond-stone"
-                  size={14}
-                  color={theme.extends.colors.brand}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
-                />
-                <AppText
-                  weight="semibold"
-                  className="text-xs text-text-primary"
-                >
-                  Hidden Gem
-                </AppText>
-              </View>
-            )}
-            {classification && (
-              <AppText
-                className="mt-1 text-xs text-text-secondary"
-                numberOfLines={1}
-              >
-                {classification}
-              </AppText>
-            )}
-            <AppText
-              className="mt-1 text-xs text-text-secondary"
-              numberOfLines={1}
-            >
-              {address || "Address unavailable"}
-            </AppText>
+
+            {classification ? (
+              <InfoRow icon={clusterIcon} text={classification} />
+            ) : null}
+            <InfoRow
+              icon="map-marker-outline"
+              text={address || "Address unavailable"}
+              muted={!address}
+            />
           </View>
 
+          {/* Visual target stays compact; hitSlop keeps the touch area at 48px. */}
           <Pressable
             onPress={onClose}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Close business preview"
-            className="absolute right-0 top-0 h-12 w-12 cursor-pointer items-center justify-center rounded-full active:bg-background active:opacity-70"
+            className="absolute right-0 top-0 h-8 w-8 items-center justify-center rounded-full bg-surface-secondary active:opacity-70"
           >
             <MaterialCommunityIcons
               name="close"
-              size={22}
+              size={18}
               color={theme.extends.colors.text.secondary}
             />
           </Pressable>
         </View>
 
         {/* Reuse Explore's soft display chips without inventing vouch state. */}
-        {visibleTags.length > 0 && (
-          <View className="mt-1 flex-row flex-wrap items-center">
-            {visibleTags.map((tag) => (
+        {tags.length > 0 && (
+          <View className="mt-2 flex-row flex-wrap items-center">
+            {tags.map((tag) => (
               <View key={tag.id} className="max-w-full shrink">
                 <SpecialtyTagChip tag={tag} size="small" showIcon />
               </View>
             ))}
-            {remainingTagCount > 0 && (
-              <AppText className="mb-2 text-xs text-text-secondary">
-                +{remainingTagCount} more
-              </AppText>
-            )}
           </View>
         )}
       </ScrollView>
@@ -169,6 +227,7 @@ export default function MSMEPreviewCard({
         onPress={onViewBusiness}
         size="sm"
         className="min-h-12"
+        rounded="full"
       />
     </View>
   );
