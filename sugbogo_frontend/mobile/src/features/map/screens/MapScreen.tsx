@@ -90,6 +90,7 @@ export default function MapScreen() {
         id: business.id,
         latitude: business.location.latitude,
         longitude: business.location.longitude,
+        is_hidden_gem: business.is_hidden_gem === true,
       })),
     [discovery.businesses],
   );

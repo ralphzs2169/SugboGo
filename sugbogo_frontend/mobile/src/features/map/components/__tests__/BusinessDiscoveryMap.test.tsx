@@ -172,3 +172,46 @@ it("distinguishes the selected standard marker and keeps selection separate from
   expect(mockNativeMap.animateToRegion).not.toHaveBeenCalled();
   expect(screen.getByTestId("clustered-map").props.scrollEnabled).toBe(true);
 });
+
+it("keeps mixed gem and regular markers clusterable and preserves selected gem identity", async () => {
+  const businesses = [
+    { id: 42, latitude: 10.31, longitude: 123.91, is_hidden_gem: true },
+    { id: 77, latitude: 10.32, longitude: 123.92, is_hidden_gem: false },
+    { id: 99, latitude: 10.33, longitude: 123.93 },
+  ];
+  const screen = await render(
+    <BusinessDiscoveryMap
+      businesses={businesses}
+      userLocation={null}
+      selectedBusinessId={42}
+    />,
+  );
+  const sharedMarkers = screen.getAllByTestId("shared-marker");
+  expect(sharedMarkers.map((marker) => marker.props.variant)).toEqual([
+    "hidden-gem",
+    "business",
+    "business",
+  ]);
+  expect(screen.getByText("Selected")).toBeTruthy();
+  const nativeMarkers = screen.getAllByTestId("business-marker");
+  expect(nativeMarkers[0].props.accessibilityState.selected).toBe(true);
+  expect(screen.getByTestId("clustered-map").props.clusteringEnabled).toBe(
+    true,
+  );
+  expect(screen.getByTestId("clustered-map").props.scrollEnabled).toBe(true);
+
+  await screen.rerender(
+    <BusinessDiscoveryMap
+      businesses={[
+        { ...businesses[0], is_hidden_gem: false },
+        ...businesses.slice(1),
+      ]}
+      userLocation={null}
+      selectedBusinessId={42}
+    />,
+  );
+  expect(screen.getAllByTestId("shared-marker")[0].props.variant).toBe(
+    "business",
+  );
+  expect(screen.getByText("Selected")).toBeTruthy();
+});

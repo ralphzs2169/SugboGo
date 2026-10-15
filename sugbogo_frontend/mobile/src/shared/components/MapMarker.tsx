@@ -8,6 +8,7 @@ import Avatar from "@/shared/components/Avatar";
 
 type MapMarkerVariant =
   | "business"
+  | "hidden-gem"
   | "google"
   | "custom"
   | "pending"
@@ -31,6 +32,10 @@ type MarkerConfig = {
 const MARKERS: Record<MapMarkerVariant, MarkerConfig> = {
   business: {
     color: theme.extends.colors.brand,
+  },
+  "hidden-gem": {
+    color: theme.extends.colors.surface,
+    icon: "diamond-stone",
   },
   google: {
     color: "#4285F4",
@@ -104,12 +109,19 @@ export default function MapMarker({ variant, imageUrl, avatarKey }: Props) {
 
   const isExplorer = variant === "explorer";
   const isBusiness = variant === "business" || variant === "destination";
+  const isHiddenGem = variant === "hidden-gem";
 
-  const usesCircularIdentity = isExplorer || isBusiness;
+  const usesCircularIdentity = isExplorer || isBusiness || isHiddenGem;
 
   if (usesCircularIdentity) {
     return (
-      <View className="items-center">
+      <View
+        className="items-center"
+        {...(isHiddenGem && {
+          accessible: true,
+          accessibilityLabel: "Hidden Gem",
+        })}
+      >
         {/* Circular location identity */}
         <View
           className="items-center justify-center overflow-hidden rounded-full border-2 border-brand"
@@ -132,6 +144,12 @@ export default function MapMarker({ variant, imageUrl, avatarKey }: Props) {
               imageUrl={imageUrl}
               avatarKey={avatarKey}
               size={IDENTITY_MARKER_SIZE}
+            />
+          ) : isHiddenGem ? (
+            <MaterialCommunityIcons
+              name={marker.icon ?? "diamond-stone"}
+              size={18}
+              color={theme.extends.colors.text.primary}
             />
           ) : imageUrl ? (
             <Image

@@ -98,6 +98,23 @@ export default function MSMEPreviewCard({
             >
               {business.business_name}
             </AppText>
+            {business.is_hidden_gem === true && (
+              <View className="mt-1 flex-row items-center gap-1 self-start rounded-full bg-brand/10 px-2 py-1">
+                <MaterialCommunityIcons
+                  name="diamond-stone"
+                  size={14}
+                  color={theme.extends.colors.brand}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
+                <AppText
+                  weight="semibold"
+                  className="text-xs text-text-primary"
+                >
+                  Hidden Gem
+                </AppText>
+              </View>
+            )}
             {classification && (
               <AppText
                 className="mt-1 text-xs text-text-secondary"

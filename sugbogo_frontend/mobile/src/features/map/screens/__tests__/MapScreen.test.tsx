@@ -117,7 +117,7 @@ it("fetches initial visible bounds and renders API markers with real selected id
 
   await waitFor(() => {
     expect(screen.getByTestId("discovery-map").props.businesses).toEqual([
-      { id: 42, latitude: 10.35, longitude: 123.9 },
+      { id: 42, latitude: 10.35, longitude: 123.9, is_hidden_gem: false },
     ]);
   });
   expect(getMapDiscoveryBusinesses).toHaveBeenCalledWith(
@@ -442,4 +442,32 @@ it("does not navigate after the map screen loses focus", async () => {
   await fireEvent(map(), "businessPress", 42);
   await fireEvent.press(screen.getByText("View Business"));
   expect(router.push).not.toHaveBeenCalled();
+});
+
+it("passes the backend gem flag to map markers and shows the selected business's gem label", async () => {
+  (getMapDiscoveryBusinesses as jest.Mock).mockResolvedValue(
+    response([
+      { ...business, is_hidden_gem: true },
+      {
+        ...business,
+        id: 77,
+        business_name: "Regular Cafe",
+        is_hidden_gem: false,
+      },
+    ]),
+  );
+  const screen = await setup();
+  const map = () => screen.getByTestId("discovery-map");
+  await fireEvent(map(), "viewportChange", initialBounds);
+  await waitFor(() => expect(map().props.businesses).toHaveLength(2));
+  expect(
+    map().props.businesses.map(
+      (marker: { is_hidden_gem: boolean }) => marker.is_hidden_gem,
+    ),
+  ).toEqual([true, false]);
+  await fireEvent(map(), "businessPress", 42);
+  expect(screen.getByText("Hidden Gem")).toBeTruthy();
+  await fireEvent(map(), "businessPress", 77);
+  expect(screen.queryByText("Hidden Gem")).toBeNull();
+  expect(getMapDiscoveryBusinesses).toHaveBeenCalledTimes(1);
 });

@@ -20,6 +20,7 @@ export type BusinessMapMarker = {
   id: number;
   latitude: number;
   longitude: number;
+  is_hidden_gem?: boolean;
 };
 
 type Props = {
@@ -170,7 +171,7 @@ export default function BusinessDiscoveryMap({
         {/* Business locations */}
         {businesses.map((business) => (
           <Marker
-            key={`${business.id}-${selectedBusinessId === business.id}`}
+            key={`${business.id}-${selectedBusinessId === business.id}-${business.is_hidden_gem === true}`}
             identifier={String(business.id)}
             zIndex={selectedBusinessId === business.id ? 1 : 0}
             accessibilityState={{
@@ -193,7 +194,11 @@ export default function BusinessDiscoveryMap({
                   </AppText>
                 </View>
               )}
-              <MapMarker variant="business" />
+              <MapMarker
+                variant={
+                  business.is_hidden_gem === true ? "hidden-gem" : "business"
+                }
+              />
             </View>
           </Marker>
         ))}

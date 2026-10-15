@@ -47,7 +47,7 @@ it("shows API identity, concise specialty chips, and working close/profile actio
   expect(screen.getByText("Local Pastries")).toBeTruthy();
   expect(screen.getByText("+1 more")).toBeTruthy();
   expect(screen.queryByText("Family Friendly")).toBeNull();
-  expect(screen.queryByText(/Hidden Gem/i)).toBeNull();
+  expect(screen.getByText("Hidden Gem")).toBeTruthy();
   await fireEvent.press(
     screen.getByRole("button", { name: "Close business preview" }),
   );
@@ -111,3 +111,19 @@ it("uses the cluster classification when category information is missing", async
   );
   expect(screen.getByText("Culinary")).toBeTruthy();
 });
+
+it.each([false, undefined])(
+  "omits the Hidden Gem label when status is %s",
+  async (isHiddenGem) => {
+    const screen = await render(
+      <MSMEPreviewCard
+        business={
+          { ...business, is_hidden_gem: isHiddenGem } as MapDiscoveryBusiness
+        }
+        onClose={jest.fn()}
+        onViewBusiness={jest.fn()}
+      />,
+    );
+    expect(screen.queryByText("Hidden Gem")).toBeNull();
+  },
+);
