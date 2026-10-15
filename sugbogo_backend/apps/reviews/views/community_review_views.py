@@ -39,6 +39,8 @@ class CommunityReviewListView(APIView):
             user=request.user,
             ordering=query.validated_data["ordering"],
             cluster_id=query.validated_data.get("cluster"),
+            category_ids=query.validated_data.get("category"),
+            specialty_tag_id=query.validated_data.get("specialty_tag"),
             has_photos=query.validated_data["has_photos"],
         )
 

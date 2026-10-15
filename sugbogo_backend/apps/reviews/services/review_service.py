@@ -14,6 +14,9 @@ from rest_framework.exceptions import (
     ValidationError,
 )
 
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.activity_management.services import AdminActivityService
+from apps.notifications.services.notification_event_service import NotificationEventService
 from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
@@ -30,6 +33,7 @@ from apps.reviews.services.business_review_summary_service import (
 )
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.services.review_moderation_service import ReviewModerationService
+from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
@@ -1168,7 +1172,11 @@ class ReviewService:
             review.REVW_EDITED_AT = timezone.now()
             review.save(update_fields=["REVW_EDITED_AT"])
 
-        if uploaded_photos and not had_photo_before_update:
+        if (
+            review.REVW_STATUS == Review.ReviewStatus.PUBLISHED
+            and uploaded_photos
+            and not had_photo_before_update
+        ):
             ReputationService.apply_review_photo_upgrade_reward(
                 user_id=user.USER_ID,
                 source_id=review.REVW_ID,
@@ -1223,7 +1231,7 @@ class ReviewService:
         user: User,
         review_id: int,
     ) -> None:
-        """Delete a review and immediately refresh its business sentiment summary."""
+        """Audit removal, notify pending cases, and hard-delete the review atomically."""
         review = ReviewService._get_review(
             review_id,
         )
@@ -1233,30 +1241,12 @@ class ReviewService:
                 "You do not have permission to delete this review.",
             )
 
-        public_ids = list(
-            review.photos.values_list(
-                "RPHO_PHOTO_PUBLIC_ID",
-                flat=True,
-            ),
+        ReviewService._record_author_deletion(
+            review=review,
+            actor=user,
         )
 
-        try:
-            reply = review.reply
-        except Review.reply.RelatedObjectDoesNotExist:
-            reply = None
-
-        if reply:
-            public_ids.extend(
-                reply.photos.values_list(
-                    "RPHO_PHOTO_PUBLIC_ID",
-                    flat=True,
-                ),
-            )
-
-        for public_id in public_ids:
-            CloudinaryService.delete_image(
-                public_id,
-            )
+        ReviewMediaCleanupService.register_review_assets(review)
 
         deleted_review_id = review.REVW_ID
         business_id = review.BUSN_ID_id
@@ -1283,6 +1273,73 @@ class ReviewService:
         )
         ReviewService._queue_review_insights_after_commit(
             business_id,
+        )
+
+    @staticmethod
+    def _record_author_deletion(
+        review: Review,
+        actor: User,
+    ) -> None:
+        """Audit removal and notify submitters from the same locked case snapshot."""
+        pending_reports = list(
+            ReviewReport.objects
+            .select_for_update(of=("self",))
+            .filter(
+                REVW_ID_id=review.pk,
+                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+            )
+            .order_by("RREP_ID")
+            .values("RREP_ID", "RREP_STATUS", "USER_ID_id")
+        )
+        pending_disputes = list(
+            MerchantReviewDispute.objects
+            .select_for_update(of=("self",))
+            .filter(
+                REVW_ID_id=review.pk,
+                MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+            )
+            .order_by("MRDSP_ID")
+            .values("MRDSP_ID", "MRDSP_STATUS", "USER_ID_id")
+        )
+        context = {
+            "review_id": review.pk,
+            "author_id": review.USER_ID_id,
+            "business_id": review.BUSN_ID_id,
+            "previous_review_status": review.REVW_STATUS,
+            "closure_reason": "content_removed_by_author",
+            "pending_reports": [
+                {
+                    "id": report["RREP_ID"],
+                    "previous_status": report["RREP_STATUS"],
+                }
+                for report in pending_reports
+            ],
+            "pending_disputes": [
+                {
+                    "id": dispute["MRDSP_ID"],
+                    "previous_status": dispute["MRDSP_STATUS"],
+                }
+                for dispute in pending_disputes
+            ],
+        }
+        if (
+            review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW
+            and isinstance(review.REVW_MODERATION_DATA, dict)
+        ):
+            outcome = review.REVW_MODERATION_DATA.get("outcome")
+            if outcome in ("flagged", "provider_failure"):
+                context["ai_moderation_outcome"] = outcome
+
+        AdminActivityService.record_user_action(
+            actor=actor,
+            target_user=actor,
+            action=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+            context=context,
+        )
+        NotificationEventService.review_cases_closed_by_author(
+            author_id=review.USER_ID_id,
+            pending_reports=pending_reports,
+            pending_disputes=pending_disputes,
         )
 
     @staticmethod

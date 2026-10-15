@@ -4,6 +4,7 @@ import { getInstallationId } from "@/shared/api/storage.service";
 
 import {
   createReview,
+  deleteReview,
   getAllBusinessReviews,
   updateReview,
   getMyReviewReport,
@@ -16,7 +17,12 @@ import {
 
 jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,
-  default: { get: jest.fn(), post: jest.fn(), patch: jest.fn() },
+  default: {
+    get: jest.fn(),
+    post: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+  },
 }));
 jest.mock("@/shared/api/storage.service", () => ({
   getInstallationId: jest.fn(),
@@ -26,6 +32,11 @@ jest.mock("@/shared/api/request.service", () => ({
 }));
 
 const url = "/reviews/business/20/all/";
+
+it("deletes the selected review through the existing authenticated endpoint", async () => {
+  await deleteReview(17);
+  expect(apiClient.delete).toHaveBeenCalledWith("/reviews/17/");
+});
 
 function filters(changes: Partial<BusinessReviewFilters>) {
   return { ...DEFAULT_BUSINESS_REVIEW_FILTERS, ...changes };
@@ -37,22 +48,20 @@ describe("reportReview", () => {
   });
 
   it("sends the selected reason and optional reporter explanation", async () => {
-    await reportReview(74, "private_information", "Private phone number posted.");
+    await reportReview(
+      74,
+      "private_information",
+      "Private phone number posted.",
+    );
     await reportReview(75, "spam");
 
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "/reviews/74/report/",
-      {
-        report_type: "private_information",
-        explanation: "Private phone number posted.",
-      },
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      2,
-      "/reviews/75/report/",
-      { report_type: "spam" },
-    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/reviews/74/report/", {
+      report_type: "private_information",
+      explanation: "Private phone number posted.",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/reviews/75/report/", {
+      report_type: "spam",
+    });
   });
 });
 
@@ -185,6 +194,45 @@ describe("review visibility request payloads", () => {
     await updateReview(8, "An updated review of this business.", [], []);
     const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
     expect(form.has("show_in_community")).toBe(false);
+  });
+});
+
+describe("review photo retention multipart payloads", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (apiClient.patch as jest.Mock).mockResolvedValue({ success: true });
+  });
+
+  it("sends the explicit empty-array marker for removing all photos", async () => {
+    await updateReview(8, undefined, [], []);
+
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(apiClient.patch).toHaveBeenCalledWith("/reviews/8/", form);
+    expect(form.getAll("keep_photo_ids")).toEqual(["[]"]);
+    expect(form.has("text")).toBe(false);
+    expect(form.has("photos")).toBe(false);
+  });
+
+  it("keeps the empty-array marker when uploading replacement photos", async () => {
+    await updateReview(8, undefined, [{ uri: "file:///replacement.jpg" }], []);
+
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(form.getAll("keep_photo_ids")).toEqual(["[]"]);
+    expect(form.getAll("photos")).toHaveLength(1);
+  });
+
+  it("omits retention when existing photos should be preserved", async () => {
+    await updateReview(8, "An updated review with the same photos.", []);
+
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(form.has("keep_photo_ids")).toBe(false);
+  });
+
+  it("preserves repeated integer fields for a retained subset", async () => {
+    await updateReview(8, undefined, [], [12, 34]);
+
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(form.getAll("keep_photo_ids")).toEqual(["12", "34"]);
   });
 });
 

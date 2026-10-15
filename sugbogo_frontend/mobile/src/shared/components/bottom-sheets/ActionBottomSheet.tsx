@@ -16,6 +16,7 @@ type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
   options: ActionOption[];
   onSelect: (value: string) => void;
+  onDismiss?: () => void;
 };
 
 /**
@@ -29,6 +30,7 @@ export default function ActionBottomSheet({
   sheetRef,
   options,
   onSelect,
+  onDismiss,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -44,6 +46,7 @@ export default function ActionBottomSheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
+      onDismiss={onDismiss}
       enablePanDownToClose
       enableDynamicSizing
       backgroundStyle={{
@@ -75,7 +78,9 @@ export default function ActionBottomSheet({
             <Pressable
               key={option.value}
               onPress={() => handleSelect(option.value)}
-              className="cursor-pointer items-center bg-surface  py-3 active:opacity-60"
+              accessibilityRole="button"
+              accessibilityLabel={option.label}
+              className="min-h-12 cursor-pointer items-center justify-center bg-surface py-3 active:opacity-60"
             >
               <Text
                 className="text-base font-bold"
@@ -92,6 +97,8 @@ export default function ActionBottomSheet({
         {/* Cancel action */}
         <Pressable
           onPress={handleCancel}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
           className=" cursor-pointer items-center rounded-lg py-4 bg-surface active:bg-gray-100"
         >
           <Text className="text-base font-semibold text-text-secondary">

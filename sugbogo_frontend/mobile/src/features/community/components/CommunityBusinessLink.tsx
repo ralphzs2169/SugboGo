@@ -6,6 +6,7 @@ import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
 import type { CommunityReviewBusiness } from "../types/communityReview.types";
 
@@ -16,8 +17,8 @@ type Props = {
 /**
  * Connects a Community review to its associated business.
  *
- * Uses a subtle elbow arrow to visually associate the review with the
- * business while keeping the row compact and fully pressable.
+ * Uses a subtle elbow arrow to associate the review with the business,
+ * while a trailing chevron reinforces the row's navigation behavior.
  */
 export default function CommunityBusinessLink({ business }: Props) {
   const openBusiness = () => {
@@ -29,7 +30,10 @@ export default function CommunityBusinessLink({ business }: Props) {
     });
   };
 
-  const details = [business.category.name, business.address]
+  const clusterIconName = business.cluster_icon
+    ? CLUSTER_ICONS[business.cluster_icon]
+    : undefined;
+  const details = [business.category.name, business.barangay?.trim()]
     .filter(Boolean)
     .join(" · ");
 
@@ -39,7 +43,7 @@ export default function CommunityBusinessLink({ business }: Props) {
       onPress={openBusiness}
       accessibilityRole="button"
       accessibilityLabel={`Open ${business.business_name} business profile`}
-      className="min-h-12 flex-row items-center active:opacity-70"
+      className="min-h-12 cursor-pointer flex-row items-center active:opacity-70"
     >
       {/* Review-to-business connector */}
       <View className="mr-2 items-center justify-center">
@@ -51,7 +55,7 @@ export default function CommunityBusinessLink({ business }: Props) {
       </View>
 
       {/* Business thumbnail */}
-      <View className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-background">
+      <View className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-background">
         {business.display_cover_photo_url ? (
           <Image
             source={{ uri: business.display_cover_photo_url }}
@@ -80,15 +84,34 @@ export default function CommunityBusinessLink({ business }: Props) {
           {business.business_name}
         </AppText>
 
-        {!!details && (
-          <AppText
-            className="mt-0.5 text-[11px] text-text-secondary"
-            numberOfLines={1}
-          >
-            {details}
-          </AppText>
+        {(!!clusterIconName || !!details) && (
+          <View className="mt-0.5 flex-row items-center">
+            {clusterIconName && (
+              <MaterialCommunityIcons
+                name={clusterIconName}
+                size={12}
+                color={theme.extends.colors.text.tertiary}
+                style={{ marginRight: details ? 4 : 0 }}
+              />
+            )}
+            {!!details && (
+              <AppText
+                className="min-w-0 flex-1 text-[11px] text-text-secondary"
+                numberOfLines={1}
+              >
+                {details}
+              </AppText>
+            )}
+          </View>
         )}
       </View>
+
+      {/* Navigation chevron */}
+      <MaterialCommunityIcons
+        name="chevron-right"
+        size={20}
+        color={theme.extends.colors.text.tertiary}
+      />
     </SafePressable>
   );
 }

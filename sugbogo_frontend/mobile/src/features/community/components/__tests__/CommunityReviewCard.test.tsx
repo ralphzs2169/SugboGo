@@ -128,7 +128,7 @@ describe("CommunityReviewCard", () => {
   it("opens review photos in the established fullscreen viewer", async () => {
     const screen = await render(<CommunityReviewCard review={baseReview} />);
 
-    fireEvent.press(screen.getByLabelText("View review photo 1"));
+    fireEvent.press(screen.getByLabelText("View review photo 1 of 1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("fullscreen-photo-viewer")).toBeTruthy();

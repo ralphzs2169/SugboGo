@@ -32,6 +32,8 @@ describe("useLogout Community cache isolation", () => {
     const helpfulKey = communityReviewsKey({
       ordering: "most_helpful",
       clusterId: 3,
+      categoryIds: [5],
+      specialtyTagId: 8,
       hasPhotos: true,
     });
     client.setQueryData(newestKey, { pages: [{ items: [{ id: 1 }] }] });

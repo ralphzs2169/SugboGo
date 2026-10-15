@@ -5,7 +5,7 @@ import MapView, {
   PROVIDER_GOOGLE,
 } from "react-native-maps";
 import { useIsFocused } from "expo-router";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import MapMarker from "@/shared/components/MapMarker";
 import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 
@@ -147,7 +147,12 @@ export default function LocationPickerMap({
       }
       ref={mapRef}
       provider={PROVIDER_GOOGLE}
-      customMapStyle={MAP_STYLE}
+      customMapStyle={Platform.OS === "ios" ? MAP_STYLE : undefined}
+      googleMapId={
+        Platform.OS === "android"
+          ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID
+          : undefined
+      }
       pointerEvents={interactionEnabled ? "auto" : "none"}
       style={{
         width: "100%",

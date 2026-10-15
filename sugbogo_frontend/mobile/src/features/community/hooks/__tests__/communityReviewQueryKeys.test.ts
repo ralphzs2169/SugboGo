@@ -19,6 +19,8 @@ describe("communityReviewsKey", () => {
       {
         ordering: "newest",
         clusterId: null,
+        categoryIds: [],
+        specialtyTagId: null,
         hasPhotos: false,
       },
     ]);
@@ -32,6 +34,8 @@ describe("communityReviewsKey", () => {
       communityReviewsKey(filters({ clusterId: 3 })),
       communityReviewsKey(filters({ clusterId: 4 })),
       communityReviewsKey(filters({ hasPhotos: true })),
+      communityReviewsKey(filters({ categoryIds: [2, 4] })),
+      communityReviewsKey(filters({ specialtyTagId: 7 })),
     ];
 
     expect(new Set(keys.map((key) => JSON.stringify(key))).size).toBe(
@@ -41,5 +45,11 @@ describe("communityReviewsKey", () => {
       expect(key.slice(0, 1)).toEqual(COMMUNITY_REVIEWS_QUERY_KEY);
       expect(JSON.stringify(key)).not.toContain('"page"');
     });
+  });
+
+  it("normalizes category order and duplicates", () => {
+    expect(communityReviewsKey(filters({ categoryIds: [4, 2, 4] }))).toEqual(
+      communityReviewsKey(filters({ categoryIds: [2, 4] })),
+    );
   });
 });

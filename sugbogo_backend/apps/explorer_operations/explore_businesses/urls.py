@@ -34,6 +34,10 @@ from apps.explorer_operations.explore_businesses.views.journey_origin_views impo
     JourneyOriginPlaceSearchView,
     JourneyOriginReverseGeocodeView,
 )
+from apps.explorer_operations.explore_businesses.views.map_discovery_views import (
+    MapDiscoveryView,
+    MapDirectoryView,
+)
 from apps.explorer_operations.explore_businesses.views.new_businesses_views import (
     NewBusinessesView,
 )
@@ -97,6 +101,16 @@ urlpatterns = [
     path("discovery-shortcuts/", ClusterDiscoveryShortcutView.as_view(), name="discovery-shortcuts", ),
 
     path("map-preview/",ExploreMapPreviewView.as_view(),name="explore-map-preview"),
+    path(
+        "map/businesses/",
+        MapDirectoryView.as_view(),
+        name="map-directory",
+    ),
+    path(
+        "map/",
+        MapDiscoveryView.as_view(),
+        name="map-discovery",
+    ),
 
     path("businesses/<int:business_id>/vouch/", BusinessVouchView.as_view(), name="business-vouch", ),
     path("businesses/<int:business_id>/pocket/", BusinessPocketView.as_view(), name="business-pocket" ),

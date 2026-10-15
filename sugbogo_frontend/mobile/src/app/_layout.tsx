@@ -6,6 +6,7 @@ import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import {
   NunitoSans_400Regular,
   NunitoSans_500Medium,
@@ -35,6 +36,8 @@ export default function RootLayout() {
   useRestoreSession();
 
   const [fontsLoaded] = useFonts({
+    // Native map markers snapshot their glyphs before async icon updates.
+    ...MaterialCommunityIcons.font,
     NunitoSans_400Regular,
     NunitoSans_500Medium,
     NunitoSans_600SemiBold,

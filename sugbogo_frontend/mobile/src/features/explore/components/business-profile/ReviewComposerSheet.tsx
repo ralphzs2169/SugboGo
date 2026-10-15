@@ -6,7 +6,7 @@ import {
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -18,13 +18,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
 import PhotoPreview from "@/features/merchant/components/registration/business-photos/PhotoPreview";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FormTextArea from "@/shared/components/form/FormTextArea";
 import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import type { ApiError, ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import {
@@ -37,12 +38,18 @@ import type {
   ReviewPhoto,
 } from "../../types/review.types";
 
+export type EditableReview = Pick<
+  BusinessReview,
+  "id" | "text" | "photos" | "show_in_community"
+>;
+
 type Props = {
   businessId: number;
   businessName: string;
   coverPhotoUrl?: string | null;
   sheetRef: React.RefObject<BottomSheetModal | null>;
-  review?: BusinessReview | null;
+  review?: EditableReview | null;
+  onDismiss?: () => void;
 };
 
 type ReviewErrors = {
@@ -71,7 +78,9 @@ const REVIEW_EDIT_FEEDBACK = {
 
 type ReviewEditFeedbackCode = keyof typeof REVIEW_EDIT_FEEDBACK;
 
-function isReviewEditFeedbackCode(code: unknown): code is ReviewEditFeedbackCode {
+function isReviewEditFeedbackCode(
+  code: unknown,
+): code is ReviewEditFeedbackCode {
   return (
     typeof code === "string" &&
     Object.prototype.hasOwnProperty.call(REVIEW_EDIT_FEEDBACK, code)
@@ -150,8 +159,18 @@ export default function ReviewComposerSheet({
   coverPhotoUrl,
   sheetRef,
   review,
+  onDismiss,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const submissionPending = useRef(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const {
     mutateAsync: createReview,
@@ -175,9 +194,8 @@ export default function ReviewComposerSheet({
   const [originalShowInCommunity, setOriginalShowInCommunity] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [errors, setErrors] = useState<ReviewErrors>({});
-  const [editFeedback, setEditFeedback] = useState<ReviewEditFeedbackCode | null>(
-    null,
-  );
+  const [editFeedback, setEditFeedback] =
+    useState<ReviewEditFeedbackCode | null>(null);
 
   const isEditing = Boolean(review);
   const isPending = isCreatePending || isUpdatePending;
@@ -242,6 +260,9 @@ export default function ReviewComposerSheet({
     }
 
     setIsPicking(true);
+    const pickingUserId = useAuthStore.getState().user?.id;
+    const isCurrentPicker = () =>
+      mounted.current && useAuthStore.getState().user?.id === pickingUserId;
 
     try {
       const selectedPhotos = await pickBusinessPhotos({
@@ -249,14 +270,23 @@ export default function ReviewComposerSheet({
         maxPhotos: MAX_REVIEW_PHOTOS,
       });
 
+      if (!isCurrentPicker()) return;
+
       if (selectedPhotos.length === 0) {
         return;
       }
 
       setPhotos((current) => current.concat(selectedPhotos));
       setEditFeedback(null);
+    } catch (error) {
+      if (!isCurrentPicker()) return;
+      Toast.show({
+        type: "error",
+        text1: "Unable to add photos",
+        text2: error instanceof Error ? error.message : "Please try again.",
+      });
     } finally {
-      setIsPicking(false);
+      if (isCurrentPicker()) setIsPicking(false);
     }
   }
 
@@ -283,7 +313,7 @@ export default function ReviewComposerSheet({
   }
 
   async function submit() {
-    if (!canSubmit) {
+    if (!canSubmit || submissionPending.current) {
       return;
     }
 
@@ -295,6 +325,11 @@ export default function ReviewComposerSheet({
       setErrors(validationErrors);
       return;
     }
+
+    submissionPending.current = true;
+    const submittingUserId = useAuthStore.getState().user?.id;
+    const isCurrentSubmission = () =>
+      mounted.current && useAuthStore.getState().user?.id === submittingUserId;
 
     try {
       if (review) {
@@ -309,6 +344,8 @@ export default function ReviewComposerSheet({
           textChanged,
         });
 
+        if (!isCurrentSubmission()) return;
+
         setEditFeedback(null);
         Toast.show({ type: "success", text1: "Review updated" });
       } else {
@@ -317,6 +354,8 @@ export default function ReviewComposerSheet({
           photos,
           showInCommunity,
         });
+
+        if (!isCurrentSubmission()) return;
 
         if (created.status === "under_review") {
           Toast.show({
@@ -331,11 +370,14 @@ export default function ReviewComposerSheet({
 
       sheetRef.current?.dismiss();
     } catch (error) {
-      const response = error as Partial<ApiResponse<unknown>>;
+      if (!isCurrentSubmission()) return;
+      const response = error as Partial<ApiError>;
       if (review && isReviewEditFeedbackCode(response?.code)) {
         setEditFeedback(response.code);
       }
       // Other mutation errors retain their existing API feedback.
+    } finally {
+      submissionPending.current = false;
     }
   }
 
@@ -347,7 +389,9 @@ export default function ReviewComposerSheet({
           return false;
         }
 
-        sheetRef.current?.dismiss();
+        if (!isPending && !submissionPending.current) {
+          sheetRef.current?.dismiss();
+        }
         return true;
       },
     );
@@ -355,7 +399,7 @@ export default function ReviewComposerSheet({
     return () => {
       subscription.remove();
     };
-  }, [isSheetOpen, sheetRef]);
+  }, [isSheetOpen, isPending, sheetRef]);
 
   useEffect(() => {
     // The form intentionally mirrors the review selected by the parent screen.
@@ -393,6 +437,7 @@ export default function ReviewComposerSheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
+      onDismiss={onDismiss}
       snapPoints={["90%"]}
       enableDynamicSizing={false}
       enablePanDownToClose={!isPending}
@@ -422,6 +467,7 @@ export default function ReviewComposerSheet({
           appearsOnIndex={0}
           disappearsOnIndex={-1}
           opacity={0.45}
+          pressBehavior={isPending ? "none" : "close"}
         />
       )}
     >

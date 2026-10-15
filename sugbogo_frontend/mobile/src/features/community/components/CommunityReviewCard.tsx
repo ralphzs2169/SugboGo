@@ -110,10 +110,7 @@ function CommunityReviewCard({ review }: Props) {
 
             {review.is_own_review && (
               <View className="ml-2 rounded-full bg-brand/10 px-2 py-0.5">
-                <AppText
-                  weight="semibold"
-                  className="text-[10px] text-text-primary"
-                >
+                <AppText weight="semibold" className="text-[10px] text-brand">
                   You
                 </AppText>
               </View>

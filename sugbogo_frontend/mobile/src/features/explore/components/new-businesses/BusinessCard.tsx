@@ -121,7 +121,7 @@ export default function BusinessCard({
     return (
       <SafePressable
         onPress={onPress}
-        style={shadows.subtle}
+        // style={shadows.subtle}
         accessibilityRole="button"
         accessibilityLabel={
           recommendationReason

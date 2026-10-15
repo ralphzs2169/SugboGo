@@ -38,6 +38,7 @@ import {
 import { DISCOVERY_FEED_QUERY_KEY } from "../useDiscoveryFeed";
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { EXPLORE_COLLECTIONS_QUERY_KEY } from "../useExploreCollection";
+import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
 
 const mockStartSentimentSync = jest.fn();
 const mockStartGeneratedInsightsSync = jest.fn();
@@ -215,7 +216,9 @@ describe("useBusinessReviews", () => {
       () => useBusinessReviewPreview(20),
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(result.current.userReview?.status).toBe("under_review"));
+    await waitFor(() =>
+      expect(result.current.userReview?.status).toBe("under_review"),
+    );
 
     await act(async () => {
       client.setQueryData(businessReviewPreviewKey(20), {
@@ -307,6 +310,7 @@ describe("useBusinessReviews", () => {
     });
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     expect(mockStartGeneratedInsightsSync).toHaveBeenCalledWith({
+      requiresPostMutationUpdate: true,
       baselineGeneratedAt: null,
       baselineUpdatedAt: null,
       baselineState: null,
@@ -367,7 +371,8 @@ describe("useBusinessReviews", () => {
       wrapper: Wrapper,
     });
 
-    let created: Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined;
+    let created:
+      Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined;
     await act(async () => {
       created = await result.current.mutateAsync({
         text: "A review waiting before publication.",
@@ -384,7 +389,7 @@ describe("useBusinessReviews", () => {
   it("starts sentiment synchronization only when edited text changed", async () => {
     (updateReview as jest.Mock).mockResolvedValue({
       success: true,
-      data: { id: 8 },
+      data: { id: 8, status: "published" },
     });
     const { client, Wrapper } = setupClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
@@ -474,6 +479,41 @@ describe("useBusinessReviews", () => {
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     unmount();
     client.clear();
+  });
+
+  it("invalidates the mutation author's history if the active account changes while saving", async () => {
+    useAuthStore.setState({ user: { id: 10 } as never });
+    let finishUpdate!: (value: unknown) => void;
+    (updateReview as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishUpdate = resolve;
+        }),
+    );
+    const { client, Wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result, unmount } = await renderHook(() => useUpdateReview(20), {
+      wrapper: Wrapper,
+    });
+    let saving!: Promise<BusinessReview>;
+    await act(async () => {
+      saving = result.current.mutateAsync({
+        reviewId: 8,
+        photos: [],
+        textChanged: false,
+      });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      useAuthStore.setState({ user: { id: 99 } as never });
+      finishUpdate({ success: true, data: { id: 8, status: "published" } });
+      await saving;
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: myReviewsKey(10) });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: myReviewsKey(99) });
+    await unmount();
+    client.clear();
+    useAuthStore.setState({ user: null });
   });
 
   it("does not start synchronization for unrelated review mutations", async () => {

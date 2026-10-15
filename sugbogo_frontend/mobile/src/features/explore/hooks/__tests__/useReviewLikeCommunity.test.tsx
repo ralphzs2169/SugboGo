@@ -79,11 +79,15 @@ function setup() {
   const newestKey = communityReviewsKey({
     ordering: "newest",
     clusterId: null,
+    categoryIds: [],
+    specialtyTagId: null,
     hasPhotos: false,
   });
   const helpfulKey = communityReviewsKey({
     ordering: "most_helpful",
     clusterId: 3,
+    categoryIds: [5],
+    specialtyTagId: 8,
     hasPhotos: true,
   });
   const communityPages: InfiniteData<CommunityReviewListResponse, number> = {
@@ -142,6 +146,8 @@ describe("useReviewLike Community coordination", () => {
         feed: useCommunityReviews({
           ordering: "most_helpful",
           clusterId: 3,
+          categoryIds: [5],
+          specialtyTagId: 8,
           hasPhotos: true,
         }),
       }),
@@ -325,10 +331,9 @@ describe("useReviewLike Community coordination", () => {
       data: { id: 55, review_id: 7, is_liked: false },
     });
     const { client, Wrapper, helpfulKey } = setup();
-    const { result, unmount } = await renderHook(
-      () => useReviewLike(20, 7),
-      { wrapper: Wrapper },
-    );
+    const { result, unmount } = await renderHook(() => useReviewLike(20, 7), {
+      wrapper: Wrapper,
+    });
 
     await act(async () => {
       await result.current.mutateAsync({ reviewId: 7, isLiked: false });

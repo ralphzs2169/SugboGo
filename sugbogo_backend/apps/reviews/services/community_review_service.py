@@ -1,6 +1,6 @@
 from django.db.models import Exists, OuterRef, Subquery
 
-from apps.business.models import Business
+from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch
 from apps.business.services.display_cover_photo import (
     display_cover_photo_expression,
 )
@@ -15,6 +15,8 @@ class CommunityReviewService:
         user,
         ordering="newest",
         cluster_id=None,
+        category_ids=None,
+        specialty_tag_id=None,
         has_photos=False,
     ):
         """Return eligible Community reviews in deterministic feed order."""
@@ -48,7 +50,9 @@ class CommunityReviewService:
                 "USER_ID",
                 "BUSN_ID",
                 "BUSN_ID__CTGRY_ID",
+                "BUSN_ID__CTGRY_ID__CLUS_ID",
                 "BUSN_ID__LOCT_ID",
+                "BUSN_ID__merchant_application__location",
             )
             .annotate(
                 is_liked=Exists(user_likes),
@@ -73,6 +77,24 @@ class CommunityReviewService:
             reviews = reviews.filter(
                 BUSN_ID__CTGRY_ID__CLUS_ID_id=cluster_id,
             )
+
+        if category_ids:
+            reviews = reviews.filter(
+                BUSN_ID__CTGRY_ID_id__in=category_ids,
+            )
+
+        if specialty_tag_id is not None:
+            active_specialty = BusinessSpecialtyTag.objects.filter(
+                BUSN_ID_id=OuterRef("BUSN_ID_id"),
+                TAG_ID_id=OuterRef("TAG_ID_id"),
+                BST_IS_ACTIVE=True,
+            )
+            author_vouch = BusinessVouch.objects.filter(
+                BUSN_ID_id=OuterRef("BUSN_ID_id"),
+                USER_ID_id=OuterRef("USER_ID_id"),
+                TAG_ID_id=specialty_tag_id,
+            ).filter(Exists(active_specialty))
+            reviews = reviews.filter(Exists(author_vouch))
 
         if has_photos:
             photos = ReviewPhoto.objects.filter(

@@ -16,12 +16,41 @@ from apps.reviews.services.review_moderation_retry_service import (
 )
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
+from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
 
 logger = logging.getLogger(__name__)
 
 TRANSIENT_RETRY_LIMIT = 3
 TRANSIENT_RETRY_BASE_SECONDS = 60
 TRANSIENT_RETRY_MAX_SECONDS = 300
+
+
+@shared_task(
+    bind=True,
+    name="apps.reviews.tasks.cleanup_review_media_asset",
+    max_retries=TRANSIENT_RETRY_LIMIT,
+)
+def cleanup_review_media_asset(
+    task,
+    cleanup_id: int,
+) -> str:
+    """Process durable cleanup and accelerate due retries without relying on delivery."""
+    outcome = ReviewMediaCleanupService.process(cleanup_id)
+    if (
+        outcome["status"] == "pending"
+        and task.request.retries < task.max_retries
+    ):
+        raise task.retry(
+            exc=RuntimeError("Review media cleanup remains pending."),
+            countdown=outcome["retry_after"],
+        )
+    return outcome["status"]
+
+
+@shared_task(name="apps.reviews.tasks.recover_review_media_cleanup")
+def recover_review_media_cleanup() -> int:
+    """Redispatch due cleanup independently of the original deletion callback."""
+    return ReviewMediaCleanupService.recover_pending()
 
 
 @shared_task(

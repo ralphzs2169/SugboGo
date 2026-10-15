@@ -34,9 +34,10 @@ describe("getCommunityReviews", () => {
   it("requests the Community endpoint with default filters and page one", async () => {
     await getCommunityReviews();
 
-    expect(apiClient.get).toHaveBeenCalledWith(url, {
-      params: { page: "1" },
-    });
+    expect(apiClient.get).toHaveBeenCalledWith(url, expect.anything());
+    const params = (apiClient.get as jest.Mock).mock.calls[0][1]
+      .params as URLSearchParams;
+    expect(params.toString()).toBe("page=1");
   });
 
   it("serializes only active server-side filters", async () => {
@@ -44,27 +45,29 @@ describe("getCommunityReviews", () => {
       filters({
         ordering: "most_helpful",
         clusterId: 4,
+        categoryIds: [9, 2, 9],
+        specialtyTagId: 7,
         hasPhotos: true,
       }),
       3,
     );
 
-    expect(apiClient.get).toHaveBeenCalledWith(url, {
-      params: {
-        page: "3",
-        ordering: "most_helpful",
-        cluster: "4",
-        has_photos: "true",
-      },
-    });
+    const params = (apiClient.get as jest.Mock).mock.calls[0][1]
+      .params as URLSearchParams;
+    expect(params.get("page")).toBe("3");
+    expect(params.get("ordering")).toBe("most_helpful");
+    expect(params.get("cluster")).toBe("4");
+    expect(params.getAll("category")).toEqual(["2", "9"]);
+    expect(params.get("specialty_tag")).toBe("7");
+    expect(params.get("has_photos")).toBe("true");
   });
 
   it("omits inactive optional filters", async () => {
     await getCommunityReviews(filters({}), 2);
 
-    expect(apiClient.get).toHaveBeenCalledWith(url, {
-      params: { page: "2" },
-    });
+    const params = (apiClient.get as jest.Mock).mock.calls[0][1]
+      .params as URLSearchParams;
+    expect(params.toString()).toBe("page=2");
   });
 
   it("preserves the typed API response envelope", async () => {

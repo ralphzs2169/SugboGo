@@ -308,6 +308,193 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
             [matching.pk],
         )
 
+    def test_category_filter_uses_or_and_validates_cluster(self):
+        """Selected categories match any business category within the cluster."""
+        second_category = Category.objects.create(
+            CTGRY_NAME="Cafes",
+            CLUS_ID=self.cluster,
+        )
+        second_business = self._create_business(
+            name="Cafe",
+            category=second_category,
+            address="Cafe Street",
+        )
+        first = self._create_review()
+        second = self._create_review(business=second_business)
+        self._create_review(business=self.other_business)
+
+        response = self.client.get(
+            self.url,
+            {
+                "cluster": self.cluster.pk,
+                "category": [self.category.pk, second_category.pk],
+            },
+        )
+        self.assertEqual(
+            {item["id"] for item in response.data["data"]["items"]},
+            {first.pk, second.pk},
+        )
+
+        for params, field in (
+            ({"cluster": 999999}, "cluster"),
+            ({"category": [999999]}, "category"),
+            (
+                {
+                    "cluster": self.cluster.pk,
+                    "category": [self.other_category.pk],
+                },
+                "category",
+            ),
+            ({"specialty_tag": 999999}, "specialty_tag"),
+        ):
+            with self.subTest(params=params):
+                self.assertValidationError(
+                    self.client.get(self.url, params),
+                    field,
+                )
+
+    def test_specialty_filter_matches_author_business_and_active_tag(self):
+        """A review matches only its author's vouch at its own business."""
+        tag = SpecialtyTag.objects.create(TAG_NAME="Local Favorite")
+        other_tag = SpecialtyTag.objects.create(TAG_NAME="Other Specialty")
+        for business in (self.business, self.other_business):
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=tag,
+            )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=other_tag,
+        )
+        first_author = self._create_user()
+        second_author = self._create_user()
+        matched = self._create_review(author=first_author)
+        same_business_other_author = self._create_review(
+            author=second_author,
+        )
+        other_business_same_author = self._create_review(
+            business=self.other_business,
+            author=first_author,
+        )
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=first_author,
+            TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.50"),
+        )
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=second_author,
+            TAG_ID=other_tag,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.50"),
+        )
+        BusinessVouch.objects.create(
+            BUSN_ID=self.other_business,
+            USER_ID=first_author,
+            TAG_ID=other_tag,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.50"),
+        )
+
+        matching_items = self._items(specialty_tag=tag.pk)
+        self.assertEqual(
+            [item["id"] for item in matching_items],
+            [matched.pk],
+        )
+        for item in matching_items:
+            self.assertIn(
+                tag.pk,
+                {
+                    specialty["id"]
+                    for specialty in item["vouched_specialties"]
+                },
+            )
+        self.assertNotIn(
+            same_business_other_author.pk,
+            [item["id"] for item in self._items(specialty_tag=tag.pk)],
+        )
+        self.assertNotIn(
+            other_business_same_author.pk,
+            [item["id"] for item in self._items(specialty_tag=tag.pk)],
+        )
+
+        BusinessSpecialtyTag.objects.filter(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+        ).update(BST_IS_ACTIVE=False)
+        self.assertEqual(self._items(specialty_tag=tag.pk), [])
+
+    def test_combined_filters_sort_and_paginate_without_duplicates(self):
+        """All filters apply before ordering and pagination."""
+        tag = SpecialtyTag.objects.create(TAG_NAME="Heritage Food")
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+        )
+        reviews = []
+        for index in range(11):
+            author = self._create_user()
+            BusinessVouch.objects.create(
+                BUSN_ID=self.business,
+                USER_ID=author,
+                TAG_ID=tag,
+                VOUCH_REPUTATION_SNAPSHOT=Decimal("0.50"),
+            )
+            review = self._create_review(
+                author=author,
+                REVW_LIKE_COUNT=index,
+            )
+            reviews.append(review)
+            ReviewPhoto.objects.create(
+                REVW_ID=review,
+                RPHO_PHOTO_URL=f"https://example.com/combined-{index}.jpg",
+                RPHO_PHOTO_PUBLIC_ID=f"combined-{index}",
+            )
+        self._create_review(author=self._create_user())
+
+        filters = {
+            "cluster": self.cluster.pk,
+            "category": [self.category.pk],
+            "specialty_tag": tag.pk,
+            "has_photos": "true",
+            "ordering": "most_helpful",
+        }
+        first_page = self.client.get(self.url, filters)
+        second_page = self.client.get(
+            self.url,
+            {**filters, "page": 2},
+        )
+        first_ids = [
+            item["id"]
+            for item in first_page.data["data"]["items"]
+        ]
+        second_ids = [
+            item["id"]
+            for item in second_page.data["data"]["items"]
+        ]
+        self.assertEqual(
+            first_ids + second_ids,
+            [review.pk for review in reversed(reviews)],
+        )
+        self.assertEqual(
+            first_page.data["data"]["pagination"]["total_items"],
+            11,
+        )
+        self.assertEqual(
+            len(set(first_ids + second_ids)),
+            11,
+        )
+        for item in (
+            first_page.data["data"]["items"]
+            + second_page.data["data"]["items"]
+        ):
+            self.assertIn(
+                tag.pk,
+                {
+                    specialty["id"]
+                    for specialty in item["vouched_specialties"]
+                },
+            )
+
     def test_filters_reviews_with_photos_without_duplicates(self):
         with_photos = self._create_review()
         self._create_review()

@@ -1,4 +1,5 @@
 import LottieView from "lottie-react-native";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
@@ -10,10 +11,12 @@ import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import CommunityEmptyState from "../components/CommunityEmptyState";
 import CommunityFeedSkeleton from "../components/CommunityFeedSkeleton";
 import CommunityFilters from "../components/CommunityFilters";
+import CommunityFilterBottomSheet from "../components/CommunityFilterBottomSheet";
 import CommunityHeader from "../components/CommunityHeader";
 import CommunityReviewCard from "../components/CommunityReviewCard";
 import { useCommunityReviews } from "../hooks/useCommunityReviews";
@@ -33,12 +36,14 @@ function FeedSeparator() {
  *
  * The screen coordinates authoritative taxonomy filters, backend pagination,
  * refresh and error states, defensive review deduplication, and tab-aware
- * spacing while dedicated components own review presentation. Posts render
- * edge to edge, like a social feed.
+ * spacing while dedicated components own review presentation. The header and
+ * quick filters stay pinned above the list so filtering is always reachable,
+ * and posts render edge to edge, like a social feed.
  */
 export default function CommunityScreen() {
   const bottomSpacing = useTabBarSpacing(20);
   const listRef = useRef<FlatList<CommunityReview>>(null);
+  const filterSheetRef = useRef<BottomSheetModal>(null);
   const isEndReachedRef = useRef(false);
   const isPaginationArmedRef = useRef(false);
 
@@ -82,13 +87,30 @@ export default function CommunityScreen() {
     });
   }, [community.reviews]);
 
-  const hasContentFilters = filters.clusterId !== null || filters.hasPhotos;
+  const hasContentFilters =
+    filters.clusterId !== null ||
+    filters.categoryIds.length > 0 ||
+    filters.specialtyTagId !== null ||
+    filters.hasPhotos;
 
   const hasListError = Boolean(
     community.error && !community.isFetchNextPageError && reviews.length === 0,
   );
 
   const displayedReviews = hasListError ? [] : reviews;
+
+  const openFilters = () => presentBottomSheet(filterSheetRef);
+
+  const togglePhotos = () => {
+    setFilters((current) => ({ ...current, hasPhotos: !current.hasPhotos }));
+  };
+
+  const toggleMostHelpful = () => {
+    setFilters((current) => ({
+      ...current,
+      ordering: current.ordering === "most_helpful" ? "newest" : "most_helpful",
+    }));
+  };
 
   const clearContentFilters = () => {
     setFilters((current) => ({
@@ -134,8 +156,17 @@ export default function CommunityScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {/* Community introduction */}
-      <CommunityHeader />
+      {/* Pinned title, filter button, and quick filters */}
+      <CommunityHeader>
+        <CommunityFilters
+          filters={filters}
+          hasContentFilters={hasContentFilters}
+          onOpenFilters={openFilters}
+          onTogglePhotos={togglePhotos}
+          onToggleMostHelpful={toggleMostHelpful}
+          onClear={clearContentFilters}
+        />
+      </CommunityHeader>
 
       {/* Filtered and paginated review feed */}
       <FlatList
@@ -145,16 +176,6 @@ export default function CommunityScreen() {
         keyExtractor={(review) => String(review.id)}
         renderItem={renderReview}
         ItemSeparatorComponent={FeedSeparator}
-        ListHeaderComponent={
-          <CommunityFilters
-            clusters={taxonomy.options.clusters}
-            isLoadingClusters={taxonomy.isLoading}
-            hasClusterError={Boolean(taxonomy.error)}
-            filters={filters}
-            onChange={setFilters}
-            onRetryClusters={() => void taxonomy.refetch()}
-          />
-        }
         ListEmptyComponent={
           community.isInitialLoading ? (
             <CommunityFeedSkeleton />
@@ -212,6 +233,15 @@ export default function CommunityScreen() {
             tintColor={theme.extends.colors.brand}
           />
         }
+      />
+      <CommunityFilterBottomSheet
+        sheetRef={filterSheetRef}
+        filters={filters}
+        options={taxonomy.options}
+        isLoading={taxonomy.isLoading}
+        error={taxonomy.error}
+        onRetry={() => void taxonomy.refetch()}
+        onApply={setFilters}
       />
     </View>
   );

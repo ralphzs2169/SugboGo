@@ -37,6 +37,7 @@ type Props = {
   perspective?: "explorer" | "merchant";
   showEngagement?: boolean;
   showSpecialtyVouches?: boolean;
+  showAuthor?: boolean;
   highlightedTopic?: string | null;
 };
 
@@ -95,6 +96,7 @@ export default function ReviewContent({
   perspective = "explorer",
   showEngagement = true,
   showSpecialtyVouches = true,
+  showAuthor = true,
   highlightedTopic,
 }: Props) {
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
@@ -138,53 +140,55 @@ export default function ReviewContent({
   return (
     <>
       {/* Reviewer identity */}
-      <View className="flex-row items-center">
-        <Avatar
-          imageUrl={review.author.avatar_url}
-          avatarKey={review.author.avatar_key}
-          size={36}
-        />
+      {showAuthor && (
+        <View className="flex-row items-center">
+          <Avatar
+            imageUrl={review.author.avatar_url}
+            avatarKey={review.author.avatar_key}
+            size={36}
+          />
 
-        <View className="ml-2.5 flex-1">
-          <View className="flex-row items-center">
-            <AppText
-              weight="semibold"
-              className="flex-shrink text-sm text-text-primary"
-              numberOfLines={1}
-            >
-              {review.author.first_name} {review.author.last_name}
+          <View className="ml-2.5 flex-1">
+            <View className="flex-row items-center">
+              <AppText
+                weight="semibold"
+                className="flex-shrink text-sm text-text-primary"
+                numberOfLines={1}
+              >
+                {review.author.first_name} {review.author.last_name}
+              </AppText>
+
+              {review.is_own_review && (
+                <View className="ml-2 rounded-full bg-brand/10 px-2 py-0.5">
+                  <AppText weight="semibold" className="text-[10px] text-brand">
+                    You
+                  </AppText>
+                </View>
+              )}
+            </View>
+
+            <AppText className="mt-0.5 text-[11px] text-text-tertiary">
+              {relativeDate(review.created_at)}
             </AppText>
-
-            {review.is_own_review && (
-              <View className="ml-2 rounded-full bg-brand/10 px-2 py-0.5">
-                <AppText weight="semibold" className="text-[10px] text-brand">
-                  You
-                </AppText>
-              </View>
-            )}
           </View>
 
-          <AppText className="mt-0.5 text-[11px] text-text-tertiary">
-            {relativeDate(review.created_at)}
-          </AppText>
+          {onActions && (
+            <Pressable
+              onPress={onActions}
+              accessibilityRole="button"
+              accessibilityLabel="Review actions"
+              hitSlop={8}
+              className="ml-2 cursor-pointer rounded-full p-1.5 active:bg-surface-secondary"
+            >
+              <MaterialCommunityIcons
+                name="dots-horizontal"
+                size={20}
+                color={theme.extends.colors.text.tertiary}
+              />
+            </Pressable>
+          )}
         </View>
-
-        {onActions && (
-          <Pressable
-            onPress={onActions}
-            accessibilityRole="button"
-            accessibilityLabel="Review actions"
-            hitSlop={8}
-            className="ml-2 cursor-pointer rounded-full p-1.5 active:bg-surface-secondary"
-          >
-            <MaterialCommunityIcons
-              name="dots-horizontal"
-              size={20}
-              color={theme.extends.colors.text.tertiary}
-            />
-          </Pressable>
-        )}
-      </View>
+      )}
 
       {/* Review text */}
       <View className="mt-3">
