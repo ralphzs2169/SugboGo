@@ -1,4 +1,5 @@
 import LottieView from "lottie-react-native";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
@@ -10,10 +11,12 @@ import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import CommunityEmptyState from "../components/CommunityEmptyState";
 import CommunityFeedSkeleton from "../components/CommunityFeedSkeleton";
 import CommunityFilters from "../components/CommunityFilters";
+import CommunityFilterBottomSheet from "../components/CommunityFilterBottomSheet";
 import CommunityHeader from "../components/CommunityHeader";
 import CommunityReviewCard from "../components/CommunityReviewCard";
 import { useCommunityReviews } from "../hooks/useCommunityReviews";
@@ -39,6 +42,7 @@ function FeedSeparator() {
 export default function CommunityScreen() {
   const bottomSpacing = useTabBarSpacing(20);
   const listRef = useRef<FlatList<CommunityReview>>(null);
+  const filterSheetRef = useRef<BottomSheetModal>(null);
   const isEndReachedRef = useRef(false);
   const isPaginationArmedRef = useRef(false);
 
@@ -82,7 +86,11 @@ export default function CommunityScreen() {
     });
   }, [community.reviews]);
 
-  const hasContentFilters = filters.clusterId !== null || filters.hasPhotos;
+  const hasContentFilters =
+    filters.clusterId !== null ||
+    filters.categoryIds.length > 0 ||
+    filters.specialtyTagId !== null ||
+    filters.hasPhotos;
 
   const hasListError = Boolean(
     community.error && !community.isFetchNextPageError && reviews.length === 0,
@@ -147,12 +155,8 @@ export default function CommunityScreen() {
         ItemSeparatorComponent={FeedSeparator}
         ListHeaderComponent={
           <CommunityFilters
-            clusters={taxonomy.options.clusters}
-            isLoadingClusters={taxonomy.isLoading}
-            hasClusterError={Boolean(taxonomy.error)}
             filters={filters}
-            onChange={setFilters}
-            onRetryClusters={() => void taxonomy.refetch()}
+            onPress={() => presentBottomSheet(filterSheetRef)}
           />
         }
         ListEmptyComponent={
@@ -212,6 +216,15 @@ export default function CommunityScreen() {
             tintColor={theme.extends.colors.brand}
           />
         }
+      />
+      <CommunityFilterBottomSheet
+        sheetRef={filterSheetRef}
+        filters={filters}
+        options={taxonomy.options}
+        isLoading={taxonomy.isLoading}
+        error={taxonomy.error}
+        onRetry={() => void taxonomy.refetch()}
+        onApply={setFilters}
       />
     </View>
   );

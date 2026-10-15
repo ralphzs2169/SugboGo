@@ -64,12 +64,19 @@ export default function FilterChip({
       )}
 
       {/* Filter label and optional count */}
-      <AppText weight="medium" className="text-sm text-text-primary">
+      <AppText
+        weight="medium"
+        className={`text-sm ${
+          selected ? "text-text-primary" : "text-text-secondary"
+        }`}
+      >
         {label}
 
-        <AppText className="text-sm text-text-secondary">
-          {showCount ? ` (${count})` : ""}
-        </AppText>
+        {showCount && (
+          <AppText className="text-sm text-text-secondary">
+            {` (${count})`}
+          </AppText>
+        )}
       </AppText>
     </SafePressable>
   );

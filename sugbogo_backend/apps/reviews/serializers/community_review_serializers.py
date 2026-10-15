@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.business.models import Category, Cluster, SpecialtyTag
+
 from apps.reviews.models import Review
 from apps.reviews.serializers.review_reply_serializers import (
     ReviewReplyResponseSerializer,
@@ -27,10 +29,58 @@ class CommunityReviewQuerySerializer(serializers.Serializer):
         min_value=1,
         required=False,
     )
+    category = serializers.ListField(
+        child=serializers.IntegerField(
+            min_value=1,
+        ),
+        required=False,
+    )
+    specialty_tag = serializers.IntegerField(
+        min_value=1,
+        required=False,
+    )
     has_photos = serializers.BooleanField(
         default=False,
         required=False,
     )
+
+    def validate(self, attrs):
+        """Reject unknown taxonomy choices and categories outside the cluster."""
+        errors = {}
+        cluster_id = attrs.get("cluster")
+        category_ids = attrs.get("category", [])
+        specialty_tag_id = attrs.get("specialty_tag")
+
+        if (
+            cluster_id is not None
+            and not Cluster.objects.filter(
+                pk=cluster_id,
+            ).exists()
+        ):
+            errors["cluster"] = "Select a valid cluster."
+
+        if category_ids:
+            categories = Category.objects.filter(pk__in=category_ids)
+            if cluster_id is not None:
+                categories = categories.filter(CLUS_ID_id=cluster_id)
+            if (
+                categories.values("pk").distinct().count()
+                != len(set(category_ids))
+            ):
+                errors["category"] = "Select categories in the chosen cluster."
+
+        if (
+            specialty_tag_id is not None
+            and not SpecialtyTag.objects.filter(
+                pk=specialty_tag_id,
+            ).exists()
+        ):
+            errors["specialty_tag"] = "Select a valid specialty."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
 
 
 class CommunityCategoryResponseSerializer(serializers.Serializer):

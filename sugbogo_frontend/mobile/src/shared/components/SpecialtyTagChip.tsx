@@ -10,7 +10,7 @@ import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
 type SpecialtyTagChipProps = {
   tag: SpecialtyTag;
   mode?: "display" | "registration" | "filter";
-  size?: "default" | "small";
+  size?: "default" | "medium" | "small";
   isSelected?: boolean;
   isDisabled?: boolean;
   onPress?: () => void;
@@ -24,10 +24,11 @@ type SpecialtyTagChipProps = {
 };
 
 /**
- * Renders a reusable specialty-tag chip across display and selection contexts.
+ * Displays a reusable specialty tag across display and selection contexts.
  *
- * Display chips use a soft version of the specialty color for a lighter visual
- * treatment, while selected registration and filter chips retain solid colors.
+ * Display mode always uses soft specialty colors. Filter and registration
+ * modes use neutral unselected states and soft specialty colors with a
+ * colored border when selected.
  */
 export default function SpecialtyTagChip({
   tag,
@@ -48,35 +49,40 @@ export default function SpecialtyTagChip({
   const specialtyIcon = getSpecialtyTagIcon(tag.icon);
 
   const isSmall = size === "small";
+  const isMedium = size === "medium";
   const isDisplayMode = mode === "display";
   const isSelectionMode = mode === "registration" || mode === "filter";
   const isInteractive = Boolean(onPress);
 
   const useDisabledStyle = isSelectionMode && isDisabled && showDisabledStyle;
 
+  const sizeClassName = isSmall
+    ? "px-2.5 py-1"
+    : isMedium
+      ? "px-4 py-2"
+      : "min-h-12 px-3.5 py-1.5";
+
+  const textSizeClassName = isSmall ? "text-[10px]" : "text-sm";
+  const countSizeClassName = isSmall ? "text-[10px]" : "text-xs";
+  const iconSize = isSmall ? 13 : isMedium ? 15 : 16;
+
   const textColor = useDisabledStyle
     ? "text-gray-400"
-    : isDisplayMode
+    : isDisplayMode || isSelected
       ? styles.softText
-      : isSelected
-        ? styles.text
-        : "text-text-secondary";
+      : "text-text-secondary";
 
   const iconColor = useDisabledStyle
     ? theme.extends.colors.text.tertiary
-    : isDisplayMode
+    : isDisplayMode || isSelected
       ? styles.softIcon
-      : isSelected
-        ? styles.icon
-        : theme.extends.colors.text.secondary;
+      : theme.extends.colors.text.secondary;
 
   const backgroundClassName = useDisabledStyle
     ? "border border-border-primary bg-gray-200 opacity-40"
-    : isDisplayMode
-      ? styles.softBackground
-      : isSelected
-        ? styles.background
-        : "border border-border-primary bg-white";
+    : isSelectionMode && !isSelected
+      ? "border border-border-primary bg-white"
+      : styles.softBackground;
 
   return (
     <Pressable
@@ -94,24 +100,22 @@ export default function SpecialtyTagChip({
             scale: scaleOnPress && pressed ? 1.05 : 1,
           },
         ],
-
-        ...(isSelectionMode && isSelected
+        ...(isSelectionMode && isSelected && !useDisabledStyle
           ? {
+              borderWidth: 1,
               borderColor: styles.borderColor,
             }
           : {}),
       })}
       className={`mb-2 mr-2 flex-row items-center justify-center rounded-full ${
         isInteractive ? "cursor-pointer" : ""
-      } ${
-        isSmall ? "px-2.5 py-1" : "min-h-12 px-3.5 py-1.5"
-      } ${backgroundClassName}`}
+      } ${sizeClassName} ${backgroundClassName}`}
     >
       {/* Specialty icon */}
       {showIcon && (
         <MaterialCommunityIcons
           name={specialtyIcon}
-          size={isSmall ? 13 : 16}
+          size={iconSize}
           color={iconColor}
           style={{ marginRight: 5 }}
         />
@@ -120,7 +124,7 @@ export default function SpecialtyTagChip({
       {/* Specialty name */}
       <AppText
         weight="semibold"
-        className={`${isSmall ? "text-[10px]" : "text-sm"} ${textColor}`}
+        className={`${textSizeClassName} ${textColor}`}
         numberOfLines={2}
       >
         {tag.name}
@@ -130,7 +134,7 @@ export default function SpecialtyTagChip({
       {showSelectionIndicator && isSelected && (
         <MaterialCommunityIcons
           name="check-circle"
-          size={isSmall ? 13 : 16}
+          size={iconSize}
           color={iconColor}
           style={{ marginLeft: 5 }}
         />
@@ -140,7 +144,7 @@ export default function SpecialtyTagChip({
       {showVouchIndicator && isSelected && (
         <MaterialCommunityIcons
           name="heart"
-          size={isSmall ? 13 : 16}
+          size={iconSize}
           color={iconColor}
           style={{ marginLeft: 5 }}
         />
@@ -152,18 +156,18 @@ export default function SpecialtyTagChip({
           className={`flex-row items-center ${isSmall ? "ml-1.5" : "ml-2"}`}
         >
           <View
-            className={`mr-1 ${isSmall ? "h-3" : "h-4"} w-px bg-black/10`}
+            className={`mr-1 w-px bg-black/10 ${isSmall ? "h-3" : "h-4"}`}
           />
 
           <MaterialCommunityIcons
             name={isSelected ? "heart" : "heart-outline"}
-            size={isSmall ? 13 : 16}
+            size={iconSize}
             color={iconColor}
           />
 
           <AppText
             weight="bold"
-            className={`ml-1 ${isSmall ? "text-[10px]" : "text-xs"} ${textColor}`}
+            className={`ml-1 ${countSizeClassName} ${textColor}`}
           >
             {count}
           </AppText>
