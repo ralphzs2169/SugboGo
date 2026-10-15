@@ -5,6 +5,7 @@ import Toast from "react-native-toast-message";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import {
   updateReview,
+  deleteReview,
   getBusinessReviewPreview,
 } from "@/features/explore/api/reviewBusiness.service";
 import { getExploreBusinessDetail } from "@/features/explore/api/exploreBusiness.service";
@@ -25,6 +26,7 @@ import ReviewsSubmittedScreen from "../ReviewsSubmittedScreen";
 jest.mock("../../api/myReviews.service", () => ({ getMyReviews: jest.fn() }));
 jest.mock("@/features/explore/api/reviewBusiness.service", () => ({
   updateReview: jest.fn(),
+  deleteReview: jest.fn(),
   getBusinessReviewPreview: jest.fn(),
 }));
 jest.mock("@/features/explore/api/exploreBusiness.service", () => ({
@@ -103,6 +105,7 @@ const existingPhotos = [
   { id: 34, photo_url: "https://example.com/two.jpg" },
 ];
 let retained: MyReview;
+let removed = false;
 
 function makeReview(status: MyReview["status"] = "published"): MyReview {
   return {
@@ -150,15 +153,29 @@ async function setup() {
 async function openEditor(screen: Awaited<ReturnType<typeof render>>) {
   await fireEvent.press(screen.getByLabelText("Review actions for Sugbo Cafe"));
   await waitFor(() => expect(screen.getByText("Edit my review")).toBeTruthy());
-  expect(screen.queryByText("Delete my review")).toBeNull();
+  expect(screen.getByText("Delete review")).toBeTruthy();
   await fireEvent.press(screen.getByText("Edit my review"));
   await waitFor(() => expect(screen.getByText("Edit review")).toBeTruthy());
+}
+
+async function openDeleteConfirmation(
+  screen: Awaited<ReturnType<typeof render>>,
+) {
+  await fireEvent.press(screen.getByLabelText("Review actions for Sugbo Cafe"));
+  await waitFor(() => expect(screen.getByText("Delete review")).toBeTruthy());
+  expect(deleteReview).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText("Delete review"));
+  await waitFor(() =>
+    expect(screen.getByText("Delete this review?")).toBeTruthy(),
+  );
+  expect(deleteReview).not.toHaveBeenCalled();
 }
 
 describe("My Reviews editing integration", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     retained = makeReview();
+    removed = false;
     useAuthStore.setState({
       user: { id: 10 } as User,
       isAuthenticated: true,
@@ -167,17 +184,21 @@ describe("My Reviews editing integration", () => {
     (getMyReviews as jest.Mock).mockImplementation(async () => ({
       success: true,
       data: {
-        items: [retained],
+        items: removed ? [] : [retained],
         pagination: {
           page: 1,
           page_size: 10,
-          total_items: 1,
-          total_pages: 1,
+          total_items: removed ? 0 : 1,
+          total_pages: removed ? 0 : 1,
           has_next: false,
           has_previous: false,
         },
       },
     }));
+    (deleteReview as jest.Mock).mockImplementation(async (reviewId) => {
+      removed = true;
+      return { success: true, data: { review_id: reviewId } };
+    });
     (updateReview as jest.Mock).mockImplementation(
       async (_id, text, photos, keepIds, community) => {
         retained = {
@@ -332,8 +353,153 @@ describe("My Reviews editing integration", () => {
   it("hides editing for under-review submissions", async () => {
     retained = makeReview("under_review");
     const { screen, client } = await setup();
-    expect(screen.queryByLabelText("Review actions for Sugbo Cafe")).toBeNull();
+    await fireEvent.press(
+      screen.getByLabelText("Review actions for Sugbo Cafe"),
+    );
+    await waitFor(() => expect(screen.getByText("Delete review")).toBeTruthy());
+    expect(screen.queryByText("Edit my review")).toBeNull();
     expect(screen.getByText("Under review")).toBeTruthy();
+    await screen.unmount();
+    client.clear();
+  });
+
+  it("requires confirmation and cancels without calling DELETE", async () => {
+    const { screen, client } = await setup();
+    await openDeleteConfirmation(screen);
+    await fireEvent.press(screen.getByText("Cancel"));
+    await waitFor(() =>
+      expect(screen.queryByText("Delete this review?")).toBeNull(),
+    );
+    expect(deleteReview).not.toHaveBeenCalled();
+    expect(screen.getByText(originalText)).toBeTruthy();
+    await screen.unmount();
+    client.clear();
+  });
+
+  it.each(["published", "under_review", "rejected", "flagged"] as const)(
+    "deletes a %s review and synchronizes affected caches",
+    async (status) => {
+      retained = makeReview(status);
+      const { screen, client, invalidate } = await setup();
+      await openDeleteConfirmation(screen);
+      await fireEvent.press(screen.getByText("Delete review"));
+      await waitFor(() =>
+        expect(screen.queryByText("Delete this review?")).toBeNull(),
+      );
+      expect(deleteReview).toHaveBeenCalledTimes(1);
+      expect(deleteReview).toHaveBeenCalledWith(8);
+      expect(screen.queryByText(originalText)).toBeNull();
+      expect(screen.getByTestId("my-reviews-empty")).toBeTruthy();
+      for (const queryKey of [
+        myReviewsKey(10),
+        businessReviewsKey(20),
+        businessReviewPreviewKey(20),
+        exploreBusinessDetailKey(20),
+        COMMUNITY_REVIEWS_QUERY_KEY,
+        DISCOVERY_FEED_QUERY_KEY,
+      ]) {
+        expect(invalidate).toHaveBeenCalledWith({ queryKey });
+      }
+      expect(invalidate).not.toHaveBeenCalledWith({
+        queryKey: myReviewsKey(99),
+      });
+      expect(Toast.show).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "success", text1: "Review deleted" }),
+      );
+      await waitFor(() =>
+        expect(getExploreBusinessDetail).toHaveBeenCalledWith(20),
+      );
+      await screen.unmount();
+      client.clear();
+    },
+  );
+
+  it("deletes even when the associated business is unavailable", async () => {
+    retained.business.status = "suspended";
+    const { screen, client } = await setup();
+    expect(
+      screen.getByLabelText("Open Sugbo Cafe business profile").props
+        .accessibilityState.disabled,
+    ).toBe(true);
+    await openDeleteConfirmation(screen);
+    await fireEvent.press(screen.getByText("Delete review"));
+    await waitFor(() =>
+      expect(screen.getByTestId("my-reviews-empty")).toBeTruthy(),
+    );
+    expect(deleteReview).toHaveBeenCalledWith(8);
+    await screen.unmount();
+    client.clear();
+  });
+
+  it.each(["NETWORK_ERROR", "NOT_FOUND"])(
+    "preserves the review and permits retry after %s",
+    async (code) => {
+      (deleteReview as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        code,
+        message: "Review could not be deleted.",
+      });
+      const { screen, client, invalidate } = await setup();
+      await openDeleteConfirmation(screen);
+      await fireEvent.press(screen.getByText("Delete review"));
+      await waitFor(() =>
+        expect(Toast.show).toHaveBeenCalledWith(
+          expect.objectContaining({ type: "error" }),
+        ),
+      );
+      expect(screen.getByText(originalText)).toBeTruthy();
+      expect(screen.getByText("Delete this review?")).toBeTruthy();
+      expect(invalidate).not.toHaveBeenCalled();
+      await fireEvent.press(screen.getByText("Delete review"));
+      await waitFor(() =>
+        expect(screen.getByTestId("my-reviews-empty")).toBeTruthy(),
+      );
+      expect(deleteReview).toHaveBeenCalledTimes(2);
+      await screen.unmount();
+      client.clear();
+    },
+  );
+
+  it("keeps selection stable while another record remains in history", async () => {
+    retained = { ...retained, id: 17 };
+    const second = {
+      ...makeReview(),
+      id: 9,
+      text: "Another review remains available.",
+      business: {
+        ...retained.business,
+        id: 21,
+        business_name: "Island Bakery",
+      },
+    };
+    (getMyReviews as jest.Mock).mockImplementation(async () => ({
+      success: true,
+      data: {
+        items: removed ? [second] : [retained, second],
+        pagination: {
+          page: 1,
+          page_size: 10,
+          total_items: removed ? 1 : 2,
+          total_pages: 1,
+          has_next: false,
+          has_previous: false,
+        },
+      },
+    }));
+    const { screen, client } = await setup();
+    await openDeleteConfirmation(screen);
+    // Background list changes must not redirect the selected deletion.
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: myReviewsKey(10) });
+    });
+    await fireEvent.press(screen.getByText("Delete review"));
+    await waitFor(() =>
+      expect(screen.queryByText("Delete this review?")).toBeNull(),
+    );
+    expect(deleteReview).toHaveBeenCalledWith(17);
+    expect(screen.getByText(second.text)).toBeTruthy();
+    expect(screen.getByText("1 submitted review")).toBeTruthy();
+    expect(screen.queryByText(originalText)).toBeNull();
     await screen.unmount();
     client.clear();
   });

@@ -23,6 +23,7 @@ import {
 } from "@/shared/navigation/stackOptions";
 
 import MyReviewCard from "../components/reviews/MyReviewCard";
+import MyReviewDeleteConfirmation from "../components/reviews/MyReviewDeleteConfirmation";
 import MyReviewsSkeleton from "../components/reviews/MyReviewsSkeleton";
 import { useMyReviews } from "../hooks/useMyReviews";
 import type { MyReview } from "../types/myReview.types";
@@ -38,42 +39,41 @@ export default function ReviewsSubmittedScreen() {
   const actionsRef = useRef<BottomSheetModal | null>(null);
   const composerRef = useRef<BottomSheetModal | null>(null);
   const [actionReview, setActionReview] = useState<SelectedReview | null>(null);
+  const [deletingReview, setDeletingReview] = useState<SelectedReview | null>(
+    null,
+  );
   const [editingReview, setEditingReview] = useState<SelectedReview | null>(
     null,
   );
   const [syncBusinesses, setSyncBusinesses] = useState<
     { userId: number; businessId: number }[]
   >([]);
+  const isConfirmingDeletion =
+    history.isEnabled && deletingReview?.userId === history.userId;
 
-  const canEdit = (review: MyReview) =>
+  const canManage = (review: MyReview) =>
     history.isEnabled &&
     review.author.id === history.userId &&
-    review.is_own_review &&
-    review.status !== "under_review";
+    review.is_own_review;
+
+  const canEdit = (review: MyReview) =>
+    canManage(review) && review.status !== "under_review";
 
   const openActions = (review: MyReview) => {
-    if (!canEdit(review) || history.userId === null) return;
+    if (!canManage(review) || history.userId === null || isConfirmingDeletion)
+      return;
     setActionReview({ userId: history.userId, review });
     presentBottomSheet(actionsRef);
   };
 
-  const openEditor = () => {
-    if (
-      !actionReview ||
-      actionReview.userId !== history.userId ||
-      !canEdit(actionReview.review)
-    )
-      return;
-
-    // Keep a stable edit snapshot so history refetches cannot replace a draft.
-    setEditingReview(actionReview);
+  const registerSyncBusiness = (selected: SelectedReview) => {
     setSyncBusinesses((current) => {
       const businesses = current.filter(
-        (item) => item.userId === actionReview.userId,
+        (item) => item.userId === selected.userId,
       );
       if (
         businesses.some(
-          (item) => item.businessId === actionReview.review.business.id,
+          (item) => item.businessId === selected.review.business.id,
         )
       ) {
         return businesses;
@@ -81,17 +81,48 @@ export default function ReviewsSubmittedScreen() {
       return [
         ...businesses,
         {
-          userId: actionReview.userId,
-          businessId: actionReview.review.business.id,
+          userId: selected.userId,
+          businessId: selected.review.business.id,
         },
       ];
     });
+  };
+
+  const openEditor = () => {
+    if (
+      !actionReview ||
+      isConfirmingDeletion ||
+      actionReview.userId !== history.userId ||
+      !canEdit(actionReview.review)
+    )
+      return;
+
+    // Keep a stable edit snapshot so history refetches cannot replace a draft.
+    setEditingReview(actionReview);
+    registerSyncBusiness(actionReview);
     presentBottomSheet(composerRef);
+  };
+
+  const openDeleteConfirmation = () => {
+    if (
+      !actionReview ||
+      isConfirmingDeletion ||
+      actionReview.userId !== history.userId ||
+      !canManage(actionReview.review)
+    )
+      return;
+
+    registerSyncBusiness(actionReview);
+    setDeletingReview(actionReview);
   };
 
   const currentEditor =
     history.isEnabled && editingReview?.userId === history.userId
       ? editingReview.review
+      : null;
+  const currentDeletion =
+    history.isEnabled && deletingReview?.userId === history.userId
+      ? deletingReview
       : null;
 
   useEffect(() => {
@@ -148,7 +179,7 @@ export default function ReviewsSubmittedScreen() {
         renderItem={({ item }) => (
           <MyReviewCard
             review={item}
-            onActions={canEdit(item) ? () => openActions(item) : undefined}
+            onActions={canManage(item) ? () => openActions(item) : undefined}
           />
         )}
         contentContainerStyle={{
@@ -266,17 +297,27 @@ export default function ReviewsSubmittedScreen() {
         }
       />
 
-      {/* Existing contextual actions; deletion is intentionally not offered. */}
+      {/* Contextual actions respect editing restrictions across all statuses. */}
       <ActionBottomSheet
         key={`review-actions-${history.userId ?? "signed-out"}`}
         sheetRef={actionsRef}
-        options={[{ label: "Edit my review", value: "edit" }]}
+        options={[
+          ...(actionReview && canEdit(actionReview.review)
+            ? [{ label: "Edit my review", value: "edit" }]
+            : []),
+          {
+            label: "Delete review",
+            value: "delete",
+            color: theme.extends.colors.error,
+          },
+        ]}
         onSelect={(value) => {
           if (value === "edit") openEditor();
+          if (value === "delete") openDeleteConfirmation();
         }}
       />
 
-      {/* Keep each edited business syncing after dismissal or another edit. */}
+      {/* Keep business synchronization mounted after edit/delete dialogs close. */}
       {syncBusinesses
         .filter((item) => history.isEnabled && item.userId === history.userId)
         .map((item) => (
@@ -291,6 +332,20 @@ export default function ReviewsSubmittedScreen() {
                 coverPhotoUrl={currentEditor.business.display_cover_photo_url}
                 sheetRef={composerRef}
                 review={currentEditor}
+              />
+            )}
+
+            {/* Confirmed deletion uses the same business synchronization owner. */}
+            {currentDeletion?.review.business.id === item.businessId && (
+              <MyReviewDeleteConfirmation
+                key={`${currentDeletion.userId}-${currentDeletion.review.id}`}
+                review={currentDeletion.review}
+                userId={currentDeletion.userId}
+                onClose={() =>
+                  setDeletingReview((current) =>
+                    current === currentDeletion ? null : current,
+                  )
+                }
               />
             )}
           </ReviewDerivedDataSyncProvider>

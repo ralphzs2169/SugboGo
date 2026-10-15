@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -11,6 +12,7 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
+import type { MyReviewPage } from "@/features/profile/types/myReview.types";
 
 import * as reviewService from "../api/reviewBusiness.service";
 import type {
@@ -27,7 +29,10 @@ import type {
 } from "../types/review.types";
 import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
 import { useReviewDerivedDataSyncActions } from "./ReviewDerivedDataSyncProvider";
-import { invalidateBusinessCardCollections } from "../utils/reviewCache.utils";
+import {
+  invalidateBusinessCardCollections,
+  removeDeletedReviewFromPublicCaches,
+} from "../utils/reviewCache.utils";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
@@ -82,8 +87,48 @@ function useReviewMutation<TVariables, TResult>(
     },
 
     onSuccess: async (result, variables, context) => {
+      if (sync === "delete") {
+        // Discard pre-deletion responses before removing cached public content.
+        await Promise.all([
+          queryClient.cancelQueries({
+            queryKey: businessReviewPreviewKey(businessId),
+          }),
+          queryClient.cancelQueries({
+            queryKey: businessReviewsKey(businessId),
+          }),
+          queryClient.cancelQueries({ queryKey: COMMUNITY_REVIEWS_QUERY_KEY }),
+        ]);
+        removeDeletedReviewFromPublicCaches(
+          queryClient,
+          businessId,
+          (result as { review_id: number }).review_id,
+        );
+      }
+      if (sync === "delete" && context.authorUserId !== null) {
+        const historyKey = myReviewsKey(context.authorUserId);
+        // A pre-deletion request must not restore the confirmed-deleted item.
+        await queryClient.cancelQueries({ queryKey: historyKey });
+        queryClient.setQueryData<InfiniteData<MyReviewPage>>(
+          historyKey,
+          (current) => {
+            if (!current) return current;
+            return {
+              ...current,
+              pages: current.pages.map((page) => ({
+                ...page,
+                items: page.items.filter(
+                  (review) =>
+                    review.id !== (result as { review_id: number }).review_id,
+                ),
+              })),
+            };
+          },
+        );
+      }
+
       await Promise.all([
-        ...(sync === "update" && context.authorUserId !== null
+        ...((sync === "update" || sync === "delete") &&
+        context.authorUserId !== null
           ? [
               queryClient.invalidateQueries({
                 queryKey: myReviewsKey(context.authorUserId),

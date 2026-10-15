@@ -4,6 +4,7 @@ import { getInstallationId } from "@/shared/api/storage.service";
 
 import {
   createReview,
+  deleteReview,
   getAllBusinessReviews,
   updateReview,
   getMyReviewReport,
@@ -16,7 +17,12 @@ import {
 
 jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,
-  default: { get: jest.fn(), post: jest.fn(), patch: jest.fn() },
+  default: {
+    get: jest.fn(),
+    post: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+  },
 }));
 jest.mock("@/shared/api/storage.service", () => ({
   getInstallationId: jest.fn(),
@@ -26,6 +32,11 @@ jest.mock("@/shared/api/request.service", () => ({
 }));
 
 const url = "/reviews/business/20/all/";
+
+it("deletes the selected review through the existing authenticated endpoint", async () => {
+  await deleteReview(17);
+  expect(apiClient.delete).toHaveBeenCalledWith("/reviews/17/");
+});
 
 function filters(changes: Partial<BusinessReviewFilters>) {
   return { ...DEFAULT_BUSINESS_REVIEW_FILTERS, ...changes };
@@ -37,22 +48,20 @@ describe("reportReview", () => {
   });
 
   it("sends the selected reason and optional reporter explanation", async () => {
-    await reportReview(74, "private_information", "Private phone number posted.");
+    await reportReview(
+      74,
+      "private_information",
+      "Private phone number posted.",
+    );
     await reportReview(75, "spam");
 
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "/reviews/74/report/",
-      {
-        report_type: "private_information",
-        explanation: "Private phone number posted.",
-      },
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      2,
-      "/reviews/75/report/",
-      { report_type: "spam" },
-    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/reviews/74/report/", {
+      report_type: "private_information",
+      explanation: "Private phone number posted.",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/reviews/75/report/", {
+      report_type: "spam",
+    });
   });
 });
 

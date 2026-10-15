@@ -108,7 +108,7 @@ function MyReviewCard({
             />
           )}
         </SafePressable>
-        {onActions && review.status !== "under_review" && (
+        {onActions && (
           <Pressable
             onPress={onActions}
             accessibilityRole="button"
