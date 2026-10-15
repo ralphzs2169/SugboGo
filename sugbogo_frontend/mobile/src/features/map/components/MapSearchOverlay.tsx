@@ -16,6 +16,7 @@ type Props = {
   onClear: () => void;
   disabled?: boolean;
   hideQuickFilters?: boolean;
+  onHeaderLayout?: (bottom: number) => void;
 };
 
 /** Combines independent search and taxonomy actions above compact quick filters. */
@@ -28,6 +29,7 @@ export default function MapSearchOverlay({
   onClear,
   disabled = false,
   hideQuickFilters = false,
+  onHeaderLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
   const advancedFilterCount =
@@ -44,7 +46,12 @@ export default function MapSearchOverlay({
       {/* Global registered-business search */}
       <View
         className="flex-row items-center overflow-hidden rounded-full border border-border-primary bg-surface"
+        testID="map-search-header"
         style={shadows.floating}
+        onLayout={(event) => {
+          const { y, height } = event.nativeEvent.layout;
+          onHeaderLayout?.(y + height);
+        }}
       >
         <Pressable
           onPress={onSearch}

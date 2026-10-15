@@ -19,6 +19,7 @@ type Props = {
 };
 
 const VISIBLE_TAG_COUNT = 1;
+export const PREVIEW_MAX_HEIGHT_RATIO = 0.38;
 
 /**
  * Presents a concise API-backed business preview without moving the map.
@@ -48,7 +49,10 @@ export default function MSMEPreviewCard({
   return (
     <View
       className="gap-2 rounded-card border border-border-primary bg-surface p-3"
-      style={[shadows.floating, { maxHeight: height * 0.38 }]}
+      style={[
+        shadows.floating,
+        { maxHeight: height * PREVIEW_MAX_HEIGHT_RATIO },
+      ]}
     >
       {/* Bounded identity and specialties leave the map visible. */}
       <ScrollView

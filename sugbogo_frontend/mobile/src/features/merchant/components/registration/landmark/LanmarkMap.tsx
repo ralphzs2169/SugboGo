@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import MapView, {
   type MapPressEvent,
   Marker,
@@ -52,7 +52,12 @@ export default function LandmarkMap({
       onMapReady={onMapReady}
       provider={PROVIDER_GOOGLE}
       style={{ flex: 1 }}
-      customMapStyle={MAP_STYLE}
+      customMapStyle={Platform.OS === "ios" ? MAP_STYLE : undefined}
+      googleMapId={
+        Platform.OS === "android"
+          ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID
+          : undefined
+      }
       initialRegion={{
         latitude: businessLocation.latitude,
         longitude: businessLocation.longitude,

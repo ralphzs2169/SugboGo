@@ -5,6 +5,7 @@ import BusinessDiscoveryMap from "../BusinessDiscoveryMap";
 
 const mockMap = {
   animateCamera: jest.fn(),
+  getCamera: jest.fn().mockResolvedValue({ zoom: 12 }),
   getMapBoundaries: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -57,7 +58,7 @@ it("dispatches search focus through the installed clustering ref and keeps the s
   await fireEvent(map, "mapReady");
   await waitFor(() =>
     expect(mockMap.animateCamera).toHaveBeenCalledWith(
-      { center: target, zoom: 16, pitch: 0, heading: 0 },
+      { center: target, zoom: 16 },
       { duration: 500 },
     ),
   );

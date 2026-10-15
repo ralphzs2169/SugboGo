@@ -18,7 +18,9 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 
-import BusinessDiscoveryMap from "../components/BusinessDiscoveryMap";
+import BusinessDiscoveryMap, {
+  type BusinessMapFocusTarget,
+} from "../components/BusinessDiscoveryMap";
 import MapControls from "../components/MapControls";
 import MapSearchOverlay from "../components/MapSearchOverlay";
 import MSMEPreviewCard from "../components/MSMEPreviewCard";
@@ -59,18 +61,26 @@ export default function MapScreen() {
     longitude: number;
     started: boolean;
   } | null>(null);
+  const [cameraTarget, setCameraTarget] = useState<
+    (BusinessMapFocusTarget & { id: number }) | null
+  >(null);
   const discovery = useMapDirectory(filters, searchTarget?.id);
   useEffect(() => {
-    if (!searchTarget) {
+    if (!cameraTarget) {
       destination.current = null;
     }
-  }, [searchTarget]);
+  }, [cameraTarget]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(
     null,
   );
   const [mapInstance, setMapInstance] = useState<RNMapView | null>(null);
-  const [previewHeight, setPreviewHeight] = useState(0);
-  const [isSearchTransition, setIsSearchTransition] = useState(false);
+  const [previewLayout, setPreviewLayout] = useState({
+    id: null as number | null,
+    height: 0,
+  });
+  const [headerBottom, setHeaderBottom] = useState(0);
+  const previewHeight = previewLayout.height;
+
   const [selectionUnavailable, setSelectionUnavailable] = useState(false);
   const hasInteracted = useRef(false);
   const hasHandledInitialLocation = useRef(false);
@@ -165,7 +175,7 @@ export default function MapScreen() {
         return;
       }
       destination.current = null;
-      setIsSearchTransition(false);
+      setCameraTarget(null);
     }
   }, []);
 
@@ -206,7 +216,7 @@ export default function MapScreen() {
     setSelectionUnavailable(searchTarget !== null);
     setSelectedBusinessId(null);
     setSearchTarget(null);
-    setIsSearchTransition(false);
+    setCameraTarget(null);
   }
 
   const clearSelection = () => {
@@ -214,7 +224,7 @@ export default function MapScreen() {
     setSelectedBusinessId(null);
     setSearchTarget(null);
     destination.current = null;
-    setIsSearchTransition(false);
+    setCameraTarget(null);
   };
 
   const openFilters = async () => {
@@ -248,7 +258,11 @@ export default function MapScreen() {
     hasInteracted.current = true;
     setSelectionUnavailable(false);
     hasHandledInitialLocation.current = true;
-    setIsSearchTransition(true);
+    setCameraTarget({
+      id: business.id,
+      latitude: business.location.latitude,
+      longitude: business.location.longitude,
+    });
     setSelectedBusinessId(business.id);
     setSearchTarget({
       id: business.id,
@@ -295,7 +309,7 @@ export default function MapScreen() {
     }
 
     destination.current = null;
-    setIsSearchTransition(false);
+    setCameraTarget(null);
     mapInstance?.animateToRegion({
       latitude: result.location.coords.latitude,
       longitude: result.location.coords.longitude,
@@ -330,19 +344,33 @@ export default function MapScreen() {
         userLocation={userLocation.location}
         showsUserLocation={userLocation.status === "available"}
         autoCenterOnLocation={false}
-        focusTarget={isSearchTransition ? searchTarget : null}
+        focusTarget={cameraTarget}
         onFocusStart={handleFocusStart}
-        previewBottomInset={
-          selectedBusiness ? bottomSpacing + previewHeight + 12 : 0
-        }
+        focusInsets={{
+          top: headerBottom + 12,
+          bottom: bottomSpacing + previewHeight + 12,
+          ready: headerBottom > 0 && previewLayout.id === selectedBusinessId,
+        }}
         onMapReady={setMapInstance}
         onViewportChange={handleViewportChange}
         onMapInteraction={() => {
           hasInteracted.current = true;
           destination.current = null;
-          setIsSearchTransition(false);
+          setCameraTarget(null);
         }}
         onBusinessPress={(id) => {
+          const business = displayedBusinesses.find((item) => item.id === id);
+          if (!business) return;
+          hasInteracted.current = true;
+          hasHandledInitialLocation.current = true;
+          const target = {
+            id,
+            latitude: business.location.latitude,
+            longitude: business.location.longitude,
+            preserveZoom: true,
+          };
+          destination.current = { ...target, started: false };
+          setCameraTarget(target);
           setSelectionUnavailable(false);
           setSelectedBusinessId(id);
           if (id !== searchTarget?.id) {
@@ -353,8 +381,10 @@ export default function MapScreen() {
         dimUnselectedMarkers
         useClusterIcons
         hideNativeZoomControls
+        manageMarkerCamera
       />
       <MapSearchOverlay
+        onHeaderLayout={setHeaderBottom}
         filters={filters}
         hideQuickFilters={selectedBusinessId !== null}
         filterCount={filterCount}
@@ -458,9 +488,13 @@ export default function MapScreen() {
         {/* Full-width preview owns no camera or server state. */}
         {selectedBusiness && (
           <View
+            key={selectedBusiness.id}
             testID="business-preview-anchor"
             onLayout={(event) => {
-              setPreviewHeight(event.nativeEvent.layout.height);
+              setPreviewLayout({
+                id: selectedBusiness.id,
+                height: event.nativeEvent.layout.height,
+              });
             }}
           >
             <MSMEPreviewCard

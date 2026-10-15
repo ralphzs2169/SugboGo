@@ -7,7 +7,10 @@ import BusinessDiscoveryMap from "../BusinessDiscoveryMap";
 const mockNativeMap = {
   animateToRegion: jest.fn(),
   animateCamera: jest.fn(),
+  getCamera: jest.fn().mockResolvedValue({ zoom: 12 }),
   getMapBoundaries: jest.fn(),
+  pointForCoordinate: jest.fn(),
+  coordinateForPoint: jest.fn(),
 };
 
 jest.mock("react-native-map-clustering", () => {
@@ -45,20 +48,32 @@ it("queues search focus until native readiness and layout, then uses the camera 
   });
   await waitFor(() =>
     expect(mockNativeMap.animateCamera).toHaveBeenCalledWith(
-      { center: target, zoom: 16, pitch: 0, heading: 0 },
+      { center: target, zoom: 16 },
       { duration: 500 },
     ),
   );
   expect(map().props.mapPadding.bottom).toBe(260);
+  const padding = map().props.mapPadding;
   await screen.rerender(
     <BusinessDiscoveryMap
       businesses={[{ id: 1, ...target }]}
       userLocation={null}
       autoCenterOnLocation={false}
       focusTarget={target}
-      previewBottomInset={240}
+      previewBottomInset={260}
+      selectedBusinessId={1}
     />,
   );
+  await fireEvent(map(), "layout", {
+    nativeEvent: { layout: { height: 760 } },
+  });
+  // Flush a native frame so a replay scheduled by the layout effect would run.
+  await act(async () => {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+  });
+  expect(map().props.mapPadding).toBe(padding);
   expect(mockNativeMap.animateCamera).toHaveBeenCalledTimes(1);
 });
 
@@ -76,6 +91,110 @@ it("distinguishes native gestures from programmatic region changes", async () =>
   expect(onMapInteraction).not.toHaveBeenCalled();
   await fireEvent(map, "regionChange", region, { isGesture: true });
   expect(onMapInteraction).toHaveBeenCalledTimes(1);
+});
+
+it("centers ordinary marker selections once without changing zoom or orientation", async () => {
+  const target = { latitude: 10.3, longitude: 123.9, preserveZoom: true };
+  const screen = await render(
+    <BusinessDiscoveryMap
+      businesses={[]}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      manageMarkerCamera
+      focusTarget={target}
+      previewBottomInset={260}
+    />,
+  );
+  const map = screen.getByTestId("clustered-map");
+  expect(map.props.moveOnMarkerPress).toBe(false);
+  await fireEvent(map, "layout", { nativeEvent: { layout: { height: 800 } } });
+  await fireEvent(map, "mapReady");
+  await waitFor(() =>
+    expect(mockNativeMap.animateCamera).toHaveBeenCalledWith(
+      { center: { latitude: 10.3, longitude: 123.9 } },
+      { duration: 500 },
+    ),
+  );
+  expect(mockNativeMap.getCamera).not.toHaveBeenCalled();
+  await screen.rerender(
+    <BusinessDiscoveryMap
+      businesses={[]}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      manageMarkerCamera
+      focusTarget={null}
+      previewBottomInset={260}
+    />,
+  );
+  expect(mockNativeMap.animateCamera).toHaveBeenCalledTimes(1);
+});
+
+it.each([12, 16, 18])(
+  "only zooms search selections in when needed from zoom %s",
+  async (zoom) => {
+    mockNativeMap.getCamera.mockResolvedValueOnce({ zoom });
+    const target = { latitude: 10.3, longitude: 123.9 };
+    const screen = await render(
+      <BusinessDiscoveryMap
+        businesses={[]}
+        userLocation={null}
+        autoCenterOnLocation={false}
+        focusTarget={target}
+      />,
+    );
+    await fireEvent(screen.getByTestId("clustered-map"), "layout", {
+      nativeEvent: { layout: { height: 800 } },
+    });
+    await fireEvent(screen.getByTestId("clustered-map"), "mapReady");
+    await waitFor(() =>
+      expect(mockNativeMap.animateCamera).toHaveBeenCalledWith(
+        { center: target, ...(zoom < 16 && { zoom: 16 }) },
+        { duration: 500 },
+      ),
+    );
+    expect(mockNativeMap.animateCamera).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("discards an older pending search camera read after a newer selection", async () => {
+  let finishOld: (camera: { zoom: number }) => void = () => {};
+  mockNativeMap.getCamera.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+  );
+  const target = { latitude: 10.3, longitude: 123.9 };
+  const next = { latitude: 10.4, longitude: 124 };
+  const screen = await render(
+    <BusinessDiscoveryMap
+      businesses={[]}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      focusTarget={target}
+    />,
+  );
+  await fireEvent(screen.getByTestId("clustered-map"), "layout", {
+    nativeEvent: { layout: { height: 800 } },
+  });
+  await fireEvent(screen.getByTestId("clustered-map"), "mapReady");
+  await waitFor(() => expect(mockNativeMap.getCamera).toHaveBeenCalledTimes(1));
+  await screen.rerender(
+    <BusinessDiscoveryMap
+      businesses={[]}
+      userLocation={null}
+      autoCenterOnLocation={false}
+      focusTarget={next}
+    />,
+  );
+  await waitFor(() =>
+    expect(mockNativeMap.animateCamera).toHaveBeenCalledWith(
+      { center: next, zoom: 16 },
+      { duration: 500 },
+    ),
+  );
+  await act(async () => finishOld({ zoom: 10 }));
+  expect(mockNativeMap.animateCamera).toHaveBeenCalledTimes(1);
 });
 jest.mock("react-native-maps", () => {
   const { View } = jest.requireActual("react-native");
@@ -299,3 +418,83 @@ it("keeps mixed gem and regular markers clusterable and preserves selected gem i
   );
   expect(screen.queryByText("Selected")).toBeNull();
 });
+
+it.each([true, false])(
+  "centers in measured overlay bounds once (preserve zoom: %s)",
+  async (preserveZoom) => {
+    const target = { latitude: 10.3, longitude: 123.9, preserveZoom };
+    mockNativeMap.getCamera.mockResolvedValueOnce({
+      center: { latitude: 10, longitude: 123 },
+      zoom: 15,
+      heading: 75,
+    });
+    mockNativeMap.pointForCoordinate
+      .mockResolvedValueOnce({ x: 250, y: 300 })
+      .mockResolvedValueOnce({ x: 200, y: 400 });
+    mockNativeMap.coordinateForPoint.mockResolvedValueOnce({
+      latitude: 10.31,
+      longitude: 123.91,
+    });
+    const props = {
+      businesses: [],
+      userLocation: null,
+      autoCenterOnLocation: false,
+      manageMarkerCamera: true,
+      focusTarget: target,
+    };
+    const screen = await render(
+      <BusinessDiscoveryMap
+        {...props}
+        focusInsets={{ top: 100, bottom: 260, ready: false }}
+      />,
+    );
+    const map = () => screen.getByTestId("clustered-map");
+    await fireEvent(map(), "layout", {
+      nativeEvent: { layout: { width: 400, height: 800 } },
+    });
+    await fireEvent(map(), "mapReady");
+    expect(mockNativeMap.animateCamera).not.toHaveBeenCalled();
+    await screen.rerender(
+      <BusinessDiscoveryMap
+        {...props}
+        focusInsets={{ top: 100, bottom: 260, ready: true }}
+      />,
+    );
+    await waitFor(() =>
+      expect(mockNativeMap.animateCamera).toHaveBeenCalledTimes(1),
+    );
+    // Usable vertical midpoint is (100 + 800 - 260) / 2 = 320.
+    expect(mockNativeMap.coordinateForPoint).toHaveBeenCalledWith({
+      x: 250,
+      y: preserveZoom ? 380 : 340,
+    });
+    expect(mockNativeMap.animateCamera).toHaveBeenCalledWith(
+      {
+        center: { latitude: 10.31, longitude: 123.91 },
+        ...(!preserveZoom && { zoom: 16 }),
+      },
+      { duration: 500 },
+    );
+    const padding = map().props.mapPadding;
+    await screen.rerender(
+      <BusinessDiscoveryMap
+        {...props}
+        focusInsets={{ top: 110, bottom: 300, ready: true }}
+      />,
+    );
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+    expect(mockNativeMap.animateCamera).toHaveBeenCalledTimes(1);
+    expect(map().props.mapPadding).toBe(padding);
+    expect(padding).toEqual({ top: 0, bottom: 0, left: 0, right: 0 });
+    await screen.rerender(
+      <BusinessDiscoveryMap
+        {...props}
+        focusTarget={null}
+        focusInsets={{ top: 110, bottom: 0, ready: false }}
+      />,
+    );
+    expect(mockNativeMap.animateCamera).toHaveBeenCalledTimes(1);
+  },
+);

@@ -1,5 +1,5 @@
 import type { LocationObject } from "expo-location";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, View } from "react-native";
 import ClusteredMapView from "react-native-map-clustering";
 import MapView, {
@@ -23,6 +23,12 @@ export type BusinessMapMarker = {
   cluster_icon?: string | null;
 };
 
+export type BusinessMapFocusTarget = {
+  latitude: number;
+  longitude: number;
+  preserveZoom?: boolean;
+};
+
 type Props = {
   businesses: BusinessMapMarker[];
   userLocation: LocationObject | null;
@@ -37,11 +43,13 @@ type Props = {
   onViewportChange?: (bounds: MapBounds) => void;
   onViewportChanging?: () => void;
   onMapInteraction?: () => void;
-  focusTarget?: { latitude: number; longitude: number } | null;
+  focusTarget?: BusinessMapFocusTarget | null;
   previewBottomInset?: number;
+  focusInsets?: { top: number; bottom: number; ready: boolean };
   onFocusStart?: () => void;
   useClusterIcons?: boolean;
   hideNativeZoomControls?: boolean;
+  manageMarkerCamera?: boolean;
 };
 
 const DEFAULT_REGION = {
@@ -76,13 +84,20 @@ export default function BusinessDiscoveryMap({
   onMapInteraction,
   focusTarget = null,
   previewBottomInset = 0,
+  focusInsets,
   onFocusStart,
   useClusterIcons = false,
   hideNativeZoomControls = false,
+  manageMarkerCamera = false,
 }: Props) {
   const mapRef = useRef<MapView>(null);
   const [isReady, setIsReady] = useState(false);
-  const [mapHeight, setMapHeight] = useState(0);
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const dispatchedFocus = useRef<typeof focusTarget>(null);
+  const mapPadding = useMemo(
+    () => ({ top: 0, left: 0, right: 0, bottom: previewBottomInset }),
+    [previewBottomInset],
+  );
   const boundaryReadId = useRef(0);
   const isMounted = useRef(true);
   const captureMap = useCallback((map: unknown) => {
@@ -90,26 +105,79 @@ export default function BusinessDiscoveryMap({
   }, []);
 
   useEffect(() => {
-    if (!isReady || !mapHeight || !focusTarget) {
+    if (!focusTarget) {
+      dispatchedFocus.current = null;
+      return;
+    }
+    if (
+      !isReady ||
+      !mapSize.height ||
+      (focusInsets && !focusInsets.ready) ||
+      dispatchedFocus.current === focusTarget
+    ) {
       return;
     }
 
-    // Dispatch after the sheet/keyboard has restored the native map's layout.
-    // A center/zoom camera command does not depend on Android bounds fitting.
+    let cancelled = false;
+    // Measure once per selection; keep native padding fixed so later preview
+    // layouts cannot independently move the camera.
     const frame = requestAnimationFrame(() => {
-      onFocusStart?.();
-      mapRef.current?.animateCamera(
-        {
-          center: focusTarget,
-          zoom: 16,
-          pitch: 0,
-          heading: 0,
-        },
-        { duration: 500 },
-      );
+      void (async () => {
+        const map = mapRef.current;
+        if (!map) return;
+        let zoom: number | undefined;
+        let center = {
+          latitude: focusTarget.latitude,
+          longitude: focusTarget.longitude,
+        };
+        if (!focusTarget.preserveZoom || focusInsets) {
+          try {
+            const camera = await map.getCamera();
+            if (
+              !focusTarget.preserveZoom &&
+              typeof camera.zoom === "number" &&
+              Number.isFinite(camera.zoom) &&
+              camera.zoom < 16
+            ) {
+              zoom = 16;
+            }
+            if (focusInsets && mapSize.width) {
+              const point = await map.pointForCoordinate(center);
+              const cameraPoint = await map.pointForCoordinate(camera.center);
+              const desiredY =
+                (focusInsets.top + mapSize.height - focusInsets.bottom) / 2;
+              const scale =
+                zoom !== undefined && typeof camera.zoom === "number"
+                  ? Math.pow(2, zoom - camera.zoom)
+                  : 1;
+              // Native projection respects rotation. Scale the screen offset
+              // only when global search also needs to increase the zoom.
+              center = await map.coordinateForPoint({
+                x: point.x + (cameraPoint.x - mapSize.width / 2) / scale,
+                y: point.y + (cameraPoint.y - desiredY) / scale,
+              });
+            }
+          } catch {
+            // Providers without projection support retain native centering.
+          }
+        }
+        if (cancelled) return;
+        dispatchedFocus.current = focusTarget;
+        onFocusStart?.();
+        map.animateCamera(
+          {
+            center,
+            ...(zoom !== undefined && { zoom }),
+          },
+          { duration: 500 },
+        );
+      })();
     });
-    return () => cancelAnimationFrame(frame);
-  }, [focusTarget, isReady, mapHeight, onFocusStart]);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [focusTarget, focusInsets, isReady, mapSize, onFocusStart]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -170,10 +238,17 @@ export default function BusinessDiscoveryMap({
       <ClusteredMapView
         mapRef={captureMap}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={MAP_STYLE}
+        customMapStyle={Platform.OS === "ios" ? MAP_STYLE : undefined}
         initialRegion={DEFAULT_REGION}
-        mapPadding={{ top: 0, left: 0, right: 0, bottom: previewBottomInset }}
-        onLayout={(event) => setMapHeight(event.nativeEvent.layout.height)}
+        mapPadding={mapPadding}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          setMapSize((previous) =>
+            previous.width === width && previous.height === height
+              ? previous
+              : { width, height },
+          );
+        }}
         onMapReady={() => {
           setIsReady(true);
           if (mapRef.current) {
@@ -200,6 +275,7 @@ export default function BusinessDiscoveryMap({
         pointerEvents={interactive ? "auto" : "none"}
         showsUserLocation={showsUserLocation}
         showsMyLocationButton={false}
+        moveOnMarkerPress={manageMarkerCamera ? false : undefined}
         {...(hideNativeZoomControls && {
           zoomControlEnabled: false,
           showsCompass: true,
@@ -213,9 +289,11 @@ export default function BusinessDiscoveryMap({
         clusterColor={theme.extends.colors.brand}
         clusterTextColor="#FFFFFF"
         tracksViewChanges={trackMarkerUpdates}
-        {...(Platform.OS === "android" && {
-          mapId: process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID,
-        })}
+        googleMapId={
+          Platform.OS === "android"
+            ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID
+            : undefined
+        }
       >
         {/* Business locations */}
         {businesses.map((business) => {

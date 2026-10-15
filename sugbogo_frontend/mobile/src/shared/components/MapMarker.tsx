@@ -32,9 +32,13 @@ type MarkerConfig = {
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 };
 
-const GEM_FILL = "#FBBF24";
-const GEM_ACCENT = "#D97706";
-const GEM_ICON = "#78350F";
+// const GEM_FILL = "#FBBF24";
+// const GEM_ACCENT = "#D97706";
+// const GEM_ICON = "#78350F";
+
+const GEM_FILL = "#8B5CF6"; // violet-500
+const GEM_ACCENT = "#6D28D9"; // violet-700: stand, dot, selected halo, badge
+const GEM_ICON = "#FFFFFF";
 
 const MARKERS: Record<MapMarkerVariant, MarkerConfig> = {
   business: {

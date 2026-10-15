@@ -97,7 +97,7 @@ export default function JourneyOriginPickerMap({
     <MapView
       ref={mapRef}
       provider={PROVIDER_GOOGLE}
-      customMapStyle={MAP_STYLE}
+      customMapStyle={Platform.OS === "ios" ? MAP_STYLE : undefined}
       style={{
         width: "100%",
         height: "100%",
@@ -122,9 +122,11 @@ export default function JourneyOriginPickerMap({
       toolbarEnabled={false}
       onMapReady={() => setIsMapReady(true)}
       onPress={handleMapPress}
-      {...(Platform.OS === "android" && {
-        mapId: process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID,
-      })}
+      googleMapId={
+        Platform.OS === "android"
+          ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID
+          : undefined
+      }
     >
       {/* Draft starting-point marker */}
       {origin && (

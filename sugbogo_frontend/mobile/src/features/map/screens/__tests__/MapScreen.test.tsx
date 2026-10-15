@@ -182,15 +182,40 @@ it("selects real identity, navigates to the existing profile, and restores contr
   const screen = await setup();
   const map = () => screen.getByTestId("discovery-map");
   await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  const reservedInset = map().props.previewBottomInset;
+  expect(reservedInset).toBeUndefined();
+  await fireEvent(screen.getByTestId("map-search-header"), "layout", {
+    nativeEvent: { layout: { y: 12, height: 48 } },
+  });
   await fireEvent(map(), "businessPress", 42);
+  expect(map().props.previewBottomInset).toBe(reservedInset);
   expect(screen.getByText("Cebu City, Cebu")).toBeTruthy();
   expect(map().props.selectedBusinessId).toBe(42);
+  expect(map().props.manageMarkerCamera).toBe(true);
+  expect(map().props.focusTarget).toEqual({
+    id: 42,
+    latitude: 10.35,
+    longitude: 123.9,
+    preserveZoom: true,
+  });
   expect(map().props.dimUnselectedMarkers).toBe(true);
+  expect(map().props.focusInsets.ready).toBe(false);
   expect(screen.queryByRole("button", { name: "Open Now" })).toBeNull();
   await fireEvent(screen.getByTestId("business-preview-anchor"), "layout", {
     nativeEvent: { layout: { height: 180 } },
   });
   expect(screen.getByTestId("map-controls").props.bottomOffset).toBe(272);
+  expect(map().props.focusInsets).toEqual({
+    top: 72,
+    bottom: 272,
+    ready: true,
+  });
+  expect(map().props.previewBottomInset).toBe(reservedInset);
+  await fireEvent(screen.getByTestId("business-preview-anchor"), "layout", {
+    nativeEvent: { layout: { height: 220 } },
+  });
+  expect(map().props.previewBottomInset).toBe(reservedInset);
+  expect(screen.getByTestId("map-controls").props.bottomOffset).toBe(312);
   await fireEvent.press(
     screen.getByRole("button", {
       name: /View Real Cebu Cafe business profile/,
@@ -204,6 +229,8 @@ it("selects real identity, navigates to the existing profile, and restores contr
     screen.getByRole("button", { name: "Close business preview" }),
   );
   expect(map().props.selectedBusinessId).toBeNull();
+  expect(map().props.focusTarget).toBeNull();
+  expect(map().props.previewBottomInset).toBe(reservedInset);
   expect(screen.getByRole("button", { name: "Open Now" })).toBeTruthy();
   expect(screen.getByTestId("map-controls").props.bottomOffset).toBe(80);
   expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
