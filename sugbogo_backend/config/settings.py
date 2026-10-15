@@ -14,6 +14,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from datetime import timedelta
+from math import isfinite
 from pathlib import Path
 
 import cloudinary
@@ -109,6 +110,24 @@ JOURNEY_ORIGIN_SEARCH_AREA = {
         "longitude": 124.05,
     },
 }
+
+# Bound marker payloads and spatial scans without changing the map-preview API.
+MAP_DISCOVERY_MAX_MARKERS = int(
+    os.getenv("MAP_DISCOVERY_MAX_MARKERS", "200"),
+)
+MAP_DISCOVERY_MAX_VIEWPORT_SPAN = float(
+    os.getenv("MAP_DISCOVERY_MAX_VIEWPORT_SPAN", "0.5"),
+)
+if MAP_DISCOVERY_MAX_MARKERS < 1:
+    raise ImproperlyConfigured("MAP_DISCOVERY_MAX_MARKERS must be positive.")
+if (
+    not isfinite(MAP_DISCOVERY_MAX_VIEWPORT_SPAN)
+    or MAP_DISCOVERY_MAX_VIEWPORT_SPAN <= 0
+    or MAP_DISCOVERY_MAX_VIEWPORT_SPAN > 180
+):
+    raise ImproperlyConfigured(
+        "MAP_DISCOVERY_MAX_VIEWPORT_SPAN must be finite and between 0 and 180 degrees.",
+    )
 
 
 # Application URLs
