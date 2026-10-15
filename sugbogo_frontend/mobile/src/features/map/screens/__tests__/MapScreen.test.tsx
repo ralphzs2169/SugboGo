@@ -10,6 +10,7 @@ import MapScreen from "../MapScreen";
 import { router, useNavigation } from "expo-router";
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
 
+let mockScreenFocused = true;
 const mockSearchPresent = jest.fn();
 const mockFilterPresent = jest.fn();
 const mockSheetDismiss = jest.fn();
@@ -50,7 +51,7 @@ jest.mock(
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
-  useIsFocused: () => true,
+  useIsFocused: () => mockScreenFocused,
   useNavigation: jest.fn(),
 }));
 
@@ -132,6 +133,7 @@ function setup() {
 }
 
 beforeEach(() => {
+  mockScreenFocused = true;
   AppState.currentState = "active";
   (useExploreFilterOptions as jest.Mock).mockReturnValue({
     options: {
@@ -261,13 +263,13 @@ it("applies and clears taxonomy and Hidden Gems locally", async () => {
   expect(map().props.businesses).toHaveLength(0);
   expect(screen.getByText(/No businesses match/)).toBeTruthy();
   await fireEvent.press(
-    screen.getByRole("button", { name: "Clear map filters" }),
+    screen.getByRole("button", { name: /^Clear(?: \d+)? map filters?$/ }),
   );
   expect(map().props.businesses).toHaveLength(1);
   await fireEvent.press(screen.getByRole("button", { name: "Hidden Gems" }));
   expect(map().props.businesses).toHaveLength(0);
   await fireEvent.press(
-    screen.getByRole("button", { name: "Clear map filters" }),
+    screen.getByRole("button", { name: /^Clear(?: \d+)? map filters?$/ }),
   );
   expect(map().props.businesses).toHaveLength(1);
   expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
@@ -287,7 +289,7 @@ it("uses server Open Now IDs and restores the cached directory when cleared", as
   );
   expect(map().props.businesses).toHaveLength(0);
   await fireEvent.press(
-    screen.getByRole("button", { name: "Clear map filters" }),
+    screen.getByRole("button", { name: /^Clear(?: \d+)? map filters?$/ }),
   );
   expect(map().props.businesses).toHaveLength(1);
   expect(getMapDirectoryPage).toHaveBeenCalledTimes(2);
@@ -581,4 +583,23 @@ it("centers on available location once and does not override a search selection"
   );
   expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
   expect(screen.getByTestId("discovery-map").props.focusTarget.id).toBe(42);
+});
+
+it("forwards tab focus without reloading the directory or clearing selection", async () => {
+  const screen = await setup();
+  const map = () => screen.getByTestId("discovery-map");
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  await fireEvent(map(), "businessPress", 42);
+  const client = clients[clients.length - 1];
+  for (const focused of [false, true, false, true]) {
+    mockScreenFocused = focused;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MapScreen />
+      </QueryClientProvider>,
+    );
+    expect(map().props.isScreenFocused).toBe(focused);
+    expect(map().props.selectedBusinessId).toBe(42);
+  }
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
 });

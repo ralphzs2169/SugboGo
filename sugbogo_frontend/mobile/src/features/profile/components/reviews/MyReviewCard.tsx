@@ -12,35 +12,66 @@ import SafePressable from "@/shared/components/SafePressable";
 
 import type { MyReview } from "../../types/myReview.types";
 
-const statusPresentation = {
+type StatusPresentation = {
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  pillClassName: string;
+  textClassName: string;
+  iconColor: string;
+};
+
+const mutedStatus = {
+  pillClassName: "bg-surface-muted",
+  textClassName: "text-text-secondary",
+  iconColor: theme.extends.colors.text.secondary,
+} as const;
+
+const statusPresentation: Record<MyReview["status"], StatusPresentation> = {
   published: {
     label: "Published",
-    className: "bg-surface-muted text-text-secondary",
+    icon: "check-circle-outline",
+    ...mutedStatus,
   },
-  under_review: { label: "Under review", className: "bg-info text-text-info" },
+  under_review: {
+    label: "Under review",
+    icon: "clock-outline",
+    pillClassName: "bg-info",
+    textClassName: "text-text-info",
+    iconColor: theme.extends.colors.text.info,
+  },
   rejected: {
     label: "Not published",
-    className: "bg-surface-muted text-text-secondary",
+    icon: "eye-off-outline",
+    ...mutedStatus,
   },
   flagged: {
     label: "Not published",
-    className: "bg-surface-muted text-text-secondary",
+    icon: "eye-off-outline",
+    ...mutedStatus,
   },
-} as const;
+};
 
-/** Displays a private submission with safe business navigation and shared media. */
+/**
+ * Displays a private review in a full-width, separator-based list.
+ *
+ * Keeps business navigation separate from review management actions,
+ * with the action menu below the author's content and before any
+ * merchant response.
+ */
 function MyReviewCard({
   review,
   onActions,
 }: {
   review: MyReview;
-  onActions?: () => void;
+  onActions?: (review: MyReview) => void;
 }) {
   const { business } = review;
   const isAvailable = business.status === "active";
   const status = statusPresentation[review.status];
+
   const openBusiness = () => {
     if (!isAvailable) return;
+
     router.push({
       pathname: "/(explorer)/business/[businessId]",
       params: { businessId: String(business.id) },
@@ -48,84 +79,84 @@ function MyReviewCard({
   };
 
   return (
-    <View
-      testID={`my-review-${review.id}`}
-      className="rounded-card bg-surface p-4"
-    >
-      {/* Business identity and availability */}
-      <View className="flex-row items-start">
-        <SafePressable
-          onPress={openBusiness}
-          disabled={!isAvailable}
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${business.business_name} business profile`}
-          accessibilityState={{ disabled: !isAvailable }}
-          className="min-h-12 flex-1 cursor-pointer flex-row items-center active:opacity-70"
-        >
-          <View className="h-12 w-12 overflow-hidden rounded-lg bg-background">
-            {business.display_cover_photo_url ? (
-              <Image
-                source={{ uri: business.display_cover_photo_url }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-                recyclingKey={String(business.id)}
+    <View testID={`my-review-${review.id}`} className="bg-surface px-4 py-4">
+      {/* Business identity and navigation */}
+      <SafePressable
+        onPress={openBusiness}
+        disabled={!isAvailable}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${business.business_name} business profile`}
+        accessibilityState={{ disabled: !isAvailable }}
+        className={`min-h-14 flex-row items-center rounded-lg pr-1 ${
+          isAvailable ? "cursor-pointer active:bg-surface-muted" : "opacity-70"
+        }`}
+      >
+        <View className="h-12 w-12 overflow-hidden rounded-lg bg-surface-muted">
+          {business.display_cover_photo_url ? (
+            <Image
+              source={{ uri: business.display_cover_photo_url }}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="cover"
+              recyclingKey={String(business.id)}
+            />
+          ) : (
+            <View className="flex-1 items-center justify-center">
+              <MaterialCommunityIcons
+                name="storefront-outline"
+                size={24}
+                color={theme.extends.colors.text.secondary}
               />
-            ) : (
-              <View className="flex-1 items-center justify-center">
-                <MaterialCommunityIcons
-                  name="storefront-outline"
-                  size={24}
-                  color={theme.extends.colors.text.secondary}
-                />
-              </View>
-            )}
-          </View>
-          <View className="ml-3 min-w-0 flex-1">
-            <AppText
-              weight="bold"
-              className="text-sm text-text-primary"
-              numberOfLines={2}
-            >
-              {business.business_name}
-            </AppText>
-            <AppText
-              className="mt-0.5 text-xs text-text-secondary"
-              numberOfLines={2}
-            >
-              {business.category.name}
-            </AppText>
-            {!isAvailable && (
-              <AppText className="mt-1 text-xs text-text-secondary">
-                Business unavailable
-              </AppText>
-            )}
-          </View>
-          {isAvailable && (
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
-              color={theme.extends.colors.text.secondary}
-            />
+            </View>
           )}
-        </SafePressable>
-        {onActions && (
-          <Pressable
-            onPress={onActions}
-            accessibilityRole="button"
-            accessibilityLabel={`Review actions for ${business.business_name}`}
-            className="ml-1 min-h-12 min-w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
-          >
-            <MaterialCommunityIcons
-              name="dots-horizontal"
-              size={20}
-              color={theme.extends.colors.text.secondary}
-            />
-          </Pressable>
-        )}
-      </View>
+        </View>
 
-      {/* Submission date and publication state */}
-      <View className="mt-4 flex-row flex-wrap items-center gap-2">
+        <View className="ml-3 min-w-0 flex-1">
+          <AppText
+            weight="bold"
+            className="text-sm text-text-primary"
+            numberOfLines={1}
+          >
+            {business.business_name}
+          </AppText>
+
+          <AppText
+            className="mt-0.5 text-xs text-text-secondary"
+            numberOfLines={1}
+          >
+            {isAvailable
+              ? business.category.name
+              : `${business.category.name} · Unavailable`}
+          </AppText>
+        </View>
+
+        {isAvailable && (
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={20}
+            color={theme.extends.colors.text.secondary}
+          />
+        )}
+      </SafePressable>
+
+      {/* Publication status and submission date */}
+      <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2">
+        <View
+          className={`flex-row items-center rounded-full px-2.5 py-1 ${status.pillClassName}`}
+        >
+          <MaterialCommunityIcons
+            name={status.icon}
+            size={14}
+            color={status.iconColor}
+          />
+
+          <AppText
+            weight="semibold"
+            className={`ml-1 text-xs ${status.textClassName}`}
+          >
+            {status.label}
+          </AppText>
+        </View>
+
         <AppText className="text-xs text-text-secondary">
           {new Date(review.created_at).toLocaleDateString(undefined, {
             month: "short",
@@ -134,21 +165,37 @@ function MyReviewCard({
           })}
           {review.edited_at ? " · Edited" : ""}
         </AppText>
-        <AppText
-          weight="semibold"
-          className={`overflow-hidden rounded-full px-2.5 py-1 text-xs ${status.className}`}
-        >
-          {status.label}
-        </AppText>
       </View>
 
-      {/* Shared review text, photos, and merchant response */}
-      <ReviewContent
-        review={review}
-        showAuthor={false}
-        showEngagement={false}
-        showSpecialtyVouches={false}
-      />
+      {/* Review content and attached photos */}
+      <View className="mt-2">
+        <ReviewContent
+          review={review}
+          showAuthor={false}
+          showEngagement={false}
+          showSpecialtyVouches={false}
+        />
+      </View>
+
+      {/* Review management actions */}
+      {onActions && (
+        <View className="mt-1 flex-row justify-end">
+          <Pressable
+            onPress={() => onActions(review)}
+            accessibilityRole="button"
+            accessibilityLabel={`Review actions for ${business.business_name}`}
+            className="h-11 w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
+          >
+            <MaterialCommunityIcons
+              name="dots-horizontal"
+              size={22}
+              color={theme.extends.colors.text.secondary}
+            />
+          </Pressable>
+        </View>
+      )}
+
+      {/* Merchant response */}
       {review.reply && <MerchantReviewResponse reply={review.reply} />}
     </View>
   );

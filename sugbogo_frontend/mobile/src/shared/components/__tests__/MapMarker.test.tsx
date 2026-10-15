@@ -18,12 +18,28 @@ jest.mock("@/shared/components/Avatar", () => {
 
 it("uses the gem glyph and accessible identity even when an image is supplied", async () => {
   const screen = await render(
-    <MapMarker variant="hidden-gem" imageUrl="https://example.com/photo.jpg" />,
+    <MapMarker
+      variant="hidden-gem"
+      imageUrl="https://example.com/photo.jpg"
+      clusterIcon="coffee"
+    />,
   );
   expect(screen.getByLabelText("Hidden Gem")).toBeTruthy();
   expect(
     screen.getAllByTestId("marker-icon").map((icon) => icon.props.name),
   ).toContain("diamond-stone");
+});
+
+it.each([
+  ["utensils", "silverware-fork-knife"],
+  ["coffee", "coffee"],
+  ["unsupported", "store-outline"],
+  [null, "store-outline"],
+])("renders the requested business cluster icon %s", async (clusterIcon, icon) => {
+  const screen = await render(
+    <MapMarker variant="business" clusterIcon={clusterIcon} selected />,
+  );
+  expect(screen.getByTestId("marker-icon").props.name).toBe(icon);
 });
 
 it.each([

@@ -50,7 +50,9 @@ class CommunityReviewService:
                 "USER_ID",
                 "BUSN_ID",
                 "BUSN_ID__CTGRY_ID",
+                "BUSN_ID__CTGRY_ID__CLUS_ID",
                 "BUSN_ID__LOCT_ID",
+                "BUSN_ID__merchant_application__location",
             )
             .annotate(
                 is_liked=Exists(user_likes),

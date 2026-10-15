@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, BackHandler, View } from "react-native";
 import type RNMapView from "react-native-maps";
-import { router, useNavigation } from "expo-router";
+import { router, useIsFocused, useNavigation } from "expo-router";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import SearchFilterBottomSheet from "@/features/explore/components/search-filter-results/SearchFilterBottomSheet";
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
@@ -37,6 +37,7 @@ import {
  * Camera movement is independent of business data loading.
  */
 export default function MapScreen() {
+  const isScreenFocused = useIsFocused();
   const navigation = useNavigation();
   const userLocation = useUserLocation();
   const [filters, setFilters] =
@@ -340,6 +341,7 @@ export default function MapScreen() {
     <View className="flex-1">
       {/* Live clustered map and existing overlays */}
       <BusinessDiscoveryMap
+        isScreenFocused={isScreenFocused}
         businesses={markers}
         userLocation={userLocation.location}
         showsUserLocation={userLocation.status === "available"}

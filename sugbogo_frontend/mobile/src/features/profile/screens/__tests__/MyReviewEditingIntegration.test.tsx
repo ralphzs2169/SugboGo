@@ -76,10 +76,12 @@ jest.mock("@gorhom/bottom-sheet", () => {
       children,
       ref,
       onChange,
+      onDismiss,
     }: {
       children: React.ReactNode;
       ref: React.Ref<unknown>;
       onChange?: (index: number) => void;
+      onDismiss?: () => void;
     }) => {
       const [visible, setVisible] = React.useState(false);
       React.useImperativeHandle(ref, () => ({
@@ -90,6 +92,7 @@ jest.mock("@gorhom/bottom-sheet", () => {
         dismiss: () => {
           setVisible(false);
           onChange?.(-1);
+          onDismiss?.();
         },
       }));
       return visible ? <View>{children}</View> : null;
@@ -498,8 +501,33 @@ describe("My Reviews editing integration", () => {
     );
     expect(deleteReview).toHaveBeenCalledWith(17);
     expect(screen.getByText(second.text)).toBeTruthy();
-    expect(screen.getByText("1 submitted review")).toBeTruthy();
+    expect(screen.getByRole("header", { name: /^1\b/ })).toBeTruthy();
     expect(screen.queryByText(originalText)).toBeNull();
+    await screen.unmount();
+    client.clear();
+  });
+
+  it("retains an accepted edit when the following history refresh fails", async () => {
+    const { screen, client } = await setup();
+    await openEditor(screen);
+    await fireEvent.changeText(
+      screen.getByDisplayValue(originalText),
+      changedText,
+    );
+    (getMyReviews as jest.Mock).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
+    await fireEvent.press(screen.getByText("Save changes"));
+    await waitFor(() => expect(screen.queryByText("Edit review")).toBeNull());
+    expect(screen.getByText(changedText)).toBeTruthy();
+    expect(screen.queryByText(originalText)).toBeNull();
+    expect(screen.getByText("Couldn't refresh your reviews")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Tap to retry"));
+    await waitFor(() =>
+      expect(screen.queryByText("Couldn't refresh your reviews")).toBeNull(),
+    );
     await screen.unmount();
     client.clear();
   });

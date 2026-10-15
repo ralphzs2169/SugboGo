@@ -61,6 +61,8 @@ export type CommunityReviewBusiness = {
   business_name: string;
   display_cover_photo_url: string | null;
   category: CommunityReviewBusinessCategory;
+  cluster_icon?: string | null;
+  barangay?: string | null;
   address: string;
 };
 

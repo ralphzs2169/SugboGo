@@ -19,7 +19,7 @@ type Props = {
 };
 
 /** Portrait 4:5 keeps feed photos tall without dominating the screen. Use 1 for square. */
-const MEDIA_ASPECT_RATIO = 4 / 5;
+const MEDIA_ASPECT_RATIO = 16 / 10;
 
 /**
  * Full-bleed, swipeable review photo carousel for the Community feed.

@@ -1,15 +1,23 @@
 import type { LocationObject } from "expo-location";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentRef,
+} from "react";
 import { Platform, View } from "react-native";
 import ClusteredMapView from "react-native-map-clustering";
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
+  type MapMarker as NativeMapMarker,
   type Region,
 } from "react-native-maps";
 
-import { theme } from "@/constants/theme";
 import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
+import MapClusterMarker from "@/shared/components/map-related/MapClusterMarker";
 import MapMarker from "@/shared/components/MapMarker";
 
 import type { MapBounds } from "../types/mapDiscovery.types";
@@ -50,6 +58,14 @@ type Props = {
   useClusterIcons?: boolean;
   hideNativeZoomControls?: boolean;
   manageMarkerCamera?: boolean;
+  isScreenFocused?: boolean;
+};
+
+type SuperClusterHandle = {
+  getLeaves: (
+    clusterId: number,
+    limit?: number,
+  ) => { properties?: { identifier?: string } }[];
 };
 
 const DEFAULT_REGION = {
@@ -64,9 +80,8 @@ const USER_REGION_DELTA = 0.06;
 /**
  * Displays business locations on a reusable clustered discovery map.
  *
- * Nearby business markers are automatically grouped into clusters as map
- * density increases. The map can operate as either an interactive discovery
- * surface or a read-only preview while independently showing user location.
+ * Nearby business markers are grouped into clusters.
+ * Clusters indicate whether they contain hidden gems.
  */
 export default function BusinessDiscoveryMap({
   businesses,
@@ -89,26 +104,83 @@ export default function BusinessDiscoveryMap({
   useClusterIcons = false,
   hideNativeZoomControls = false,
   manageMarkerCamera = false,
+  isScreenFocused,
 }: Props) {
   const mapRef = useRef<MapView>(null);
+  const markerRefs = useRef(new Map<string, ComponentRef<typeof Marker>>());
+  const superClusterRef = useRef<SuperClusterHandle | null>(null);
+
   const [isReady, setIsReady] = useState(false);
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+
   const dispatchedFocus = useRef<typeof focusTarget>(null);
+  const boundaryReadId = useRef(0);
+  const isMounted = useRef(true);
+
   const mapPadding = useMemo(
     () => ({ top: 0, left: 0, right: 0, bottom: previewBottomInset }),
     [previewBottomInset],
   );
-  const boundaryReadId = useRef(0);
-  const isMounted = useRef(true);
+
   const captureMap = useCallback((map: unknown) => {
     mapRef.current = map as MapView | null;
   }, []);
 
   useEffect(() => {
+    if (!isScreenFocused || !isReady) return;
+
+    // Detached tabs can lose custom-marker bitmaps while JS marker state stays
+    // mounted. Refresh both visible cluster and business snapshots after attach.
+    const frame = requestAnimationFrame(() => {
+      markerRefs.current.forEach((marker) => marker.redraw());
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isScreenFocused, isReady]);
+
+  // Identify hidden gems by business ID.
+  const gemIds = useMemo(
+    () =>
+      new Set(
+        businesses
+          .filter((business) => business.is_hidden_gem === true)
+          .map((business) => String(business.id)),
+      ),
+    [businesses],
+  );
+
+  // Count hidden gems within a cluster.
+  const countGems = useCallback(
+    (clusterId: number) => {
+      if (gemIds.size === 0) return 0;
+
+      const engine = superClusterRef.current;
+
+      if (!engine) {
+        return 0;
+      }
+
+      try {
+        const leaves = engine.getLeaves(clusterId, Infinity);
+
+        return leaves.filter((leaf) =>
+          gemIds.has(String(leaf.properties?.identifier)),
+        ).length;
+      } catch (error) {
+        // Fall back to a regular cluster if its members cannot be resolved.
+        return 0;
+      }
+    },
+    [gemIds],
+  );
+
+  // Focus the map on a selected business.
+  useEffect(() => {
     if (!focusTarget) {
       dispatchedFocus.current = null;
       return;
     }
+
     if (
       !isReady ||
       !mapSize.height ||
@@ -119,20 +191,23 @@ export default function BusinessDiscoveryMap({
     }
 
     let cancelled = false;
-    // Measure once per selection; keep native padding fixed so later preview
-    // layouts cannot independently move the camera.
+
     const frame = requestAnimationFrame(() => {
       void (async () => {
         const map = mapRef.current;
         if (!map) return;
+
         let zoom: number | undefined;
+
         let center = {
           latitude: focusTarget.latitude,
           longitude: focusTarget.longitude,
         };
+
         if (!focusTarget.preserveZoom || focusInsets) {
           try {
             const camera = await map.getCamera();
+
             if (
               !focusTarget.preserveZoom &&
               typeof camera.zoom === "number" &&
@@ -141,29 +216,34 @@ export default function BusinessDiscoveryMap({
             ) {
               zoom = 16;
             }
+
             if (focusInsets && mapSize.width) {
               const point = await map.pointForCoordinate(center);
               const cameraPoint = await map.pointForCoordinate(camera.center);
+
               const desiredY =
                 (focusInsets.top + mapSize.height - focusInsets.bottom) / 2;
+
               const scale =
                 zoom !== undefined && typeof camera.zoom === "number"
                   ? Math.pow(2, zoom - camera.zoom)
                   : 1;
-              // Native projection respects rotation. Scale the screen offset
-              // only when global search also needs to increase the zoom.
+
               center = await map.coordinateForPoint({
                 x: point.x + (cameraPoint.x - mapSize.width / 2) / scale,
                 y: point.y + (cameraPoint.y - desiredY) / scale,
               });
             }
           } catch {
-            // Providers without projection support retain native centering.
+            // Fall back to native centering.
           }
         }
+
         if (cancelled) return;
+
         dispatchedFocus.current = focusTarget;
         onFocusStart?.();
+
         map.animateCamera(
           {
             center,
@@ -173,6 +253,7 @@ export default function BusinessDiscoveryMap({
         );
       })();
     });
+
     return () => {
       cancelled = true;
       cancelAnimationFrame(frame);
@@ -189,9 +270,7 @@ export default function BusinessDiscoveryMap({
   }, []);
 
   const reportViewport = async (region: Region) => {
-    if (!onViewportChange) {
-      return;
-    }
+    if (!onViewportChange) return;
 
     const readId = ++boundaryReadId.current;
     let bounds = regionToBounds(region);
@@ -208,7 +287,7 @@ export default function BusinessDiscoveryMap({
         };
       }
     } catch {
-      // Region deltas are the fallback for providers without native boundaries.
+      // Use region deltas when native boundaries are unavailable.
     }
 
     if (isMounted.current && readId === boundaryReadId.current) {
@@ -216,10 +295,9 @@ export default function BusinessDiscoveryMap({
     }
   };
 
+  // Center on the user's location.
   useEffect(() => {
-    if (!autoCenterOnLocation || !userLocation) {
-      return;
-    }
+    if (!autoCenterOnLocation || !userLocation) return;
 
     mapRef.current?.animateToRegion(
       {
@@ -234,15 +312,16 @@ export default function BusinessDiscoveryMap({
 
   return (
     <View className="flex-1 overflow-hidden">
-      {/* Clustered discovery map */}
       <ClusteredMapView
         mapRef={captureMap}
+        superClusterRef={superClusterRef}
         provider={PROVIDER_GOOGLE}
         customMapStyle={Platform.OS === "ios" ? MAP_STYLE : undefined}
         initialRegion={DEFAULT_REGION}
         mapPadding={mapPadding}
         onLayout={(event) => {
           const { width, height } = event.nativeEvent.layout;
+
           setMapSize((previous) =>
             previous.width === width && previous.height === height
               ? previous
@@ -251,6 +330,7 @@ export default function BusinessDiscoveryMap({
         }}
         onMapReady={() => {
           setIsReady(true);
+
           if (mapRef.current) {
             onMapReady?.(mapRef.current);
           }
@@ -261,6 +341,7 @@ export default function BusinessDiscoveryMap({
           if (details?.isGesture) {
             onMapInteraction?.();
           }
+
           boundaryReadId.current += 1;
           onViewportChanging?.();
         }}
@@ -286,25 +367,46 @@ export default function BusinessDiscoveryMap({
         pitchEnabled={interactive}
         toolbarEnabled={false}
         clusteringEnabled
-        clusterColor={theme.extends.colors.brand}
-        clusterTextColor="#FFFFFF"
         tracksViewChanges={trackMarkerUpdates}
         googleMapId={
           Platform.OS === "android"
             ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID
             : undefined
         }
+        minPoints={3}
+        radius={56}
+        renderCluster={(cluster) => {
+          const gemCount = countGems(
+            cluster.properties.cluster_id ?? cluster.id,
+          );
+
+          return (
+            <MapClusterMarker
+              key={`cluster-${cluster.id}-${cluster.properties.point_count}-${gemCount}`}
+              {...cluster}
+              gemCount={gemCount}
+              markerRef={(marker) => {
+                const key = `cluster-${cluster.id}`;
+                if (marker) markerRefs.current.set(key, marker);
+                else markerRefs.current.delete(key);
+              }}
+            />
+          );
+        }}
       >
-        {/* Business locations */}
         {businesses.map((business) => {
           const isSelected = selectedBusinessId === business.id;
 
           return (
             <Marker
+              ref={(marker) => {
+                const key = `business-${business.id}`;
+                if (marker) markerRefs.current.set(key, marker);
+                else markerRefs.current.delete(key);
+              }}
               key={`${business.id}-${isSelected}-${business.is_hidden_gem === true}${useClusterIcons ? `-${business.cluster_icon ?? ""}` : ""}`}
               identifier={String(business.id)}
-              {...{ cluster: !isSelected }}
-              // The marker's bottom edge is the exact coordinate dot.
+              {...(isSelected ? { cluster: false } : {})}
               anchor={{ x: 0.5, y: 1 }}
               zIndex={isSelected ? 1 : 0}
               opacity={

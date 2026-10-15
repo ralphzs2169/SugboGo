@@ -5,6 +5,7 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import Avatar from "@/shared/components/Avatar";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import { GEM_ACCENT, GEM_FILL, GEM_ICON } from "@/shared/styles/hiddenGems";
 
 type MapMarkerVariant =
@@ -117,6 +118,7 @@ export default function MapMarker({
   imageUrl,
   avatarKey,
   selected = false,
+  clusterIcon,
 }: Props) {
   const marker = MARKERS[variant];
   const borderColor = darkenHexColor(marker.color);
@@ -203,6 +205,15 @@ export default function MapMarker({
                 name={marker.icon ?? "diamond-stone"}
                 size={18}
                 color={GEM_ICON}
+              />
+            ) : variant === "business" && clusterIcon !== undefined ? (
+              <MaterialCommunityIcons
+                name={
+                  (clusterIcon ? CLUSTER_ICONS[clusterIcon] : undefined) ??
+                  "store-outline"
+                }
+                size={16}
+                color="#FFFFFF"
               />
             ) : imageUrl ? (
               <Image

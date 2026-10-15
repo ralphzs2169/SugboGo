@@ -2,13 +2,11 @@ import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
-  BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { RefObject } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
@@ -16,7 +14,11 @@ import type { ExploreFilterOptions } from "@/features/explore/types/exploreBusin
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FilterChip from "@/shared/components/FilterChip";
-import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import TaxonomyFilterControls from "@/shared/components/filters/TaxonomyFilterControls";
+import {
+  retainClusterCategoryIds,
+  toggleCategoryId,
+} from "@/shared/utils/taxonomyFilters";
 
 import type {
   CommunityReviewFilters,
@@ -33,7 +35,6 @@ type Props = {
   onApply: (filters: CommunityReviewFilters) => void;
 };
 
-const SEARCH_THRESHOLD = 12;
 const SORT_OPTIONS: { label: string; value: CommunityReviewOrdering }[] = [
   { label: "Newest", value: "newest" },
   { label: "Most Helpful", value: "most_helpful" },
@@ -52,31 +53,6 @@ export default function CommunityFilterBottomSheet({
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<CommunityReviewFilters>(filters);
   const [search, setSearch] = useState("");
-  const normalizedSearch = search.trim().toLowerCase();
-  const showSearch =
-    options.categories.length + options.specialty_tags.length >
-    SEARCH_THRESHOLD;
-
-  const visibleCategories = useMemo(
-    () =>
-      options.categories.filter(
-        (category) =>
-          (draft.clusterId === null ||
-            category.cluster_id === draft.clusterId) &&
-          (!normalizedSearch ||
-            category.name.toLowerCase().includes(normalizedSearch)),
-      ),
-    [options.categories, draft.clusterId, normalizedSearch],
-  );
-  const visibleSpecialties = useMemo(
-    () =>
-      options.specialty_tags.filter(
-        (specialty) =>
-          !normalizedSearch ||
-          specialty.name.toLowerCase().includes(normalizedSearch),
-      ),
-    [options.specialty_tags, normalizedSearch],
-  );
   const hasContentFilters =
     draft.clusterId !== null ||
     draft.categoryIds.length > 0 ||
@@ -85,19 +61,13 @@ export default function CommunityFilterBottomSheet({
 
   const selectCluster = (clusterId: number | null) => {
     setDraft((current) => {
-      const validCategories = new Set(
-        options.categories
-          .filter(
-            (category) =>
-              clusterId === null || category.cluster_id === clusterId,
-          )
-          .map((category) => category.id),
-      );
       return {
         ...current,
         clusterId,
-        categoryIds: current.categoryIds.filter((id) =>
-          validCategories.has(id),
+        categoryIds: retainClusterCategoryIds(
+          current.categoryIds,
+          clusterId,
+          options.categories,
         ),
       };
     });
@@ -106,9 +76,7 @@ export default function CommunityFilterBottomSheet({
   const toggleCategory = (categoryId: number) => {
     setDraft((current) => ({
       ...current,
-      categoryIds: current.categoryIds.includes(categoryId)
-        ? current.categoryIds.filter((id) => id !== categoryId)
-        : [...current.categoryIds, categoryId],
+      categoryIds: toggleCategoryId(current.categoryIds, categoryId),
     }));
   };
 
@@ -165,7 +133,11 @@ export default function CommunityFilterBottomSheet({
           keyboardShouldPersistTaps="handled"
         >
           <View className="flex-row items-center justify-between border-b border-border-primary pb-4">
-            <AppText weight="bold" className="text-xl text-text-primary">
+            <AppText
+              weight="bold"
+              accessibilityRole="header"
+              className="text-xl text-text-primary"
+            >
               Filter reviews
             </AppText>
             <Pressable
@@ -207,119 +179,22 @@ export default function CommunityFilterBottomSheet({
             </View>
           )}
 
-          {showSearch && (
-            <View className="mt-4 h-11 flex-row items-center rounded-full border border-border-primary bg-surface-muted px-4">
-              <MaterialCommunityIcons
-                name="magnify"
-                size={20}
-                color={theme.extends.colors.text.tertiary}
-              />
-              <BottomSheetTextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search categories and specialties"
-                placeholderTextColor={theme.extends.colors.text.tertiary}
-                autoCorrect={false}
-                autoCapitalize="none"
-                accessibilityLabel="Search filters"
-                style={{
-                  flex: 1,
-                  marginLeft: 8,
-                  paddingVertical: 0,
-                  fontSize: 14,
-                  color: theme.extends.colors.text.primary,
-                }}
-              />
-            </View>
-          )}
-
-          <View className="pt-5">
-            <AppText weight="bold" className="text-base text-text-primary">
-              Cluster
-            </AppText>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="-mx-5 mt-3"
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-            >
-              {[{ id: null, name: "All" }, ...options.clusters].map(
-                (cluster) => (
-                  <FilterChip
-                    key={cluster.id ?? "all"}
-                    label={cluster.name}
-                    selected={draft.clusterId === cluster.id}
-                    showSelectedCheck
-                    onPress={() => selectCluster(cluster.id)}
-                  />
-                ),
-              )}
-            </ScrollView>
-          </View>
-
-          <View className="pt-6">
-            <AppText weight="bold" className="text-base text-text-primary">
-              Category
-            </AppText>
-            <View className="mt-3 flex-row flex-wrap gap-2">
-              {visibleCategories.map((category) => (
-                <FilterChip
-                  key={category.id}
-                  label={category.name}
-                  selected={draft.categoryIds.includes(category.id)}
-                  showSelectedCheck
-                  onPress={() => toggleCategory(category.id)}
-                />
-              ))}
-            </View>
-            {!visibleCategories.length && !isLoading && !error && (
-              <AppText className="mt-2 text-sm text-text-tertiary">
-                No categories available.
-              </AppText>
-            )}
-          </View>
-
-          <View className="pt-6">
-            <View className="flex-row items-baseline justify-between">
-              <AppText weight="bold" className="text-base text-text-primary">
-                Vouched specialty
-              </AppText>
-              <AppText className="text-xs text-text-tertiary">
-                Select one
-              </AppText>
-            </View>
-            <View className="mt-3 flex-row flex-wrap">
-              <View className="mb-2 mr-2">
-                <FilterChip
-                  label="Any specialty"
-                  selected={draft.specialtyTagId === null}
-                  showSelectedCheck
-                  onPress={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      specialtyTagId: null,
-                    }))
-                  }
-                />
-              </View>
-              {visibleSpecialties.map((specialty) => (
-                <SpecialtyTagChip
-                  key={specialty.id}
-                  tag={specialty}
-                  mode="filter"
-                  size="medium"
-                  isSelected={draft.specialtyTagId === specialty.id}
-                  showSelectionIndicator
-                  onPress={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      specialtyTagId: specialty.id,
-                    }))
-                  }
-                />
-              ))}
-            </View>
-          </View>
+          {/* Taxonomy controls share presentation, not draft ownership. */}
+          <TaxonomyFilterControls
+            options={options}
+            clusterId={draft.clusterId}
+            categoryIds={draft.categoryIds}
+            specialtyTagId={draft.specialtyTagId}
+            query={search}
+            onQueryChange={setSearch}
+            onClusterSelect={selectCluster}
+            onCategoryToggle={toggleCategory}
+            onSpecialtySelect={(specialtyTagId) =>
+              setDraft((current) => ({ ...current, specialtyTagId }))
+            }
+            specialtyTitle="Vouched specialty"
+            showEmptyStates={!isLoading && !error}
+          />
 
           <View className="pt-6">
             <AppText weight="bold" className="text-base text-text-primary">

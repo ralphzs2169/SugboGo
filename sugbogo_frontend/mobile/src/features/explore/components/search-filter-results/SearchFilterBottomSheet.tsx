@@ -2,7 +2,6 @@ import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
-  BottomSheetTextInput,
   type BottomSheetBackdropProps,
 } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -13,13 +12,12 @@ import {
   Pressable,
   View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import FilterChip from "@/shared/components/FilterChip";
-import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import TaxonomyFilterControls from "@/shared/components/filters/TaxonomyFilterControls";
+import { TAXONOMY_SEARCH_THRESHOLD } from "@/shared/utils/taxonomyFilters";
 
 import type {
   ExploreFilterOptions,
@@ -48,13 +46,7 @@ type Props = {
   isCountLoading?: boolean;
 };
 
-type ClusterOption = { id: number | null; name: string };
-
 const SNAP_POINTS = ["88%"];
-const ALL_CLUSTERS: ClusterOption = { id: null, name: "All" };
-
-/** The search field only appears once there is enough to search through. */
-const SEARCH_THRESHOLD = 12;
 
 /* -------------------------------------------------------------------------- */
 /* Feedback helpers                                                           */
@@ -64,45 +56,6 @@ const SEARCH_THRESHOLD = 12;
 const animateLayout = () => {
   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 };
-
-/* -------------------------------------------------------------------------- */
-/* Building blocks                                                            */
-/* -------------------------------------------------------------------------- */
-
-/** Section wrapper with an accessible heading and optional trailing hint. */
-function FilterSection({
-  title,
-  hint,
-  className = "pt-6",
-  children,
-}: {
-  title: string;
-  hint?: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View className={className}>
-      <View className="flex-row items-baseline justify-between">
-        <AppText
-          weight="bold"
-          accessibilityRole="header"
-          className="text-base text-text-primary"
-        >
-          {title}
-        </AppText>
-        {hint ? (
-          <AppText className="text-xs text-text-tertiary">{hint}</AppText>
-        ) : null}
-      </View>
-      {children}
-    </View>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Sheet                                                                      */
-/* -------------------------------------------------------------------------- */
 
 /**
  * Draft taxonomy filters for Explore results.
@@ -127,41 +80,9 @@ export default function ExploreFiltersSheet({
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
 
-  const clusterOptions = useMemo<ClusterOption[]>(
-    () => [ALL_CLUSTERS, ...options.clusters],
-    [options.clusters],
-  );
-
   const showSearch =
     options.categories.length + options.specialty_tags.length >
-    SEARCH_THRESHOLD;
-
-  const normalizedQuery = showSearch ? query.trim().toLowerCase() : "";
-
-  const visibleCategories = useMemo(() => {
-    const inCluster =
-      draft.clusterId === null
-        ? options.categories
-        : options.categories.filter(
-            (category) => category.cluster_id === draft.clusterId,
-          );
-
-    return normalizedQuery
-      ? inCluster.filter((category) =>
-          category.name.toLowerCase().includes(normalizedQuery),
-        )
-      : inCluster;
-  }, [options.categories, draft.clusterId, normalizedQuery]);
-
-  const visibleSpecialties = useMemo(
-    () =>
-      normalizedQuery
-        ? options.specialty_tags.filter((specialty) =>
-            specialty.name.toLowerCase().includes(normalizedQuery),
-          )
-        : options.specialty_tags,
-    [options.specialty_tags, normalizedQuery],
-  );
+    TAXONOMY_SEARCH_THRESHOLD;
 
   const activeCount =
     (draft.clusterId !== null ? 1 : 0) +
@@ -188,15 +109,15 @@ export default function ExploreFiltersSheet({
   );
 
   const selectSpecialty = useCallback(
-    (specialtyId: number) => {
-      onChange(toggleSpecialtySelection(draft, specialtyId));
+    (specialtyId: number | null) => {
+      onChange(
+        specialtyId === null
+          ? { ...draft, specialtyTagId: null }
+          : toggleSpecialtySelection(draft, specialtyId),
+      );
     },
     [draft, onChange],
   );
-
-  const clearSpecialty = useCallback(() => {
-    onChange({ ...draft, specialtyTagId: null });
-  }, [draft, onChange]);
 
   const resetFilters = useCallback(() => {
     animateLayout();
@@ -211,11 +132,6 @@ export default function ExploreFiltersSheet({
   const changeQuery = useCallback((text: string) => {
     animateLayout();
     setQuery(text);
-  }, []);
-
-  const clearQuery = useCallback(() => {
-    animateLayout();
-    setQuery("");
   }, []);
 
   const closeSheet = useCallback(() => {
@@ -346,133 +262,18 @@ export default function ExploreFiltersSheet({
             </View>
           </View>
 
-          {/* Search (only for long lists) */}
-          {showSearch ? (
-            <View className="mt-4 h-11 flex-row items-center rounded-full border border-border-primary bg-surface-muted px-4">
-              <MaterialCommunityIcons
-                name="magnify"
-                size={20}
-                color={theme.extends.colors.text.tertiary}
-              />
-              <BottomSheetTextInput
-                value={query}
-                onChangeText={changeQuery}
-                placeholder="Search categories and specialties"
-                placeholderTextColor={theme.extends.colors.text.tertiary}
-                returnKeyType="search"
-                autoCorrect={false}
-                autoCapitalize="none"
-                accessibilityLabel="Search filters"
-                style={{
-                  flex: 1,
-                  marginLeft: 8,
-                  paddingVertical: 0,
-                  fontSize: 14,
-                  color: theme.extends.colors.text.primary,
-                }}
-              />
-              {query.length > 0 ? (
-                <Pressable
-                  onPress={clearQuery}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                >
-                  <MaterialCommunityIcons
-                    name="close-circle"
-                    size={18}
-                    color={theme.extends.colors.text.tertiary}
-                  />
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* Cluster: single selection, horizontal scroll */}
-          <FilterSection title="Cluster" className="pt-5">
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              accessibilityRole="radiogroup"
-              className="-mx-5 mt-3"
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-            >
-              {clusterOptions.map((cluster) => (
-                <FilterChip
-                  key={cluster.id ?? "all"}
-                  label={cluster.name}
-                  selected={cluster.id === draft.clusterId}
-                  onPress={() => selectCluster(cluster.id)}
-                />
-              ))}
-            </ScrollView>
-          </FilterSection>
-
-          {/* Category: multi selection, wrapping chips */}
-          <FilterSection
-            title="Category"
-            hint={
-              draft.categoryIds.length > 0
-                ? `${draft.categoryIds.length} selected`
-                : undefined
-            }
-          >
-            {visibleCategories.length === 0 ? (
-              <AppText className="mt-3 text-sm text-text-tertiary">
-                {normalizedQuery
-                  ? `No categories match “${query.trim()}”.`
-                  : "No categories available."}
-              </AppText>
-            ) : (
-              <View className="mt-3 flex-row flex-wrap gap-2">
-                {visibleCategories.map((category) => (
-                  <FilterChip
-                    key={category.id}
-                    label={category.name}
-                    selected={draft.categoryIds.includes(category.id)}
-                    showSelectedCheck
-                    onPress={() => toggleCategory(category.id)}
-                  />
-                ))}
-              </View>
-            )}
-          </FilterSection>
-
-          {/* Specialty: single selection */}
-
-          {/* Specialty: optional single selection */}
-          <FilterSection title="Specialty" hint="Select one" className="pt-6">
-            <Pressable
-              onPress={clearSpecialty}
-              accessibilityRole="radio"
-              accessibilityState={{
-                checked: draft.specialtyTagId === null,
-              }}
-              className="mt-2 min-h-10 cursor-pointer justify-center self-start active:opacity-70"
-            ></Pressable>
-
-            {visibleSpecialties.length === 0 ? (
-              <AppText className="mt-2 text-sm text-text-tertiary">
-                {normalizedQuery
-                  ? `No specialties match “${query.trim()}”.`
-                  : "No specialties available."}
-              </AppText>
-            ) : (
-              <View className="mt-2 flex-row flex-wrap">
-                {visibleSpecialties.map((specialty) => (
-                  <SpecialtyTagChip
-                    key={specialty.id}
-                    tag={specialty}
-                    mode="filter"
-                    size="medium"
-                    isSelected={specialty.id === draft.specialtyTagId}
-                    showSelectionIndicator
-                    onPress={() => selectSpecialty(specialty.id)}
-                  />
-                ))}
-              </View>
-            )}
-          </FilterSection>
+          {/* Shared controls keep the feature's draft selection rules. */}
+          <TaxonomyFilterControls
+            options={options}
+            clusterId={draft.clusterId}
+            categoryIds={draft.categoryIds}
+            specialtyTagId={draft.specialtyTagId}
+            query={showSearch ? query : ""}
+            onQueryChange={changeQuery}
+            onClusterSelect={selectCluster}
+            onCategoryToggle={toggleCategory}
+            onSpecialtySelect={selectSpecialty}
+          />
         </BottomSheetScrollView>
 
         {/* Fixed filter actions */}

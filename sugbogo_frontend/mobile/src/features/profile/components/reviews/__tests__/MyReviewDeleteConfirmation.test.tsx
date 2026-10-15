@@ -100,6 +100,36 @@ describe("MyReviewDeleteConfirmation submission guard", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it.each(["unmount", "account-change"] as const)(
+    "suppresses late deletion feedback after %s",
+    async (change) => {
+      let finish!: () => void;
+      mockDelete.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const screen = await render(
+        <MyReviewDeleteConfirmation
+          review={review}
+          userId={10}
+          onClose={onClose}
+        />,
+      );
+      await act(async () => {
+        mockConfirmation.onConfirm();
+      });
+      if (change === "unmount") await screen.unmount();
+      else useAuthStore.setState({ user: { id: 99 } as never });
+      await act(async () => {
+        finish();
+      });
+      expect(onClose).not.toHaveBeenCalled();
+      expect(Toast.show).not.toHaveBeenCalled();
+    },
+  );
+
   it("does not submit for a changed account", async () => {
     await render(
       <MyReviewDeleteConfirmation

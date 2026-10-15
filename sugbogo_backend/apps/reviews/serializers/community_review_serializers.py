@@ -116,6 +116,16 @@ class CommunityBusinessResponseSerializer(serializers.Serializer):
         source="*",
         read_only=True,
     )
+    cluster_icon = serializers.CharField(
+        source="BUSN_ID.CTGRY_ID.CLUS_ID.CLUS_ICON",
+        read_only=True,
+        allow_null=True,
+    )
+    barangay = serializers.CharField(
+        source="BUSN_ID.merchant_application.location.MLOC_BARANGAY",
+        read_only=True,
+        allow_null=True,
+    )
     address = serializers.CharField(
         source="BUSN_ID.LOCT_ID.LOCT_ADDRESS",
         read_only=True,

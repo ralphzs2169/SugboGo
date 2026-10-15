@@ -10,6 +10,8 @@ import {
 import type { BusinessReview } from "../../../types/review.types";
 import ReviewComposerSheet from "../ReviewComposerSheet";
 
+let mockSubmitHandler: () => void;
+
 jest.mock("@gorhom/bottom-sheet", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View, TextInput } = require("react-native");
@@ -70,16 +72,19 @@ jest.mock("@/shared/components/Button", () => {
       title: string;
       onPress: () => void;
       disabled: boolean;
-    }) => (
-      <Pressable
-        testID="review-submit-button"
-        accessibilityRole="button"
-        disabled={props.disabled}
-        onPress={props.onPress}
-      >
-        <Text>{props.title}</Text>
-      </Pressable>
-    ),
+    }) => {
+      mockSubmitHandler = props.onPress;
+      return (
+        <Pressable
+          testID="review-submit-button"
+          accessibilityRole="button"
+          disabled={props.disabled}
+          onPress={props.onPress}
+        >
+          <Text>{props.title}</Text>
+        </Pressable>
+      );
+    },
   };
 });
 jest.mock("react-native-toast-message", () => ({
@@ -265,24 +270,54 @@ describe("ReviewComposerSheet photo retention", () => {
     });
   });
 
-  it.each([1, 3])("sends an empty retention list after removing %i photos", async (count) => {
-    const photos = Array.from({ length: count }, (_, index) => ({
-      id: index + 1,
-      photo_url: `https://example.com/existing-${index}.jpg`,
-    }));
-    const screen = await showReview({ ...review, photos });
+  it.each([1, 3])(
+    "sends an empty retention list after removing %i photos",
+    async (count) => {
+      const photos = Array.from({ length: count }, (_, index) => ({
+        id: index + 1,
+        photo_url: `https://example.com/existing-${index}.jpg`,
+      }));
+      const screen = await showReview({ ...review, photos });
+      await settleForm();
+
+      for (const photo of photos) {
+        await fireEvent.press(
+          screen.getByLabelText(`Remove ${photo.photo_url}`),
+        );
+      }
+      await fireEvent.press(screen.getByText("Save changes"));
+
+      await waitFor(() =>
+        expect(update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            keepPhotoIds: [],
+            photos: [],
+            text: undefined,
+          }),
+        ),
+      );
+    },
+  );
+
+  it("retains the draft and existing photos when the photo picker fails", async () => {
+    const photo = { id: 12, photo_url: "https://example.com/original.jpg" };
+    (pickBusinessPhotos as jest.Mock).mockRejectedValueOnce(
+      new Error("Unable to prepare this image."),
+    );
+    const screen = await showReview({ ...review, photos: [photo] });
     await settleForm();
-
-    for (const photo of photos) {
-      await fireEvent.press(screen.getByLabelText(`Remove ${photo.photo_url}`));
-    }
-    await fireEvent.press(screen.getByText("Save changes"));
-
+    await fireEvent.press(screen.getByLabelText("Add review photo"));
     await waitFor(() =>
-      expect(update).toHaveBeenCalledWith(
-        expect.objectContaining({ keepPhotoIds: [], photos: [], text: undefined }),
+      expect(Toast.show).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "error",
+          text1: "Unable to add photos",
+        }),
       ),
     );
+    expect(screen.getByLabelText("Your review").props.value).toBe(review.text);
+    expect(screen.getByLabelText(`Remove ${photo.photo_url}`)).toBeTruthy();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("submits replacement photos with an empty retention list", async () => {
@@ -291,7 +326,9 @@ describe("ReviewComposerSheet photo retention", () => {
     (pickBusinessPhotos as jest.Mock).mockResolvedValue([replacement]);
     const screen = await showReview({ ...review, photos: [existing] });
     await settleForm();
-    await fireEvent.press(screen.getByLabelText(`Remove ${existing.photo_url}`));
+    await fireEvent.press(
+      screen.getByLabelText(`Remove ${existing.photo_url}`),
+    );
     await fireEvent.press(screen.getByLabelText("Add review photo"));
     await waitFor(() => expect(screen.getByText("1/3")).toBeTruthy());
     await fireEvent.press(screen.getByText("Save changes"));
@@ -310,7 +347,9 @@ describe("ReviewComposerSheet photo retention", () => {
     ];
     const screen = await showReview({ ...review, photos });
     await settleForm();
-    await fireEvent.press(screen.getByLabelText(`Remove ${photos[0].photo_url}`));
+    await fireEvent.press(
+      screen.getByLabelText(`Remove ${photos[0].photo_url}`),
+    );
     await fireEvent.press(screen.getByText("Save changes"));
 
     await waitFor(() =>
@@ -499,5 +538,58 @@ describe("ReviewComposerSheet edit moderation feedback", () => {
     );
     await fireEvent.press(screen.getByTestId("review-submit-button"));
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("does not dismiss another editor or show success feedback after unmounting", async () => {
+    let finish!: (value: BusinessReview) => void;
+    update.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const screen = await showReview(review);
+    await settleForm();
+    await fireEvent.changeText(
+      screen.getByLabelText("Your review"),
+      "An accepted change with enough useful detail.",
+    );
+    await act(async () => {
+      mockSubmitHandler();
+    });
+    await screen.unmount();
+    await act(async () => {
+      finish(review);
+    });
+    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    expect(Toast.show).not.toHaveBeenCalled();
+  });
+
+  it("prevents a second submission before mutation pending state rerenders", async () => {
+    let finishUpdate!: (value: BusinessReview) => void;
+    update.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishUpdate = resolve;
+        }),
+    );
+    const screen = await showReview(review);
+    await settleForm();
+    await fireEvent.changeText(
+      screen.getByLabelText("Your review"),
+      "A changed review with enough written detail.",
+    );
+    const submit = mockSubmitHandler;
+    await act(async () => {
+      submit();
+      submit();
+    });
+    expect(update).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finishUpdate(review);
+    });
+    await waitFor(() =>
+      expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(1),
+    );
   });
 });

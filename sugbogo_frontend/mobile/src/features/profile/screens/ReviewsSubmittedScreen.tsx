@@ -207,7 +207,7 @@ export default function ReviewsSubmittedScreen() {
         data={history.reviews}
         keyExtractor={(review) => String(review.id)}
         renderItem={renderReview}
-        className="flex-1 bg-surface"
+        className="flex-1 bg-background"
         contentContainerStyle={{
           paddingBottom: insets.bottom + 24,
           flexGrow: 1,
@@ -329,7 +329,7 @@ export default function ReviewsSubmittedScreen() {
               />
             </View>
           ) : hasReviews && !history.hasNextPage && !history.isFetching ? (
-            <EndOfListMessage description="You're all caught up." />
+            <EndOfListMessage description="You've seen all your submitted reviews." />
           ) : null
         }
         onScrollBeginDrag={() => {

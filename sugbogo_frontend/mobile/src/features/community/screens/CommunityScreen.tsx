@@ -36,8 +36,9 @@ function FeedSeparator() {
  *
  * The screen coordinates authoritative taxonomy filters, backend pagination,
  * refresh and error states, defensive review deduplication, and tab-aware
- * spacing while dedicated components own review presentation. Posts render
- * edge to edge, like a social feed.
+ * spacing while dedicated components own review presentation. The header and
+ * quick filters stay pinned above the list so filtering is always reachable,
+ * and posts render edge to edge, like a social feed.
  */
 export default function CommunityScreen() {
   const bottomSpacing = useTabBarSpacing(20);
@@ -98,6 +99,19 @@ export default function CommunityScreen() {
 
   const displayedReviews = hasListError ? [] : reviews;
 
+  const openFilters = () => presentBottomSheet(filterSheetRef);
+
+  const togglePhotos = () => {
+    setFilters((current) => ({ ...current, hasPhotos: !current.hasPhotos }));
+  };
+
+  const toggleMostHelpful = () => {
+    setFilters((current) => ({
+      ...current,
+      ordering: current.ordering === "most_helpful" ? "newest" : "most_helpful",
+    }));
+  };
+
   const clearContentFilters = () => {
     setFilters((current) => ({
       ...DEFAULT_COMMUNITY_REVIEW_FILTERS,
@@ -142,8 +156,17 @@ export default function CommunityScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {/* Community introduction */}
-      <CommunityHeader />
+      {/* Pinned title, filter button, and quick filters */}
+      <CommunityHeader>
+        <CommunityFilters
+          filters={filters}
+          hasContentFilters={hasContentFilters}
+          onOpenFilters={openFilters}
+          onTogglePhotos={togglePhotos}
+          onToggleMostHelpful={toggleMostHelpful}
+          onClear={clearContentFilters}
+        />
+      </CommunityHeader>
 
       {/* Filtered and paginated review feed */}
       <FlatList
@@ -153,12 +176,6 @@ export default function CommunityScreen() {
         keyExtractor={(review) => String(review.id)}
         renderItem={renderReview}
         ItemSeparatorComponent={FeedSeparator}
-        ListHeaderComponent={
-          <CommunityFilters
-            filters={filters}
-            onPress={() => presentBottomSheet(filterSheetRef)}
-          />
-        }
         ListEmptyComponent={
           community.isInitialLoading ? (
             <CommunityFeedSkeleton />
