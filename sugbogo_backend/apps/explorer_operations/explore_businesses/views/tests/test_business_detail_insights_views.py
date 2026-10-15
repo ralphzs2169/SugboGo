@@ -4,6 +4,12 @@ from unittest.mock import patch
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from apps.business.models import (
+    BusinessOperatingHours,
+    BusinessPhoto,
+    BusinessSpecialtyTag,
+    SpecialtyTag,
+)
 from apps.explorer_operations.explore_businesses.services.explore_business_service import (
     ExploreBusinessService,
 )
@@ -13,7 +19,13 @@ from apps.explorer_operations.explore_businesses.services.new_businesses_service
 from apps.explorer_operations.explore_businesses.serializers.explore_business_serializer import (
     ExploreBusinessSerializer,
 )
-from apps.reviews.models import BusinessReviewSummary, Review
+from apps.reviews.models import (
+    BusinessReviewSummary,
+    ReplyPhoto,
+    Review,
+    ReviewPhoto,
+    ReviewReply,
+)
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
@@ -50,6 +62,188 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         self.business = self.create_business()
         self.client.force_authenticate(self.business.USER_ID)
         self.url = f"/api/explorer/explore/businesses/{self.business.pk}/"
+
+    def test_business_detail_excludes_non_published_review_content(self):
+        """Exclude private reviews and their nested content from the API response."""
+        published = self.create_review(
+            self.business,
+            REVW_TEXT="Public review content.",
+        )
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=published,
+            RPHO_PHOTO_URL="https://example.com/public-review.jpg",
+            RPHO_PHOTO_PUBLIC_ID="public-review",
+        )
+        reply = ReviewReply.objects.create(
+            REVW_ID=published,
+            RPLY_TEXT="Public merchant response.",
+        )
+        reply_photo = ReplyPhoto.objects.create(
+            RPLY_ID=reply,
+            RPHO_PHOTO_URL="https://example.com/public-reply.jpg",
+            RPHO_PHOTO_PUBLIC_ID="public-reply",
+        )
+        private_markers = []
+        private_statuses = (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        )
+
+        for index, review_status in enumerate(private_statuses, start=1):
+            marker = f"private-review-{review_status}"
+            private_markers.append(marker)
+            review = self.create_review(
+                self.business,
+                index,
+                REVW_STATUS=review_status,
+                REVW_TEXT=f"{marker} text",
+            )
+            review.USER_ID.USER_FNAME = marker
+            review.USER_ID.save(update_fields=["USER_FNAME"])
+            ReviewPhoto.objects.create(
+                REVW_ID=review,
+                RPHO_PHOTO_URL=f"https://example.com/{marker}.jpg",
+                RPHO_PHOTO_PUBLIC_ID=marker,
+            )
+            private_reply = ReviewReply.objects.create(
+                REVW_ID=review,
+                RPLY_TEXT=f"{marker} reply",
+            )
+            ReplyPhoto.objects.create(
+                RPLY_ID=private_reply,
+                RPHO_PHOTO_URL=f"https://example.com/{marker}-reply.jpg",
+                RPHO_PHOTO_PUBLIC_ID=f"{marker}-reply",
+            )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        data = response.data["data"]
+        self.assertEqual(len(data["reviews"]), 1)
+        item = data["reviews"][0]
+        self.assertEqual(item["id"], published.pk)
+        self.assertEqual(item["text"], published.REVW_TEXT)
+        self.assertEqual(item["status"], Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(item["author"]["id"], published.USER_ID_id)
+        self.assertEqual(item["author"]["first_name"], "Summary")
+        self.assertEqual(item["photos"], [{
+            "id": photo.pk,
+            "photo_url": photo.RPHO_PHOTO_URL,
+        }])
+        self.assertEqual(item["reply"]["text"], reply.RPLY_TEXT)
+        self.assertEqual(item["reply"]["photos"], [{
+            "id": reply_photo.pk,
+            "photo_url": reply_photo.RPHO_PHOTO_URL,
+        }])
+        self.assertEqual(data["review_count"], 1)
+        rendered = response.content.decode()
+        for marker in private_markers:
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, rendered)
+
+    def test_published_reviews_with_advisory_flags_remain_visible(self):
+        """Advisory flags do not change publication eligibility or ordering."""
+        reviews = []
+        flags = (
+            "REVW_IS_REPORT_FLAGGED",
+            "REVW_IS_DEVICE_ABUSE_FLAGGED",
+            "REVW_IS_OUTLIER_SENTIMENT",
+        )
+        reference_time = timezone.now()
+        for index, flag in enumerate(flags):
+            review = self.create_review(
+                self.business,
+                index,
+                **{flag: True},
+            )
+            Review.objects.filter(pk=review.pk).update(
+                REVW_CREATED_AT=reference_time + timedelta(seconds=index),
+            )
+            reviews.append(review)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data["data"]
+        self.assertEqual(
+            [item["id"] for item in data["reviews"]],
+            [review.pk for review in reversed(reviews)],
+        )
+        self.assertEqual(data["review_count"], 3)
+        for item in data["reviews"]:
+            self.assertEqual(item["status"], Review.ReviewStatus.PUBLISHED)
+
+    def test_author_private_reviews_remain_outside_public_business_detail(self):
+        """Authors use the authorized preview field to access private reviews."""
+        private_statuses = (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        )
+        for index, review_status in enumerate(private_statuses):
+            with self.subTest(review_status=review_status):
+                review = self.create_review(
+                    self.business,
+                    index,
+                    REVW_STATUS=review_status,
+                )
+                self.client.force_authenticate(review.USER_ID)
+
+                response = self.client.get(self.url)
+
+                self.assertEqual(response.status_code, 200)
+                data = response.data["data"]
+                self.assertEqual(data["reviews"], [])
+                self.assertEqual(data["review_count"], 0)
+                self.assertTrue(data["has_own_review"])
+                preview = self.client.get(
+                    f"/api/reviews/business/{self.business.pk}/",
+                )
+                self.assertEqual(preview.status_code, 200)
+                self.assertEqual(
+                    preview.data["data"]["user_review"]["id"],
+                    review.pk,
+                )
+                self.assertEqual(preview.data["data"]["reviews"], [])
+                self.assertEqual(preview.data["data"]["total_count"], 0)
+
+    def test_private_reviews_leave_other_business_detail_fields_unchanged(self):
+        """Review visibility preserves the rest of the business-detail payload."""
+        photo = BusinessPhoto.objects.create(
+            BUSN_ID=self.business,
+            BPHO_CATEGORY=BusinessPhoto.PhotoCategory.STOREFRONT,
+            BPHO_PHOTO_URL="https://example.com/storefront.jpg",
+            BPHO_PHOTO_PUBLIC_ID="storefront",
+        )
+        tag = SpecialtyTag.objects.create(TAG_NAME="Friendly service")
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+        )
+        BusinessOperatingHours.objects.create(
+            BUSN_ID=self.business,
+            BOHR_DAY=BusinessOperatingHours.Day.MONDAY,
+            BOHR_IS_24_HOURS=True,
+        )
+        before = self.client.get(self.url)
+        self.assertEqual(before.status_code, 200)
+        baseline = before.data["data"]
+        self.assertEqual(baseline["business_name"], self.business.BUSN_NAME)
+        self.assertEqual(baseline["photos"][0]["photo_url"], photo.BPHO_PHOTO_URL)
+        self.assertEqual(baseline["specialty_tags"][0]["name"], tag.TAG_NAME)
+        self.assertEqual(baseline["operating_hours"][0]["day"], "monday")
+
+        self.create_review(
+            self.business,
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+
+        after = self.client.get(self.url)
+
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(after.data["data"], baseline)
 
     def test_serializes_only_public_stored_insights_without_processing(self):
         generated_at = timezone.now()
@@ -183,6 +377,11 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             7,
             REVW_STATUS=Review.ReviewStatus.FLAGGED,
         )
+        self.create_review(
+            self.business,
+            8,
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
         BusinessReviewSummaryService.recompute_sentiment(
             self.business.pk,
             reference_time=reference_time,
@@ -195,6 +394,10 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["review_count"], 5)
+        self.assertEqual(
+            {item["id"] for item in response.data["data"]["reviews"]},
+            {review.pk for review in reviews},
+        )
         insights = response.data["data"]["review_insights"]
         self.assertEqual(insights["review_count"], 4)
         self.assertEqual(insights["eligible_review_count"], 4)
