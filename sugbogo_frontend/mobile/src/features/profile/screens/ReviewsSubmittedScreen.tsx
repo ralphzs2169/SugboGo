@@ -1,17 +1,22 @@
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
-import { useEffect, useRef } from "react";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import ReviewComposerSheet from "@/features/explore/components/business-profile/ReviewComposerSheet";
+import { ReviewDerivedDataSyncProvider } from "@/features/explore/hooks/ReviewDerivedDataSyncProvider";
+import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import {
   defaultStackScreenOptions,
   slideFromRight,
@@ -20,6 +25,9 @@ import {
 import MyReviewCard from "../components/reviews/MyReviewCard";
 import MyReviewsSkeleton from "../components/reviews/MyReviewsSkeleton";
 import { useMyReviews } from "../hooks/useMyReviews";
+import type { MyReview } from "../types/myReview.types";
+
+type SelectedReview = { userId: number; review: MyReview };
 
 /** Coordinates private review history, refresh, pagination, and section recovery. */
 export default function ReviewsSubmittedScreen() {
@@ -27,6 +35,64 @@ export default function ReviewsSubmittedScreen() {
   const insets = useSafeAreaInsets();
   const paginationArmed = useRef(false);
   const paginationPending = useRef(false);
+  const actionsRef = useRef<BottomSheetModal | null>(null);
+  const composerRef = useRef<BottomSheetModal | null>(null);
+  const [actionReview, setActionReview] = useState<SelectedReview | null>(null);
+  const [editingReview, setEditingReview] = useState<SelectedReview | null>(
+    null,
+  );
+  const [syncBusinesses, setSyncBusinesses] = useState<
+    { userId: number; businessId: number }[]
+  >([]);
+
+  const canEdit = (review: MyReview) =>
+    history.isEnabled &&
+    review.author.id === history.userId &&
+    review.is_own_review &&
+    review.status !== "under_review";
+
+  const openActions = (review: MyReview) => {
+    if (!canEdit(review) || history.userId === null) return;
+    setActionReview({ userId: history.userId, review });
+    presentBottomSheet(actionsRef);
+  };
+
+  const openEditor = () => {
+    if (
+      !actionReview ||
+      actionReview.userId !== history.userId ||
+      !canEdit(actionReview.review)
+    )
+      return;
+
+    // Keep a stable edit snapshot so history refetches cannot replace a draft.
+    setEditingReview(actionReview);
+    setSyncBusinesses((current) => {
+      const businesses = current.filter(
+        (item) => item.userId === actionReview.userId,
+      );
+      if (
+        businesses.some(
+          (item) => item.businessId === actionReview.review.business.id,
+        )
+      ) {
+        return businesses;
+      }
+      return [
+        ...businesses,
+        {
+          userId: actionReview.userId,
+          businessId: actionReview.review.business.id,
+        },
+      ];
+    });
+    presentBottomSheet(composerRef);
+  };
+
+  const currentEditor =
+    history.isEnabled && editingReview?.userId === history.userId
+      ? editingReview.review
+      : null;
 
   useEffect(() => {
     paginationArmed.current = false;
@@ -79,7 +145,12 @@ export default function ReviewsSubmittedScreen() {
         testID="my-reviews-list"
         data={history.reviews}
         keyExtractor={(review) => String(review.id)}
-        renderItem={({ item }) => <MyReviewCard review={item} />}
+        renderItem={({ item }) => (
+          <MyReviewCard
+            review={item}
+            onActions={canEdit(item) ? () => openActions(item) : undefined}
+          />
+        )}
         contentContainerStyle={{
           padding: 16,
           paddingBottom: insets.bottom + 24,
@@ -194,6 +265,36 @@ export default function ReviewsSubmittedScreen() {
           />
         }
       />
+
+      {/* Existing contextual actions; deletion is intentionally not offered. */}
+      <ActionBottomSheet
+        key={`review-actions-${history.userId ?? "signed-out"}`}
+        sheetRef={actionsRef}
+        options={[{ label: "Edit my review", value: "edit" }]}
+        onSelect={(value) => {
+          if (value === "edit") openEditor();
+        }}
+      />
+
+      {/* Keep each edited business syncing after dismissal or another edit. */}
+      {syncBusinesses
+        .filter((item) => history.isEnabled && item.userId === history.userId)
+        .map((item) => (
+          <ReviewDerivedDataSyncProvider
+            key={`review-sync-${item.userId}-${item.businessId}`}
+            businessId={item.businessId}
+          >
+            {currentEditor?.business.id === item.businessId && (
+              <ReviewComposerSheet
+                businessId={currentEditor.business.id}
+                businessName={currentEditor.business.business_name}
+                coverPhotoUrl={currentEditor.business.display_cover_photo_url}
+                sheetRef={composerRef}
+                review={currentEditor}
+              />
+            )}
+          </ReviewDerivedDataSyncProvider>
+        ))}
     </View>
   );
 }

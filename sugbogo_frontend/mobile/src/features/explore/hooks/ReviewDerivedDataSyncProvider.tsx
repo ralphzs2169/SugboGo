@@ -16,6 +16,7 @@ import { getExploreBusinessDetail } from "../api/exploreBusiness.service";
 import { getBusinessReviewPreview } from "../api/reviewBusiness.service";
 import type { BusinessReview } from "../types/review.types";
 import type { BusinessReviewInsights } from "../types/exploreBusiness.types";
+import { invalidateBusinessCardCollections } from "../utils/reviewCache.utils";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
@@ -115,8 +116,7 @@ export function shouldStopGeneratedInsightsSync(
     }
 
     const baselineStateChanged = Boolean(
-      session.baselineState &&
-        session.baselineState !== "insufficient_reviews",
+      session.baselineState && session.baselineState !== "insufficient_reviews",
     );
     const hasNewUpdate = hasAdvancedTimestamp(
       insights.updated_at,
@@ -216,6 +216,7 @@ export function ReviewDerivedDataSyncProvider({
     });
 
     void Promise.all([
+      invalidateBusinessCardCollections(queryClient),
       queryClient.invalidateQueries({
         queryKey: exploreBusinessDetailKey(businessId),
       }),

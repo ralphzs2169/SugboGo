@@ -6,7 +6,7 @@ import {
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -24,7 +24,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FormTextArea from "@/shared/components/form/FormTextArea";
 import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import type { ApiError, ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import {
@@ -37,12 +37,17 @@ import type {
   ReviewPhoto,
 } from "../../types/review.types";
 
+export type EditableReview = Pick<
+  BusinessReview,
+  "id" | "text" | "photos" | "show_in_community"
+>;
+
 type Props = {
   businessId: number;
   businessName: string;
   coverPhotoUrl?: string | null;
   sheetRef: React.RefObject<BottomSheetModal | null>;
-  review?: BusinessReview | null;
+  review?: EditableReview | null;
 };
 
 type ReviewErrors = {
@@ -71,7 +76,9 @@ const REVIEW_EDIT_FEEDBACK = {
 
 type ReviewEditFeedbackCode = keyof typeof REVIEW_EDIT_FEEDBACK;
 
-function isReviewEditFeedbackCode(code: unknown): code is ReviewEditFeedbackCode {
+function isReviewEditFeedbackCode(
+  code: unknown,
+): code is ReviewEditFeedbackCode {
   return (
     typeof code === "string" &&
     Object.prototype.hasOwnProperty.call(REVIEW_EDIT_FEEDBACK, code)
@@ -152,6 +159,7 @@ export default function ReviewComposerSheet({
   review,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const submissionPending = useRef(false);
 
   const {
     mutateAsync: createReview,
@@ -175,9 +183,8 @@ export default function ReviewComposerSheet({
   const [originalShowInCommunity, setOriginalShowInCommunity] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [errors, setErrors] = useState<ReviewErrors>({});
-  const [editFeedback, setEditFeedback] = useState<ReviewEditFeedbackCode | null>(
-    null,
-  );
+  const [editFeedback, setEditFeedback] =
+    useState<ReviewEditFeedbackCode | null>(null);
 
   const isEditing = Boolean(review);
   const isPending = isCreatePending || isUpdatePending;
@@ -283,7 +290,7 @@ export default function ReviewComposerSheet({
   }
 
   async function submit() {
-    if (!canSubmit) {
+    if (!canSubmit || submissionPending.current) {
       return;
     }
 
@@ -295,6 +302,8 @@ export default function ReviewComposerSheet({
       setErrors(validationErrors);
       return;
     }
+
+    submissionPending.current = true;
 
     try {
       if (review) {
@@ -331,11 +340,13 @@ export default function ReviewComposerSheet({
 
       sheetRef.current?.dismiss();
     } catch (error) {
-      const response = error as Partial<ApiResponse<unknown>>;
+      const response = error as Partial<ApiError>;
       if (review && isReviewEditFeedbackCode(response?.code)) {
         setEditFeedback(response.code);
       }
       // Other mutation errors retain their existing API feedback.
+    } finally {
+      submissionPending.current = false;
     }
   }
 
@@ -347,7 +358,9 @@ export default function ReviewComposerSheet({
           return false;
         }
 
-        sheetRef.current?.dismiss();
+        if (!isPending && !submissionPending.current) {
+          sheetRef.current?.dismiss();
+        }
         return true;
       },
     );
@@ -355,7 +368,7 @@ export default function ReviewComposerSheet({
     return () => {
       subscription.remove();
     };
-  }, [isSheetOpen, sheetRef]);
+  }, [isSheetOpen, isPending, sheetRef]);
 
   useEffect(() => {
     // The form intentionally mirrors the review selected by the parent screen.
@@ -422,6 +435,7 @@ export default function ReviewComposerSheet({
           appearsOnIndex={0}
           disappearsOnIndex={-1}
           opacity={0.45}
+          pressBehavior={isPending ? "none" : "close"}
         />
       )}
     >

@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { memo } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import MerchantReviewResponse from "@/features/explore/components/business-profile/reviews/MerchantReviewResponse";
@@ -29,7 +29,13 @@ const statusPresentation = {
 } as const;
 
 /** Displays a private submission with safe business navigation and shared media. */
-function MyReviewCard({ review }: { review: MyReview }) {
+function MyReviewCard({
+  review,
+  onActions,
+}: {
+  review: MyReview;
+  onActions?: () => void;
+}) {
   const { business } = review;
   const isAvailable = business.status === "active";
   const status = statusPresentation[review.status];
@@ -47,60 +53,76 @@ function MyReviewCard({ review }: { review: MyReview }) {
       className="rounded-card bg-surface p-4"
     >
       {/* Business identity and availability */}
-      <SafePressable
-        onPress={openBusiness}
-        disabled={!isAvailable}
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${business.business_name} business profile`}
-        accessibilityState={{ disabled: !isAvailable }}
-        className="min-h-12 cursor-pointer flex-row items-center active:opacity-70"
-      >
-        <View className="h-12 w-12 overflow-hidden rounded-lg bg-background">
-          {business.display_cover_photo_url ? (
-            <Image
-              source={{ uri: business.display_cover_photo_url }}
-              style={{ width: "100%", height: "100%" }}
-              contentFit="cover"
-              recyclingKey={String(business.id)}
-            />
-          ) : (
-            <View className="flex-1 items-center justify-center">
-              <MaterialCommunityIcons
-                name="storefront-outline"
-                size={24}
-                color={theme.extends.colors.text.secondary}
+      <View className="flex-row items-start">
+        <SafePressable
+          onPress={openBusiness}
+          disabled={!isAvailable}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${business.business_name} business profile`}
+          accessibilityState={{ disabled: !isAvailable }}
+          className="min-h-12 flex-1 cursor-pointer flex-row items-center active:opacity-70"
+        >
+          <View className="h-12 w-12 overflow-hidden rounded-lg bg-background">
+            {business.display_cover_photo_url ? (
+              <Image
+                source={{ uri: business.display_cover_photo_url }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                recyclingKey={String(business.id)}
               />
-            </View>
-          )}
-        </View>
-        <View className="ml-3 min-w-0 flex-1">
-          <AppText
-            weight="bold"
-            className="text-sm text-text-primary"
-            numberOfLines={2}
-          >
-            {business.business_name}
-          </AppText>
-          <AppText
-            className="mt-0.5 text-xs text-text-secondary"
-            numberOfLines={2}
-          >
-            {business.category.name}
-          </AppText>
-          {!isAvailable && (
-            <AppText className="mt-1 text-xs text-text-secondary">
-              Business unavailable
+            ) : (
+              <View className="flex-1 items-center justify-center">
+                <MaterialCommunityIcons
+                  name="storefront-outline"
+                  size={24}
+                  color={theme.extends.colors.text.secondary}
+                />
+              </View>
+            )}
+          </View>
+          <View className="ml-3 min-w-0 flex-1">
+            <AppText
+              weight="bold"
+              className="text-sm text-text-primary"
+              numberOfLines={2}
+            >
+              {business.business_name}
             </AppText>
+            <AppText
+              className="mt-0.5 text-xs text-text-secondary"
+              numberOfLines={2}
+            >
+              {business.category.name}
+            </AppText>
+            {!isAvailable && (
+              <AppText className="mt-1 text-xs text-text-secondary">
+                Business unavailable
+              </AppText>
+            )}
+          </View>
+          {isAvailable && (
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
           )}
-        </View>
-        {isAvailable && (
-          <MaterialCommunityIcons
-            name="chevron-right"
-            size={20}
-            color={theme.extends.colors.text.secondary}
-          />
+        </SafePressable>
+        {onActions && review.status !== "under_review" && (
+          <Pressable
+            onPress={onActions}
+            accessibilityRole="button"
+            accessibilityLabel={`Review actions for ${business.business_name}`}
+            className="ml-1 min-h-12 min-w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
+          >
+            <MaterialCommunityIcons
+              name="dots-horizontal"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+            />
+          </Pressable>
         )}
-      </SafePressable>
+      </View>
 
       {/* Submission date and publication state */}
       <View className="mt-4 flex-row flex-wrap items-center gap-2">

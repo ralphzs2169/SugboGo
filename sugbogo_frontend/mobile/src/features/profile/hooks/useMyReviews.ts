@@ -5,10 +5,9 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import { getMyReviews } from "../api/myReviews.service";
+import { myReviewsKey } from "./myReviewQueryKeys";
 
-export const MY_REVIEWS_QUERY_KEY = ["my-reviews"] as const;
-export const myReviewsKey = (userId: number | null) =>
-  [...MY_REVIEWS_QUERY_KEY, userId] as const;
+export { MY_REVIEWS_QUERY_KEY, myReviewsKey } from "./myReviewQueryKeys";
 
 /** Loads private review pages without sharing history between accounts. */
 export function useMyReviews() {
