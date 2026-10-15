@@ -188,6 +188,7 @@ export default function MapScreen() {
         latitude: business.location.latitude,
         longitude: business.location.longitude,
         is_hidden_gem: business.is_hidden_gem === true,
+        cluster_icon: business.cluster?.icon ?? null,
       })),
     [displayedBusinesses],
   );
@@ -274,22 +275,6 @@ export default function MapScreen() {
     });
   };
 
-  const zoom = async (amount: number) => {
-    hasInteracted.current = true;
-    destination.current = null;
-    setIsSearchTransition(false);
-
-    try {
-      const camera = await mapInstance?.getCamera();
-
-      if (camera) {
-        mapInstance?.animateCamera({ zoom: (camera.zoom ?? 12) + amount });
-      }
-    } catch {
-      Alert.alert("Map unavailable", "Please try the zoom control again.");
-    }
-  };
-
   const locateMe = async () => {
     hasInteracted.current = true;
 
@@ -366,6 +351,8 @@ export default function MapScreen() {
         }}
         selectedBusinessId={selectedBusiness?.id ?? null}
         dimUnselectedMarkers
+        useClusterIcons
+        hideNativeZoomControls
       />
       <MapSearchOverlay
         filters={filters}
@@ -379,8 +366,6 @@ export default function MapScreen() {
         onClear={() => setFilters(DEFAULT_MAP_FILTERS)}
       />
       <MapControls
-        onZoomIn={() => void zoom(1)}
-        onZoomOut={() => void zoom(-1)}
         onLocateMe={() => void locateMe()}
         bottomOffset={
           selectedBusiness ? bottomSpacing + previewHeight + 12 : bottomSpacing

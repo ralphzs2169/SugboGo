@@ -18,7 +18,7 @@ type Props = {
   hideQuickFilters?: boolean;
 };
 
-/** Keeps global search distinct from compact controls for the visible map area. */
+/** Combines independent search and taxonomy actions above compact quick filters. */
 export default function MapSearchOverlay({
   filters,
   filterCount,
@@ -30,6 +30,10 @@ export default function MapSearchOverlay({
   hideQuickFilters = false,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const advancedFilterCount =
+    filters.categoryIds.length +
+    Number(filters.clusterId !== null) +
+    Number(filters.specialtyTagId !== null);
 
   return (
     <View
@@ -38,24 +42,61 @@ export default function MapSearchOverlay({
       pointerEvents="box-none"
     >
       {/* Global registered-business search */}
-      <Pressable
-        onPress={onSearch}
-        accessibilityRole="button"
-        accessibilityLabel="Search SugboGo businesses"
-        className="min-h-12 cursor-pointer flex-row items-center rounded-full border border-border-primary bg-surface px-4 active:opacity-80"
+      <View
+        className="flex-row items-center overflow-hidden rounded-full border border-border-primary bg-surface"
         style={shadows.floating}
       >
-        <MaterialCommunityIcons
-          name="magnify"
-          size={21}
-          color={theme.extends.colors.text.secondary}
-        />
-        <AppText className="ml-3 flex-1 text-sm text-text-secondary">
-          Search SugboGo businesses
-        </AppText>
-      </Pressable>
+        <Pressable
+          onPress={onSearch}
+          accessibilityRole="button"
+          accessibilityLabel="Search SugboGo businesses"
+          className="min-h-12 min-w-0 flex-1 cursor-pointer flex-row items-center px-4 active:bg-surface-secondary"
+        >
+          <MaterialCommunityIcons
+            name="magnify"
+            size={21}
+            color={theme.extends.colors.text.secondary}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+          <AppText
+            className="ml-3 min-w-0 flex-1 text-sm text-text-secondary"
+            numberOfLines={1}
+          >
+            Search SugboGo businesses
+          </AppText>
+        </Pressable>
+        <View className="h-6 w-px bg-border-primary" />
+        <Pressable
+          onPress={onFilters}
+          accessibilityRole="button"
+          accessibilityLabel={`Map filters${advancedFilterCount ? `, ${advancedFilterCount} active` : ""}`}
+          accessibilityState={{ selected: advancedFilterCount > 0 }}
+          className="h-12 w-12 cursor-pointer items-center justify-center active:bg-surface-secondary"
+        >
+          <MaterialCommunityIcons
+            name="tune-variant"
+            size={21}
+            color={
+              advancedFilterCount > 0
+                ? theme.extends.colors.brand
+                : theme.extends.colors.text.primary
+            }
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+          {advancedFilterCount > 0 && (
+            <View
+              className="absolute right-2 top-2 h-2 w-2 rounded-full bg-brand"
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+          )}
+        </Pressable>
+      </View>
 
-      {/* These controls filter the visible area; location remains a separate control. */}
+      {/* Quick filters collapse independently of the persistent search/filter bar. */}
       {!hideQuickFilters && (
         <ScrollView
           horizontal
@@ -63,22 +104,6 @@ export default function MapSearchOverlay({
           className="mt-2 flex-none"
           contentContainerClassName="gap-2"
         >
-          <Pressable
-            onPress={onFilters}
-            accessibilityRole="button"
-            accessibilityLabel={`Map filters${filterCount ? `, ${filterCount} active` : ""}`}
-            accessibilityState={{ selected: filterCount > 0 }}
-            className="min-h-12 cursor-pointer flex-row items-center gap-2 rounded-full border border-border-primary bg-surface px-4 active:opacity-70"
-          >
-            <MaterialCommunityIcons
-              name="tune-variant"
-              size={18}
-              color={theme.extends.colors.text.primary}
-            />
-            <AppText weight="semibold" className="text-sm text-text-primary">
-              Filters{filterCount ? ` (${filterCount})` : ""}
-            </AppText>
-          </Pressable>
           {(
             [
               {

@@ -20,6 +20,7 @@ export type BusinessMapMarker = {
   latitude: number;
   longitude: number;
   is_hidden_gem?: boolean;
+  cluster_icon?: string | null;
 };
 
 type Props = {
@@ -39,6 +40,8 @@ type Props = {
   focusTarget?: { latitude: number; longitude: number } | null;
   previewBottomInset?: number;
   onFocusStart?: () => void;
+  useClusterIcons?: boolean;
+  hideNativeZoomControls?: boolean;
 };
 
 const DEFAULT_REGION = {
@@ -74,6 +77,8 @@ export default function BusinessDiscoveryMap({
   focusTarget = null,
   previewBottomInset = 0,
   onFocusStart,
+  useClusterIcons = false,
+  hideNativeZoomControls = false,
 }: Props) {
   const mapRef = useRef<MapView>(null);
   const [isReady, setIsReady] = useState(false);
@@ -195,6 +200,10 @@ export default function BusinessDiscoveryMap({
         pointerEvents={interactive ? "auto" : "none"}
         showsUserLocation={showsUserLocation}
         showsMyLocationButton={false}
+        {...(hideNativeZoomControls && {
+          zoomControlEnabled: false,
+          showsCompass: true,
+        })}
         scrollEnabled={interactive}
         zoomEnabled={interactive}
         rotateEnabled={interactive}
@@ -214,7 +223,7 @@ export default function BusinessDiscoveryMap({
 
           return (
             <Marker
-              key={`${business.id}-${isSelected}-${business.is_hidden_gem === true}`}
+              key={`${business.id}-${isSelected}-${business.is_hidden_gem === true}${useClusterIcons ? `-${business.cluster_icon ?? ""}` : ""}`}
               identifier={String(business.id)}
               {...{ cluster: !isSelected }}
               // The marker's bottom edge is the exact coordinate dot.
@@ -245,6 +254,11 @@ export default function BusinessDiscoveryMap({
                     business.is_hidden_gem === true ? "hidden-gem" : "business"
                   }
                   selected={isSelected}
+                  clusterIcon={
+                    useClusterIcons
+                      ? (business.cluster_icon ?? null)
+                      : undefined
+                  }
                 />
               </View>
             </Marker>
