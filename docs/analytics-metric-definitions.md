@@ -2,6 +2,8 @@
 
 See [analytics scope, approved decisions, and progress](analytics-scope-traceability.md) for the 14 October 2026 product decisions, manuscript traceability, implementation evidence, and future branch order. Approved future directions do not change the implemented metric contracts until their own branches are completed.
 
+The subsequently approved mock Plus task adds a persistent demo entitlement model/migration and separate status/activation/reset APIs. Analytics GET contracts remain read-only and Standard remains separate. Demo grants count under enforcement only when explicit mock mode is enabled; real payments/plans are not implemented. See [the mock Plus contract](../sugbogo_backend/docs/merchant-plus-mock-api-contract.md) for the flag matrix, schema rollout and verification scope. Earlier model-free/entitlement-stub descriptions below record the original foundation/analytics tasks rather than this later entitlement extension.
+
 This dictionary implements the definitions in `docs/analytics-plan.md` and the subsequently agreed Standard/Premium split. The repository is the implementation reference. Task 1 adds shared helpers and read-only aggregation; Task 2 adds admin overview and discovery-trend endpoints. Neither introduces entitlement checks, models, migrations, payment processing, new dependencies, or registered Django apps.
 
 Task 3 adds admin coverage, business attention and provisional low-exposure candidates without altering those boundaries.

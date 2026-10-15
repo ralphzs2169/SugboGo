@@ -1,1 +1,1 @@
-"""Merchant Standard analytics and the future Premium entitlement boundary."""
+"""Merchant analytics with server-side Premium access and explicit demo entitlements."""
