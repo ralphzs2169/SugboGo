@@ -15,13 +15,22 @@ from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.moderation.services.manage_review_dispute_service import (
     ManageReviewDisputeService,
 )
+from apps.admin_operations.moderation.services.manage_review_report_service import (
+    ManageReviewReportService,
+)
+from apps.admin_operations.moderation.services.manage_reported_review_service import (
+    ManageReportedReviewService,
+)
+from apps.admin_operations.moderation.services.manage_under_review_service import (
+    ManageUnderReviewService,
+)
 from apps.admin_operations.moderation.services.tests import (
     test_manage_review_dispute_service as dispute_tests,
 )
 from apps.notifications.models import Notification
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.review_disputes.services.review_dispute_service import ReviewDisputeService
-from apps.reviews.models import BusinessReviewSummary, Review
+from apps.reviews.models import BusinessReviewSummary, Review, ReviewReport
 from apps.reviews.services.review_moderation_consistency_service import (
     ReviewModerationConsistencyService,
 )
@@ -50,6 +59,7 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
 
         for target in (
             "apps.reviews.tasks.refresh_business_review_insights.delay",
+            "apps.reviews.tasks.process_review_sentiment.delay",
             "apps.notifications.services.notification_service."
             "NotificationRealtimeService.schedule",
         ):
@@ -70,6 +80,27 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
             ReviewDisputeService.withdraw_dispute(
                 user=self.merchant,
                 dispute_id=self.dispute.pk,
+            )
+        elif operation in ("report_approve", "report_reject"):
+            ManageReviewReportService.resolve(
+                self.report.pk,
+                actor=self.admin,
+                admin_notes="Inspected the reported review and recorded the decision.",
+                approve=operation == "report_approve",
+            )
+        elif operation == "reports_reject":
+            ManageReportedReviewService.resolve(
+                self.review.pk,
+                actor=self.admin,
+                decision="reject",
+                admin_notes="Inspected grouped reports and confirmed the violation.",
+            )
+        elif operation in ("held_approve", "held_reject"):
+            ManageUnderReviewService.resolve(
+                self.review.pk,
+                actor=self.admin,
+                approve=operation == "held_approve",
+                moderation_notes="Inspected held content and recorded the decision.",
             )
         else:
             method = getattr(
@@ -158,6 +189,12 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
         if expected == "missing":
             if second == "delete":
                 expected_message = "The review could not be found."
+            elif second.startswith("held_"):
+                expected_message = "The under-review review could not be found."
+            elif second == "reports_reject":
+                expected_message = "The reported review could not be found."
+            elif second.startswith("report_"):
+                expected_message = "The review report could not be found."
             else:
                 expected_message = "The review dispute could not be found."
             self.assertEqual(message, expected_message)
@@ -176,12 +213,51 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
 
-        upheld = first == "uphold"
-        dismissed = first == "dismiss"
-        self.assertEqual(ReputationEvent.objects.count(), int(upheld))
-        self.assertEqual(AdminActivity.objects.count(), int(upheld or dismissed))
-        if upheld:
-            event = ReputationEvent.objects.get()
+        report_approved = first in ("report_approve", "reports_reject")
+        penalized = first == "uphold" or report_approved
+        approved = first == "held_approve"
+        admin_decided = first in (
+            "uphold", "dismiss", "report_approve", "report_reject",
+            "reports_reject", "held_approve", "held_reject",
+        )
+        self.assertEqual(
+            ReputationEvent.objects.count(),
+            int(penalized) + int(report_approved) + int(approved),
+        )
+        self.assertEqual(
+            AdminActivity.objects.exclude(
+                AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+            ).count(),
+            int(admin_decided),
+        )
+        deletion_events = AdminActivity.objects.filter(
+            AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+        )
+        self.assertEqual(deletion_events.count(), int(deleted))
+        if deleted:
+            audit = deletion_events.get()
+            context = audit.AACT_CONTEXT
+            self.assertEqual(audit.ACTOR_ID_id, self.explorer.pk)
+            self.assertEqual(context["closure_reason"], "content_removed_by_author")
+            expected_disputes = []
+            if first not in ("uphold", "dismiss", "withdraw"):
+                expected_disputes = [{"id": self.dispute.pk, "previous_status": "pending"}]
+            self.assertEqual(context["pending_disputes"], expected_disputes)
+            expected_reports = []
+            if hasattr(self, "report") and not first.startswith("report"):
+                expected_reports = [{"id": self.report.pk, "previous_status": "pending"}]
+            self.assertEqual(context["pending_reports"], expected_reports)
+            if penalized or first == "held_reject":
+                expected_status = "rejected"
+            elif first == "delete":
+                expected_status = self.review.REVW_STATUS
+            else:
+                expected_status = "published"
+            self.assertEqual(context["previous_review_status"], expected_status)
+        if penalized:
+            event = ReputationEvent.objects.get(
+                REVT_EVENT_TYPE=ReputationEvent.EventType.CONFIRMED_VIOLATION_PENALTY,
+            )
             self.assertEqual(
                 event.REVT_EVENT_TYPE,
                 ReputationEvent.EventType.CONFIRMED_VIOLATION_PENALTY,
@@ -198,8 +274,32 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
             )
         else:
             self.explorer.refresh_from_db()
-            self.assertEqual(self.explorer.USER_REPUTATION, self.starting_reputation)
-            self.assertEqual(Notification.objects.count(), int(dismissed))
+            if approved:
+                event = ReputationEvent.objects.get()
+                self.assertEqual(
+                    self.explorer.USER_REPUTATION,
+                    self.starting_reputation + event.REVT_APPLIED_CHANGE,
+                )
+            else:
+                self.assertEqual(self.explorer.USER_REPUTATION, self.starting_reputation)
+            self.assertEqual(
+                Notification.objects.count(),
+                int(first in ("dismiss", "report_reject")),
+            )
+
+    def _prepare_report(self):
+        self.report = ReviewReport.objects.create(
+            REVW_ID=self.review,
+            USER_ID=self.second_explorer,
+            RREP_TYPE=ReviewReport.ReportType.ABUSE,
+        )
+
+    def _prepare_held_review(self):
+        self.review.REVW_STATUS = Review.ReviewStatus.UNDER_REVIEW
+        self.review.REVW_MODERATION_DATA = {"outcome": "flagged"}
+        self.review.save(update_fields=["REVW_STATUS", "REVW_MODERATION_DATA"])
+        self.business.BUSN_REVIEW_COUNT = 1
+        self.business.save(update_fields=["BUSN_REVIEW_COUNT"])
 
     def test_deletion_commits_before_waiting_uphold(self):
         self._race("delete", "uphold", "missing")
@@ -224,6 +324,46 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
 
     def test_competing_upholds_do_not_duplicate_effects(self):
         self._race("uphold", "uphold", "resolved")
+
+    def test_deletion_closes_report_before_waiting_approval(self):
+        self._prepare_report()
+        self._race("delete", "report_approve", "missing")
+
+    def test_report_approval_is_preserved_before_deletion(self):
+        self._prepare_report()
+        self._race("report_approve", "delete", "completed")
+
+    def test_deletion_closes_report_before_waiting_rejection(self):
+        self._prepare_report()
+        self._race("delete", "report_reject", "missing")
+
+    def test_report_rejection_is_preserved_before_deletion(self):
+        self._prepare_report()
+        self._race("report_reject", "delete", "completed")
+
+    def test_deletion_closes_reports_before_waiting_grouped_decision(self):
+        self._prepare_report()
+        self._race("delete", "reports_reject", "missing")
+
+    def test_grouped_report_decision_is_preserved_before_deletion(self):
+        self._prepare_report()
+        self._race("reports_reject", "delete", "completed")
+
+    def test_deletion_records_ai_hold_before_waiting_approval(self):
+        self._prepare_held_review()
+        self._race("delete", "held_approve", "missing")
+
+    def test_held_approval_is_preserved_before_deletion(self):
+        self._prepare_held_review()
+        self._race("held_approve", "delete", "completed")
+
+    def test_deletion_records_ai_hold_before_waiting_rejection(self):
+        self._prepare_held_review()
+        self._race("delete", "held_reject", "missing")
+
+    def test_held_rejection_is_preserved_before_deletion(self):
+        self._prepare_held_review()
+        self._race("held_reject", "delete", "completed")
 
 
 class DeletedReviewResourceTests(TestCase):
@@ -284,6 +424,11 @@ class DeletedReviewResourceTests(TestCase):
                 self.assertEqual(response.status_code, 404)
                 self.assertFalse(response.data["success"])
                 self.assertEqual(response.data["code"], "NOT_FOUND")
-        self.assertFalse(AdminActivity.objects.exists())
+        self.assertEqual(
+            AdminActivity.objects.filter(
+                AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+            ).count(),
+            1,
+        )
         self.assertFalse(ReputationEvent.objects.exists())
         self.assertFalse(Notification.objects.exists())

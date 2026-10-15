@@ -14,6 +14,8 @@ from rest_framework.exceptions import (
     ValidationError,
 )
 
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.activity_management.services import AdminActivityService
 from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
@@ -1227,7 +1229,7 @@ class ReviewService:
         user: User,
         review_id: int,
     ) -> None:
-        """Delete a review and immediately refresh its business sentiment summary."""
+        """Audit author removal, hard-delete the review, and refresh its insights."""
         review = ReviewService._get_review(
             review_id,
         )
@@ -1236,6 +1238,11 @@ class ReviewService:
             raise PermissionDenied(
                 "You do not have permission to delete this review.",
             )
+
+        ReviewService._record_author_deletion(
+            review=review,
+            actor=user,
+        )
 
         public_ids = list(
             review.photos.values_list(
@@ -1287,6 +1294,68 @@ class ReviewService:
         )
         ReviewService._queue_review_insights_after_commit(
             business_id,
+        )
+
+    @staticmethod
+    def _record_author_deletion(
+        review: Review,
+        actor: User,
+    ) -> None:
+        """Snapshot pending cases while the deletion transaction holds the review lock."""
+        pending_reports = list(
+            ReviewReport.objects
+            .select_for_update(of=("self",))
+            .filter(
+                REVW_ID_id=review.pk,
+                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+            )
+            .order_by("RREP_ID")
+            .values("RREP_ID", "RREP_STATUS")
+        )
+        pending_disputes = list(
+            MerchantReviewDispute.objects
+            .select_for_update(of=("self",))
+            .filter(
+                REVW_ID_id=review.pk,
+                MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+            )
+            .order_by("MRDSP_ID")
+            .values("MRDSP_ID", "MRDSP_STATUS")
+        )
+        context = {
+            "review_id": review.pk,
+            "author_id": review.USER_ID_id,
+            "business_id": review.BUSN_ID_id,
+            "previous_review_status": review.REVW_STATUS,
+            "closure_reason": "content_removed_by_author",
+            "pending_reports": [
+                {
+                    "id": report["RREP_ID"],
+                    "previous_status": report["RREP_STATUS"],
+                }
+                for report in pending_reports
+            ],
+            "pending_disputes": [
+                {
+                    "id": dispute["MRDSP_ID"],
+                    "previous_status": dispute["MRDSP_STATUS"],
+                }
+                for dispute in pending_disputes
+            ],
+        }
+        if (
+            review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW
+            and isinstance(review.REVW_MODERATION_DATA, dict)
+        ):
+            outcome = review.REVW_MODERATION_DATA.get("outcome")
+            if outcome in ("flagged", "provider_failure"):
+                context["ai_moderation_outcome"] = outcome
+
+        AdminActivityService.record_user_action(
+            actor=actor,
+            target_user=actor,
+            action=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+            context=context,
         )
 
     @staticmethod

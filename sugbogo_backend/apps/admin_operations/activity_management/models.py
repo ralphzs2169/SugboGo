@@ -4,7 +4,7 @@ from apps.users.models import User
 
 
 class AdminActivity(models.Model):
-    """Records a persistent administrative action performed on a user."""
+    """Records administrative decisions and author-triggered moderation removal."""
 
     class Action(models.TextChoices):
         ADMIN_CREATED = "admin_created", "Admin created"
@@ -26,6 +26,10 @@ class AdminActivity(models.Model):
         REVIEW_MODERATION_REJECTED = (
             "review_moderation_rejected",
             "Review moderation rejected",
+        )
+        REVIEW_DELETED_BY_AUTHOR = (
+            "review_deleted_by_author",
+            "Review deleted by author",
         )
         BUSINESS_NAME_CHANGE_APPROVED = (
             "business_name_change_approved",
