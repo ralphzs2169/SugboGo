@@ -1,166 +1,204 @@
-import { View, Text, FlatList, Pressable, TextInput } from "react-native";
-import { useState, useMemo } from "react";
-import { Stack } from "expo-router";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { router, Stack } from "expo-router";
+import LottieView from "lottie-react-native";
+import { useEffect, useRef } from "react";
+import { FlatList, RefreshControl, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import ReviewCard from "@/features/profile/components/reviews/ReviewCard";
+
 import { theme } from "@/constants/theme";
+import loadingAnimation from "@/shared/assets/animations/loading.json";
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
+import EndOfListMessage from "@/shared/components/EndOfListMessage";
+import ErrorState from "@/shared/components/ErrorState";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 
-const MOCK_REVIEWS = [
-  {
-    id: "1",
-    msmeName: "Lola Nena's Bakeshop",
-    category: "Food & Bakery",
-    comment:
-      "Absolutely love this place! The pan de sal here is the softest I've ever tasted — warm, fluffy, and perfectly golden. The ensaymada is also a must-try.",
-    date: "Jul 20, 2026",
-    photoUrl:
-      "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=200&fit=crop",
-  },
-  {
-    id: "2",
-    msmeName: "Danao Weaves & Crafts",
-    category: "Handicrafts",
-    comment:
-      "A hidden gem for anyone who appreciates traditional Filipino craftsmanship. The woven bags and baskets are beautifully made and reasonably priced.",
-    date: "Jul 21, 2026",
-  },
-];
+import MyReviewCard from "../components/reviews/MyReviewCard";
+import MyReviewsSkeleton from "../components/reviews/MyReviewsSkeleton";
+import { useMyReviews } from "../hooks/useMyReviews";
 
+/** Coordinates private review history, refresh, pagination, and section recovery. */
 export default function ReviewsSubmittedScreen() {
-  const [reviews, setReviews] = useState(MOCK_REVIEWS);
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const history = useMyReviews();
   const insets = useSafeAreaInsets();
+  const paginationArmed = useRef(false);
+  const paginationPending = useRef(false);
 
-  const filteredReviews = useMemo(() => {
-    if (!searchQuery.trim()) return reviews;
-    return reviews.filter((r) =>
-      r.msmeName.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [reviews, searchQuery]);
+  useEffect(() => {
+    paginationArmed.current = false;
+    paginationPending.current = false;
+  }, [history.userId]);
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id],
-    );
+  useQueryErrorNotification({
+    error: history.error,
+    toastId: "my-reviews",
+    title: "Unable to load your reviews",
+    fallbackMessage: "Please try again.",
+  });
+
+  const loadNextPage = (retry = false) => {
+    if (
+      !history.isEnabled ||
+      paginationPending.current ||
+      (!retry && (!paginationArmed.current || history.isFetchNextPageError)) ||
+      !history.hasNextPage ||
+      history.isFetchingNextPage ||
+      history.isFetching
+    )
+      return;
+
+    paginationPending.current = true;
+    paginationArmed.current = false;
+    void history.fetchNextPage().finally(() => {
+      paginationPending.current = false;
+    });
   };
 
-  const allSelected =
-    filteredReviews.length > 0 && selectedIds.length === filteredReviews.length;
-
-  const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? [] : filteredReviews.map((r) => r.id));
-  };
-
-  const handleDeleteSelected = () => {
-    setReviews((prev) => prev.filter((r) => !selectedIds.includes(r.id)));
-    setSelectedIds([]);
-    setIsEditing(false);
-  };
+  const initialLoading =
+    history.isAuthLoading || (history.isEnabled && history.isPending);
+  const hasReviews = history.reviews.length > 0;
 
   return (
     <View className="flex-1 bg-background">
+      {/* Profile stack header */}
       <Stack.Screen
         options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
           title: "My Reviews",
-          headerRight: () => (
-            <Pressable
-              onPress={() => {
-                setIsEditing((prev) => !prev);
-                setSelectedIds([]);
-              }}
-            >
-              <Text className="text-brand font-semibold">
-                {isEditing ? "Done" : "Edit"}
-              </Text>
-            </Pressable>
-          ),
         }}
       />
 
-      <View className="flex-row items-center rounded-md bg-surface border border-brand mx-4 mt-4 px-3 py-2">
-        <MaterialCommunityIcons
-          name="magnify"
-          size={18}
-          color={theme.extends.colors.text.tertiary}
-        />
-        <TextInput
-          className="ml-2 flex-1 text-sm text-text-primary"
-          placeholder="Search by MSME name..."
-          placeholderTextColor={theme.extends.colors.text.tertiary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
+      {/* Author history and refresh */}
       <FlatList
-        contentContainerClassName="p-4 pb-24"
-        data={filteredReviews}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ReviewCard
-            msmeName={item.msmeName}
-            category={item.category}
-            comment={item.comment}
-            date={item.date}
-            photoUrl={item.photoUrl}
-            isEditing={isEditing}
-            isSelected={selectedIds.includes(item.id)}
-            onSelect={() => toggleSelect(item.id)}
-          />
-        )}
+        key={history.userId ?? "signed-out"}
+        testID="my-reviews-list"
+        data={history.reviews}
+        keyExtractor={(review) => String(review.id)}
+        renderItem={({ item }) => <MyReviewCard review={item} />}
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: insets.bottom + 24,
+          flexGrow: 1,
+        }}
+        ItemSeparatorComponent={ReviewSeparator}
+        ListHeaderComponent={
+          hasReviews ? (
+            <View className="pb-4">
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                {history.totalCount} submitted{" "}
+                {history.totalCount === 1 ? "review" : "reviews"}
+              </AppText>
+              <AppText className="mt-1 text-xs text-text-secondary">
+                Newest first · Includes unpublished reviews
+              </AppText>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          <Text className="mt-8 text-center text-text-tertiary">
-            No reviews submitted yet.
-          </Text>
+          initialLoading ? (
+            <MyReviewsSkeleton />
+          ) : !history.isEnabled ? (
+            <View className="py-10">
+              <AppText className="text-center text-text-secondary">
+                Sign in to view your reviews.
+              </AppText>
+            </View>
+          ) : history.error ? (
+            <ErrorState
+              title="Unable to load your reviews"
+              description="Please try again to see your review history."
+              primaryActionTitle="Retry"
+              onPrimaryAction={() => void history.refetch()}
+            />
+          ) : (
+            <View testID="my-reviews-empty" className="items-center px-4 py-10">
+              <Image
+                source={require("@/shared/assets/mascot/mascot-empty-reviews.webp")}
+                style={{ width: 120, height: 120 }}
+                contentFit="contain"
+                accessible={false}
+              />
+              <AppText
+                weight="bold"
+                className="mt-2 text-center text-lg text-text-primary"
+              >
+                No reviews yet
+              </AppText>
+              <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+                Your submitted reviews will appear here. Explore local
+                businesses and share your experience.
+              </AppText>
+              <Button
+                title="Explore businesses"
+                onPress={() => router.push("/(explorer)/(tabs)/explore")}
+                variant="soft"
+                rounded="full"
+                size="sm"
+                className="mt-5"
+              />
+            </View>
+          )
+        }
+        ListFooterComponent={
+          history.isFetchingNextPage ? (
+            <View className="items-center py-5" testID="my-reviews-page-loader">
+              <LottieView
+                source={loadingAnimation}
+                autoPlay
+                loop
+                style={{ width: 50, height: 50 }}
+              />
+            </View>
+          ) : hasReviews && history.error ? (
+            <View className="py-4">
+              <ErrorState
+                size="section"
+                title={
+                  history.isFetchNextPageError
+                    ? "Couldn't load more reviews"
+                    : "Couldn't refresh your reviews"
+                }
+                description="Your loaded reviews are still available."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() =>
+                  history.isFetchNextPageError
+                    ? loadNextPage(true)
+                    : void history.refetch()
+                }
+              />
+            </View>
+          ) : hasReviews && !history.hasNextPage && !history.isFetching ? (
+            <EndOfListMessage description="You're all caught up." />
+          ) : null
+        }
+        onScrollBeginDrag={() => {
+          paginationArmed.current = true;
+        }}
+        onEndReached={() => loadNextPage()}
+        onEndReachedThreshold={0.35}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={history.isRefetching && !history.isFetchingNextPage}
+            enabled={history.isEnabled}
+            onRefresh={() => {
+              if (history.isEnabled && !history.isFetching)
+                void history.refetch();
+            }}
+            tintColor={theme.extends.colors.brand}
+          />
         }
       />
-
-      {isEditing && (
-        <View
-          className="absolute bottom-0 left-0 right-0 flex-row items-center justify-between bg-surface px-4 pt-4 border-t border-border"
-          style={{ paddingBottom: insets.bottom + 16 }}
-        >
-          <Pressable
-            onPress={toggleSelectAll}
-            className="flex-row items-center"
-            hitSlop={8}
-          >
-            <View
-              className={`mr-2 h-5 w-5 items-center justify-center rounded border ${
-                allSelected ? "bg-brand border-brand" : "border-border"
-              }`}
-            >
-              {allSelected && (
-                <MaterialCommunityIcons
-                  name="check"
-                  size={14}
-                  color="#FFFFFF"
-                />
-              )}
-            </View>
-            <Text className="text-text-primary">All</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleDeleteSelected}
-            disabled={selectedIds.length === 0}
-            className={`rounded-md px-6 py-2 ${
-              selectedIds.length === 0 ? "bg-disabled" : "bg-brand"
-            }`}
-          >
-            <Text
-              className={`font-semibold ${
-                selectedIds.length === 0 ? "text-text-tertiary" : "text-white"
-              }`}
-            >
-              Delete
-            </Text>
-          </Pressable>
-        </View>
-      )}
     </View>
   );
+}
+
+/** Separates individual submissions without nested borders. */
+function ReviewSeparator() {
+  return <View className="h-3" />;
 }
