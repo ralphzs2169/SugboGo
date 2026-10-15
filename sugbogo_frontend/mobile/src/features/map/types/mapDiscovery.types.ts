@@ -13,6 +13,23 @@ export type MapBounds = {
   west: number;
 };
 
+export type MapDiscoveryFilters = {
+  clusterId: number | null;
+  categoryIds: number[];
+  specialtyTagId: number | null;
+  hiddenGems: boolean;
+  openNow: boolean;
+  businessId?: number;
+};
+
+export const DEFAULT_MAP_FILTERS: MapDiscoveryFilters = {
+  clusterId: null,
+  categoryIds: [],
+  specialtyTagId: null,
+  hiddenGems: false,
+  openNow: false,
+};
+
 export type MapDiscoveryBusiness = {
   id: number;
   business_name: string;

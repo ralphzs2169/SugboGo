@@ -12,6 +12,8 @@ from apps.business.models import BusinessSpecialtyTag
 from apps.business.services.display_cover_photo import display_cover_photo_expression
 
 from .discovery_feed_service import DiscoveryFeedService
+from .taxonomy_filter_service import apply_taxonomy_filters
+from .operating_hours_filter_service import apply_open_now_filter
 
 
 class MapDiscoveryService:
@@ -24,6 +26,12 @@ class MapDiscoveryService:
         south,
         east,
         west,
+        category=None,
+        cluster=None,
+        specialty_tag=None,
+        hidden_gems=False,
+        open_now=False,
+        business=None,
     ):
         """Return a lazy, optimized queryset inside previously validated map bounds."""
         viewport = Polygon.from_bbox(
@@ -56,11 +64,11 @@ class MapDiscoveryService:
             )
         )
 
-        # Keep this subquery global: map bounds and future filters only narrow
+        # Keep this subquery global: map bounds and filters only narrow
         # the outer queryset, never the homepage's Top 10 membership.
         hidden_gem_ids = DiscoveryFeedService.list_global_hidden_gem_ids()
 
-        return (
+        queryset = (
             DiscoveryFeedService.list_eligible_businesses()
             .filter(
                 LOCT_ID__LOCT_POINT__intersects=viewport,
@@ -109,3 +117,27 @@ class MapDiscoveryService:
                 "BUSN_ID",
             )
         )
+
+        queryset = apply_taxonomy_filters(
+            queryset,
+            category_ids=category,
+            cluster_id=cluster,
+            specialty_tag_id=specialty_tag,
+        )
+
+        if business is not None:
+            queryset = queryset.filter(
+                BUSN_ID=business,
+            )
+
+        if hidden_gems:
+            queryset = queryset.filter(
+                is_hidden_gem=True,
+            )
+
+        if open_now:
+            queryset = apply_open_now_filter(
+                queryset,
+            )
+
+        return queryset

@@ -5,15 +5,15 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getDiscoveryResults } from "../api/exploreBusiness.service";
 import type { ExploreResultsCriteria } from "../types/exploreBusiness.types";
 
-export const DISCOVERY_RESULTS_QUERY_KEY = ["explore-discovery-results"] as const;
+export const DISCOVERY_RESULTS_QUERY_KEY = [
+  "explore-discovery-results",
+] as const;
 
 export function normalizeCategoryIds(categoryIds: number[]) {
   return [...new Set(categoryIds)].sort((left, right) => left - right);
 }
 
-export function getDiscoveryResultsQueryKey(
-  criteria: ExploreResultsCriteria,
-) {
+export function getDiscoveryResultsQueryKey(criteria: ExploreResultsCriteria) {
   return [
     ...DISCOVERY_RESULTS_QUERY_KEY,
     criteria.search.trim(),
@@ -26,6 +26,7 @@ export function getDiscoveryResultsQueryKey(
 /** Loads backend-ranked discovery results without changing server order. */
 export default function useDiscoveryResults(
   criteria: ExploreResultsCriteria,
+  enabled = true,
 ) {
   const normalizedCriteria = {
     ...criteria,
@@ -34,13 +35,11 @@ export default function useDiscoveryResults(
   };
 
   const query = useInfiniteQuery({
+    enabled,
     queryKey: getDiscoveryResultsQueryKey(normalizedCriteria),
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
-      const response = await getDiscoveryResults(
-        normalizedCriteria,
-        pageParam,
-      );
+      const response = await getDiscoveryResults(normalizedCriteria, pageParam);
 
       return throwOnApiError(response);
     },

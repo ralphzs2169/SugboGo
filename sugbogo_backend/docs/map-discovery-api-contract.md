@@ -17,6 +17,12 @@ and Explore response contracts are unchanged.
 | `west` | Yes | Western longitude, between -180 and 180. |
 | `page` | No | Standard page number, starting at 1. |
 | `page_size` | No | Standard positive page size, capped at the configured marker limit. |
+| `cluster` | No | Positive cluster ID; same taxonomy semantics as Explore. |
+| `category` | No | Repeated positive category IDs, e.g. `category=3&category=4`. |
+| `specialty_tag` | No | Positive specialty ID; only active assignments match. |
+| `hidden_gems` | No | Boolean, default false; restrict to the globally determined Top 10. |
+| `open_now` | No | Boolean, default false; match the stored weekly schedule in Asia/Manila. |
+| `business` | No | Positive business ID for a compact selection lookup within the supplied bounds. |
 
 Coordinates must be finite. North must exceed south and east must exceed west.
 Zero-area, inverted, and antimeridian-crossing viewports are rejected. By default,
@@ -31,8 +37,32 @@ For example:
 ```
 
 Results use the registered location's 4326 point. Points on viewport edges and
-corners are included. The endpoint applies no fixed-radius restriction. Search,
-cluster, category, and specialty query parameters are not supported in this scope.
+corners are included. The endpoint applies no fixed-radius restriction. Taxonomy
+filters reuse Explore validation and `apply_taxonomy_filters`; categories are ORed
+within the category list, while cluster, category, specialty, and quick filters
+intersect. No filter changes global Hidden Gem membership or map ordering.
+
+Global text search uses the existing `/api/explorer/explore/discovery/?search=...`
+endpoint, independent of map bounds and map filters. It matches registered active
+business names, categories, clusters, and active specialties with existing Explore
+relevance ordering. Text search is not a viewport-map parameter.
+
+`open_now` evaluates Asia/Manila weekly hours at request time. Opening time is
+inclusive and closing time exclusive. Today’s 24-hour schedule matches all day;
+ordinary overnight schedules include the previous day’s spillover, including
+Sunday into Monday. Closed, missing, incomplete, and equal-time ordinary schedules
+do not assert availability. This describes stored weekly hours; no holiday or live
+merchant-presence data exists. SQL `Exists` avoids per-business schedule queries.
+
+`business` is used without taxonomy/quick filters to resolve a selected global
+search result even if ordinary map pagination or active filters exclude it. Bounds,
+active-business eligibility, and global gem annotation still apply. Clients should
+identify a separately pinned search selection rather than implying it matches
+the active filters. This does not fetch a full business profile.
+
+There is no `new` filter: the current New Businesses collection orders all active
+businesses by creation date, without a recency eligibility cutoff. Near Me remains
+the map’s existing locate control.
 
 ## Response
 
@@ -131,5 +161,5 @@ and specialty prefetch. Empty pages need only the count query.
 Dense viewports still require a matching-row count and deterministic sort. There
 is no server clustering or snapshot token. Daily score refreshes and business
 changes can shift page contents between requests, so clients should deduplicate
-IDs when accumulating pages. Future work can add search/taxonomy narrowing to the
-lazy geographic queryset, measure large-data query plans, and tune the caps.
+IDs when accumulating pages. Future work can measure large-data query plans and
+tune the caps; map filters continue to narrow the lazy geographic queryset.

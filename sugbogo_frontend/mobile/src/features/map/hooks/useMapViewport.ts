@@ -16,10 +16,7 @@ export default function useMapViewport() {
   const [isMoving, setIsMoving] = useState(false);
   const hasInitialSearch = useRef(false);
 
-  const onViewportChange = useCallback((
-    bounds: MapBounds,
-    commit = false,
-  ) => {
+  const onViewportChange = useCallback((bounds: MapBounds, commit = false) => {
     const normalized = normalizeBounds(bounds);
     setViewedBounds(normalized);
     setIsMoving(false);
@@ -30,6 +27,8 @@ export default function useMapViewport() {
     ) {
       hasInitialSearch.current = true;
       setCommittedBounds(normalized);
+    } else if (commit) {
+      setCommittedBounds(null);
     }
   }, []);
 
@@ -56,6 +55,7 @@ export default function useMapViewport() {
     viewedBounds,
     canSearch,
     needsZoom,
+    isMoving,
     onViewportChange,
     onViewportChanging,
     searchThisArea,

@@ -37,6 +37,7 @@ type Props = {
   draft: ExploreResultsCriteria;
   onChange: (criteria: ExploreResultsCriteria) => void;
   onApply: () => void;
+  onDismiss?: () => void;
   /**
    * Number of places matching the current draft. Provide it (debounced) from
    * the parent to get a live "Show 24 places" label. Omit to fall back to a
@@ -119,6 +120,7 @@ export default function ExploreFiltersSheet({
   draft,
   onChange,
   onApply,
+  onDismiss,
   resultCount,
   isCountLoading = false,
 }: Props) {
@@ -277,7 +279,10 @@ export default function ExploreFiltersSheet({
       backgroundStyle={backgroundStyle}
       handleIndicatorStyle={handleIndicatorStyle}
       backdropComponent={renderBackdrop}
-      onDismiss={() => setQuery("")}
+      onDismiss={() => {
+        setQuery("");
+        onDismiss?.();
+      }}
     >
       <View className="flex-1">
         {/* Scrollable filter controls */}

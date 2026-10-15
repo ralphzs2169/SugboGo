@@ -7,6 +7,45 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import { getMapDiscoveryBusinesses } from "../../api/mapDiscovery.service";
 import MapScreen from "../MapScreen";
 import { router, useNavigation } from "expo-router";
+import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
+
+const mockSearchPresent = jest.fn();
+const mockFilterPresent = jest.fn();
+const mockSheetDismiss = jest.fn();
+
+jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
+  presentBottomSheet: (ref: { current: { present: () => void } }) =>
+    ref.current?.present(),
+}));
+jest.mock("@/features/explore/hooks/useExploreFilterOptions", () => jest.fn());
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+jest.mock("../../components/MapBusinessSearchSheet", () => {
+  const React = jest.requireActual("react");
+  const { View } = jest.requireActual("react-native");
+  return function MockSearchSheet(props: { sheetRef: object }) {
+    React.useImperativeHandle(props.sheetRef, () => ({
+      present: mockSearchPresent,
+      dismiss: mockSheetDismiss,
+    }));
+    return <View testID="map-search-sheet" {...props} />;
+  };
+});
+jest.mock(
+  "@/features/explore/components/search-filter-results/SearchFilterBottomSheet",
+  () => {
+    const React = jest.requireActual("react");
+    const { View } = jest.requireActual("react-native");
+    return function MockFilterSheet(props: { sheetRef: object }) {
+      React.useImperativeHandle(props.sheetRef, () => ({
+        present: mockFilterPresent,
+        dismiss: mockSheetDismiss,
+      }));
+      return <View testID="map-filter-sheet" {...props} />;
+    };
+  },
+);
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
@@ -21,7 +60,6 @@ jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
   useTabBarSpacing: () => 80,
 }));
-jest.mock("../../components/MapSearchOverlay", () => () => null);
 jest.mock("../../components/MapControls", () => {
   const { View } = jest.requireActual("react-native");
   return function MockMapControls(props: object) {
@@ -92,6 +130,18 @@ function setup() {
 }
 
 beforeEach(() => {
+  (useExploreFilterOptions as jest.Mock).mockReturnValue({
+    options: {
+      clusters: [{ id: 1, name: "Food", icon: "coffee" }],
+      categories: [{ id: 3, name: "Cafe", cluster_id: 1 }],
+      specialty_tags: [
+        { id: 4, name: "Local Coffee", color: "blue", icon: "coffee" },
+      ],
+    },
+    isLoading: false,
+    error: null,
+    refetch: jest.fn().mockResolvedValue({ error: null }),
+  });
   (useNavigation as jest.Mock).mockReturnValue({ isFocused: () => true });
   (useUserLocation as jest.Mock).mockReturnValue({
     status: "denied",
@@ -123,6 +173,7 @@ it("fetches initial visible bounds and renders API markers with real selected id
   expect(getMapDiscoveryBusinesses).toHaveBeenCalledWith(
     initialBounds,
     expect.anything(),
+    expect.objectContaining({ categoryIds: [] }),
   );
   await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
   expect(screen.getByText("Real Cebu Cafe")).toBeTruthy();
@@ -150,6 +201,7 @@ it("fetches only after Search this area and ignores insignificant camera changes
   expect(getMapDiscoveryBusinesses).toHaveBeenLastCalledWith(
     nextBounds,
     expect.anything(),
+    expect.objectContaining({ categoryIds: [] }),
   );
   await waitFor(() => expect(map().props.businesses).toHaveLength(1));
 });
@@ -240,6 +292,7 @@ it("waits for initial native centering before committing its viewport", async ()
   expect(getMapDiscoveryBusinesses).toHaveBeenCalledWith(
     nextBounds,
     expect.anything(),
+    expect.objectContaining({ categoryIds: [] }),
   );
 });
 
@@ -280,7 +333,11 @@ it("shows empty and incomplete result feedback", async () => {
     initialBounds,
   );
   await waitFor(() =>
-    expect(screen.getByText(/No businesses in the searched area/)).toBeTruthy(),
+    expect(
+      screen.getByText(
+        /No businesses in the searched area|No businesses match these map filters/,
+      ),
+    ).toBeTruthy(),
   );
   await fireEvent(
     screen.getByTestId("discovery-map"),
@@ -470,4 +527,279 @@ it("passes the backend gem flag to map markers and shows the selected business's
   await fireEvent(map(), "businessPress", 77);
   expect(screen.queryByText("Hidden Gem")).toBeNull();
   expect(getMapDiscoveryBusinesses).toHaveBeenCalledTimes(1);
+});
+
+it("applies taxonomy to the viewed area and preserves all filters through area search and clearing", async () => {
+  const screen = await setup();
+  const map = () => screen.getByTestId("discovery-map");
+  await fireEvent(map(), "viewportChange", initialBounds);
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  await fireEvent(map(), "viewportChange", nextBounds);
+  expect(getMapDiscoveryBusinesses).toHaveBeenCalledTimes(1);
+  await fireEvent.press(screen.getByRole("button", { name: /^Map filters/ }));
+  expect(mockFilterPresent).toHaveBeenCalledTimes(1);
+  await fireEvent(screen.getByTestId("map-filter-sheet"), "change", {
+    search: "",
+    clusterId: 1,
+    categoryIds: [3],
+    specialtyTagId: 4,
+  });
+  await fireEvent(screen.getByTestId("map-filter-sheet"), "apply");
+  await waitFor(() =>
+    expect(getMapDiscoveryBusinesses).toHaveBeenLastCalledWith(
+      nextBounds,
+      expect.anything(),
+      expect.objectContaining({
+        clusterId: 1,
+        categoryIds: [3],
+        specialtyTagId: 4,
+      }),
+    ),
+  );
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  await fireEvent.press(screen.getByRole("button", { name: "Hidden Gems" }));
+  await waitFor(() =>
+    expect(getMapDiscoveryBusinesses).toHaveBeenLastCalledWith(
+      nextBounds,
+      expect.anything(),
+      expect.objectContaining({
+        clusterId: 1,
+        categoryIds: [3],
+        specialtyTagId: 4,
+        hiddenGems: true,
+      }),
+    ),
+  );
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  const moved = { north: 10.45, south: 10.35, east: 123.99, west: 123.89 };
+  const previousCalls = (getMapDiscoveryBusinesses as jest.Mock).mock.calls
+    .length;
+  await fireEvent(map(), "viewportChange", moved);
+  expect(getMapDiscoveryBusinesses).toHaveBeenCalledTimes(previousCalls);
+  await fireEvent.press(screen.getByText("Search this area"));
+  await waitFor(() =>
+    expect(getMapDiscoveryBusinesses).toHaveBeenLastCalledWith(
+      moved,
+      expect.anything(),
+      expect.objectContaining({ categoryIds: [3], hiddenGems: true }),
+    ),
+  );
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Clear map filters" }),
+  );
+  await waitFor(() =>
+    expect(getMapDiscoveryBusinesses).toHaveBeenLastCalledWith(
+      moved,
+      expect.anything(),
+      expect.objectContaining({
+        clusterId: null,
+        categoryIds: [],
+        specialtyTagId: null,
+        hiddenGems: false,
+        openNow: false,
+      }),
+    ),
+  );
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+});
+
+it("selects a distant global result, commits the destination area, and keeps map filters", async () => {
+  const target = {
+    ...business,
+    id: 900,
+    business_name: "Distant Cafe",
+    is_hidden_gem: false,
+    location: { ...business.location, latitude: 10.8, longitude: 123.8 },
+  };
+  (getMapDiscoveryBusinesses as jest.Mock).mockImplementation(
+    async (_bounds, _signal, filters) => {
+      if (filters.businessId === 900) {
+        return response([target]);
+      }
+      return response(filters.hiddenGems ? [] : [business]);
+    },
+  );
+  const screen = await setup();
+  const map = () => screen.getByTestId("discovery-map");
+  const nativeMap = { animateToRegion: jest.fn() };
+  await fireEvent(map(), "mapReady", nativeMap);
+  await fireEvent(map(), "viewportChange", initialBounds);
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  await fireEvent.press(screen.getByRole("button", { name: "Hidden Gems" }));
+  await waitFor(() =>
+    expect(
+      screen.getByText(
+        /No businesses in the searched area|No businesses match these map filters/,
+      ),
+    ).toBeTruthy(),
+  );
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Search SugboGo businesses" }),
+  );
+  expect(mockSearchPresent).toHaveBeenCalledTimes(1);
+  await fireEvent(
+    screen.getByTestId("map-search-sheet"),
+    "businessSelect",
+    target,
+  );
+  expect(nativeMap.animateToRegion).toHaveBeenCalledWith({
+    latitude: 10.8,
+    longitude: 123.8,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  });
+  await waitFor(() => expect(screen.getByText("Distant Cafe")).toBeTruthy());
+  expect(map().props.selectedBusinessId).toBe(900);
+  expect(
+    screen.getByText(/shown separately from the active map filters/),
+  ).toBeTruthy();
+  const destinationBounds = {
+    north: 10.81,
+    south: 10.79,
+    east: 123.81,
+    west: 123.79,
+  };
+  await fireEvent(map(), "viewportChanging");
+  await fireEvent(map(), "viewportChange", destinationBounds);
+  await waitFor(() =>
+    expect(getMapDiscoveryBusinesses).toHaveBeenLastCalledWith(
+      destinationBounds,
+      expect.anything(),
+      expect.objectContaining({ hiddenGems: true }),
+    ),
+  );
+  expect(map().props.selectedBusinessId).toBe(900);
+  await waitFor(() =>
+    expect(screen.queryByText("Loading businesses…")).toBeNull(),
+  );
+});
+
+it("does not request an oversized viewed region when filters change", async () => {
+  const screen = await setup();
+  await fireEvent(screen.getByTestId("discovery-map"), "viewportChange", {
+    ...initialBounds,
+    north: 12,
+  });
+  await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
+  expect(getMapDiscoveryBusinesses).not.toHaveBeenCalled();
+  expect(screen.getByText("Zoom in to search this area")).toBeTruthy();
+});
+
+it("keeps a newer global selection when an older compact lookup resolves late", async () => {
+  let finishOld: (value: unknown) => void = () => {};
+  const target = { ...business, id: 901, business_name: "Newest Selection" };
+  (getMapDiscoveryBusinesses as jest.Mock).mockImplementation(
+    async (_bounds, _signal, filters) => {
+      if (filters.businessId === 900) {
+        return new Promise((resolve) => {
+          finishOld = resolve;
+        });
+      }
+      return response(filters.businessId === 901 ? [target] : [business]);
+    },
+  );
+  const screen = await setup();
+  await fireEvent(screen.getByTestId("discovery-map"), "mapReady", {
+    animateToRegion: jest.fn(),
+  });
+  await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", {
+    ...business,
+    id: 900,
+  });
+  await waitFor(() =>
+    expect(getMapDiscoveryBusinesses).toHaveBeenCalledTimes(1),
+  );
+  await fireEvent(
+    screen.getByTestId("map-search-sheet"),
+    "businessSelect",
+    target,
+  );
+  await waitFor(() =>
+    expect(screen.getByText("Newest Selection")).toBeTruthy(),
+  );
+  await act(async () => {
+    finishOld(response([{ ...business, id: 900 }]));
+  });
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(
+    901,
+  );
+  expect(screen.getByText("Newest Selection")).toBeTruthy();
+});
+
+it("retries a failed compact search selection without resetting the camera", async () => {
+  let lookupCalls = 0;
+  const target = { ...business, id: 900, business_name: "Recovered Selection" };
+  (getMapDiscoveryBusinesses as jest.Mock).mockImplementation(
+    async (_bounds, _signal, filters) => {
+      if (filters.businessId === 900) {
+        lookupCalls += 1;
+        return lookupCalls === 1
+          ? { success: false, code: "NETWORK_ERROR", message: "Offline" }
+          : response([target]);
+      }
+      return response();
+    },
+  );
+  const screen = await setup();
+  const nativeMap = { animateToRegion: jest.fn() };
+  await fireEvent(screen.getByTestId("discovery-map"), "mapReady", nativeMap);
+  await fireEvent(
+    screen.getByTestId("map-search-sheet"),
+    "businessSelect",
+    target,
+  );
+  await waitFor(() =>
+    expect(screen.getByText("Could not load selected business")).toBeTruthy(),
+  );
+  await fireEvent.press(
+    screen.getByRole("button", {
+      name: /Could not load selected business.*retry/i,
+    }),
+  );
+  await waitFor(() =>
+    expect(screen.getByText("Recovered Selection")).toBeTruthy(),
+  );
+  expect(nativeMap.animateToRegion).toHaveBeenCalledTimes(1);
+});
+
+it("offers recovery when taxonomy options fail to load", async () => {
+  const refetch = jest
+    .fn()
+    .mockResolvedValueOnce({ error: { code: "NETWORK_ERROR" } })
+    .mockResolvedValueOnce({ error: null });
+  (useExploreFilterOptions as jest.Mock).mockReturnValue({
+    options: { clusters: [], categories: [], specialty_tags: [] },
+    isLoading: false,
+    error: { code: "NETWORK_ERROR" },
+    refetch,
+  });
+  const screen = await setup();
+  await fireEvent.press(screen.getByRole("button", { name: /^Map filters/ }));
+  await waitFor(() =>
+    expect(screen.getByText("Could not load filters")).toBeTruthy(),
+  );
+  await fireEvent.press(
+    screen.getByRole("button", { name: /Could not load filters.*retry/i }),
+  );
+  await waitFor(() => expect(mockFilterPresent).toHaveBeenCalledTimes(1));
+  expect(refetch).toHaveBeenCalledTimes(2);
+});
+
+it("reads current native map boundaries when applying a quick filter", async () => {
+  const screen = await setup();
+  const actualBounds = { north: 10.5, south: 10.4, east: 124, west: 123.9 };
+  const map = () => screen.getByTestId("discovery-map");
+  await fireEvent(map(), "mapReady", {
+    animateToRegion: jest.fn(),
+    getMapBoundaries: jest.fn().mockResolvedValue({
+      northEast: { latitude: actualBounds.north, longitude: actualBounds.east },
+      southWest: { latitude: actualBounds.south, longitude: actualBounds.west },
+    }),
+  });
+  await fireEvent(map(), "viewportChange", initialBounds);
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
+  await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
+  await waitFor(() => expect(getMapDiscoveryBusinesses).toHaveBeenLastCalledWith(actualBounds, expect.anything(), expect.objectContaining({ openNow: true })));
+  await waitFor(() => expect(map().props.businesses).toHaveLength(1));
 });

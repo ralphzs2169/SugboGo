@@ -4,6 +4,7 @@ from django.conf import settings
 from rest_framework import serializers
 
 from apps.business.models import Business
+from .discovery_feed_serializer import TaxonomyFilterQuerySerializer
 
 from .explore_business_serializer import (
     ExploreCategorySerializer,
@@ -12,7 +13,7 @@ from .explore_business_serializer import (
 )
 
 
-class MapDiscoveryQuerySerializer(serializers.Serializer):
+class MapDiscoveryQuerySerializer(TaxonomyFilterQuerySerializer):
     """Validate a finite, non-crossing viewport before any database queries."""
 
     north = serializers.FloatField(
@@ -31,13 +32,26 @@ class MapDiscoveryQuerySerializer(serializers.Serializer):
         min_value=-180,
         max_value=180,
     )
+    hidden_gems = serializers.BooleanField(
+        required=False,
+        default=False,
+    )
+    open_now = serializers.BooleanField(
+        required=False,
+        default=False,
+    )
+    business = serializers.IntegerField(
+        min_value=1,
+        required=False,
+    )
 
     def validate(
         self,
         attrs,
     ):
         """Reject degenerate, inverted, antimeridian-crossing, or oversized bounds."""
-        for field_name, coordinate in attrs.items():
+        for field_name in ("north", "south", "east", "west"):
+            coordinate = attrs[field_name]
             if not isfinite(coordinate):
                 raise serializers.ValidationError(
                     {
