@@ -30,7 +30,13 @@ from apps.admin_operations.moderation.services.tests import (
 from apps.notifications.models import Notification
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.review_disputes.services.review_dispute_service import ReviewDisputeService
-from apps.reviews.models import BusinessReviewSummary, Review, ReviewReport
+from apps.reviews.models import (
+    BusinessReviewSummary,
+    Review,
+    ReviewMediaCleanup,
+    ReviewPhoto,
+    ReviewReport,
+)
 from apps.reviews.services.review_moderation_consistency_service import (
     ReviewModerationConsistencyService,
 )
@@ -47,6 +53,11 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
     def setUp(self):
         dispute_tests.ManageReviewDisputeServiceTests.setUp(self)
         self.dispute = self.create_dispute()
+        ReviewPhoto.objects.create(
+            REVW_ID=self.review,
+            RPHO_PHOTO_URL="https://example.com/concurrent-review.jpg",
+            RPHO_PHOTO_PUBLIC_ID="concurrent-review-photo",
+        )
         # A second published review makes a double decrement observable.
         Review.objects.create(
             USER_ID=self.second_explorer,
@@ -58,6 +69,7 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
         self.starting_reputation = self.explorer.USER_REPUTATION
 
         for target in (
+            "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
             "apps.reviews.tasks.refresh_business_review_insights.delay",
             "apps.reviews.tasks.process_review_sentiment.delay",
             "apps.notifications.services.notification_service."
@@ -200,6 +212,7 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
             self.assertEqual(message, expected_message)
 
         deleted = first == "delete" or second == "delete"
+        self.assertEqual(ReviewMediaCleanup.objects.count(), int(deleted))
         self.assertEqual(
             Review.objects.filter(pk=self.review.pk).exists(),
             not deleted,

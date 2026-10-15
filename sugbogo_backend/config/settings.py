@@ -387,6 +387,10 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
+    "recover-review-media-cleanup": {
+        "task": "apps.reviews.tasks.recover_review_media_cleanup",
+        "schedule": crontab(minute="*/5"),
+    },
     "daily-review-summary-recomputation": {
         "task": "apps.reviews.tasks.recompute_review_summaries",
         "schedule": crontab(

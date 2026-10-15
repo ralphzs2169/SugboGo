@@ -26,6 +26,7 @@ from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
     ReviewLike,
+    ReviewMediaCleanup,
     ReviewPhoto,
     ReviewReport,
 )
@@ -176,7 +177,7 @@ class ReviewServiceTests(TestCase):
         self,
         delete_image,
     ):
-        """Withdrawal uses the existing photo cleanup without decrementing count."""
+        """Withdrawal registers durable cleanup without decrementing public count."""
         review = Review.objects.create(
             USER_ID=self.user,
             BUSN_ID=self.business,
@@ -192,7 +193,10 @@ class ReviewServiceTests(TestCase):
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
         self.assertFalse(Review.objects.filter(pk=review.pk).exists())
-        delete_image.assert_called_once_with("held-photo")
+        delete_image.assert_not_called()
+        self.assertTrue(
+            ReviewMediaCleanup.objects.filter(RMCU_PUBLIC_ID="held-photo").exists(),
+        )
 
     @classmethod
     def setUpTestData(cls):
@@ -1869,18 +1873,21 @@ class ReviewServiceTests(TestCase):
             ),
         )
 
-        with patch(
-            "apps.reviews.tasks.refresh_business_review_insights.delay",
-        ) as enqueue:
+        with (
+            patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue,
+            patch("apps.reviews.tasks.cleanup_review_media_asset.apply_async") as cleanup,
+        ):
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
                 ReviewService.delete_review(
                     user=self.user,
                     review_id=review.REVW_ID,
                 )
                 enqueue.assert_not_called()
+                cleanup.assert_not_called()
 
-        self.assertEqual(len(callbacks), 1)
+        self.assertEqual(len(callbacks), 2)
         enqueue.assert_called_once_with(self.business.BUSN_ID)
+        cleanup.assert_called_once()
 
         self.assertFalse(
             Review.objects.filter(
@@ -1894,8 +1901,11 @@ class ReviewServiceTests(TestCase):
             ).exists(),
         )
 
-        mock_delete.assert_called_once_with(
-            "sugbogo/reviews/review",
+        mock_delete.assert_not_called()
+        self.assertTrue(
+            ReviewMediaCleanup.objects.filter(
+                RMCU_PUBLIC_ID="sugbogo/reviews/review",
+            ).exists(),
         )
 
         self.business.refresh_from_db()

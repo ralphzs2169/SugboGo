@@ -36,7 +36,9 @@ deletions from recording the same removal twice.
 
 Records use the existing Admin/Super Admin user-history endpoint and permissions.
 No public or author-facing audit endpoint is added. Notifications, reputation,
-task scheduling, and external media behavior are unchanged.
+and review insight/moderation task scheduling are unchanged. External media is
+registered transactionally for durable post-commit cleanup as described in
+`review-media-cleanup.md`.
 
 ## Retention dependency
 
@@ -47,7 +49,5 @@ retain deleted evidence. Like existing history, actor/target user references use
 PROTECT; retention/account-erasure policy must account for those references. A
 retention duration cannot be inferred from current settings.
 
-Cloudinary transaction safety and dispute-evidence cleanup remain Task 3B.3.
-Author-removal closure notifications remain Task 3B.4. Existing external cleanup
-still runs before commit, so database rollback cannot restore externally destroyed
-assets; this task guarantees database/audit atomicity only.
+Cloudinary transaction safety and dispute-evidence cleanup are handled by Task 3B.3.
+Author-removal closure notifications remain Task 3B.4.

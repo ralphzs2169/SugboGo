@@ -32,6 +32,7 @@ from apps.reviews.services.business_review_summary_service import (
 )
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.services.review_moderation_service import ReviewModerationService
+from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
@@ -1244,30 +1245,7 @@ class ReviewService:
             actor=user,
         )
 
-        public_ids = list(
-            review.photos.values_list(
-                "RPHO_PHOTO_PUBLIC_ID",
-                flat=True,
-            ),
-        )
-
-        try:
-            reply = review.reply
-        except Review.reply.RelatedObjectDoesNotExist:
-            reply = None
-
-        if reply:
-            public_ids.extend(
-                reply.photos.values_list(
-                    "RPHO_PHOTO_PUBLIC_ID",
-                    flat=True,
-                ),
-            )
-
-        for public_id in public_ids:
-            CloudinaryService.delete_image(
-                public_id,
-            )
+        ReviewMediaCleanupService.register_review_assets(review)
 
         deleted_review_id = review.REVW_ID
         business_id = review.BUSN_ID_id
