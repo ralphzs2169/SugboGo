@@ -188,6 +188,45 @@ describe("review visibility request payloads", () => {
   });
 });
 
+describe("review photo retention multipart payloads", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (apiClient.patch as jest.Mock).mockResolvedValue({ success: true });
+  });
+
+  it("sends the explicit empty-array marker for removing all photos", async () => {
+    await updateReview(8, undefined, [], []);
+
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(apiClient.patch).toHaveBeenCalledWith("/reviews/8/", form);
+    expect(form.getAll("keep_photo_ids")).toEqual(["[]"]);
+    expect(form.has("text")).toBe(false);
+    expect(form.has("photos")).toBe(false);
+  });
+
+  it("keeps the empty-array marker when uploading replacement photos", async () => {
+    await updateReview(8, undefined, [{ uri: "file:///replacement.jpg" }], []);
+
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(form.getAll("keep_photo_ids")).toEqual(["[]"]);
+    expect(form.getAll("photos")).toHaveLength(1);
+  });
+
+  it("omits retention when existing photos should be preserved", async () => {
+    await updateReview(8, "An updated review with the same photos.", []);
+
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(form.has("keep_photo_ids")).toBe(false);
+  });
+
+  it("preserves repeated integer fields for a retained subset", async () => {
+    await updateReview(8, undefined, [], [12, 34]);
+
+    const form = (apiClient.patch as jest.Mock).mock.calls[0][1] as FormData;
+    expect(form.getAll("keep_photo_ids")).toEqual(["12", "34"]);
+  });
+});
+
 describe("createReview installation ID", () => {
   beforeEach(() => {
     jest.clearAllMocks();

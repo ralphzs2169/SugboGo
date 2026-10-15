@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.contrib.gis.geos import Point
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from rest_framework.exceptions import ValidationError
 
 from apps.business.models import (
     Business,
@@ -15,8 +16,8 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.business.services.vouch_service import VouchService
-from apps.reviews.models import ReviewPhoto
-from apps.reviews.services.review_service import ReviewService
+from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.services.review_service import ReviewEditConflict, ReviewService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
     SafeReviewModerationMixin,
 )
@@ -492,6 +493,214 @@ class ReputationInteractionIntegrationTests(SafeReviewModerationMixin, TestCase)
             ReputationEvent.objects.count(),
             2,
         )
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
+    def test_non_published_photo_additions_preserve_status_balance_and_events(
+        self,
+        mock_upload,
+    ):
+        mock_upload.return_value = {
+            "secure_url": "https://example.com/non-public-photo.jpg",
+            "public_id": "non-public-photo",
+        }
+        cases = (
+            (self.first_business, Review.ReviewStatus.FLAGGED),
+            (self.second_business, Review.ReviewStatus.REJECTED),
+        )
+        for business, review_status in cases:
+            with self.subTest(review_status=review_status):
+                review = self._create_review(business=business)
+                Review.objects.filter(pk=review.pk).update(REVW_STATUS=review_status)
+                self.explorer.refresh_from_db()
+                original_balance = self.explorer.USER_REPUTATION
+                original_events = list(ReputationEvent.objects.order_by("pk").values())
+
+                ReviewService.update_review(
+                    user=self.explorer,
+                    review_id=review.pk,
+                    photos=[object()],
+                )
+
+                review.refresh_from_db()
+                self.explorer.refresh_from_db()
+                self.assertEqual(review.REVW_STATUS, review_status)
+                self.assertEqual(review.photos.count(), 1)
+                self.assertEqual(self.explorer.USER_REPUTATION, original_balance)
+                self.assertEqual(
+                    list(ReputationEvent.objects.order_by("pk").values()),
+                    original_events,
+                )
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
+    def test_under_review_photo_edit_is_blocked_without_reward(
+        self,
+        mock_upload,
+    ):
+        review = self._create_review()
+        Review.objects.filter(pk=review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        self.explorer.refresh_from_db()
+        original_balance = self.explorer.USER_REPUTATION
+        original_events = list(ReputationEvent.objects.order_by("pk").values())
+
+        with self.assertRaisesMessage(ValidationError, "under review"):
+            ReviewService.update_review(
+                user=self.explorer,
+                review_id=review.pk,
+                photos=[object()],
+            )
+
+        review.refresh_from_db()
+        self.explorer.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertFalse(review.photos.exists())
+        self.assertEqual(self.explorer.USER_REPUTATION, original_balance)
+        self.assertEqual(
+            list(ReputationEvent.objects.order_by("pk").values()),
+            original_events,
+        )
+        mock_upload.assert_not_called()
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.delete_image",
+    )
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
+    def test_removing_and_readding_first_photo_does_not_repeat_upgrade(
+        self,
+        mock_upload,
+        mock_delete,
+    ):
+        review = self._create_review()
+        mock_upload.return_value = {
+            "secure_url": "https://example.com/readded-photo.jpg",
+            "public_id": "readded-photo",
+        }
+        ReviewService.update_review(
+            user=self.explorer,
+            review_id=review.pk,
+            photos=[object()],
+        )
+        original_events = list(ReputationEvent.objects.order_by("pk").values())
+        with self.captureOnCommitCallbacks(execute=True):
+            ReviewService.update_review(
+                user=self.explorer,
+                review_id=review.pk,
+                keep_photo_ids=[],
+            )
+        ReviewService.update_review(
+            user=self.explorer,
+            review_id=review.pk,
+            photos=[object()],
+        )
+
+        self.explorer.refresh_from_db()
+        self.assertEqual(self.explorer.USER_REPUTATION, Decimal("0.25"))
+        self.assertEqual(
+            list(ReputationEvent.objects.order_by("pk").values()),
+            original_events,
+        )
+        mock_delete.assert_called_once_with("readded-photo")
+
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.delete_image",
+    )
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
+    def test_status_change_during_moderation_blocks_photo_upgrade(
+        self,
+        mock_upload,
+        mock_delete,
+    ):
+        review = self._create_review()
+        original_events = list(ReputationEvent.objects.order_by("pk").values())
+        mock_upload.return_value = {
+            "secure_url": "https://example.com/stale-photo.jpg",
+            "public_id": "stale-photo",
+        }
+
+        def reject_during_moderation(**kwargs):
+            Review.objects.filter(pk=review.pk).update(
+                REVW_STATUS=Review.ReviewStatus.REJECTED,
+            )
+            return {
+                "outcome": "safe",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "findings": [],
+            }
+
+        with patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            side_effect=reject_during_moderation,
+        ):
+            with self.assertRaises(ReviewEditConflict):
+                ReviewService.update_review(
+                    user=self.explorer,
+                    review_id=review.pk,
+                    photos=[object()],
+                )
+
+        review.refresh_from_db()
+        self.explorer.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.assertFalse(review.photos.exists())
+        self.assertEqual(self.explorer.USER_REPUTATION, Decimal("0.23"))
+        self.assertEqual(
+            list(ReputationEvent.objects.order_by("pk").values()),
+            original_events,
+        )
+        mock_delete.assert_called_once_with("stale-photo")
+
+    @patch(
+        "apps.reviews.services.review_service.ReputationService."
+        "apply_review_photo_upgrade_reward",
+        side_effect=RuntimeError("Photo reward failed."),
+    )
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.delete_image",
+    )
+    @patch(
+        "apps.reviews.services.review_service.CloudinaryService.upload_image",
+    )
+    def test_published_photo_upgrade_failure_rolls_back_edit(
+        self,
+        mock_upload,
+        mock_delete,
+        mock_reward,
+    ):
+        review = self._create_review()
+        original_events = list(ReputationEvent.objects.order_by("pk").values())
+        mock_upload.return_value = {
+            "secure_url": "https://example.com/rollback-upgrade.jpg",
+            "public_id": "rollback-upgrade",
+        }
+
+        with self.assertRaisesMessage(RuntimeError, "Photo reward failed"):
+            ReviewService.update_review(
+                user=self.explorer,
+                review_id=review.pk,
+                photos=[object()],
+            )
+
+        review.refresh_from_db()
+        self.explorer.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertIsNone(review.REVW_EDITED_AT)
+        self.assertFalse(review.photos.exists())
+        self.assertEqual(self.explorer.USER_REPUTATION, Decimal("0.23"))
+        self.assertEqual(
+            list(ReputationEvent.objects.order_by("pk").values()),
+            original_events,
+        )
+        mock_reward.assert_called_once()
+        mock_delete.assert_called_once_with("rollback-upgrade")
 
     @patch(
         "apps.reviews.services.review_service.CloudinaryService.upload_image",

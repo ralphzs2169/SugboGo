@@ -38,9 +38,14 @@ function reviewForm(
     form.append("show_in_community", String(showInCommunity));
   }
 
-  keepPhotoIds?.forEach((id) => {
-    form.append("keep_photo_ids", String(id));
-  });
+  if (keepPhotoIds?.length === 0) {
+    // An empty repeated field would otherwise be indistinguishable from omission.
+    form.append("keep_photo_ids", "[]");
+  } else {
+    keepPhotoIds?.forEach((id) => {
+      form.append("keep_photo_ids", String(id));
+    });
+  }
 
   appendPhotos(form, photos);
 

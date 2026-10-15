@@ -33,10 +33,16 @@ jest.mock(
 );
 jest.mock(
   "@/features/merchant/components/registration/business-photos/PhotoPreview",
-  () => ({
-    __esModule: true,
-    default: () => null,
-  }),
+  () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pressable } = require("react-native");
+    return {
+      __esModule: true,
+      default: ({ uri, onRemove }: { uri: string; onRemove?: () => void }) => (
+        <Pressable accessibilityLabel={`Remove ${uri}`} onPress={onRemove} />
+      ),
+    };
+  },
 );
 jest.mock("@/shared/components/form/FormTextArea", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -239,6 +245,78 @@ describe("ReviewComposerSheet Community visibility", () => {
     expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "success" }),
+    );
+  });
+});
+
+describe("ReviewComposerSheet photo retention", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    update.mockResolvedValue(review);
+    (useCreateReview as jest.Mock).mockReturnValue({
+      mutateAsync: create,
+      isPending: false,
+      error: null,
+    });
+    (useUpdateReview as jest.Mock).mockReturnValue({
+      mutateAsync: update,
+      isPending: false,
+      error: null,
+    });
+  });
+
+  it.each([1, 3])("sends an empty retention list after removing %i photos", async (count) => {
+    const photos = Array.from({ length: count }, (_, index) => ({
+      id: index + 1,
+      photo_url: `https://example.com/existing-${index}.jpg`,
+    }));
+    const screen = await showReview({ ...review, photos });
+    await settleForm();
+
+    for (const photo of photos) {
+      await fireEvent.press(screen.getByLabelText(`Remove ${photo.photo_url}`));
+    }
+    await fireEvent.press(screen.getByText("Save changes"));
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ keepPhotoIds: [], photos: [], text: undefined }),
+      ),
+    );
+  });
+
+  it("submits replacement photos with an empty retention list", async () => {
+    const existing = { id: 12, photo_url: "https://example.com/original.jpg" };
+    const replacement = { uri: "file:///replacement.jpg" };
+    (pickBusinessPhotos as jest.Mock).mockResolvedValue([replacement]);
+    const screen = await showReview({ ...review, photos: [existing] });
+    await settleForm();
+    await fireEvent.press(screen.getByLabelText(`Remove ${existing.photo_url}`));
+    await fireEvent.press(screen.getByLabelText("Add review photo"));
+    await waitFor(() => expect(screen.getByText("1/3")).toBeTruthy());
+    await fireEvent.press(screen.getByText("Save changes"));
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ keepPhotoIds: [], photos: [replacement] }),
+      ),
+    );
+  });
+
+  it("keeps only the remaining photo IDs when removing a subset", async () => {
+    const photos = [
+      { id: 12, photo_url: "https://example.com/one.jpg" },
+      { id: 34, photo_url: "https://example.com/two.jpg" },
+    ];
+    const screen = await showReview({ ...review, photos });
+    await settleForm();
+    await fireEvent.press(screen.getByLabelText(`Remove ${photos[0].photo_url}`));
+    await fireEvent.press(screen.getByText("Save changes"));
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ keepPhotoIds: [34], photos: [] }),
+      ),
     );
   });
 });

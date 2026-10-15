@@ -160,6 +160,9 @@ class ReviewDetailView(APIView):
                 data["keep_photo_ids"] = request.data.getlist(
                     "keep_photo_ids",
                 )
+                # A sole empty-array marker explicitly removes all retained photos.
+                if data["keep_photo_ids"] == ["[]"]:
+                    data["keep_photo_ids"] = []
             else:
                 data["keep_photo_ids"] = request.data.get(
                     "keep_photo_ids",

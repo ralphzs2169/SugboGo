@@ -1399,6 +1399,193 @@ class ReviewDetailViewTests(APITestCase):
 
         self.detail_url = f"/api/reviews/{self.review.REVW_ID}/"
 
+    def _add_existing_photos(
+        self,
+        count,
+    ):
+        """Attach accepted photo records for multipart retention regressions."""
+        photos = []
+        for index in range(count):
+            photos.append(
+                ReviewPhoto.objects.create(
+                    REVW_ID=self.review,
+                    RPHO_PHOTO_URL=f"https://example.com/existing-{index}.jpg",
+                    RPHO_PHOTO_PUBLIC_ID=f"existing-{index}",
+                ),
+            )
+        return photos
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    def test_empty_multipart_retention_removes_final_or_all_photos(
+        self,
+        delete_image,
+    ):
+        for count in (1, 3):
+            with self.subTest(count=count):
+                photos = self._add_existing_photos(count)
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.patch(
+                        self.detail_url,
+                        {"keep_photo_ids": "[]"},
+                        format="multipart",
+                    )
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data["data"]["photos"], [])
+                self.assertFalse(self.review.photos.exists())
+                for photo in photos:
+                    delete_image.assert_any_call(photo.RPHO_PHOTO_PUBLIC_ID)
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_empty_retention_with_upload_replaces_existing_photos(
+        self,
+        upload_image,
+        delete_image,
+    ):
+        originals = self._add_existing_photos(3)
+        upload_image.return_value = {
+            "secure_url": "https://example.com/replacement.jpg",
+            "public_id": "replacement",
+        }
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.patch(
+                self.detail_url,
+                {
+                    "keep_photo_ids": "[]",
+                    "photos": [ReviewViewTests.create_test_image()],
+                },
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            [photo["photo_url"] for photo in response.data["data"]["photos"]],
+            [upload_image.return_value["secure_url"]],
+        )
+        self.assertFalse(
+            self.review.photos.filter(
+                pk__in=[photo.pk for photo in originals],
+            ).exists(),
+        )
+        self.assertEqual(delete_image.call_count, 3)
+        self.assertEqual(self.moderate_review.call_args.kwargs["image_urls"], [])
+        self.assertEqual(len(self.moderate_review.call_args.kwargs["photos"]), 1)
+
+    def test_omitted_retention_preserves_existing_photos(self):
+        photos = self._add_existing_photos(2)
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "An updated review preserving the accepted photos."},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            {photo["id"] for photo in response.data["data"]["photos"]},
+            {photo.pk for photo in photos},
+        )
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    def test_repeated_integer_retention_keeps_only_selected_photos(
+        self,
+        delete_image,
+    ):
+        photos = self._add_existing_photos(3)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.patch(
+                self.detail_url,
+                {"keep_photo_ids": [str(photos[0].pk), str(photos[2].pk)]},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            {photo["id"] for photo in response.data["data"]["photos"]},
+            {photos[0].pk, photos[2].pk},
+        )
+        delete_image.assert_called_once_with(photos[1].RPHO_PHOTO_PUBLIC_ID)
+
+    def test_invalid_or_mixed_retention_values_remain_rejected(self):
+        photos = self._add_existing_photos(1)
+        for value in ("", "not-an-id", "0", "999999", ["[]", str(photos[0].pk)]):
+            with self.subTest(value=value):
+                response = self.client.patch(
+                    self.detail_url,
+                    {"keep_photo_ids": value},
+                    format="multipart",
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+                self.assertEqual(self.review.photos.count(), 1)
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_replacement_photo_limit_and_file_validation_remain_enforced(
+        self,
+        upload_image,
+    ):
+        self._add_existing_photos(3)
+        cases = (
+            [ReviewViewTests.create_test_image() for _ in range(4)],
+            [ReviewViewTests.create_large_test_image()],
+            [SimpleUploadedFile("invalid.jpg", b"invalid", "image/jpeg")],
+        )
+        for photos in cases:
+            with self.subTest(photo_count=len(photos)):
+                response = self.client.patch(
+                    self.detail_url,
+                    {"keep_photo_ids": "[]", "photos": photos},
+                    format="multipart",
+                )
+                self.assertEqual(response.status_code, 400, response.data)
+                self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+                self.assertEqual(self.review.photos.count(), 3)
+        upload_image.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_failed_replacement_moderation_preserves_text_and_photos(
+        self,
+        upload_image,
+    ):
+        originals = self._add_existing_photos(2)
+        cases = (
+            ("flagged", 400, "REVIEW_EDIT_CONTENT_FLAGGED"),
+            ("provider_failure", 503, "REVIEW_EDIT_MODERATION_UNAVAILABLE"),
+        )
+        for outcome, status_code, code in cases:
+            with self.subTest(outcome=outcome):
+                self.moderate_review.return_value["outcome"] = outcome
+                response = self.client.patch(
+                    self.detail_url,
+                    {
+                        "text": "A proposed replacement review with enough detail.",
+                        "keep_photo_ids": "[]",
+                        "photos": [ReviewViewTests.create_test_image()],
+                    },
+                    format="multipart",
+                )
+                self.assertEqual(response.status_code, status_code)
+                self.assertEqual(response.data["code"], code)
+                self.review.refresh_from_db()
+                self.assertEqual(self.review.REVW_TEXT, "Original review.")
+                self.assertEqual(
+                    set(self.review.photos.values_list("pk", flat=True)),
+                    {photo.pk for photo in originals},
+                )
+        upload_image.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    def test_explicit_removal_still_requires_review_ownership(
+        self,
+        delete_image,
+    ):
+        self._add_existing_photos(1)
+        self.client.force_authenticate(self.other_explorer)
+        response = self.client.patch(
+            self.detail_url,
+            {"keep_photo_ids": "[]"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.review.photos.count(), 1)
+        delete_image.assert_not_called()
+
     def test_update_review_returns_200_not_500(self):
         """Regression test for the bug where PATCH threw an unhandled
         AttributeError because the object returned by update_review was

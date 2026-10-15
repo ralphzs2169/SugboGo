@@ -1168,7 +1168,11 @@ class ReviewService:
             review.REVW_EDITED_AT = timezone.now()
             review.save(update_fields=["REVW_EDITED_AT"])
 
-        if uploaded_photos and not had_photo_before_update:
+        if (
+            review.REVW_STATUS == Review.ReviewStatus.PUBLISHED
+            and uploaded_photos
+            and not had_photo_before_update
+        ):
             ReputationService.apply_review_photo_upgrade_reward(
                 user_id=user.USER_ID,
                 source_id=review.REVW_ID,
