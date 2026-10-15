@@ -167,7 +167,8 @@ export default function ProfileScreen() {
               />
             )}
 
-          {!isLoadingApplicationStatus && !merchantModeAcknowledged &&
+          {!isLoadingApplicationStatus &&
+            !merchantModeAcknowledged &&
             (applicationStatusError && !hasResolvedStatus ? (
               <ErrorState
                 size="section"
@@ -202,7 +203,7 @@ export default function ProfileScreen() {
             <ProfileMenuItem
               title="Offline Data"
               icon="database-outline"
-              onPress={() => {}}
+              onPress={() => router.push("/offline-routes")}
             />
 
             <ProfileMenuItem title="Sync Now" icon="sync" onPress={() => {}} />

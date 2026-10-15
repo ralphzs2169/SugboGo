@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { randomUUID } from "expo-crypto";
+import { clearOfflineAccess } from "@/features/offline-routes/services/offlineAccess.service";
 
 /**
  * Secure token storage utilities for authentication.
@@ -29,8 +30,11 @@ export async function getRefreshToken() {
 }
 
 export async function clearTokens() {
-  await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await Promise.all([
+    clearOfflineAccess(),
+    SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
+    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+  ]);
 }
 
 /**

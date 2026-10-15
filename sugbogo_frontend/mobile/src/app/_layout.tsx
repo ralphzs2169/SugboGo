@@ -65,6 +65,7 @@ export default function RootLayout() {
                 {/* App navigation */}
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="index" options={{ animation: "none" }} />
+                  <Stack.Screen name="offline-routes" />
 
                   <Stack.Screen name="(auth)" options={{ animation: "none" }} />
 

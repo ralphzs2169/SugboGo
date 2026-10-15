@@ -48,6 +48,7 @@ export default (): ExpoConfig => ({
       },
     ],
     "expo-secure-store",
+    "expo-sqlite",
     "expo-image",
     "expo-image-picker",
     "expo-status-bar",

@@ -3,6 +3,12 @@ import { useEffect, useRef } from "react";
 import { getCurrentUser } from "../api/auth.service";
 import { getAccessToken, clearTokens } from "@/shared/api/storage.service";
 import { useAuthStore } from "../store/auth.store";
+import { isTransportError } from "@/shared/utils/isTransportError";
+import {
+  clearOfflineAccess,
+  getOfflineOwner,
+} from "@/features/offline-routes/services/offlineAccess.service";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 
 /**
  * Restores the user's authentication session when the application starts.
@@ -28,22 +34,32 @@ export function useRestoreSession() {
 
         if (!token) {
           clearUser();
+          await clearOfflineAccess();
           return;
         }
 
         const user = await getCurrentUser();
 
         setUser(user);
+        useOfflineAccessStore.getState().setOwnerId(null);
+        useOfflineAccessStore.getState().setRevoking(false);
       } catch (error) {
-        console.error(" Session restore failed:", error);
-
-        await clearTokens();
         clearUser();
+        if (isTransportError(error)) {
+          // Local guidance access does not restore authentication or enable protected routes.
+          const ownerId = await getOfflineOwner().catch(() => null);
+          useOfflineAccessStore.getState().setOwnerId(ownerId);
+        } else {
+          await clearTokens();
+        }
       } finally {
         setLoading(false);
       }
     }
 
-    restoreSession();
+    void restoreSession().catch(() => {
+      clearUser();
+      useOfflineAccessStore.getState().setOwnerId(null);
+    });
   }, [clearUser, setLoading, setUser]);
 }
