@@ -23,6 +23,7 @@ openai==3.28.0
 packaging==26.2
 pathspec==1.1.1
 pillow==12.3.0
+reportlab==5.0.1
 platformdirs==4.10.0
 psycopg==3.3.4
 psycopg-binary==3.3.4

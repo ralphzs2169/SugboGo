@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Parse generated PDF contents and page structure in export tests.
+pypdf==6.21.0
