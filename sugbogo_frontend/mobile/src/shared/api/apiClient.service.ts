@@ -1,6 +1,15 @@
-import axios from "axios";
+import axios, { type InternalAxiosRequestConfig } from "axios";
 import { router } from "expo-router";
-import { getAccessToken, clearTokens } from "@/shared/api/storage.service";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import {
+  getAuthSessionGeneration,
+  invalidateAuthSession,
+  isAuthSessionCurrent,
+} from "@/shared/api/authSessionGeneration.service";
+import {
+  clearSessionTokens,
+  getAccessToken,
+} from "@/shared/api/storage.service";
 import { refreshSession } from "./refresh.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
@@ -23,6 +32,11 @@ const apiClient = axios.create({
   },
 });
 
+type AuthenticatedRequestConfig = InternalAxiosRequestConfig & {
+  _authSessionGeneration?: number;
+  _retry?: boolean;
+};
+
 /**
  * REQUEST INTERCEPTOR
  * Runs before every outgoing request.
@@ -36,6 +50,15 @@ const apiClient = axios.create({
  */
 apiClient.interceptors.request.use(
   async (config) => {
+    const authenticatedConfig = config as AuthenticatedRequestConfig;
+    const generation = getAuthSessionGeneration();
+
+    authenticatedConfig._authSessionGeneration = generation;
+
+    if (!isAuthSessionCurrent(generation)) {
+      return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
+    }
+
     const netState = await NetInfo.fetch();
 
     // Verify network connectivity before sending the request.
@@ -46,6 +69,10 @@ apiClient.interceptors.request.use(
     // Attach the current access token, if available.
     const token = await getAccessToken();
 
+    if (!isAuthSessionCurrent(generation)) {
+      return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
+    }
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -54,7 +81,7 @@ apiClient.interceptors.request.use(
       delete config.headers["Content-Type"];
     }
 
-    return config;
+    return authenticatedConfig;
   },
   (error) => Promise.reject(error),
 );
@@ -92,7 +119,8 @@ apiClient.interceptors.response.use(
       return Promise.reject(createApiError(errorName));
     }
 
-    const originalRequest = error.config;
+    const originalRequest = error.config as
+      AuthenticatedRequestConfig | undefined;
 
     // Retry requests once after silently refreshing an expired
     // access token. The _retry flag prevents infinite refresh loops.
@@ -102,29 +130,46 @@ apiClient.interceptors.response.use(
       !originalRequest._retry
     ) {
       originalRequest._retry = true;
+      const generation =
+        originalRequest._authSessionGeneration ?? getAuthSessionGeneration();
+
+      if (!isAuthSessionCurrent(generation)) {
+        return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
+      }
 
       try {
-        const newAccessToken = await refreshSession();
+        const newAccessToken = await refreshSession(generation);
+
+        if (!isAuthSessionCurrent(generation)) {
+          return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
+        }
 
         // Re-attach the new token and retry the original request.
-        originalRequest.headers = {
-          ...originalRequest.headers,
-          Authorization: `Bearer ${newAccessToken}`,
-        };
+        originalRequest.headers.set(
+          "Authorization",
+          `Bearer ${newAccessToken}`,
+        );
 
         return apiClient(originalRequest);
       } catch {
+        if (!isAuthSessionCurrent(generation)) {
+          return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
+        }
+
         // Refreshing failed, meaning the session is no longer valid.
         // Clear the local session, redirect the user to the login screen,
         // and set a flag so the login screen can display a one-time
         // "Your session has expired" message.
-        await clearTokens();
+        const cleanupGeneration = invalidateAuthSession();
+
         queryClient.clear();
         useAuthStore.getState().clearUser();
-
         useAuthStore.getState().setSessionExpired(true);
+        useAppModeStore.getState().resetActiveMode();
 
         router.replace("/(auth)/login");
+
+        await clearSessionTokens(cleanupGeneration);
 
         return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
       }

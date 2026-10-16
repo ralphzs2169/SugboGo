@@ -5,6 +5,7 @@ export type AppMode = "explorer" | "merchant";
 type AppModeState = {
   activeMode: AppMode;
   setActiveMode: (mode: AppMode) => void;
+  resetActiveMode: () => void;
 };
 
 /**
@@ -20,5 +21,10 @@ export const useAppModeStore = create<AppModeState>((set) => ({
   setActiveMode: (mode) =>
     set({
       activeMode: mode,
+    }),
+
+  resetActiveMode: () =>
+    set({
+      activeMode: "explorer",
     }),
 }));

@@ -5,7 +5,13 @@ import { useEffect } from "react";
 import { AppState } from "react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { clearTokens } from "@/shared/api/storage.service";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import {
+  getAuthSessionGeneration,
+  invalidateAuthSession,
+  isAuthSessionCurrent,
+} from "@/shared/api/authSessionGeneration.service";
+import { clearSessionTokens } from "@/shared/api/storage.service";
 
 import { notificationWebSocketService } from "../services/notificationWebSocket.service";
 import { notificationKeys } from "./notificationQueryKeys";
@@ -66,8 +72,11 @@ export function useNotificationWebSocketLifecycle() {
       return;
     }
 
+    const authSessionGeneration = getAuthSessionGeneration();
+
     notificationWebSocketService.start({
       userId,
+      authSessionGeneration,
       onSyncRequired: () => {
         void queryClient.invalidateQueries({
           queryKey: notificationKeys.account(userId),
@@ -77,15 +86,22 @@ export function useNotificationWebSocketLifecycle() {
       onSessionExpired: async () => {
         const currentUserId = useAuthStore.getState().user?.id;
 
-        if (currentUserId !== userId) {
+        if (
+          currentUserId !== userId ||
+          !isAuthSessionCurrent(authSessionGeneration)
+        ) {
           return;
         }
 
-        await clearTokens();
+        const cleanupGeneration = invalidateAuthSession();
+
         queryClient.clear();
         useAuthStore.getState().clearUser();
         useAuthStore.getState().setSessionExpired(true);
+        useAppModeStore.getState().resetActiveMode();
         router.replace("/(auth)/login");
+
+        await clearSessionTokens(cleanupGeneration);
       },
     });
 

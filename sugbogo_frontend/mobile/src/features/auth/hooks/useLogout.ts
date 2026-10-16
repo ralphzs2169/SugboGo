@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 
-import { clearTokens } from "@/shared/api/storage.service";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { invalidateAuthSession } from "@/shared/api/authSessionGeneration.service";
+import { clearSessionTokens } from "@/shared/api/storage.service";
 import { useAuthStore } from "../store/auth.store";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 
@@ -15,19 +17,20 @@ export function useLogout() {
   const queryClient = useQueryClient();
 
   async function logout() {
+    const cleanupGeneration = invalidateAuthSession();
+
+    clearUser();
+    useAppModeStore.getState().resetActiveMode();
+    queryClient.clear();
+    useMerchantRegistrationStore.getState().reset();
+
     try {
-      await clearTokens();
-
-      queryClient.clear();
-
-      useMerchantRegistrationStore.getState().reset();
+      await clearSessionTokens(cleanupGeneration);
 
       return true;
     } catch (error) {
       console.error("Logout failed:", error);
       return false;
-    } finally {
-      clearUser();
     }
   }
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { resolveAuthenticatedHomeRoute } from "@/features/app-mode/utils/resolveAppModeRoute";
 import * as onboardingStorage from "@/shared/api/onboardingStorage.service";
 
 export default function Index() {
@@ -56,9 +57,5 @@ export default function Index() {
     return <Redirect href="/(setup)/interests" />;
   }
 
-  if (activeMode === "merchant") {
-    return <Redirect href="/(merchant)/(tabs)/dashboard" />;
-  }
-
-  return <Redirect href="/(explorer)/(tabs)/explore" />;
+  return <Redirect href={resolveAuthenticatedHomeRoute(user, activeMode)} />;
 }

@@ -7,7 +7,11 @@ import { AppState } from "react-native";
 
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { clearTokens } from "@/shared/api/storage.service";
+import {
+  beginAuthSession,
+  getAuthSessionGeneration,
+} from "@/shared/api/authSessionGeneration.service";
+import { clearSessionTokens } from "@/shared/api/storage.service";
 
 import { notificationWebSocketService } from "../../services/notificationWebSocket.service";
 import { notificationKeys } from "../notificationQueryKeys";
@@ -36,7 +40,7 @@ jest.mock("expo-router", () => ({
 }));
 
 jest.mock("@/shared/api/storage.service", () => ({
-  clearTokens: jest.fn().mockResolvedValue(undefined),
+  clearSessionTokens: jest.fn().mockResolvedValue(true),
 }));
 
 jest.mock("../../services/notificationWebSocket.service", () => ({
@@ -97,6 +101,7 @@ describe("useNotificationWebSocketLifecycle", () => {
       isLoading: false,
       sessionExpired: false,
     });
+    beginAuthSession();
     useAppModeStore.setState({ activeMode: "explorer" });
   });
 
@@ -117,6 +122,7 @@ describe("useNotificationWebSocketLifecycle", () => {
     );
     const session = (notificationWebSocketService.start as jest.Mock).mock
       .calls[0][0];
+    expect(session.authSessionGeneration).toBe(getAuthSessionGeneration());
 
     await act(async () => session.onSyncRequired());
     expect(invalidate).toHaveBeenCalledWith({
@@ -209,15 +215,17 @@ describe("useNotificationWebSocketLifecycle", () => {
       useAuthStore.getState().setUser({ ...authenticatedUser, id: 8 });
     });
     await act(async () => firstSession.onSessionExpired());
-    expect(clearTokens).not.toHaveBeenCalled();
+    expect(clearSessionTokens).not.toHaveBeenCalled();
 
     const currentSession = (notificationWebSocketService.start as jest.Mock)
       .mock.calls[1][0];
+    useAppModeStore.getState().setActiveMode("merchant");
     await act(async () => currentSession.onSessionExpired());
 
-    expect(clearTokens).toHaveBeenCalledTimes(1);
+    expect(clearSessionTokens).toHaveBeenCalledTimes(1);
     expect(client.getQueryCache().getAll()).toHaveLength(0);
     expect(useAuthStore.getState().sessionExpired).toBe(true);
+    expect(useAppModeStore.getState().activeMode).toBe("explorer");
     expect(router.replace).toHaveBeenCalledWith("/(auth)/login");
     await act(async () => unmount());
     client.clear();

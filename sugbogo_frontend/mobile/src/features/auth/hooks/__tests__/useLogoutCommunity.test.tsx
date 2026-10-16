@@ -2,13 +2,16 @@ import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react-native";
 
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { communityReviewsKey } from "@/features/community/hooks/communityReviewQueryKeys";
-import { clearTokens } from "@/shared/api/storage.service";
+import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
+import { clearSessionTokens } from "@/shared/api/storage.service";
 
 import { useLogout } from "../useLogout";
 
 jest.mock("@/shared/api/storage.service", () => ({
-  clearTokens: jest.fn(),
+  clearSessionTokens: jest.fn(),
 }));
 jest.mock("@/features/merchant/stores/merchantRegistrationStore", () => ({
   useMerchantRegistrationStore: {
@@ -16,9 +19,30 @@ jest.mock("@/features/merchant/stores/merchantRegistrationStore", () => ({
   },
 }));
 
-describe("useLogout Community cache isolation", () => {
+describe("useLogout account cleanup", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    beginAuthSession();
+    useAuthStore.setState({
+      user: {
+        id: 7,
+        first_name: "Merchant",
+        last_name: "Account",
+        gender: null,
+        email: "merchant@example.com",
+        role: "merchant",
+        status: "active",
+        has_completed_interest_selection: true,
+        has_custom_profile_picture: false,
+        has_oauth_accounts: false,
+      },
+      isAuthenticated: true,
+    });
+    useAppModeStore.setState({ activeMode: "merchant" });
+  });
+
   it("clears all user-specific Community filter variants on logout", async () => {
-    (clearTokens as jest.Mock).mockResolvedValue(undefined);
+    jest.mocked(clearSessionTokens).mockResolvedValue(true);
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
@@ -44,9 +68,11 @@ describe("useLogout Community cache isolation", () => {
       await expect(result.current.logout()).resolves.toBe(true);
     });
 
-    expect(clearTokens).toHaveBeenCalledTimes(1);
+    expect(clearSessionTokens).toHaveBeenCalledTimes(1);
     expect(client.getQueryData(newestKey)).toBeUndefined();
     expect(client.getQueryData(helpfulKey)).toBeUndefined();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(useAppModeStore.getState().activeMode).toBe("explorer");
 
     unmount();
     client.clear();

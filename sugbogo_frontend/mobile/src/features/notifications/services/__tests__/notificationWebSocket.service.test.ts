@@ -3,6 +3,11 @@ import {
   NotificationWebSocketService,
   resolveNotificationWebSocketUrl,
 } from "../notificationWebSocket.service";
+import {
+  beginAuthSession,
+  getAuthSessionGeneration,
+  StaleAuthSessionError,
+} from "@/shared/api/authSessionGeneration.service";
 
 class MockSocket {
   onopen: (() => void) | null = null;
@@ -63,7 +68,12 @@ function createHarness() {
     onSyncRequired,
     onSessionExpired,
     start(userId = 7) {
-      service.start({ userId, onSyncRequired, onSessionExpired });
+      service.start({
+        userId,
+        authSessionGeneration: getAuthSessionGeneration(),
+        onSyncRequired,
+        onSessionExpired,
+      });
     },
   };
 }
@@ -100,6 +110,7 @@ describe("resolveNotificationWebSocketUrl", () => {
 describe("NotificationWebSocketService", () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    beginAuthSession();
   });
 
   afterEach(() => {
@@ -212,6 +223,18 @@ describe("NotificationWebSocketService", () => {
     expect(harness.onSessionExpired).toHaveBeenCalledTimes(1);
     jest.runOnlyPendingTimers();
     expect(harness.sockets).toHaveLength(1);
+  });
+
+  it("does not expire a newer session after obsolete recovery settles", async () => {
+    const harness = createHarness();
+    harness.refreshSession.mockRejectedValue(new StaleAuthSessionError());
+    harness.start();
+    await flushPromises();
+    harness.sockets[0].serverClose(4401);
+    await flushPromises();
+
+    expect(harness.refreshSession).toHaveBeenCalledTimes(1);
+    expect(harness.onSessionExpired).not.toHaveBeenCalled();
   });
 
   it.each([4400, 4403])(

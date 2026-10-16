@@ -1,4 +1,8 @@
 import { ENV } from "@/config/env";
+import {
+  isAuthSessionCurrent,
+  isStaleAuthSessionError,
+} from "@/shared/api/authSessionGeneration.service";
 import { refreshSession } from "@/shared/api/refresh.service";
 import { getAccessToken } from "@/shared/api/storage.service";
 
@@ -24,6 +28,7 @@ type ManagedSocket = {
 
 type NotificationSocketSession = {
   userId: number;
+  authSessionGeneration: number;
   onSyncRequired: () => void;
   onSessionExpired: () => void | Promise<void>;
 };
@@ -130,9 +135,11 @@ export class NotificationWebSocketService {
   }
 
   start(session: NotificationSocketSession) {
-    const isSameAccount = this.session?.userId === session.userId;
+    const isSameSession =
+      this.session?.userId === session.userId &&
+      this.session.authSessionGeneration === session.authSessionGeneration;
 
-    if (!isSameAccount) {
+    if (!isSameSession) {
       this.resetTransport();
       this.sessionEpoch += 1;
       this.reconnectAttempt = 0;
@@ -188,7 +195,11 @@ export class NotificationWebSocketService {
 
   private canConnect() {
     return Boolean(
-      this.session && this.appActive && this.online && !this.terminal,
+      this.session &&
+      isAuthSessionCurrent(this.session.authSessionGeneration) &&
+      this.appActive &&
+      this.online &&
+      !this.terminal,
     );
   }
 
@@ -364,12 +375,22 @@ export class NotificationWebSocketService {
       }
 
       this.refreshAttempted = true;
-      await this.dependencies.refreshSession();
+      const authSessionGeneration = this.session?.authSessionGeneration;
+
+      if (authSessionGeneration === undefined) {
+        return;
+      }
+
+      await this.dependencies.refreshSession(authSessionGeneration);
 
       if (this.isCurrentSession(sessionEpoch) && this.canConnect()) {
         this.ensureConnected();
       }
-    } catch {
+    } catch (error) {
+      if (isStaleAuthSessionError(error)) {
+        return;
+      }
+
       await this.expireSession(sessionEpoch);
     } finally {
       if (this.authenticationRecoveryEpoch === sessionEpoch) {
@@ -428,7 +449,11 @@ export class NotificationWebSocketService {
   }
 
   private isCurrentSession(sessionEpoch: number) {
-    return Boolean(this.session && this.sessionEpoch === sessionEpoch);
+    return Boolean(
+      this.session &&
+      this.sessionEpoch === sessionEpoch &&
+      isAuthSessionCurrent(this.session.authSessionGeneration),
+    );
   }
 
   private isCurrentSocket(
