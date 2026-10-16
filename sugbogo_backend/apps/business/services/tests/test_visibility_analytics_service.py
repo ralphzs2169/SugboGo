@@ -34,6 +34,11 @@ class ReadOnlyCollection:
                     raise AssertionError("Unexpected week boundary.")
                 value -= timedelta(days=value.weekday())
             return value.astimezone(UTC).replace(tzinfo=None)
+        if isinstance(expression, dict) and any(key in expression for key in ("$isoDayOfWeek", "$hour")):
+            operator = "$isoDayOfWeek" if "$isoDayOfWeek" in expression else "$hour"
+            options = expression[operator]
+            value = self.expression(row, options["date"]).astimezone(ZoneInfo(options["timezone"]))
+            return value.isoweekday() if operator == "$isoDayOfWeek" else value.hour
         if isinstance(expression, dict):
             return {key: self.expression(row, value) for key, value in expression.items()}
         return expression
@@ -127,6 +132,39 @@ class VisibilityAnalyticsTests(SimpleTestCase):
         scoped = self.query(VisibilityEventService.get_analytics_totals, business_ids=[20, 10, 10])
         self.assertEqual(scoped, {"PROFILE_VISIT": 4, "SAVE": 1, "IMPRESSION": 0})
         self.assertEqual(self.collection.calls[-1][0]["$match"]["business_id"]["$in"], [10, 20])
+
+    def test_profile_timing_uses_manila_weekdays_hours_and_explicit_half_open_scope(self):
+        self.documents.extend([
+            self.event("PROFILE_VISIT", 3, 10, self.START + timedelta(hours=23, minutes=59)),
+            self.event("PROFILE_VISIT", 3, 10, self.END),
+            self.event("SAVE", 4, 10, self.START),
+            self.event("PROFILE_VISIT", 4, 99, self.START),
+        ])
+        rows = self.query(VisibilityEventService.get_profile_visit_timing, business_ids=[10])
+        self.assertEqual(rows, [
+            {"weekday": 1, "hour": 0, "count": 1},
+            {"weekday": 1, "hour": 23, "count": 1},
+            {"weekday": 2, "hour": 0, "count": 1},
+            {"weekday": 3, "hour": 0, "count": 1},
+        ])
+        pipeline = self.collection.calls[-1]
+        self.assertEqual(pipeline[0]["$match"]["business_id"], {"$in": [10]})
+        self.assertEqual(pipeline[0]["$match"]["event_type"], "PROFILE_VISIT")
+        self.assertEqual(pipeline[1]["$group"]["_id"]["weekday"]["$isoDayOfWeek"]["timezone"], "Asia/Manila")
+
+    def test_profile_timing_requires_scope_and_returns_no_data_without_querying_empty_ids(self):
+        with self.assertRaises(ValidationError):
+            self.query(VisibilityEventService.get_profile_visit_timing, business_ids=None)
+        self.assertEqual(self.query(VisibilityEventService.get_profile_visit_timing, business_ids=[]), [])
+        self.assertEqual(self.collection.calls, [])
+        for ids in ([True], [0], ["10"]):
+            with self.assertRaises(ValidationError):
+                self.query(VisibilityEventService.get_profile_visit_timing, business_ids=ids)
+
+    def test_profile_timing_source_failure_is_not_an_empty_success(self):
+        with patch.object(self.collection, "aggregate", side_effect=AutoReconnect("Unavailable")):
+            with self.assertRaises(VisibilityTrackingUnavailable):
+                self.query(VisibilityEventService.get_profile_visit_timing, business_ids=[10])
 
     def test_period_distincts_do_not_add_daily_business_or_event_uniques(self):
         self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers), 3)

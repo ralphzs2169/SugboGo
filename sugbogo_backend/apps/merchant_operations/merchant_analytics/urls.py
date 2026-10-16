@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .views.engagement_heatmap_views import EngagementHeatmapView
 from .views.standard_analytics_views import StandardAnalyticsView
 from .views.peer_report_views import MerchantReportView, PeerAnalyticsView
 from .views.recommendation_views import RecommendationRefreshView, RecommendationView
@@ -10,6 +11,7 @@ from .views.premium_analytics_views import (
 
 
 urlpatterns = [
+    path("premium/engagement-heatmap/", EngagementHeatmapView.as_view(), name="merchant-analytics-premium-engagement-heatmap"),
     path("premium/recommendations/", RecommendationView.as_view(), name="merchant-analytics-premium-recommendations"),
     path("premium/recommendations/refresh/", RecommendationRefreshView.as_view(), name="merchant-analytics-premium-recommendations-refresh"),
     path("standard/", StandardAnalyticsView.as_view(), name="merchant-analytics-standard"),
