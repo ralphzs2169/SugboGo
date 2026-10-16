@@ -602,6 +602,8 @@ class CommunityReviewViewTests(APIResponseAssertionsMixin, APITestCase):
                     "id": self.category.pk,
                     "name": "Restaurants",
                 },
+                "cluster_icon": "utensils",
+                "barangay": None,
                 "address": "Gorordo Avenue",
             },
         )
