@@ -32,6 +32,10 @@ import type {
   VouchHistoryOrdering,
 } from "../types/vouchHistory.types";
 
+function VouchSeparator() {
+  return <View className="mx-4 h-px bg-border-primary" />;
+}
+
 /**
  * Displays backend-grouped vouch history and full-history totals.
  * Keeps Manage Vouch mounted independently of list membership and request states.
@@ -198,6 +202,7 @@ export default function VouchHistoryScreen() {
         testID="vouch-history-list"
         data={history.businesses}
         keyExtractor={(business) => String(business.id)}
+        ItemSeparatorComponent={VouchSeparator}
         renderItem={({ item }) => (
           <VouchHistoryItem
             business={item}
