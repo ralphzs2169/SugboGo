@@ -121,7 +121,7 @@ export default function ProfileScreen() {
             />
 
             <ProfileMenuItem
-              title="Vouch History"
+              title="My Vouches"
               icon="heart-outline"
               onPress={() => router.push("/profile/vouch-history")}
             />
@@ -145,7 +145,7 @@ export default function ProfileScreen() {
             />
 
             <ProfileMenuItem
-              title="Your Interests"
+              title="My Interests"
               icon="tune-variant"
               onPress={() => router.push("/profile/your-interests")}
             />
