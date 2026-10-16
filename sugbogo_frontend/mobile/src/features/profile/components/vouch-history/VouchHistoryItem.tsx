@@ -7,7 +7,6 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
-import { shadows } from "@/shared/styles/shadows";
 import { formatDate } from "@/shared/utils/date.utils";
 
 import type { VouchHistoryBusiness } from "../../types/vouchHistory.types";
@@ -18,7 +17,7 @@ type Props = {
   onManage: () => void;
 };
 
-/** Displays every current endorsement for one business and its manage action. */
+/** Displays a full-width vouch history row with endorsements and management. */
 export default function VouchHistoryItem({
   business,
   onOpenBusiness,
@@ -28,10 +27,7 @@ export default function VouchHistoryItem({
   const photo = business.cover_photo_url?.trim();
 
   return (
-    <View
-      className="mx-4 mb-3 rounded-card border border-border-primary bg-surface p-4"
-      style={shadows.subtle}
-    >
+    <View className="bg-surface px-4 py-4">
       {/* Business identity and actions */}
       <View className="flex-row items-start">
         <SafePressable
