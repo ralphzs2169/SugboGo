@@ -54,6 +54,9 @@ from apps.explorer_operations.explore_businesses.views.visibility_event_views im
     BusinessImpressionBatchView,
     BusinessProfileVisitView,
 )
+from apps.explorer_operations.explore_businesses.views.vouch_history_views import (
+    VouchHistoryView,
+)
 from django.urls import path
 
 urlpatterns = [
@@ -113,6 +116,7 @@ urlpatterns = [
     ),
 
     path("businesses/<int:business_id>/vouch/", BusinessVouchView.as_view(), name="business-vouch", ),
+    path("vouch-history/", VouchHistoryView.as_view(), name="vouch-history"),
     path("businesses/<int:business_id>/pocket/", BusinessPocketView.as_view(), name="business-pocket" ),
 
     path("visibility/impressions/",BusinessImpressionBatchView.as_view(),name="business-impressions",),
