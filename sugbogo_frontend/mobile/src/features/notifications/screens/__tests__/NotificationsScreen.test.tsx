@@ -6,6 +6,11 @@ const mockUseNotifications = jest.fn();
 const mockUseUnreadCount = jest.fn();
 const mockUseMutations = jest.fn();
 const mockUseNavigation = jest.fn();
+const mockBack = jest.fn();
+
+jest.mock("expo-router", () => ({
+  router: { back: (...args: unknown[]) => mockBack(...args) },
+}));
 
 jest.mock("../../hooks/useNotifications", () => ({
   useNotifications: (filter: "all" | "unread") => mockUseNotifications(filter),
@@ -20,11 +25,13 @@ jest.mock("../../hooks/useNotificationNavigation", () => ({
 jest.mock("../../hooks/useNotificationRefreshLifecycle", () => ({
   useNotificationRefreshLifecycle: jest.fn(),
 }));
-jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
-  useTabBarSpacing: () => 88,
-}));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("lottie-react-native", () => "LottieView");
+jest.mock("react-native-safe-area-context", () => {
+  const actual = jest.requireActual("react-native-safe-area-context");
+
+  return { ...actual, useSafeAreaInsets: () => ({ bottom: 0 }) };
+});
 
 const refetch = jest.fn().mockResolvedValue(undefined);
 const fetchNextPage = jest.fn().mockResolvedValue(undefined);
@@ -85,6 +92,14 @@ describe("NotificationsScreen", () => {
     const screen = await render(<NotificationsScreen />);
 
     expect(screen.getByTestId("notification-list-skeleton")).toBeTruthy();
+  });
+
+  it("returns to the screen that opened the shared inbox", async () => {
+    const screen = await render(<NotificationsScreen />);
+
+    fireEvent.press(screen.getByRole("button", { name: "Back" }));
+
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
   it("shows a persistent error with a query retry", async () => {

@@ -84,6 +84,14 @@ export default function RootLayout() {
                     name="(merchant)"
                     options={{ animation: "none" }}
                   />
+
+                  <Stack.Screen
+                    name="notifications"
+                    options={{
+                      headerShown: false,
+                      animation: "slide_from_right",
+                    }}
+                  />
                 </Stack>
               </BottomSheetModalProvider>
 

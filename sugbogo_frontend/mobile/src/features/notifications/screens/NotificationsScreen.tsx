@@ -5,17 +5,21 @@ import {
   RefreshControl,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import LottieView from "lottie-react-native";
 import { useRef, useState } from "react";
 import Toast from "react-native-toast-message";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
 import { theme } from "@/constants/theme";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
-import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -64,7 +68,8 @@ export default function NotificationsScreen() {
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const endReachedHandled = useRef(false);
-  const bottomSpacing = useTabBarSpacing(20);
+  const insets = useSafeAreaInsets();
+  const bottomSpacing = insets.bottom + 20;
 
   const inbox = useNotifications(filter);
   const unread = useNotificationUnreadCount();
@@ -155,7 +160,27 @@ export default function NotificationsScreen() {
     >
       {/* Screen header */}
       <View className="flex-row items-center justify-between gap-3 px-5 pb-2 pt-3">
-        <AppText weight="bold" className="flex-1 text-2xl text-text-primary">
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          className="-ml-2 h-11 w-11 cursor-pointer items-center justify-center rounded-full active:bg-background"
+        >
+          <MaterialCommunityIcons
+            name="chevron-left"
+            size={26}
+            color={theme.extends.colors.text.primary}
+          />
+        </Pressable>
+
+        <AppText
+          weight="bold"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+          className="flex-1 text-2xl text-text-primary"
+        >
           Notifications
         </AppText>
 

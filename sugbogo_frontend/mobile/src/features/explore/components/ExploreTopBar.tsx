@@ -4,6 +4,7 @@ import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import Skeleton from "@/shared/components/Skeleton";
@@ -75,13 +76,17 @@ export default function ExploreTopBar({
           </View>
         </View>
 
-        {/* Mascot branding */}
-        <View className="ml-3 h-11 w-11 items-center justify-center">
-          <Image
-            source={MASCOT_GREETING}
-            style={{ width: 44, height: 44 }}
-            contentFit="contain"
-          />
+        {/* Header actions */}
+        <View className="ml-2 flex-row items-center">
+          <View className="h-11 w-11 items-center justify-center">
+            <Image
+              source={MASCOT_GREETING}
+              style={{ width: 44, height: 44 }}
+              contentFit="contain"
+            />
+          </View>
+
+          <NotificationBellButton />
         </View>
       </View>
 
