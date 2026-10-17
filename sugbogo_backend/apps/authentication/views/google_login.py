@@ -1,3 +1,5 @@
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import AllowAny
 from core.responses import error_response, success_response
 from google.auth.exceptions import GoogleAuthError, TransportError
 from rest_framework import status
@@ -14,6 +16,7 @@ from apps.authentication.utils.jwt import issue_tokens
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 @throttle_classes([OAuthLoginThrottle])
 def google_login_view(request):
     """Exchange a verified Google identity for an allowed mobile session."""

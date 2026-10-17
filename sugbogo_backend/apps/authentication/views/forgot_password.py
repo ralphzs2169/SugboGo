@@ -1,3 +1,5 @@
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import AllowAny
 import logging
 
 from core.responses import success_response
@@ -12,6 +14,7 @@ from apps.users.models import User
 logger = logging.getLogger(__name__)
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 @throttle_classes([ForgotPasswordThrottle])
 def forgot_password_view(request):
     """Handle forgot password requests."""

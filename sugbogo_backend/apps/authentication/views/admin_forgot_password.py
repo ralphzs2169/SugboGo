@@ -1,3 +1,5 @@
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import AllowAny
 from core.responses import success_response
 from rest_framework.decorators import api_view, throttle_classes
 
@@ -10,6 +12,7 @@ from apps.users.models import User
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 @throttle_classes([ForgotPasswordThrottle])
 def admin_forgot_password_view(request):
     """

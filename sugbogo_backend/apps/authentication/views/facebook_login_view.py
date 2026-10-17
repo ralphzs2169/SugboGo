@@ -1,3 +1,5 @@
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import AllowAny
 from core.responses import error_response, success_response
 from requests.exceptions import RequestException
 from rest_framework import status
@@ -17,6 +19,7 @@ from apps.authentication.utils.jwt import issue_tokens
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 @throttle_classes([OAuthLoginThrottle])
 def facebook_login_view(request):
     """Exchange a verified Facebook identity for an allowed mobile session."""

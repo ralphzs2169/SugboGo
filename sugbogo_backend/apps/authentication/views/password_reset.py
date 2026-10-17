@@ -1,3 +1,5 @@
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view
 from rest_framework import status
   
@@ -6,6 +8,7 @@ from core.responses import error_response, success_response
 from apps.authentication.services.password_reset_service import PasswordResetService
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def reset_password_view(request):
     """Reset a user's password using a valid reset token."""
     serializer = ResetPasswordSerializer(data=request.data)

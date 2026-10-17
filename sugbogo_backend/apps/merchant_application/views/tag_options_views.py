@@ -1,4 +1,5 @@
 from core.responses import success_response
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from apps.admin_operations.taxonomy_management.serializers.specialty_tag_serializers import (
@@ -11,6 +12,8 @@ from apps.admin_operations.taxonomy_management.services.specialty_tag_service im
 
 class SpecialtyTagOptionsView(APIView):
     """Handle specialty tag options for registration forms."""
+
+    permission_classes = (AllowAny,)
 
     def get(self, request):
         specialty_tags = SpecialtyTagService.list_specialty_tags()

@@ -13,8 +13,10 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import cloudinary
 from celery.schedules import crontab
@@ -40,12 +42,31 @@ if os.name == 'nt':
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+IS_PRODUCTION = os.getenv("ENVIRONMENT") == "production"
 SECRET_KEY = os.environ.get("SECRET_KEY")
+if IS_PRODUCTION and not (SECRET_KEY or "").strip():
+    raise ImproperlyConfigured("SECRET_KEY is required in production.")
+if not IS_PRODUCTION:
+    SECRET_KEY = SECRET_KEY or "sugbogo-development-only-key-do-not-use-in-production"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DEBUG") == "True"
+DEBUG = os.getenv("DEBUG", "False").strip().lower() in {"true", "1", "yes"}
+if IS_PRODUCTION and DEBUG:
+    raise ImproperlyConfigured("DEBUG must be False in production.")
 
-ALLOWED_HOSTS = ["*"]
+if IS_PRODUCTION:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "True").lower() in {"true", "1", "yes"}
+    SECURE_HSTS_SECONDS = 3600
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+
+ALLOWED_HOSTS = [
+    host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
+    if host.strip()
+]
 
 
 AUTH_USER_MODEL = "users.User"
@@ -210,7 +231,13 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    origin.strip() for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",") if origin.strip()
+]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -230,7 +257,38 @@ TEMPLATES = [
     },
 ]
 
+# Tests always use a private process-local cache, even with Redis env configured.
+REDIS_CACHE_URL = os.getenv("REDIS_CACHE_URL")
+if "test" not in sys.argv and (IS_PRODUCTION or REDIS_CACHE_URL):
+    CACHES = {"default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_CACHE_URL or "redis://127.0.0.1:6379/2",
+        "KEY_PREFIX": "sugbogo",
+    }}
+
+    def _redis_database_identity(url):
+        parsed = urlsplit(url)
+        host = parsed.hostname
+        if host in {"localhost", "127.0.0.1", "::1"}:
+            host = "loopback"
+        return host, parsed.port or 6379, parsed.path.rstrip("/") or "/0"
+
+    _cache_identity = _redis_database_identity(CACHES["default"]["LOCATION"])
+    for _other_url in (
+        os.getenv("CELERY_BROKER_URL"),
+        os.getenv("CELERY_RESULT_BACKEND"),
+        os.getenv("NOTIFICATION_REDIS_URL", "redis://127.0.0.1:6379/1"),
+    ):
+        if _other_url and _redis_database_identity(_other_url) == _cache_identity:
+            raise ImproperlyConfigured("REDIS_CACHE_URL must use a different Redis database from Celery and Channels.")
+else:
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
 REST_FRAMEWORK = {
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
@@ -389,6 +447,7 @@ CELERY_BEAT_SCHEDULE = {
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # Served by Caddy in production.
 
 # Email Verification Settings
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")

@@ -1,3 +1,5 @@
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import AllowAny
 from core.responses import error_response, success_response
 from django.utils import timezone
 from rest_framework import status
@@ -12,6 +14,7 @@ from apps.users.models import User
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def verify_email_view(request):
     uid = request.query_params.get("uid")
     token = request.query_params.get("token")
@@ -50,6 +53,7 @@ def verify_email_view(request):
     return success_response(message="Email verified successfully.")
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 @throttle_classes([ResendVerificationThrottle])
 def resend_verification_view(request):
     serializer = ResendVerificationSerializer(data=request.data)

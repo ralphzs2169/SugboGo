@@ -1,3 +1,4 @@
+from rest_framework.decorators import permission_classes
 from rest_framework.decorators import api_view
 from rest_framework.permissions import AllowAny
 
@@ -9,6 +10,7 @@ from core.responses import error_response, success_response
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def validate_reset_token_view(request):
     """
     Validate whether a password reset token is still valid.
