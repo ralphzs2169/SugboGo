@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import React from "react";
 import StatusBadge from "./StatusBadge";
 
@@ -27,7 +28,7 @@ const BusinessListItem = ({
     <div className="flex items-center justify-between py-3 first:pt-0 last:pb-0 border-b border-stroke  last:border-0">
       <div className="flex items-center gap-3">
         <img
-          src={image}
+          src={safeHttpUrl(image)}
           alt={name}
           className="h-11 w-11 rounded-xl object-cover bg-slate-100"
         />

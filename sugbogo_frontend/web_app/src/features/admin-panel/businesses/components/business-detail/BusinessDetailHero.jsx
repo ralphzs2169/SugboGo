@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { Image, MoreVertical } from "lucide-react";
 
 import Button from "@/shared/components/Button";
@@ -43,7 +44,7 @@ export default function BusinessDetailHero({
             <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-surface-muted">
               {business.cover_photo_url ? (
                 <img
-                  src={business.cover_photo_url}
+                  src={safeHttpUrl(business.cover_photo_url)}
                   alt={`${business.business_name} cover`}
                   className="absolute inset-0 h-full w-full object-cover"
                 />

@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { useEffect, useState } from "react";
 import {
   Flag,
@@ -45,7 +46,7 @@ function ImageWithLoadingState({ src, alt, className = "" }) {
       {/* Review image */}
       {!hasError && (
         <img
-          src={src}
+          src={safeHttpUrl(src)}
           alt={alt}
           onLoad={() => setIsLoading(false)}
           onError={() => {
@@ -178,7 +179,7 @@ export default function ReviewPreviewModal({ review, onClose }) {
                       className="aspect-square cursor-pointer overflow-hidden rounded-lg bg-surface-muted transition-opacity hover:opacity-90"
                     >
                       <ImageWithLoadingState
-                        src={photo.photo_url}
+                        src={safeHttpUrl(photo.photo_url)}
                         alt={`Review photo ${index + 1}`}
                         className="h-full w-full"
                       />

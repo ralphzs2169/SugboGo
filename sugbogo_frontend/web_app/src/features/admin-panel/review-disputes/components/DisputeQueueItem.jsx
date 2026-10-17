@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { Store } from "lucide-react";
 
 import StatusBadge from "@/shared/components/StatusBadge";
@@ -78,7 +79,7 @@ export default function DisputeQueueItem({ dispute, selected, onSelect }) {
             >
               {dispute.business_cover_photo_url ? (
                 <img
-                  src={dispute.business_cover_photo_url}
+                  src={safeHttpUrl(dispute.business_cover_photo_url)}
                   alt=""
                   loading="lazy"
                   className="h-full w-full object-cover"

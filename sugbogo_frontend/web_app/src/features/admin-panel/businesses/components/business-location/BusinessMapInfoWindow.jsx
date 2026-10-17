@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { ArrowRight, Image, MapPin, Tag } from "lucide-react";
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 
@@ -16,7 +17,7 @@ export default function BusinessMapInfoWindow({ business, onView }) {
       <div className="relative">
         {photoUrl ? (
           <img
-            src={photoUrl}
+            src={safeHttpUrl(photoUrl)}
             alt={`${business.business_name} storefront`}
             className="h-32 w-full object-cover"
           />

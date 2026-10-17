@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
   CalendarDays,
@@ -99,7 +100,7 @@ export default function businessUpdateRequestColumns(onView) {
           {/* Business cover */}
           {row.original.cover_photo_url ? (
             <img
-              src={row.original.cover_photo_url}
+              src={safeHttpUrl(row.original.cover_photo_url)}
               alt={`${row.original.current_business_name} cover`}
               className="h-12 w-12 shrink-0 rounded-lg object-cover"
             />

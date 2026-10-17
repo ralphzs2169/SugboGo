@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ExternalLink, Store } from "lucide-react";
@@ -111,7 +112,7 @@ export default function ReviewIdentityHeader({ review, statusVariant }) {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
             {review.business.cover_photo_url ? (
               <img
-                src={review.business.cover_photo_url}
+                src={safeHttpUrl(review.business.cover_photo_url)}
                 alt=""
                 className="h-full w-full object-cover"
               />

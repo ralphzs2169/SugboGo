@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -127,7 +128,7 @@ export default function ReviewPhotoViewerModal({
       >
         <img
           key={currentPhoto.id}
-          src={currentPhoto.photo_url}
+          src={safeHttpUrl(currentPhoto.photo_url)}
           alt={`Review photo ${currentIndex + 1}`}
           className="max-h-full max-w-full object-contain"
         />

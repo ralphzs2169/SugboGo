@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { Globe, Mail, Phone } from "lucide-react";
 
 /**
@@ -46,7 +47,7 @@ export default function BusinessContactPreview({
 
         {website && (
           <a
-            href={website.startsWith("http") ? website : `https://${website}`}
+            href={safeHttpUrl(website, { allowBareDomain: true })}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-sm text-text-secondary transition-colors hover:text-primary"

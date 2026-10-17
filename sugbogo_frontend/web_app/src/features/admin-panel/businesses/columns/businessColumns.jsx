@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
   Eye,
@@ -67,7 +68,7 @@ export default function getBusinessColumns(
             {/* Business cover photo */}
             {photoUrl ? (
               <img
-                src={photoUrl}
+                src={safeHttpUrl(photoUrl)}
                 alt={`${business.business_name} cover`}
                 className="h-12 w-12 shrink-0 rounded-lg object-cover"
               />

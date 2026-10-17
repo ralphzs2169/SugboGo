@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { Image as ImageIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -131,7 +132,7 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
           className="aspect-[4/3] flex-[2] cursor-pointer overflow-hidden rounded-lg bg-surface-muted"
         >
           <img
-            src={featuredPhoto.photo_url}
+            src={safeHttpUrl(featuredPhoto.photo_url)}
             alt={`${businessName ?? "Business"} photo 1`}
             className="h-full w-full object-cover"
           />
@@ -153,7 +154,7 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
                   className="relative min-h-0 flex-1 cursor-pointer overflow-hidden rounded-lg bg-surface-muted"
                 >
                   <img
-                    src={photo.photo_url}
+                    src={safeHttpUrl(photo.photo_url)}
                     alt={`${businessName ?? "Business"} photo ${
                       photoIndex + 1
                     }`}

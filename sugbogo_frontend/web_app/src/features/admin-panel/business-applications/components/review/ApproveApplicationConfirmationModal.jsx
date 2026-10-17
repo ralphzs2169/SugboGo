@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import Modal from "@/shared/components/modals/Modal";
 import Button from "@/shared/components/Button";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
@@ -33,7 +34,7 @@ export default function ApproveApplicationConfirmationModal({
         <div className="flex items-center gap-3">
           {storefrontPhoto ? (
             <img
-              src={storefrontPhoto}
+              src={safeHttpUrl(storefrontPhoto)}
               alt={`${identity?.business_name || "Business"} storefront`}
               className="h-14 w-14 shrink-0 rounded-lg border border-stroke object-cover"
             />

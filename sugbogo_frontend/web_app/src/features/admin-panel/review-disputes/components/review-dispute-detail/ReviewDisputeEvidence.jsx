@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { ExternalLink, FileSearch, FileText } from "lucide-react";
 
 import { formatLabel } from "@/shared/utils/stringUtils";
@@ -55,7 +56,7 @@ export default function ReviewDisputeEvidence({ evidence = [] }) {
               return (
                 <a
                   key={item.id}
-                  href={item.url}
+                  href={safeHttpUrl(item.url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Open ${fileName}`}
@@ -83,7 +84,7 @@ export default function ReviewDisputeEvidence({ evidence = [] }) {
                     </div>
                   ) : (
                     <img
-                      src={item.url}
+                      src={safeHttpUrl(item.url)}
                       alt={fileName || `Evidence image ${index + 1}`}
                       className="h-12 w-12 shrink-0 rounded-md object-cover"
                       loading="lazy"

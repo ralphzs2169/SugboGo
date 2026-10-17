@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Image } from "lucide-react";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
@@ -25,7 +26,7 @@ export default function getDiscoveryScoreColumns() {
             {/* Cover photo uses the same fallback as the business table. */}
             {business.cover_photo_url ? (
               <img
-                src={business.cover_photo_url}
+                src={safeHttpUrl(business.cover_photo_url)}
                 alt={`${business.business_name} cover`}
                 className="h-12 w-12 shrink-0 rounded-lg object-cover"
               />

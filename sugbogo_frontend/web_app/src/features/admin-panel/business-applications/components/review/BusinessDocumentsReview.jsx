@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { ExternalLink, FileText } from "lucide-react";
 
 import ApplicationReviewSection from "./ApplicationReviewSection";
@@ -43,7 +44,7 @@ export default function BusinessDocumentsReview({
             >
               {/* Document preview */}
               <a
-                href={document.document_url}
+                href={safeHttpUrl(document.document_url)}
                 target="_blank"
                 rel="noreferrer"
                 className="block h-20 w-16 shrink-0 cursor-pointer overflow-hidden rounded border border-stroke bg-surface-muted"
@@ -69,7 +70,7 @@ export default function BusinessDocumentsReview({
 
               {/* Open original document */}
               <a
-                href={document.document_url}
+                href={safeHttpUrl(document.document_url)}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-stroke px-3 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-surface-hover"

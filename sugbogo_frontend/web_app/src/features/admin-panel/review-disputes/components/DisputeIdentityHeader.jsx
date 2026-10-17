@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { Link } from "react-router-dom";
 import { ArrowDown, Clock3, ExternalLink, Store } from "lucide-react";
 
@@ -98,7 +99,7 @@ export default function DisputeIdentityHeader({ dispute }) {
           >
             {business.cover_photo_url ? (
               <img
-                src={business.cover_photo_url}
+                src={safeHttpUrl(business.cover_photo_url)}
                 alt=""
                 className="h-full w-full object-cover"
               />

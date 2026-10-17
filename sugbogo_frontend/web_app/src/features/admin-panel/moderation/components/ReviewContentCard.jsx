@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { useState } from "react";
 import { Image as ImageIcon, Pencil, ThumbsUp } from "lucide-react";
 
@@ -51,7 +52,7 @@ export default function ReviewContentCard({ review }) {
                 aria-label={`View review photo ${index + 1}`}
               >
                 <img
-                  src={photo.photo_url}
+                  src={safeHttpUrl(photo.photo_url)}
                   alt={`Review photo ${index + 1}`}
                   className="aspect-[4/3] w-full object-cover"
                 />

@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { Store } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -95,7 +96,7 @@ function RelatedReviewRow({ review, hasBaseline, reason }) {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
               {business.cover_photo_url ? (
                 <img
-                  src={business.cover_photo_url}
+                  src={safeHttpUrl(business.cover_photo_url)}
                   alt=""
                   loading="lazy"
                   className="h-full w-full object-cover"

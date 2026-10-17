@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 /**
  * Displays submitted business photos as an interactive thumbnail gallery.
  *
@@ -31,7 +32,7 @@ export default function BusinessPhotoGallery({ photos = [], onPhotoSelect }) {
           {/* Photo thumbnail */}
           <div className="relative aspect-square overflow-hidden bg-surface-muted">
             <img
-              src={photo.photo_url}
+              src={safeHttpUrl(photo.photo_url)}
               alt={photo.file_name || "Business photo"}
               className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
             />

@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Store, UsersRound } from "lucide-react";
 
@@ -79,7 +80,7 @@ export default function UpdateRequestSidebar({ request, checklistQuestions }) {
           <div className="flex min-w-0 items-center gap-3">
             {coverPhotoUrl ? (
               <img
-                src={coverPhotoUrl}
+                src={safeHttpUrl(coverPhotoUrl)}
                 alt=""
                 className="h-12 w-12 shrink-0 rounded-lg object-cover"
               />

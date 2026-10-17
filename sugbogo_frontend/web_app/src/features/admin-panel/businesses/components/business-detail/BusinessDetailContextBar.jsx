@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -35,7 +36,7 @@ export default function BusinessDetailContextBar({ business }) {
         <div className="hidden h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-surface-muted sm:block">
           {business.cover_photo_url ? (
             <img
-              src={business.cover_photo_url}
+              src={safeHttpUrl(business.cover_photo_url)}
               alt=""
               className="h-full w-full object-cover"
             />

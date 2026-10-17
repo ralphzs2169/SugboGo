@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import React, { useState } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
@@ -109,7 +110,7 @@ const columns = [
       return (
         <div className="flex items-center gap-4 py-1">
           <img
-            src={row.image}
+            src={safeHttpUrl(row.image)}
             alt={row.name}
             className="h-12 w-12 rounded-xl object-cover bg-slate-100 shadow-inner"
           />

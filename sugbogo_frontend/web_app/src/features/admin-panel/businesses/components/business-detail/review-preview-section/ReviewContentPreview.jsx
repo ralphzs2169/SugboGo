@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { useState } from "react";
 import { Image as ImageIcon } from "lucide-react";
 
@@ -54,7 +55,7 @@ export default function ReviewContentPreview({ review }) {
               className="relative h-14 w-14 cursor-pointer overflow-hidden rounded-lg bg-surface-muted transition-opacity hover:opacity-90"
             >
               <img
-                src={photo.photo_url}
+                src={safeHttpUrl(photo.photo_url)}
                 alt=""
                 className="h-full w-full object-cover"
               />

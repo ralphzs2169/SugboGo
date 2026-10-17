@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { Image as ImageIcon, MessageSquare, Pencil, Store } from "lucide-react";
 
 import UserAvatar from "@/shared/components/UserAvatar";
@@ -36,7 +37,7 @@ function QueueItem({ review, selected, onSelect }) {
           <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
               {review.business.cover_photo_url ? (
-                <img src={review.business.cover_photo_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                <img src={safeHttpUrl(review.business.cover_photo_url)} alt="" loading="lazy" className="h-full w-full object-cover" />
               ) : (
                 <Store className="h-3.5 w-3.5" aria-hidden="true" />
               )}

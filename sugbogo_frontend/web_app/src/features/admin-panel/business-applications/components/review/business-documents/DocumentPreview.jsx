@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import PdfFirstPagePreview from "./PdfFirstPagePreview";
 
 /**
@@ -7,6 +8,7 @@ import PdfFirstPagePreview from "./PdfFirstPagePreview";
  * image-based verification documents.
  */
 export default function DocumentPreview({ url, fileName }) {
+  url = safeHttpUrl(url, { allowBlob: true });
   if (!url) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-surface-muted">

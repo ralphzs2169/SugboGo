@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { resolveAvatarSource } from "@/shared/constants/avatars";
 
 /**
@@ -22,7 +23,7 @@ export default function UserAvatar({
   };
 
   const sizeClass = sizeClasses[size] ?? sizeClasses.md;
-  const source = avatarUrl || resolveAvatarSource(avatarKey);
+  const source = safeHttpUrl(avatarUrl) || resolveAvatarSource(avatarKey);
 
   return (
     <img

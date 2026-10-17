@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
@@ -119,7 +120,7 @@ export default function BusinessPhotoPreviewModal({
         {!hasError && (
           <img
             key={photo.id}
-            src={photo.photo_url}
+            src={safeHttpUrl(photo.photo_url)}
             alt={photo.file_name || "Business photo"}
             onLoad={() => setIsLoading(false)}
             onError={() => {

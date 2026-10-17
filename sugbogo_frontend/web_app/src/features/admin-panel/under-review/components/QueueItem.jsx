@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "@/shared/utils/safeUrl";
 import { useQuery } from "@tanstack/react-query";
 import {
   CloudOff,
@@ -91,7 +92,7 @@ function QueueItem({ review, selected, onSelect }) {
           <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stroke bg-surface-muted">
               {businessCoverUrl ? (
-                <img src={businessCoverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+                <img src={safeHttpUrl(businessCoverUrl)} alt="" loading="lazy" className="h-full w-full object-cover" />
               ) : (
                 <Store className="h-3.5 w-3.5" aria-hidden="true" />
               )}
