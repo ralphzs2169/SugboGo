@@ -1,7 +1,17 @@
 import { useEffect, useRef } from "react";
 
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import {
+  beginAuthSession,
+  invalidateAuthSession,
+  isAuthSessionCurrent,
+  isAuthSessionGenerationCurrent,
+} from "@/shared/api/authSessionGeneration.service";
+import {
+  clearSessionTokens,
+  getAccessToken,
+} from "@/shared/api/storage.service";
 import { getCurrentUser } from "../api/auth.service";
-import { getAccessToken, clearTokens } from "@/shared/api/storage.service";
 import { useAuthStore } from "../store/auth.store";
 import { isTransportError } from "@/shared/utils/isTransportError";
 import {
@@ -29,28 +39,50 @@ export function useRestoreSession() {
     hasRestored.current = true;
 
     async function restoreSession() {
+      // Claim startup before reading storage so a later login or logout wins.
+      const restoreGeneration = beginAuthSession();
+
       try {
         const token = await getAccessToken();
 
+        if (!isAuthSessionCurrent(restoreGeneration)) {
+          return;
+        }
+
         if (!token) {
+          invalidateAuthSession();
           clearUser();
+          useAppModeStore.getState().resetActiveMode();
           await clearOfflineAccess();
           return;
         }
 
+        useAppModeStore.getState().resetActiveMode();
         const user = await getCurrentUser();
 
-        setUser(user);
-        useOfflineAccessStore.getState().setOwnerId(null);
-        useOfflineAccessStore.getState().setRevoking(false);
+        if (isAuthSessionCurrent(restoreGeneration)) {
+          setUser(user);
+          useOfflineAccessStore.getState().setOwnerId(null);
+          useOfflineAccessStore.getState().setRevoking(false);
+        }
       } catch (error) {
+        if (!isAuthSessionCurrent(restoreGeneration)) {
+          return;
+        }
+
+        const cleanupGeneration = invalidateAuthSession();
         clearUser();
+        useAppModeStore.getState().resetActiveMode();
+
         if (isTransportError(error)) {
-          // Local guidance access does not restore authentication or enable protected routes.
+          // Local guidance access never authenticates protected routes.
           const ownerId = await getOfflineOwner().catch(() => null);
-          useOfflineAccessStore.getState().setOwnerId(ownerId);
+
+          if (isAuthSessionGenerationCurrent(cleanupGeneration)) {
+            useOfflineAccessStore.getState().setOwnerId(ownerId);
+          }
         } else {
-          await clearTokens();
+          await clearSessionTokens(cleanupGeneration);
         }
       } finally {
         setLoading(false);
@@ -58,8 +90,7 @@ export function useRestoreSession() {
     }
 
     void restoreSession().catch(() => {
-      clearUser();
-      useOfflineAccessStore.getState().setOwnerId(null);
+      // Runtime state was revoked before cleanup; never clear a newer session.
     });
   }, [clearUser, setLoading, setUser]);
 }

@@ -6,7 +6,6 @@ const EXPLORER_TAB_CONFIG: TabBarConfig = {
   community: { icon: "users", label: "Community" },
   explore: { icon: "compass", label: "Explore" },
   profile: { icon: "user", label: "Profile" },
-  notifications: { icon: "bell", label: "Notifications" },
 };
 
 export default function TabLayout() {
@@ -20,7 +19,6 @@ export default function TabLayout() {
       <Tabs.Screen name="map" options={{ title: "Map" }} />
       <Tabs.Screen name="community" options={{ title: "Community" }} />
       <Tabs.Screen name="explore" options={{ title: "Explore" }} />
-      <Tabs.Screen name="notifications" options={{ title: "Notifications" }} />
       <Tabs.Screen
         name="profile"
         options={{ headerShown: false, title: "Profile", href: "/profile" }}

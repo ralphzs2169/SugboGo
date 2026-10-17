@@ -3,12 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 
 import { useAuthStore } from "../../store/auth.store";
-import { clearTokens } from "@/shared/api/storage.service";
+import { clearSessionTokens } from "@/shared/api/storage.service";
 import { clearOfflineAccess } from "@/features/offline-routes/services/offlineAccess.service";
 import { clearSavedJourneys } from "@/features/offline-routes/services/savedJourneys.service";
 import { useLogout } from "../useLogout";
 
-jest.mock("@/shared/api/storage.service", () => ({ clearTokens: jest.fn() }));
+jest.mock("@/shared/api/storage.service", () => ({ clearSessionTokens: jest.fn() }));
 jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
   clearOfflineAccess: jest.fn(),
 }));
@@ -24,7 +24,10 @@ describe("logout device cleanup", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useAuthStore.setState({ user: { id: 7 } as never, isAuthenticated: true });
-    (clearTokens as jest.Mock).mockResolvedValue(undefined);
+    (clearSessionTokens as jest.Mock).mockImplementation(async () => {
+      await clearOfflineAccess();
+      return true;
+    });
     (clearOfflineAccess as jest.Mock).mockResolvedValue(undefined);
     (clearSavedJourneys as jest.Mock).mockResolvedValue(undefined);
   });
@@ -47,7 +50,7 @@ describe("logout device cleanup", () => {
       });
       expect(clearOfflineAccess).toHaveBeenCalled();
       expect(clearSavedJourneys).toHaveBeenCalledWith(7);
-      expect(clearTokens).toHaveBeenCalled();
+      expect(clearSessionTokens).toHaveBeenCalled();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(client.getQueryData(["private"])).toBeUndefined();
       hook.unmount();

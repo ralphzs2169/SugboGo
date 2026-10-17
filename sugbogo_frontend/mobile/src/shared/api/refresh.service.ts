@@ -1,13 +1,20 @@
 import { refreshAccessToken } from "@/features/auth/api/token.service";
 import {
-  getRefreshToken,
-  saveAccessToken,
-  saveRefreshToken,
-} from "./storage.service";
+  assertAuthSessionCurrent,
+  getAuthSessionGeneration,
+  isAuthSessionCurrent,
+  StaleAuthSessionError,
+} from "./authSessionGeneration.service";
+import { getRefreshToken, saveSessionTokens } from "./storage.service";
 
 // Tracks an in-flight refresh so concurrent 401s share one request
 // instead of each independently calling the refresh endpoint.
-let inFlightRefresh: Promise<string> | null = null;
+type InFlightRefresh = {
+  generation: number;
+  promise: Promise<string>;
+};
+
+let inFlightRefresh: InFlightRefresh | null = null;
 
 /**
  * Refreshes the user's access token using the stored refresh token.
@@ -19,14 +26,20 @@ let inFlightRefresh: Promise<string> | null = null;
  * every refresh after the first to fail against a backend that rotates
  * (invalidates) refresh tokens on use.
  */
-export async function refreshSession(): Promise<string> {
-  if (inFlightRefresh) {
-    return inFlightRefresh;
+export async function refreshSession(
+  generation = getAuthSessionGeneration(),
+): Promise<string> {
+  assertAuthSessionCurrent(generation);
+
+  if (inFlightRefresh?.generation === generation) {
+    return inFlightRefresh.promise;
   }
 
-  inFlightRefresh = (async () => {
+  const operation = (async () => {
     try {
       const refreshToken = await getRefreshToken();
+
+      assertAuthSessionCurrent(generation);
 
       if (!refreshToken) {
         throw new Error("No refresh token available");
@@ -34,17 +47,38 @@ export async function refreshSession(): Promise<string> {
 
       const response = await refreshAccessToken(refreshToken);
 
-      await saveAccessToken(response.access);
+      assertAuthSessionCurrent(generation);
 
-      if (response.refresh) {
-        await saveRefreshToken(response.refresh);
+      const didPersist = await saveSessionTokens(
+        response.access,
+        response.refresh,
+        generation,
+      );
+
+      if (!didPersist) {
+        throw new StaleAuthSessionError();
       }
 
+      assertAuthSessionCurrent(generation);
+
       return response.access;
-    } finally {
-      inFlightRefresh = null;
+    } catch (error) {
+      if (!isAuthSessionCurrent(generation)) {
+        throw new StaleAuthSessionError();
+      }
+
+      throw error;
     }
   })();
 
-  return inFlightRefresh;
+  const refresh = { generation, promise: operation };
+  inFlightRefresh = refresh;
+
+  try {
+    return await operation;
+  } finally {
+    if (inFlightRefresh === refresh) {
+      inFlightRefresh = null;
+    }
+  }
 }

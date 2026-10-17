@@ -1,14 +1,15 @@
+import { beginAuthSession } from "../authSessionGeneration.service";
 import MockAdapter from "axios-mock-adapter";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import apiClient from "../apiClient.service";
-import { clearTokens, getAccessToken } from "../storage.service";
+import { clearSessionTokens, getAccessToken } from "../storage.service";
 import { refreshSession } from "../refresh.service";
 
 jest.mock("../storage.service", () => ({
   getAccessToken: jest.fn(),
-  clearTokens: jest.fn(),
+  clearSessionTokens: jest.fn(),
 }));
 jest.mock("../refresh.service", () => ({ refreshSession: jest.fn() }));
 jest.mock("expo-router", () => ({ router: { replace: jest.fn() } }));
@@ -24,9 +25,10 @@ const adapter = new MockAdapter(apiClient);
 describe("refresh failure classification", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    beginAuthSession();
     adapter.reset();
     (getAccessToken as jest.Mock).mockResolvedValue("expired-access");
-    (clearTokens as jest.Mock).mockResolvedValue(undefined);
+    (clearSessionTokens as jest.Mock).mockResolvedValue(undefined);
     useAuthStore.setState({
       user: { id: 7 } as never,
       isAuthenticated: true,
@@ -42,7 +44,7 @@ describe("refresh failure classification", () => {
       await expect(apiClient.get("/users/me/")).rejects.toMatchObject({
         name: "NETWORK_ERROR",
       });
-      expect(clearTokens).not.toHaveBeenCalled();
+      expect(clearSessionTokens).not.toHaveBeenCalled();
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
     },
   );
@@ -54,7 +56,7 @@ describe("refresh failure classification", () => {
     await expect(apiClient.get("/users/me/")).rejects.toMatchObject({
       name: "AUTH_ERROR",
     });
-    expect(clearTokens).toHaveBeenCalled();
+    expect(clearSessionTokens).toHaveBeenCalled();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
@@ -62,7 +64,7 @@ describe("refresh failure classification", () => {
     (refreshSession as jest.Mock).mockRejectedValue(
       new Error("Token rejected"),
     );
-    (clearTokens as jest.Mock).mockRejectedValueOnce(
+    (clearSessionTokens as jest.Mock).mockRejectedValueOnce(
       new Error("Storage unavailable"),
     );
     await expect(apiClient.get("/users/me/")).rejects.toThrow(
