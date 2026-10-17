@@ -11,6 +11,11 @@ from apps.admin_operations.moderation.services.manage_under_review_service impor
     ManageUnderReviewService,
 )
 from apps.business.models import Business, Category, Cluster, Location
+from apps.notifications.models import Notification
+from apps.notifications.services.notification_realtime_service import (
+    NotificationRealtimeService,
+)
+from apps.notifications.services.notification_service import NotificationService
 from apps.reviews.models import Review
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
@@ -130,6 +135,16 @@ class ManageUnderReviewServiceTests(TestCase):
         self.assertEqual(activity.AACT_CONTEXT["review_id"], self.review.pk)
         self.assertNotIn("moderation_notes", activity.AACT_CONTEXT)
         self.assertIsNone(self.review.REVW_MODERATION_NOTES)
+        notification = Notification.objects.get()
+        self.assertEqual(notification.USER_ID_id, self.author.pk)
+        self.assertEqual(notification.NOTF_TYPE, "review_published")
+        self.assertEqual(notification.NOTF_TITLE, "Review published")
+        self.assertEqual(
+            notification.NOTF_BODY,
+            "Your review has been approved and is now visible to the community.",
+        )
+        self.assertEqual(notification.NOTF_TARGET_TYPE, "")
+        self.assertIsNone(notification.NOTF_TARGET_ID)
 
     def test_rejection_preserves_count_and_records_action_once(self):
         """A never-published review cannot decrement the public count."""
@@ -167,6 +182,20 @@ class ManageUnderReviewServiceTests(TestCase):
             AdminActivity.objects.get().AACT_CONTEXT["moderation_notes"],
             note,
         )
+        notification = Notification.objects.get()
+        self.assertEqual(notification.USER_ID_id, self.author.pk)
+        self.assertEqual(notification.NOTF_TYPE, "review_rejected")
+        self.assertEqual(notification.NOTF_TITLE, "Review not approved")
+        self.assertEqual(
+            notification.NOTF_BODY,
+            "Your review was not approved and will not be published.",
+        )
+        self.assertEqual(
+            notification.NOTF_DEDUP_KEY,
+            f"review:{self.review.pk}:rejected",
+        )
+        self.assertEqual(notification.NOTF_TARGET_TYPE, "")
+        self.assertIsNone(notification.NOTF_TARGET_ID)
 
     def test_rejection_requires_valid_notes_before_transition(self):
         """Direct service callers cannot bypass the rejection-note rule."""
@@ -182,6 +211,7 @@ class ManageUnderReviewServiceTests(TestCase):
         self.review.refresh_from_db()
         self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
         self.assertEqual(AdminActivity.objects.count(), 0)
+        self.assertFalse(Notification.objects.exists())
 
     def test_stale_opposite_decision_is_rejected(self):
         """An Admin cannot reject content another Admin already published."""
@@ -201,3 +231,90 @@ class ManageUnderReviewServiceTests(TestCase):
                 approve=False,
             )
         self.assertEqual(AdminActivity.objects.count(), 1)
+        self.assertEqual(Notification.objects.count(), 1)
+        self.assertEqual(Notification.objects.get().NOTF_TYPE, "review_published")
+
+    def test_decision_notification_broadcasts_only_after_commit(self):
+        """Each successful Admin outcome schedules one recipient signal."""
+        for approve, author in ((True, self.admin), (False, self.owner)):
+            with self.subTest(approve=approve):
+                review = Review.objects.create(
+                    USER_ID=author,
+                    BUSN_ID=self.business,
+                    REVW_TEXT="Another held review awaiting an Admin decision.",
+                    REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+                )
+                with (
+                    patch.object(ReviewService, "_queue_sentiment_after_commit"),
+                    patch.object(ReviewService, "_queue_review_insights_after_commit"),
+                    patch.object(NotificationRealtimeService, "publish") as publish,
+                ):
+                    with self.captureOnCommitCallbacks(execute=True):
+                        ManageUnderReviewService.resolve(
+                            review.pk,
+                            actor=self.admin,
+                            approve=approve,
+                            moderation_notes="Private administrator rejection notes.",
+                        )
+                        with self.assertRaises(ValidationError):
+                            ManageUnderReviewService.resolve(
+                                review.pk,
+                                actor=self.admin,
+                                approve=approve,
+                                moderation_notes="Private administrator rejection notes.",
+                            )
+                        publish.assert_not_called()
+                    publish.assert_called_once_with(author.pk)
+
+    def test_automatic_publication_does_not_notify_author(self):
+        """The publication transition used by AI recovery creates no Admin notice."""
+        with (
+            patch.object(ReviewService, "_queue_sentiment_after_commit"),
+            patch.object(ReviewService, "_queue_review_insights_after_commit"),
+        ):
+            ReviewService.publish_under_review(self.review.pk)
+
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertFalse(Notification.objects.exists())
+
+    def test_notification_failure_rolls_back_decision_and_broadcast(self):
+        """Inbox failure preserves held content, notes, counts, and audit state."""
+        create_notification = NotificationService.create
+
+        def create_then_fail(**kwargs):
+            create_notification(**kwargs)
+            raise RuntimeError("Inbox storage unavailable")
+
+        for approve in (True, False):
+            with self.subTest(approve=approve):
+                with (
+                    patch.object(ReviewService, "_queue_sentiment_after_commit"),
+                    patch.object(ReviewService, "_queue_review_insights_after_commit"),
+                    patch.object(NotificationRealtimeService, "publish") as publish,
+                    patch.object(
+                        NotificationService,
+                        "create",
+                        side_effect=create_then_fail,
+                    ),
+                ):
+                    with self.captureOnCommitCallbacks(execute=True):
+                        with self.assertRaises(RuntimeError):
+                            ManageUnderReviewService.resolve(
+                                self.review.pk,
+                                actor=self.admin,
+                                approve=approve,
+                                moderation_notes="Private administrator rejection notes.",
+                            )
+                    publish.assert_not_called()
+
+                self.review.refresh_from_db()
+                self.business.refresh_from_db()
+                self.assertEqual(
+                    self.review.REVW_STATUS,
+                    Review.ReviewStatus.UNDER_REVIEW,
+                )
+                self.assertIsNone(self.review.REVW_MODERATION_NOTES)
+                self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
+                self.assertFalse(AdminActivity.objects.exists())
+                self.assertFalse(Notification.objects.exists())

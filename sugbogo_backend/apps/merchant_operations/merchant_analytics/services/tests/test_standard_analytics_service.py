@@ -118,6 +118,37 @@ class StandardAnalyticsServiceTests(MerchantAnalyticsFixtures, TestCase):
         self.assertEqual(result["reviews"]["reply_rate"], 0)
         self.assertIn("reply_timestamp_anomalies", result["sources"]["domain"]["partial_reasons"])
 
+    def test_missing_visibility_collection_preserves_current_sql_snapshots(self):
+        pocket = BusinessPocket.objects.create(
+            USER_ID=self.supporter_a,
+            BUSN_ID=self.business_a,
+        )
+        BusinessPocket.objects.filter(pk=pocket.pk).update(
+            PCKT_CREATED_AT=self.NOW - timedelta(days=1),
+        )
+        self.review(self.NOW - timedelta(days=1))
+
+        with patch.object(
+            self.collection.database,
+            "list_collection_names",
+            return_value=[],
+        ):
+            result = self.report()
+
+        self.assertIsNone(result["profile_visits"])
+        self.assertIsNone(result["distinct_profile_visitors"])
+        self.assertIsNone(result["saves_in_period"])
+        self.assertEqual(result["current_pocket_holders"], 1)
+        self.assertEqual(result["reviews"]["current_published_total"], 1)
+        self.assertEqual(result["reviews"]["current_unanswered_published"], 1)
+        self.assertEqual(result["sources"]["visibility"]["availability"], "unavailable")
+        self.assertIn(
+            "visibility_collection_missing",
+            result["sources"]["visibility"]["partial_reasons"],
+        )
+        self.assertTrue(result["sources"]["domain"]["coverage_verified"])
+        self.assertFalse(result["sources"]["visibility"]["coverage_verified"])
+
     def test_real_mongo_read_failure_preserves_sql_without_fabricating_zeros(self):
         with patch.object(self.collection, "aggregate", side_effect=AutoReconnect("Mongo unavailable")):
             result = self.report()

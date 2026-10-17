@@ -1,9 +1,6 @@
-import { Text, View } from "react-native";
+import MerchantAnalyticsScreen from "@/features/merchant/screens/merchant-mode/MerchantAnalyticsScreen";
 
+/** Opens the merchant's Standard analytics workspace. */
 export default function MerchantAnalyticsPage() {
-  return (
-    <View className="flex-1 items-center justify-center">
-      <Text className="text-xl font-semibold">Merchant Analytics</Text>
-    </View>
-  );
+  return <MerchantAnalyticsScreen />;
 }

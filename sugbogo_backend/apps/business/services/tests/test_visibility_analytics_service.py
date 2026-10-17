@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -18,6 +19,11 @@ class ReadOnlyCollection:
     def __init__(self, documents):
         self.documents = documents
         self.calls = []
+        self.database = SimpleNamespace(
+            list_collection_names=lambda **kwargs: [
+                VisibilityEventService.COLLECTION_NAME,
+            ],
+        )
 
     def expression(self, row, expression):
         if isinstance(expression, str) and expression.startswith("$"):
@@ -246,6 +252,52 @@ class VisibilityAnalyticsTests(SimpleTestCase):
         self.assertIsNone(observed["SAVE"])
         self.assertEqual(VisibilityEventService.get_first_observed_events()["IMPRESSION"],
                          self.START - timedelta(seconds=1))
+
+    def test_missing_collection_is_unavailable_without_initialization_or_write_cooldown(self):
+        self.documents.clear()
+        with patch.object(
+            self.collection.database,
+            "list_collection_names",
+            return_value=[],
+        ) as collection_names:
+            with self.assertRaises(VisibilityTrackingUnavailable) as failure:
+                self.query(VisibilityEventService.get_analytics_totals)
+
+        self.assertEqual(failure.exception.reason, "visibility_collection_missing")
+        self.assertEqual(VisibilityEventService._unavailable_until, 0)
+        collection_names.assert_called_once_with(
+            filter={"name": VisibilityEventService.COLLECTION_NAME},
+        )
+        # A subsequent initialized, empty collection is a legitimate recorded zero.
+        self.assertEqual(
+            self.query(VisibilityEventService.get_analytics_totals),
+            {"PROFILE_VISIT": 0, "SAVE": 0, "IMPRESSION": 0},
+        )
+
+    def test_empty_existing_collection_is_zero_and_catalog_failure_is_unavailable(self):
+        self.documents.clear()
+        self.assertEqual(
+            self.query(VisibilityEventService.count_analytics_explorers),
+            0,
+        )
+        with patch.object(
+            self.collection.database,
+            "list_collection_names",
+            side_effect=AutoReconnect("Catalog unavailable"),
+        ):
+            with self.assertRaises(VisibilityTrackingUnavailable):
+                self.query(VisibilityEventService.get_analytics_series)
+
+    def test_nonempty_read_does_not_need_an_additional_catalog_query(self):
+        with patch.object(
+            self.collection.database,
+            "list_collection_names",
+            side_effect=AssertionError("Unnecessary catalog read"),
+        ):
+            self.assertEqual(
+                self.query(VisibilityEventService.count_analytics_explorers),
+                3,
+            )
 
     def test_mongo_failure_never_returns_zero_and_cooldown_blocks_retry(self):
         with patch.object(self.collection, "aggregate", side_effect=AutoReconnect("Unavailable")) as aggregate:

@@ -269,6 +269,88 @@ class VisibilityEventServiceTests(TestCase):
             ],
         )
 
+    def test_owner_observations_are_ignored_before_mongo_access(self):
+        results = [
+            VisibilityEventService.record_impressions(
+                explorer_id=self.first_owner.pk,
+                business_ids=[self.first_business.pk],
+            ),
+            VisibilityEventService.record_profile_visit(
+                explorer_id=self.first_owner.pk,
+                business_id=self.first_business.pk,
+            ),
+            VisibilityEventService.record_save(
+                explorer_id=self.first_owner.pk,
+                business_id=self.first_business.pk,
+            ),
+        ]
+
+        for result in results:
+            with self.subTest(event_type=result.event_type):
+                self.assertEqual(result.recorded_count, 0)
+                self.assertEqual(result.duplicate_count, 0)
+                self.assertEqual(result.eligible_business_ids, ())
+
+        self.get_database.assert_not_called()
+        self.assertEqual(self.collection.documents, {})
+
+    def test_mixed_impressions_keep_other_businesses_and_one_validation_query(self):
+        with self.assertNumQueries(1):
+            result = VisibilityEventService.record_impressions(
+                explorer_id=self.first_owner.pk,
+                business_ids=[self.first_business.pk, self.second_business.pk],
+            )
+
+        self.assertEqual(result.eligible_business_ids, (self.second_business.pk,))
+        self.assertEqual(result.recorded_count, 1)
+        self.assertEqual(result.duplicate_count, 0)
+
+    def test_owner_filter_does_not_hide_an_invalid_impression_target(self):
+        with self.assertRaises(ValidationError):
+            VisibilityEventService.record_impressions(
+                explorer_id=self.first_owner.pk,
+                business_ids=[self.first_business.pk, 999999],
+            )
+
+        self.get_database.assert_not_called()
+
+    def test_merchant_can_record_and_deduplicate_other_business_events(self):
+        writers = [
+            lambda: VisibilityEventService.record_profile_visit(
+                explorer_id=self.first_owner.pk,
+                business_id=self.second_business.pk,
+            ),
+            lambda: VisibilityEventService.record_save(
+                explorer_id=self.first_owner.pk,
+                business_id=self.second_business.pk,
+            ),
+        ]
+
+        for write in writers:
+            first = write()
+            repeated = write()
+            with self.subTest(event_type=first.event_type):
+                self.assertEqual(first.recorded_count, 1)
+                self.assertEqual(repeated.recorded_count, 0)
+                self.assertEqual(repeated.duplicate_count, 1)
+
+        self.assertEqual(len(self.collection.documents), 2)
+
+    def test_owner_pocket_commit_does_not_create_save_observation(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            PocketService.create_pocket(
+                user=self.first_owner,
+                business_id=self.first_business.pk,
+            )
+
+        self.assertTrue(
+            BusinessPocket.objects.filter(
+                USER_ID=self.first_owner,
+                BUSN_ID=self.first_business,
+            ).exists(),
+        )
+        self.get_database.assert_not_called()
+
     def test_first_impression_creates_event(self):
         result = self._record_first_impression()
         document = next(

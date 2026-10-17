@@ -1,7 +1,7 @@
 import React, { type PropsWithChildren } from "react";
 import { fireEvent, render, waitFor, act } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AppState } from "react-native";
+import { AppState, type LayoutChangeEvent } from "react-native";
 import { router } from "expo-router";
 
 import ExploreScreen from "../ExploreScreen";
@@ -142,7 +142,7 @@ jest.mock("../../components/hidden-gems/HiddenGemsSection", () => {
               <Pressable
                 key={business.id}
                 testID={`discovery-impression-${business.id}`}
-                onLayout={(event) =>
+                onLayout={(event: LayoutChangeEvent) =>
                   impressions.onCardLayout(business.id, event)
                 }
               />
@@ -244,7 +244,10 @@ jest.mock("../../components/business-profile/BusinessProfileScrollView", () => {
 
 function setup() {
   const client = new QueryClient({
-    defaultOptions: { mutations: { gcTime: Infinity } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity },
+      mutations: { gcTime: Infinity },
+    },
   });
 
   /** Provides query state while leaf visuals are mocked for lifecycle tests. */
@@ -358,6 +361,34 @@ it("places Hidden Gems before New Businesses", async () => {
     "Hidden Gems",
     "New to SugboGo",
   ]);
+});
+
+it("suppresses an owner's explorer preview without hiding the profile", async () => {
+  const { wrapper } = setup();
+  (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    business: {
+      id: 42,
+      operating_hours: [],
+      photos: [],
+      specialty_tags: [],
+      is_own_business: true,
+    },
+    isLoading: false,
+    error: null,
+    refetch: jest.fn(),
+  });
+  const screen = await render(
+    <ExploreBusinessProfileScreen
+      businessId={42}
+      distance={null}
+      distanceAccuracy={null}
+      previewAsExplorer
+    />,
+    { wrapper },
+  );
+
+  expect(screen.getByText("Displayed profile")).toBeTruthy();
+  expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
 });
 
 it("records only displayed profile content and keeps it visible when tracking fails", async () => {
