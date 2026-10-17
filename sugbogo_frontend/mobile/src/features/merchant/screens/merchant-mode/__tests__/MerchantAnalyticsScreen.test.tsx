@@ -20,6 +20,12 @@ import {
 } from "../../../__tests__/merchantAnalytics.fixtures";
 import { getMerchantStandardAnalytics } from "../../../api/merchantAnalytics.service";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
+import * as plusService from "../../../api/merchantPlusAnalytics.service";
+import {
+  plusStatus,
+  plusSuccess,
+  visibilityReport,
+} from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
 const mockNavigate = jest.fn();
 const mockRefetchProfile = jest.fn();
@@ -42,11 +48,19 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
 }));
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ navigate: mockNavigate }),
+  useRouter: () => ({ navigate: mockNavigate, push: mockNavigate }),
+  useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("../../../api/merchantAnalytics.service", () => ({
   getMerchantStandardAnalytics: jest.fn(),
+}));
+jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
+  getMerchantPlusStatus: jest.fn(),
+  getMerchantPlusVisibility: jest.fn(),
+  getMerchantPlusPocket: jest.fn(),
+  getMerchantPlusSpecialties: jest.fn(),
+  getMerchantPlusReviewPerformance: jest.fn(),
 }));
 jest.mock("react-native-toast-message", () => ({
   __esModule: true,
@@ -83,6 +97,16 @@ describe("MerchantAnalyticsScreen", () => {
     useAuthStore.setState({ user: analyticsMerchant() });
     getAnalytics.mockReset();
     getAnalytics.mockResolvedValue(analyticsSuccess());
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(plusStatus(false)));
+    jest
+      .mocked(plusService.getMerchantPlusVisibility)
+      .mockReset()
+      .mockImplementation(async (_, interval) =>
+        plusSuccess(visibilityReport(interval)),
+      );
     mockNavigate.mockClear();
     mockRefetchProfile.mockReset();
     mockRefetchProfile.mockResolvedValue({});
@@ -103,6 +127,151 @@ describe("MerchantAnalyticsScreen", () => {
       </QueryClientProvider>,
     );
   }
+
+  it("switches visibility metrics without fetching another report and separates interval/period queries", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const screen = await renderScreen();
+    await screen.findByLabelText(/^Recorded profile visits: 24$/);
+    expect(screen.getAllByTestId("analytics-line-segment")).toHaveLength(2);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Visibility metric: Impressions" }),
+    );
+    expect(screen.getByLabelText("Recorded impressions: 39")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Visibility metric: Distinct visitors",
+      }),
+    );
+    expect(
+      screen.getByLabelText("Recorded distinct visitors: 12"),
+    ).toBeTruthy();
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(1);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Interval: Weekly" }),
+    );
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(2),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Last 90 days" }));
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+        { period: "90" },
+        "weekly",
+        expect.anything(),
+      ),
+    );
+    expect(getAnalytics).toHaveBeenLastCalledWith("90");
+    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+  });
+
+  it("opens only implemented Plus details with the selected reporting period", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Open Pocket Trends" });
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Pocket Trends" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      pathname: "/(merchant)/analytics/[report]",
+      params: { report: "pocket", period: "7" },
+    });
+    await fireEvent.press(
+      screen.getByRole("button", { name: "View Plus specialty trends" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      pathname: "/(merchant)/analytics/[report]",
+      params: { report: "specialties", period: "7" },
+    });
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Review Performance" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      pathname: "/(merchant)/analytics/[report]",
+      params: { report: "reviews", period: "7" },
+    });
+    expect(
+      screen.queryByRole("button", { name: /Peer Comparisons/ }),
+    ).toBeNull();
+    expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusSpecialties).not.toHaveBeenCalled();
+  });
+
+  it("keeps Standard usable when Plus visibility fails and retries only visibility", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    jest.mocked(plusService.getMerchantPlusVisibility).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
+    const screen = await renderScreen();
+    const retry = await screen.findByRole("button", {
+      name: /Unable to load this report.*retry/i,
+    });
+    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    await fireEvent.press(retry);
+    await screen.findByLabelText(/^Recorded profile visits: 24$/);
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a valid zero total when visibility buckets are unavailable", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const report = visibilityReport();
+    report.metrics.profile_visits.value = 0;
+    report.metrics.profile_visits.series = null;
+    jest
+      .mocked(plusService.getMerchantPlusVisibility)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderScreen();
+    await screen.findByLabelText("Recorded profile visits: 0");
+    expect(
+      screen.getByRole("button", {
+        name: /Some recorded activity is unavailable.*retry/i,
+      }),
+    ).toBeTruthy();
+    expect(screen.queryAllByTestId("analytics-line-segment")).toHaveLength(0);
+    expect(screen.getByText(/Growth comparison unavailable/)).toBeTruthy();
+  });
+
+  it("shows exact sparse observations when the total is unavailable and avoids an invented line", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const report = visibilityReport();
+    report.metrics.profile_visits.value = null;
+    report.metrics.profile_visits.series =
+      report.metrics.profile_visits.series!.slice(0, 1);
+    jest
+      .mocked(plusService.getMerchantPlusVisibility)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderScreen();
+    await screen.findByLabelText("Recorded profile visits: Unavailable");
+    expect(screen.getByText(/Limited recorded data. Each dot/)).toBeTruthy();
+    expect(
+      screen.getByLabelText(/^Recorded profile visits, .*: 2$/),
+    ).toBeTruthy();
+    expect(screen.queryAllByTestId("analytics-line-segment")).toHaveLength(0);
+    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+  });
+
+  it("does not request Plus reports for restricted merchants", async () => {
+    const screen = await renderScreen();
+    await screen.findByText("Merchant Plus access required");
+    expect(plusService.getMerchantPlusVisibility).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/Recorded profile visits: 24\./)).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Open Pocket Trends" }),
+    ).toBeNull();
+  });
 
   it("keeps the header and selected 30-day filter visible during section loading", async () => {
     const pending = deferredAnalytics();
@@ -253,7 +422,9 @@ describe("MerchantAnalyticsScreen", () => {
     const retry = await screen.findByRole("button", {
       name: /Recorded activity unavailable.*retry/i,
     });
-    expect(screen.getByLabelText(/Recorded profile visits: Unavailable/)).toBeTruthy();
+    expect(
+      screen.getByLabelText(/Recorded profile visits: Unavailable/),
+    ).toBeTruthy();
     expect(screen.getByLabelText(/Recorded saves: Unavailable/)).toBeTruthy();
     expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
     expect(screen.getByLabelText("Published reviews: 10")).toBeTruthy();

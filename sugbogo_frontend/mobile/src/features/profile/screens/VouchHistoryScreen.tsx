@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
-import { useRef, useState } from "react";
-import { FlatList, RefreshControl, View } from "react-native";
+import type { ComponentProps, ComponentType } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Animated, Easing, FlatList, RefreshControl, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -37,9 +38,157 @@ import type {
   VouchHistoryBusiness,
   VouchHistoryOrdering,
 } from "../types/vouchHistory.types";
+import { shadows } from "@/shared/styles/shadows";
+
+/** Minimum row count before the "end of list" message is worth showing. */
+const END_MESSAGE_MIN_ITEMS = 5;
+
+/** Inner padding of the sort track, shared with the sliding thumb. */
+const SORT_TRACK_PADDING = 4;
+
+const SORT_OPTIONS: {
+  value: VouchHistoryOrdering;
+  label: string;
+  icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
+}[] = [
+  { value: "newest", label: "Newest", icon: "sort-calendar-descending" },
+  { value: "oldest", label: "Oldest", icon: "sort-calendar-ascending" },
+];
+
+const keyExtractor = (business: VouchHistoryBusiness) => String(business.id);
 
 function VouchSeparator() {
   return <View className="mx-4 h-px bg-border-primary" />;
+}
+
+type SummaryCardProps = {
+  Icon: ComponentType<{ width?: number; height?: number }>;
+  label: string;
+  value: number;
+  testID: string;
+};
+
+/** Illustrated metric card used for the full-history totals. */
+function SummaryCard({ Icon, label, value, testID }: SummaryCardProps) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      className="min-w-0 flex-1 rounded-2xl border border-border-primary/60 bg-surface p-4"
+      style={shadows.subtle}
+    >
+      {/* Illustration, shown as-is without a background */}
+      <View className="h-12 w-12 items-center justify-center">
+        <Icon width={48} height={48} />
+      </View>
+
+      {/* Hero metric value */}
+      <AppText
+        weight="semibold"
+        className="mt-4 text-text-primary"
+        style={{ fontSize: 28, lineHeight: 34 }}
+        testID={testID}
+      >
+        {value.toLocaleString()}
+      </AppText>
+
+      {/* Metric label */}
+      <AppText className="mt-1 text-xs text-text-secondary" numberOfLines={2}>
+        {label}
+      </AppText>
+    </View>
+  );
+}
+
+type SortControlProps = {
+  ordering: VouchHistoryOrdering;
+  onChange: (value: VouchHistoryOrdering) => void;
+};
+
+/** Compact segmented control for choosing the history order. */
+function SortControl({ ordering, onChange }: SortControlProps) {
+  const [trackWidth, setTrackWidth] = useState(0);
+  const thumbX = useRef(new Animated.Value(0)).current;
+
+  const selectedIndex = SORT_OPTIONS.findIndex(
+    (option) => option.value === ordering,
+  );
+  const segmentWidth = Math.max(
+    (trackWidth - SORT_TRACK_PADDING * 2) / SORT_OPTIONS.length,
+    0,
+  );
+
+  // Slide the thumb to the selected segment.
+  useEffect(() => {
+    Animated.timing(thumbX, {
+      toValue: selectedIndex * segmentWidth,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [selectedIndex, segmentWidth, thumbX]);
+
+  return (
+    <View
+      className="mt-4 flex-row rounded-full bg-surface-muted"
+      style={{ padding: SORT_TRACK_PADDING }}
+      onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+    >
+      {/* Sliding selection thumb */}
+      {segmentWidth > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            shadows.subtle,
+            {
+              position: "absolute",
+              top: SORT_TRACK_PADDING,
+              bottom: SORT_TRACK_PADDING,
+              left: SORT_TRACK_PADDING,
+              width: segmentWidth,
+              borderRadius: 999,
+              backgroundColor: theme.extends.colors.surface,
+              transform: [{ translateX: thumbX }],
+            },
+          ]}
+        />
+      )}
+
+      {SORT_OPTIONS.map(({ value, label, icon }) => {
+        const selected = ordering === value;
+
+        return (
+          <SafePressable
+            key={value}
+            onPress={() => onChange(value)}
+            accessibilityLabel={`Sort history by ${label}`}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            hitSlop={{ top: 4, bottom: 4 }}
+            className="min-h-[40px] min-w-0 flex-1 cursor-pointer flex-row items-center justify-center gap-xs rounded-full px-sm py-sm active:opacity-75"
+          >
+            <MaterialCommunityIcons
+              name={icon}
+              size={16}
+              color={theme.extends.colors.brand}
+              style={{ opacity: selected ? 1 : 0.45 }}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+
+            <AppText
+              weight={selected ? "semibold" : "medium"}
+              className={`text-small ${
+                selected ? "text-text-primary" : "text-text-secondary"
+              }`}
+            >
+              {label}
+            </AppText>
+          </SafePressable>
+        );
+      })}
+    </View>
+  );
 }
 
 /**
@@ -57,6 +206,8 @@ export default function VouchHistoryScreen() {
   );
 
   const requestPendingRef = useRef(false);
+  const nextPagePendingRef = useRef(false);
+  const listRef = useRef<FlatList<VouchHistoryBusiness>>(null);
 
   // Pin the mutation target until settlement, even if selection changes.
   const { vouch } = useBusinessVouch({
@@ -65,8 +216,6 @@ export default function VouchHistoryScreen() {
 
   const history = useVouchHistory(ordering);
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<VouchHistoryBusiness>>(null);
-  const nextPagePendingRef = useRef(false);
 
   useQueryErrorNotification({
     error: history.error,
@@ -75,10 +224,15 @@ export default function VouchHistoryScreen() {
     fallbackMessage: "Please try again.",
   });
 
-  function changeOrdering(value: VouchHistoryOrdering) {
-    setOrdering(value);
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }
+  const changeOrdering = useCallback(
+    (value: VouchHistoryOrdering) => {
+      if (value === ordering) return;
+
+      setOrdering(value);
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    },
+    [ordering],
+  );
 
   async function toggleSpecialty(tag: ExploreBusinessSpecialtyTag) {
     if (requestPendingRef.current || !selectedBusiness) return;
@@ -129,19 +283,36 @@ export default function VouchHistoryScreen() {
     });
   }
 
-  const initialError = Boolean(history.error) && !history.hasData;
+  // setSelectedBusiness and router are stable, so rows keep a stable renderer.
+  const renderItem = useCallback(
+    ({ item }: { item: VouchHistoryBusiness }) => (
+      <VouchHistoryItem
+        business={item}
+        onManage={() => setSelectedBusiness(item)}
+        onOpenBusiness={() =>
+          router.push({
+            pathname: "/(explorer)/business/[businessId]",
+            params: { businessId: String(item.business_id) },
+          })
+        }
+      />
+    ),
+    [],
+  );
 
+  const hasLoadedData = history.hasData;
+  const initialError = Boolean(history.error) && !hasLoadedData;
   const refreshError =
-    Boolean(history.error) && history.hasData && !history.isFetchNextPageError;
+    Boolean(history.error) && hasLoadedData && !history.isFetchNextPageError;
 
   const showEnd =
-    history.businesses.length >= 5 &&
+    history.businesses.length >= END_MESSAGE_MIN_ITEMS &&
     !history.hasNextPage &&
     !history.isFetching &&
     !history.error;
 
   return (
-    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-background">
+    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-surface">
       <Stack.Screen
         options={{
           ...defaultStackScreenOptions,
@@ -153,95 +324,25 @@ export default function VouchHistoryScreen() {
       {/* Summary totals and sorting controls */}
       <View className="px-4 pb-4 pt-4">
         {history.summary ? (
-          <View className="flex-row gap-2">
-            {[
-              {
-                key: "businesses",
-                Icon: BusinessesVouchedIllustration,
-                label: "Businesses vouched",
-                value: String(history.summary.total_businesses),
-                testID: "history-business-total",
-              },
-              {
-                key: "specialties",
-                Icon: SpecialtyVouchesIllustration,
-                label: "Specialty vouches",
-                value: String(history.summary.total_specialty_vouches),
-                testID: "history-specialty-total",
-              },
-            ].map((item) => (
-              <View
-                key={item.key}
-                className="min-w-0 flex-1 rounded-xl border border-border-primary/70 bg-surface px-3 py-3"
-              >
-                {/* Illustrated metric icon */}
-                <View className="h-10 w-10 items-center justify-center">
-                  <item.Icon width={40} height={40} />
-                </View>
-
-                {/* Metric label */}
-                <AppText
-                  className="mt-3 text-xs text-text-secondary"
-                  numberOfLines={2}
-                >
-                  {item.label}
-                </AppText>
-
-                {/* Metric value */}
-                <AppText
-                  weight="semibold"
-                  className="mt-0.5 text-sm text-text-primary"
-                  testID={item.testID}
-                >
-                  {item.value}
-                </AppText>
-              </View>
-            ))}
+          <View className="flex-row gap-3">
+            <SummaryCard
+              Icon={BusinessesVouchedIllustration}
+              label="Businesses vouched"
+              value={history.summary.total_businesses}
+              testID="history-business-total"
+            />
+            <SummaryCard
+              Icon={SpecialtyVouchesIllustration}
+              label="Specialty vouches"
+              value={history.summary.total_specialty_vouches}
+              testID="history-specialty-total"
+            />
           </View>
         ) : history.isLoading ? (
           <Skeleton className="h-12 w-4/5 rounded-md" />
         ) : null}
 
-        {/* Compact segmented sorting control */}
-        <View className="mt-4 flex-row rounded-full bg-surface-muted p-xs">
-          {(["newest", "oldest"] as const).map((value) => {
-            const selected = ordering === value;
-            const label = value === "newest" ? "Newest" : "Oldest";
-
-            return (
-              <SafePressable
-                key={value}
-                onPress={() => changeOrdering(value)}
-                accessibilityLabel={`Sort history by ${label}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                hitSlop={{ top: 4, bottom: 4 }}
-                className={`min-h-[40px] min-w-0 flex-1 cursor-pointer flex-row items-center justify-center gap-xs rounded-full px-sm py-sm active:opacity-75 ${
-                  selected ? "bg-brand" : "bg-surface-muted"
-                }`}
-              >
-                {selected && (
-                  <MaterialCommunityIcons
-                    name="check"
-                    size={14}
-                    color={theme.extends.colors.surface}
-                    accessibilityElementsHidden
-                    importantForAccessibility="no"
-                  />
-                )}
-
-                <AppText
-                  weight={selected ? "semibold" : "medium"}
-                  className={`text-small ${
-                    selected ? "text-white" : "text-text-primary"
-                  }`}
-                >
-                  {label}
-                </AppText>
-              </SafePressable>
-            );
-          })}
-        </View>
+        <SortControl ordering={ordering} onChange={changeOrdering} />
       </View>
 
       {/* Business history list and request recovery */}
@@ -249,22 +350,9 @@ export default function VouchHistoryScreen() {
         ref={listRef}
         testID="vouch-history-list"
         data={history.businesses}
-        keyExtractor={(business) => String(business.id)}
+        keyExtractor={keyExtractor}
         ItemSeparatorComponent={VouchSeparator}
-        renderItem={({ item }) => (
-          <VouchHistoryItem
-            business={item}
-            onManage={() => setSelectedBusiness(item)}
-            onOpenBusiness={() =>
-              router.push({
-                pathname: "/(explorer)/business/[businessId]",
-                params: {
-                  businessId: String(item.business_id),
-                },
-              })
-            }
-          />
-        )}
+        renderItem={renderItem}
         ListHeaderComponent={
           refreshError ? (
             <View className="mb-3">
@@ -304,10 +392,7 @@ export default function VouchHistoryScreen() {
                 source={loadingAnimation}
                 autoPlay
                 loop
-                style={{
-                  width: 50,
-                  height: 50,
-                }}
+                style={{ width: 50, height: 50 }}
               />
             </View>
           ) : history.isFetchNextPageError ? (

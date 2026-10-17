@@ -1,0 +1,109 @@
+import { useState } from "react";
+import { Pressable, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
+import { getSpecialtyTagIcon } from "@/shared/constants/specialtyTagIcons";
+import type { MerchantBusinessSpecialty } from "../../types/merchantBusinessProfile.types";
+import type { PlusSpecialtyReport } from "../../types/merchantPlusAnalytics.types";
+import { formatAnalyticsTimestamp } from "../../utils/merchantAnalytics.utils";
+import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
+import { PlusReportContext } from "./AnalyticsPlusStates";
+
+/** Adds per-specialty creation cohorts without replacing current Standard rankings. */
+export default function AnalyticsSpecialtyTrends({
+  report,
+  tags,
+}: {
+  report: PlusSpecialtyReport;
+  tags: MerchantBusinessSpecialty[];
+}) {
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const selected =
+    report.specialties.find(
+      (specialty) => specialty.specialty_id === selectedId,
+    ) ?? report.specialties[0];
+  const selectedTag = tags.find((tag) => tag.id === selected?.specialty_id);
+  const selectedColor = selectedTag
+    ? getSpecialtyTagColor(selectedTag.color).softIcon
+    : theme.extends.colors.brand;
+
+  return (
+    <View className="gap-4">
+      {/* Specialty controls reuse the real profile's icon/color identity. */}
+      <View className="gap-2">
+        {report.specialties.map((specialty) => {
+          const tag = tags.find((item) => item.id === specialty.specialty_id);
+          const colors = tag ? getSpecialtyTagColor(tag.color) : null;
+          const active = selected?.specialty_id === specialty.specialty_id;
+          return (
+            <Pressable
+              key={specialty.specialty_id}
+              accessibilityRole="button"
+              accessibilityLabel={`Specialty: ${specialty.specialty_name}`}
+              accessibilityState={{ selected: active }}
+              onPress={() => setSelectedId(specialty.specialty_id)}
+              className={`min-h-12 flex-row items-center gap-3 rounded-xl border px-3 py-3 active:opacity-70 ${active ? "border-brand bg-brand/10" : "border-border-primary bg-surface"}`}
+            >
+              <MaterialCommunityIcons
+                accessible={false}
+                name={getSpecialtyTagIcon(tag?.icon)}
+                size={22}
+                color={colors?.softIcon ?? theme.extends.colors.text.secondary}
+              />
+              <AppText
+                weight={active ? "bold" : "medium"}
+                className="min-w-0 flex-1 text-sm text-text-primary"
+              >
+                {specialty.specialty_name}
+              </AppText>
+              {active && (
+                <MaterialCommunityIcons
+                  accessible={false}
+                  name="check-circle"
+                  size={20}
+                  color={theme.extends.colors.brand}
+                />
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+      {selected ? (
+        <View className="gap-3">
+          <AppText weight="bold" className="text-lg text-text-primary">
+            {selected.specialty_name}
+          </AppText>
+          <AppText
+            accessibilityLabel={`${selected.specialty_name}: ${selected.added_and_still_valid} additions still valid, ${selected.distinct_supporters} distinct supporters`}
+            className="text-sm leading-5 text-text-secondary"
+          >
+            {selected.added_and_still_valid.toLocaleString("en-PH")} additions
+            still valid · {selected.distinct_supporters.toLocaleString("en-PH")}{" "}
+            distinct supporters
+          </AppText>
+          <AnalyticsSeriesChart
+            key={selected.specialty_id}
+            label={`${selected.specialty_name} valid additions`}
+            interval="weekly"
+            kind="bar"
+            color={selectedColor}
+            points={selected.series.map((bucket) => ({
+              ...bucket,
+              value: bucket.added_and_still_valid,
+            }))}
+          />
+        </View>
+      ) : (
+        <AppText className="py-4 text-sm text-text-secondary">
+          No active specialties to report.
+        </AppText>
+      )}
+      <PlusReportContext
+        meta={report.meta}
+        note={`Vouches created during the selected period that remain valid at ${formatAnalyticsTimestamp(report.snapshot_as_of)}. These are not historical balances or net growth. Removals, invalidation and inactive specialties can revise earlier counts.`}
+      />
+    </View>
+  );
+}

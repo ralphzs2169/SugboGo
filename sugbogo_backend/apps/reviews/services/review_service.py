@@ -1340,6 +1340,7 @@ class ReviewService:
             author_id=review.USER_ID_id,
             pending_reports=pending_reports,
             pending_disputes=pending_disputes,
+            business_name=review.BUSN_ID.BUSN_NAME,
         )
 
     @staticmethod

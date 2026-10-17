@@ -141,7 +141,8 @@ class ManageUnderReviewServiceTests(TestCase):
         self.assertEqual(notification.NOTF_TITLE, "Review published")
         self.assertEqual(
             notification.NOTF_BODY,
-            "Your review has been approved and is now visible to the community.",
+            f"Your review of {self.business.BUSN_NAME} has been approved "
+            "and is now visible to the community.",
         )
         self.assertEqual(notification.NOTF_TARGET_TYPE, "")
         self.assertIsNone(notification.NOTF_TARGET_ID)
@@ -188,7 +189,8 @@ class ManageUnderReviewServiceTests(TestCase):
         self.assertEqual(notification.NOTF_TITLE, "Review not approved")
         self.assertEqual(
             notification.NOTF_BODY,
-            "Your review was not approved and will not be published.",
+            f"Your review of {self.business.BUSN_NAME} was not approved "
+            "and will not be published.",
         )
         self.assertEqual(
             notification.NOTF_DEDUP_KEY,

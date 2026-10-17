@@ -280,6 +280,7 @@ class BusinessNameChangeService:
             request_id=change_request.pk,
             request_type="business_name_change",
             outcome=change_request.BNCR_STATUS,
+            business_name=business.BUSN_NAME,
         )
         return change_request
 
@@ -333,5 +334,6 @@ class BusinessNameChangeService:
             request_id=change_request.pk,
             request_type="business_name_change",
             outcome=change_request.BNCR_STATUS,
+            business_name=change_request.BUSN_ID.BUSN_NAME,
         )
         return change_request

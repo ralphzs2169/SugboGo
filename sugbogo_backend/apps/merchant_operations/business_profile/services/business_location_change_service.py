@@ -594,6 +594,7 @@ class BusinessLocationChangeService:
             request_id=change_request.pk,
             request_type="business_location_change",
             outcome=change_request.BLCR_STATUS,
+            business_name=business.BUSN_NAME,
         )
         return BusinessLocationChangeService.get_for_admin(request_id)
 
@@ -646,5 +647,6 @@ class BusinessLocationChangeService:
             request_id=change_request.pk,
             request_type="business_location_change",
             outcome=change_request.BLCR_STATUS,
+            business_name=change_request.BUSN_ID.BUSN_NAME,
         )
         return BusinessLocationChangeService.get_for_admin(request_id)

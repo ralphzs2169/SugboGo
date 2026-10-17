@@ -93,6 +93,45 @@ describe("useNotificationNavigation", () => {
     useAppModeStore.setState({ activeMode: "explorer" });
   });
 
+  it.each(["explorer", "merchant"] as const)(
+    "opens an application summary from %s mode without requiring Merchant access",
+    async (activeMode) => {
+      useAppModeStore.setState({ activeMode });
+      if (activeMode === "explorer") {
+        useAuthStore.setState((state) => ({
+          user: state.user ? { ...state.user, role: "explorer" } : null,
+        }));
+      }
+      const markRead = jest.fn().mockResolvedValue(undefined);
+      const { client, Wrapper } = setupClient();
+      const { result, unmount } = await renderHook(
+        () => useNotificationNavigation({ markRead }),
+        { wrapper: Wrapper },
+      );
+
+      await act(async () => {
+        await result.current.handleNotificationPress(
+          notification({
+            type: "merchant_application_rejected",
+            target_type: "merchant_application",
+            target_id: 42,
+          }),
+        );
+      });
+
+      expect(markRead).toHaveBeenCalledWith(9);
+      expect(getApplicationStatus).not.toHaveBeenCalled();
+      expect(useAppModeStore.getState().activeMode).toBe("explorer");
+      const navigate = activeMode === "merchant" ? mockRouter.replace : mockRouter.push;
+      expect(navigate).toHaveBeenCalledWith(
+        "/(explorer)/merchant-registration/submitted-application",
+      );
+
+      unmount();
+      client.clear();
+    },
+  );
+
   it("marks unread and replaces Explorer with the eligible Merchant detail", async () => {
     const markRead = jest.fn().mockResolvedValue(undefined);
     const { client, Wrapper } = setupClient();
