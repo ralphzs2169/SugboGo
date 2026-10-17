@@ -7,7 +7,7 @@ import {
 } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import ErrorState from "@/shared/components/ErrorState";
+import AnalyticsChartEmptyState from "../../components/analytics/AnalyticsChartEmptyState";
 import InfoBanner from "@/shared/components/InfoBanner";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import AnalyticsPeriodSelector from "../../components/analytics/AnalyticsPeriodSelector";
@@ -149,12 +149,11 @@ export default function MerchantAnalyticsDetailScreen({
             >
               {/* Unavailable report states never become successful empty charts. */}
               {query.data?.meta.availability === "unavailable" ? (
-                <ErrorState
-                  size="section"
+                <AnalyticsChartEmptyState
                   title="Report source unavailable"
                   description="Unavailable data is not zero activity."
-                  primaryActionTitle="Retry"
-                  onPrimaryAction={() => void query.refetch()}
+                  icon="cloud-off-outline"
+                  onRetry={() => void query.refetch()}
                 />
               ) : (
                 <>

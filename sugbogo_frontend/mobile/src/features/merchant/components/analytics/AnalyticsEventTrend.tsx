@@ -7,6 +7,7 @@ import type {
 } from "../../types/merchantPlusAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
+import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import { PlusReportContext } from "./AnalyticsPlusStates";
 
 /** Keeps totals, series and comparison availability independent within an event report. */
@@ -25,7 +26,12 @@ export default function AnalyticsEventTrend({
   retry: () => void;
   note?: string;
 }) {
-  const unavailable = metric.value === null || metric.series === null;
+  const unavailable =
+    metric.value === null ||
+    metric.series === null ||
+    metric.sources.current.availability === "unavailable";
+  const chartUnavailable =
+    metric.series === null || (unavailable && metric.series.length === 0);
   return (
     <View className="gap-4">
       {/* Totals are never reconstructed by summing bucket-level account counts. */}
@@ -48,7 +54,7 @@ export default function AnalyticsEventTrend({
             : "Tracking observations do not establish business growth."}
         </AppText>
       </View>
-      {unavailable && (
+      {unavailable && !chartUnavailable && (
         <ErrorState
           size="section"
           title="Some recorded activity is unavailable"
@@ -57,7 +63,15 @@ export default function AnalyticsEventTrend({
           onPrimaryAction={retry}
         />
       )}
-      {metric.series !== null && (
+      {chartUnavailable && (
+        <AnalyticsChartEmptyState
+          title="Recorded activity unavailable"
+          description={`${label} cannot currently be charted. Any available total remains above. Missing values are not zero activity.`}
+          icon="cloud-off-outline"
+          onRetry={retry}
+        />
+      )}
+      {!chartUnavailable && metric.series !== null && (
         <AnalyticsSeriesChart
           key={`${label}-${interval}`}
           label={label}
@@ -65,6 +79,11 @@ export default function AnalyticsEventTrend({
           interval={interval}
           kind={kind}
           range={metric.sources.current.period}
+          total={
+            metric.sources.current.availability === "unavailable"
+              ? null
+              : metric.value
+          }
         />
       )}
       <PlusReportContext

@@ -9,6 +9,7 @@ import Svg, {
 } from "react-native-svg";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import type { AnalyticsInterval } from "../../types/merchantPlusAnalytics.types";
 import {
   analyticsBucketLabel,
@@ -25,6 +26,9 @@ export default function AnalyticsSeriesChart({
   kind = "line",
   color = theme.extends.colors.brand,
   range,
+  total,
+  emptyTitle = "No recorded activity yet",
+  emptyDescription = "No activity was recorded for this metric in the selected period. Check back as explorers interact with your business.",
 }: {
   points: AnalyticsPlotPoint[];
   interval: AnalyticsInterval;
@@ -32,13 +36,23 @@ export default function AnalyticsSeriesChart({
   kind?: "line" | "bar";
   color?: string;
   range?: { start: string; end_exclusive: string };
+  total?: number | null;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const [showValues, setShowValues] = useState(false);
   const groups = splitObservedSeries(points, interval);
   const ordered = groups.flat();
-  const compact = kind === "line" && ordered.length < 4;
+  const activeBuckets = ordered.filter((point) => point.value > 0);
+  // Lines need temporal continuity; bars need activity in multiple comparison buckets.
+  // These are presentation rules, not statistical sample-sufficiency claims.
+  const compact =
+    kind === "line"
+      ? ordered.length < 3 || !groups.some((group) => group.length > 1)
+      : activeBuckets.length < 2;
+  const visibleValues = compact && !showValues ? ordered.slice(-4) : ordered;
   const chartWidth = Math.max(240, measuredWidth || windowWidth - 40);
   const width =
     kind === "bar"
@@ -66,7 +80,7 @@ export default function AnalyticsSeriesChart({
   const y = (value: number) => bottom - (value / maximum) * (bottom - top);
   const values = (
     <View className="gap-1">
-      {ordered.map((point) => (
+      {visibleValues.map((point) => (
         <View
           key={point.start}
           accessible
@@ -84,11 +98,56 @@ export default function AnalyticsSeriesChart({
     </View>
   );
 
+  // Only a supplied period total can establish zero activity across the reporting range.
+  if (total === 0 && activeBuckets.length === 0) {
+    return (
+      <AnalyticsChartEmptyState
+        title={emptyTitle}
+        description={emptyDescription}
+      />
+    );
+  }
   if (ordered.length === 0) {
     return (
-      <AppText className="py-5 text-sm leading-5 text-text-secondary">
-        No recorded buckets returned for this period.
-      </AppText>
+      <AnalyticsChartEmptyState
+        title="No dated observations returned"
+        description={`There are no dated ${label.toLowerCase()} values to plot for this period. Any available total is shown above; missing dates are not zero activity.`}
+      />
+    );
+  }
+  if (compact) {
+    return (
+      <View className="gap-3">
+        <AnalyticsChartEmptyState
+          title="Not enough data for a trend yet"
+          description={
+            kind === "line"
+              ? `More connected ${label.toLowerCase()} observations are needed for a trend. Exact dated counts are shown below.`
+              : `More active weeks are needed to compare ${label.toLowerCase()}. Exact weekly counts are shown below.`
+          }
+        />
+        {/* Returned values remain available without implying a continuous trend. */}
+        <AppText className="text-sm leading-5 text-text-secondary">
+          {ordered.length > 4 && !showValues
+            ? "Showing the latest four returned buckets. "
+            : ""}
+          Missing buckets are not confirmed zeros.
+        </AppText>
+        {values}
+        {ordered.length > 4 && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${showValues ? "Show fewer" : "Show all"} ${label} values`}
+            accessibilityState={{ expanded: showValues }}
+            onPress={() => setShowValues(!showValues)}
+            className="min-h-12 justify-center self-start py-2 active:opacity-70"
+          >
+            <AppText weight="semibold" className="text-sm text-text-info">
+              {showValues ? "Show fewer values" : "View all dated values"}
+            </AppText>
+          </Pressable>
+        )}
+      </View>
     );
   }
   return (
@@ -150,7 +209,6 @@ export default function AnalyticsSeriesChart({
               0
             </SvgText>
             {kind === "line" &&
-              !compact &&
               groups
                 .filter((group) => group.length > 1)
                 .map((group) => (
@@ -175,7 +233,7 @@ export default function AnalyticsSeriesChart({
                   testID="analytics-observed-point"
                   cx={x(point, index)}
                   cy={y(point.value)}
-                  r={compact ? 5 : 3}
+                  r={3}
                   fill={color}
                 />
               ) : (
@@ -231,27 +289,23 @@ export default function AnalyticsSeriesChart({
         </AppText>
       )}
       {/* Text values provide precise counts and a screen-reader alternative. */}
-      {kind === "line" && (
-        <AppText className="text-sm leading-5 text-text-secondary">
-          {compact
-            ? "Limited recorded data. Each dot shows an observed bucket; more observations are needed for a trend."
-            : "Gaps have no connecting line. Missing buckets are not confirmed zeros."}
+      <AppText className="text-sm leading-5 text-text-secondary">
+        {kind === "line"
+          ? "Gaps have no connecting line. Missing buckets are not confirmed zeros."
+          : "Only returned weeks are shown. Missing weeks are not confirmed zeros."}
+      </AppText>
+      <Pressable
+        onPress={() => setShowValues(!showValues)}
+        accessibilityRole="button"
+        accessibilityLabel={`${showValues ? "Hide" : "Show"} ${label} values`}
+        accessibilityState={{ expanded: showValues }}
+        className="min-h-12 justify-center self-start py-2 active:opacity-70"
+      >
+        <AppText weight="semibold" className="text-sm text-text-info">
+          {showValues ? "Hide values" : "View exact values"}
         </AppText>
-      )}
-      {!compact && (
-        <Pressable
-          onPress={() => setShowValues(!showValues)}
-          accessibilityRole="button"
-          accessibilityLabel={`${showValues ? "Hide" : "Show"} ${label} values`}
-          accessibilityState={{ expanded: showValues }}
-          className="min-h-12 justify-center self-start py-2 active:opacity-70"
-        >
-          <AppText weight="semibold" className="text-sm text-text-info">
-            {showValues ? "Hide values" : "View exact values"}
-          </AppText>
-        </Pressable>
-      )}
-      {(compact || showValues) && values}
+      </Pressable>
+      {showValues && values}
     </View>
   );
 }

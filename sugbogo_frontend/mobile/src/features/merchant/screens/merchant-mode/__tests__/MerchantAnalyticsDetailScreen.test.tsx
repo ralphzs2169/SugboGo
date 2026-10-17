@@ -188,16 +188,179 @@ describe("lazy Core Plus detail reports", () => {
     expect(screen.getByLabelText("Plus reply rate: 0%")).toBeTruthy();
     expect(screen.getByText("Unavailable")).toBeTruthy();
     expect(screen.getByText("Comparison unavailable")).toBeTruthy();
+    expect(screen.queryAllByTestId("analytics-sentiment-bar")).toHaveLength(0);
+  });
+
+  it("shows a friendly save empty state without a report Retry for legitimate zero activity", async () => {
+    const report = pocketReport();
+    report.metrics.saves.value = 0;
+    report.metrics.saves.series = [];
+    report.metrics.distinct_savers.value = 0;
+    jest
+      .mocked(service.getMerchantPlusPocket)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderDetail("pocket");
+    await screen.findByText("No recorded activity yet");
+    expect(screen.getByTestId("analytics-chart-empty-state")).toHaveStyle({
+      minHeight: 196,
+    });
+    expect(screen.getByLabelText("Recorded saves: 0")).toBeTruthy();
+    expect(screen.getByLabelText("Distinct saver accounts: 0")).toBeTruthy();
+    expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+    expect(screen.getByText(/Tracking coverage is unverified/)).toBeTruthy();
+  });
+
+  it("retains dated saves when the total is unavailable and retries the affected report", async () => {
+    const report = pocketReport();
+    report.metrics.saves.value = null;
+    report.metrics.saves.sources.current.partial_reasons = [
+      "total_read_unavailable",
+      "coverage_unverified",
+    ];
+    jest
+      .mocked(service.getMerchantPlusPocket)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderDetail("pocket");
+    await screen.findByLabelText("Recorded saves: Unavailable");
+    expect(screen.getByTestId("analytics-chart-viewport")).toBeTruthy();
+    expect(
+      screen.getByText(/Some source reads could not complete/),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Distinct saver accounts: 3")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Some recorded activity is unavailable.*retry/i,
+      }),
+    );
+    await screen.findByLabelText("Recorded saves: 5");
+  });
+
+  it("does not treat an unavailable report as zero activity", async () => {
+    const report = pocketReport();
+    report.meta.availability = "unavailable";
+    jest
+      .mocked(service.getMerchantPlusPocket)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderDetail("pocket");
+    await screen.findByRole("button", {
+      name: /Report source unavailable.*retry/i,
+    });
+    expect(screen.queryByText("No recorded activity yet")).toBeNull();
+    expect(screen.queryByLabelText("Recorded saves: 5")).toBeNull();
+    expect(screen.getByTestId("analytics-chart-empty-state")).toHaveStyle({
+      minHeight: 196,
+    });
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Report source unavailable.*retry/i }),
+    );
+    await screen.findByLabelText("Recorded saves: 5");
+  });
+
+  it("shows no qualifying specialty additions while preserving selection", async () => {
+    const report = specialtyReport();
+    const specialty = report.specialties[0];
+    specialty.added_and_still_valid = 0;
+    specialty.distinct_supporters = 0;
+    specialty.series.forEach((row) => {
+      row.added_and_still_valid = 0;
+      row.distinct_supporters = 0;
+    });
+    jest
+      .mocked(service.getMerchantPlusSpecialties)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderDetail("specialties");
+    await screen.findByText("No qualifying specialty additions");
+    expect(
+      screen.getByLabelText(
+        "Coffee: 0 additions still valid, 0 distinct supporters",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Specialty: Friendly service" }),
+    );
+    expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
+    expect(screen.queryByText("No qualifying specialty additions")).toBeNull();
+  });
+
+  it("keeps a single classified review as counts rather than a sentiment conclusion", async () => {
+    const report = reviewReport();
+    Object.assign(report.current, {
+      published_review_count: 1,
+      classified_review_count: 1,
+      unclassified_review_count: 0,
+      has_sufficient_sentiment_data: false,
+      reply_rate: 100,
+      sentiment: {
+        positive: { count: 1, percentage: 100 },
+        neutral: { count: 0, percentage: 0 },
+        negative: { count: 0, percentage: 0 },
+      },
+    });
+    jest
+      .mocked(service.getMerchantPlusReviewPerformance)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderDetail("reviews");
+    await screen.findByText("Insufficient sentiment data");
+    expect(screen.getByLabelText("Positive: 1 reviews")).toBeTruthy();
+    expect(screen.queryAllByTestId("analytics-sentiment-bar")).toHaveLength(0);
+    expect(screen.getByText(/With one eligible review/)).toBeTruthy();
+    expect(
+      screen.getByText(/does not establish a typical response time/),
+    ).toBeTruthy();
+  });
+
+  it("preserves a null sentiment share and a valid zero-second reply median", async () => {
+    const report = reviewReport();
+    report.current.sentiment.positive.percentage = null;
+    report.current.median_first_reply_seconds = 0;
+    jest
+      .mocked(service.getMerchantPlusReviewPerformance)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderDetail("reviews");
+    await screen.findByText("0 sec");
+    expect(screen.getByLabelText("Positive: 2 reviews")).toBeTruthy();
+    expect(screen.getByText(/Share unavailable/)).toBeTruthy();
+    expect(screen.getAllByTestId("analytics-sentiment-bar")).toHaveLength(3);
+  });
+
+  it("shows an empty review volume and null reply rate for an empty published cohort", async () => {
+    const report = reviewReport();
+    Object.assign(report.current, {
+      published_review_count: 0,
+      replied_review_count: 0,
+      unanswered_cohort_count: 0,
+      classified_review_count: 0,
+      unclassified_review_count: 0,
+      has_sufficient_sentiment_data: false,
+      reply_rate: null,
+      median_first_reply_seconds: null,
+      median_replied_sample_size: 0,
+      sentiment: {
+        positive: { count: 0, percentage: null },
+        neutral: { count: 0, percentage: null },
+        negative: { count: 0, percentage: null },
+      },
+    });
+    report.series = [];
+    report.reply_rate_change.value = null;
+    jest
+      .mocked(service.getMerchantPlusReviewPerformance)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderDetail("reviews");
+    await screen.findByText("No published reviews in this period");
+    expect(screen.getByLabelText("Plus reply rate: Unavailable")).toBeTruthy();
+    expect(screen.getByText(/No eligible reviews in this period/)).toBeTruthy();
+    expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
   });
 
   it("does not fetch any detail when restricted, and retries a failed access check", async () => {
-    jest
-      .mocked(service.getMerchantPlusStatus)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "NETWORK_ERROR",
-        message: "Offline",
-      });
+    jest.mocked(service.getMerchantPlusStatus).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
     const screen = await renderDetail("pocket");
     const retry = await screen.findByRole("button", {
       name: /Unable to check Plus access.*retry/i,
@@ -216,13 +379,11 @@ describe("lazy Core Plus detail reports", () => {
   });
 
   it("recovers a report failure and keeps cached data after a failed refresh", async () => {
-    jest
-      .mocked(service.getMerchantPlusPocket)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "NETWORK_ERROR",
-        message: "Offline",
-      });
+    jest.mocked(service.getMerchantPlusPocket).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
     const screen = await renderDetail("pocket");
     await fireEvent.press(
       await screen.findByRole("button", {
@@ -230,13 +391,11 @@ describe("lazy Core Plus detail reports", () => {
       }),
     );
     await screen.findByLabelText("Recorded saves: 5");
-    jest
-      .mocked(service.getMerchantPlusPocket)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "NETWORK_ERROR",
-        message: "Offline",
-      });
+    jest.mocked(service.getMerchantPlusPocket).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
     await act(async () => {
       await screen
         .getByTestId("plus-detail-scroll")

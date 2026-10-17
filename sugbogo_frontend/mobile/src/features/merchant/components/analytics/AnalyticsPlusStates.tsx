@@ -5,6 +5,7 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import InfoBanner from "@/shared/components/InfoBanner";
 import Skeleton from "@/shared/components/Skeleton";
+import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import type { MerchantPlusAccess } from "../../hooks/analytics/useMerchantPlusAccess";
 import type { PlusAnalyticsMeta } from "../../types/merchantPlusAnalytics.types";
 import {
@@ -90,21 +91,22 @@ export function PlusRequestState({
   return (
     <View className="gap-4">
       {error ? (
-        <ErrorState
-          size="section"
-          title={
-            hasData
-              ? "Unable to refresh this report"
-              : "Unable to load this report"
-          }
-          description={
-            hasData
-              ? "Previously loaded values are still shown."
-              : "Please retry this section."
-          }
-          primaryActionTitle="Retry"
-          onPrimaryAction={retry}
-        />
+        hasData ? (
+          <ErrorState
+            size="section"
+            title="Unable to refresh this report"
+            description="Previously loaded values are still shown."
+            primaryActionTitle="Retry"
+            onPrimaryAction={retry}
+          />
+        ) : (
+          <AnalyticsChartEmptyState
+            title="Unable to load this report"
+            description="Analytics cannot currently be displayed. Please retry this section."
+            icon="cloud-off-outline"
+            onRetry={retry}
+          />
+        )
       ) : null}
       {loading && !hasData ? <PlusAnalyticsSkeleton /> : children}
     </View>
@@ -121,7 +123,11 @@ export function PlusReportContext({
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <InfoBanner title="About this report">
+    <InfoBanner
+      title={
+        meta.is_partial ? "About this partial report" : "About this report"
+      }
+    >
       <AppText className="text-sm leading-5 text-text-secondary">
         {formatAnalyticsDate(meta.period.start_date)} –{" "}
         {formatAnalyticsDate(meta.period.end_date)} · Asia/Manila.
@@ -130,6 +136,18 @@ export function PlusReportContext({
           : " Records reflect what remains eligible at report time."}
         {meta.partial_reasons.includes("current_day_incomplete")
           ? " Today is still in progress."
+          : ""}
+        {meta.partial_reasons.some((reason) =>
+          [
+            "total_read_unavailable",
+            "series_read_unavailable",
+            "visibility_read_unavailable",
+          ].includes(reason),
+        )
+          ? " Some source reads could not complete. Available values remain visible."
+          : ""}
+        {meta.partial_reasons.includes("current_state_reporting")
+          ? " This report describes retained records, not historical snapshots."
           : ""}
       </AppText>
       <Pressable

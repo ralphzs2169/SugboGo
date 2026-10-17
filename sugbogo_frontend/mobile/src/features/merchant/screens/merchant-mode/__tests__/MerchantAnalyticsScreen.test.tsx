@@ -235,11 +235,23 @@ describe("MerchantAnalyticsScreen", () => {
     await screen.findByLabelText("Recorded profile visits: 0");
     expect(
       screen.getByRole("button", {
-        name: /Some recorded activity is unavailable.*retry/i,
+        name: /Recorded activity unavailable.*retry/i,
       }),
     ).toBeTruthy();
     expect(screen.queryAllByTestId("analytics-line-segment")).toHaveLength(0);
     expect(screen.getByText(/Growth comparison unavailable/)).toBeTruthy();
+    expect(screen.getByTestId("analytics-chart-empty-state")).toHaveStyle({
+      minHeight: 196,
+    });
+    expect(screen.queryByText("No recorded activity yet")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Recorded activity unavailable.*retry/i,
+      }),
+    );
+    await screen.findByLabelText(/^Recorded profile visits: 24$/);
+    expect(screen.getAllByTestId("analytics-line-segment")).toHaveLength(2);
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
   });
 
   it("shows exact sparse observations when the total is unavailable and avoids an invented line", async () => {
@@ -255,7 +267,7 @@ describe("MerchantAnalyticsScreen", () => {
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderScreen();
     await screen.findByLabelText("Recorded profile visits: Unavailable");
-    expect(screen.getByText(/Limited recorded data. Each dot/)).toBeTruthy();
+    expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
     expect(
       screen.getByLabelText(/^Recorded profile visits, .*: 2$/),
     ).toBeTruthy();

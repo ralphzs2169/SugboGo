@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import AppText from "@/shared/components/AppText";
-import InfoBanner from "@/shared/components/InfoBanner";
+import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import type {
   PlusReviewPerformanceReport,
   SentimentLabel,
@@ -45,12 +45,19 @@ export default function AnalyticsReviewPerformance({
           this period
         </AppText>
         {!showShares && (
-          <InfoBanner title="Insufficient sentiment data">
-            <AppText className="text-sm leading-5 text-text-secondary">
-              Counts are shown, but sentiment shares are withheld until the
-              backend reports a sufficient classified sample.
-            </AppText>
-          </InfoBanner>
+          <AnalyticsChartEmptyState
+            title={
+              cohort.published_review_count === 0
+                ? "No review sentiment yet"
+                : "Insufficient sentiment data"
+            }
+            description={
+              cohort.published_review_count === 0
+                ? "No currently published reviews were created in the selected period."
+                : "More classified reviews are needed to show a sentiment pattern. Available counts are shown below; sentiment shares are withheld until the sample is sufficient."
+            }
+            icon="comment-text-outline"
+          />
         )}
         {SENTIMENTS.map(({ key, label, color }) => {
           const sentiment = cohort.sentiment[key];
@@ -77,21 +84,24 @@ export default function AnalyticsReviewPerformance({
                     : ""}
                 </AppText>
               </View>
-              <View
-                accessible={false}
-                className="h-2 overflow-hidden rounded-full bg-surface-muted"
-              >
+              {showShares && (
                 <View
-                  className={`h-full rounded-full ${color}`}
-                  style={{ width: `${(sentiment.count / maximum) * 100}%` }}
-                />
-              </View>
+                  accessible={false}
+                  testID="analytics-sentiment-bar"
+                  className="h-2 overflow-hidden rounded-full bg-surface-muted"
+                >
+                  <View
+                    className={`h-full rounded-full ${color}`}
+                    style={{ width: `${(sentiment.count / maximum) * 100}%` }}
+                  />
+                </View>
+              )}
             </View>
           );
         })}
         <AppText className="text-sm leading-5 text-text-secondary">
-          Bars compare classified review counts. Shares, when available, exclude
-          unclassified reviews.
+          {showShares ? "Bars compare classified review counts. " : ""}
+          Shares, when available, exclude unclassified reviews.
         </AppText>
       </View>
       {/* Server-computed rates, comparisons and medians retain zero/null distinctions. */}
@@ -113,7 +123,9 @@ export default function AnalyticsReviewPerformance({
             eligible reviews replied to.{" "}
             {cohort.published_review_count === 0
               ? "No eligible reviews in this period."
-              : ""}
+              : cohort.published_review_count === 1
+                ? "With one eligible review, this rate describes that review only."
+                : ""}
           </AppText>
           <AppText className="mt-2 text-sm leading-5 text-text-secondary">
             {formatReplyComparison(report.reply_rate_change)}
@@ -124,11 +136,21 @@ export default function AnalyticsReviewPerformance({
             Median reply time
           </AppText>
           <AppText weight="bold" className="mt-1 text-2xl text-text-primary">
-            {formatReplyDuration(cohort.median_first_reply_seconds)}
+            {formatReplyDuration(
+              cohort.median_replied_sample_size > 0
+                ? cohort.median_first_reply_seconds
+                : null,
+            )}
           </AppText>
           <AppText className="mt-2 text-sm leading-5 text-text-secondary">
             Based on {cohort.median_replied_sample_size} retained replies with
             valid timestamps.
+            {cohort.median_first_reply_seconds === null ||
+            cohort.median_replied_sample_size === 0
+              ? " A median is unavailable without valid retained reply timing."
+              : cohort.median_replied_sample_size === 1
+                ? " This reflects one reply and does not establish a typical response time."
+                : ""}
           </AppText>
         </View>
         {report.excluded_reply_timestamp_count > 0 && (
@@ -146,6 +168,9 @@ export default function AnalyticsReviewPerformance({
           label="Published reviews"
           interval="weekly"
           kind="bar"
+          total={cohort.published_review_count}
+          emptyTitle="No published reviews in this period"
+          emptyDescription="No currently published reviews were created in the selected period. Reviews from other dates are outside this report."
           points={report.series.map((bucket) => ({
             ...bucket,
             value: bucket.published_review_count,

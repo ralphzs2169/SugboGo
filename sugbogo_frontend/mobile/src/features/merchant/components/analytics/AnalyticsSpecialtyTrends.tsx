@@ -9,6 +9,7 @@ import type { MerchantBusinessSpecialty } from "../../types/merchantBusinessProf
 import type { PlusSpecialtyReport } from "../../types/merchantPlusAnalytics.types";
 import { formatAnalyticsTimestamp } from "../../utils/merchantAnalytics.utils";
 import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
+import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import { PlusReportContext } from "./AnalyticsPlusStates";
 
 /** Adds per-specialty creation cohorts without replacing current Standard rankings. */
@@ -89,6 +90,9 @@ export default function AnalyticsSpecialtyTrends({
             interval="weekly"
             kind="bar"
             color={selectedColor}
+            total={selected.added_and_still_valid}
+            emptyTitle="No qualifying specialty additions"
+            emptyDescription="No vouches created in this period remain valid for this specialty at report time. Current support is shown separately in Standard analytics."
             points={selected.series.map((bucket) => ({
               ...bucket,
               value: bucket.added_and_still_valid,
@@ -96,9 +100,11 @@ export default function AnalyticsSpecialtyTrends({
           />
         </View>
       ) : (
-        <AppText className="py-4 text-sm text-text-secondary">
-          No active specialties to report.
-        </AppText>
+        <AnalyticsChartEmptyState
+          title="No active specialties to report"
+          description="Specialty trends will appear here when your business has active specialties."
+          icon="tag-outline"
+        />
       )}
       <PlusReportContext
         meta={report.meta}
