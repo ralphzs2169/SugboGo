@@ -590,6 +590,29 @@ class VisibilityEventService:
         return rows
 
     @classmethod
+    def get_profile_visit_timing(cls, *, business_ids, start_time, end_time):
+        """Count scoped recorded profile visits by ISO weekday and hour in Manila time."""
+        if business_ids is None:
+            raise ValidationError({"business_ids": "An explicit business scope is required."})
+        match = cls._analytics_match(business_ids, "PROFILE_VISIT")
+        match["occurred_at"] = cls._analytics_window(start_time, end_time)
+        if not match["business_id"]["$in"]:
+            return []
+        local_date = {"date": "$occurred_at", "timezone": "Asia/Manila"}
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {
+                "_id": {
+                    "weekday": {"$isoDayOfWeek": local_date},
+                    "hour": {"$hour": local_date},
+                },
+                "count": {"$sum": 1},
+            }},
+            {"$sort": {"_id.weekday": 1, "_id.hour": 1}},
+        ])
+        return [{**row["_id"], "count": row["count"]} for row in rows]
+
+    @classmethod
     def get_analytics_totals(cls, *, start_time, end_time, business_ids=None):
         """Count recorded events by type for one business, a set, or the platform."""
         match = cls._analytics_match(business_ids)
