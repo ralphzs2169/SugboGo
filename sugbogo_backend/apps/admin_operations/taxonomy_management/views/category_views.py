@@ -76,6 +76,8 @@ class CategoryListView(APIView):
 class CategoryDetailView(APIView):
     """Handle retrieval, updating, and deletion of a category."""
 
+    permission_classes = (IsAuthenticated, HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),)
+
     def get(self, request, category_id):
         """Retrieve a specific category."""
 

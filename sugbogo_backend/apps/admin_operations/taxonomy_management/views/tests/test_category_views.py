@@ -537,3 +537,58 @@ class CategoryViewTests(APITestCase):
             response.data["errors"]["name"][0],
             "Category name must be at least 3 characters.",
         )
+
+
+class CategoryDetailPermissionTests(APITestCase):
+    """Exercise every detail method with each supported role."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.users = {
+            role: User.objects.create_user(
+                email=f"{role}-category-permissions@example.com",
+                password=None,
+                USER_FNAME="Permission",
+                USER_LNAME="Test",
+                USER_ROLE=role,
+                USER_STATUS=User.UserStatus.ACTIVE,
+            )
+            for role in (
+                User.UserRole.EXPLORER,
+                User.UserRole.MERCHANT,
+                User.UserRole.ADMIN,
+                User.UserRole.SUPER_ADMIN,
+            )
+        }
+
+    def _assert_detail_permissions(self, role, expected_status):
+        self.client.force_authenticate(self.users.get(role))
+        for method in ("get", "put", "patch", "delete"):
+            with self.subTest(role=role, method=method):
+                cluster = Cluster.objects.create(CLUS_NAME=f"Cluster {method}")
+                instance = Category.objects.create(
+                    CTGRY_NAME=f"Category {method}", CLUS_ID=cluster,
+                )
+                url = f"/api/admin/taxonomy/categories/{instance.pk}/"
+                payload = {"name": f"Updated {method}", "description": "Updated"}
+                payload["cluster_id"] = cluster.pk
+                response = getattr(self.client, method)(url, payload, format="json")
+                self.assertEqual(response.status_code, expected_status)
+                if expected_status != status.HTTP_200_OK:
+                    instance.refresh_from_db()
+                    self.assertEqual(instance.CTGRY_NAME, f"Category {method}")
+
+    def test_anonymous_is_unauthorized(self):
+        self._assert_detail_permissions(None, status.HTTP_401_UNAUTHORIZED)
+
+    def test_explorer_is_forbidden(self):
+        self._assert_detail_permissions(User.UserRole.EXPLORER, status.HTTP_403_FORBIDDEN)
+
+    def test_merchant_is_forbidden(self):
+        self._assert_detail_permissions(User.UserRole.MERCHANT, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_is_allowed(self):
+        self._assert_detail_permissions(User.UserRole.ADMIN, status.HTTP_200_OK)
+
+    def test_super_admin_is_allowed(self):
+        self._assert_detail_permissions(User.UserRole.SUPER_ADMIN, status.HTTP_200_OK)
