@@ -238,6 +238,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
 
+# Let authenticated web downloads use the server's safe attachment filename.
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
