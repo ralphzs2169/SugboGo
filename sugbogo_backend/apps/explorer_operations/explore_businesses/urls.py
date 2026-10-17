@@ -58,8 +58,39 @@ from apps.explorer_operations.explore_businesses.views.vouch_history_views impor
     VouchHistoryView,
 )
 from django.urls import path
+from .views.pocket_collection_views import (
+    PocketCollectionBusinessesView,
+    PocketCollectionDetailView,
+    PocketCollectionListView,
+)
+from .views.business_pocket_membership_views import (
+    BusinessPocketMembershipView,
+    PocketBusinessMembershipView,
+)
 
 urlpatterns = [
+
+    path("pockets/", PocketCollectionListView.as_view(), name="pocket-collections"),
+    path(
+        "pockets/<int:collection_id>/",
+        PocketCollectionDetailView.as_view(),
+        name="pocket-collection-detail",
+    ),
+    path(
+        "pockets/<int:collection_id>/businesses/",
+        PocketCollectionBusinessesView.as_view(),
+        name="pocket-collection-businesses",
+    ),
+    path(
+        "businesses/<int:business_id>/pockets/",
+        BusinessPocketMembershipView.as_view(),
+        name="business-pocket-memberships",
+    ),
+    path(
+        "pockets/<int:collection_id>/businesses/<int:business_id>/",
+        PocketBusinessMembershipView.as_view(),
+        name="pocket-business-membership",
+    ),
 
     path(
         "journey-origins/places/search/",
