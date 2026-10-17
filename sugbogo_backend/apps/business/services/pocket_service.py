@@ -18,6 +18,18 @@ class PocketService:
     """Handles creating, removing, and checking user business pockets."""
 
     @staticmethod
+    def list_pockets(user: User, *, search=""):
+        queryset = BusinessPocket.objects.filter(
+            USER_ID=user,
+            BUSN_ID__BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+        ).select_related(
+            "BUSN_ID__CTGRY_ID", "BUSN_ID__LOCT_ID",
+        ).order_by("-PCKT_CREATED_AT", "-PCKT_ID")
+        if search.strip():
+            queryset = queryset.filter(BUSN_ID__BUSN_NAME__icontains=search.strip())
+        return queryset
+
+    @staticmethod
     def get_current_holder_count(business_id, *, as_of):
         """Count current distinct holders without treating retained rows as save history."""
         return BusinessPocket.objects.filter(

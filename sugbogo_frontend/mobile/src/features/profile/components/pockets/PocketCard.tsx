@@ -42,7 +42,7 @@ export default function PocketCard({
         </View>
       )}
 
-      <Image source={{ uri: photoUrl }} className="mr-4 h-24 w-24 rounded-md" />
+      <Image source={photoUrl ? { uri: photoUrl } : undefined} className="mr-4 h-24 w-24 rounded-md" />
 
       <View className="flex-1">
         <Text className="text-base font-bold text-text-primary" numberOfLines={1}>
@@ -64,7 +64,7 @@ export default function PocketCard({
       </View>
 
       {!isEditing && (
-        <Pressable onPress={onRemove} hitSlop={12} className="p-2">
+        <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${name} from pockets`} hitSlop={12} className="p-2">
           <MaterialCommunityIcons
             name="trash-can-outline"
             size={20}

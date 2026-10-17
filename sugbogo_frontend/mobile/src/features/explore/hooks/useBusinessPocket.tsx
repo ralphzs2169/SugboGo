@@ -277,6 +277,7 @@ export default function useBusinessPocket({ businessId }: Props) {
 
     onSettled: async () => {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["my-pockets"] }),
         queryClient.invalidateQueries({
           queryKey: ["explore-business-detail", businessId],
         }),

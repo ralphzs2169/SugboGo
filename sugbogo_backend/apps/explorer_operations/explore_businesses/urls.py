@@ -2,6 +2,7 @@ from apps.explorer_operations.explore_businesses.views.business_detail_views imp
     BusinessDetailView,
 )
 from apps.explorer_operations.explore_businesses.views.business_pocket_views import (
+    BusinessPocketListView,
     BusinessPocketView,
 )
 from apps.explorer_operations.explore_businesses.views.business_vouch_views import (
@@ -53,6 +54,7 @@ from apps.explorer_operations.explore_businesses.views.visibility_event_views im
 from django.urls import path
 
 urlpatterns = [
+    path("pockets/", BusinessPocketListView.as_view(), name="business-pocket-list"),
 
     path(
         "journey-origins/places/search/",

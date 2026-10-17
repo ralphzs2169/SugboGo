@@ -1,88 +1,52 @@
-import { View, Text, FlatList, Pressable, TextInput } from "react-native";
-import { useState, useMemo } from "react";
-import { Stack } from "expo-router";
+import { View, Text, FlatList, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
+import { useState } from "react";
+import { Stack, router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import PocketCard from "@/features/profile/components/pockets/PocketCard";
 import { theme } from "@/constants/theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const MOCK_POCKETS = [
-  {
-    id: "1",
-    name: "Lola Nena's Bakeshop",
-    photoUrl:
-      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=200&h=200&fit=crop",
-    category: "Culinary",
-    location: "Colon St, Cebu City",
-  },
-  {
-    id: "2",
-    name: "Danao Weaves & Crafts",
-    photoUrl:  "https://images.unsplash.com/photo-1729383456185-dec6084f0271?q=80&w=846&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    category: "Creative",
-    location: "Danao City, Cebu",
-  },
-  {
-    id: "3",
-    name: "Barako Brew Café",
-    photoUrl:
-      "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&h=200&fit=crop",
-    category: "Culinary",
-    location: "IT Park, Lahug",
-  },
-  {
-    id: "4",
-    name: "Oslob Souvenir House",
-    photoUrl:
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200&h=200&fit=crop",
-    category: "Creative",
-    location: "Oslob, Cebu",
-  },
-  {
-    id: "5",
-    name: "Bohol Bee Farm",
-    photoUrl:
-      "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=200&h=200&fit=crop",
-    category: "Experiential",
-    location: "Panglao, Bohol",
-  },
-];
+import ErrorState from "@/shared/components/ErrorState";
+import useMyPockets from "../hooks/useMyPockets";
 
 export default function MyPocketsScreen() {
-  const [pockets, setPockets] = useState(MOCK_POCKETS);
   const [isEditing, setIsEditing] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const insets = useSafeAreaInsets();
 
-  const filteredPockets = useMemo(() => {
-    if (!searchQuery.trim()) return pockets;
-    return pockets.filter((p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [pockets, searchQuery]);
+  const {
+    pockets, isLoading, isRefetching, error, refetch, hasNextPage,
+    fetchNextPage, isFetchingNextPage, isFetchNextPageError, removePockets, isRemoving,
+  } = useMyPockets(searchQuery);
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (id: number) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id],
     );
   };
 
   const allSelected =
-    filteredPockets.length > 0 && selectedIds.length === filteredPockets.length;
+    pockets.length > 0 && pockets.every((p) => selectedIds.includes(p.business_id));
 
   const toggleSelectAll = () => {
     if (allSelected) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(filteredPockets.map((p) => p.id));
+      setSelectedIds(pockets.map((p) => p.business_id));
     }
   };
 
-  const handleDeleteSelected = () => {
-    setPockets((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
-    setSelectedIds([]);
-    setIsEditing(false);
+  const handleRemove = async (businessIds: number[]) => {
+    if (isRemoving) return;
+    try {
+      await removePockets(businessIds);
+      setSelectedIds([]);
+      setIsEditing(false);
+    } catch {
+      setSelectedIds([]);
+      Alert.alert("Couldn't remove pockets", "Please try again. Successfully removed pockets will stay removed.");
+    }
   };
 
   return (
@@ -116,34 +80,66 @@ export default function MyPocketsScreen() {
           placeholder="Search saved MSMEs..."
           placeholderTextColor={theme.extends.colors.text.tertiary}
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={(value) => {
+            setSearchQuery(value);
+            setSelectedIds([]);
+          }}
         />
       </View>
 
       <FlatList
+        testID="my-pockets-list"
         contentContainerClassName="p-4 pb-24"
-        data={filteredPockets}
-        keyExtractor={(item) => item.id}
+        data={pockets}
+        keyExtractor={(item) => String(item.id)}
+        refreshing={isRefetching && !isFetchingNextPage}
+        onRefresh={() => { void refetch(); }}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage && !isFetchNextPageError) void fetchNextPage();
+        }}
+        ListHeaderComponent={error && !isFetchNextPageError ? (
+          <ErrorState
+            title="Couldn't load pockets"
+            description="Please check your connection and try again."
+            size="small"
+            primaryActionTitle="Retry"
+            onPrimaryAction={() => { void refetch(); }}
+          />
+        ) : null}
+        ListFooterComponent={isFetchingNextPage ? (
+          <ActivityIndicator color={theme.extends.colors.brand} />
+        ) : isFetchNextPageError ? (
+          <ErrorState
+            title="Couldn't load more pockets"
+            description="Your saved pockets are still here. Try loading more again."
+            size="small"
+            primaryActionTitle="Load more"
+            onPrimaryAction={() => { void fetchNextPage(); }}
+          />
+        ) : null}
         renderItem={({ item }) => (
           <PocketCard
             name={item.name}
-            photoUrl={item.photoUrl}
+            photoUrl={item.photo_url ?? ""}
             category={item.category}
             location={item.location}
             isEditing={isEditing}
-            isSelected={selectedIds.includes(item.id)}
-            onSelect={() => toggleSelect(item.id)}
-            onRemove={() =>
-              setPockets((prev) => prev.filter((p) => p.id !== item.id))
-            }
-            onPress={() => {}}
+            isSelected={selectedIds.includes(item.business_id)}
+            onSelect={() => toggleSelect(item.business_id)}
+            onRemove={() => { void handleRemove([item.business_id]); }}
+            onPress={() => router.push({
+              pathname: "/(explorer)/business/[businessId]",
+              params: { businessId: item.business_id },
+            })}
           />
         )}
-        ListEmptyComponent={
+        ListEmptyComponent={isLoading ? (
+          <ActivityIndicator accessibilityLabel="Loading pockets" color={theme.extends.colors.brand} />
+        ) : error ? null : (
           <Text className="mt-8 text-center text-text-tertiary">
-            No saved pockets yet.
+            {searchQuery.trim() ? "No matching pockets." : "No saved pockets yet."}
           </Text>
-        }
+        )}
       />
 
       {isEditing && (
@@ -173,18 +169,18 @@ export default function MyPocketsScreen() {
           </Pressable>
 
           <Pressable
-            onPress={handleDeleteSelected}
-            disabled={selectedIds.length === 0}
+            onPress={() => { void handleRemove(selectedIds); }}
+            disabled={(selectedIds.length === 0 || isRemoving)}
             className={`rounded-md px-6 py-2 ${
-              selectedIds.length === 0 ? "bg-disabled" : "bg-brand"
+              (selectedIds.length === 0 || isRemoving) ? "bg-disabled" : "bg-brand"
             }`}
           >
             <Text
               className={`font-semibold ${
-                selectedIds.length === 0 ? "text-text-tertiary" : "text-white"
+                (selectedIds.length === 0 || isRemoving) ? "text-text-tertiary" : "text-white"
               }`}
             >
-              Delete
+              {isRemoving ? "Deleting..." : "Delete"}
             </Text>
           </Pressable>
         </View>

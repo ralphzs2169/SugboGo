@@ -276,3 +276,67 @@ class BusinessPocketViewTests(APITestCase):
             ).count(),
             2,
         )
+
+    def test_list_pockets_is_scoped_to_current_user(self):
+        pocket = BusinessPocket.objects.create(USER_ID=self.user, BUSN_ID=self.business)
+        BusinessPocket.objects.create(USER_ID=self.second_user, BUSN_ID=self.business)
+        with self.assertNumQueries(2):
+            response = self.client.get("/api/explorer/explore/pockets/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 1)
+        item = response.data["data"]["items"][0]
+        self.assertEqual(item["id"], pocket.pk)
+        self.assertEqual(item["business_id"], self.business.pk)
+        self.assertEqual(item["name"], "Sugbo Bistro")
+        self.assertEqual(item["category"], "Restaurants")
+        self.assertEqual(item["location"], "Gorordo Avenue")
+        self.assertIsNone(item["photo_url"])
+        self.assertIn("saved_at", item)
+        self.assertNotIn("USER_ID", item)
+
+    def test_list_pockets_paginates_newest_first_and_searches(self):
+        first = BusinessPocket.objects.create(USER_ID=self.user, BUSN_ID=self.business)
+        other = Business.objects.create(
+            BUSN_NAME="Another Cafe", USER_ID=self.second_user,
+            CTGRY_ID=self.category, LOCT_ID=self.location,
+            BUSN_COVER_PHOTO_URL="https://example.com/cafe.jpg",
+        )
+        second = BusinessPocket.objects.create(USER_ID=self.user, BUSN_ID=other)
+        response = self.client.get("/api/explorer/explore/pockets/?page_size=1")
+        self.assertEqual(response.data["data"]["items"][0]["id"], second.pk)
+        self.assertEqual(response.data["data"]["items"][0]["photo_url"], other.BUSN_COVER_PHOTO_URL)
+        self.assertTrue(response.data["data"]["pagination"]["has_next"])
+        response = self.client.get("/api/explorer/explore/pockets/?page_size=1&page=2")
+        self.assertEqual(response.data["data"]["items"][0]["id"], first.pk)
+        response = self.client.get("/api/explorer/explore/pockets/?search=  BISTRO  ")
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 1)
+        self.assertEqual(response.data["data"]["items"][0]["id"], first.pk)
+
+    def test_list_pockets_empty(self):
+        response = self.client.get("/api/explorer/explore/pockets/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["data"]["items"], [])
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 0)
+
+    def test_list_pockets_excludes_suspended_businesses(self):
+        BusinessPocket.objects.create(USER_ID=self.user, BUSN_ID=self.business)
+        self.business.BUSN_STATUS = Business.BusinessStatus.SUSPENDED
+        self.business.save(update_fields=["BUSN_STATUS"])
+        response = self.client.get("/api/explorer/explore/pockets/")
+        self.assertEqual(response.data["data"]["items"], [])
+
+    def test_list_pockets_requires_authentication(self):
+        self.client.force_authenticate(None)
+        response = self.client.get("/api/explorer/explore/pockets/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_pockets_allows_merchant_and_rejects_admin_roles(self):
+        for role, expected in (
+            (User.UserRole.MERCHANT, status.HTTP_200_OK),
+            (User.UserRole.ADMIN, status.HTTP_403_FORBIDDEN),
+            (User.UserRole.SUPER_ADMIN, status.HTTP_403_FORBIDDEN),
+        ):
+            with self.subTest(role=role):
+                self.user.USER_ROLE = role
+                response = self.client.get("/api/explorer/explore/pockets/")
+                self.assertEqual(response.status_code, expected)

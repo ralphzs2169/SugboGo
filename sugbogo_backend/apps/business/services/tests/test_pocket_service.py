@@ -299,3 +299,16 @@ class BusinessPocketServiceTests(TestCase):
             second_business.BUSN_POCKET_COUNT,
             1,
         )
+
+
+    def test_list_pockets_filters_by_owner_and_search(self):
+        pocket = BusinessPocket.objects.create(USER_ID=self.user, BUSN_ID=self.business)
+        BusinessPocket.objects.create(USER_ID=self.second_user, BUSN_ID=self.business)
+        self.assertEqual(list(PocketService.list_pockets(self.user, search=" BISTRO ")), [pocket])
+        self.assertEqual(list(PocketService.list_pockets(self.user, search="missing")), [])
+
+    def test_list_pockets_excludes_suspended_businesses(self):
+        BusinessPocket.objects.create(USER_ID=self.user, BUSN_ID=self.business)
+        self.business.BUSN_STATUS = Business.BusinessStatus.SUSPENDED
+        self.business.save(update_fields=["BUSN_STATUS"])
+        self.assertEqual(list(PocketService.list_pockets(self.user)), [])
