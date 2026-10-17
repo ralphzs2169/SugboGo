@@ -1,0 +1,158 @@
+from django.contrib.gis.geos import Polygon
+from django.db.models import (
+    BooleanField,
+    Case,
+    Prefetch,
+    Subquery,
+    Value,
+    When,
+)
+
+from apps.business.models import BusinessSpecialtyTag
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+
+from .discovery_feed_service import DiscoveryFeedService
+from .taxonomy_filter_service import apply_taxonomy_filters
+from .operating_hours_filter_service import apply_open_now_filter
+
+
+class MapDiscoveryService:
+    """Build compact public map queries independently of global gem membership."""
+
+    @staticmethod
+    def list_directory_businesses(
+        *,
+        category=None,
+        cluster=None,
+        specialty_tag=None,
+        hidden_gems=False,
+        open_now=False,
+        business=None,
+    ):
+        """Return all eligible map businesses with shared filters and ID ordering."""
+        active_specialties = (
+            BusinessSpecialtyTag.objects
+            .filter(
+                BST_IS_ACTIVE=True,
+            )
+            .select_related(
+                "TAG_ID",
+            )
+            .only(
+                "BUSN_ID",
+                "TAG_ID__TAG_ID",
+                "TAG_ID__TAG_NAME",
+                "TAG_ID__TAG_COLOR",
+                "TAG_ID__TAG_ICON",
+            )
+            .order_by(
+                "TAG_ID_id",
+            )
+        )
+
+        # Keep this subquery global: map bounds and filters only narrow
+        # the outer queryset, never the homepage's Top 10 membership.
+        hidden_gem_ids = DiscoveryFeedService.list_global_hidden_gem_ids()
+
+        queryset = (
+            DiscoveryFeedService.list_eligible_businesses()
+            .select_related(
+                "CTGRY_ID__CLUS_ID",
+                "LOCT_ID",
+            )
+            .only(
+                "BUSN_ID",
+                "BUSN_NAME",
+                "BUSN_COVER_PHOTO_URL",
+                "CTGRY_ID__CTGRY_ID",
+                "CTGRY_ID__CTGRY_NAME",
+                "CTGRY_ID__CLUS_ID__CLUS_ID",
+                "CTGRY_ID__CLUS_ID__CLUS_NAME",
+                "CTGRY_ID__CLUS_ID__CLUS_ICON",
+                "LOCT_ID__LOCT_ID",
+                "LOCT_ID__LOCT_ADDRESS",
+                "LOCT_ID__LOCT_CITY",
+                "LOCT_ID__LOCT_PROVINCE",
+                "LOCT_ID__LOCT_POINT",
+            )
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression(),
+                is_hidden_gem=Case(
+                    When(
+                        BUSN_ID__in=Subquery(
+                            hidden_gem_ids,
+                        ),
+                        then=Value(True),
+                    ),
+                    default=Value(False),
+                    output_field=BooleanField(),
+                ),
+            )
+            .prefetch_related(
+                Prefetch(
+                    "specialty_tag_links",
+                    queryset=active_specialties,
+                    to_attr="active_specialty_tag_links",
+                ),
+            )
+            .order_by(
+                "BUSN_ID",
+            )
+        )
+
+        queryset = apply_taxonomy_filters(
+            queryset,
+            category_ids=category,
+            cluster_id=cluster,
+            specialty_tag_id=specialty_tag,
+        )
+
+        if business is not None:
+            queryset = queryset.filter(
+                BUSN_ID=business,
+            )
+
+        if hidden_gems:
+            queryset = queryset.filter(
+                is_hidden_gem=True,
+            )
+
+        if open_now:
+            queryset = apply_open_now_filter(
+                queryset,
+            )
+
+        return queryset
+
+    @staticmethod
+    def list_viewport_businesses(
+        *,
+        north,
+        south,
+        east,
+        west,
+        **filters,
+    ):
+        """Retain the viewport endpoint's geographic restriction and gem-first order."""
+        viewport = Polygon.from_bbox(
+            (
+                west,
+                south,
+                east,
+                north,
+            ),
+        )
+        viewport.srid = 4326
+
+        return (
+            MapDiscoveryService.list_directory_businesses(
+                **filters,
+            )
+            .filter(
+                LOCT_ID__LOCT_POINT__intersects=viewport,
+            )
+            .order_by(
+                "-is_hidden_gem",
+                "BUSN_ID",
+            )
+        )

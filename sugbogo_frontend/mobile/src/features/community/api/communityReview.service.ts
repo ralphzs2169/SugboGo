@@ -13,18 +13,25 @@ export function getCommunityReviews(
   filters: CommunityReviewFilters = DEFAULT_COMMUNITY_REVIEW_FILTERS,
   page = 1,
 ): Promise<ApiResponse<CommunityReviewListResponse>> {
-  const params: Record<string, string> = {
-    page: String(page),
-  };
+  const params = new URLSearchParams();
+  params.set("page", String(page));
 
   if (filters.ordering !== "newest") {
-    params.ordering = filters.ordering;
+    params.set("ordering", filters.ordering);
   }
   if (filters.clusterId !== null) {
-    params.cluster = String(filters.clusterId);
+    params.set("cluster", String(filters.clusterId));
+  }
+  for (const categoryId of [...new Set(filters.categoryIds)].sort(
+    (a, b) => a - b,
+  )) {
+    params.append("category", String(categoryId));
+  }
+  if (filters.specialtyTagId !== null) {
+    params.set("specialty_tag", String(filters.specialtyTagId));
   }
   if (filters.hasPhotos) {
-    params.has_photos = "true";
+    params.set("has_photos", "true");
   }
 
   return request(apiClient.get("/reviews/community/", { params }));

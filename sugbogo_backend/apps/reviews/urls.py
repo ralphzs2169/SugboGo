@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.reviews.views.community_review_views import CommunityReviewListView
+from apps.reviews.views.my_review_views import MyReviewListView
 from apps.reviews.views.reply_template_views import (
     ReplyTemplateDetailView,
     ReplyTemplateView,
@@ -20,6 +21,13 @@ from apps.reviews.views.review_views import (
 )
 
 urlpatterns = [
+    # Private author history
+    path(
+        "mine/",
+        MyReviewListView.as_view(),
+        name="my-review-list",
+    ),
+
     # Community Review Endpoint
     path(
         "community/",

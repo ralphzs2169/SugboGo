@@ -15,6 +15,7 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import { API_ERROR_CODE } from "@/shared/constants/errorCodes";
 import NetInfo from "@react-native-community/netinfo";
+import { isTransportError } from "@/shared/utils/isTransportError";
 import { queryClient } from "@/shared/query/queryClient";
 
 /**
@@ -151,9 +152,14 @@ apiClient.interceptors.response.use(
         );
 
         return apiClient(originalRequest);
-      } catch {
+      } catch (refreshError) {
         if (!isAuthSessionCurrent(generation)) {
           return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
+        }
+
+        // Transport failures leave the current credentials available for retry.
+        if (isTransportError(refreshError)) {
+          return Promise.reject(createApiError(API_ERROR_CODE.NETWORK_ERROR));
         }
 
         // Refreshing failed, meaning the session is no longer valid.

@@ -16,6 +16,11 @@ import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
 import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
 import { SIMILAR_BUSINESSES_QUERY_KEY } from "./useSimilarBusinesses";
 import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
+import { VOUCH_HISTORY_QUERY_KEY } from "@/features/profile/hooks/vouchHistoryQueryKeys";
+import {
+  businessReviewPreviewKey,
+  businessReviewsKey,
+} from "./reviewQueryKeys";
 
 import type {
   ExploreBusiness,
@@ -321,6 +326,14 @@ export default function useBusinessVouch({ businessId }: Props) {
 
     onSettled: async () => {
       await Promise.all([
+        // History IDs, chronology, eligibility and totals come from the server.
+        queryClient.invalidateQueries({ queryKey: VOUCH_HISTORY_QUERY_KEY }),
+        queryClient.invalidateQueries({
+          queryKey: businessReviewPreviewKey(businessId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: businessReviewsKey(businessId),
+        }),
         queryClient.invalidateQueries({
           queryKey: ["explore-business-detail", businessId],
         }),

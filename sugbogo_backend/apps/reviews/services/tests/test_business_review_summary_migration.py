@@ -27,10 +27,11 @@ class BusinessReviewSummaryMigrationTests(SummaryFixtureMixin, TransactionTestCa
         return executor.loader.project_state([target]).apps
 
     def test_forward_backward_and_forward_preserve_business_and_reviews(self):
-        self.migrate(self.migrate_from)
-        self.assertNotIn("BUSINESS_REVIEW_SUMMARY", connection.introspection.table_names())
+        # Create source rows with the current schema before testing old states.
         business = self.create_business()
         review = self.create_review(business)
+        self.migrate(self.migrate_from)
+        self.assertNotIn("BUSINESS_REVIEW_SUMMARY", connection.introspection.table_names())
 
         apps = self.migrate(self.migrate_to)
         summary_model = apps.get_model("reviews", "BusinessReviewSummary")

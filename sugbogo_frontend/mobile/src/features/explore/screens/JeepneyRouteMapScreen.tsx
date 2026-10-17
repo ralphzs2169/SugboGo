@@ -20,6 +20,7 @@ import useDirectJourneyMap from "../hooks/useDirectJourneyMap";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 import { useJourneyOriginStore } from "../stores/journeyOrigin.store";
 import { formatJourneyDistance } from "../utils/directJourney.utils";
+import SaveOfflineJourneyButton from "@/features/offline-routes/components/SaveOfflineJourneyButton";
 
 type Props = {
   businessId: number;
@@ -181,6 +182,13 @@ export default function JeepneyRouteMapScreen({
         alightingPointName={journey.alighting_transit_point.name}
         destinationDistance={formatJourneyDistance(destinationDistanceMeters)}
         landmarkName={journey.landmark_context?.name}
+      />
+      {/* Explicit offline snapshot save */}
+      <SaveOfflineJourneyButton
+        businessId={businessId}
+        businessName={businessQuery.business?.business_name ?? null}
+        journey={journey}
+        origin={activeOrigin!}
       />
     </SafeAreaView>
   );

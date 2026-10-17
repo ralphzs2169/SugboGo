@@ -11,6 +11,7 @@ from apps.reviews.services.review_keyword_service import (
     ReviewKeywordService,
 )
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
+from apps.shared.analytics.policy import with_policy_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class ReviewSummaryBatchService:
     """Processes independent business summaries and identifies retryable failures."""
 
     @staticmethod
+    @with_policy_snapshot
     def recompute(business_ids=None, reference_time=None):
         """Runs a full batch or retries generation for explicitly selected IDs."""
         reference_time = reference_time or timezone.now()

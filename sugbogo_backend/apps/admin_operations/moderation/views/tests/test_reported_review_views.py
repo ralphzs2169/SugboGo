@@ -233,6 +233,42 @@ class ReportedReviewViewTests(ReportFixtures, TestCase):
                 )
         self.assertEqual(self.client.get(list_url, {"reason": "invalid"}).status_code, 400)
 
+    def test_status_filter_selects_published_or_rejected_review_groups(self):
+        """Filter review groups by status while retaining pending reports."""
+        rejected = self.create_review("Review rejected in another workflow")
+        self.create_report(rejected, ReviewReport.ReportType.SPAM)
+        Review.objects.filter(pk=rejected.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        list_url = reverse("admin-reported-review-list")
+
+        all_reviews = self.client.get(list_url, {"page_size": 1})
+        self.assertEqual(all_reviews.data["data"]["pagination"]["total_items"], 2)
+
+        for status, expected_id in (
+            (Review.ReviewStatus.PUBLISHED, self.review.pk),
+            (Review.ReviewStatus.REJECTED, rejected.pk),
+        ):
+            with self.subTest(status=status):
+                response = self.client.get(
+                    list_url,
+                    {"status": status, "page_size": 1},
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["data"]["pagination"]["total_items"], 1)
+                self.assertEqual(response.data["data"]["items"][0]["id"], expected_id)
+
+        combined = self.client.get(
+            list_url,
+            {"status": "rejected", "reason": "spam"},
+        )
+        self.assertEqual(combined.data["data"]["pagination"]["total_items"], 1)
+        self.assertEqual(combined.data["data"]["items"][0]["id"], rejected.pk)
+        self.assertEqual(
+            self.client.get(list_url, {"status": "under_review"}).status_code,
+            400,
+        )
+
     def test_all_sort_orders_use_pending_report_aggregates(self):
         """Sort by group count, first pending time, or latest pending time."""
         second = self.create_review("Second reported review")
@@ -412,3 +448,49 @@ class ReportedReviewDecisionViewTests(ReportFixtures, TestCase):
             ).count(),
             0,
         )
+
+    def test_rejected_review_reports_can_be_dismissed_with_admin_notes(self):
+        self.add_pending_reports(2)
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        self.assertEqual(self.decide("dismiss", "Too short").status_code, 400)
+
+        response = self.decide("dismiss")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["decision"], "dismiss")
+        self.assertEqual(response.data["data"]["review_status"], "rejected")
+        self.assertEqual(response.data["data"]["resolved_report_count"], 3)
+        self.assertEqual(self.decide("dismiss").status_code, 400)
+        self.assertFalse(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+            ).exists()
+        )
+
+    def test_rejected_review_reports_can_be_confirmed(self):
+        self.add_pending_reports(2)
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+
+        response = self.decide("confirm")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["decision"], "confirm")
+        self.assertEqual(response.data["data"]["review_status"], "rejected")
+        self.assertEqual(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.APPROVED,
+            ).count(),
+            3,
+        )
+
+    def test_report_only_decisions_do_not_apply_to_published_reviews(self):
+        self.assertEqual(self.decide("dismiss").status_code, 400)
+        self.assertEqual(self.decide("confirm").status_code, 400)
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.RREP_STATUS, ReviewReport.ReportStatus.PENDING)

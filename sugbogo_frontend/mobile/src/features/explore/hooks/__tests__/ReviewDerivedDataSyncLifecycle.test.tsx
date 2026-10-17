@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react-native";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import { getExploreBusinessDetail } from "../../api/exploreBusiness.service";
 import { getBusinessReviewPreview } from "../../api/reviewBusiness.service";
@@ -28,6 +29,126 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
   afterEach(() => {
     jest.useRealTimers();
   });
+
+  it.each([
+    "before",
+    "after",
+    "account-change",
+    "cache-clear",
+    "timeout",
+  ] as const)(
+    "handles navigation when synchronization starts %s unmount",
+    async (mode) => {
+      useAuthStore.setState({
+        user: { id: 10 } as never,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      (getBusinessReviewPreview as jest.Mock).mockResolvedValue({
+        success: true,
+        data: {
+          reviews: [],
+          total_count: 1,
+          user_review: { id: 18, sentiment_label: null, sentiment_score: null },
+        },
+      });
+      (getExploreBusinessDetail as jest.Mock).mockResolvedValue({
+        success: true,
+        data: { id: 20, review_insights: null },
+      });
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      /** Mounts the existing synchronization owner without a navigation container. */
+      function Wrapper({ children }: PropsWithChildren) {
+        return (
+          <QueryClientProvider client={client}>
+            <ReviewDerivedDataSyncProvider businessId={20}>
+              {children}
+            </ReviewDerivedDataSyncProvider>
+          </QueryClientProvider>
+        );
+      }
+      const { result, unmount } = await renderHook(
+        () => useReviewDerivedDataSyncActions(),
+        { wrapper: Wrapper },
+      );
+      const actions = result.current;
+      const start = () =>
+        actions.startSentimentSync({
+          reviewId: 18,
+          baselineComputedAt: null,
+          baselineGeneratedAt: null,
+          baselineInsightsUpdatedAt: null,
+          baselineInsightsState: null,
+          startedAt: Date.now(),
+        });
+      await act(async () => {
+        if (mode !== "after") start();
+        await jest.advanceTimersByTimeAsync(1);
+      });
+      const callsBeforeLeaving = (getBusinessReviewPreview as jest.Mock).mock
+        .calls.length;
+      await unmount();
+      if (
+        mode === "account-change" ||
+        mode === "cache-clear" ||
+        mode === "timeout"
+      ) {
+        if (mode === "cache-clear") client.clear();
+        if (mode === "account-change")
+          useAuthStore.setState({ user: { id: 99 } as never });
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(45_001);
+        });
+        const completedCalls = (getBusinessReviewPreview as jest.Mock).mock
+          .calls.length;
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(4001);
+        });
+        expect(getBusinessReviewPreview).toHaveBeenCalledTimes(completedCalls);
+        client.clear();
+        useAuthStore.setState({ user: null, isAuthenticated: false });
+        await jest.advanceTimersByTimeAsync(2001);
+        return;
+      }
+      const completedAt = new Date(Date.now() + 1000).toISOString();
+      (getBusinessReviewPreview as jest.Mock).mockResolvedValue({
+        success: true,
+        data: {
+          reviews: [],
+          total_count: 1,
+          user_review: {
+            id: 18,
+            sentiment_label: "positive",
+            sentiment_score: 0.8,
+          },
+        },
+      });
+      (getExploreBusinessDetail as jest.Mock).mockResolvedValue({
+        success: true,
+        data: {
+          id: 20,
+          review_insights: {
+            state: "insufficient_reviews",
+            sentiment_computed_at: completedAt,
+            updated_at: completedAt,
+            generated_at: null,
+          },
+        },
+      });
+      await act(async () => {
+        if (mode === "after") start();
+        await jest.advanceTimersByTimeAsync(4001);
+      });
+      expect(
+        (getBusinessReviewPreview as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(callsBeforeLeaving);
+      client.clear();
+      useAuthStore.setState({ user: null, isAuthenticated: false });
+      await jest.advanceTimersByTimeAsync(2001);
+    },
+  );
 
   it("stops unresolved sentiment polling at the bounded timeout", async () => {
     (getBusinessReviewPreview as jest.Mock).mockResolvedValue({
@@ -198,9 +319,8 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       await Promise.resolve();
     });
 
-    const previewCallsAfterSentiment = (
-      getBusinessReviewPreview as jest.Mock
-    ).mock.calls.length;
+    const previewCallsAfterSentiment = (getBusinessReviewPreview as jest.Mock)
+      .mock.calls.length;
     const detailCallsAfterSentiment = (getExploreBusinessDetail as jest.Mock)
       .mock.calls.length;
 
@@ -297,9 +417,8 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       await Promise.resolve();
     });
 
-    const callCountAfterGracePeriod = (
-      getExploreBusinessDetail as jest.Mock
-    ).mock.calls.length;
+    const callCountAfterGracePeriod = (getExploreBusinessDetail as jest.Mock)
+      .mock.calls.length;
 
     expect(callCountAfterGracePeriod).toBeGreaterThan(initialCallCount);
 

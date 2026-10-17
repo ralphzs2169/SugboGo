@@ -90,6 +90,17 @@ export default function BusinessReviewsPreview({
                   {/* Review content preview */}
                   <ReviewContentPreview review={review} />
 
+                  {review.reliability_check_outcome === "unavailable" && (
+                    <p className="mt-2 text-xs text-text-secondary">
+                      Latest reliability check unavailable
+                    </p>
+                  )}
+                  {review.reliability_check_outcome === "unknown" && (
+                    <p className="mt-2 text-xs text-text-secondary">
+                      Latest reliability check outcome unknown
+                    </p>
+                  )}
+
                   {/* Review meta */}
                   <div className="mt-2 flex items-center gap-3 text-xs text-text-secondary">
                     <span className="flex items-center gap-1">

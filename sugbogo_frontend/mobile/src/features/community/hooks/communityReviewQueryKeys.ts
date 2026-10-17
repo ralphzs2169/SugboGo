@@ -14,6 +14,8 @@ export function communityReviewsKey(
     {
       ordering: filters.ordering,
       clusterId: filters.clusterId,
+      categoryIds: [...new Set(filters.categoryIds)].sort((a, b) => a - b),
+      specialtyTagId: filters.specialtyTagId,
       hasPhotos: filters.hasPhotos,
     },
   ] as const;

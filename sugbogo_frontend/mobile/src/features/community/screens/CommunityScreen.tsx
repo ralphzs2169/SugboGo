@@ -1,5 +1,6 @@
 import LottieView from "lottie-react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -10,10 +11,12 @@ import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import CommunityEmptyState from "../components/CommunityEmptyState";
 import CommunityFeedSkeleton from "../components/CommunityFeedSkeleton";
 import CommunityFilters from "../components/CommunityFilters";
+import CommunityFilterBottomSheet from "../components/CommunityFilterBottomSheet";
 import CommunityHeader from "../components/CommunityHeader";
 import CommunityReviewCard from "../components/CommunityReviewCard";
 import { useCommunityReviews } from "../hooks/useCommunityReviews";
@@ -23,16 +26,24 @@ import {
   type CommunityReviewFilters,
 } from "../types/communityReview.types";
 
+/** Thin gap between full-width posts. */
+function FeedSeparator() {
+  return <View className="h-2" />;
+}
+
 /**
  * Displays the production Community review feed.
  *
  * The screen coordinates authoritative taxonomy filters, backend pagination,
  * refresh and error states, defensive review deduplication, and tab-aware
- * spacing while dedicated components own review presentation.
+ * spacing while dedicated components own review presentation. The header and
+ * quick filters stay pinned above the list so filtering is always reachable,
+ * and posts render edge to edge, like a social feed.
  */
 export default function CommunityScreen() {
   const bottomSpacing = useTabBarSpacing(20);
   const listRef = useRef<FlatList<CommunityReview>>(null);
+  const filterSheetRef = useRef<BottomSheetModal>(null);
   const isEndReachedRef = useRef(false);
   const isPaginationArmedRef = useRef(false);
 
@@ -76,13 +87,30 @@ export default function CommunityScreen() {
     });
   }, [community.reviews]);
 
-  const hasContentFilters = filters.clusterId !== null || filters.hasPhotos;
+  const hasContentFilters =
+    filters.clusterId !== null ||
+    filters.categoryIds.length > 0 ||
+    filters.specialtyTagId !== null ||
+    filters.hasPhotos;
 
   const hasListError = Boolean(
     community.error && !community.isFetchNextPageError && reviews.length === 0,
   );
 
   const displayedReviews = hasListError ? [] : reviews;
+
+  const openFilters = () => presentBottomSheet(filterSheetRef);
+
+  const togglePhotos = () => {
+    setFilters((current) => ({ ...current, hasPhotos: !current.hasPhotos }));
+  };
+
+  const toggleMostHelpful = () => {
+    setFilters((current) => ({
+      ...current,
+      ordering: current.ordering === "most_helpful" ? "newest" : "most_helpful",
+    }));
+  };
 
   const clearContentFilters = () => {
     setFilters((current) => ({
@@ -111,6 +139,13 @@ export default function CommunityScreen() {
     });
   };
 
+  const renderReview = useCallback(
+    ({ item }: { item: CommunityReview }) => (
+      <CommunityReviewCard review={item} />
+    ),
+    [],
+  );
+
   const shouldShowEndMessage =
     !community.isInitialLoading &&
     !community.error &&
@@ -121,8 +156,17 @@ export default function CommunityScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {/* Community introduction */}
-      <CommunityHeader />
+      {/* Pinned title, filter button, and quick filters */}
+      <CommunityHeader>
+        <CommunityFilters
+          filters={filters}
+          hasContentFilters={hasContentFilters}
+          onOpenFilters={openFilters}
+          onTogglePhotos={togglePhotos}
+          onToggleMostHelpful={toggleMostHelpful}
+          onClear={clearContentFilters}
+        />
+      </CommunityHeader>
 
       {/* Filtered and paginated review feed */}
       <FlatList
@@ -130,21 +174,8 @@ export default function CommunityScreen() {
         testID="community-review-list"
         data={displayedReviews}
         keyExtractor={(review) => String(review.id)}
-        renderItem={({ item }) => (
-          <View className="px-4 pt-3">
-            <CommunityReviewCard review={item} />
-          </View>
-        )}
-        ListHeaderComponent={
-          <CommunityFilters
-            clusters={taxonomy.options.clusters}
-            isLoadingClusters={taxonomy.isLoading}
-            hasClusterError={Boolean(taxonomy.error)}
-            filters={filters}
-            onChange={setFilters}
-            onRetryClusters={() => void taxonomy.refetch()}
-          />
-        }
+        renderItem={renderReview}
+        ItemSeparatorComponent={FeedSeparator}
         ListEmptyComponent={
           community.isInitialLoading ? (
             <CommunityFeedSkeleton />
@@ -202,6 +233,15 @@ export default function CommunityScreen() {
             tintColor={theme.extends.colors.brand}
           />
         }
+      />
+      <CommunityFilterBottomSheet
+        sheetRef={filterSheetRef}
+        filters={filters}
+        options={taxonomy.options}
+        isLoading={taxonomy.isLoading}
+        error={taxonomy.error}
+        onRetry={() => void taxonomy.refetch()}
+        onApply={setFilters}
       />
     </View>
   );

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, TouchableOpacity } from "react-native";
+import { ActivityIndicator, TouchableOpacity, View } from "react-native";
 
 import AppText, { type AppTextWeight } from "@/shared/components/AppText";
 
@@ -9,6 +9,7 @@ type ButtonProps = {
   loading?: boolean;
   disabled?: boolean;
   icon?: ReactNode;
+  iconPosition?: "left" | "right";
   className?: string;
   fontClassName?: string;
   textWeight?: AppTextWeight;
@@ -22,7 +23,7 @@ type ButtonProps = {
  * Provides a reusable application button for common user actions.
  *
  * Supports visual variants, sizing, Nunito Sans text weights, loading states,
- * optional icons, disabled states, and configurable corner radius.
+ * optional leading or trailing icons, and disabled states.
  */
 export default function Button({
   title,
@@ -30,6 +31,7 @@ export default function Button({
   loading = false,
   disabled = false,
   icon,
+  iconPosition = "left",
   className = "",
   variant = "primary",
   fontClassName,
@@ -104,17 +106,21 @@ export default function Button({
         <ActivityIndicator color={loadingIndicatorColor} />
       ) : (
         <>
-          {icon}
+          {icon && iconPosition === "left" && icon}
 
           <AppText
             weight={textWeight}
             numberOfLines={1}
             className={`${fontClassName ?? defaultFontClass} ${textColorClass} ${
-              icon ? "ml-2" : ""
+              icon && iconPosition === "left" ? "ml-2" : ""
             }`}
           >
             {title}
           </AppText>
+
+          {icon && iconPosition === "right" && (
+            <View className="ml-2">{icon}</View>
+          )}
         </>
       )}
     </TouchableOpacity>

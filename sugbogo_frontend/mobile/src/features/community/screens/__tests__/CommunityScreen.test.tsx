@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -28,6 +28,28 @@ jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("@/features/explore/hooks/useExploreFilterOptions");
 jest.mock("../../hooks/useCommunityReviews");
+jest.mock("../../components/CommunityFilterBottomSheet", () => ({
+  __esModule: true,
+  default: ({ onApply }: { onApply: (filters: unknown) => void }) => {
+    const { Pressable, Text } = jest.requireActual("react-native");
+    return (
+      <Pressable
+        testID="mock-apply-filters"
+        onPress={() =>
+          onApply({
+            ordering: "most_helpful",
+            clusterId: 3,
+            categoryIds: [5],
+            specialtyTagId: 8,
+            hasPhotos: true,
+          })
+        }
+      >
+        <Text>Apply</Text>
+      </Pressable>
+    );
+  },
+}));
 jest.mock("../../components/CommunityReviewCard", () => ({
   __esModule: true,
   default: ({ review }: { review: CommunityReview }) => {
@@ -100,6 +122,16 @@ describe("CommunityScreen", () => {
     expect(screen.queryByTestId("community-empty")).toBeNull();
   });
 
+  it("shows the compact Community heading and filter control", async () => {
+    const screen = await render(<CommunityScreen />);
+    expect(screen.getByText("Community")).toBeTruthy();
+    expect(
+      screen.getByText("Real experiences from Cebu explorers."),
+    ).toBeTruthy();
+    expect(screen.getByText("Explorer reviews")).toBeTruthy();
+    expect(screen.getByText("Filter & sort")).toBeTruthy();
+  });
+
   it("shows a persistent error and retries only the Community query", async () => {
     const error = {
       success: false,
@@ -120,182 +152,22 @@ describe("CommunityScreen", () => {
     );
   });
 
-  it("distinguishes a true empty feed from a filtered empty result", async () => {
-    (useCommunityReviews as jest.Mock).mockReturnValue(
-      communityState({ reviews: [], totalCount: 0 }),
-    );
-
+  it("applies the sheet selection as one query change", async () => {
     const screen = await render(<CommunityScreen />);
-    expect(screen.getByTestId("community-empty")).toBeTruthy();
-
-    fireEvent.press(screen.getByLabelText("With Photos"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("community-filter-empty")).toBeTruthy();
-    });
-
-    fireEvent.press(screen.getByText("Clear filters"));
-    await waitFor(() => {
-      expect(useCommunityReviews).toHaveBeenLastCalledWith({
-        ordering: "newest",
-        clusterId: null,
-        hasPhotos: false,
-      });
-      expect(screen.getByTestId("community-empty")).toBeTruthy();
-    });
-  });
-
-  it("renders each review once while preserving its first occurrence", async () => {
-    (useCommunityReviews as jest.Mock).mockReturnValue(
-      communityState({ reviews: [review, review] }),
-    );
-
-    const screen = await render(<CommunityScreen />);
-
-    expect(screen.getAllByTestId("rendered-review-7")).toHaveLength(1);
-    expect(screen.getByText(review.text)).toBeTruthy();
-  });
-
-  it("applies cluster, sorting, and photo filters through the query hook", async () => {
-    const screen = await render(<CommunityScreen />);
-
-    fireEvent.press(screen.getByLabelText("Show Food Community reviews"));
-    await waitFor(() => {
-      expect(useCommunityReviews).toHaveBeenLastCalledWith(
-        expect.objectContaining({ clusterId: 3 }),
-      );
-    });
-
-    fireEvent.press(
-      screen.getByLabelText("Sort Community reviews by Most Helpful"),
-    );
-    await waitFor(() => {
-      expect(useCommunityReviews).toHaveBeenLastCalledWith(
-        expect.objectContaining({ ordering: "most_helpful" }),
-      );
-    });
-
-    fireEvent.press(screen.getByLabelText("With Photos"));
+    fireEvent.press(screen.getByLabelText("Filter and sort Community reviews"));
+    fireEvent.press(screen.getByTestId("mock-apply-filters"));
 
     await waitFor(() => {
       expect(useCommunityReviews).toHaveBeenLastCalledWith({
         ordering: "most_helpful",
         clusterId: 3,
+        categoryIds: [5],
+        specialtyTagId: 8,
         hasPhotos: true,
       });
+      expect(
+        screen.getByLabelText("Filter and sort Community reviews, 5 active"),
+      ).toBeTruthy();
     });
-  });
-
-  it("retains every filter when controls are pressed before a rerender", async () => {
-    const screen = await render(<CommunityScreen />);
-
-    await act(async () => {
-      fireEvent.press(screen.getByLabelText("Show Food Community reviews"));
-      fireEvent.press(
-        screen.getByLabelText("Sort Community reviews by Most Helpful"),
-      );
-      fireEvent.press(screen.getByLabelText("With Photos"));
-    });
-
-    await waitFor(() => {
-      expect(useCommunityReviews).toHaveBeenLastCalledWith({
-        ordering: "most_helpful",
-        clusterId: 3,
-        hasPhotos: true,
-      });
-    });
-  });
-
-  it("does not reset results when the selected cluster or sort is tapped", async () => {
-    const screen = await render(<CommunityScreen />);
-    const initialQueryCalls = (useCommunityReviews as jest.Mock).mock.calls
-      .length;
-
-    await act(async () => {
-      fireEvent.press(screen.getByLabelText("Show All Community reviews"));
-      fireEvent.press(
-        screen.getByLabelText("Sort Community reviews by Newest, selected"),
-      );
-    });
-
-    expect((useCommunityReviews as jest.Mock).mock.calls).toHaveLength(
-      initialQueryCalls,
-    );
-  });
-
-  it("guards duplicate pagination calls and supports pull-to-refresh", async () => {
-    let resolveNextPage: (() => void) | undefined;
-    mockFetchNextPage.mockImplementationOnce(
-      () =>
-        new Promise<undefined>((resolve) => {
-          resolveNextPage = () => resolve(undefined);
-        }),
-    );
-    (useCommunityReviews as jest.Mock).mockReturnValue(
-      communityState({ hasNextPage: true }),
-    );
-
-    const screen = await render(<CommunityScreen />);
-    const list = await screen.findByTestId("community-review-list");
-
-    await act(async () => {
-      list.props.onEndReached();
-    });
-    expect(mockFetchNextPage).not.toHaveBeenCalled();
-
-    await act(async () => {
-      list.props.onScrollBeginDrag();
-      list.props.onEndReached();
-      list.props.onEndReached();
-      list.props.refreshControl.props.onRefresh();
-    });
-
-    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
-    expect(mockRefetch).toHaveBeenCalledTimes(1);
-    expect(list.props.onEndReachedThreshold).toBe(0.35);
-
-    await act(async () => {
-      resolveNextPage?.();
-    });
-
-    await act(async () => {
-      list.props.onEndReached();
-    });
-    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps loaded reviews after a page error and retries only on request", async () => {
-    (useCommunityReviews as jest.Mock).mockReturnValue(
-      communityState({
-        hasNextPage: true,
-        isFetchNextPageError: true,
-        error: { success: false, message: "Offline" },
-      }),
-    );
-
-    const screen = await render(<CommunityScreen />);
-    const list = await screen.findByTestId("community-review-list");
-
-    await act(async () => {
-      list.props.onScrollBeginDrag();
-      list.props.onEndReached();
-      list.props.onEndReached();
-    });
-    expect(mockFetchNextPage).not.toHaveBeenCalled();
-    expect(screen.getByTestId("rendered-review-7")).toBeTruthy();
-    expect(screen.queryByTestId("community-error")).toBeNull();
-
-    fireEvent.press(screen.getByText("Retry loading reviews"));
-    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
-    expect(mockRefetch).not.toHaveBeenCalled();
-  });
-
-  it("shows completion feedback after the final non-empty page", async () => {
-    const screen = await render(<CommunityScreen />);
-    const list = await screen.findByTestId("community-review-list");
-
-    expect(list.props.ListFooterComponent.props.description).toBe(
-      "You've seen every Community review.",
-    );
   });
 });

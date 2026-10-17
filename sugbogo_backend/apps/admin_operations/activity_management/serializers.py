@@ -5,7 +5,7 @@ from apps.users.models import User
 
 
 class AdminActivityActorSerializer(serializers.ModelSerializer):
-    """Serializes the administrator who performed an audited action."""
+    """Serialize the actual user and role responsible for an audited action."""
 
     id = serializers.IntegerField(
         source="USER_ID",
@@ -35,7 +35,7 @@ class AdminActivityActorSerializer(serializers.ModelSerializer):
 
 
 class AdminActivitySerializer(serializers.ModelSerializer):
-    """Serializes one administrative action from a user's history."""
+    """Serialize an administrative or moderation event from a user's history."""
 
     id = serializers.IntegerField(
         source="AACT_ID",

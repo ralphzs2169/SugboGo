@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import timedelta
 from io import BytesIO
 from unittest.mock import patch
@@ -13,24 +14,33 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 
 from apps.business.models import (
     Business,
+    BusinessSpecialtyTag,
     BusinessVouch,
     Category,
     Cluster,
     Location,
     SpecialtyTag,
 )
+from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
     ReviewLike,
+    ReviewMediaCleanup,
     ReviewPhoto,
+    ReviewReport,
 )
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
-from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.review_service import (
+    ReviewEditConflict,
+    ReviewEditContentFlagged,
+    ReviewEditModerationUnavailable,
+    ReviewService,
+)
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
 from apps.reviews.services.tests.test_review_moderation_service import (
     provider_response,
@@ -167,7 +177,7 @@ class ReviewServiceTests(TestCase):
         self,
         delete_image,
     ):
-        """Withdrawal uses the existing photo cleanup without decrementing count."""
+        """Withdrawal registers durable cleanup without decrementing public count."""
         review = Review.objects.create(
             USER_ID=self.user,
             BUSN_ID=self.business,
@@ -183,7 +193,10 @@ class ReviewServiceTests(TestCase):
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
         self.assertFalse(Review.objects.filter(pk=review.pk).exists())
-        delete_image.assert_called_once_with("held-photo")
+        delete_image.assert_not_called()
+        self.assertTrue(
+            ReviewMediaCleanup.objects.filter(RMCU_PUBLIC_ID="held-photo").exists(),
+        )
 
     @classmethod
     def setUpTestData(cls):
@@ -756,6 +769,11 @@ class ReviewServiceTests(TestCase):
             TAG_NAME="Authentic Cebuano Food",
         )
 
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
+        )
+
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=self.user,
@@ -970,6 +988,15 @@ class ReviewServiceTests(TestCase):
             TAG_NAME="Authentic Food",
         )
 
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=first_tag,
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=second_tag,
+        )
+
         BusinessVouch.objects.create(
             BUSN_ID=self.business,
             USER_ID=self.user,
@@ -1015,6 +1042,70 @@ class ReviewServiceTests(TestCase):
                 first_tag.TAG_ID,
                 second_tag.TAG_ID,
             },
+        )
+
+    def test_inactive_specialty_vouch_is_hidden_from_review_responses(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Great local restaurant.",
+        )
+        active_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Active Specialty",
+        )
+        inactive_tag = SpecialtyTag.objects.create(
+            TAG_NAME="Inactive Specialty",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=active_tag,
+        )
+        inactive_link = BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=inactive_tag,
+        )
+
+        for tag in (active_tag, inactive_tag):
+            BusinessVouch.objects.create(
+                BUSN_ID=self.business,
+                USER_ID=self.user,
+                TAG_ID=tag,
+                VOUCH_REPUTATION_SNAPSHOT=self.user.USER_REPUTATION,
+            )
+
+        inactive_link.BST_IS_ACTIVE = False
+        inactive_link.save(
+            update_fields=["BST_IS_ACTIVE"],
+        )
+
+        listed_review = ReviewService.list_reviews(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )[0]
+        preview_review = ReviewService.get_review_preview(
+            business_id=self.business.BUSN_ID,
+            user=self.second_user,
+        )["reviews"][0]
+        detail_review = ReviewService.get_review_detail(
+            review_id=review.REVW_ID,
+            user=self.second_user,
+        )
+
+        for result in (listed_review, preview_review, detail_review):
+            self.assertEqual(
+                [
+                    vouch.TAG_ID_id
+                    for vouch in result.vouched_specialties
+                ],
+                [active_tag.TAG_ID],
+            )
+
+        self.assertEqual(
+            BusinessVouch.objects.filter(
+                BUSN_ID=self.business,
+                USER_ID=self.user,
+            ).count(),
+            2,
         )
 
     def test_merchant_cannot_review_own_business(self):
@@ -1163,6 +1254,169 @@ class ReviewServiceTests(TestCase):
 
         review.refresh_from_db()
         self.assertIsNone(review.REVW_EDITED_AT)
+        self.moderate_review.assert_called_once()
+
+    def test_safe_text_edit_replaces_current_moderation_evidence(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        previous_metadata = review.REVW_MODERATION_DATA
+        self.moderate_review.reset_mock()
+        self.moderate_review.return_value["checked_at"] = (
+            "2026-10-12T00:00:00+00:00"
+        )
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.pk,
+            text="A safe updated review.",
+        )
+
+        review.refresh_from_db()
+        self.moderate_review.assert_called_once_with(
+            text="A safe updated review.",
+            photos=[],
+            image_urls=[],
+        )
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertNotEqual(review.REVW_MODERATION_DATA, previous_metadata)
+        self.assertEqual(review.REVW_MODERATION_DATA["outcome"], "safe")
+
+    def test_flagged_text_edit_preserves_published_review(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        original_metadata = deepcopy(review.REVW_MODERATION_DATA)
+        original_reliability = review.REVW_RELIABILITY_EVIDENCE
+        report = ReviewReport.objects.create(
+            REVW_ID=review,
+            USER_ID=self.second_user,
+            RREP_TYPE=ReviewReport.ReportType.SPAM,
+        )
+        dispute = MerchantReviewDispute.objects.create(
+            REVW_ID=review,
+            BUSN_ID=self.business,
+            USER_ID=self.business_owner,
+            MRDSP_REASON=MerchantReviewDispute.DisputeReason.FAKE_REVIEW,
+            MRDSP_DESCRIPTION="A pending merchant concern about this review.",
+        )
+        self.business.refresh_from_db()
+        original_count = self.business.BUSN_REVIEW_COUNT
+        self.moderate_review.return_value["outcome"] = "flagged"
+
+        with self.assertRaises(ReviewEditContentFlagged):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="A proposed unsafe review.",
+                show_in_community=False,
+            )
+
+        review.refresh_from_db()
+        self.business.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original review.")
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(review.REVW_MODERATION_DATA, original_metadata)
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, original_reliability)
+        self.assertTrue(review.REVW_SHOW_IN_COMMUNITY)
+        self.assertIsNone(review.REVW_EDITED_AT)
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, original_count)
+        report.refresh_from_db()
+        dispute.refresh_from_db()
+        self.assertEqual(report.RREP_STATUS, ReviewReport.ReportStatus.PENDING)
+        self.assertEqual(
+            dispute.MRDSP_STATUS,
+            MerchantReviewDispute.DisputeStatus.PENDING,
+        )
+
+    def test_unavailable_edit_preserves_published_review(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        original_metadata = deepcopy(review.REVW_MODERATION_DATA)
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+
+        with self.assertRaises(ReviewEditModerationUnavailable):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Proposed but unchecked text.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original review.")
+        self.assertEqual(review.REVW_MODERATION_DATA, original_metadata)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+
+    def test_moderation_exception_blocks_edit(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        self.moderate_review.side_effect = TimeoutError("provider unavailable")
+
+        with self.assertRaises(ReviewEditModerationUnavailable):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Proposed but unchecked text.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original review.")
+
+    def test_stale_moderation_cannot_overwrite_newer_text(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+
+        def change_review_during_moderation(**kwargs):
+            Review.objects.filter(pk=review.pk).update(
+                REVW_TEXT="Newer accepted content.",
+            )
+            return {
+                "outcome": "safe",
+                "checked_at": "2026-10-11T00:00:00+00:00",
+                "findings": [],
+            }
+
+        self.moderate_review.side_effect = change_review_during_moderation
+        with self.assertRaises(ReviewEditConflict):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Stale proposed content.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Newer accepted content.")
+
+    def test_editing_rejected_review_does_not_republish_it(self):
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Original rejected review.",
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.pk,
+            text="A safe edited rejected review.",
+        )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "A safe edited rejected review.")
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.REJECTED)
 
     def test_update_review_rejects_non_owner(self):
         review = ReviewService.create_review(
@@ -1249,6 +1503,237 @@ class ReviewServiceTests(TestCase):
         )
 
     @patch(
+        "apps.reviews.services.review_service.ReputationService.apply_review_photo_upgrade_reward",
+    )
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_flagged_photo_addition_never_uploads_or_saves(
+        self,
+        mock_upload,
+        mock_reward,
+    ):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        original_metadata = deepcopy(review.REVW_MODERATION_DATA)
+        self.moderate_review.return_value["outcome"] = "flagged"
+
+        with self.assertRaises(ReviewEditContentFlagged):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                photos=[self.create_test_image("unsafe.jpg")],
+            )
+
+        self.assertFalse(ReviewPhoto.objects.filter(REVW_ID=review).exists())
+        mock_upload.assert_not_called()
+        mock_reward.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_MODERATION_DATA, original_metadata)
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_flagged_replacement_preserves_original_photo(
+        self,
+        mock_upload,
+        mock_delete,
+    ):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        original = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://res.cloudinary.com/test/original.jpg",
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/original",
+        )
+        self.moderate_review.return_value["outcome"] = "flagged"
+
+        with self.assertRaises(ReviewEditContentFlagged):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                keep_photo_ids=[],
+                photos=[self.create_test_image("replacement.jpg")],
+            )
+
+        self.assertTrue(ReviewPhoto.objects.filter(pk=original.pk).exists())
+        mock_upload.assert_not_called()
+        mock_delete.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_unavailable_photo_assessment_preserves_original(self, mock_upload):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        self.moderate_review.return_value["outcome"] = "provider_failure"
+
+        with self.assertRaises(ReviewEditModerationUnavailable):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="Proposed combined text edit.",
+                photos=[self.create_test_image("unchecked.jpg")],
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original review.")
+        self.assertFalse(ReviewPhoto.objects.filter(REVW_ID=review).exists())
+        mock_upload.assert_not_called()
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_safe_combined_edit_links_image_finding_to_new_photo(self, mock_upload):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        mock_upload.return_value = {
+            "public_id": "sugbogo/reviews/accepted",
+            "secure_url": "https://res.cloudinary.com/test/accepted.jpg",
+        }
+        self.moderate_review.return_value["findings"] = [
+            {
+                "source": "image",
+                "photo_index": 0,
+                "flagged": False,
+            },
+        ]
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.pk,
+            text="Safe combined text change.",
+            photos=[self.create_test_image("accepted.jpg")],
+        )
+
+        review.refresh_from_db()
+        photo = ReviewPhoto.objects.get(REVW_ID=review)
+        self.assertEqual(review.REVW_TEXT, "Safe combined text change.")
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["findings"][0]["photo_id"],
+            photo.pk,
+        )
+        self.assertEqual(review.REVW_MODERATION_DATA["image_count"], 1)
+
+    @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_safe_replacement_reassesses_retained_photo_and_rebinds_evidence(
+        self,
+        mock_upload,
+        mock_delete,
+    ):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        removed = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://res.cloudinary.com/test/removed.jpg",
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/removed",
+        )
+        retained = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://res.cloudinary.com/test/retained.jpg",
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/retained",
+        )
+        mock_upload.return_value = {
+            "public_id": "sugbogo/reviews/replacement",
+            "secure_url": "https://res.cloudinary.com/test/replacement.jpg",
+        }
+        self.moderate_review.reset_mock()
+        self.moderate_review.return_value["findings"] = [
+            {"source": "image", "photo_index": 0, "flagged": False},
+            {"source": "image", "photo_index": 1, "flagged": False},
+        ]
+        replacement = self.create_test_image("replacement.jpg")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                photos=[replacement],
+                keep_photo_ids=[retained.pk],
+            )
+
+        self.moderate_review.assert_called_once_with(
+            text="Original review.",
+            photos=[replacement],
+            image_urls=[retained.RPHO_PHOTO_URL],
+        )
+        self.assertFalse(ReviewPhoto.objects.filter(pk=removed.pk).exists())
+        replacement_record = ReviewPhoto.objects.get(
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/replacement",
+        )
+        review.refresh_from_db()
+        self.assertEqual(
+            [
+                finding["photo_id"]
+                for finding in review.REVW_MODERATION_DATA["findings"]
+            ],
+            [replacement_record.pk, retained.pk],
+        )
+        mock_delete.assert_called_once_with("sugbogo/reviews/removed")
+
+    def test_photo_removal_skips_ai_and_removes_stale_photo_finding(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        photo = ReviewPhoto.objects.create(
+            REVW_ID=review,
+            RPHO_PHOTO_URL="https://res.cloudinary.com/test/remove.jpg",
+            RPHO_PHOTO_PUBLIC_ID="sugbogo/reviews/remove",
+        )
+        review.REVW_MODERATION_DATA = {
+            "outcome": "safe",
+            "image_count": 1,
+            "findings": [
+                {"source": "text", "flagged": False},
+                {"source": "image", "photo_id": photo.pk, "flagged": False},
+            ],
+        }
+        review.save(update_fields=["REVW_MODERATION_DATA"])
+        self.moderate_review.reset_mock()
+
+        with patch("apps.reviews.services.review_service.CloudinaryService.delete_image"):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                keep_photo_ids=[],
+            )
+
+        self.moderate_review.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_MODERATION_DATA["image_count"], 0)
+        self.assertEqual(
+            review.REVW_MODERATION_DATA["findings"],
+            [{"source": "text", "flagged": False}],
+        )
+
+    def test_visibility_only_edit_skips_ai(self):
+        review = ReviewService.create_review(
+            user=self.user,
+            business_id=self.business.BUSN_ID,
+            text="Original review.",
+        )
+        self.moderate_review.reset_mock()
+
+        ReviewService.update_review(
+            user=self.user,
+            review_id=review.pk,
+            show_in_community=False,
+        )
+
+        self.moderate_review.assert_not_called()
+
+    @patch(
         "apps.reviews.services.review_service.CloudinaryService.delete_image",
     )
     @patch(
@@ -1285,13 +1770,14 @@ class ReviewServiceTests(TestCase):
             ),
         )
 
-        ReviewService.update_review(
-            user=self.user,
-            review_id=review.REVW_ID,
-            keep_photo_ids=[
-                first_photo.RPHO_ID,
-            ],
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.REVW_ID,
+                keep_photo_ids=[
+                    first_photo.RPHO_ID,
+                ],
+            )
 
         self.assertTrue(
             ReviewPhoto.objects.filter(
@@ -1387,18 +1873,21 @@ class ReviewServiceTests(TestCase):
             ),
         )
 
-        with patch(
-            "apps.reviews.tasks.refresh_business_review_insights.delay",
-        ) as enqueue:
+        with (
+            patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue,
+            patch("apps.reviews.tasks.cleanup_review_media_asset.apply_async") as cleanup,
+        ):
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
                 ReviewService.delete_review(
                     user=self.user,
                     review_id=review.REVW_ID,
                 )
                 enqueue.assert_not_called()
+                cleanup.assert_not_called()
 
-        self.assertEqual(len(callbacks), 1)
+        self.assertEqual(len(callbacks), 2)
         enqueue.assert_called_once_with(self.business.BUSN_ID)
+        cleanup.assert_called_once()
 
         self.assertFalse(
             Review.objects.filter(
@@ -1412,8 +1901,11 @@ class ReviewServiceTests(TestCase):
             ).exists(),
         )
 
-        mock_delete.assert_called_once_with(
-            "sugbogo/reviews/review",
+        mock_delete.assert_not_called()
+        self.assertTrue(
+            ReviewMediaCleanup.objects.filter(
+                RMCU_PUBLIC_ID="sugbogo/reviews/review",
+            ).exists(),
         )
 
         self.business.refresh_from_db()
@@ -1720,10 +2212,11 @@ class ReviewServiceTests(TestCase):
             ),
         )
 
-        ReviewService.delete_photo(
-            user=self.user,
-            photo_id=photo.RPHO_ID,
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            ReviewService.delete_photo(
+                user=self.user,
+                photo_id=photo.RPHO_ID,
+            )
 
         self.assertFalse(
             ReviewPhoto.objects.filter(
@@ -1923,6 +2416,11 @@ class ReviewServiceTests(TestCase):
 
         tag = SpecialtyTag.objects.create(
             TAG_NAME="Local Favorite",
+        )
+
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=tag,
         )
 
         BusinessVouch.objects.create(
@@ -2427,6 +2925,7 @@ class ReviewServiceTests(TestCase):
                 self.assertNotIn("is_device_abuse_flagged", data)
                 self.assertNotIn("reliability_reasons", data)
                 self.assertNotIn("reliability_evidence", data)
+                self.assertNotIn("reliability_check_outcome", data)
                 self.assertNotIn("installation_id", data)
 
     def test_response_serializes_null_sentiment_and_false_flags(self):
@@ -2562,8 +3061,13 @@ class ReviewServiceTests(TestCase):
             self.business.pk,
             "A unique and useful review.",
         )
+        review.refresh_from_db()
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_third_normalized_match_from_same_user_flags_only_duplicate(self):
@@ -2582,6 +3086,7 @@ class ReviewServiceTests(TestCase):
             self.business.pk,
             "great place!",
         )
+        review.refresh_from_db()
         self.assertEqual(
             review.REVW_RELIABILITY_REASONS,
             [Review.ReliabilityReason.DUPLICATE_CONTENT],
@@ -2592,6 +3097,10 @@ class ReviewServiceTests(TestCase):
         self.assertCountEqual(evidence["matched_review_ids"], prior_ids)
         self.assertEqual(evidence["basis"], "same_user")
         self.assertIsNotNone(evidence["observed_at"])
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
         self.assertFalse(review.REVW_IS_REPORT_FLAGGED)
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
 
@@ -2627,6 +3136,10 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(evidence["basis"], "same_user")
         self.assertEqual(evidence["detected_during"], "edit")
         self.assertIsNotNone(evidence["observed_at"])
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
@@ -2728,6 +3241,10 @@ class ReviewServiceTests(TestCase):
             [Review.ReliabilityReason.DUPLICATE_CONTENT],
         )
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, original_evidence)
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
 
     def test_unchanged_text_edit_does_not_check_duplicate(self):
         review = ReviewService.create_review(
@@ -2749,6 +3266,10 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
 
     def test_photo_only_edit_does_not_check_duplicate(self):
         review = ReviewService.create_review(
@@ -2775,6 +3296,10 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
 
     def test_edit_preserves_duplicate_detected_during_creation(self):
         for _ in range(2):
@@ -2909,6 +3434,10 @@ class ReviewServiceTests(TestCase):
     def test_historical_review_defaults_to_empty_reliability_evidence(self):
         review = self._create_signal_review()
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
 
     def test_duplicate_requires_exact_normalized_text_and_recent_history(self):
         first = ReviewService.create_review(
@@ -3051,6 +3580,159 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNAVAILABLE,
+        )
+
+    def test_heuristic_failure_does_not_change_ai_hold_or_fabricate_signals(self):
+        self.moderate_review.return_value["outcome"] = "flagged"
+        with patch.object(
+            ReviewService,
+            "_reliability_reasons",
+            side_effect=RuntimeError("Query failed"),
+        ):
+            review = ReviewService.create_review(
+                self.user,
+                self.business.pk,
+                "A held review despite a reliability outage.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, {})
+        self.assertFalse(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNAVAILABLE,
+        )
+
+    def test_edit_detection_failure_preserves_history_and_can_recover(self):
+        rapid_reason = Review.ReliabilityReason.RAPID_SUBMISSION
+        evidence = {
+            rapid_reason: {
+                "observed_at": "2026-10-11T00:00:00+00:00",
+                "window_hours": 24,
+                "review_count": 11,
+            },
+        }
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Original review text.",
+        )
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_REASONS=[rapid_reason],
+            REVW_RELIABILITY_EVIDENCE=evidence,
+            REVW_IS_DEVICE_ABUSE_FLAGGED=True,
+        )
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+            side_effect=RuntimeError("Duplicate lookup failed"),
+        ):
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="First edited review text.",
+            )
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNAVAILABLE,
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [rapid_reason])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
+        self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
+
+        with patch.object(
+            ReviewService,
+            "_installation_reliability_findings",
+        ) as installation_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="Second edited review text.",
+            )
+        installation_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.CHECKED,
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [rapid_reason])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
+
+    def test_non_detection_edit_preserves_unknown_outcome(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Review with no new text.",
+        )
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_CHECK_OUTCOME=Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+        ) as duplicate_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text=review.REVW_TEXT,
+            )
+        duplicate_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+
+    def test_existing_duplicate_skips_reevaluation_and_preserves_outcome(self):
+        review = ReviewService.create_review(
+            self.user,
+            self.business.pk,
+            "Review with a historical duplicate finding.",
+        )
+        duplicate_reason = Review.ReliabilityReason.DUPLICATE_CONTENT
+        evidence = {
+            duplicate_reason: {
+                "observed_at": "2026-10-11T00:00:00+00:00",
+                "detected_during": "submission",
+                "prior_match_count": 2,
+            },
+        }
+        Review.objects.filter(pk=review.pk).update(
+            REVW_RELIABILITY_REASONS=[duplicate_reason],
+            REVW_RELIABILITY_EVIDENCE=evidence,
+            REVW_RELIABILITY_CHECK_OUTCOME=Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+
+        with patch.object(
+            ReviewService,
+            "_duplicate_content_evidence",
+        ) as duplicate_check:
+            ReviewService.update_review(
+                self.user,
+                review.pk,
+                text="Edited after the historical duplicate finding.",
+            )
+        duplicate_check.assert_not_called()
+
+        review.refresh_from_db()
+        self.assertEqual(
+            review.REVW_RELIABILITY_CHECK_OUTCOME,
+            Review.ReliabilityCheckOutcome.UNKNOWN,
+        )
+        self.assertEqual(review.REVW_RELIABILITY_REASONS, [duplicate_reason])
+        self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
 
     def test_ai_hold_preserves_heuristic_reason_without_retry(self):
         self._create_bulk_history(10, "bulk-installation")

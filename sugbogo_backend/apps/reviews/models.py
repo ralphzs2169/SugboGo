@@ -1,10 +1,61 @@
 from django.db import models
+from django.utils import timezone
 
 from apps.business.models.business_core_models import (
     Business,
 )
-from apps.reviews.constants import MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
 from apps.users.models import User
+
+
+class ReviewMediaCleanup(models.Model):
+    """Retains one asset's cleanup work independently of its deleted review."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SUCCEEDED = "succeeded", "Succeeded"
+        FAILED = "failed", "Requires intervention"
+
+    class ResourceType(models.TextChoices):
+        IMAGE = "image", "Image"
+        RAW = "raw", "Raw document"
+
+    RMCU_ID = models.BigAutoField(primary_key=True)
+    RMCU_REVIEW_ID = models.PositiveBigIntegerField()
+    RMCU_PUBLIC_ID = models.CharField(max_length=255)
+    RMCU_RESOURCE_TYPE = models.CharField(
+        max_length=5,
+        choices=ResourceType.choices,
+    )
+    RMCU_STATUS = models.CharField(
+        max_length=9,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    RMCU_ATTEMPTS = models.PositiveIntegerField(default=0)
+    RMCU_NEXT_ATTEMPT_AT = models.DateTimeField(default=timezone.now)
+    RMCU_LAST_ERROR = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+    )
+    RMCU_COMPLETED_AT = models.DateTimeField(null=True, blank=True)
+    RMCU_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    RMCU_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "REVIEW_MEDIA_CLEANUP"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["RMCU_REVIEW_ID", "RMCU_RESOURCE_TYPE", "RMCU_PUBLIC_ID"],
+                name="unique_review_media_cleanup",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["RMCU_STATUS", "RMCU_NEXT_ATTEMPT_AT", "RMCU_ID"],
+                name="review_media_cleanup_due",
+            ),
+        ]
 
 
 class Review(models.Model):
@@ -17,6 +68,13 @@ class Review(models.Model):
             "shared_installation_accounts",
             "Shared installation accounts",
         )
+
+    class ReliabilityCheckOutcome(models.TextChoices):
+        """Outcome of the latest applicable advisory reliability assessment."""
+
+        UNKNOWN = "unknown", "Unknown"
+        CHECKED = "checked", "Checked"
+        UNAVAILABLE = "unavailable", "Unavailable"
 
     class ReviewStatus(models.TextChoices):
         PUBLISHED = "published", "Published"
@@ -86,6 +144,11 @@ class Review(models.Model):
     REVW_RELIABILITY_EVIDENCE = models.JSONField(
         default=dict,
         blank=True,
+    )
+    REVW_RELIABILITY_CHECK_OUTCOME = models.CharField(
+        max_length=20,
+        choices=ReliabilityCheckOutcome.choices,
+        default=ReliabilityCheckOutcome.UNKNOWN,
     )
 
     REVW_SENTIMENT_SCORE = models.FloatField(
@@ -458,6 +521,9 @@ class BusinessReviewSummary(models.Model):
         choices=GenerationState.choices,
         default=GenerationState.PENDING,
     )
+    # Policy provenance is unknown for pre-existing summaries; never invent a historical version.
+    BRSU_GENERATION_POLICY_VERSION = models.PositiveBigIntegerField(null=True, blank=True)
+    BRSU_GENERATION_POLICY_VALUES = models.JSONField(default=dict, blank=True)
     BRSU_GENERATED_AT = models.DateTimeField(
         null=True,
         blank=True,
@@ -537,9 +603,11 @@ class BusinessReviewSummary(models.Model):
     @property
     def overall_vibe(self):
         """Derives the dominant review vibe when classified data is sufficient."""
+        from apps.shared.analytics.policy import current_policy
+
         if (
             self.BRSU_CLASSIFIED_REVIEW_COUNT
-            < MIN_VISITOR_VIBE_CLASSIFIED_REVIEWS
+            < current_policy()["sentiment_min_classified_reviews"]
         ):
             return None
 

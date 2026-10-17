@@ -1,166 +1,423 @@
-import { View, Text, FlatList, Pressable, TextInput } from "react-native";
-import { useState, useMemo } from "react";
-import { Stack } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { Image } from "expo-image";
+import { router, Stack } from "expo-router";
+import LottieView from "lottie-react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FlatList, RefreshControl, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import ReviewCard from "@/features/profile/components/reviews/ReviewCard";
+
 import { theme } from "@/constants/theme";
+import ReviewComposerSheet from "@/features/explore/components/business-profile/ReviewComposerSheet";
+import { ReviewDerivedDataSyncProvider } from "@/features/explore/hooks/ReviewDerivedDataSyncProvider";
+import loadingAnimation from "@/shared/assets/animations/loading.json";
+import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
+import EndOfListMessage from "@/shared/components/EndOfListMessage";
+import ErrorState from "@/shared/components/ErrorState";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
-const MOCK_REVIEWS = [
-  {
-    id: "1",
-    msmeName: "Lola Nena's Bakeshop",
-    category: "Food & Bakery",
-    comment:
-      "Absolutely love this place! The pan de sal here is the softest I've ever tasted — warm, fluffy, and perfectly golden. The ensaymada is also a must-try.",
-    date: "Jul 20, 2026",
-    photoUrl:
-      "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=200&fit=crop",
-  },
-  {
-    id: "2",
-    msmeName: "Danao Weaves & Crafts",
-    category: "Handicrafts",
-    comment:
-      "A hidden gem for anyone who appreciates traditional Filipino craftsmanship. The woven bags and baskets are beautifully made and reasonably priced.",
-    date: "Jul 21, 2026",
-  },
-];
+import MyReviewCard from "../components/reviews/MyReviewCard";
+import MyReviewDeleteConfirmation from "../components/reviews/MyReviewDeleteConfirmation";
+import MyReviewsSkeleton from "../components/reviews/MyReviewsSkeleton";
+import { useMyReviews } from "../hooks/useMyReviews";
+import type { MyReview } from "../types/myReview.types";
 
+type SelectedReview = { userId: number; review: MyReview };
+
+const SIGN_IN_ROUTE = "/(auth)/login";
+
+/**
+ * Displays authenticated review history in a full-width, separated list.
+ *
+ * Coordinates pagination, editing, deletion, and business-specific review
+ * synchronization while preserving the existing SugboGo interaction patterns.
+ */
 export default function ReviewsSubmittedScreen() {
-  const [reviews, setReviews] = useState(MOCK_REVIEWS);
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const history = useMyReviews();
   const insets = useSafeAreaInsets();
 
-  const filteredReviews = useMemo(() => {
-    if (!searchQuery.trim()) return reviews;
-    return reviews.filter((r) =>
-      r.msmeName.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [reviews, searchQuery]);
+  const paginationArmed = useRef(false);
+  const paginationPending = useRef(false);
+  const actionsRef = useRef<BottomSheetModal | null>(null);
+  const composerRef = useRef<BottomSheetModal | null>(null);
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id],
-    );
+  const [actionReview, setActionReview] = useState<SelectedReview | null>(null);
+  const [deletingReview, setDeletingReview] = useState<SelectedReview | null>(
+    null,
+  );
+  const [editingReview, setEditingReview] = useState<SelectedReview | null>(
+    null,
+  );
+  const [syncBusinesses, setSyncBusinesses] = useState<
+    { userId: number; businessId: number }[]
+  >([]);
+
+  const isEnabled = history.isEnabled;
+  const userId = history.userId;
+  const isConfirmingDeletion = isEnabled && deletingReview?.userId === userId;
+
+  const canManage = useCallback(
+    (review: MyReview) =>
+      isEnabled && review.author.id === userId && review.is_own_review,
+    [isEnabled, userId],
+  );
+
+  const canEdit = (review: MyReview) =>
+    canManage(review) && review.status !== "under_review";
+
+  /** Returns the selected review only if it is still safe to act on. */
+  const getActionableReview = (predicate: (review: MyReview) => boolean) => {
+    if (
+      !actionReview ||
+      isConfirmingDeletion ||
+      actionReview.userId !== userId ||
+      !predicate(actionReview.review)
+    ) {
+      return null;
+    }
+
+    return actionReview;
   };
 
-  const allSelected =
-    filteredReviews.length > 0 && selectedIds.length === filteredReviews.length;
+  const openActions = useCallback(
+    (review: MyReview) => {
+      if (!canManage(review) || userId === null || isConfirmingDeletion) return;
 
-  const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? [] : filteredReviews.map((r) => r.id));
+      setActionReview({ userId, review });
+      presentBottomSheet(actionsRef);
+    },
+    [canManage, userId, isConfirmingDeletion],
+  );
+
+  const renderReview = useCallback(
+    ({ item }: { item: MyReview }) => (
+      <MyReviewCard
+        review={item}
+        onActions={canManage(item) ? openActions : undefined}
+      />
+    ),
+    [canManage, openActions],
+  );
+
+  const registerSyncBusiness = (selected: SelectedReview) => {
+    setSyncBusinesses((current) => {
+      const businesses = current.filter(
+        (item) => item.userId === selected.userId,
+      );
+
+      if (
+        businesses.some(
+          (item) => item.businessId === selected.review.business.id,
+        )
+      ) {
+        return businesses;
+      }
+
+      return [
+        ...businesses,
+        {
+          userId: selected.userId,
+          businessId: selected.review.business.id,
+        },
+      ];
+    });
   };
 
-  const handleDeleteSelected = () => {
-    setReviews((prev) => prev.filter((r) => !selectedIds.includes(r.id)));
-    setSelectedIds([]);
-    setIsEditing(false);
+  const openEditor = () => {
+    const selected = getActionableReview(canEdit);
+    if (!selected) return;
+
+    setEditingReview(selected);
+    registerSyncBusiness(selected);
+    presentBottomSheet(composerRef);
   };
+
+  const openDeleteConfirmation = () => {
+    const selected = getActionableReview(canManage);
+    if (!selected) return;
+
+    registerSyncBusiness(selected);
+    setDeletingReview(selected);
+  };
+
+  const currentEditor =
+    isEnabled && editingReview?.userId === userId ? editingReview.review : null;
+
+  const currentDeletion =
+    isEnabled && deletingReview?.userId === userId ? deletingReview : null;
+
+  useEffect(() => {
+    paginationArmed.current = false;
+    paginationPending.current = false;
+  }, [userId]);
+
+  useQueryErrorNotification({
+    error: history.error,
+    toastId: "my-reviews",
+    title: "Unable to load your reviews",
+    fallbackMessage: "Please try again.",
+  });
+
+  const loadNextPage = (retry = false) => {
+    if (
+      !isEnabled ||
+      paginationPending.current ||
+      (!retry && (!paginationArmed.current || history.isFetchNextPageError)) ||
+      !history.hasNextPage ||
+      history.isFetchingNextPage ||
+      history.isFetching
+    ) {
+      return;
+    }
+
+    paginationPending.current = true;
+    paginationArmed.current = false;
+
+    void history.fetchNextPage().finally(() => {
+      paginationPending.current = false;
+    });
+  };
+
+  const initialLoading =
+    history.isAuthLoading || (isEnabled && history.isPending);
+  const hasReviews = history.reviews.length > 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-surface">
+      {/* Profile stack header */}
       <Stack.Screen
         options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
           title: "My Reviews",
-          headerRight: () => (
-            <Pressable
-              onPress={() => {
-                setIsEditing((prev) => !prev);
-                setSelectedIds([]);
-              }}
-            >
-              <Text className="text-brand font-semibold">
-                {isEditing ? "Done" : "Edit"}
-              </Text>
-            </Pressable>
-          ),
         }}
       />
 
-      <View className="flex-row items-center rounded-md bg-surface border border-brand mx-4 mt-4 px-3 py-2">
-        <MaterialCommunityIcons
-          name="magnify"
-          size={18}
-          color={theme.extends.colors.text.tertiary}
-        />
-        <TextInput
-          className="ml-2 flex-1 text-sm text-text-primary"
-          placeholder="Search by MSME name..."
-          placeholderTextColor={theme.extends.colors.text.tertiary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
+      {/* Full-width review history */}
       <FlatList
-        contentContainerClassName="p-4 pb-24"
-        data={filteredReviews}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ReviewCard
-            msmeName={item.msmeName}
-            category={item.category}
-            comment={item.comment}
-            date={item.date}
-            photoUrl={item.photoUrl}
-            isEditing={isEditing}
-            isSelected={selectedIds.includes(item.id)}
-            onSelect={() => toggleSelect(item.id)}
-          />
-        )}
+        key={userId ?? "signed-out"}
+        testID="my-reviews-list"
+        data={history.reviews}
+        keyExtractor={(review) => String(review.id)}
+        renderItem={renderReview}
+        className="flex-1 bg-background"
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 24,
+          flexGrow: 1,
+        }}
+        ItemSeparatorComponent={ReviewSeparator}
+        ListHeaderComponent={
+          hasReviews ? (
+            <View className="px-4 pb-3 pt-5">
+              <AppText
+                accessibilityRole="header"
+                weight="bold"
+                className="text-xl text-text-primary"
+              >
+                {history.totalCount}{" "}
+                {history.totalCount === 1 ? "review" : "reviews"}
+              </AppText>
+              <AppText className="mt-0.5 text-sm text-text-secondary">
+                Newest first · Includes unpublished
+              </AppText>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          <Text className="mt-8 text-center text-text-tertiary">
-            No reviews submitted yet.
-          </Text>
+          initialLoading ? (
+            <MyReviewsSkeleton />
+          ) : !isEnabled ? (
+            <View
+              testID="my-reviews-signed-out"
+              className="items-center px-4 py-10"
+            >
+              <View className="h-20 w-20 items-center justify-center rounded-full bg-surface-muted">
+                <MaterialCommunityIcons
+                  name="account-circle-outline"
+                  size={40}
+                  color={theme.extends.colors.text.secondary}
+                />
+              </View>
+              <AppText
+                weight="bold"
+                className="mt-4 text-center text-lg text-text-primary"
+              >
+                Sign in to see your reviews
+              </AppText>
+              <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+                Your review history and any replies from businesses will show up
+                here.
+              </AppText>
+              <Button
+                title="Sign in"
+                onPress={() => router.push(SIGN_IN_ROUTE)}
+                variant="primary"
+                rounded="full"
+                size="sm"
+                className="mt-5"
+              />
+            </View>
+          ) : history.error ? (
+            <ErrorState
+              title="Unable to load your reviews"
+              description="Please try again to see your review history."
+              primaryActionTitle="Retry"
+              onPrimaryAction={() => void history.refetch()}
+            />
+          ) : (
+            <View testID="my-reviews-empty" className="items-center px-4 py-10">
+              <Image
+                source={require("@/shared/assets/mascot/mascot-empty-reviews.webp")}
+                style={{ width: 120, height: 120 }}
+                contentFit="contain"
+                accessible={false}
+              />
+              <AppText
+                weight="bold"
+                className="mt-2 text-center text-lg text-text-primary"
+              >
+                No reviews yet
+              </AppText>
+              <AppText className="mt-2 text-center text-sm leading-5 text-text-secondary">
+                Your submitted reviews will appear here. Explore local
+                businesses and share your experience.
+              </AppText>
+              <Button
+                title="Explore businesses"
+                onPress={() => router.push("/(explorer)/(tabs)/explore")}
+                variant="soft"
+                rounded="full"
+                size="sm"
+                className="mt-5"
+              />
+            </View>
+          )
+        }
+        ListFooterComponent={
+          history.isFetchingNextPage ? (
+            <View className="items-center py-5" testID="my-reviews-page-loader">
+              <LottieView
+                source={loadingAnimation}
+                autoPlay
+                loop
+                style={{ width: 50, height: 50 }}
+              />
+            </View>
+          ) : hasReviews && history.error ? (
+            <View className="px-4 py-4">
+              <ErrorState
+                size="section"
+                title={
+                  history.isFetchNextPageError
+                    ? "Couldn't load more reviews"
+                    : "Couldn't refresh your reviews"
+                }
+                description="Your loaded reviews are still available."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() =>
+                  history.isFetchNextPageError
+                    ? loadNextPage(true)
+                    : void history.refetch()
+                }
+              />
+            </View>
+          ) : hasReviews && !history.hasNextPage && !history.isFetching ? (
+            <EndOfListMessage description="You've seen all your submitted reviews." />
+          ) : null
+        }
+        onScrollBeginDrag={() => {
+          paginationArmed.current = true;
+        }}
+        onEndReached={() => loadNextPage()}
+        onEndReachedThreshold={0.35}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={history.isRefetching && !history.isFetchingNextPage}
+            enabled={isEnabled}
+            onRefresh={() => {
+              if (isEnabled && !history.isFetching) void history.refetch();
+            }}
+            tintColor={theme.extends.colors.brand}
+          />
         }
       />
 
-      {isEditing && (
-        <View
-          className="absolute bottom-0 left-0 right-0 flex-row items-center justify-between bg-surface px-4 pt-4 border-t border-border"
-          style={{ paddingBottom: insets.bottom + 16 }}
-        >
-          <Pressable
-            onPress={toggleSelectAll}
-            className="flex-row items-center"
-            hitSlop={8}
-          >
-            <View
-              className={`mr-2 h-5 w-5 items-center justify-center rounded border ${
-                allSelected ? "bg-brand border-brand" : "border-border"
-              }`}
-            >
-              {allSelected && (
-                <MaterialCommunityIcons
-                  name="check"
-                  size={14}
-                  color="#FFFFFF"
-                />
-              )}
-            </View>
-            <Text className="text-text-primary">All</Text>
-          </Pressable>
+      {/* Contextual edit and delete actions */}
+      <ActionBottomSheet
+        key={`review-actions-${userId ?? "signed-out"}`}
+        sheetRef={actionsRef}
+        onDismiss={() =>
+          setActionReview((current) =>
+            current === actionReview ? null : current,
+          )
+        }
+        options={[
+          ...(actionReview && canEdit(actionReview.review)
+            ? [{ label: "Edit my review", value: "edit" }]
+            : []),
+          {
+            label: "Delete review",
+            value: "delete",
+            color: theme.extends.colors.error,
+          },
+        ]}
+        onSelect={(value) => {
+          if (value === "edit") openEditor();
+          if (value === "delete") openDeleteConfirmation();
+        }}
+      />
 
-          <Pressable
-            onPress={handleDeleteSelected}
-            disabled={selectedIds.length === 0}
-            className={`rounded-md px-6 py-2 ${
-              selectedIds.length === 0 ? "bg-disabled" : "bg-brand"
-            }`}
+      {/* Business-specific edit and deletion synchronization */}
+      {syncBusinesses
+        .filter((item) => isEnabled && item.userId === userId)
+        .map((item) => (
+          <ReviewDerivedDataSyncProvider
+            key={`review-sync-${item.userId}-${item.businessId}`}
+            businessId={item.businessId}
           >
-            <Text
-              className={`font-semibold ${
-                selectedIds.length === 0 ? "text-text-tertiary" : "text-white"
-              }`}
-            >
-              Delete
-            </Text>
-          </Pressable>
-        </View>
-      )}
+            {currentEditor?.business.id === item.businessId && (
+              <ReviewComposerSheet
+                businessId={currentEditor.business.id}
+                businessName={currentEditor.business.business_name}
+                coverPhotoUrl={currentEditor.business.display_cover_photo_url}
+                sheetRef={composerRef}
+                review={currentEditor}
+                onDismiss={() =>
+                  setEditingReview((current) =>
+                    current === editingReview ? null : current,
+                  )
+                }
+              />
+            )}
+
+            {/* Confirmed review deletion */}
+            {currentDeletion?.review.business.id === item.businessId && (
+              <MyReviewDeleteConfirmation
+                key={`${currentDeletion.userId}-${currentDeletion.review.id}`}
+                review={currentDeletion.review}
+                userId={currentDeletion.userId}
+                onClose={() =>
+                  setDeletingReview((current) =>
+                    current === currentDeletion ? null : current,
+                  )
+                }
+              />
+            )}
+          </ReviewDerivedDataSyncProvider>
+        ))}
     </View>
   );
+}
+
+/** Separates review rows with a subtle inset divider. */
+function ReviewSeparator() {
+  return <View className="mx-4 h-px bg-border-primary" />;
 }

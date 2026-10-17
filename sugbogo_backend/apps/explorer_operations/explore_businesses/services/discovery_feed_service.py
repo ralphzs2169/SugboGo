@@ -30,6 +30,53 @@ from .published_review_count import published_review_count
 class DiscoveryFeedService:
     """Builds the ranked business feed shown to Explorer users."""
 
+    HIDDEN_GEM_LIMIT = 10
+    DISCOVERY_ORDERING = (
+        "-discovery_rank_score",
+        "-BUSN_CREATED_AT",
+        "BUSN_ID",
+    )
+
+    @staticmethod
+    def list_eligible_businesses():
+        """Return the active businesses eligible for public Explorer discovery."""
+        return Business.objects.filter(
+            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+        )
+
+    @staticmethod
+    def list_ranked_businesses():
+        """Order eligible businesses using persisted scores and stable tie-breakers."""
+        return (
+            DiscoveryFeedService.list_eligible_businesses()
+            .annotate(
+                discovery_rank_score=Coalesce(
+                    "discovery_score__DSC_D_SCORE",
+                    Value(
+                        Decimal("0.00000"),
+                    ),
+                    output_field=DecimalField(
+                        max_digits=6,
+                        decimal_places=5,
+                    ),
+                ),
+            )
+            .order_by(
+                *DiscoveryFeedService.DISCOVERY_ORDERING,
+            )
+        )
+
+    @staticmethod
+    def list_global_hidden_gem_ids():
+        """Return an unfiltered Top 10 ID query matching Explore's homepage."""
+        return (
+            DiscoveryFeedService.list_ranked_businesses()
+            .values_list(
+                "BUSN_ID",
+                flat=True,
+            )[:DiscoveryFeedService.HIDDEN_GEM_LIMIT]
+        )
+
     @staticmethod
     def list_discovery_businesses(
         user,
@@ -82,7 +129,7 @@ class DiscoveryFeedService:
         )
 
         queryset = (
-            Business.objects
+            DiscoveryFeedService.list_ranked_businesses()
             .select_related(
                 "CTGRY_ID",
                 "CTGRY_ID__CLUS_ID",
@@ -95,16 +142,6 @@ class DiscoveryFeedService:
                 ),
                 published_review_count=published_review_count(),
                 display_cover_photo_url=display_cover_photo_expression(),
-                discovery_rank_score=Coalesce(
-                    "discovery_score__DSC_D_SCORE",
-                    Value(
-                        Decimal("0.00000"),
-                    ),
-                    output_field=DecimalField(
-                        max_digits=6,
-                        decimal_places=5,
-                    ),
-                ),
             )
             .prefetch_related(
                 Prefetch(
@@ -112,9 +149,6 @@ class DiscoveryFeedService:
                     queryset=active_specialties,
                     to_attr="active_specialty_tag_links",
                 ),
-            )
-            .filter(
-                BUSN_STATUS=Business.BusinessStatus.ACTIVE,
             )
         )
 
@@ -194,11 +228,7 @@ class DiscoveryFeedService:
             )
 
         ordering.extend(
-            [
-                "-discovery_rank_score",
-                "-BUSN_CREATED_AT",
-                "BUSN_ID",
-            ],
+            DiscoveryFeedService.DISCOVERY_ORDERING,
         )
 
         return queryset.order_by(

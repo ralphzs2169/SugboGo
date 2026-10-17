@@ -34,6 +34,10 @@ from apps.explorer_operations.explore_businesses.views.journey_origin_views impo
     JourneyOriginPlaceSearchView,
     JourneyOriginReverseGeocodeView,
 )
+from apps.explorer_operations.explore_businesses.views.map_discovery_views import (
+    MapDiscoveryView,
+    MapDirectoryView,
+)
 from apps.explorer_operations.explore_businesses.views.new_businesses_views import (
     NewBusinessesView,
 )
@@ -49,6 +53,9 @@ from apps.explorer_operations.explore_businesses.views.similar_business_views im
 from apps.explorer_operations.explore_businesses.views.visibility_event_views import (
     BusinessImpressionBatchView,
     BusinessProfileVisitView,
+)
+from apps.explorer_operations.explore_businesses.views.vouch_history_views import (
+    VouchHistoryView,
 )
 from django.urls import path
 
@@ -97,8 +104,19 @@ urlpatterns = [
     path("discovery-shortcuts/", ClusterDiscoveryShortcutView.as_view(), name="discovery-shortcuts", ),
 
     path("map-preview/",ExploreMapPreviewView.as_view(),name="explore-map-preview"),
+    path(
+        "map/businesses/",
+        MapDirectoryView.as_view(),
+        name="map-directory",
+    ),
+    path(
+        "map/",
+        MapDiscoveryView.as_view(),
+        name="map-discovery",
+    ),
 
     path("businesses/<int:business_id>/vouch/", BusinessVouchView.as_view(), name="business-vouch", ),
+    path("vouch-history/", VouchHistoryView.as_view(), name="vouch-history"),
     path("businesses/<int:business_id>/pocket/", BusinessPocketView.as_view(), name="business-pocket" ),
 
     path("visibility/impressions/",BusinessImpressionBatchView.as_view(),name="business-impressions",),

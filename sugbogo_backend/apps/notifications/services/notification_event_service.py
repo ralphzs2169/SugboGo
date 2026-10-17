@@ -1,10 +1,56 @@
 from apps.merchant_application.models import MerchantApplicationReview
 from apps.notifications.services.notification_service import NotificationService
 from apps.reviews.models import Review
+from apps.users.models import User
 
 
 class NotificationEventService:
-    """Create private recipient notices inside the owning decision transaction."""
+    """Create private recipient notices inside the owning transaction."""
+
+    @staticmethod
+    def review_cases_closed_by_author(
+        *,
+        author_id: int,
+        pending_reports: list[dict],
+        pending_disputes: list[dict],
+    ) -> None:
+        """Notify locked pending case submitters without targeting deleted resources."""
+        recipient_ids = {
+            case["USER_ID_id"]
+            for case in pending_reports + pending_disputes
+            if case["USER_ID_id"] != author_id
+        }
+        if not recipient_ids:
+            return
+        recipients = User.objects.in_bulk(recipient_ids)
+        for report in pending_reports:
+            recipient = recipients.get(report["USER_ID_id"])
+            if recipient is None:
+                continue
+            NotificationService.create(
+                recipient=recipient,
+                event_type="review_report_closed_by_author",
+                title="Report closed",
+                body=(
+                    "The review you reported was removed by its author. "
+                    "Your report has been closed without an Admin decision."
+                ),
+                dedup_key=f"review-report:{report['RREP_ID']}:author-removed",
+            )
+        for dispute in pending_disputes:
+            recipient = recipients.get(dispute["USER_ID_id"])
+            if recipient is None:
+                continue
+            NotificationService.create(
+                recipient=recipient,
+                event_type="review_dispute_closed_by_author",
+                title="Review dispute closed",
+                body=(
+                    "The review you disputed was removed by its author. "
+                    "Your dispute has been closed without an Admin decision."
+                ),
+                dedup_key=f"review-dispute:{dispute['MRDSP_ID']}:author-removed",
+            )
 
     @staticmethod
     def review_report_resolved(report, review, previous_review_status):

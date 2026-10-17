@@ -1,83 +1,108 @@
-import { View, Text, Image, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useState } from "react";
+import { Pressable, View } from "react-native";
+
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import SafePressable from "@/shared/components/SafePressable";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { formatDate } from "@/shared/utils/date.utils";
+
+import type { VouchHistoryBusiness } from "../../types/vouchHistory.types";
 
 type Props = {
-  msmeName: string;
-  photoUrl: string;
-  category: string;
-  tag: string;
-  date: string;
-  isEditing?: boolean;
-  isSelected?: boolean;
-  onSelect?: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  business: VouchHistoryBusiness;
+  onOpenBusiness: () => void;
+  onManage: () => void;
 };
 
+/** Displays a full-width vouch history row with endorsements and management. */
 export default function VouchHistoryItem({
-  msmeName,
-  photoUrl,
-  category,
-  tag,
-  date,
-  isEditing = false,
-  isSelected = false,
-  onSelect,
-  onEdit,
-  onDelete,
+  business,
+  onOpenBusiness,
+  onManage,
 }: Props) {
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  const photo = business.cover_photo_url?.trim();
+
   return (
-    <Pressable
-      onPress={isEditing ? onSelect : undefined}
-      className="mb-3 flex-row items-center rounded-md bg-surface p-4"
-    >
-      {isEditing && (
-        <View
-          className={`mr-3 h-5 w-5 items-center justify-center rounded border ${
-            isSelected ? "bg-brand border-brand" : "border-border"
-          }`}
+    <View className="bg-surface px-4 py-4">
+      {/* Business identity and actions */}
+      <View className="flex-row items-start">
+        <SafePressable
+          onPress={onOpenBusiness}
+          accessibilityRole="button"
+          accessibilityLabel={
+            "Open " + business.business_name + " business profile"
+          }
+          className="min-w-0 flex-1 cursor-pointer flex-row items-center active:opacity-75"
         >
-          {isSelected && (
-            <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
-          )}
-        </View>
-      )}
-
-      <Image source={{ uri: photoUrl }} className="mr-4 h-20 w-20 rounded-md" />
-
-      <View className="flex-1">
-        <Text className="text-base font-bold text-text-primary" numberOfLines={1}>
-          {msmeName}
-        </Text>
-        <View className="mt-1 self-start rounded-full bg-orange-100 px-2 py-0.5">
-          <Text className="text-xs font-medium text-brand">{category}</Text>
-        </View>
-        <View className="mt-1 flex-row items-center">
-          <MaterialCommunityIcons name="heart" size={12} color={theme.extends.colors.brand} />
-          <Text className="ml-1 text-xs text-text-secondary">
-            Vouched for &quot;{tag}&quot;
-          </Text>
-        </View>
-        <View className="mt-1 flex-row items-center">
+          <View className="h-20 w-20 overflow-hidden rounded-xl bg-surface-muted">
+            {photo && photo !== failedPhoto ? (
+              <Image
+                source={{ uri: photo }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                transition={150}
+                onError={() => setFailedPhoto(photo)}
+              />
+            ) : (
+              <View className="h-full w-full items-center justify-center">
+                <MaterialCommunityIcons
+                  name="storefront-outline"
+                  size={32}
+                  color={theme.extends.colors.text.tertiary}
+                />
+              </View>
+            )}
+          </View>
+          <View className="min-w-0 flex-1 pl-3">
+            <AppText
+              weight="bold"
+              className="text-md text-text-primary"
+              numberOfLines={2}
+            >
+              {business.business_name}
+            </AppText>
+            <AppText className="mt-1 text-xs text-text-secondary">
+              {business.category.name}
+            </AppText>
+          </View>
+        </SafePressable>
+        <Pressable
+          onPress={onManage}
+          accessibilityRole="button"
+          accessibilityLabel={"Manage vouches for " + business.business_name}
+          className="ml-1 cursor-pointer rounded-full p-3 active:bg-surface-muted"
+          hitSlop={4}
+        >
           <MaterialCommunityIcons
-            name="calendar-outline"
-            size={12}
-            color={theme.extends.colors.text.tertiary}
-          />
-          <Text className="ml-1 text-xs text-text-tertiary">{date}</Text>
-        </View>
-      </View>
-
-      {!isEditing && (
-        <Pressable onPress={onEdit} hitSlop={12} className="p-2">
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={20}
+            name="dots-horizontal"
+            size={22}
             color={theme.extends.colors.text.secondary}
           />
         </Pressable>
-      )}
-    </Pressable>
+      </View>
+
+      {/* All original endorsements */}
+      <View className="mt-3 flex-row flex-wrap">
+        {business.vouches.map((vouch) => (
+          <SpecialtyTagChip
+            key={vouch.id}
+            tag={vouch.specialty}
+            size="small"
+            showIcon
+            showVouchIndicator
+            isSelected
+          />
+        ))}
+      </View>
+
+      {/* Latest eligible endorsement */}
+      <AppText className="text-xs text-text-tertiary">
+        Latest vouch: {formatDate(business.last_vouched_at)}
+      </AppText>
+    </View>
   );
 }

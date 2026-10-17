@@ -55,6 +55,9 @@ class ExploreBusinessService:
 
         reviews = (
             Review.objects
+            .filter(
+                REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+            )
             .select_related(
                 "USER_ID",
             )

@@ -14,16 +14,29 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from datetime import timedelta
+from math import isfinite
 from pathlib import Path
 
 import cloudinary
 from celery.schedules import crontab
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
+
+# Enforcement-off preserves previews; demo grants count only under explicit mock mode.
+_merchant_plus_enforced = os.getenv("MERCHANT_PLUS_ENFORCED", "False").strip().lower()
+if _merchant_plus_enforced not in {"true", "false"}:
+    raise ImproperlyConfigured("MERCHANT_PLUS_ENFORCED must be True or False.")
+MERCHANT_PLUS_ENFORCED = _merchant_plus_enforced == "true"
+
+_merchant_plus_mock_enabled = os.getenv("MERCHANT_PLUS_MOCK_ENABLED", "False").strip().lower()
+if _merchant_plus_mock_enabled not in {"true", "false"}:
+    raise ImproperlyConfigured("MERCHANT_PLUS_MOCK_ENABLED must be True or False.")
+MERCHANT_PLUS_MOCK_ENABLED = _merchant_plus_mock_enabled == "true"
 
 if os.name == 'nt':
     GDAL_LIBRARY_PATH = os.environ.get("GDAL_LIBRARY_PATH")
@@ -102,6 +115,24 @@ JOURNEY_ORIGIN_SEARCH_AREA = {
         "longitude": 124.05,
     },
 }
+
+# Bound marker payloads and spatial scans without changing the map-preview API.
+MAP_DISCOVERY_MAX_MARKERS = int(
+    os.getenv("MAP_DISCOVERY_MAX_MARKERS", "200"),
+)
+MAP_DISCOVERY_MAX_VIEWPORT_SPAN = float(
+    os.getenv("MAP_DISCOVERY_MAX_VIEWPORT_SPAN", "0.5"),
+)
+if MAP_DISCOVERY_MAX_MARKERS < 1:
+    raise ImproperlyConfigured("MAP_DISCOVERY_MAX_MARKERS must be positive.")
+if (
+    not isfinite(MAP_DISCOVERY_MAX_VIEWPORT_SPAN)
+    or MAP_DISCOVERY_MAX_VIEWPORT_SPAN <= 0
+    or MAP_DISCOVERY_MAX_VIEWPORT_SPAN > 180
+):
+    raise ImproperlyConfigured(
+        "MAP_DISCOVERY_MAX_VIEWPORT_SPAN must be finite and between 0 and 180 degrees.",
+    )
 
 
 # Application URLs
@@ -188,6 +219,7 @@ INSTALLED_APPS = [
 
     # Merchant Operations
     'apps.merchant_operations.business_profile.apps.BusinessProfileConfig',
+    'apps.merchant_operations.merchant_analytics.apps.MerchantAnalyticsConfig',
 ]
 
 MIDDLEWARE = [
@@ -198,7 +230,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware'
+    'corsheaders.middleware.CorsMiddleware',
+    'apps.shared.analytics.policy.AnalyticsPolicyMiddleware',
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -360,6 +393,10 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
+    "recover-review-media-cleanup": {
+        "task": "apps.reviews.tasks.recover_review_media_cleanup",
+        "schedule": crontab(minute="*/5"),
+    },
     "daily-review-summary-recomputation": {
         "task": "apps.reviews.tasks.recompute_review_summaries",
         "schedule": crontab(

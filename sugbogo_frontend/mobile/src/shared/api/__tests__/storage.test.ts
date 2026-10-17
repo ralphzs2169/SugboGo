@@ -1,3 +1,4 @@
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import * as SecureStore from "expo-secure-store";
 import { randomUUID } from "expo-crypto";
 
@@ -238,6 +239,25 @@ describe("token storage", () => {
       "refresh_token",
       "account-b-refresh",
     );
+  });
+
+  it("revokes offline access with guarded token cleanup", async () => {
+    useOfflineAccessStore.setState({ ownerId: 7, isRevoking: false });
+    const generation = invalidateAuthSession();
+    const cleanup = clearSessionTokens(generation);
+    expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+    expect(useOfflineAccessStore.getState().isRevoking).toBe(true);
+    await expect(cleanup).resolves.toBe(true);
+  });
+
+  it("does not revoke newer offline access for stale cleanup", async () => {
+    const generation = invalidateAuthSession();
+    beginAuthSession();
+    useOfflineAccessStore.setState({ ownerId: 8, isRevoking: false });
+    await expect(clearSessionTokens(generation)).resolves.toBe(false);
+    expect(useOfflineAccessStore.getState().ownerId).toBe(8);
+    expect(useOfflineAccessStore.getState().isRevoking).toBe(false);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
   });
 
   it("does not let delayed logout cleanup delete a newer login", async () => {

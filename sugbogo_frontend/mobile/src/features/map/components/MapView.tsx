@@ -11,7 +11,12 @@ type Props = {
   onMapReady?: (map: RNMapView) => void;
 };
 
-export default function MapView({ gems, selectedGemId, onMarkerPress, onMapReady }: Props) {
+export default function MapView({
+  gems,
+  selectedGemId,
+  onMarkerPress,
+  onMapReady,
+}: Props) {
   const internalRef = useRef<RNMapView>(null);
 
   return (
@@ -34,9 +39,11 @@ export default function MapView({ gems, selectedGemId, onMarkerPress, onMapReady
         }}
         showsUserLocation
         showsMyLocationButton={false}
-        {...(Platform.OS === "android" && {
-          mapId: process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID,
-        })}
+        googleMapId={
+          Platform.OS === "android"
+            ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID
+            : undefined
+        }
       >
         {gems.map((gem) => (
           <Marker
@@ -46,7 +53,10 @@ export default function MapView({ gems, selectedGemId, onMarkerPress, onMapReady
             opacity={selectedGemId && selectedGemId !== gem.id ? 0.35 : 1}
             zIndex={selectedGemId === gem.id ? 999 : 1}
           >
-            <MapMarkerIcon category={gem.category} isSelected={selectedGemId === gem.id} />
+            <MapMarkerIcon
+              category={gem.category}
+              isSelected={selectedGemId === gem.id}
+            />
           </Marker>
         ))}
       </RNMapView>

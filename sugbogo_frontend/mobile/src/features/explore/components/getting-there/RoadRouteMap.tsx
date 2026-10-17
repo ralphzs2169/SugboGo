@@ -107,7 +107,7 @@ export default function RoadRouteMap({
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={MAP_STYLE}
+        customMapStyle={Platform.OS === "ios" ? MAP_STYLE : undefined}
         style={{
           width: "100%",
           height: "100%",
@@ -124,9 +124,11 @@ export default function RoadRouteMap({
           setIsMapReady(true);
         }}
         onMapLoaded={fitRouteOnce}
-        {...(Platform.OS === "android" && {
-          mapId: process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID,
-        })}
+        googleMapId={
+          Platform.OS === "android"
+            ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID
+            : undefined
+        }
       >
         {/* Selected road route */}
         <Polyline

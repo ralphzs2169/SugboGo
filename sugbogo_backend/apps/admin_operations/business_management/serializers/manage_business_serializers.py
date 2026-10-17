@@ -354,6 +354,10 @@ class AdminReviewResponseSerializer(serializers.ModelSerializer):
         source="REVW_STATUS",
         read_only=True
     )
+    reliability_check_outcome = serializers.CharField(
+        source="REVW_RELIABILITY_CHECK_OUTCOME",
+        read_only=True,
+    )
     like_count = serializers.IntegerField(
         source="REVW_LIKE_COUNT",
         read_only=True
@@ -393,6 +397,7 @@ class AdminReviewResponseSerializer(serializers.ModelSerializer):
             "id",
             "text",
             "status",
+            "reliability_check_outcome",
             "like_count",
             "report_count",
             "created_at",

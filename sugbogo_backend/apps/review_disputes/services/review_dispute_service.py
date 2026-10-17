@@ -74,6 +74,7 @@ class ReviewDisputeService:
         *,
         for_update: bool = False,
     ) -> MerchantReviewDispute:
+        """Retrieve an owned dispute and lock its review first when updating."""
         try:
             queryset = (
                 MerchantReviewDispute.objects
@@ -89,12 +90,22 @@ class ReviewDisputeService:
                 )
             )
             if for_update:
+                review_id = (
+                    MerchantReviewDispute.objects
+                    .values_list("REVW_ID_id", flat=True)
+                    .get(MRDSP_ID=dispute_id)
+                )
+                # Re-read ownership and eligibility only after both locks are held.
+                Review.objects.select_for_update(of=("self",)).get(
+                    REVW_ID=review_id,
+                )
+                queryset = queryset.filter(REVW_ID_id=review_id)
                 queryset = queryset.select_for_update(of=("self",))
             dispute = queryset.get(MRDSP_ID=dispute_id)
-        except MerchantReviewDispute.DoesNotExist:
+        except (Review.DoesNotExist, MerchantReviewDispute.DoesNotExist):
             raise NotFound(
                 "The review dispute could not be found.",
-            )
+            ) from None
 
         if dispute.USER_ID_id != user.USER_ID:
             raise PermissionDenied(

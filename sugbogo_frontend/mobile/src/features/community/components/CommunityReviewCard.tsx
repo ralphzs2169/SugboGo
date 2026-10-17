@@ -1,23 +1,21 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
-import { useReviewLike } from "@/features/explore/hooks/useReviewLike";
 import MerchantReviewResponse from "@/features/explore/components/business-profile/reviews/MerchantReviewResponse";
+import { useReviewLike } from "@/features/explore/hooks/useReviewLike";
 import AppText from "@/shared/components/AppText";
 import Avatar from "@/shared/components/Avatar";
 import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
-import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
-import { shadows } from "@/shared/styles/shadows";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import type { CommunityReview } from "../types/communityReview.types";
 import CommunityBusinessLink from "./CommunityBusinessLink";
+import ReviewPhotoCarousel from "./ReviewPhotoCarousel";
 
 type Props = {
   review: CommunityReview;
@@ -40,13 +38,13 @@ function formatRelativeDate(value: string) {
 }
 
 /**
- * Displays one public Community review with its linked business context.
+ * Displays one public Community review as a full-width feed post.
  *
- * Helpful interactions receive local optimistic feedback while established
- * shared viewers, specialty chips, and merchant-response presentation remain
- * consistent with business-profile reviews.
+ * The reviewer and their words lead the post, photos swipe edge to edge, and
+ * the linked business sits quietly at the bottom so the feed stays about
+ * people's experiences rather than listings.
  */
-export default function CommunityReviewCard({ review }: Props) {
+function CommunityReviewCard({ review }: Props) {
   const { mutateAsync: like, isPending: isLikePending } = useReviewLike(
     review.business.id,
     review.id,
@@ -56,6 +54,8 @@ export default function CommunityReviewCard({ review }: Props) {
   const [isTruncated, setIsTruncated] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+
+  const authorName = `${review.author.first_name} ${review.author.last_name}`;
 
   const toggleHelpful = async () => {
     if (isLikePending) {
@@ -88,15 +88,14 @@ export default function CommunityReviewCard({ review }: Props) {
   return (
     <View
       testID={`community-review-${review.id}`}
-      className="rounded-card border border-border-primary bg-surface p-4"
-      style={shadows.subtle}
+      className="border-b border-border-primary bg-surface"
     >
       {/* Reviewer identity */}
-      <View className="flex-row items-center">
+      <View className="flex-row items-center px-4 pb-3 pt-4">
         <Avatar
           imageUrl={review.author.avatar_url}
           avatarKey={review.author.avatar_key}
-          size={38}
+          size={36}
         />
 
         <View className="ml-2.5 min-w-0 flex-1">
@@ -106,15 +105,12 @@ export default function CommunityReviewCard({ review }: Props) {
               className="min-w-0 shrink text-sm text-text-primary"
               numberOfLines={1}
             >
-              {review.author.first_name} {review.author.last_name}
+              {authorName}
             </AppText>
 
             {review.is_own_review && (
               <View className="ml-2 rounded-full bg-brand/10 px-2 py-0.5">
-                <AppText
-                  weight="semibold"
-                  className="text-[10px] text-text-primary"
-                >
+                <AppText weight="semibold" className="text-[10px] text-brand">
                   You
                 </AppText>
               </View>
@@ -127,13 +123,15 @@ export default function CommunityReviewCard({ review }: Props) {
         </View>
       </View>
 
-      {/* Linked business */}
-      <CommunityBusinessLink business={review.business} />
+      {/* Full-width swipeable photos */}
+      {review.photos.length > 0 && (
+        <ReviewPhotoCarousel photos={review.photos} onPhotoPress={openPhoto} />
+      )}
 
       {/* Review text */}
-      <View className="mt-4">
+      <View className="px-4 pt-3">
         <AppText
-          className="text-sm leading-[21px] text-text-primary"
+          className="text-[15px] leading-[22px] text-text-primary"
           numberOfLines={
             isExpanded ? undefined : isTruncated ? MAX_REVIEW_LINES : undefined
           }
@@ -155,53 +153,19 @@ export default function CommunityReviewCard({ review }: Props) {
             }
             accessibilityState={{ expanded: isExpanded }}
             hitSlop={8}
-            className="mt-1 min-h-12 cursor-pointer self-start justify-center active:opacity-70"
+            className="min-h-10 self-start justify-center active:opacity-70"
           >
-            <AppText
-              weight="semibold"
-              className="text-xs text-text-primary underline"
-            >
+            <AppText weight="semibold" className="text-xs text-text-secondary">
               {isExpanded ? "Show less" : "Read more"}
             </AppText>
           </Pressable>
         )}
       </View>
 
-      {/* Review photos */}
-      {review.photos.length > 0 && (
-        <View className="mt-3 flex-row flex-wrap gap-1.5">
-          {review.photos.slice(0, MAX_REVIEW_PHOTOS).map((photo, index) => (
-            <Pressable
-              key={photo.id}
-              onPress={() => openPhoto(index)}
-              accessibilityRole="button"
-              accessibilityLabel={`View review photo ${index + 1}`}
-              className="aspect-square w-[32%] cursor-pointer overflow-hidden rounded-lg bg-surface-muted active:opacity-90"
-            >
-              <Image
-                source={{ uri: photo.photo_url }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-                transition={150}
-              />
-
-              {index === MAX_REVIEW_PHOTOS - 1 &&
-                review.photos.length > MAX_REVIEW_PHOTOS && (
-                  <View className="absolute inset-0 items-center justify-center bg-black/65">
-                    <AppText weight="bold" className="text-base text-white">
-                      +{review.photos.length - MAX_REVIEW_PHOTOS}
-                    </AppText>
-                  </View>
-                )}
-            </Pressable>
-          ))}
-        </View>
-      )}
-
       {/* Specialty vouches */}
       {review.vouched_specialties.length > 0 && (
-        <View className="mt-3">
-          <View className="mb-1.5 flex-row items-center">
+        <View className="mt-3 px-4">
+          <View className="mb-2 flex-row items-center">
             <MaterialCommunityIcons
               name="heart-outline"
               size={14}
@@ -209,7 +173,7 @@ export default function CommunityReviewCard({ review }: Props) {
             />
             <AppText
               weight="medium"
-              className="ml-1 text-[11px] text-text-secondary"
+              className="ml-1.5 text-xs text-text-secondary"
             >
               Vouched for
             </AppText>
@@ -230,8 +194,15 @@ export default function CommunityReviewCard({ review }: Props) {
         </View>
       )}
 
+      {/* Merchant response */}
+      {review.reply && (
+        <View className="mt-3 px-4">
+          <MerchantReviewResponse reply={review.reply} />
+        </View>
+      )}
+
       {/* Helpful interaction */}
-      <View className="mt-3 flex-row items-center">
+      <View className="mt-2 flex-row items-center px-4">
         <Pressable
           onPress={toggleHelpful}
           disabled={isLikePending}
@@ -245,21 +216,21 @@ export default function CommunityReviewCard({ review }: Props) {
             selected: review.is_liked,
             disabled: isLikePending,
           }}
-          className="min-h-12 cursor-pointer flex-row items-center rounded-full pr-3 active:opacity-70 disabled:opacity-50"
+          className="min-h-12 cursor-pointer flex-row items-center pr-3 active:opacity-70 disabled:opacity-50"
         >
           <MaterialCommunityIcons
             name={review.is_liked ? "thumb-up" : "thumb-up-outline"}
-            size={18}
+            size={20}
             color={
               review.is_liked
-                ? theme.extends.colors.text.primary
+                ? theme.extends.colors.brand
                 : theme.extends.colors.text.secondary
             }
           />
 
           <AppText
             weight="medium"
-            className={`ml-1.5 text-xs ${
+            className={`ml-2 text-xs ${
               review.is_liked ? "text-text-primary" : "text-text-secondary"
             }`}
           >
@@ -286,8 +257,10 @@ export default function CommunityReviewCard({ review }: Props) {
         )}
       </View>
 
-      {/* Merchant response */}
-      {review.reply && <MerchantReviewResponse reply={review.reply} />}
+      {/* Business context footer */}
+      <View className="mt-1 border-t border-border-primary px-4 pb-3 pt-2">
+        <CommunityBusinessLink business={review.business} />
+      </View>
 
       {/* Fullscreen review photo gallery */}
       <FullScreenPhotoViewer
@@ -309,7 +282,7 @@ export default function CommunityReviewCard({ review }: Props) {
                 className="text-sm text-white"
                 numberOfLines={1}
               >
-                {review.author.first_name} {review.author.last_name}
+                {authorName}
               </AppText>
               <AppText className="mt-0.5 text-xs text-white/65">
                 {formatRelativeDate(review.created_at)}
@@ -321,3 +294,5 @@ export default function CommunityReviewCard({ review }: Props) {
     </View>
   );
 }
+
+export default memo(CommunityReviewCard);

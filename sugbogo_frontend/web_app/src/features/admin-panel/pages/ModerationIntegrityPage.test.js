@@ -12,6 +12,11 @@ let ModerationIntegrityPage;
 let navigation;
 let getLegacyModerationDestination;
 let DecisionDialog;
+let ReportedQueueFilters;
+let SuspiciousQueueFilters;
+let SuspiciousCurrentActivity;
+let UnderReviewDecisionDialog;
+let UnderReviewQueueFilters;
 
 before(async () => {
   server = await createServer({
@@ -33,6 +38,21 @@ before(async () => {
   ({ DecisionDialog } = await server.ssrLoadModule(
     "/src/features/admin-panel/reported-reviews/components/ReportedReviewWorkspace.jsx",
   ));
+  ({ default: ReportedQueueFilters } = await server.ssrLoadModule(
+    "/src/features/admin-panel/reported-reviews/components/QueueFilters.jsx",
+  ));
+  ({ default: SuspiciousQueueFilters } = await server.ssrLoadModule(
+    "/src/features/admin-panel/suspicious-reviews/components/QueueFilters.jsx",
+  ));
+  ({ default: SuspiciousCurrentActivity } = await server.ssrLoadModule(
+    "/src/features/admin-panel/suspicious-reviews/components/CurrentActivity.jsx",
+  ));
+  ({ default: UnderReviewDecisionDialog } = await server.ssrLoadModule(
+    "/src/features/admin-panel/under-review/components/DecisionDialog.jsx",
+  ));
+  ({ default: UnderReviewQueueFilters } = await server.ssrLoadModule(
+    "/src/features/admin-panel/under-review/components/QueueFilters.jsx",
+  ));
 });
 
 after(async () => {
@@ -53,12 +73,27 @@ function renderPage(url, {
   reportedBusinessDetails,
   reportedError,
   reportedDetailError,
+  reportedGone,
+  tabCounts,
+  countError,
 } = {}) {
   globalThis.window = {
     location: { search: new URL(url, "http://localhost").search },
   };
 
   const queryClient = new QueryClient();
+  for (const [tabId, count] of Object.entries(tabCounts ?? {})) {
+    queryClient.setQueryData(["admin", "moderation-counts", tabId], count);
+  }
+  if (countError) {
+    queryClient.getQueryCache().build(queryClient, {
+      queryKey: ["admin", "moderation-counts", countError],
+    }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: new Error("Count unavailable"),
+    });
+  }
   if (list) {
     queryClient.setQueryData(
       ["admin", "under-review", "list", {
@@ -135,6 +170,7 @@ function renderPage(url, {
     page_size: 10,
     search: "",
     reason: undefined,
+    status: undefined,
     ordering: "most_reported",
   }];
   if (reportedList) {
@@ -170,6 +206,15 @@ function renderPage(url, {
       status: "error",
       fetchStatus: "idle",
       error: new Error("Review unavailable"),
+    });
+  }
+  if (reportedGone) {
+    queryClient.getQueryCache().build(queryClient, {
+      queryKey: ["admin", "reported-reviews", "detail", reportedGone],
+    }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: { response: { status: 404 } },
     });
   }
 
@@ -250,6 +295,33 @@ test("default and invalid tabs show the Under Review queue", () => {
   }
 });
 
+test("moderation tabs show queue totals including zero without blocking navigation", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    { tabCounts: { "under-review": 8, suspicious: 12, reported: 0, disputes: 3 } },
+  );
+  const tabs = html.match(/<nav aria-label="Moderation &amp; Integrity sections"[\s\S]*?<\/nav>/)?.[0];
+
+  assert.ok(tabs);
+  assert.match(tabs, /Under Review[\s\S]*?>8<\/span>/);
+  assert.match(tabs, /Suspicious[\s\S]*?>12<\/span>/);
+  assert.match(tabs, /Reported[\s\S]*?>0<\/span>/);
+  assert.match(tabs, /Disputes[\s\S]*?>3<\/span>/);
+});
+
+test("moderation count loading and errors keep tabs usable without false zeros", () => {
+  const loading = renderPage("/admin-panel/moderation-integrity?tab=under-review");
+  assert.match(loading, /animate-pulse rounded-full bg-surface-muted/);
+  assert.match(loading, /Under Review Queue/);
+
+  const errored = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review",
+    { tabCounts: { "under-review": 4 }, countError: "reported" },
+  );
+  assert.match(errored, /Under Review Queue/);
+  assert.doesNotMatch(errored, /Reported[\s\S]{0,180}>0<\/span>/);
+});
+
 const heldReview = {
   id: 42,
   author: { id: 7, first_name: "Ana", last_name: "Cruz" },
@@ -284,7 +356,8 @@ test("queue renders held reviews and a neutral no-selection panel", () => {
   assert.match(html, /Cebu Cafe/);
   assert.match(html, /Text flagged/);
   assert.match(html, /Image flagged/);
-  assert.match(html, /Review photo thumbnail/);
+  assert.doesNotMatch(html, /Review photo thumbnail/);
+  assert.match(html, /lucide-store/);
   assert.match(html.replaceAll("<!-- -->", ""), /2 photos/);
   assert.match(html, /Remove Reason filter|>Filter</);
   assert.match(html, /Select a review/);
@@ -324,14 +397,14 @@ test("queue shows neutral photo, reply, and edit context without likes", () => {
 
   assert.ok(queue);
   assert.match(queue.replaceAll("<!-- -->", ""), /1 photo/);
-  assert.match(queue, /Reply/);
+  assert.match(queue, /Merchant replied/);
   assert.match(queue, /Edited/);
   assert.match(queue, /Text flagged/);
   assert.equal(
     (queue.match(/rounded-md border px-2 py-0.5 text-xs font-medium text-text-primary border-danger\/25 bg-danger\/10/g) ?? []).length,
     2,
   );
-  assert.match(queue, /rounded-md border border-stroke bg-surface/);
+  assert.match(queue, /gap-x-3 gap-y-1 text-xs text-text-secondary/);
   assert.doesNotMatch(queue, /12 likes/);
 
   const withoutContext = renderPage(
@@ -345,6 +418,92 @@ test("queue shows neutral photo, reply, and edit context without likes", () => {
   );
   const emptyQueue = withoutContext.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
   assert.doesNotMatch(emptyQueue, /1 photo|Reply|Edited/);
+});
+
+test("Under Review queue shares the blue selected state and compact business identity", () => {
+  const review = {
+    ...heldReview,
+    business: {
+      ...heldReview.business,
+      cover_photo_url: "https://example.com/business-cover.jpg",
+    },
+  };
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42",
+    { list: { ...heldList, items: [review] } },
+  );
+  const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
+
+  assert.match(queue, /border-l-info bg-info\/5/);
+  assert.match(queue, /focus-visible:outline-info/);
+  assert.match(queue, /src="https:\/\/example.com\/business-cover.jpg"/);
+  assert.match(queue, /Review #<!-- -->42/);
+  assert.doesNotMatch(queue, /Review photo thumbnail/);
+});
+
+test("Under Review filters use the shared sort popover and active filter chips", () => {
+  const html = renderToString(React.createElement(UnderReviewQueueFilters, {
+    filters: {
+      search: "Cebu Cafe",
+      reason: "image_flagged",
+      content: "has_photos",
+      ordering: "newest",
+    },
+    onChange: () => {},
+  })).replaceAll("<!-- -->", "");
+
+  assert.match(html, /Reason: Image flagged/);
+  assert.match(html, /Content: Has photos/);
+  assert.match(html, /aria-label="Sort under review queue: Newest first"/);
+  assert.doesNotMatch(html, /<select/);
+});
+
+test("Under Review decision dialogs explain approval and rejection", () => {
+  const props = {
+    reviewId: 42,
+    pending: false,
+    notes: "",
+    onNotesChange: () => {},
+    onClose: () => {},
+    onConfirm: () => {},
+  };
+  const approve = renderToString(React.createElement(UnderReviewDecisionDialog, {
+    ...props,
+    decision: "approve",
+  }));
+  const reject = renderToString(React.createElement(UnderReviewDecisionDialog, {
+    ...props,
+    decision: "reject",
+  }));
+  const pending = renderToString(React.createElement(UnderReviewDecisionDialog, {
+    ...props,
+    decision: "reject",
+    pending: true,
+  }));
+  const validReject = renderToString(React.createElement(UnderReviewDecisionDialog, {
+    ...props,
+    decision: "reject",
+    notes: "The review contains threatening language.",
+    error: "Please provide more detail.",
+  }));
+
+  assert.match(approve, /Approve and publish this review\?/);
+  assert.match(approve, /visible to Explorers and the business/);
+  assert.match(approve, /Approve &amp; Publish/);
+  assert.doesNotMatch(approve, /Moderation Notes|Quick reasons/);
+  assert.match(reject, /Reject this review\?/);
+  assert.match(reject, /will not be published/);
+  assert.match(reject, /Reject Review/);
+  assert.match(reject, /Harassment/);
+  assert.match(reject, /Threatening content/);
+  assert.match(reject, /Other policy violation/);
+  assert.match(reject, /id="under-review-moderation-notes"/);
+  assert.match(reject, /disabled=""/);
+  assert.match(validReject, /Please provide more detail/);
+  assert.match(validReject, /The review contains threatening language/);
+  assert.doesNotMatch(validReject, /Reject Review<\/button>.*disabled=""/);
+  assert.doesNotMatch(pending, /aria-label="Close modal"/);
+  assert.match(pending, /disabled=""/);
 });
 
 test("selected detail separates text and photo findings", () => {
@@ -404,11 +563,13 @@ test("selected detail separates text and photo findings", () => {
   const header = html.match(/<header[^>]*>(.*?)<\/header>/s)?.[1];
   assert.ok(header);
   assert.match(html, /pointer-events-none sticky top-0 z-30 h-0/);
-  assert.match(html, /aria-hidden="true" class="flex h-12[^"]*bg-background\/80[^"]*backdrop-blur-md/);
+  assert.match(html, /aria-hidden="true" class="flex h-14[^"]*bg-background\/80[^"]*backdrop-blur-md/);
   assert.match(html, /class="min-h-0 flex-1 overflow-y-auto lg:max-h-/);
   assert.doesNotMatch(header, /sticky top-0/);
   assert.match(header, /flex flex-wrap items-start justify-between gap-2/);
-  assert.match(header, /mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1/);
+  assert.match(header, /items-start gap-x-3 gap-y-3/);
+  assert.match(header, /mt-0\.5 flex min-w-0 items-center gap-1\.5 text-xs text-text-secondary/);
+  assert.match(header, /border-t border-stroke pt-3 text-xs text-text-secondary/);
   assert.match(header, /ml-auto inline-flex shrink-0 items-center gap-1.5/);
   assert.match(header, /src="https:\/\/example.com\/business-cover.jpg"/);
   assert.match(header, /src="https:\/\/example.com\/author-avatar.jpg"/);
@@ -418,28 +579,32 @@ test("selected detail separates text and photo findings", () => {
   assert.match(header, /href="\/admin-panel\/users\/7"/);
   assert.match(header, /href="\/admin-panel\/businesses\/9"/);
   assert.equal((header.match(/lucide-external-link/g) ?? []).length, 2);
-  assert.match(header, /bg-blue-500 text-white/);
+  assert.match(header, /border-info\/25 bg-info\/10 text-info/);
   assert.doesNotMatch(header, />Business cover</);
   assert.match(header, /Food and Dining/);
   assert.match(header, /Restaurants/);
   assert.match(header, /Oct 10, 2026 ·/);
   assert.match(html, /Review photos/);
-  const reviewContent = html.match(/<section class="[^"]*rounded-lg border border-stroke bg-surface p-4[^"]*">(.*?)<\/section>/s)?.[1];
+  const reviewContent = html.match(/<section aria-label="Review content" class="[^"]*rounded-lg border border-stroke bg-surface p-4[^"]*">(.*?)<\/section>/s)?.[1];
   assert.ok(reviewContent);
-  assert.match(reviewContent, /lucide-quote/);
+  assert.doesNotMatch(reviewContent, /lucide-quote|REVIEW CONTENT/);
   assert.match(reviewContent, /lucide-thumbs-up/);
   assert.doesNotMatch(reviewContent, /lucide-heart/);
-  assert.match(reviewContent.replaceAll("<!-- -->", ""), /12 likes/);
-  assert.match(reviewContent.replaceAll("<!-- -->", ""), /2 photos/);
+  assert.match(reviewContent.replaceAll("<!-- -->", ""), /12 found this helpful/);
+  assert.match(reviewContent.replaceAll("<!-- -->", ""), /Review photos \(2\)/);
+  assert.doesNotMatch(reviewContent.replaceAll("<!-- -->", ""), />2 photos</);
   assert.match(reviewContent, /Edited Oct 11, 2026 ·/);
   assert.match(reviewContent, /Merchant Response/);
-  assert.match(reviewContent, /border-l-2 border-primary bg-surface-muted\/40/);
+  assert.match(reviewContent, /border-l-2 border-l-primary/);
   assert.match(reviewContent, /Thank you for sharing your visit/);
   assert.match(reviewContent, /dateTime="2026-10-11T02:15:00Z"/);
   assert.doesNotMatch(header, /12 likes|2 photos|Edited|Merchant reply/);
   assert.doesNotMatch(html, /Submission context/);
   assert.match(html, /Photo 1/);
   assert.match(html, /Photo 2/);
+  assert.match(html, /aria-label="View review photo 1"/);
+  assert.match(html, /aria-label="View review photo 2"/);
+  assert.doesNotMatch(html, /<a[^>]+href="https:\/\/example.com\/(first|second)\.jpg"/);
   assert.match(html, /Harassment/);
   assert.match(html, /Violence/);
   assert.match(html, /No findings/);
@@ -629,6 +794,7 @@ const suspiciousReview = {
   first_photo_url: "https://example.com/photo.jpg",
   photo_count: 2,
   submitted_at: "2026-10-10T09:00:00Z",
+  reliability_check_outcome: "checked",
   reasons: ["duplicate_content", "rapid_submission"],
 };
 
@@ -647,9 +813,27 @@ test("Suspicious queue shows items, badges, filters, and no moderation actions",
   assert.match(html, /Duplicate Content/);
   assert.match(html, /Rapid Submission/);
   assert.match(html, /Search suspicious reviews/);
-  assert.match(html, /All signals/);
+  assert.match(html, />Filter</);
+  assert.match(html, /Sort suspicious reviews: Newest first/);
   assert.match(html, /Newest first/);
+  assert.doesNotMatch(html, /<select/);
   assert.doesNotMatch(html, /Approve &amp; Publish|Reject review|Remove Review/);
+});
+
+test("Suspicious queue shows an active signal filter chip and shared sort control", () => {
+  const html = renderToString(React.createElement(SuspiciousQueueFilters, {
+    search: "Cebu Cafe",
+    signal: "duplicate_content",
+    ordering: "oldest",
+    onSearchChange: () => {},
+    onSignalChange: () => {},
+    onOrderingChange: () => {},
+  })).replaceAll("<!-- -->", "");
+
+  assert.match(html, /Reliability signal: Duplicate Content/);
+  assert.match(html, /Remove Reliability signal filter/);
+  assert.match(html, /aria-label="Sort suspicious reviews: Oldest first"/);
+  assert.match(html, /value="Cebu Cafe"/);
 });
 
 test("Suspicious queue uses review identity and neutral context without likes", () => {
@@ -663,6 +847,10 @@ test("Suspicious queue uses review identity and neutral context without likes", 
             ...suspiciousReview.author,
             avatar_url: "https://example.com/avatar.jpg",
           },
+          business: {
+            ...suspiciousReview.business,
+            cover_photo_url: "https://example.com/cover.jpg",
+          },
           has_reply: true,
           is_edited: true,
           like_count: 12,
@@ -675,14 +863,77 @@ test("Suspicious queue uses review identity and neutral context without likes", 
 
   assert.ok(queue);
   assert.match(queue, /src="https:\/\/example.com\/avatar.jpg"/);
-  assert.match(queue, /Review photo thumbnail/);
-  assert.match(queue, /border-l-primary bg-primary\/5/);
+  assert.match(queue, /src="https:\/\/example.com\/cover.jpg"/);
+  assert.doesNotMatch(queue, /Review photo thumbnail/);
+  assert.match(queue, /border-l-info bg-info\/5/);
+  assert.match(queue, /focus-visible:outline-info/);
   assert.match(queue, /Duplicate Content/);
   assert.match(queue, /Rapid Submission/);
+  assert.match(queue, /bg-surface-muted/);
   assert.match(queue.replaceAll("<!-- -->", ""), /2 photos/);
-  assert.match(queue, /Reply/);
+  assert.match(queue, /Merchant replied/);
   assert.match(queue, /Edited/);
   assert.doesNotMatch(queue, /12 likes/);
+});
+
+test("Suspicious queue uses the API cover and keeps the Store fallback", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious",
+    {
+      suspiciousList: {
+        items: [
+          {
+            ...suspiciousReview,
+            business: {
+              ...suspiciousReview.business,
+              cover_photo_url: "https://example.com/queue-cover.jpg",
+            },
+          },
+          {
+            ...suspiciousReview,
+            id: 84,
+            business: {
+              ...suspiciousReview.business,
+              cover_photo_url: null,
+            },
+          },
+        ],
+        pagination: { page: 1, total_pages: 1 },
+      },
+    },
+  );
+  const queue = html.match(/<aside[^>]*>(.*?)<\/aside>/s)?.[1];
+
+  assert.match(queue, /src="https:\/\/example.com\/queue-cover.jpg"/);
+  assert.match(queue, /lucide-store/);
+});
+
+test("Suspicious related activity gives repeated records one target per signal", () => {
+  const related = {
+    id: 41,
+    status: "published",
+    text: "Related review",
+    author: suspiciousReview.author,
+    business: suspiciousReview.business,
+  };
+  const html = renderToString(React.createElement(
+    MemoryRouter,
+    null,
+    React.createElement(SuspiciousCurrentActivity, {
+      review: {
+        reasons: ["duplicate_content", "rapid_submission"],
+        current_related_activity: {
+          referenced_reviews: [related],
+          duplicate_content: { reviews: [related, related] },
+          rapid_submission: { reviews: [related, related] },
+        },
+      },
+    }),
+  ));
+
+  assert.equal((html.match(/id="related-review-duplicate_content-41"/g) ?? []).length, 1);
+  assert.equal((html.match(/id="related-review-rapid_submission-41"/g) ?? []).length, 1);
+  assert.equal((html.match(/tabindex="-1"/g) ?? []).length, 2);
 });
 
 test("selected Suspicious detail separates detection evidence and live activity", () => {
@@ -700,6 +951,7 @@ test("selected Suspicious detail separates detection evidence and live activity"
         photos: [],
         detection_evidence: {
           duplicate_content: {
+            observed_at: "2026-10-10T09:00:00Z",
             prior_match_count: 2,
             basis: "same_user",
             matched_reviews: [
@@ -707,25 +959,160 @@ test("selected Suspicious detail separates detection evidence and live activity"
               { id: 47, available: false },
             ],
           },
-          rapid_submission: { review_count: 11, window_hours: 24 },
+          rapid_submission: {
+            observed_at: "2026-10-10T09:00:00Z",
+            review_count: 11,
+            window_hours: 24,
+          },
         },
         current_related_activity: {
           duplicate_content: { review_count: 0, reviews: [] },
           rapid_submission: { review_count: 0, reviews: [] },
+          referenced_reviews: [{
+            id: 41,
+            author: suspiciousReview.author,
+            business: suspiciousReview.business,
+            status: "published",
+            text: "Original matching review",
+            submitted_at: "2026-10-09T09:00:00Z",
+          }],
         },
       },
     },
   );
-  assert.match(html, /Why It Was Flagged/);
-  assert.match(html, /Same normalized review text detected/);
-  assert.match(html, /2<!-- --> prior matching reviews/);
-  assert.match(html, /Review #<!-- -->47<!-- --> · unavailable\/deleted/);
-  assert.match(html, /11<!-- --> reviews with the same app installation identifier within <!-- -->24<!-- --> hours/);
+  assert.match(html, /Suspicious Activity Signals/);
+  assert.match(html, /Reliability Check: <!-- -->Completed/);
+  assert.match(html, /Why This Review Was Flagged/);
+  assert.match(html, /Stored evidence from when each suspicious activity signal was detected/);
+  assert.equal((html.match(/Detected during review submission/g) ?? []).length, 2);
+  assert.match(html, /The same normalized review text was detected in previous reviews/);
+  assert.match(html, /Prior matches/);
+  assert.match(html, /Reviews detected/);
+  assert.match(html, /Time window/);
+  assert.match(html, /Detection-time matching reviews/);
+  assert.match(html, /aria-expanded="false"/);
   assert.match(html, /Current Related Activity/);
-  assert.match(html, /Live data currently available/);
-  assert.match(html, /lucide-store/);
-  assert.match(html, /rounded-full border border-stroke object-cover/);
+  assert.match(html, /Live records available now/);
+  assert.match(html, /Original matching review/);
+  assert.match(html, /data-suspicious-investigation-scroll="true"/);
+  assert.match(html, /id="related-review-duplicate_content-41" tabindex="-1"/);
+  assert.match(html, /focus:outline-info\/40/);
+  assert.match(html, /Present at detection · No longer related/);
+  assert.match(html, /No related records are currently available/);
+  assert.doesNotMatch(html, /Merchant Response/);
   assert.doesNotMatch(html, /Highly similar content|private-installation/);
+});
+
+test("Suspicious detail distinguishes unavailable and historical reliability checks", () => {
+  for (const [outcome, label] of [
+    ["unavailable", "Unavailable"],
+    ["unknown", "Historical outcome unknown"],
+  ]) {
+    const html = renderPage(
+      "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+      {
+        suspiciousDetail: {
+          ...suspiciousReview,
+          reliability_check_outcome: outcome,
+          text: "Review with a historical reliability signal",
+          status: "published",
+          photos: [],
+          detection_evidence: {},
+          current_related_activity: {},
+        },
+      },
+    );
+
+    assert.match(html.replaceAll("<!-- -->", ""), new RegExp(`Reliability Check: ${label}`));
+    assert.match(html, /Suspicious Activity Signals/);
+    assert.doesNotMatch(html, /Reject Review|Approve &amp; Publish/);
+  }
+});
+
+test("Suspicious edit duplicate uses stored detection context, not latest edit time", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    {
+      suspiciousDetail: {
+        ...suspiciousReview,
+        reasons: ["duplicate_content"],
+        text: "Exact repeated review text",
+        status: "published",
+        photos: [],
+        is_edited: true,
+        edited_at: "2026-10-12T09:00:00Z",
+        detection_evidence: {
+          duplicate_content: {
+            observed_at: "2026-10-11T09:00:00Z",
+            detected_during: "edit",
+            prior_match_count: 2,
+            basis: "same_user",
+          },
+        },
+        current_related_activity: {
+          duplicate_content: { review_count: 0, reviews: [] },
+        },
+      },
+    },
+  );
+
+  assert.match(html, /Detected during review edit/);
+  assert.match(
+    html.replaceAll("<!-- -->", ""),
+    /Observed\s*<time[^>]*>Oct 11, 2026/,
+  );
+  assert.doesNotMatch(html, /Detection-time evidence recorded when the review was submitted/);
+});
+
+test("Suspicious legacy evidence does not claim an unknown detection stage or window", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    {
+      suspiciousDetail: {
+        ...suspiciousReview,
+        reasons: ["duplicate_content"],
+        text: "Exact repeated review text",
+        status: "published",
+        photos: [],
+        detection_evidence: {
+          duplicate_content: {
+            prior_match_count: 2,
+            basis: "same_user",
+          },
+        },
+        current_related_activity: {
+          duplicate_content: {
+            review_count: 0,
+            reviews: [],
+            window_unavailable: true,
+          },
+        },
+      },
+    },
+  );
+
+  assert.match(html, /Detection stage not recorded/);
+  assert.match(html, /Current matches cannot be scoped to the original detection window/);
+  assert.doesNotMatch(html, /Detected during review submission|No related records currently available/);
+});
+
+test("Suspicious detail identifies missing historical evidence", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83",
+    {
+      suspiciousDetail: {
+        ...suspiciousReview,
+        text: "Review with legacy signals",
+        status: "published",
+        photos: [],
+        detection_evidence: {},
+        current_related_activity: {},
+      },
+    },
+  );
+
+  assert.match(html, /Detection-time details were not recorded for this historical review/);
+  assert.doesNotMatch(html, /Detected during review submission|Merchant Response/);
 });
 
 test("Suspicious detail shares the compact blurred review header", () => {
@@ -748,6 +1135,7 @@ test("Suspicious detail shares the compact blurred review header", () => {
   assert.match(stickyBar, /bg-background\/80/);
   assert.match(stickyBar, /backdrop-blur-md/);
   assert.match(stickyBar, /Review #<!-- -->83/);
+  assert.match(stickyBar, /Ana Cruz · Cebu Cafe/);
   assert.match(stickyBar, /Published/);
   assert.match(stickyBar, /aria-hidden="true"/);
 });
@@ -798,13 +1186,15 @@ test("Suspicious detail uses linked review identity and content context", () => 
   assert.match(header, /lucide-utensils/);
   assert.match(header, /Restaurants/);
   assert.match(header, /Oct 10, 2026 ·/);
-  assert.match(html, /lucide-quote/);
+  assert.match(html, /Full review text/);
+  assert.match(html, /Review photos \(<!-- -->1<!-- -->\)/);
+  assert.match(html, /View review photo 1/);
   assert.match(html, /lucide-thumbs-up/);
-  assert.match(html.replaceAll("<!-- -->", ""), /4 likes/);
+  assert.match(html.replaceAll("<!-- -->", ""), /4 found this helpful/);
   assert.match(html, /Edited Oct 11, 2026 ·/);
   assert.match(html, /Merchant Response/);
   assert.match(html, /Thank you for the feedback/);
-  assert.match(html, /Why It Was Flagged/);
+  assert.match(html, /Why This Review Was Flagged/);
   assert.match(html, /Current Related Activity/);
   assert.doesNotMatch(html, /User \/ Business Context/);
 });
@@ -835,8 +1225,11 @@ test("shared installation evidence shows historical and current account counts s
     },
   );
   assert.match(html, /Shared Installation \/ Accounts/);
-  assert.match(html, /4<!-- --> distinct accounts/);
-  assert.match(html, /2<!-- --> distinct accounts currently retained/);
+  assert.match(html, /Distinct accounts<\/dt>\s*<dd[^>]*>4<\/dd>/);
+  assert.match(
+    html.replaceAll("<!-- -->", ""),
+    /2<\/span>\s*accounts currently retained/,
+  );
 });
 
 test("Suspicious empty and loading states render", () => {
@@ -903,13 +1296,54 @@ test("Reported tab renders one review group, counts, reasons, and filters", () =
   assert.doesNotMatch(html, /Needs Attention/);
   assert.match(html, /Abuse/);
   assert.match(html, /Spam/);
-  assert.match(html, /Off-topic or Irrelevant/);
-  assert.match(html, /Personal or Private Information/);
+  assert.match(html, />Filter</);
   assert.match(html, /Most Reported/);
-  assert.match(html, /Oldest Report/);
-  assert.match(html, /Newest Report/);
+  assert.match(html, /aria-label="Sort reported reviews: Most Reported"/);
+  assert.match(html, /aria-haspopup="menu" aria-expanded="false"/);
   assert.match(html, /Search reported reviews/);
   assert.match(html, /Select a reported review/);
+});
+
+test("a Reported deep link selects the review's investigation", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList, reportedDetail: { ...reportedReview, text: "Full reported review", photos: [], reports: [] } },
+  );
+
+  assert.match(html, /aria-pressed="true"/);
+  assert.match(html, /Full reported review/);
+});
+
+test("a resolved Reported deep link does not invent an actionable case", () => {
+  const html = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList: { ...reportedList, items: [] }, reportedGone: 91 },
+  );
+
+  assert.match(html, /No pending reports for this review/);
+  assert.match(html, /Back to reported reviews/);
+  assert.doesNotMatch(html, /Admin Decision/);
+});
+
+test("Reported queue reuses filter chips for reason and review status", () => {
+  const html = renderToString(React.createElement(ReportedQueueFilters, {
+    search: "Cebu Cafe",
+    reason: "off_topic",
+    status: "rejected",
+    ordering: "newest",
+    onSearchChange: () => {},
+    onReasonChange: () => {},
+    onStatusChange: () => {},
+    onOrderingChange: () => {},
+  })).replaceAll("<!-- -->", "");
+
+  assert.match(html, /Report reason: Off-topic or Irrelevant/);
+  assert.match(html, /Review status: Rejected/);
+  assert.match(html, /Remove Report reason filter/);
+  assert.match(html, /Remove Review status filter/);
+  assert.match(html, /aria-label="Sort reported reviews: Newest Report"/);
+  assert.doesNotMatch(html, /<select[^>]*aria-label="Sort reported reviews"/);
+  assert.match(html, /value="Cebu Cafe"/);
 });
 
 test("Reported queue keeps report priority and neutral review context", () => {
@@ -1045,7 +1479,8 @@ test("Reported detail shows report evidence and one review-level decision", () =
   const normalizedHtml = html.replaceAll("<!-- -->", "");
 
   assert.match(html, /Full review content under investigation/);
-  assert.match(html, /Open review photo 1/);
+  assert.match(html, /View review photo 1/);
+  assert.doesNotMatch(html, /<a[^>]+href="https:\/\/example.com\/review.jpg"/);
   assert.match(html, /Community Reports/);
   assert.match(html, /Individual Reports/);
   assert.match(normalizedHtml, /3 reports/);
@@ -1113,6 +1548,7 @@ test("Reported detail shares the compact blurred review header", () => {
   assert.match(stickyBar, /bg-background\/80/);
   assert.match(stickyBar, /backdrop-blur-md/);
   assert.match(stickyBar, /Review #<!-- -->91/);
+  assert.match(stickyBar, /Ana Cruz · Cebu Cafe/);
   assert.match(stickyBar, /Published/);
   assert.match(stickyBar, /aria-hidden="true"/);
 });
@@ -1177,7 +1613,7 @@ test("Reported detail uses linked review identity and full content context", () 
   assert.match(header, /Review #<!-- -->91/);
   assert.match(header, /flex flex-wrap items-start justify-between/);
   assert.match(header, /Published/);
-  assert.match(header, /bg-emerald-500 text-white/);
+  assert.match(header, /border-success\/25 bg-success\/10 text-success/);
   assert.match(header, /src="https:\/\/example.com\/avatar.jpg"/);
   assert.match(header, /src="https:\/\/example.com\/cover.jpg"/);
   assert.match(header, /href="\/admin-panel\/users\/7"/);
@@ -1186,9 +1622,9 @@ test("Reported detail uses linked review identity and full content context", () 
   assert.match(header, /lucide-utensils/);
   assert.match(header, /Restaurants/);
   assert.match(header, /Oct 10, 2026 ·/);
-  assert.match(html, /lucide-quote/);
+  assert.doesNotMatch(html, /lucide-quote|REVIEW CONTENT/);
   assert.match(html, /lucide-thumbs-up/);
-  assert.match(html.replaceAll("<!-- -->", ""), /6 likes/);
+  assert.match(html.replaceAll("<!-- -->", ""), /6 found this helpful/);
   assert.match(html, /Edited Oct 11, 2026 ·/);
   assert.match(html, /Merchant Response/);
   assert.match(html, /We will follow up with the guest/);
@@ -1198,6 +1634,65 @@ test("Reported detail uses linked review identity and full content context", () 
   assert.match(html, /Reject Review/);
   assert.doesNotMatch(html, /Dismiss Report|Confirm Report/);
   assert.doesNotMatch(html, />Report Review #|>Author<br|>Business<br|>Submitted<br/);
+});
+
+test("Community Reports shows only pending reasons and avoids duplicate timestamps", () => {
+  const single = {
+    ...reportedReview,
+    pending_report_count: 1,
+    reason_counts: { spam: 1, abuse: 0, misinformation: 0, other: 0 },
+    first_pending_at: "2026-10-12T09:00:00Z",
+    latest_pending_at: "2026-10-12T09:00:00Z",
+    needs_attention: false,
+  };
+  const renderSummary = (review) => {
+    const html = renderPage(
+      "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+      { reportedList, reportedDetail: review },
+    );
+    return html.match(/<section aria-label="Community report summary"[^>]*>(.*?)<\/section>/s)?.[1]
+      ?.replaceAll("<!-- -->", "");
+  };
+
+  const singleSummary = renderSummary(single);
+  assert.ok(singleSummary);
+  assert.match(singleSummary, /1 pending report/);
+  assert.match(singleSummary, /Spam/);
+  assert.doesNotMatch(singleSummary, /Abuse or Harassment|False or Misleading Information|Off-topic or Irrelevant|Personal or Private Information|Other/);
+  assert.match(singleSummary, /Reported Oct 12, 2026/);
+  assert.doesNotMatch(singleSummary, /First report:|Latest report:/);
+
+  const multipleSummary = renderSummary(reportedReview);
+  assert.match(multipleSummary, /First report: Oct 11, 2026/);
+  assert.match(multipleSummary, /Latest report: Oct 12, 2026/);
+  assert.doesNotMatch(multipleSummary, /False or Misleading Information/);
+
+  const sameTimeSummary = renderSummary({
+    ...reportedReview,
+    latest_pending_at: reportedReview.first_pending_at,
+  });
+  assert.match(sameTimeSummary, /Reported Oct 11, 2026/);
+  assert.doesNotMatch(sameTimeSummary, /First report:|Latest report:/);
+});
+
+test("Reported decision stays inside the detail scroll panel with existing actions", () => {
+  const published = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList, reportedDetail: reportedReview },
+  );
+  assert.match(published, /overflow-y-auto lg:max-h-\[calc\(100vh-260px\)\]/);
+  assert.match(published, /<\/article><section aria-label="Admin decision" class="sticky bottom-0 z-20 border-t border-stroke bg-background/);
+  assert.match(published, /Keep Review/);
+  assert.match(published, /Reject Review/);
+
+  const rejected = renderPage(
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=91",
+    { reportedList, reportedDetail: { ...reportedReview, status: "rejected", pending_report_count: 1 } },
+  );
+  assert.match(rejected, /Dismiss Reports/);
+  assert.match(rejected, /Confirm Reports/);
+  assert.match(rejected, /1 remaining pending report should be confirmed or dismissed/);
+  assert.doesNotMatch(rejected, /Keep Review|Reject Review/);
 });
 
 test("Rejected reviews with pending sibling reports stay inspectable", () => {
@@ -1228,12 +1723,14 @@ test("Rejected reviews with pending sibling reports stay inspectable", () => {
   assert.match(queue, /lucide-store/);
   assert.doesNotMatch(queue, /bg-emerald-500|Published/);
   assert.match(html, /pointer-events-none sticky top-0 z-30 h-0/);
-  assert.match(html, /aria-hidden="true" class="flex h-12[^"]*backdrop-blur-md/);
+  assert.match(html, /aria-hidden="true" class="flex h-14[^"]*backdrop-blur-md/);
   assert.match(html, /Previously rejected review/);
   assert.match(html, /lucide-store/);
   assert.match(html, /rounded-full border border-stroke object-cover/);
-  assert.match(html, /Reject Review/);
-  assert.doesNotMatch(html, /Keep Review/);
+  assert.match(html, /Confirm Reports/);
+  assert.match(html, /Dismiss Reports/);
+  assert.doesNotMatch(html, /Keep Review|Reject Review/);
+  assert.match(html, /bg-primary text-white/);
   assert.doesNotMatch(html, /Needs Attention/);
 });
 
@@ -1260,11 +1757,23 @@ test("review-level dialogs explain both decisions and require notes", () => {
 
   const rejected = renderToString(React.createElement(DecisionDialog, {
     ...baseProps,
-    target: { ...baseProps.target, reviewStatus: "rejected" },
+    target: { ...baseProps.target, reviewStatus: "rejected", decision: "confirm" },
     notes: "Confirmed after reviewing content.",
   }));
-  assert.match(rejected, /This review is already rejected/);
-  assert.match(rejected, /without rejecting the review again/);
+  assert.match(rejected, /Confirm these reports\?/);
+  assert.match(rejected, /review will remain rejected/);
+  assert.match(rejected, /Confirm Reports/);
+  assert.doesNotMatch(rejected, /Reject Review|bg-red-600/);
+
+  const dismissed = renderToString(React.createElement(DecisionDialog, {
+    ...baseProps,
+    target: { ...baseProps.target, reviewStatus: "rejected", decision: "dismiss" },
+    notes: "Reports dismissed after content inspection.",
+  }));
+  assert.match(dismissed, /Dismiss these reports\?/);
+  assert.match(dismissed, /review will remain rejected/);
+  assert.match(dismissed, /Dismiss Reports/);
+  assert.doesNotMatch(dismissed, /Keep Review|Reject Review/);
 
   const kept = renderToString(React.createElement(DecisionDialog, {
     ...baseProps,
@@ -1317,12 +1826,15 @@ test("Reported loading, empty, list error, and detail error states render", () =
   ), /Unable to load this reported review/);
 });
 
-test("Disputes tab renders the existing dispute table controls", () => {
+test("Disputes tab renders the moderation queue workspace", () => {
   const html = renderPage(
     "/admin-panel/moderation-integrity?tab=disputes",
   );
 
   assert.ok(html.includes("Search review disputes"));
+  assert.ok(html.includes("Dispute Queue"));
+  assert.ok(html.includes("Select a dispute"));
+  assert.ok(!html.includes("data-table"));
   assert.ok(html.includes('aria-busy="true"'));
   assert.ok(html.includes("rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2"));
   assert.ok(html.indexOf("Under Review") < html.indexOf("Search review disputes"));

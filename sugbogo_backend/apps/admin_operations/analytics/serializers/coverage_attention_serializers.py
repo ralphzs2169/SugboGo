@@ -108,6 +108,7 @@ class LowExposureThresholdSerializer(serializers.Serializer):
     """Expose the pilot constants actually used to select candidate rows."""
 
     window_days = serializers.IntegerField()
+    policy_version = serializers.IntegerField()
     max_profile_visits = serializers.IntegerField()
     min_distinct_supporters = serializers.IntegerField()
     excludes_today = serializers.BooleanField()

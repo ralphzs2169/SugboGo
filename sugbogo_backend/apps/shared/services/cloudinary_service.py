@@ -2,11 +2,36 @@ import logging
 
 import cloudinary.uploader
 import cloudinary.utils
+from cloudinary.exceptions import NotFound
 
 logger = logging.getLogger(__name__)
 
 
 class CloudinaryService:
+
+    @staticmethod
+    def destroy_asset(
+        public_id: str,
+        resource_type: str,
+    ) -> dict:
+        """Destroy an uploaded image or raw asset and require a confirmed outcome."""
+        if not public_id or resource_type not in ("image", "raw"):
+            raise ValueError("A supported Cloudinary asset identifier is required.")
+        try:
+            result = cloudinary.uploader.destroy(
+                public_id,
+                resource_type=resource_type,
+                type="upload",
+                timeout=15,
+            )
+        except NotFound:
+            return {"result": "not found"}
+        if (
+            not isinstance(result, dict)
+            or result.get("result") not in ("ok", "not found")
+        ):
+            raise RuntimeError("Cloudinary did not confirm asset deletion.")
+        return result
 
     @staticmethod
     def upload_image(

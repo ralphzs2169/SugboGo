@@ -1,4 +1,9 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  focusManager,
+  type QueryClient,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   createContext,
   type PropsWithChildren,
@@ -11,11 +16,13 @@ import {
 } from "react";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import { getExploreBusinessDetail } from "../api/exploreBusiness.service";
 import { getBusinessReviewPreview } from "../api/reviewBusiness.service";
 import type { BusinessReview } from "../types/review.types";
 import type { BusinessReviewInsights } from "../types/exploreBusiness.types";
+import { invalidateBusinessCardCollections } from "../utils/reviewCache.utils";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
@@ -49,6 +56,124 @@ type StartSentimentSync = Omit<SentimentSyncSession, "startedAt"> & {
 };
 
 type StartGeneratedInsightsSync = GeneratedInsightsSyncSession;
+
+type PendingSynchronization = {
+  sentiment: SentimentSyncSession | null;
+  generated: GeneratedInsightsSyncSession | null;
+  sawTransition: boolean;
+};
+
+function ownsSession(userId: number) {
+  const session = useAuthStore.getState();
+  return session.isAuthenticated && session.user?.id === userId;
+}
+
+async function fetchSyncPreview(businessId: number, userId: number | null) {
+  const response = await getBusinessReviewPreview(businessId);
+  if (userId !== null && !ownsSession(userId))
+    throw new Error("Review session changed.");
+  return throwOnApiError(response);
+}
+
+async function fetchSyncDetail(businessId: number, userId: number | null) {
+  const response = await getExploreBusinessDetail(businessId);
+  if (userId !== null && !ownsSession(userId))
+    throw new Error("Review session changed.");
+  return throwOnApiError(response);
+}
+
+/** Finishes existing bounded work after navigation, without retaining screen state. */
+async function continuePendingSynchronization(
+  queryClient: QueryClient,
+  businessId: number,
+  userId: number,
+  pending: PendingSynchronization,
+) {
+  const canContinue = () =>
+    ownsSession(userId) &&
+    Boolean(
+      queryClient
+        .getQueryCache()
+        .find({ queryKey: exploreBusinessDetailKey(businessId), exact: true }),
+    );
+  while (canContinue()) {
+    if (
+      pending.sentiment &&
+      Date.now() - pending.sentiment.startedAt >= SENTIMENT_TIMEOUT_MS
+    )
+      pending.sentiment = null;
+    if (
+      pending.generated &&
+      Date.now() - pending.generated.startedAt >= GENERATED_INSIGHTS_TIMEOUT_MS
+    )
+      pending.generated = null;
+    if (!pending.sentiment && !pending.generated) return;
+
+    if (focusManager.isFocused()) {
+      try {
+        const detail = await queryClient.fetchQuery({
+          queryKey: exploreBusinessDetailKey(businessId),
+          queryFn: () => fetchSyncDetail(businessId, userId),
+          staleTime: 0,
+          retry: false,
+        });
+        if (!canContinue()) return;
+        const sentiment = pending.sentiment;
+        if (sentiment) {
+          const preview = await queryClient.fetchQuery({
+            queryKey: businessReviewPreviewKey(businessId),
+            queryFn: () => fetchSyncPreview(businessId, userId),
+            staleTime: 0,
+            retry: false,
+          });
+          if (!canContinue()) return;
+          if (
+            pending.sentiment === sentiment &&
+            isSentimentSynchronizationComplete(
+              sentiment,
+              preview.user_review,
+              detail.review_insights,
+            )
+          ) {
+            pending.sentiment = null;
+            pending.generated = {
+              baselineGeneratedAt: sentiment.baselineGeneratedAt,
+              baselineUpdatedAt: sentiment.baselineInsightsUpdatedAt,
+              baselineState: sentiment.baselineInsightsState,
+              resultNotBefore: sentiment.startedAt,
+              requiresPostMutationUpdate: true,
+              startedAt: Date.now(),
+            };
+            pending.sawTransition = false;
+            await Promise.all([
+              invalidateBusinessCardCollections(queryClient),
+              queryClient.invalidateQueries({
+                queryKey: businessReviewsKey(businessId),
+              }),
+            ]);
+          }
+        }
+        if (pending.generated) {
+          const insights = detail.review_insights;
+          if (insights?.state === "pending" || insights?.state === "outdated")
+            pending.sawTransition = true;
+          else if (
+            shouldStopGeneratedInsightsSync(
+              pending.generated,
+              insights,
+              pending.sawTransition,
+            )
+          )
+            pending.generated = null;
+        }
+      } catch {
+        // Query errors remain retryable within the original bounded sync window.
+      }
+    }
+    if (!canContinue() || (!pending.sentiment && !pending.generated)) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+}
 
 type ReviewDerivedDataSyncActions = {
   startSentimentSync: (session: StartSentimentSync) => void;
@@ -115,8 +240,7 @@ export function shouldStopGeneratedInsightsSync(
     }
 
     const baselineStateChanged = Boolean(
-      session.baselineState &&
-        session.baselineState !== "insufficient_reviews",
+      session.baselineState && session.baselineState !== "insufficient_reviews",
     );
     const hasNewUpdate = hasAdvancedTimestamp(
       insights.updated_at,
@@ -143,23 +267,53 @@ export function shouldStopGeneratedInsightsSync(
  * Coordinates short-lived review sentiment and generated-insight synchronization.
  *
  * Polling uses existing React Query resources and remains active only while this
- * provider is mounted and a successful mutation has registered pending work.
+ * provider is mounted. Pending work continues within the same deadlines after
+ * navigation and stops when the account changes or the query cache is cleared.
  */
 export function ReviewDerivedDataSyncProvider({
   businessId,
   children,
 }: PropsWithChildren<{ businessId: number }>) {
   const queryClient = useQueryClient();
+  const ownerId = useRef(useAuthStore.getState().user?.id ?? null).current;
+  const mounted = useRef(true);
+  const continuing = useRef(false);
+  const pending = useRef<PendingSynchronization>({
+    sentiment: null,
+    generated: null,
+    sawTransition: false,
+  });
   const [sentimentSession, setSentimentSession] =
     useState<SentimentSyncSession | null>(null);
   const [generatedSession, setGeneratedSession] =
     useState<GeneratedInsightsSyncSession | null>(null);
-  const sawGeneratedTransition = useRef(false);
+
+  const continueAfterUnmount = useCallback(() => {
+    if (continuing.current || ownerId === null || !ownsSession(ownerId)) return;
+    continuing.current = true;
+    void continuePendingSynchronization(
+      queryClient,
+      businessId,
+      ownerId,
+      pending.current,
+    ).finally(() => {
+      continuing.current = false;
+    });
+  }, [businessId, ownerId, queryClient]);
+
+  useEffect(() => {
+    const pendingWork = pending.current;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (pendingWork.sentiment || pendingWork.generated)
+        continueAfterUnmount();
+    };
+  }, [continueAfterUnmount]);
 
   const previewQuery = useQuery({
     queryKey: businessReviewPreviewKey(businessId),
-    queryFn: async () =>
-      throwOnApiError(await getBusinessReviewPreview(businessId)),
+    queryFn: () => fetchSyncPreview(businessId, ownerId),
     enabled: Boolean(businessId && sentimentSession),
     refetchInterval: sentimentSession ? POLL_INTERVAL_MS : false,
     refetchIntervalInBackground: false,
@@ -167,24 +321,30 @@ export function ReviewDerivedDataSyncProvider({
 
   const detailQuery = useQuery({
     queryKey: exploreBusinessDetailKey(businessId),
-    queryFn: async () =>
-      throwOnApiError(await getExploreBusinessDetail(businessId)),
+    queryFn: () => fetchSyncDetail(businessId, ownerId),
     enabled: Boolean(businessId && (sentimentSession || generatedSession)),
     refetchInterval:
       sentimentSession || generatedSession ? POLL_INTERVAL_MS : false,
     refetchIntervalInBackground: false,
   });
 
-  const startSentimentSync = useCallback((session: StartSentimentSync) => {
-    setSentimentSession(session);
-  }, []);
+  const startSentimentSync = useCallback(
+    (session: StartSentimentSync) => {
+      pending.current.sentiment = session;
+      if (mounted.current) setSentimentSession(session);
+      else continueAfterUnmount();
+    },
+    [continueAfterUnmount],
+  );
 
   const startGeneratedInsightsSync = useCallback(
     (session: StartGeneratedInsightsSync) => {
-      sawGeneratedTransition.current = false;
-      setGeneratedSession(session);
+      pending.current.sawTransition = false;
+      pending.current.generated = session;
+      if (mounted.current) setGeneratedSession(session);
+      else continueAfterUnmount();
     },
-    [],
+    [continueAfterUnmount],
   );
 
   useEffect(() => {
@@ -204,6 +364,7 @@ export function ReviewDerivedDataSyncProvider({
     }
 
     // Query data is the external completion signal for this polling session.
+    pending.current.sentiment = null;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSentimentSession(null);
     startGeneratedInsightsSync({
@@ -216,6 +377,7 @@ export function ReviewDerivedDataSyncProvider({
     });
 
     void Promise.all([
+      invalidateBusinessCardCollections(queryClient),
       queryClient.invalidateQueries({
         queryKey: exploreBusinessDetailKey(businessId),
       }),
@@ -238,6 +400,8 @@ export function ReviewDerivedDataSyncProvider({
     }
 
     const timeout = setTimeout(() => {
+      if (pending.current.sentiment?.startedAt === sentimentSession.startedAt)
+        pending.current.sentiment = null;
       setSentimentSession((current) =>
         current?.startedAt === sentimentSession.startedAt ? null : current,
       );
@@ -260,7 +424,7 @@ export function ReviewDerivedDataSyncProvider({
       insights.state === "outdated" || insights.state === "pending";
 
     if (isTransition) {
-      sawGeneratedTransition.current = true;
+      pending.current.sawTransition = true;
       return;
     }
 
@@ -268,10 +432,11 @@ export function ReviewDerivedDataSyncProvider({
       shouldStopGeneratedInsightsSync(
         generatedSession,
         insights,
-        sawGeneratedTransition.current,
+        pending.current.sawTransition,
       )
     ) {
       // Query data is the external completion signal for this polling session.
+      pending.current.generated = null;
       setGeneratedSession(null);
     }
   }, [detailQuery.data, generatedSession]);
@@ -282,6 +447,8 @@ export function ReviewDerivedDataSyncProvider({
     }
 
     const timeout = setTimeout(() => {
+      if (pending.current.generated?.startedAt === generatedSession.startedAt)
+        pending.current.generated = null;
       setGeneratedSession((current) =>
         current?.startedAt === generatedSession.startedAt ? null : current,
       );

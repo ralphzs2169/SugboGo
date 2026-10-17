@@ -12,6 +12,8 @@ import {
 } from "@/shared/api/storage.service";
 import { queryClient } from "@/shared/query/queryClient";
 import { useAuthStore } from "../store/auth.store";
+import { clearOfflineAccess } from "@/features/offline-routes/services/offlineAccess.service";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 
 /**
  * Persists an authenticated session.
@@ -27,6 +29,8 @@ export async function establishSession(response: AuthResponse): Promise<void> {
   useAppModeStore.getState().resetActiveMode();
 
   try {
+    await clearOfflineAccess();
+
     const didPersist = await saveSessionTokens(
       response.access,
       response.refresh,
@@ -38,6 +42,7 @@ export async function establishSession(response: AuthResponse): Promise<void> {
     }
 
     useAuthStore.getState().setUser(response.user);
+    useOfflineAccessStore.getState().setRevoking(false);
   } catch (error) {
     if (isAuthSessionCurrent(generation)) {
       const cleanupGeneration = invalidateAuthSession();

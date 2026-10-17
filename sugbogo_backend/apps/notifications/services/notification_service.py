@@ -1,8 +1,10 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.notifications.models import Notification
+from apps.review_disputes.models import MerchantReviewDispute
 from apps.notifications.services.notification_realtime_service import (
     NotificationRealtimeService,
 )
@@ -55,12 +57,34 @@ class NotificationService:
         return notification
 
     @staticmethod
-    def queryset(user, *, is_read=None):
+    def queryset(
+        user,
+        *,
+        is_read=None,
+    ):
         """Return only the recipient's notifications in stable newest-first order."""
-        queryset = Notification.objects.filter(USER_ID=user)
+        queryset = Notification.objects.filter(USER_ID=user).annotate(
+            _review_dispute_target_exists=Exists(
+                MerchantReviewDispute.objects.filter(
+                    pk=OuterRef("NOTF_TARGET_ID"),
+                    USER_ID_id=OuterRef("USER_ID_id"),
+                ),
+            ),
+        )
         if is_read is not None:
             queryset = queryset.filter(NOTF_READ_AT__isnull=not is_read)
         return queryset
+
+    @staticmethod
+    def has_review_dispute_target(notification: Notification) -> bool:
+        """Check recipient ownership using inbox annotations or a single-object lookup."""
+        available = getattr(notification, "_review_dispute_target_exists", None)
+        if available is not None:
+            return available
+        return MerchantReviewDispute.objects.filter(
+            pk=notification.NOTF_TARGET_ID,
+            USER_ID_id=notification.USER_ID_id,
+        ).exists()
 
     @staticmethod
     def unread_count(user):

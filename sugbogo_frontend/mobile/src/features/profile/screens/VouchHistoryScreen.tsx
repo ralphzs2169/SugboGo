@@ -1,232 +1,359 @@
-import { View, Text, FlatList, Pressable, TextInput } from "react-native";
-import { useState, useMemo } from "react";
-import { Stack } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import VouchHistoryItem from "@/features/profile/components/vouch-history/VouchHistoryItem";
-import EditVouchModal from "@/features/profile/components/vouch-history/EditVouchModal";
+import { router, Stack } from "expo-router";
+import LottieView from "lottie-react-native";
+import { useRef, useState } from "react";
+import { FlatList, RefreshControl, View } from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+
 import { theme } from "@/constants/theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import useBusinessVouch from "@/features/explore/hooks/useBusinessVouch";
+import type { ExploreBusinessSpecialtyTag } from "@/features/explore/types/exploreBusiness.types";
+import loadingAnimation from "@/shared/assets/animations/loading.json";
+import AppText from "@/shared/components/AppText";
+import EndOfListMessage from "@/shared/components/EndOfListMessage";
+import ErrorState from "@/shared/components/ErrorState";
+import SafePressable from "@/shared/components/SafePressable";
+import Skeleton from "@/shared/components/Skeleton";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
+import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import { handleSystemError } from "@/shared/utils/apiErrors";
 
-const MOCK_VOUCHES = [
-  {
-    id: "1",
-    msmeName: "Danao Weaves & Crafts",
-    photoUrl:
-      "https://images.unsplash.com/photo-1528812969535-4bcefb361402?w=200&h=200&fit=crop",
-    category: "Handicrafts",
-    tag: "Heritage Craft",
-    availableTags: ["Heritage Craft", "Artisanal Product", "Family Business"],
-    date: "Jul 21, 2026",
-  },
-  {
-    id: "2",
-    msmeName: "Barako Brew Café",
-    photoUrl:
-      "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&h=200&fit=crop",
-    category: "Café & Coffee",
-    tag: "Local Ingredient",
-    availableTags: [
-      "Local Ingredient",
-      "Traditional Recipe",
-      "Family Business",
-    ],
-    date: "Jul 22, 2026",
-  },
-  {
-    id: "3",
-    msmeName: "Maribago Bluewater Spa",
-    photoUrl:
-      "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=200&h=200&fit=crop",
-    category: "Wellness & Spa",
-    tag: "Nature Spot",
-    availableTags: ["Nature Spot", "Artisanal Product"],
-    date: "Jul 24, 2026",
-  },
-  {
-    id: "4",
-    msmeName: "Oslob Shell Craft Studio",
-    photoUrl:
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200&h=200&fit=crop",
-    category: "Souvenirs",
-    tag: "Artisanal Product",
-    availableTags: ["Artisanal Product", "Heritage Craft", "Family Business"],
-    date: "Jul 25, 2026",
-  },
-  {
-    id: "5",
-    msmeName: "Carcar Lechon House",
-    photoUrl:
-      "https://images.unsplash.com/photo-1544025162-d76694265947?w=200&h=200&fit=crop",
-    category: "Food & Dining",
-    tag: "Traditional Recipe",
-    availableTags: [
-      "Traditional Recipe",
-      "Local Ingredient",
-      "Family Business",
-    ],
-    date: "Jul 26, 2026",
-  },
-];
+import BusinessesVouchedIllustration from "../assets/businesses-vouched.svg";
+import SpecialtyVouchesIllustration from "../assets/specialty-vouches.svg";
+import ManageVouchBottomSheet from "../components/vouch-history/ManageVouchBottomSheet";
+import VouchHistoryEmptyState from "../components/vouch-history/VouchHistoryEmptyState";
+import VouchHistoryItem from "../components/vouch-history/VouchHistoryItem";
+import VouchHistorySkeleton from "../components/vouch-history/VouchHistorySkeleton";
+import useVouchHistory from "../hooks/useVouchHistory";
+import type {
+  VouchHistoryBusiness,
+  VouchHistoryOrdering,
+} from "../types/vouchHistory.types";
 
+function VouchSeparator() {
+  return <View className="mx-4 h-px bg-border-primary" />;
+}
+
+/**
+ * Displays backend-grouped vouch history and full-history totals.
+ *
+ * Presents illustrated summary cards consistent with Merchant Business
+ * Overview while preserving pagination, sorting, refresh, and vouch management.
+ */
 export default function VouchHistoryScreen() {
-  const [vouches, setVouches] = useState(MOCK_VOUCHES);
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [editingVouchId, setEditingVouchId] = useState<string | null>(null);
+  const [ordering, setOrdering] = useState<VouchHistoryOrdering>("newest");
+  const [selectedBusiness, setSelectedBusiness] =
+    useState<VouchHistoryBusiness | null>(null);
+  const [pendingBusinessId, setPendingBusinessId] = useState<number | null>(
+    null,
+  );
 
+  const requestPendingRef = useRef(false);
+
+  // Pin the mutation target until settlement, even if selection changes.
+  const { vouch } = useBusinessVouch({
+    businessId: pendingBusinessId ?? selectedBusiness?.business_id ?? 0,
+  });
+
+  const history = useVouchHistory(ordering);
   const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList<VouchHistoryBusiness>>(null);
+  const nextPagePendingRef = useRef(false);
 
-  const filteredVouches = useMemo(() => {
-    if (!searchQuery.trim()) return vouches;
-    return vouches.filter((v) =>
-      v.msmeName.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [vouches, searchQuery]);
+  useQueryErrorNotification({
+    error: history.error,
+    toastId: "vouch-history-error",
+    title: "Unable to load vouch history",
+    fallbackMessage: "Please try again.",
+  });
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id],
-    );
-  };
+  function changeOrdering(value: VouchHistoryOrdering) {
+    setOrdering(value);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }
 
-  const allSelected =
-    filteredVouches.length > 0 && selectedIds.length === filteredVouches.length;
+  async function toggleSpecialty(tag: ExploreBusinessSpecialtyTag) {
+    if (requestPendingRef.current || !selectedBusiness) return;
 
-  const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? [] : filteredVouches.map((v) => v.id));
-  };
+    requestPendingRef.current = true;
+    setPendingBusinessId(selectedBusiness.business_id);
 
-  const handleDeleteSelected = () => {
-    setVouches((prev) => prev.filter((v) => !selectedIds.includes(v.id)));
-    setSelectedIds([]);
-    setIsEditing(false);
-  };
+    try {
+      await vouch({
+        tagId: tag.id,
+        isVouched: tag.is_vouched,
+      });
 
-  const handleTagChange = (newTag: string) => {
-    setVouches((prev) =>
-      prev.map((v) => (v.id === editingVouchId ? { ...v, tag: newTag } : v)),
-    );
-    setEditingVouchId(null);
-  };
+      Toast.show({
+        type: "info",
+        text1: tag.is_vouched ? "Vouch removed" : `Vouched for ${tag.name}`,
+        visibilityTime: 1500,
+      });
+    } catch (error) {
+      const response = error as ApiResponse<unknown>;
 
-  const editingVouch = vouches.find((v) => v.id === editingVouchId);
+      if (!response.success && !handleSystemError(response)) {
+        Toast.show({
+          type: "error",
+          text1: "Unable to update vouch",
+          text2: response.message || "Please try again.",
+        });
+      }
+    } finally {
+      requestPendingRef.current = false;
+      setPendingBusinessId(null);
+    }
+  }
+
+  function loadNextPage() {
+    if (
+      nextPagePendingRef.current ||
+      history.isFetching ||
+      !history.hasNextPage
+    ) {
+      return;
+    }
+
+    nextPagePendingRef.current = true;
+
+    void history.fetchNextPage().finally(() => {
+      nextPagePendingRef.current = false;
+    });
+  }
+
+  const initialError = Boolean(history.error) && !history.hasData;
+
+  const refreshError =
+    Boolean(history.error) && history.hasData && !history.isFetchNextPageError;
+
+  const showEnd =
+    history.businesses.length >= 5 &&
+    !history.hasNextPage &&
+    !history.isFetching &&
+    !history.error;
 
   return (
-    <View className="flex-1 bg-background">
+    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-background">
       <Stack.Screen
         options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
           title: "Vouch History",
-          headerRight: () => (
-            <Pressable
-              onPress={() => {
-                setIsEditing((prev) => !prev);
-                setSelectedIds([]);
-              }}
-            >
-              <Text className="text-brand font-semibold">
-                {isEditing ? "Done" : "Edit"}
-              </Text>
-            </Pressable>
-          ),
         }}
       />
 
-      <View className="flex-row items-center rounded-md bg-surface border border-brand mx-4 mt-4 px-3 py-2">
-        <MaterialCommunityIcons
-          name="magnify"
-          size={18}
-          color={theme.extends.colors.text.tertiary}
-        />
-        <TextInput
-          className="ml-2 flex-1 text-sm text-text-primary"
-          placeholder="Search vouched MSMEs..."
-          placeholderTextColor={theme.extends.colors.text.tertiary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+      {/* Summary totals and sorting controls */}
+      <View className="px-4 pb-4 pt-4">
+        {history.summary ? (
+          <View className="flex-row gap-2">
+            {[
+              {
+                key: "businesses",
+                Icon: BusinessesVouchedIllustration,
+                label: "Businesses vouched",
+                value: String(history.summary.total_businesses),
+                testID: "history-business-total",
+              },
+              {
+                key: "specialties",
+                Icon: SpecialtyVouchesIllustration,
+                label: "Specialty vouches",
+                value: String(history.summary.total_specialty_vouches),
+                testID: "history-specialty-total",
+              },
+            ].map((item) => (
+              <View
+                key={item.key}
+                className="min-w-0 flex-1 rounded-xl border border-border-primary/70 bg-surface px-3 py-3"
+              >
+                {/* Illustrated metric icon */}
+                <View className="h-10 w-10 items-center justify-center">
+                  <item.Icon width={40} height={40} />
+                </View>
+
+                {/* Metric label */}
+                <AppText
+                  className="mt-3 text-xs text-text-secondary"
+                  numberOfLines={2}
+                >
+                  {item.label}
+                </AppText>
+
+                {/* Metric value */}
+                <AppText
+                  weight="semibold"
+                  className="mt-0.5 text-sm text-text-primary"
+                  testID={item.testID}
+                >
+                  {item.value}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        ) : history.isLoading ? (
+          <Skeleton className="h-12 w-4/5 rounded-md" />
+        ) : null}
+
+        {/* Compact segmented sorting control */}
+        <View className="mt-4 flex-row rounded-full bg-surface-muted p-xs">
+          {(["newest", "oldest"] as const).map((value) => {
+            const selected = ordering === value;
+            const label = value === "newest" ? "Newest" : "Oldest";
+
+            return (
+              <SafePressable
+                key={value}
+                onPress={() => changeOrdering(value)}
+                accessibilityLabel={`Sort history by ${label}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                hitSlop={{ top: 4, bottom: 4 }}
+                className={`min-h-[40px] min-w-0 flex-1 cursor-pointer flex-row items-center justify-center gap-xs rounded-full px-sm py-sm active:opacity-75 ${
+                  selected ? "bg-brand" : "bg-surface-muted"
+                }`}
+              >
+                {selected && (
+                  <MaterialCommunityIcons
+                    name="check"
+                    size={14}
+                    color={theme.extends.colors.surface}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+                )}
+
+                <AppText
+                  weight={selected ? "semibold" : "medium"}
+                  className={`text-small ${
+                    selected ? "text-white" : "text-text-primary"
+                  }`}
+                >
+                  {label}
+                </AppText>
+              </SafePressable>
+            );
+          })}
+        </View>
       </View>
 
+      {/* Business history list and request recovery */}
       <FlatList
-        contentContainerClassName="p-4 pb-24"
-        data={filteredVouches}
-        keyExtractor={(item) => item.id}
+        ref={listRef}
+        testID="vouch-history-list"
+        data={history.businesses}
+        keyExtractor={(business) => String(business.id)}
+        ItemSeparatorComponent={VouchSeparator}
         renderItem={({ item }) => (
           <VouchHistoryItem
-            msmeName={item.msmeName}
-            photoUrl={item.photoUrl}
-            category={item.category}
-            tag={item.tag}
-            date={item.date}
-            isEditing={isEditing}
-            isSelected={selectedIds.includes(item.id)}
-            onSelect={() => toggleSelect(item.id)}
-            onEdit={() => setEditingVouchId(item.id)}
-            onDelete={() =>
-              setVouches((prev) => prev.filter((v) => v.id !== item.id))
+            business={item}
+            onManage={() => setSelectedBusiness(item)}
+            onOpenBusiness={() =>
+              router.push({
+                pathname: "/(explorer)/business/[businessId]",
+                params: {
+                  businessId: String(item.business_id),
+                },
+              })
             }
           />
         )}
+        ListHeaderComponent={
+          refreshError ? (
+            <View className="mb-3">
+              <ErrorState
+                size="section"
+                title="Unable to refresh history"
+                description="Your loaded history is still available."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void history.refetch()}
+              />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          <Text className="mt-8 text-center text-text-tertiary">
-            No vouches yet.
-          </Text>
+          history.isLoading ? (
+            <VouchHistorySkeleton />
+          ) : initialError ? (
+            <View className="min-h-[360px]">
+              <ErrorState
+                title="Unable to load vouch history"
+                description="Please try again to load your endorsements."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void history.refetch()}
+              />
+            </View>
+          ) : (
+            <VouchHistoryEmptyState />
+          )
+        }
+        ListFooterComponent={
+          history.isFetchingNextPage ? (
+            <View
+              className="items-center py-5"
+              testID="vouch-history-page-loader"
+            >
+              <LottieView
+                source={loadingAnimation}
+                autoPlay
+                loop
+                style={{
+                  width: 50,
+                  height: 50,
+                }}
+              />
+            </View>
+          ) : history.isFetchNextPageError ? (
+            <ErrorState
+              size="section"
+              title="Unable to load more history"
+              description="Your loaded businesses are still available."
+              primaryActionTitle="Retry next page"
+              onPrimaryAction={loadNextPage}
+            />
+          ) : showEnd ? (
+            <EndOfListMessage />
+          ) : null
+        }
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 24),
+        }}
+        onEndReached={() => {
+          if (!history.isFetchNextPageError) {
+            loadNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.35}
+        refreshControl={
+          <RefreshControl
+            refreshing={history.isRefetching && !history.isFetchingNextPage}
+            onRefresh={() => {
+              if (!history.isFetching) {
+                void history.refetch();
+              }
+            }}
+            tintColor={theme.extends.colors.brand}
+          />
         }
       />
 
-      {isEditing && (
-        <View
-          className="absolute bottom-0 left-0 right-0 flex-row items-center justify-between bg-surface px-4 pt-4 border-t border-border"
-          style={{ paddingBottom: insets.bottom + 16 }}
-        >
-          <Pressable
-            onPress={toggleSelectAll}
-            className="flex-row items-center"
-            hitSlop={8}
-          >
-            <View
-              className={`mr-2 h-5 w-5 items-center justify-center rounded border ${
-                allSelected ? "bg-brand border-brand" : "border-border"
-              }`}
-            >
-              {allSelected && (
-                <MaterialCommunityIcons
-                  name="check"
-                  size={14}
-                  color="#FFFFFF"
-                />
-              )}
-            </View>
-            <Text className="text-text-primary">All</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleDeleteSelected}
-            disabled={selectedIds.length === 0}
-            className={`rounded-md px-6 py-2 ${
-              selectedIds.length === 0 ? "bg-disabled" : "bg-brand"
-            }`}
-          >
-            <Text
-              className={`font-semibold ${
-                selectedIds.length === 0 ? "text-text-tertiary" : "text-white"
-              }`}
-            >
-              Delete
-            </Text>
-          </Pressable>
-        </View>
-      )}
-
-      {editingVouch && (
-        <EditVouchModal
-          visible={!!editingVouchId}
-          currentTag={editingVouch.tag}
-          availableTags={editingVouch.availableTags}
-          onConfirm={handleTagChange}
-          onClose={() => setEditingVouchId(null)}
+      {/* Screen-owned vouch management */}
+      {selectedBusiness && (
+        <ManageVouchBottomSheet
+          key={selectedBusiness.business_id}
+          selectedBusiness={selectedBusiness}
+          isMutationPending={pendingBusinessId !== null}
+          onToggleSpecialty={toggleSpecialty}
+          onDismiss={() => setSelectedBusiness(null)}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }

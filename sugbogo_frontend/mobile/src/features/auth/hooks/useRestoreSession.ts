@@ -5,6 +5,7 @@ import {
   beginAuthSession,
   invalidateAuthSession,
   isAuthSessionCurrent,
+  isAuthSessionGenerationCurrent,
 } from "@/shared/api/authSessionGeneration.service";
 import {
   clearSessionTokens,
@@ -12,6 +13,12 @@ import {
 } from "@/shared/api/storage.service";
 import { getCurrentUser } from "../api/auth.service";
 import { useAuthStore } from "../store/auth.store";
+import { isTransportError } from "@/shared/utils/isTransportError";
+import {
+  clearOfflineAccess,
+  getOfflineOwner,
+} from "@/features/offline-routes/services/offlineAccess.service";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 
 /**
  * Restores the user's authentication session when the application starts.
@@ -32,36 +39,49 @@ export function useRestoreSession() {
     hasRestored.current = true;
 
     async function restoreSession() {
-      let restoreGeneration: number | null = null;
+      // Claim startup before reading storage so a later login or logout wins.
+      const restoreGeneration = beginAuthSession();
 
       try {
         const token = await getAccessToken();
 
-        if (!token) {
-          clearUser();
-          useAppModeStore.getState().resetActiveMode();
+        if (!isAuthSessionCurrent(restoreGeneration)) {
           return;
         }
 
-        restoreGeneration = beginAuthSession();
-        useAppModeStore.getState().resetActiveMode();
+        if (!token) {
+          invalidateAuthSession();
+          clearUser();
+          useAppModeStore.getState().resetActiveMode();
+          await clearOfflineAccess();
+          return;
+        }
 
+        useAppModeStore.getState().resetActiveMode();
         const user = await getCurrentUser();
 
         if (isAuthSessionCurrent(restoreGeneration)) {
           setUser(user);
+          useOfflineAccessStore.getState().setOwnerId(null);
+          useOfflineAccessStore.getState().setRevoking(false);
         }
       } catch (error) {
-        console.error(" Session restore failed:", error);
+        if (!isAuthSessionCurrent(restoreGeneration)) {
+          return;
+        }
 
-        if (
-          restoreGeneration === null ||
-          isAuthSessionCurrent(restoreGeneration)
-        ) {
-          const cleanupGeneration = invalidateAuthSession();
+        const cleanupGeneration = invalidateAuthSession();
+        clearUser();
+        useAppModeStore.getState().resetActiveMode();
 
-          clearUser();
-          useAppModeStore.getState().resetActiveMode();
+        if (isTransportError(error)) {
+          // Local guidance access never authenticates protected routes.
+          const ownerId = await getOfflineOwner().catch(() => null);
+
+          if (isAuthSessionGenerationCurrent(cleanupGeneration)) {
+            useOfflineAccessStore.getState().setOwnerId(ownerId);
+          }
+        } else {
           await clearSessionTokens(cleanupGeneration);
         }
       } finally {
@@ -69,6 +89,8 @@ export function useRestoreSession() {
       }
     }
 
-    restoreSession();
+    void restoreSession().catch(() => {
+      // Runtime state was revoked before cleanup; never clear a newer session.
+    });
   }, [clearUser, setLoading, setUser]);
 }

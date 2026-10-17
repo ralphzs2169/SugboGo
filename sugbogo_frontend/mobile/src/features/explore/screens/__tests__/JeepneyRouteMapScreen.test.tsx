@@ -16,6 +16,7 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("@/shared/hooks/useUserLocation");
 jest.mock("react-native-safe-area-context", () => ({
+  ...jest.requireActual("react-native-safe-area-context"),
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
@@ -43,6 +44,10 @@ jest.mock(
 );
 
 const refetch = jest.fn();
+jest.mock(
+  "@/features/offline-routes/components/SaveOfflineJourneyButton",
+  () => () => null,
+);
 const journey: DirectJourneyMapGuidance = {
   jeepney_route_code: "14D",
   route_variant: {
@@ -138,7 +143,8 @@ describe("JeepneyRouteMapScreen", () => {
     expect(screen.getByText("Capitol")).toBeTruthy();
     expect(screen.getByText("Colon")).toBeTruthy();
     expect(screen.getByText("Near Gaisano Capital South")).toBeTruthy();
-    expect(screen.getAllByText("Current location")).toHaveLength(2);
+    expect(screen.getByText("Starting point")).toBeTruthy();
+    expect(screen.getByText("Current location")).toBeTruthy();
   });
 
   it("uses and labels the confirmed manual journey origin", async () => {

@@ -1,84 +1,245 @@
-import { View, TextInput, Pressable, Text, ScrollView } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { theme } from "@/constants/theme";
+import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const FILTERS = [
-  { label: "Near Me", icon: "crosshairs-gps" as const },
-  { label: "Open Now", icon: "clock-outline" as const },
-  { label: "Top Rated", icon: "star-outline" as const },
-];
+import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import { shadows } from "@/shared/styles/shadows";
+import { GEM_ACCENT, GEM_FILL } from "@/shared/styles/hiddenGems";
+import type { MapDiscoveryFilters } from "../types/mapDiscovery.types";
+
+type QuickFilterKey = "hiddenGems" | "openNow";
 
 type Props = {
-  activeFilters: string[];
-  onToggleFilter: (label: string) => void;
+  filters: MapDiscoveryFilters;
+  filterCount: number;
+  onSearch: () => void;
+  onFilters: () => void;
+  onToggleQuick: (key: QuickFilterKey) => void;
+  onClear: () => void;
+  disabled?: boolean;
+  hideQuickFilters?: boolean;
+  onHeaderLayout?: (bottom: number) => void;
 };
 
+/** Adds transparency to a 6-digit hex color; other formats pass through. */
+function withAlpha(color: string, alpha: number) {
+  const hex = color.replace("#", "");
+  if (hex.length !== 6) {
+    return color;
+  }
 
-export default function MapSearchOverlay({ activeFilters, onToggleFilter }: Props) {
+  const channel = Math.round(alpha * 255)
+    .toString(16)
+    .padStart(2, "0");
+
+  return `#${hex}${channel}`;
+}
+
+const BRAND = theme.extends.colors.brand;
+
+// Each quick filter owns its accent so Hidden Gems matches the map's gem color.
+const QUICK_FILTERS = [
+  {
+    key: "hiddenGems",
+    label: "Hidden Gems",
+    icon: "diamond-stone",
+    accent: GEM_ACCENT,
+    border: GEM_FILL,
+    tint: withAlpha(GEM_FILL, 0.12),
+  },
+  {
+    key: "openNow",
+    label: "Open Now",
+    icon: "clock-outline",
+    accent: BRAND,
+    border: BRAND,
+    tint: withAlpha(BRAND, 0.1),
+  },
+] as const;
+
+const CHIP_SHADOW = {
+  shadowColor: "#000",
+  shadowOpacity: 0.08,
+  shadowRadius: 4,
+  shadowOffset: { width: 0, height: 1 },
+  elevation: 2,
+} as const;
+
+/** Combines independent search and taxonomy actions above compact quick filters. */
+export default function MapSearchOverlay({
+  filters,
+  filterCount,
+  onSearch,
+  onFilters,
+  onToggleQuick,
+  onClear,
+  disabled = false,
+  hideQuickFilters = false,
+  onHeaderLayout,
+}: Props) {
   const insets = useSafeAreaInsets();
+  const advancedFilterCount =
+    filters.categoryIds.length +
+    Number(filters.clusterId !== null) +
+    Number(filters.specialtyTagId !== null);
+
   return (
-    <View 
-    className="absolute left-0 right-0 top-0 px-screen-x"
-    style={{ paddingTop: insets.top + 12 }}
->
+    <View
+      className="absolute left-0 right-0 top-0 px-screen-x"
+      style={{ paddingTop: insets.top + 12 }}
+      pointerEvents="box-none"
+    >
+      {/* Global registered-business search */}
       <View
-        className="flex-row items-center rounded-input bg-surface px-md py-sm"
-        style={{ elevation: 4 }}
+        className="flex-row items-center overflow-hidden rounded-full border border-border-primary bg-surface"
+        testID="map-search-header"
+        style={shadows.floating}
+        onLayout={(event) => {
+          const { y, height } = event.nativeEvent.layout;
+          onHeaderLayout?.(y + height);
+        }}
       >
-        <MaterialCommunityIcons
-          name="magnify"
-          size={18}
-          color={theme.extends.colors.text.tertiary}
-        />
-        <TextInput
-          className="ml-sm flex-1 text-body text-text-primary"
-          placeholder="Find hidden gems near you..."
-          placeholderTextColor={theme.extends.colors.text.tertiary}
-        />
-        <Pressable hitSlop={8}>
+        <Pressable
+          onPress={onSearch}
+          accessibilityRole="button"
+          accessibilityLabel="Search SugboGo businesses"
+          className="min-h-12 min-w-0 flex-1 flex-row items-center px-4 active:bg-surface-secondary"
+        >
+          <MaterialCommunityIcons
+            name="magnify"
+            size={21}
+            color={theme.extends.colors.text.secondary}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+          <AppText
+            className="ml-3 min-w-0 flex-1 text-sm text-text-secondary"
+            numberOfLines={1}
+          >
+            Search SugboGo businesses
+          </AppText>
+        </Pressable>
+        <View className="h-6 w-px bg-border-primary" />
+        <Pressable
+          onPress={onFilters}
+          accessibilityRole="button"
+          accessibilityLabel={`Map filters${advancedFilterCount ? `, ${advancedFilterCount} active` : ""}`}
+          accessibilityState={{ selected: advancedFilterCount > 0 }}
+          className="h-12 w-12 items-center justify-center active:bg-surface-secondary"
+        >
           <MaterialCommunityIcons
             name="tune-variant"
-            size={18}
-            color={theme.extends.colors.brand}
+            size={21}
+            color={
+              advancedFilterCount > 0
+                ? BRAND
+                : theme.extends.colors.text.secondary
+            }
+            accessibilityElementsHidden
+            importantForAccessibility="no"
           />
+          {/* Active-count badge instead of an unlabeled dot */}
+          {advancedFilterCount > 0 && (
+            <View
+              className="absolute right-1.5 top-1.5 h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1"
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            >
+              <AppText
+                weight="bold"
+                className="text-[10px] leading-3 text-white"
+                style={{ includeFontPadding: false }}
+              >
+                {advancedFilterCount}
+              </AppText>
+            </View>
+          )}
         </Pressable>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="mt-sm flex-none"
-        contentContainerClassName="gap-sm"
-      >
-        {FILTERS.map((filter) => {
-          const isActive = activeFilters.includes(filter.label);
-          return (
+      {/* Quick filters collapse independently of the persistent search/filter bar. */}
+      {!hideQuickFilters && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          // Bleed to the screen edges so chips scroll under the gutter
+          // instead of being clipped at the padding.
+          className="-mx-screen-x mt-2 flex-none"
+          contentContainerClassName="gap-2 px-screen-x py-1"
+          keyboardShouldPersistTaps="handled"
+        >
+          {QUICK_FILTERS.map((filter) => {
+            const isActive = filters[filter.key];
+
+            return (
+              <Pressable
+                key={filter.key}
+                onPress={() => onToggleQuick(filter.key)}
+                disabled={disabled}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel={filter.label}
+                accessibilityState={{ selected: isActive, disabled }}
+                className={`min-h-10 flex-row items-center gap-1.5 rounded-full border px-3.5 active:opacity-70 ${disabled ? "opacity-50" : ""}`}
+                style={[
+                  CHIP_SHADOW,
+                  {
+                    backgroundColor: isActive
+                      ? filter.tint
+                      : theme.extends.colors.surface,
+                    borderColor: isActive
+                      ? filter.border
+                      : theme.extends.colors.border.primary,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={isActive ? "check-circle" : filter.icon}
+                  size={18}
+                  color={filter.accent}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
+                <AppText
+                  weight="semibold"
+                  className="text-sm text-text-primary"
+                >
+                  {filter.label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+
+          {filterCount > 0 && (
             <Pressable
-              key={filter.label}
-              onPress={() => onToggleFilter(filter.label)}
-              className={`flex-row items-center rounded-tag px-md py-sm ${
-                isActive
-                  ? "bg-brand"
-                  : "bg-surface border border-text-primary"
-              }`}
+              onPress={onClear}
+              disabled={disabled}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={`Clear ${filterCount} map ${filterCount === 1 ? "filter" : "filters"}`}
+              accessibilityState={{ disabled }}
+              className={`min-h-10 flex-row items-center gap-1 rounded-full bg-surface px-3.5 active:opacity-70 ${disabled ? "opacity-50" : ""}`}
+              style={CHIP_SHADOW}
             >
               <MaterialCommunityIcons
-                name={filter.icon}
+                name="close"
                 size={16}
-                color={isActive ? "#FFFFFF" : theme.extends.colors.text.primary}
+                color={theme.extends.colors.text.secondary}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
               />
-              <Text
-                className={`ml-xs text-small font-medium ${
-                  isActive ? "text-white" : "text-text-primary"
-                }`}
+              <AppText
+                weight="semibold"
+                className="text-sm text-text-secondary"
               >
-                {filter.label}
-              </Text>
+                Clear
+              </AppText>
             </Pressable>
-          );
-        })}
-      </ScrollView>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }

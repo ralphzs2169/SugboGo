@@ -3,7 +3,7 @@ from apps.users.models import User
 
 
 class AdminActivityService:
-    """Creates and queries administrative actions involving users."""
+    """Creates and queries administrative and moderation history involving users."""
 
     @staticmethod
     def record_user_action(
@@ -13,7 +13,7 @@ class AdminActivityService:
         action: str,
         context: dict | None = None,
     ) -> AdminActivity:
-        """Persists one administrator action against a target user."""
+        """Persist an audited action with the actual acting user and target."""
         return AdminActivity.objects.create(
             ACTOR_ID=actor,
             TARGET_USER_ID=target_user,
@@ -23,7 +23,7 @@ class AdminActivityService:
 
     @staticmethod
     def list_for_user(user: User):
-        """Returns newest-first administrative history for a target user."""
+        """Return newest-first administrative and moderation history for a user."""
         return (
             AdminActivity.objects
             .filter(

@@ -1,3 +1,8 @@
+import {
+  retainClusterCategoryIds,
+  toggleCategoryId,
+} from "@/shared/utils/taxonomyFilters";
+
 import type {
   ExploreFilterCategory,
   ExploreResultsCriteria,
@@ -8,15 +13,10 @@ export function applyClusterSelection(
   clusterId: number | null,
   categories: ExploreFilterCategory[],
 ) {
-  const categoryIds = clusterId === null
-    ? []
-    : criteria.categoryIds.filter((categoryId) =>
-        categories.some(
-          (category) =>
-            category.id === categoryId &&
-            category.cluster_id === clusterId,
-        ),
-      );
+  const categoryIds =
+    clusterId === null
+      ? []
+      : retainClusterCategoryIds(criteria.categoryIds, clusterId, categories);
 
   return {
     ...criteria,
@@ -29,13 +29,9 @@ export function toggleCategorySelection(
   criteria: ExploreResultsCriteria,
   categoryId: number,
 ) {
-  const isSelected = criteria.categoryIds.includes(categoryId);
-
   return {
     ...criteria,
-    categoryIds: isSelected
-      ? criteria.categoryIds.filter((id) => id !== categoryId)
-      : [...criteria.categoryIds, categoryId],
+    categoryIds: toggleCategoryId(criteria.categoryIds, categoryId),
   };
 }
 
@@ -46,15 +42,12 @@ export function toggleSpecialtySelection(
   return {
     ...criteria,
     specialtyTagId:
-      criteria.specialtyTagId === specialtyTagId
-        ? null
-        : specialtyTagId,
+      criteria.specialtyTagId === specialtyTagId ? null : specialtyTagId,
   };
 }
 
 export function getTaxonomyFilterCount(criteria: ExploreResultsCriteria) {
   return (
-    criteria.categoryIds.length +
-    (criteria.specialtyTagId === null ? 0 : 1)
+    criteria.categoryIds.length + (criteria.specialtyTagId === null ? 0 : 1)
   );
 }

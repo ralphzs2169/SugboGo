@@ -13,6 +13,12 @@ import { useLogout } from "../useLogout";
 jest.mock("@/shared/api/storage.service", () => ({
   clearSessionTokens: jest.fn(),
 }));
+jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
+  clearOfflineAccess: jest.fn(),
+}));
+jest.mock("@/features/offline-routes/services/savedJourneys.service", () => ({
+  clearSavedJourneys: jest.fn(),
+}));
 jest.mock("@/features/merchant/stores/merchantRegistrationStore", () => ({
   useMerchantRegistrationStore: {
     getState: () => ({ reset: jest.fn() }),
@@ -50,6 +56,8 @@ describe("useLogout account cleanup", () => {
     const helpfulKey = communityReviewsKey({
       ordering: "most_helpful",
       clusterId: 3,
+      categoryIds: [5],
+      specialtyTagId: 8,
       hasPhotos: true,
     });
     client.setQueryData(newestKey, { pages: [{ items: [{ id: 1 }] }] });

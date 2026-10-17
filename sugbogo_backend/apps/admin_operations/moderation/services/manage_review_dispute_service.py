@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -62,8 +62,38 @@ class ManageReviewDisputeService:
         business_id=None,
         review_id=None,
         ordering=None,
+        search=None,
     ):
         queryset = ManageReviewDisputeService._detail_queryset()
+
+        earlier_attempts = (
+            MerchantReviewDispute.objects
+            .filter(REVW_ID_id=OuterRef("REVW_ID_id"))
+            .filter(
+                Q(MRDSP_CREATED_AT__lt=OuterRef("MRDSP_CREATED_AT"))
+                | Q(
+                    MRDSP_CREATED_AT=OuterRef("MRDSP_CREATED_AT"),
+                    MRDSP_ID__lte=OuterRef("MRDSP_ID"),
+                )
+            )
+            .order_by()
+            .values("REVW_ID_id")
+            .annotate(total=Count("MRDSP_ID"))
+            .values("total")[:1]
+        )
+        queryset = queryset.annotate(
+            attempt_number=Subquery(earlier_attempts),
+        )
+
+        if search:
+            queryset = queryset.filter(
+                Q(USER_ID__USER_FNAME__icontains=search)
+                | Q(USER_ID__USER_LNAME__icontains=search)
+                | Q(USER_ID__USER_EMAIL__icontains=search)
+                | Q(BUSN_ID__BUSN_NAME__icontains=search)
+                | Q(REVW_ID__REVW_TEXT__icontains=search)
+                | Q(MRDSP_DESCRIPTION__icontains=search)
+            )
 
         if status:
             queryset = queryset.filter(
@@ -105,16 +135,26 @@ class ManageReviewDisputeService:
         *,
         for_update: bool = False,
     ) -> MerchantReviewDispute:
-        """Retrieves dispute details and optionally locks its decision state."""
+        """Retrieve a dispute, locking its review before its decision state."""
         try:
             queryset = ManageReviewDisputeService._detail_queryset()
             if for_update:
+                review_id = (
+                    MerchantReviewDispute.objects
+                    .values_list("REVW_ID_id", flat=True)
+                    .get(MRDSP_ID=dispute_id)
+                )
+                # Match deletion's parent-first order before locking the dispute.
+                Review.objects.select_for_update(of=("self",)).get(
+                    REVW_ID=review_id,
+                )
+                queryset = queryset.filter(REVW_ID_id=review_id)
                 queryset = queryset.select_for_update(of=("self",))
             return queryset.get(MRDSP_ID=dispute_id)
-        except MerchantReviewDispute.DoesNotExist:
+        except (Review.DoesNotExist, MerchantReviewDispute.DoesNotExist):
             raise NotFound(
                 "The review dispute could not be found.",
-            )
+            ) from None
 
 
     @staticmethod

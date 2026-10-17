@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { randomUUID } from "expo-crypto";
+import { clearOfflineAccess } from "@/features/offline-routes/services/offlineAccess.service";
 
 import {
   isAuthSessionCurrent,
@@ -51,10 +52,13 @@ export async function getRefreshToken() {
 }
 
 export async function clearTokens() {
-  await enqueueTokenMutation(async () => {
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
-  });
+  await Promise.all([
+    clearOfflineAccess(),
+    enqueueTokenMutation(async () => {
+      await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    }),
+  ]);
 }
 
 /**
@@ -87,8 +91,14 @@ export function saveSessionTokens(
 }
 
 /** Clears credentials only if the requested session cleanup is still current. */
-export function clearSessionTokens(generation: number) {
-  return enqueueTokenMutation(async () => {
+export async function clearSessionTokens(generation: number) {
+  if (!isAuthSessionGenerationCurrent(generation)) {
+    return false;
+  }
+
+  // Revoke immediately so delayed cleanup cannot revoke a newer login.
+  const offlineCleanup = clearOfflineAccess();
+  const tokenCleanup = enqueueTokenMutation(async () => {
     if (!isAuthSessionGenerationCurrent(generation)) {
       return false;
     }
@@ -103,6 +113,9 @@ export function clearSessionTokens(generation: number) {
 
     return isAuthSessionGenerationCurrent(generation);
   });
+
+  const [, didClear] = await Promise.all([offlineCleanup, tokenCleanup]);
+  return didClear;
 }
 
 /**

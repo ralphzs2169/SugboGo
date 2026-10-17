@@ -9,12 +9,16 @@ export type CommunityReviewOrdering = "newest" | "most_helpful";
 export type CommunityReviewFilters = {
   ordering: CommunityReviewOrdering;
   clusterId: number | null;
+  categoryIds: number[];
+  specialtyTagId: number | null;
   hasPhotos: boolean;
 };
 
 export const DEFAULT_COMMUNITY_REVIEW_FILTERS: CommunityReviewFilters = {
   ordering: "newest",
   clusterId: null,
+  categoryIds: [],
+  specialtyTagId: null,
   hasPhotos: false,
 };
 
@@ -57,6 +61,8 @@ export type CommunityReviewBusiness = {
   business_name: string;
   display_cover_photo_url: string | null;
   category: CommunityReviewBusinessCategory;
+  cluster_icon?: string | null;
+  barangay?: string | null;
   address: string;
 };
 

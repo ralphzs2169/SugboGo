@@ -13,6 +13,9 @@ from apps.shared.analytics.date_ranges import MANILA, resolve_period
 from apps.shared.analytics.metadata import build_meta
 
 
+from apps.shared.analytics.policy import current_policy, with_policy_snapshot
+
+
 class BusinessAttentionService:
     """Build correctly sorted attention rows before applying API pagination."""
 
@@ -80,13 +83,15 @@ class BusinessAttentionService:
         """Expose the admin-owned pilot policy used by the current request."""
         return {
             "window_days": constants.LOW_EXPOSURE_WINDOW_DAYS,
-            "max_profile_visits": constants.LOW_EXPOSURE_MAX_PROFILE_VISITS,
-            "min_distinct_supporters": constants.LOW_EXPOSURE_MIN_DISTINCT_SUPPORTERS,
+            "max_profile_visits": current_policy()["low_exposure_max_profile_visits"],
+            "min_distinct_supporters": current_policy()["low_exposure_min_distinct_supporters"],
+            "policy_version": current_policy().version,
             "excludes_today": True,
             "is_pilot_policy": True,
         }
 
     @classmethod
+    @with_policy_snapshot
     def get_report(
         cls, period, *, cluster=None, category=None, ordering="-profile_visits", low_exposure=False,
     ):
@@ -138,8 +143,8 @@ class BusinessAttentionService:
                 if created >= period.end:
                     continue  # No opportunity to be observed in the completed-day window.
                 if (
-                    metrics["profile_visits"] > constants.LOW_EXPOSURE_MAX_PROFILE_VISITS
-                    or evidence["distinct_supporters"] < constants.LOW_EXPOSURE_MIN_DISTINCT_SUPPORTERS
+                    metrics["profile_visits"] > current_policy()["low_exposure_max_profile_visits"]
+                    or evidence["distinct_supporters"] < current_policy()["low_exposure_min_distinct_supporters"]
                 ):
                     continue
             items.append({

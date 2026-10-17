@@ -170,18 +170,91 @@ class ManageReportedReviewServiceTests(ReportFixtures, TestCase):
         with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:
             with self.assertRaises(ValidationError):
                 self.decide("keep")
-            self.decide("reject")
+            self.decide("confirm")
             enqueue.assert_not_called()
 
+        self.review.refresh_from_db()
         self.business.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.REJECTED)
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+        self.assertEqual(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.APPROVED,
+            ).count(),
+            3,
+        )
         self.assertEqual(Notification.objects.filter(NOTF_TYPE="review_rejected").count(), 0)
+        self.assertEqual(
+            Notification.objects.filter(NOTF_TYPE="review_report_approved").count(),
+            3,
+        )
+        self.assertEqual(AdminActivity.objects.get().AACT_ACTION, "review_report_approved")
         self.assertEqual(
             ReputationEvent.objects.filter(
                 REVT_EVENT_TYPE=ReputationEvent.EventType.CONFIRMED_VIOLATION_PENALTY,
             ).count(),
             0,
         )
+        self.assertFalse(ReportedReviewService.queryset().exists())
+
+    def test_rejected_review_dismisses_pending_reports_without_review_effects(self):
+        self.add_pending_reports(2)
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        Business.objects.filter(pk=self.business.pk).update(BUSN_REVIEW_COUNT=1)
+        prior_approved = ReviewReport.objects.create(
+            USER_ID=self.admin,
+            REVW_ID=self.review,
+            RREP_TYPE=ReviewReport.ReportType.SPAM,
+            RREP_STATUS=ReviewReport.ReportStatus.APPROVED,
+        )
+        withdrawn_reporter = User.objects.create_user(
+            email="withdrawn-report@example.com",
+            password=None,
+            USER_FNAME="Past",
+            USER_LNAME="Reporter",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        withdrawn = ReviewReport.objects.create(
+            USER_ID=withdrawn_reporter,
+            REVW_ID=self.review,
+            RREP_TYPE=ReviewReport.ReportType.OTHER,
+            RREP_STATUS=ReviewReport.ReportStatus.WITHDRAWN,
+        )
+
+        with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:
+            result = self.decide("dismiss")
+            enqueue.assert_not_called()
+            with self.assertRaises(ValidationError):
+                self.decide("dismiss")
+
+        self.review.refresh_from_db()
+        self.business.refresh_from_db()
+        prior_approved.refresh_from_db()
+        withdrawn.refresh_from_db()
+        self.assertEqual(result["resolved_report_count"], 3)
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+        self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
+        self.assertEqual(prior_approved.RREP_STATUS, ReviewReport.ReportStatus.APPROVED)
+        self.assertEqual(withdrawn.RREP_STATUS, ReviewReport.ReportStatus.WITHDRAWN)
+        self.assertEqual(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.REJECTED,
+            ).count(),
+            3,
+        )
+        self.assertEqual(AdminActivity.objects.get().AACT_ACTION, "review_report_rejected")
+        self.assertEqual(
+            Notification.objects.filter(NOTF_TYPE="review_report_rejected").count(),
+            3,
+        )
+        self.assertFalse(Notification.objects.filter(NOTF_TYPE="review_rejected").exists())
+        self.assertFalse(ReputationEvent.objects.exists())
         self.assertFalse(ReportedReviewService.queryset().exists())
 
     def test_audit_failure_rolls_back_review_and_all_reports(self):
@@ -247,3 +320,49 @@ class ConcurrentReportedReviewDecisionTests(ReportFixtures, TransactionTestCase)
             self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
         else:
             self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+
+    def test_competing_rejected_report_decisions_resolve_once(self):
+        self.add_pending_reports(2)
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        Business.objects.filter(pk=self.business.pk).update(BUSN_REVIEW_COUNT=1)
+        barrier = Barrier(2)
+
+        def decide(decision):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=5)
+                try:
+                    ManageReportedReviewService.resolve(
+                        self.review.pk,
+                        actor=self.admin,
+                        decision=decision,
+                        admin_notes="Review and all community reports inspected.",
+                    )
+                    return "resolved"
+                except ValidationError:
+                    return "already resolved"
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(decide, decision)
+                for decision in ("confirm", "dismiss")
+            ]
+            outcomes = [future.result(timeout=20) for future in futures]
+
+        self.assertCountEqual(outcomes, ["resolved", "already resolved"])
+        self.assertEqual(AdminActivity.objects.count(), 1)
+        self.assertFalse(
+            ReviewReport.objects.filter(
+                REVW_ID=self.review,
+                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+            ).exists()
+        )
+        self.review.refresh_from_db()
+        self.business.refresh_from_db()
+        self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
+        self.assertFalse(Notification.objects.filter(NOTF_TYPE="review_rejected").exists())

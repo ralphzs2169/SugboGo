@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.notifications.models import Notification
+from apps.notifications.services.notification_service import NotificationService
 
 
 class NotificationQuerySerializer(serializers.Serializer):
@@ -21,6 +22,20 @@ class NotificationResponseSerializer(serializers.ModelSerializer):
     read_at = serializers.DateTimeField(source="NOTF_READ_AT", read_only=True)
     created_at = serializers.DateTimeField(source="NOTF_CREATED_AT", read_only=True)
     is_read = serializers.SerializerMethodField()
+
+    def to_representation(
+        self,
+        instance,
+    ):
+        """Keep historical dispute notices readable when their target is unavailable."""
+        data = super().to_representation(instance)
+        if (
+            instance.NOTF_TARGET_TYPE == "review_dispute"
+            and not NotificationService.has_review_dispute_target(instance)
+        ):
+            data["target_type"] = ""
+            data["target_id"] = None
+        return data
 
     def get_is_read(self, obj):
         """Derive read state from the authoritative first-read timestamp."""

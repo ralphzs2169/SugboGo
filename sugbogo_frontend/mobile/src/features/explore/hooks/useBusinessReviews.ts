@@ -1,6 +1,6 @@
 import {
   keepPreviousData,
-  type QueryClient,
+  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -11,6 +11,8 @@ import { useEffect, useRef } from "react";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
+import type { MyReviewPage } from "@/features/profile/types/myReview.types";
 
 import * as reviewService from "../api/reviewBusiness.service";
 import type {
@@ -27,12 +29,11 @@ import type {
 } from "../types/review.types";
 import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
 import { useReviewDerivedDataSyncActions } from "./ReviewDerivedDataSyncProvider";
-import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
-import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
-import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
-import { MAP_PREVIEW_QUERY_KEY } from "./useMapPreviewBusinesses";
-import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
-import { SIMILAR_BUSINESSES_QUERY_KEY } from "./useSimilarBusinesses";
+import {
+  invalidateBusinessCardCollections,
+  removeDeletedReviewFromPublicCaches,
+  updateReviewInCaches,
+} from "../utils/reviewCache.utils";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
@@ -43,6 +44,7 @@ import {
 type ReviewMutationSync = "create" | "update" | "delete";
 
 type ReviewMutationContext = {
+  authorUserId: number | null;
   baselineGeneratedAt: string | null;
   baselineInsightsUpdatedAt: string | null;
   baselineInsightsState:
@@ -50,24 +52,6 @@ type ReviewMutationContext = {
   baselineSentimentComputedAt: string | null;
   startedAt: number;
 };
-
-const BUSINESS_CARD_COLLECTION_QUERY_KEYS = [
-  DISCOVERY_FEED_QUERY_KEY,
-  ["explore-new-businesses"] as const,
-  RECOMMENDATIONS_QUERY_KEY,
-  DISCOVERY_RESULTS_QUERY_KEY,
-  SIMILAR_BUSINESSES_QUERY_KEY,
-  EXPLORE_COLLECTIONS_QUERY_KEY,
-  MAP_PREVIEW_QUERY_KEY,
-] as const;
-
-function invalidateBusinessCardCollections(queryClient: QueryClient) {
-  return Promise.all(
-    BUSINESS_CARD_COLLECTION_QUERY_KEYS.map((queryKey) =>
-      queryClient.invalidateQueries({ queryKey }),
-    ),
-  );
-}
 
 /**
  * Handles review-related mutations and refreshes the affected
@@ -93,6 +77,7 @@ function useReviewMutation<TVariables, TResult>(
       );
 
       return {
+        authorUserId: useAuthStore.getState().user?.id ?? null,
         baselineGeneratedAt: detail?.review_insights?.generated_at ?? null,
         baselineInsightsUpdatedAt: detail?.review_insights?.updated_at ?? null,
         baselineInsightsState: detail?.review_insights?.state ?? null,
@@ -103,7 +88,78 @@ function useReviewMutation<TVariables, TResult>(
     },
 
     onSuccess: async (result, variables, context) => {
+      if (sync === "update") {
+        await Promise.all([
+          ...(context.authorUserId !== null
+            ? [
+                queryClient.cancelQueries({
+                  queryKey: myReviewsKey(context.authorUserId),
+                }),
+              ]
+            : []),
+          queryClient.cancelQueries({
+            queryKey: businessReviewPreviewKey(businessId),
+          }),
+          queryClient.cancelQueries({
+            queryKey: businessReviewsKey(businessId),
+          }),
+          queryClient.cancelQueries({ queryKey: COMMUNITY_REVIEWS_QUERY_KEY }),
+        ]);
+        updateReviewInCaches(
+          queryClient,
+          businessId,
+          context.authorUserId,
+          result as BusinessReview,
+        );
+      }
+      if (sync === "delete") {
+        // Discard pre-deletion responses before removing cached public content.
+        await Promise.all([
+          queryClient.cancelQueries({
+            queryKey: businessReviewPreviewKey(businessId),
+          }),
+          queryClient.cancelQueries({
+            queryKey: businessReviewsKey(businessId),
+          }),
+          queryClient.cancelQueries({ queryKey: COMMUNITY_REVIEWS_QUERY_KEY }),
+        ]);
+        removeDeletedReviewFromPublicCaches(
+          queryClient,
+          businessId,
+          (result as { review_id: number }).review_id,
+        );
+      }
+      if (sync === "delete" && context.authorUserId !== null) {
+        const historyKey = myReviewsKey(context.authorUserId);
+        // A pre-deletion request must not restore the confirmed-deleted item.
+        await queryClient.cancelQueries({ queryKey: historyKey });
+        queryClient.setQueryData<InfiniteData<MyReviewPage>>(
+          historyKey,
+          (current) => {
+            if (!current) return current;
+            return {
+              ...current,
+              pages: current.pages.map((page) => ({
+                ...page,
+                items: page.items.filter(
+                  (review) =>
+                    review.id !== (result as { review_id: number }).review_id,
+                ),
+              })),
+            };
+          },
+        );
+      }
+
       await Promise.all([
+        ...((sync === "update" || sync === "delete") &&
+        context.authorUserId !== null
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: myReviewsKey(context.authorUserId),
+              }),
+            ]
+          : []),
         queryClient.invalidateQueries({
           queryKey: businessReviewPreviewKey(businessId),
         }),
@@ -142,6 +198,7 @@ function useReviewMutation<TVariables, TResult>(
 
       if (
         sync === "update" &&
+        (result as BusinessReview).status === "published" &&
         (variables as { textChanged: boolean }).textChanged
       ) {
         startSentimentSync({
@@ -156,6 +213,7 @@ function useReviewMutation<TVariables, TResult>(
 
       if (sync === "delete") {
         startGeneratedInsightsSync({
+          requiresPostMutationUpdate: true,
           baselineGeneratedAt: context.baselineGeneratedAt,
           baselineUpdatedAt: context.baselineInsightsUpdatedAt,
           baselineState: context.baselineInsightsState,

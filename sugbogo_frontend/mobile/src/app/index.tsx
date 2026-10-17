@@ -6,6 +6,7 @@ import { useVerificationStore } from "@/features/auth/store/verification.store";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { resolveAuthenticatedHomeRoute } from "@/features/app-mode/utils/resolveAppModeRoute";
 import * as onboardingStorage from "@/shared/api/onboardingStorage.service";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 
 export default function Index() {
   const [completedOnboarding, setCompletedOnboarding] = useState<
@@ -13,6 +14,7 @@ export default function Index() {
   >(null);
 
   const { user, isAuthenticated } = useAuthStore();
+  const offlineOwnerId = useOfflineAccessStore((state) => state.ownerId);
 
   const activeMode = useAppModeStore((state) => state.activeMode);
 
@@ -37,6 +39,7 @@ export default function Index() {
   }
 
   if (!isAuthenticated) {
+    if (offlineOwnerId) return <Redirect href="/offline-routes" />;
     if (pendingEmail) {
       return (
         <Redirect
