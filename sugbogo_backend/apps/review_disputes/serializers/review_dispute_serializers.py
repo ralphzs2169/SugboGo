@@ -1,3 +1,4 @@
+from core.upload_validation import ValidatedImageField, validate_upload
 from pathlib import Path
 
 from rest_framework import serializers
@@ -16,8 +17,6 @@ from apps.reviews.serializers.review_serializers import (
 MAX_EVIDENCE_FILE_SIZE = 10 * 1024 * 1024
 DOCUMENT_EXTENSIONS = {
     ".pdf",
-    ".doc",
-    ".docx",
 }
 
 
@@ -86,6 +85,7 @@ class MerchantReviewDisputeEvidenceCreateSerializer(serializers.Serializer):
     def validate(self, attrs):
         file = attrs["file"]
         evidence_type = attrs["type"]
+        validate_upload(file)
 
         if file.size > MAX_EVIDENCE_FILE_SIZE:
             raise serializers.ValidationError(
@@ -93,7 +93,7 @@ class MerchantReviewDisputeEvidenceCreateSerializer(serializers.Serializer):
             )
 
         if evidence_type == MerchantReviewDisputeEvidence.EvidenceType.IMAGE:
-            image_field = serializers.ImageField()
+            image_field = ValidatedImageField()
             image_field.run_validation(file)
 
         if evidence_type == MerchantReviewDisputeEvidence.EvidenceType.DOCUMENT:
@@ -101,7 +101,7 @@ class MerchantReviewDisputeEvidenceCreateSerializer(serializers.Serializer):
 
             if extension not in DOCUMENT_EXTENSIONS:
                 raise serializers.ValidationError(
-                    "Evidence documents must be a PDF, DOC, or DOCX file.",
+                    "Evidence documents must be a PDF file.",
                 )
 
         return attrs

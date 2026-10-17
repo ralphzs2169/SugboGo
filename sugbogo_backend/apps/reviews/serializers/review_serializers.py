@@ -1,3 +1,4 @@
+from core.upload_validation import ValidatedImageField, ValidatedImageListField
 from rest_framework import serializers
 
 from apps.business.models.business_vouch_models import BusinessVouch
@@ -32,8 +33,9 @@ class ReviewCreateSerializer(InstallationIdInputSerializer):
     )
 
     show_in_community = serializers.BooleanField(required=False)
-    photos = serializers.ListField(
-        child=serializers.ImageField(),
+    photos = ValidatedImageListField(
+        size_message="Each review photo must be 10 MB or smaller.",
+        child=ValidatedImageField(),
         required=False,
         allow_empty=True,
         max_length=MAX_REVIEW_PHOTOS,

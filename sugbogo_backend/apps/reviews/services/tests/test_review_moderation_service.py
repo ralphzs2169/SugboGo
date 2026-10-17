@@ -1,3 +1,4 @@
+from apps.shared.tests.file_factories import make_jpeg_bytes
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -124,8 +125,8 @@ class ReviewModerationServiceTests(SimpleTestCase):
             provider_response(request_id="photo-1"),
             provider_response(request_id="photo-2"),
         ]
-        first = uploaded_image("first.jpg", b"first-image")
-        second = uploaded_image("second.jpg", b"second-image")
+        first = uploaded_image("first.jpg", make_jpeg_bytes(color=(255, 0, 0)))
+        second = uploaded_image("second.jpg", make_jpeg_bytes(color=(0, 0, 255)))
         result = ReviewModerationService.moderate(
             "Friendly service.",
             [first, second],
@@ -149,7 +150,7 @@ class ReviewModerationServiceTests(SimpleTestCase):
             provider_response(request_id="photo-3"),
         ]
         photos = [
-            uploaded_image(f"photo-{index}.jpg", bytes([index]))
+            uploaded_image(f"photo-{index}.jpg", make_jpeg_bytes(color=(index * 60, 0, 0)))
             for index in range(1, 4)
         ]
         result = ReviewModerationService.moderate("Friendly service.", photos)
@@ -211,7 +212,7 @@ class ReviewModerationServiceTests(SimpleTestCase):
         ]
         result = ReviewModerationService.moderate(
             text="An edited review with two photos.",
-            photos=[uploaded_image("new.jpg", b"new-image")],
+            photos=[uploaded_image("new.jpg", make_jpeg_bytes())],
             image_urls=["https://res.cloudinary.com/test/retained.jpg"],
         )
 

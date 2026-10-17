@@ -1,11 +1,10 @@
-from io import BytesIO
+from apps.shared.tests.file_factories import make_jpeg_bytes
 from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.admin_operations.moderation.services.manage_review_dispute_service import (
@@ -106,22 +105,7 @@ class ReviewDisputeServiceTests(TestCase):
         filename="evidence.jpg",
         content_type="image/jpeg",
     ):
-        image = Image.new(
-            "RGB",
-            (20, 20),
-        )
-
-        image_file = BytesIO()
-        image.save(
-            image_file,
-            format="JPEG",
-        )
-
-        return SimpleUploadedFile(
-            filename,
-            image_file.getvalue(),
-            content_type=content_type,
-        )
+        return SimpleUploadedFile(filename, make_jpeg_bytes(), content_type=content_type)
 
     def create_dispute(self):
         return ReviewDisputeService.create_dispute(

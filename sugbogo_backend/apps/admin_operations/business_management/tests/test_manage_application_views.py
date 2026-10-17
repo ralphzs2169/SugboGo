@@ -1,7 +1,6 @@
 # isort: skip_file
 from unittest.mock import patch
 
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework.test import APITestCase
 

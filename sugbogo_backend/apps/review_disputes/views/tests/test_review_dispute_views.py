@@ -1,10 +1,9 @@
-from io import BytesIO
+from apps.shared.tests.file_factories import make_jpeg_bytes, make_pdf_bytes
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
-from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -108,25 +107,7 @@ class MerchantReviewDisputeViewTestBase(APITestCase):
     ):
         """Create a valid in-memory JPEG for multipart upload tests."""
 
-        image = Image.new(
-            "RGB",
-            (width, height),
-        )
-
-        image_file = BytesIO()
-
-        image.save(
-            image_file,
-            format="JPEG",
-        )
-
-        image_file.seek(0)
-
-        return SimpleUploadedFile(
-            filename,
-            image_file.read(),
-            content_type="image/jpeg",
-        )
+        return SimpleUploadedFile(filename, make_jpeg_bytes(size=(width, height)), content_type='image/jpeg')
 
     def create_dispute(
         self,
@@ -993,7 +974,7 @@ class MerchantReviewDisputeEvidenceViewTests(
 
         document = SimpleUploadedFile(
             "evidence.pdf",
-            b"valid-test-document",
+            make_pdf_bytes(),
             content_type="application/pdf",
         )
 

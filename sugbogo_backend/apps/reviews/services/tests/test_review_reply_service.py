@@ -1,10 +1,9 @@
-from io import BytesIO
+from apps.shared.tests.file_factories import make_jpeg_bytes
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.business.models import (
@@ -100,26 +99,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def create_test_image(self, filename):
-        image = Image.new(
-            "RGB",
-            (100, 100),
-            "white",
-        )
-
-        image_data = BytesIO()
-
-        image.save(
-            image_data,
-            format="JPEG",
-        )
-
-        image_data.seek(0)
-
-        return SimpleUploadedFile(
-            filename,
-            image_data.read(),
-            content_type="image/jpeg",
-        )
+        return SimpleUploadedFile(filename, make_jpeg_bytes(), content_type='image/jpeg')
 
     def test_create_reply(self):
         review = ReviewService.create_review(

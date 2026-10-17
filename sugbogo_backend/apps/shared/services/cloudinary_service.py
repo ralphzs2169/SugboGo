@@ -1,3 +1,6 @@
+from django.core.files.uploadedfile import UploadedFile
+from core.upload_validation import strip_image_metadata
+
 import logging
 
 import cloudinary.uploader
@@ -15,6 +18,8 @@ class CloudinaryService:
         resource_type="image",
         **kwargs,
     ):
+        if isinstance(file, UploadedFile):
+            file = strip_image_metadata(file)
         return cloudinary.uploader.upload(
             file,
             folder=folder,

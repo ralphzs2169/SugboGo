@@ -1,3 +1,4 @@
+from core.upload_validation import ValidatedImageField
 from rest_framework import serializers
 
 from apps.users.models import User
@@ -50,7 +51,7 @@ class ProfilePictureSerializer(serializers.Serializer):
     Validates a profile picture upload request.
     """
 
-    image = serializers.ImageField()
+    image = ValidatedImageField()
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

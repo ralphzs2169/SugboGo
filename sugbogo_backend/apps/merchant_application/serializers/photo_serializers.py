@@ -1,3 +1,4 @@
+from core.upload_validation import ValidatedImageField
 from rest_framework import serializers
 
 from apps.merchant_application.models import MerchantApplicationPhotos
@@ -7,7 +8,7 @@ class ApplicationPhotoSaveSerializer(serializers.Serializer):
     """Validates the complete Step 4 business photo save payload."""
 
     storefront = serializers.ListField(
-        child=serializers.ImageField(),
+        child=ValidatedImageField(),
         required=False,
         allow_empty=True,
         min_length=1,
@@ -21,7 +22,7 @@ class ApplicationPhotoSaveSerializer(serializers.Serializer):
     )
 
     interior = serializers.ListField(
-        child=serializers.ImageField(),
+        child=ValidatedImageField(),
         required=False,
         allow_empty=True,
         max_length=5,
@@ -31,7 +32,7 @@ class ApplicationPhotoSaveSerializer(serializers.Serializer):
     )
 
     products = serializers.ListField(
-        child=serializers.ImageField(),
+        child=ValidatedImageField(),
         required=False,
         allow_empty=True,
         max_length=5,
@@ -41,7 +42,7 @@ class ApplicationPhotoSaveSerializer(serializers.Serializer):
     )
 
     additional = serializers.ListField(
-        child=serializers.ImageField(),
+        child=ValidatedImageField(),
         required=False,
         allow_empty=True,
         max_length=5,

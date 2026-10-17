@@ -1,4 +1,4 @@
-from pathlib import Path
+from apps.shared.tests.file_factories import make_png_bytes
 from unittest.mock import patch
 
 from apps.merchant_application.models import MerchantApplicationPhotos
@@ -20,16 +20,9 @@ class PhotoViewTests(
         super().setUp()
         self.client.force_authenticate(user=self.user)
         self.url = reverse("application-photos")
-        logo_path = (
-            Path(__file__).resolve().parents[4]
-            / "sugbogo_frontend"
-            / "web_app"
-            / "public"
-            / "sugbogo-logo.png"
-        )
         self.photo_file = SimpleUploadedFile(
             "storefront.png",
-            logo_path.read_bytes(),
+            make_png_bytes(),
             content_type="image/png",
         )
 

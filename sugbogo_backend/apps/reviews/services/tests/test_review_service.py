@@ -1,6 +1,6 @@
+from apps.shared.tests.file_factories import make_jpeg_bytes
 from copy import deepcopy
 from datetime import timedelta
-from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
@@ -9,7 +9,6 @@ from django.db import transaction
 from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
-from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.business.models import (
@@ -262,25 +261,7 @@ class ReviewServiceTests(TestCase):
     ):
         """Create a valid in-memory JPEG for review photo tests."""
 
-        image = Image.new(
-            "RGB",
-            (width, height),
-        )
-
-        image_file = BytesIO()
-
-        image.save(
-            image_file,
-            format="JPEG",
-        )
-
-        image_file.seek(0)
-
-        return SimpleUploadedFile(
-            filename,
-            image_file.read(),
-            content_type="image/jpeg",
-        )
+        return SimpleUploadedFile(filename, make_jpeg_bytes(size=(width, height)), content_type='image/jpeg')
 
     @patch(
         "apps.reviews.services.review_service.CloudinaryService.upload_image",

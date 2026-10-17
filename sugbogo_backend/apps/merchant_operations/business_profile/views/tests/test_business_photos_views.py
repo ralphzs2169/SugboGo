@@ -1,4 +1,4 @@
-from io import BytesIO
+from apps.shared.tests.file_factories import make_jpeg_bytes, make_png_bytes
 from unittest.mock import patch
 
 from apps.business.models import Business, BusinessPhoto, Category, Cluster, Location
@@ -10,7 +10,6 @@ from apps.users.models import User
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from PIL import Image
 from rest_framework.test import APIClient
 
 
@@ -82,16 +81,7 @@ class BusinessPhotosViewTests(TestCase):
         )
 
     def _image(self, name="new.jpg", image_format="JPEG", padding=0):
-        image = Image.new("RGB", (24, 24))
-        stream = BytesIO()
-        image.save(stream, format=image_format)
-        content = stream.getvalue() + (b" " * padding)
-
-        return SimpleUploadedFile(
-            name,
-            content,
-            content_type="image/png" if image_format == "PNG" else "image/jpeg",
-        )
+        return SimpleUploadedFile(name, (make_png_bytes() if image_format == "PNG" else make_jpeg_bytes()) + b" " * padding, content_type='image/png' if image_format == 'PNG' else 'image/jpeg')
 
     def _upload_result(self, public_id):
         return {

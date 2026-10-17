@@ -1,3 +1,5 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
+from apps.shared.tests.file_factories import make_jpeg_bytes
 from unittest.mock import patch
 
 from apps.business.models import Business, BusinessPhoto, Location
@@ -204,13 +206,7 @@ class BusinessProfileServiceTests(TestCase):
         )
 
     def _cover_photo(self):
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
-        return SimpleUploadedFile(
-            "cover.jpg",
-            b"cover-image-bytes",
-            content_type="image/jpeg",
-        )
+        return SimpleUploadedFile('cover.jpg', make_jpeg_bytes(), content_type='image/jpeg')
 
 
 

@@ -1,9 +1,8 @@
-from io import BytesIO
+from apps.shared.tests.file_factories import make_jpeg_bytes
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
-from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -293,11 +292,7 @@ class ReviewReplyViewTests(SafeReviewModerationMixin, APITestCase):
 
     @staticmethod
     def create_test_image(filename="reply.jpg", width=100, height=100):
-        image = Image.new("RGB", (width, height))
-        image_file = BytesIO()
-        image.save(image_file, format="JPEG")
-        image_file.seek(0)
-        return SimpleUploadedFile(filename, image_file.read(), content_type="image/jpeg")
+        return SimpleUploadedFile(filename, make_jpeg_bytes(size=(width, height)), content_type='image/jpeg')
 
     @patch("apps.reviews.views.review_reply_views.ReviewReplyService.create_reply")
     def test_create_reply_with_photos(self, mock_create_reply):

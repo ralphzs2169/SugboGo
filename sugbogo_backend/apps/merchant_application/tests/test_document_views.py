@@ -1,3 +1,4 @@
+from apps.shared.tests.file_factories import make_pdf_bytes
 # isort: skip_file
 from unittest.mock import patch
 
@@ -23,7 +24,7 @@ class DocumentViewTests(
         self.url = reverse("application-document-upload")
         self.registration_file = SimpleUploadedFile(
             "business-registration.pdf",
-            b"document-bytes",
+            make_pdf_bytes(),
             content_type="application/pdf",
         )
 

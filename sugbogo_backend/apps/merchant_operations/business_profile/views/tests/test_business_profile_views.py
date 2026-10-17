@@ -1,4 +1,4 @@
-from io import BytesIO
+from apps.shared.tests.file_factories import make_jpeg_bytes
 from unittest.mock import patch
 
 from apps.business.models import (
@@ -22,7 +22,6 @@ from django.contrib.gis.geos import Point
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from PIL import Image
 from rest_framework.test import APIClient
 
 from apps.merchant_operations.business_profile.throttles import (
@@ -87,25 +86,7 @@ class BusinessCoverPhotoViewTests(TestCase):
         self.url = "/api/merchant/business-profile/cover-photo/"
 
     def _cover_photo(self):
-        image = Image.new(
-            "RGB",
-            (100, 100),
-        )
-
-        image_bytes = BytesIO()
-
-        image.save(
-            image_bytes,
-            format="JPEG",
-        )
-
-        image_bytes.seek(0)
-
-        return SimpleUploadedFile(
-            "cover.jpg",
-            image_bytes.read(),
-            content_type="image/jpeg",
-        )
+        return SimpleUploadedFile('cover.jpg', make_jpeg_bytes(), content_type='image/jpeg')
 
     def test_unauthenticated_user_cannot_update_cover_photo(self):
         response = self.client.patch(

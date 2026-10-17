@@ -1,4 +1,4 @@
-from base64 import b64decode
+from apps.shared.tests.file_factories import make_png_bytes
 from unittest.mock import patch
 
 from apps.users.models import User
@@ -177,10 +177,7 @@ class ProfilePictureViewTests(APIResponseAssertionsMixin, APITestCase):
 		mock_upload.return_value = "https://cloudinary.com/profile.jpg"
 		image = SimpleUploadedFile(
 			"profile.png",
-			b64decode(
-				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
-				"+A8AAQUBAScY42YAAAAASUVORK5CYII="
-			),
+			make_png_bytes(),
 			content_type="image/png",
 		)
 

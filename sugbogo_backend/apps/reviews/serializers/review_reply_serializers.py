@@ -1,3 +1,4 @@
+from core.upload_validation import ValidatedImageField, ValidatedImageListField
 from rest_framework import serializers
 
 from apps.reviews.constants import (
@@ -13,8 +14,9 @@ class ReviewReplyCreateSerializer(serializers.Serializer):
     text = serializers.CharField(
         max_length=1000,
     )
-    photos = serializers.ListField(
-        child=serializers.ImageField(), required=False, allow_empty=True,
+    photos = ValidatedImageListField(
+        size_message="Each reply photo must be 10 MB or smaller.",
+        child=ValidatedImageField(), required=False, allow_empty=True,
         max_length=MAX_REVIEW_PHOTOS,
         error_messages={"max_length": f"You can only upload a maximum of {MAX_REVIEW_PHOTOS} photos."},
     )

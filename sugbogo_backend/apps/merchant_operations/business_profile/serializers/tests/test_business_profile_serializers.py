@@ -1,9 +1,7 @@
-import os
-from io import BytesIO
+from apps.shared.tests.file_factories import make_jpeg_bytes
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase
-from PIL import Image
 
 from apps.merchant_operations.business_profile.serializers.business_profile_serializers import (
     BusinessCoverPhotoSerializer,
@@ -13,25 +11,7 @@ from apps.merchant_operations.business_profile.serializers.business_profile_seri
 class BusinessCoverPhotoSerializerTests(SimpleTestCase):
 
     def _create_image(self, width, height):
-        image = Image.frombytes(
-            "RGB",
-            (width, height),
-            os.urandom(width * height * 3),
-        )
-
-        buffer = BytesIO()
-
-        image.save(
-            buffer,
-            format="JPEG",
-            quality=100,
-        )
-
-        return SimpleUploadedFile(
-            "cover.jpg",
-            buffer.getvalue(),
-            content_type="image/jpeg",
-        )
+        return SimpleUploadedFile('cover.jpg', make_jpeg_bytes(size=(width, height), random_pixels=True, quality=100), content_type='image/jpeg')
 
     def test_accepts_cover_photo_under_10_mb(self):
         image = self._create_image(

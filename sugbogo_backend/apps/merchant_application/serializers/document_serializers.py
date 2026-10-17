@@ -1,5 +1,5 @@
+from core.upload_validation import validate_upload
 from pathlib import Path
-from typing import ClassVar
 
 from rest_framework import serializers
 
@@ -10,19 +10,10 @@ from apps.shared.services.cloudinary_service import CloudinaryService
 class BusinessDocumentFileField(serializers.FileField):
     """Validates supported business verification document file types."""
 
-    ALLOWED_MIME_TYPES: ClassVar[set[str]] = {
-        "application/pdf",
-        "image/jpeg",
-        "image/png",
-    }
-
     def to_internal_value(self, data):
         file = super().to_internal_value(data)
 
-        if file.content_type not in self.ALLOWED_MIME_TYPES:
-            raise serializers.ValidationError(
-                "Only PDF, JPEG, and PNG files are allowed."
-            )
+        validate_upload(file)
 
         return file
 

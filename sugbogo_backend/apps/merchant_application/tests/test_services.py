@@ -1,3 +1,4 @@
+from apps.shared.tests.file_factories import make_jpeg_bytes, make_pdf_bytes
 # isort: skip_file
 from datetime import time
 from unittest.mock import patch
@@ -170,18 +171,10 @@ class MerchantApplicationServiceMixin:
         ]
 
     def _storefront_file(self, name="storefront.jpg"):
-        return SimpleUploadedFile(
-            name,
-            b"storefront-image-bytes",
-            content_type="image/jpeg",
-        )
+        return SimpleUploadedFile(name, make_jpeg_bytes(), content_type='image/jpeg')
 
     def _pdf_file(self, name="document.pdf"):
-        return SimpleUploadedFile(
-            name,
-            b"document-bytes",
-            content_type="application/pdf",
-        )
+        return SimpleUploadedFile(name, make_pdf_bytes(), content_type='application/pdf')
 
     def _create_identity(self):
         application, _identity = IdentityService.save_identity(

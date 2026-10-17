@@ -1,3 +1,4 @@
+from core.upload_validation import ValidatedImageField
 from rest_framework import serializers
 
 from apps.business.models import (
@@ -23,7 +24,7 @@ MAX_COVER_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_BUSINESS_PHOTO_SIZE = 10 * 1024 * 1024
 
 
-class BusinessPhotoUploadSerializer(serializers.ImageField):
+class BusinessPhotoUploadSerializer(ValidatedImageField):
     """Validate the received image before it reaches Cloudinary."""
 
     def to_internal_value(self, data):
@@ -97,7 +98,8 @@ class BusinessPhotosUpdateSerializer(serializers.Serializer):
 class BusinessCoverPhotoSerializer(serializers.Serializer):
     """Validates a merchant business cover photo upload."""
 
-    cover_photo = serializers.ImageField(
+    cover_photo = ValidatedImageField(
+        size_message="Cover photo must be 10 MB or smaller.",
         required=True,
     )
 

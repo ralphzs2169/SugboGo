@@ -1,11 +1,10 @@
+from apps.shared.tests.file_factories import make_jpeg_bytes
 from datetime import timedelta
-from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
-from PIL import Image
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.test import APITestCase
@@ -120,25 +119,7 @@ class ReviewViewTests(APITestCase):
     ):
         """Create a valid in-memory JPEG for upload tests."""
 
-        image = Image.new(
-            "RGB",
-            (width, height),
-        )
-
-        image_file = BytesIO()
-
-        image.save(
-            image_file,
-            format="JPEG",
-        )
-
-        image_file.seek(0)
-
-        return SimpleUploadedFile(
-            filename,
-            image_file.read(),
-            content_type="image/jpeg",
-        )
+        return SimpleUploadedFile(filename, make_jpeg_bytes(size=(width, height)), content_type='image/jpeg')
 
     @staticmethod
     def create_large_test_image(
@@ -146,29 +127,9 @@ class ReviewViewTests(APITestCase):
     ):
         """Create a valid JPEG larger than 10 MB for upload validation."""
 
-        image = Image.new(
-            "RGB",
-            (100, 100),
-        )
-
-        image_file = BytesIO()
-
-        image.save(
-            image_file,
-            format="JPEG",
-        )
-
-        image_data = image_file.getvalue()
-
-        image_data += b"\x00" * (
-            10 * 1024 * 1024 + 1 - len(image_data)
-        )
-
-        return SimpleUploadedFile(
-            filename,
-            image_data,
-            content_type="image/jpeg",
-        )
+        content = make_jpeg_bytes()
+        content += b"\x00" * (10 * 1024 * 1024 + 1 - len(content))
+        return SimpleUploadedFile(filename, content, content_type='image/jpeg')
 
     def test_create_review_successfully(self):
         payload = {
