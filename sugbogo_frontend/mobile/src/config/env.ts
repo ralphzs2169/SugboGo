@@ -6,4 +6,6 @@
  */
 export const ENV = {
   API_URL: process.env.EXPO_PUBLIC_API_URL!,
+  NOTIFICATION_WEBSOCKET_URL:
+    process.env.EXPO_PUBLIC_NOTIFICATION_WEBSOCKET_URL,
 };

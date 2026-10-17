@@ -1,9 +1,5 @@
-import { Text, View } from "react-native";
+import MerchantDashboardScreen from "@/features/merchant/screens/merchant-mode/MerchantDashboardScreen";
 
 export default function MerchantDashboardPage() {
-  return (
-    <View className="flex-1 items-center justify-center">
-      <Text className="text-xl font-semibold">Merchant Dashboard</Text>
-    </View>
-  );
+  return <MerchantDashboardScreen />;
 }

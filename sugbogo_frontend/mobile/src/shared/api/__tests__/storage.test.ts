@@ -1,15 +1,22 @@
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import * as SecureStore from "expo-secure-store";
 import { randomUUID } from "expo-crypto";
 
 import {
+  clearSessionTokens,
   saveAccessToken,
   getAccessToken,
   saveRefreshToken,
+  saveSessionTokens,
   getRefreshToken,
   clearTokens,
   clearRefreshToken,
   getInstallationId,
 } from "../storage.service";
+import {
+  beginAuthSession,
+  invalidateAuthSession,
+} from "../authSessionGeneration.service";
 
 /**
  * @file storage.test.ts
@@ -28,6 +35,15 @@ jest.mock("expo-secure-store", () => ({
   deleteItemAsync: jest.fn(),
 }));
 jest.mock("expo-crypto", () => ({ randomUUID: jest.fn() }));
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
+}
 
 describe("token storage", () => {
   beforeEach(() => {
@@ -140,6 +156,148 @@ describe("token storage", () => {
 
     await expect(getInstallationId()).rejects.toThrow(
       "SecureStore unavailable",
+    );
+  });
+
+  it("lets logout cleanup win when a session changes during token persistence", async () => {
+    const accountAGeneration = beginAuthSession();
+    const accessWrite = createDeferred<void>();
+    const accessWriteStarted = createDeferred<void>();
+
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation((key) => {
+      if (key === "access_token") {
+        accessWriteStarted.resolve();
+        return accessWrite.promise;
+      }
+
+      return Promise.resolve();
+    });
+
+    const accountAWrite = saveSessionTokens(
+      "account-a-access",
+      "account-a-refresh",
+      accountAGeneration,
+    );
+    await accessWriteStarted.promise;
+
+    const logoutGeneration = invalidateAuthSession();
+    const logoutCleanup = clearSessionTokens(logoutGeneration);
+    accessWrite.resolve();
+
+    await expect(accountAWrite).resolves.toBe(false);
+    await expect(logoutCleanup).resolves.toBe(true);
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith(
+      "refresh_token",
+      "account-a-refresh",
+    );
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("access_token");
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("refresh_token");
+  });
+
+  it("serializes account replacement so Account B credentials finish last", async () => {
+    const accountAGeneration = beginAuthSession();
+    const accountAAccessWrite = createDeferred<void>();
+    const accountAWriteStarted = createDeferred<void>();
+
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation((key, value) => {
+      if (key === "access_token" && value === "account-a-access") {
+        accountAWriteStarted.resolve();
+        return accountAAccessWrite.promise;
+      }
+
+      return Promise.resolve();
+    });
+
+    const accountAWrite = saveSessionTokens(
+      "account-a-access",
+      "account-a-refresh",
+      accountAGeneration,
+    );
+    await accountAWriteStarted.promise;
+
+    const accountBGeneration = beginAuthSession();
+    const accountBWrite = saveSessionTokens(
+      "account-b-access",
+      "account-b-refresh",
+      accountBGeneration,
+    );
+    accountAAccessWrite.resolve();
+
+    await expect(accountAWrite).resolves.toBe(false);
+    await expect(accountBWrite).resolves.toBe(true);
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith(
+      "refresh_token",
+      "account-a-refresh",
+    );
+    expect(SecureStore.setItemAsync).toHaveBeenNthCalledWith(
+      2,
+      "access_token",
+      "account-b-access",
+    );
+    expect(SecureStore.setItemAsync).toHaveBeenNthCalledWith(
+      3,
+      "refresh_token",
+      "account-b-refresh",
+    );
+  });
+
+  it("revokes offline access with guarded token cleanup", async () => {
+    useOfflineAccessStore.setState({ ownerId: 7, isRevoking: false });
+    const generation = invalidateAuthSession();
+    const cleanup = clearSessionTokens(generation);
+    expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+    expect(useOfflineAccessStore.getState().isRevoking).toBe(true);
+    await expect(cleanup).resolves.toBe(true);
+  });
+
+  it("does not revoke newer offline access for stale cleanup", async () => {
+    const generation = invalidateAuthSession();
+    beginAuthSession();
+    useOfflineAccessStore.setState({ ownerId: 8, isRevoking: false });
+    await expect(clearSessionTokens(generation)).resolves.toBe(false);
+    expect(useOfflineAccessStore.getState().ownerId).toBe(8);
+    expect(useOfflineAccessStore.getState().isRevoking).toBe(false);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not let delayed logout cleanup delete a newer login", async () => {
+    beginAuthSession();
+    const logoutGeneration = invalidateAuthSession();
+    const accessDelete = createDeferred<void>();
+    const accessDeleteStarted = createDeferred<void>();
+
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation((key) => {
+      if (key === "access_token") {
+        accessDeleteStarted.resolve();
+        return accessDelete.promise;
+      }
+
+      return Promise.resolve();
+    });
+
+    const logoutCleanup = clearSessionTokens(logoutGeneration);
+    await accessDeleteStarted.promise;
+
+    const accountBGeneration = beginAuthSession();
+    const accountBWrite = saveSessionTokens(
+      "account-b-access",
+      "account-b-refresh",
+      accountBGeneration,
+    );
+    accessDelete.resolve();
+
+    await expect(logoutCleanup).resolves.toBe(false);
+    await expect(accountBWrite).resolves.toBe(true);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith(
+      "refresh_token",
+    );
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      "access_token",
+      "account-b-access",
+    );
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      "refresh_token",
+      "account-b-refresh",
     );
   });
 });

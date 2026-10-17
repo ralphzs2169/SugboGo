@@ -138,4 +138,3 @@ Modified:
 - `sugbogo_frontend/mobile/src/features/map/screens/MapScreen.tsx`
 - `sugbogo_frontend/mobile/src/features/map/screens/__tests__/MapScreen.test.tsx`
 - `sugbogo_frontend/mobile/src/features/map/types/mapDiscovery.types.ts`
-

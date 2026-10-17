@@ -2,6 +2,11 @@ import * as SecureStore from "expo-secure-store";
 import { randomUUID } from "expo-crypto";
 import { clearOfflineAccess } from "@/features/offline-routes/services/offlineAccess.service";
 
+import {
+  isAuthSessionCurrent,
+  isAuthSessionGenerationCurrent,
+} from "./authSessionGeneration.service";
+
 /**
  * Secure token storage utilities for authentication.
  *
@@ -13,8 +18,23 @@ const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 const INSTALLATION_ID_KEY = "installation_id";
 
+let tokenMutationQueue: Promise<void> = Promise.resolve();
+
+function enqueueTokenMutation<T>(mutation: () => Promise<T>): Promise<T> {
+  const result = tokenMutationQueue.then(mutation, mutation);
+
+  tokenMutationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return result;
+}
+
 export async function saveAccessToken(token: string) {
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
+  await enqueueTokenMutation(() =>
+    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token),
+  );
 }
 
 export async function getAccessToken() {
@@ -22,7 +42,9 @@ export async function getAccessToken() {
 }
 
 export async function saveRefreshToken(token: string) {
-  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+  await enqueueTokenMutation(() =>
+    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token),
+  );
 }
 
 export async function getRefreshToken() {
@@ -32,9 +54,68 @@ export async function getRefreshToken() {
 export async function clearTokens() {
   await Promise.all([
     clearOfflineAccess(),
-    SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
-    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+    enqueueTokenMutation(async () => {
+      await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    }),
   ]);
+}
+
+/**
+ * Persists a token pair only while the initiating authentication session is
+ * still current. Token mutations are serialized so a later logout or login
+ * always wins even when SecureStore operations complete out of order.
+ */
+export function saveSessionTokens(
+  accessToken: string,
+  refreshToken: string | undefined,
+  generation: number,
+) {
+  return enqueueTokenMutation(async () => {
+    if (!isAuthSessionCurrent(generation)) {
+      return false;
+    }
+
+    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
+
+    if (!isAuthSessionCurrent(generation)) {
+      return false;
+    }
+
+    if (refreshToken !== undefined) {
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+    }
+
+    return isAuthSessionCurrent(generation);
+  });
+}
+
+/** Clears credentials only if the requested session cleanup is still current. */
+export async function clearSessionTokens(generation: number) {
+  if (!isAuthSessionGenerationCurrent(generation)) {
+    return false;
+  }
+
+  // Revoke immediately so delayed cleanup cannot revoke a newer login.
+  const offlineCleanup = clearOfflineAccess();
+  const tokenCleanup = enqueueTokenMutation(async () => {
+    if (!isAuthSessionGenerationCurrent(generation)) {
+      return false;
+    }
+
+    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+
+    if (!isAuthSessionGenerationCurrent(generation)) {
+      return false;
+    }
+
+    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+
+    return isAuthSessionGenerationCurrent(generation);
+  });
+
+  const [, didClear] = await Promise.all([offlineCleanup, tokenCleanup]);
+  return didClear;
 }
 
 /**
@@ -67,5 +148,7 @@ export async function getInstallationId() {
  * Removes only the refresh token.
  */
 export async function clearRefreshToken() {
-  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await enqueueTokenMutation(() =>
+    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+  );
 }
