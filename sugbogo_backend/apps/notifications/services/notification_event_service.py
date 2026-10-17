@@ -8,6 +8,30 @@ class NotificationEventService:
     """Create private recipient notices inside the owning transaction."""
 
     @staticmethod
+    def under_review_resolved(review):
+        """Notify the author of an Admin decision on a held review."""
+        if review.REVW_STATUS == Review.ReviewStatus.PUBLISHED:
+            event_type = "review_published"
+            title = "Review published"
+            body = "Your review has been approved and is now visible to the community."
+            outcome = "published"
+        elif review.REVW_STATUS == Review.ReviewStatus.REJECTED:
+            event_type = "review_rejected"
+            title = "Review not approved"
+            body = "Your review was not approved and will not be published."
+            outcome = "rejected"
+        else:
+            return
+
+        NotificationService.create(
+            recipient=review.USER_ID,
+            event_type=event_type,
+            title=title,
+            body=body,
+            dedup_key=f"review:{review.pk}:{outcome}",
+        )
+
+    @staticmethod
     def review_cases_closed_by_author(
         *,
         author_id: int,

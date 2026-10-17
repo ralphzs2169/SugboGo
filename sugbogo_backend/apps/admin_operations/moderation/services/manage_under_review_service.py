@@ -6,6 +6,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.activity_management.services import AdminActivityService
+from apps.notifications.services.notification_event_service import NotificationEventService
 from apps.reviews.models import Review, ReviewPhoto, ReviewReply
 from apps.reviews.services.review_service import ReviewService
 
@@ -155,4 +156,5 @@ class ManageUnderReviewService:
             action=action,
             context=context,
         )
+        NotificationEventService.under_review_resolved(resolved)
         return resolved
