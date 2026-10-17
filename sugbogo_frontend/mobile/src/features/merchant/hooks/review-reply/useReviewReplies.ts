@@ -5,6 +5,7 @@ import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communit
 
 import * as reviewReplyService from "../../api/reviewReply.service";
 import type { LocalReviewPhoto } from "../../types/review-reply/reviewReply.types";
+import { MERCHANT_STANDARD_ANALYTICS_QUERY_KEY } from "../analytics/merchantAnalyticsQueryKeys";
 
 import {
   businessReviewPreviewKey,
@@ -39,6 +40,9 @@ function useReviewReplyMutation<T>(
         }),
         queryClient.invalidateQueries({
           queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: MERCHANT_STANDARD_ANALYTICS_QUERY_KEY,
         }),
       ]);
     },

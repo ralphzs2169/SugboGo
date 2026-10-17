@@ -8,6 +8,7 @@ import {
   businessReviewsKey,
   exploreBusinessDetailKey,
 } from "@/features/explore/hooks/reviewQueryKeys";
+import { MERCHANT_STANDARD_ANALYTICS_QUERY_KEY } from "../../analytics/merchantAnalyticsQueryKeys";
 
 import * as replyService from "../../../api/reviewReply.service";
 import {
@@ -99,6 +100,7 @@ describe("merchant reply Community synchronization", () => {
         businessReviewPreviewKey(20),
         businessReviewsKey(20),
         exploreBusinessDetailKey(20),
+        MERCHANT_STANDARD_ANALYTICS_QUERY_KEY,
       ]) {
         expect(invalidate).toHaveBeenCalledWith({ queryKey });
       }
