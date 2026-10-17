@@ -13,6 +13,11 @@ class NotificationOriginValidator:
             for name, value in scope.get("headers", [])
             if name.lower() == b"origin"
         ]
+        print(
+            "WebSocket origin debug:",
+            "received =", origins,
+            "allowed =", self.allowed_origins,
+        )
         if origins and (len(origins) != 1 or origins[0] not in self.allowed_origins):
             await send({"type": "websocket.close", "code": 4403})
             return

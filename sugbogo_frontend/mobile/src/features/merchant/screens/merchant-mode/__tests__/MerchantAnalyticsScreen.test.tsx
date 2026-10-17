@@ -230,6 +230,39 @@ describe("MerchantAnalyticsScreen", () => {
     expect(getAnalytics).toHaveBeenCalledTimes(2);
   });
 
+  it("renders a missing visibility collection as unavailable and preserves current snapshots", async () => {
+    const report = standardAnalyticsReport({
+      profile_visits: null,
+      distinct_profile_visitors: null,
+      saves_in_period: null,
+    });
+    report.sources.visibility = {
+      ...standardAnalyticsMeta(),
+      availability: "unavailable",
+      partial_reason: "event_totals_unavailable",
+      partial_reasons: [
+        "event_totals_unavailable",
+        "visibility_collection_missing",
+        "distinct_visitors_unavailable",
+        "source_unavailable",
+      ],
+    };
+    getAnalytics.mockResolvedValueOnce(analyticsSuccess(report));
+    const screen = await renderScreen();
+
+    const retry = await screen.findByRole("button", {
+      name: /Recorded activity unavailable.*retry/i,
+    });
+    expect(screen.getByLabelText(/Recorded profile visits: Unavailable/)).toBeTruthy();
+    expect(screen.getByLabelText(/Recorded saves: Unavailable/)).toBeTruthy();
+    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(screen.getByLabelText("Published reviews: 10")).toBeTruthy();
+    expect(screen.getByLabelText(/New reviews: 4\./)).toBeTruthy();
+    expect(screen.getByLabelText(/Reply rate: 25%/)).toBeTruthy();
+    await fireEvent.press(retry);
+    await screen.findByLabelText(/Recorded profile visits: 24/);
+  });
+
   it("offers persistent recovery after API errors and uses the page notification hook", async () => {
     getAnalytics.mockResolvedValueOnce({
       success: false,

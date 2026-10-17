@@ -283,6 +283,58 @@ class VisibilityEventViewTests(APITestCase):
         )
         get_database.assert_not_called()
 
+    def test_owner_requests_are_successful_ignored_observations_without_mongo(self):
+        self.client.force_authenticate(self.owner)
+        with patch.object(MongoDBService, "get_database") as database:
+            impressions = self.client.post(
+                self.impression_url,
+                {"business_ids": [self.business.pk]},
+                format="json",
+            )
+            profile = self.client.post(
+                self.profile_visit_url,
+                {},
+                format="json",
+            )
+
+        self.assertEqual(impressions.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            impressions.data["data"],
+            {"business_ids": [], "recorded_count": 0, "duplicate_count": 0},
+        )
+        self.assertEqual(profile.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            profile.data["data"],
+            {"business_id": self.business.pk, "recorded": False, "duplicate": False},
+        )
+        database.assert_not_called()
+
+    def test_tracking_rejects_disallowed_roles_and_inactive_accounts_before_ingestion(self):
+        cases = [
+            (User.UserRole.ADMIN, User.UserStatus.ACTIVE),
+            (User.UserRole.EXPLORER, User.UserStatus.SUSPENDED),
+        ]
+        for role, account_status in cases:
+            self.explorer.USER_ROLE = role
+            self.explorer.USER_STATUS = account_status
+            self.client.force_authenticate(self.explorer)
+            with self.subTest(role=role, status=account_status):
+                with patch.object(MongoDBService, "get_database") as database:
+                    impressions = self.client.post(
+                        self.impression_url,
+                        {"business_ids": [self.business.pk]},
+                        format="json",
+                    )
+                    profile = self.client.post(
+                        self.profile_visit_url,
+                        {},
+                        format="json",
+                    )
+
+                self.assertEqual(impressions.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(profile.status_code, status.HTTP_403_FORBIDDEN)
+                database.assert_not_called()
+
     def test_tracking_endpoints_require_authentication(self):
         self.client.force_authenticate(
             user=None,
