@@ -154,11 +154,6 @@ jest.mock("../../components/hidden-gems/HiddenGemsSection", () => {
   };
 });
 jest.mock("../../components/interests/UserInterestsSection", () => () => null);
-jest.mock(
-  "../../components/discover-more/DiscoverMoreSection",
-  () => () => null,
-);
-jest.mock("../../components/trending/TrendingSection", () => () => null);
 jest.mock("../../components/DiscoverNearYouButton", () => () => null);
 jest.mock("@/shared/components/ErrorState", () => () => null);
 jest.mock("@/shared/components/Skeleton", () => () => null);

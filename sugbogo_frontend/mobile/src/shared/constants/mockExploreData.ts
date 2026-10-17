@@ -1,19 +1,4 @@
-export type HiddenGem = {
-  id: string;
-  name: string;
-  photoUrl: string;
-  tags: string[];
-  category: "Culinary" | "Leisure" | "Creative";
-  location: string;
-  latitude: number;
-  longitude: number;
-  distanceKm?: number;
-  isInterestMatch?: boolean;
-  isDiscoverMore?: boolean;
-  isTrending?: boolean;
-  trendDirection?: "up" | "down";
-  trendValue?: number;
-};
+import type { HiddenGem } from "@/features/map/types/map.types";
 
 export const MOCK_HIDDEN_GEMS: HiddenGem[] = [
   {

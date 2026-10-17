@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import { TAG_COLORS, DEFAULT_TAG_COLOR } from "@/shared/constants/tagColors";
-import { HiddenGem } from "@/shared/constants/mockExploreData";
+import type { HiddenGem } from "../types/map.types";
 
 const TAB_BAR_HEIGHT = 80;
 

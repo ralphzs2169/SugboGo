@@ -6,7 +6,8 @@ import MapView from "../components/MapView";
 import MapSearchOverlay from "../components/MapSearchOverlay";
 import MapControls from "../components/MapControls";
 import MSMEPreviewCard from "../components/MSMEPreviewCard";
-import { MOCK_HIDDEN_GEMS, HiddenGem } from "@/shared/constants/mockExploreData";
+import { MOCK_HIDDEN_GEMS } from "@/shared/constants/mockExploreData";
+import type { HiddenGem } from "../types/map.types";
 import RNMapView from "react-native-maps";
 
 export default function MapScreen() {

@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { View, Platform } from "react-native";
 import RNMapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapMarkerIcon from "./MapMarkerIcon";
-import { HiddenGem } from "@/shared/constants/mockExploreData";
+import type { HiddenGem } from "../types/map.types";
 
 type Props = {
   gems: HiddenGem[];
