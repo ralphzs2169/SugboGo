@@ -58,8 +58,14 @@ from apps.explorer_operations.explore_businesses.views.vouch_history_views impor
     VouchHistoryView,
 )
 from django.urls import path
+from .views.route_intent_views import RouteIntentView
 
 urlpatterns = [
+    path(
+        "businesses/<int:business_id>/route-intent/",
+        RouteIntentView.as_view(),
+        name="business-route-intent",
+    ),
 
     path(
         "journey-origins/places/search/",

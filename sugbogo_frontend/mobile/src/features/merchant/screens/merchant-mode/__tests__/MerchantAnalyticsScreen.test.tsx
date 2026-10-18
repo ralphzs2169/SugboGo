@@ -26,6 +26,8 @@ import {
 } from "../../../api/merchantAnalytics.service";
 import { merchantPlusReportKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
+import { getMerchantRoutePlanning } from "../../../api/merchantRoutePlanning.service";
+import { routePlanningReport } from "../../../__tests__/routePlanningAnalytics.fixtures";
 import * as plusService from "../../../api/merchantPlusAnalytics.service";
 import {
   pocketReport,
@@ -36,6 +38,13 @@ import {
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
 const mockNavigate = jest.fn();
+jest.mock("../../../api/merchantRoutePlanning.service", () => ({
+  getMerchantRoutePlanning: jest.fn(),
+}));
+jest.mock("../../../components/analytics/AnalyticsRoutePlanningSheet", () => ({
+  __esModule: true,
+  default: () => null,
+}));
 const mockRefetchProfile = jest.fn();
 let mockProfileError: unknown = null;
 let mockProfileBusinessId = 8;
@@ -158,6 +167,14 @@ describe("MerchantAnalyticsScreen", () => {
     useAuthStore.setState({ user: analyticsMerchant() });
     getAnalytics.mockReset();
     getAnalytics.mockResolvedValue(analyticsSuccess());
+    jest
+      .mocked(getMerchantRoutePlanning)
+      .mockReset()
+      .mockResolvedValue({
+        success: true,
+        message: "Success",
+        data: routePlanningReport(),
+      });
     jest.mocked(getMerchantUnansweredReviews).mockReset().mockResolvedValue({
       success: true,
       message: "Success",
@@ -221,14 +238,60 @@ describe("MerchantAnalyticsScreen", () => {
       .map((heading) => heading.props.children);
     const businessIndex = headings.indexOf("Business overview");
     expect(businessIndex).toBeGreaterThanOrEqual(0);
-    expect(headings.slice(businessIndex, businessIndex + 5)).toEqual([
+    expect(headings.slice(businessIndex, businessIndex + 6)).toEqual([
       "Business overview",
       "Specialty Support",
       "Reviews needing replies",
       "Visibility trends",
+      "Route-planning activity",
       "More insights",
     ]);
     expect(screen.getAllByText("Total vouches")).toHaveLength(1);
+  });
+
+  it("changes route-planning periods and includes the independent section in pull-to-refresh", async () => {
+    const screen = await renderScreen();
+    await screen.findByLabelText("Recorded route requests: 4");
+    expect(getMerchantRoutePlanning).toHaveBeenLastCalledWith(
+      "30",
+      expect.anything(),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await waitFor(() =>
+      expect(getMerchantRoutePlanning).toHaveBeenLastCalledWith(
+        "7",
+        expect.anything(),
+      ),
+    );
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    const before = jest.mocked(getMerchantRoutePlanning).mock.calls.length;
+    await act(async () => {
+      screen
+        .getByTestId("merchant-analytics-scroll")
+        .props.refreshControl.props.onRefresh();
+    });
+    await waitFor(() =>
+      expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(before + 1),
+    );
+  });
+
+  it("recovers a route-planning request error without refetching Standard KPIs", async () => {
+    jest
+      .mocked(getMerchantRoutePlanning)
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    const screen = await renderScreen();
+    const retry = await screen.findByRole("button", {
+      name: /Unable to load route-planning activity.*retry/i,
+    });
+    expect(screen.getByLabelText(/Recorded profile visits: 24/)).toBeTruthy();
+    await fireEvent.press(retry);
+    await screen.findByLabelText("Recorded route requests: 4");
+    expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(2);
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the current reply backlog independent of period changes and refreshes it on pull", async () => {

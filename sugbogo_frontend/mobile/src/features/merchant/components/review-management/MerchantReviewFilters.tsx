@@ -79,15 +79,32 @@ export default function MerchantReviewFilters({
       </View>
       {/* Small shared sorting control keeps the server's order visible and editable. */}
       <View className="mt-3 self-start">
-        <SegmentedControl
-          variant="sm"
-          value={ordering}
-          onChange={onOrderingChange}
-          options={[
-            { value: "newest", label: "Newest first" },
-            { value: "oldest", label: "Oldest first" },
-          ]}
-        />
+        {/* Review ordering controls */}
+        <View className="mt-4 gap-2">
+          <AppText weight="semibold" className="text-sm text-text-secondary">
+            Sort by
+          </AppText>
+
+          <View className="self-start">
+            <SegmentedControl
+              variant="sm"
+              value={ordering}
+              onChange={onOrderingChange}
+              options={[
+                {
+                  value: "newest",
+                  label: "Newest first",
+                  accessibilityLabel: "Sort reviews by newest first",
+                },
+                {
+                  value: "oldest",
+                  label: "Oldest first",
+                  accessibilityLabel: "Sort reviews by oldest first",
+                },
+              ]}
+            />
+          </View>
+        </View>
       </View>
     </View>
   );

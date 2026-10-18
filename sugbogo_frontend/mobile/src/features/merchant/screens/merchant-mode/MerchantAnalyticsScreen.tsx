@@ -25,6 +25,8 @@ import AnalyticsSourceNotice from "../../components/analytics/AnalyticsSourceNot
 import AnalyticsSpecialtySupport from "../../components/analytics/AnalyticsSpecialtySupport";
 import AnalyticsVisibilityTrends from "../../components/analytics/AnalyticsVisibilityTrends";
 import AnalyticsUnansweredReviews from "../../components/analytics/AnalyticsUnansweredReviews";
+import AnalyticsRoutePlanning from "../../components/analytics/AnalyticsRoutePlanning";
+import useMerchantRoutePlanning from "../../hooks/analytics/useMerchantRoutePlanning";
 import useMerchantUnansweredReviews from "../../hooks/analytics/useMerchantUnansweredReviews";
 
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
@@ -64,6 +66,7 @@ export default function MerchantAnalyticsScreen() {
   const measurementSheetRef = useRef<BottomSheetModal>(null);
 
   const [period, setPeriod] = useState<MerchantAnalyticsPeriod>("30");
+  const routePlanning = useMerchantRoutePlanning(period, focused);
   const [isRefreshingPlus, setIsRefreshingPlus] = useState(false);
 
   // Standard Analytics
@@ -127,6 +130,12 @@ export default function MerchantAnalyticsScreen() {
       : [];
 
   // API error notifications
+  useQueryErrorNotification({
+    error: focused ? routePlanning.error : null,
+    toastId: "merchant-route-planning-error",
+    title: "Unable to load route-planning activity",
+    fallbackMessage: "Please retry this section.",
+  });
   useQueryErrorNotification({
     error: focused ? unanswered.error : null,
     toastId: "merchant-unanswered-reviews-error",
@@ -193,6 +202,7 @@ export default function MerchantAnalyticsScreen() {
       refetch(),
       refetchProfile(),
       unanswered.refetch(),
+      routePlanning.refetch(),
       refreshPlus(),
     ]);
   };
@@ -238,7 +248,10 @@ export default function MerchantAnalyticsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={
-              isRefetching || isRefreshingPlus || unanswered.isRefetching
+              isRefetching ||
+              isRefreshingPlus ||
+              unanswered.isRefetching ||
+              routePlanning.isRefetching
             }
             onRefresh={refresh}
             tintColor={theme.extends.colors.brand}
@@ -413,6 +426,16 @@ export default function MerchantAnalyticsScreen() {
           />
           {/* Plus visibility trends */}
           <AnalyticsVisibilityTrends period={period} />
+
+          {/* Recorded guidance intent is Standard and independent of other reports. */}
+          <AnalyticsRoutePlanning
+            data={routePlanning.data}
+            loading={routePlanning.isPending}
+            error={routePlanning.error}
+            onRetry={() => {
+              void routePlanning.refetch();
+            }}
+          />
 
           {/* Additional analytics reports */}
           <AnalyticsMoreInsights onOpen={openPlusDetail} />

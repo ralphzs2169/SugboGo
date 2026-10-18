@@ -29,6 +29,7 @@ import SimilarPlacesSection from "../components/business-profile/SimilarPlacesSe
 import useBusinessProfileVisit from "../hooks/useBusinessProfileVisit";
 import { useBusinessReviewPreview } from "../hooks/useBusinessReviews";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
+import useRoutePlanningIntent from "../hooks/useRoutePlanningIntent";
 import { ReviewDerivedDataSyncProvider } from "../hooks/ReviewDerivedDataSyncProvider";
 import type { BusinessReview } from "../types/review.types";
 import {
@@ -57,6 +58,10 @@ function ExploreBusinessProfileScreenContent({
   previewAsExplorer = false,
 }: Props) {
   const { business, error, refetch } = useExploreBusinessProfile(businessId);
+  const recordRouteIntent = useRoutePlanningIntent(
+    businessId,
+    business?.is_own_business ?? false,
+  );
 
   useBusinessProfileVisit(
     businessId,
@@ -109,6 +114,7 @@ function ExploreBusinessProfileScreenContent({
   };
 
   const handleViewRoute = () => {
+    recordRouteIntent("ROAD_ROUTE");
     router.push({
       pathname: "/(explorer)/business/[businessId]/road-route",
       params: {
@@ -118,6 +124,7 @@ function ExploreBusinessProfileScreenContent({
   };
 
   const handleJeepneyGuide = () => {
+    recordRouteIntent("JEEPNEY");
     router.push({
       pathname: "/(explorer)/business/[businessId]/jeepney-guide",
       params: {

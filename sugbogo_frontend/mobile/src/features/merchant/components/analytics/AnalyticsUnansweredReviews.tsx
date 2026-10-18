@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Fragment } from "react";
 import { View, useWindowDimensions } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -6,11 +7,13 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import SafePressable from "@/shared/components/SafePressable";
 import Skeleton from "@/shared/components/Skeleton";
+
 import type { MerchantUnansweredReviewsSummary } from "../../types/merchantAnalytics.types";
 import {
   formatAnalyticsCount,
   formatAnalyticsTimestamp,
 } from "../../utils/merchantAnalytics.utils";
+
 import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
 
 type Props = {
@@ -21,7 +24,13 @@ type Props = {
   onReview: () => void;
 };
 
-/** Presents the current reply backlog with a proportional, non-judgmental age distribution. */
+/**
+ * Displays the current unanswered-review backlog with a prominent
+ * total, a compact age breakdown, and direct review navigation.
+ *
+ * Preserves independent loading, recovery, and empty states without
+ * adding another chart to the analytics dashboard.
+ */
 export default function AnalyticsUnansweredReviews({
   data,
   loading,
@@ -31,25 +40,23 @@ export default function AnalyticsUnansweredReviews({
 }: Props) {
   const { width, fontScale } = useWindowDimensions();
   const stacked = width < 340 || fontScale >= 1.5;
+
   const groups = data
     ? [
         {
+          key: "under-3",
           label: "Under 3 days",
           count: data.under_3_days,
-          color: "bg-surface-muted-strong",
-          key: "under-3",
         },
         {
+          key: "3-to-6",
           label: "3–6 days",
           count: data.days_3_to_6,
-          color: "bg-brand/50",
-          key: "3-to-6",
         },
         {
+          key: "7-plus",
           label: "7+ days",
           count: data.days_7_plus,
-          color: "bg-brand",
-          key: "7-plus",
         },
       ]
     : [];
@@ -62,7 +69,9 @@ export default function AnalyticsUnansweredReviews({
           className="text-xs text-text-secondary"
           accessibilityLabel={
             data
-              ? `Current snapshot, updated ${formatAnalyticsTimestamp(data.snapshot_as_of)} Manila time`
+              ? `Current snapshot, updated ${formatAnalyticsTimestamp(
+                  data.snapshot_as_of,
+                )} Manila time`
               : "Current snapshot"
           }
         >
@@ -70,18 +79,25 @@ export default function AnalyticsUnansweredReviews({
         </AppText>
       }
     >
-      {/* Initial loading and request recovery never hide other Analytics sections. */}
-      {loading && !data ? (
+      {/* Initial loading state */}
+      {loading && !data && (
         <View
           accessibilityLabel="Loading reviews needing replies"
           accessibilityState={{ busy: true }}
-          className="gap-3"
+          className="gap-4 py-2"
         >
-          <Skeleton className="h-7 w-44 rounded" />
-          <Skeleton className="h-2 w-full rounded-full" />
-          <Skeleton className="h-12 w-full rounded" />
+          <View className="flex-row items-center gap-3">
+            <Skeleton className="h-14 w-16 rounded-lg" />
+            <Skeleton className="h-8 w-40 rounded-lg" />
+          </View>
+
+          <Skeleton className="h-24 w-full rounded-xl" />
+
+          <Skeleton className="h-12 w-full rounded-lg" />
         </View>
-      ) : null}
+      )}
+
+      {/* Independent request recovery */}
       {error ? (
         <ErrorState
           size="section"
@@ -100,95 +116,143 @@ export default function AnalyticsUnansweredReviews({
         />
       ) : null}
 
-      {data ? (
-        <View testID="analytics-unanswered-content">
-          {/* Exact current count; zero is a completed state rather than an error. */}
-          <View
-            accessible
-            accessibilityLabel={`${data.total_unanswered} published reviews waiting for your reply`}
-            className="flex-row flex-wrap items-center gap-x-3 gap-y-1"
-          >
-            <AppText weight="bold" className="text-2xl text-text-primary">
-              {formatAnalyticsCount(data.total_unanswered)}
-            </AppText>
-            <AppText className="min-w-0 flex-1 text-sm leading-5 text-text-secondary">
-              {data.total_unanswered === 0
-                ? "All caught up — no reviews need your reply."
-                : "Published reviews waiting for your reply"}
-            </AppText>
-          </View>
-          {data.total_unanswered > 0 ? (
+      {data && (
+        <View testID="analytics-unanswered-content" className="gap-4">
+          {data.total_unanswered === 0 ? (
+            /* Completed state */
+            <View
+              accessible
+              accessibilityLabel="All caught up. No published reviews need your reply."
+              className="flex-row items-center gap-3 py-3"
+            >
+              <View className="h-12 w-12 shrink-0 items-center justify-center ">
+                <MaterialCommunityIcons
+                  name="check-circle-outline"
+                  size={25}
+                  color={theme.extends.colors.text.secondary}
+                  accessible={false}
+                />
+              </View>
+
+              <View className="min-w-0 flex-1 gap-1">
+                <AppText weight="bold" className="text-base text-text-primary">
+                  All caught up
+                </AppText>
+
+                <AppText className="text-sm leading-5 text-text-secondary">
+                  No published reviews need your reply right now.
+                </AppText>
+              </View>
+            </View>
+          ) : (
             <>
-              {/* Flex weights preserve exact proportions, including small and zero groups. */}
+              {/* Primary unanswered-review count */}
               <View
-                accessible={false}
-                className="mt-3 h-2 flex-row gap-0.5 overflow-hidden rounded-full"
-              >
-                {groups
-                  .filter((group) => group.count > 0)
-                  .map((group) => (
-                    <View
-                      key={group.key}
-                      testID={`unanswered-age-segment-${group.key}`}
-                      className={`h-full min-w-0 rounded-sm ${group.color}`}
-                      style={{ flexGrow: group.count, flexBasis: 0 }}
-                    />
-                  ))}
-              </View>
-              <View className={`mt-2 ${stacked ? "gap-3" : "flex-row gap-4"}`}>
-                {groups.map((group) => (
-                  <View
-                    key={group.key}
-                    accessible
-                    accessibilityLabel={`${group.label}: ${group.count} reviews`}
-                    className={
-                      stacked
-                        ? "flex-row items-center justify-between"
-                        : "min-w-0 flex-1 gap-1"
-                    }
-                  >
-                    <View className="flex-row items-center gap-1.5">
-                      <View
-                        accessible={false}
-                        className={`h-1.5 w-1.5 rounded-full ${group.color}`}
-                      />
-                      <AppText className="text-xs leading-5 text-text-secondary">
-                        {group.label}
-                      </AppText>
-                    </View>
-                    <AppText
-                      weight="semibold"
-                      className="text-base text-text-primary"
-                    >
-                      {formatAnalyticsCount(group.count)}
-                    </AppText>
-                  </View>
-                ))}
-              </View>
-              {/* The action opens the existing merchant tab with an explicit review intent. */}
-              <SafePressable
-                accessibilityRole="button"
-                accessibilityLabel="Review oldest first"
-                onPress={onReview}
-                className="mt-4 min-h-12 flex-row items-center justify-between gap-3 border-t border-border-primary pt-2 active:opacity-70"
+                accessible
+                accessibilityLabel={`${data.total_unanswered} published reviews waiting for your reply`}
+                className="flex-row items-center gap-4 py-1"
               >
                 <AppText
-                  weight="semibold"
-                  className="text-sm text-text-primary"
+                  weight="extrabold"
+                  className="text-4xl text-text-primary"
                 >
+                  {formatAnalyticsCount(data.total_unanswered)}
+                </AppText>
+
+                <View className="min-w-0 flex-1">
+                  <AppText className="text-sm leading-5 text-text-secondary">
+                    Published reviews awaiting your reply
+                  </AppText>
+                </View>
+
+                <View className="h-11 w-11 shrink-0 items-center justify-center">
+                  <MaterialCommunityIcons
+                    name="comment-text-outline"
+                    size={23}
+                    color={theme.extends.colors.text.secondary}
+                    accessible={false}
+                  />
+                </View>
+              </View>
+
+              {/* Grouped age statistics without another chart */}
+              <View className="rounded-xl bg-surface-muted px-3 py-3">
+                <View className={stacked ? "gap-2" : "flex-row items-stretch"}>
+                  {groups.map((group, index) => {
+                    const highlight = group.key === "7-plus" && group.count > 0;
+
+                    return (
+                      <Fragment key={group.key}>
+                        {index > 0 && (
+                          <View
+                            accessible={false}
+                            className={
+                              stacked
+                                ? "h-px bg-border-primary/60"
+                                : "mx-1 w-px self-stretch bg-border-primary/60"
+                            }
+                          />
+                        )}
+
+                        <View
+                          testID={`unanswered-age-group-${group.key}`}
+                          accessible
+                          accessibilityLabel={`${group.label}: ${group.count} ${
+                            group.count === 1 ? "review" : "reviews"
+                          }`}
+                          className={
+                            stacked
+                              ? "flex-row items-center justify-between gap-3 px-2 py-2"
+                              : "min-w-0 flex-1 items-center gap-1 px-1 py-1"
+                          }
+                        >
+                          <AppText
+                            weight="bold"
+                            className={`text-2xl ${
+                              highlight ? "text-brand" : "text-text-primary"
+                            }`}
+                          >
+                            {formatAnalyticsCount(group.count)}
+                          </AppText>
+
+                          <AppText
+                            className={`text-xs leading-5 text-text-secondary ${
+                              stacked ? "text-right" : "text-center"
+                            }`}
+                          >
+                            {group.label}
+                          </AppText>
+                        </View>
+                      </Fragment>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Primary action to resolve the oldest unanswered reviews */}
+              <SafePressable
+                accessibilityRole="button"
+                accessibilityLabel="Review oldest unanswered reviews first"
+                onPress={onReview}
+                className="min-h-12 flex-row cursor-pointer items-center justify-between gap-3 border-t border-border-primary/60 pt-3 active:opacity-70"
+              >
+                <AppText weight="semibold" className="text-sm text-brand">
                   Review oldest first
                 </AppText>
-                <MaterialCommunityIcons
-                  accessible={false}
-                  name="chevron-right"
-                  size={20}
-                  color={theme.extends.colors.text.secondary}
-                />
+
+                <View className="h-8 w-8 items-center justify-center rounded-full bg-brand/10">
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={21}
+                    color={theme.extends.colors.brand}
+                    accessible={false}
+                  />
+                </View>
               </SafePressable>
             </>
-          ) : null}
+          )}
         </View>
-      ) : null}
+      )}
     </AnalyticsOverviewSection>
   );
 }
