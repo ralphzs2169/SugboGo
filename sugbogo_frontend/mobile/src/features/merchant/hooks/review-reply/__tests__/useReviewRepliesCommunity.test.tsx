@@ -9,6 +9,8 @@ import {
   exploreBusinessDetailKey,
 } from "@/features/explore/hooks/reviewQueryKeys";
 import { MERCHANT_STANDARD_ANALYTICS_QUERY_KEY } from "../../analytics/merchantAnalyticsQueryKeys";
+import { merchantUnansweredReviewsKey } from "../../analytics/merchantAnalyticsQueryKeys";
+import { merchantReviewFeedKey } from "../../review-management/merchantReviewQueryKeys";
 
 import * as replyService from "../../../api/reviewReply.service";
 import {
@@ -86,6 +88,12 @@ describe("merchant reply Community synchronization", () => {
         data: null,
       });
       const { client, invalidate, Wrapper } = setup();
+      const summaryKey = merchantUnansweredReviewsKey(42);
+      const feedKey = merchantReviewFeedKey(42, 20, "needs-reply", "oldest");
+      client.setQueryDefaults(summaryKey, { gcTime: Infinity });
+      client.setQueryDefaults(feedKey, { gcTime: Infinity });
+      client.setQueryData(summaryKey, { total_unanswered: 8 });
+      client.setQueryData(feedKey, { pages: [], pageParams: [] });
       const { result, unmount } = await renderHook(() => hook(20), {
         wrapper: Wrapper,
       });
@@ -95,6 +103,8 @@ describe("merchant reply Community synchronization", () => {
       });
 
       expect(service).toHaveBeenCalledTimes(1);
+      expect(client.getQueryState(summaryKey)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(feedKey)?.isInvalidated).toBe(true);
       for (const queryKey of [
         COMMUNITY_REVIEWS_QUERY_KEY,
         businessReviewPreviewKey(20),

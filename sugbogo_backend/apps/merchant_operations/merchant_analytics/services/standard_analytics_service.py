@@ -1,12 +1,13 @@
 """Owned-business Standard aggregates without comparisons or Premium analysis."""
 
-from django.db.models import Count, Exists, F, OuterRef, Q
+from django.db.models import Count, F, Q
 
 from apps.business.services.pocket_service import PocketService
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
 from apps.business.services.vouch_service import VouchService
 from apps.merchant_operations.business_profile.services.business_profile_service import BusinessProfileService
-from apps.reviews.models import Review, ReviewReply
+from apps.reviews.models import ReviewReply
+from apps.reviews.services.review_reply_eligibility import published_reviews_at_cutoff
 from apps.shared.analytics.metadata import build_meta
 
 
@@ -53,16 +54,10 @@ class StandardAnalyticsService:
         cutoff,
     ):
         """Share current published eligibility and the existing qualifying-reply cutoff."""
-        eligible_reply = ReviewReply.objects.filter(
-            REVW_ID=OuterRef("pk"),
-            RPLY_CREATED_AT__lte=cutoff,
-            RPLY_CREATED_AT__gte=OuterRef("REVW_CREATED_AT"),
+        return published_reviews_at_cutoff(
+            business_id,
+            cutoff,
         )
-        return Review.objects.filter(
-            BUSN_ID=business_id,
-            REVW_STATUS=Review.ReviewStatus.PUBLISHED,
-            REVW_CREATED_AT__lte=cutoff,
-        ).annotate(has_eligible_reply=Exists(eligible_reply))
 
     @staticmethod
     def review_counts(

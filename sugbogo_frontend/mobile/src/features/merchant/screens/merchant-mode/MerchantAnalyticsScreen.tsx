@@ -24,6 +24,8 @@ import AnalyticsSectionSkeleton from "../../components/analytics/AnalyticsSectio
 import AnalyticsSourceNotice from "../../components/analytics/AnalyticsSourceNotice";
 import AnalyticsSpecialtySupport from "../../components/analytics/AnalyticsSpecialtySupport";
 import AnalyticsVisibilityTrends from "../../components/analytics/AnalyticsVisibilityTrends";
+import AnalyticsUnansweredReviews from "../../components/analytics/AnalyticsUnansweredReviews";
+import useMerchantUnansweredReviews from "../../hooks/analytics/useMerchantUnansweredReviews";
 
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import {
@@ -55,6 +57,7 @@ import AnalyticsMeasurementSheet from "../../components/analytics/AnalyitcsMeasu
 export default function MerchantAnalyticsScreen() {
   const router = useRouter();
   const focused = useIsFocused();
+  const unanswered = useMerchantUnansweredReviews(focused);
   const queryClient = useQueryClient();
 
   const bottomSpacing = useTabBarSpacing(24);
@@ -125,6 +128,12 @@ export default function MerchantAnalyticsScreen() {
 
   // API error notifications
   useQueryErrorNotification({
+    error: focused ? unanswered.error : null,
+    toastId: "merchant-unanswered-reviews-error",
+    title: "Unable to load reviews needing replies",
+    fallbackMessage: "Please try again.",
+  });
+  useQueryErrorNotification({
     error,
     toastId: "merchant-standard-analytics-error",
     title: "Unable to load analytics",
@@ -180,7 +189,12 @@ export default function MerchantAnalyticsScreen() {
   };
 
   const refresh = () => {
-    void Promise.all([refetch(), refetchProfile(), refreshPlus()]);
+    void Promise.all([
+      refetch(),
+      refetchProfile(),
+      unanswered.refetch(),
+      refreshPlus(),
+    ]);
   };
 
   const openPlusDetail = (kind: PlusDetailKind) => {
@@ -223,7 +237,9 @@ export default function MerchantAnalyticsScreen() {
         contentContainerStyle={{ paddingBottom: bottomSpacing }}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching || isRefreshingPlus}
+            refreshing={
+              isRefetching || isRefreshingPlus || unanswered.isRefetching
+            }
             onRefresh={refresh}
             tintColor={theme.extends.colors.brand}
             colors={[theme.extends.colors.brand]}
@@ -376,11 +392,30 @@ export default function MerchantAnalyticsScreen() {
             ) : null}
           </AnalyticsOverviewSection>
 
+          {/* Current actionable review backlog */}
+          <AnalyticsUnansweredReviews
+            data={unanswered.data}
+            loading={unanswered.isPending}
+            error={unanswered.error}
+            onRetry={() => {
+              void unanswered.refetch();
+            }}
+            onReview={() =>
+              router.navigate({
+                pathname: "/(merchant)/(tabs)/reviews",
+                params: {
+                  filter: "needs-reply",
+                  ordering: "oldest",
+                  reviewIntent: String(Date.now()),
+                },
+              })
+            }
+          />
           {/* Plus visibility trends */}
           <AnalyticsVisibilityTrends period={period} />
 
           {/* Additional analytics reports */}
-          <AnalyticsMoreInsights access={plusAccess} onOpen={openPlusDetail} />
+          <AnalyticsMoreInsights onOpen={openPlusDetail} />
 
           {/* Report preparation timestamp */}
           {report && (

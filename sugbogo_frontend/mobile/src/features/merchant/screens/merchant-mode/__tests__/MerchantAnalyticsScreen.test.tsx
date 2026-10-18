@@ -18,8 +18,12 @@ import {
   deferredAnalytics,
   standardAnalyticsMeta,
   standardAnalyticsReport,
+  unansweredReviewsSummary,
 } from "../../../__tests__/merchantAnalytics.fixtures";
-import { getMerchantStandardAnalytics } from "../../../api/merchantAnalytics.service";
+import {
+  getMerchantStandardAnalytics,
+  getMerchantUnansweredReviews,
+} from "../../../api/merchantAnalytics.service";
 import { merchantPlusReportKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
 import * as plusService from "../../../api/merchantPlusAnalytics.service";
@@ -63,6 +67,7 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("../../../api/merchantAnalytics.service", () => ({
   getMerchantStandardAnalytics: jest.fn(),
+  getMerchantUnansweredReviews: jest.fn(),
 }));
 jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
   getMerchantPlusStatus: jest.fn(),
@@ -95,6 +100,49 @@ jest.mock("@/shared/components/Skeleton", () => {
     jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: View };
 });
+jest.mock(
+  "../../../components/analytics/AnalyticsVisibilityMeasurementSheet",
+  () => ({
+    __esModule: true,
+    default: () => null,
+  }),
+);
+jest.mock("../../../components/analytics/AnalyitcsMeasurementSheet", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+jest.mock(
+  "../../../components/analytics/AnalyticsVisibilityMetricTabs",
+  () => ({
+    __esModule: true,
+    default: ({
+      options,
+      value,
+      onChange,
+    }: {
+      options: readonly { value: string; label: string }[];
+      value: string;
+      onChange: (value: string) => void;
+    }) => {
+      const { View, Pressable, Text } = jest.requireActual("react-native");
+      return (
+        <View>
+          {options.map((option) => (
+            <Pressable
+              key={option.value}
+              accessibilityRole="tab"
+              accessibilityLabel={option.label}
+              accessibilityState={{ selected: value === option.value }}
+              onPress={() => onChange(option.value)}
+            >
+              <Text>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      );
+    },
+  }),
+);
 
 const getAnalytics = jest.mocked(getMerchantStandardAnalytics);
 
@@ -110,6 +158,11 @@ describe("MerchantAnalyticsScreen", () => {
     useAuthStore.setState({ user: analyticsMerchant() });
     getAnalytics.mockReset();
     getAnalytics.mockResolvedValue(analyticsSuccess());
+    jest.mocked(getMerchantUnansweredReviews).mockReset().mockResolvedValue({
+      success: true,
+      message: "Success",
+      data: unansweredReviewsSummary(),
+    });
     jest
       .mocked(plusService.getMerchantPlusStatus)
       .mockReset()
@@ -168,13 +221,47 @@ describe("MerchantAnalyticsScreen", () => {
       .map((heading) => heading.props.children);
     const businessIndex = headings.indexOf("Business overview");
     expect(businessIndex).toBeGreaterThanOrEqual(0);
-    expect(headings.slice(businessIndex, businessIndex + 4)).toEqual([
+    expect(headings.slice(businessIndex, businessIndex + 5)).toEqual([
       "Business overview",
       "Specialty Support",
-      "Visibility Trends",
-      "Your business now",
+      "Reviews needing replies",
+      "Visibility trends",
+      "More insights",
     ]);
     expect(screen.getAllByText("Total vouches")).toHaveLength(1);
+  });
+
+  it("keeps the current reply backlog independent of period changes and refreshes it on pull", async () => {
+    const screen = await renderScreen();
+    await screen.findByLabelText("8 published reviews waiting for your reply");
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await waitFor(() => expect(getAnalytics).toHaveBeenLastCalledWith("7"));
+    expect(getMerchantUnansweredReviews).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      screen
+        .getByTestId("merchant-analytics-scroll")
+        .props.refreshControl.props.onRefresh();
+    });
+    await waitFor(() =>
+      expect(getMerchantUnansweredReviews).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("recovers the reply backlog independently without losing Standard KPIs", async () => {
+    jest.mocked(getMerchantUnansweredReviews).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
+    const screen = await renderScreen();
+    const retry = await screen.findByRole("button", {
+      name: /Unable to load reviews needing replies.*retry/i,
+    });
+    expect(screen.getByLabelText(/Recorded profile visits: 24/)).toBeTruthy();
+    await fireEvent.press(retry);
+    await screen.findByLabelText("8 published reviews waiting for your reply");
+    expect(getMerchantUnansweredReviews).toHaveBeenCalledTimes(2);
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
   });
 
   it.each([0, null, undefined])(
@@ -904,27 +991,40 @@ describe("MerchantAnalyticsScreen", () => {
     expect(screen.getByLabelText(/Recorded profile visits: 24/)).toBeTruthy();
   });
 
-  it("navigates only to the existing Reviews screen and keeps Plus previews informational", async () => {
+  it("opens oldest unanswered reviews using the Standard backlog without extra report requests", async () => {
     const screen = await renderScreen();
     const reviews = await screen.findByRole("button", {
-      name: "View merchant reviews",
+      name: "Review oldest first",
     });
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    const visibilityRequests = jest.mocked(
+      plusService.getMerchantPlusVisibility,
+    ).mock.calls.length;
+    const pocketRequests = jest.mocked(plusService.getMerchantPlusPocket).mock
+      .calls.length;
+    const reviewRequests = jest.mocked(
+      plusService.getMerchantPlusReviewPerformance,
+    ).mock.calls.length;
 
     await fireEvent.press(reviews);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/(merchant)/(tabs)/reviews");
-    for (const title of [
-      "Visibility Trends",
-      "Review Performance",
-      "Peer Comparisons",
-      "Profile-Visit Timing",
-      "Business Recommendations",
-    ]) {
-      expect(screen.getByText(title)).toBeTruthy();
-      expect(
-        screen.queryByRole("button", { name: new RegExp(title) }),
-      ).toBeNull();
-    }
+    expect(mockNavigate).toHaveBeenCalledWith({
+      pathname: "/(merchant)/(tabs)/reviews",
+      params: {
+        filter: "needs-reply",
+        ordering: "oldest",
+        reviewIntent: expect.any(String),
+      },
+    });
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(
+      visibilityRequests,
+    );
+    expect(plusService.getMerchantPlusPocket).toHaveBeenCalledTimes(
+      pocketRequests,
+    );
+    expect(plusService.getMerchantPlusReviewPerformance).toHaveBeenCalledTimes(
+      reviewRequests,
+    );
     expect(getAnalytics).toHaveBeenCalledTimes(1);
   });
 

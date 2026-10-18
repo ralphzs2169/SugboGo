@@ -7,6 +7,7 @@ import { theme } from "@/constants/theme";
 type Props = {
   totalCount?: number;
   needsReplyCount?: number;
+  filtered?: boolean;
 };
 
 /**
@@ -18,6 +19,7 @@ type Props = {
 export default function MerchantReviewsOverview({
   totalCount,
   needsReplyCount,
+  filtered = false,
 }: Props) {
   const totalReviewLabel =
     totalCount === undefined
@@ -78,7 +80,7 @@ export default function MerchantReviewsOverview({
           </AppText>
 
           <AppText className="mt-0.5 text-xs text-text-secondary">
-            {totalReviewLabel}
+            {filtered ? "Matching reviews" : totalReviewLabel}
           </AppText>
         </View>
 

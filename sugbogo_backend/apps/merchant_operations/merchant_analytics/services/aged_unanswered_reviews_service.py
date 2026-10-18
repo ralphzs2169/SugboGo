@@ -8,8 +8,7 @@ from django.utils import timezone
 from apps.merchant_operations.business_profile.services.business_profile_service import (
     BusinessProfileService,
 )
-
-from .standard_analytics_service import StandardAnalyticsService
+from apps.reviews.services.review_reply_eligibility import actionable_unanswered_reviews
 
 
 class AgedUnansweredReviewsService:
@@ -25,14 +24,9 @@ class AgedUnansweredReviewsService:
         three_days_ago = reference_time - timedelta(hours=72)
         seven_days_ago = reference_time - timedelta(hours=168)
 
-        backlog = StandardAnalyticsService.published_reviews_at_cutoff(
+        backlog = actionable_unanswered_reviews(
             business.pk,
             reference_time,
-        ).filter(
-            has_eligible_reply=False,
-            # Any retained one-to-one reply prevents another create_reply, even if
-            # its timestamps do not qualify for Standard's reply-rate statistics.
-            reply__isnull=True,
         )
         counts = backlog.aggregate(
             total_unanswered=Count("pk"),

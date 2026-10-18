@@ -1,6 +1,16 @@
 /** Supported Standard selections; custom dates are deferred in the mobile MVP. */
 export type MerchantAnalyticsPeriod = "7" | "30" | "90";
 
+/** Current actionable backlog; age counts are server-computed elapsed-time groups. */
+export type MerchantUnansweredReviewsSummary = {
+  business: { id: number; name: string; status: string };
+  total_unanswered: number;
+  under_3_days: number;
+  days_3_to_6: number;
+  days_7_plus: number;
+  snapshot_as_of: string;
+};
+
 export type AnalyticsAvailability = "available" | "partial" | "unavailable";
 
 /** Mirrors the Standard serializer without inventing previous-period fields. */

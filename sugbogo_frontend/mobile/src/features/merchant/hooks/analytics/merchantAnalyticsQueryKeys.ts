@@ -11,3 +11,12 @@ export function merchantStandardAnalyticsKey(
 ) {
   return [...MERCHANT_STANDARD_ANALYTICS_QUERY_KEY, userId, period] as const;
 }
+
+/** Shares reply-mutation invalidation while remaining independent of date filters. */
+export function merchantUnansweredReviewsKey(userId: number | undefined) {
+  return [
+    ...MERCHANT_STANDARD_ANALYTICS_QUERY_KEY,
+    userId,
+    "unanswered-reviews",
+  ] as const;
+}

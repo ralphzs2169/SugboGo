@@ -4,7 +4,10 @@ import {
   analyticsSuccess,
   standardAnalyticsReport,
 } from "../../__tests__/merchantAnalytics.fixtures";
-import { getMerchantStandardAnalytics } from "../merchantAnalytics.service";
+import {
+  getMerchantStandardAnalytics,
+  getMerchantUnansweredReviews,
+} from "../merchantAnalytics.service";
 
 jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,
@@ -12,6 +15,17 @@ jest.mock("@/shared/api/apiClient.service", () => ({
 }));
 
 describe("merchant Standard analytics transport", () => {
+  it("requests the current backlog without period or cutoff parameters", async () => {
+    jest
+      .mocked(apiClient.get)
+      .mockResolvedValue({ data: { success: true, data: null } });
+    const controller = new AbortController();
+    await getMerchantUnansweredReviews(controller.signal);
+    expect(apiClient.get).toHaveBeenLastCalledWith(
+      "/merchant/analytics/standard/unanswered-reviews/",
+      { signal: controller.signal },
+    );
+  });
   it.each(["7", "30", "90"] as const)(
     "sends only the supported period %s and preserves the envelope",
     async (period) => {

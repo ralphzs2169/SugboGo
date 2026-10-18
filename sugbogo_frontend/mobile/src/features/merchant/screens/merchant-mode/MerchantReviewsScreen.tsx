@@ -1,28 +1,30 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import LottieView from "lottie-react-native";
+import { useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
+import { useIsFocused } from "expo-router";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
-import { useMerchantBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
+import useMerchantReviewFeed from "../../hooks/review-management/useMerchantReviewFeed";
+import useMerchantReviewSelection from "../../hooks/review-management/useMerchantReviewSelection";
+import useMerchantUnansweredReviews from "../../hooks/analytics/useMerchantUnansweredReviews";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import EndOfListMessage from "@/shared/components/EndOfListMessage";
+import loadingAnimation from "@/shared/assets/animations/loading.json";
 import { useReplyTemplates } from "../../hooks/reply-templates/useReplyTemplates";
 
 import type { BusinessReview } from "@/features/explore/types/review.types";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import { handleSystemError } from "@/shared/utils/apiErrors";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import { useReviewDisputes } from "../../hooks/review-disputes/useReviewDisputes";
 import MerchantReviewCard from "../../components/review-management/MerchantReviewCard";
-import MerchantReviewFilters, {
-  type ReviewFilter,
-} from "../../components/review-management/MerchantReviewFilters";
+import MerchantReviewFilters from "../../components/review-management/MerchantReviewFilters";
 import MerchantReviewManagement from "../../components/review-management/MerchantReviewManagement";
 import MerchantReviewReplyComposerSheet from "../../components/review-management/MerchantReviewReplyComposerSheet";
 import MerchantReviewsOverview from "../../components/review-management/MerchantReviewsOverview";
@@ -47,6 +49,16 @@ const MASCOT_NO_HISTORY = require("@/shared/assets/mascot/mascot-no-history.webp
  */
 export default function MerchantReviewsScreen() {
   const insets = useSafeAreaInsets();
+  const focused = useIsFocused();
+  const { filter, ordering, setFilter, setOrdering } =
+    useMerchantReviewSelection();
+  const unanswered = useMerchantUnansweredReviews(focused);
+  useQueryErrorNotification({
+    error: focused ? unanswered.error : null,
+    toastId: "merchant-review-backlog-error",
+    title: "Unable to refresh reviews needing replies",
+    fallbackMessage: "Your review list is still available.",
+  });
 
   const {
     business,
@@ -64,7 +76,11 @@ export default function MerchantReviewsScreen() {
     isRefetching,
     error: reviewsError,
     refetch: refetchReviews,
-  } = useMerchantBusinessReviews(businessId);
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+  } = useMerchantReviewFeed(businessId, filter, ordering, focused);
 
   const { disputes, isLoading: isDisputesLoading } = useReviewDisputes();
 
@@ -82,52 +98,31 @@ export default function MerchantReviewsScreen() {
   const [selectedReview, setSelectedReview] = useState<BusinessReview | null>(
     null,
   );
-  const [filter, setFilter] = useState<ReviewFilter>("all");
-  const [isRetryingReviews, setIsRetryingReviews] = useState(false);
 
-  const isInitialLoading =
-    isBusinessLoading || (Boolean(business) && isReviewsInitialLoading);
+  const isInitialLoading = isBusinessLoading;
+  const sectionLoading = isReviewsInitialLoading;
+  const needsReplyCount = unanswered.data?.total_unanswered;
 
-  const filteredReviews = useMemo(() => {
-    if (filter === "needs-reply") {
-      return reviews.filter((review) => !review.reply);
-    }
-
-    if (filter === "replied") {
-      return reviews.filter((review) => Boolean(review.reply));
-    }
-
-    return reviews;
-  }, [filter, reviews]);
-
-  const needsReplyCount = useMemo(
-    () => reviews.filter((review) => !review.reply).length,
-    [reviews],
-  );
-
-  useEffect(() => {
-    const error = businessError || reviewsError;
-
-    if (!error) {
-      return;
-    }
-
-    const response = error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: reviewsError
-          ? "Unable to load reviews"
-          : "Unable to load business",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [businessError, reviewsError]);
+  useQueryErrorNotification({
+    error: focused ? reviewsError : null,
+    toastId: "merchant-reviews-feed-error",
+    title: "Unable to load reviews",
+    fallbackMessage: "Please try again.",
+  });
+  useQueryErrorNotification({
+    error: focused ? businessError : null,
+    toastId: "merchant-reviews-business-error",
+    title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
 
   const refresh = async () => {
     if (business) {
-      await Promise.all([refetchBusiness(), refetchReviews()]);
+      await Promise.all([
+        refetchBusiness(),
+        refetchReviews(),
+        unanswered.refetch(),
+      ]);
       return;
     }
 
@@ -136,16 +131,6 @@ export default function MerchantReviewsScreen() {
 
   const retryBusiness = () => {
     void refetchBusiness();
-  };
-
-  const retryReviews = async () => {
-    setIsRetryingReviews(true);
-
-    try {
-      await refetchReviews();
-    } finally {
-      setIsRetryingReviews(false);
-    }
   };
 
   const openReplyComposer = (review: BusinessReview) => {
@@ -189,7 +174,19 @@ export default function MerchantReviewsScreen() {
     >
       {/* Review feed */}
       <FlatList
-        data={reviewsError || isRetryingReviews ? [] : filteredReviews}
+        testID="merchant-reviews-feed"
+        data={reviews}
+        onEndReached={() => {
+          if (
+            focused &&
+            hasNextPage &&
+            !isRefetching &&
+            !isFetchingNextPage &&
+            !isFetchNextPageError
+          )
+            void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.35}
         keyExtractor={(review) => String(review.id)}
         renderItem={({ item }) => (
           <MerchantReviewCard
@@ -205,7 +202,7 @@ export default function MerchantReviewsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
+            refreshing={isRefetching || unanswered.isRefetching}
             onRefresh={refresh}
             tintColor={theme.extends.colors.brand}
           />
@@ -214,13 +211,25 @@ export default function MerchantReviewsScreen() {
           <View>
             {/* Review overview */}
             <MerchantReviewsOverview
-              totalCount={
-                reviewsError || isRetryingReviews ? undefined : totalCount
-              }
-              needsReplyCount={
-                reviewsError || isRetryingReviews ? undefined : needsReplyCount
-              }
+              totalCount={totalCount}
+              filtered={filter !== "all"}
+              needsReplyCount={needsReplyCount}
             />
+            {unanswered.error && (
+              <ErrorState
+                size="section"
+                title="Reply count unavailable"
+                description={
+                  unanswered.data
+                    ? "Previously loaded reply counts are shown."
+                    : "Your reviews can still be managed below."
+                }
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => {
+                  void unanswered.refetch();
+                }}
+              />
+            )}
 
             {/* Review management */}
             <MerchantReviewManagement
@@ -233,59 +242,78 @@ export default function MerchantReviewsScreen() {
             />
 
             {/* Review feed controls */}
-            {!reviewsError && !isRetryingReviews && (
-              <MerchantReviewFilters
-                needsReplyCount={needsReplyCount}
-                filter={filter}
-                onFilterChange={setFilter}
-              />
-            )}
+            <MerchantReviewFilters
+              needsReplyCount={needsReplyCount}
+              filter={filter}
+              onFilterChange={setFilter}
+              ordering={ordering}
+              onOrderingChange={setOrdering}
+            />
 
             {/* Review retry loading */}
-            {isRetryingReviews && (
+            {sectionLoading && (
               <View className="-mx-4 mt-6 border-t border-border-primary bg-surface px-4 pb-4 pt-6">
-                <View className="mb-4">
-                  <AppText weight="bold" className="text-lg text-text-primary">
-                    Reviews
-                  </AppText>
-
-                  <AppText className="mt-0.5 text-xs text-text-secondary">
-                    Feedback shared by explorers
-                  </AppText>
-                </View>
-
                 <MerchantReviewsSectionSkeleton />
               </View>
             )}
 
             {/* Review feed error */}
-            {reviewsError && !isRetryingReviews && (
+            {reviewsError && !isFetchNextPageError && (
               <View className="-mx-4 mt-6 border-t border-border-primary bg-surface px-4 pb-4 pt-6">
-                <View className="mb-4">
-                  <AppText weight="bold" className="text-lg text-text-primary">
-                    Reviews
-                  </AppText>
-
-                  <AppText className="mt-0.5 text-xs text-text-secondary">
-                    Feedback shared by explorers
-                  </AppText>
-                </View>
-
                 <ErrorState
                   size="section"
                   icon="comment-off-outline"
-                  title="Unable to load reviews"
-                  description="We couldn't load your reviews right now."
+                  title={
+                    reviews.length
+                      ? "Unable to refresh reviews"
+                      : "Unable to load reviews"
+                  }
+                  description={
+                    reviews.length
+                      ? "Previously loaded reviews are still shown."
+                      : "We couldn't load your reviews right now."
+                  }
                   primaryActionTitle="Retry"
-                  onPrimaryAction={() => void retryReviews()}
+                  onPrimaryAction={() => void refetchReviews()}
                 />
               </View>
             )}
           </View>
         }
         ItemSeparatorComponent={() => <View className="h-3" />}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <View
+              className="items-center py-5"
+              accessibilityLabel="Loading more reviews"
+              accessibilityState={{ busy: true }}
+            >
+              <LottieView
+                source={loadingAnimation}
+                autoPlay
+                loop
+                style={{ width: 50, height: 50 }}
+              />
+            </View>
+          ) : isFetchNextPageError ? (
+            <ErrorState
+              size="section"
+              title="Unable to load more reviews"
+              description="Loaded reviews are still available."
+              primaryActionTitle="Retry"
+              onPrimaryAction={() => {
+                void fetchNextPage();
+              }}
+            />
+          ) : !hasNextPage && reviews.length > 0 ? (
+            <EndOfListMessage
+              title="End of reviews"
+              description="You've reached the end of this list."
+            />
+          ) : null
+        }
         ListEmptyComponent={
-          reviewsError || isRetryingReviews ? null : (
+          reviewsError || sectionLoading ? null : (
             <>
               {/* No reviews yet */}
               {filter === "all" && (

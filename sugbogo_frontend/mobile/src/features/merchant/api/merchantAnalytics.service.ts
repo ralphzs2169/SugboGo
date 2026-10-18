@@ -5,6 +5,7 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
   MerchantAnalyticsPeriod,
   MerchantStandardAnalytics,
+  MerchantUnansweredReviewsSummary,
 } from "../types/merchantAnalytics.types";
 
 /** Reads Standard aggregates; the backend derives business ownership from JWT. */
@@ -14,6 +15,17 @@ export async function getMerchantStandardAnalytics(
   return request(
     apiClient.get("/merchant/analytics/standard/", {
       params: { period },
+    }),
+  );
+}
+
+/** Reads the current backlog independently of dates, interval and Plus access. */
+export function getMerchantUnansweredReviews(
+  signal?: AbortSignal,
+): Promise<ApiResponse<MerchantUnansweredReviewsSummary>> {
+  return request(
+    apiClient.get("/merchant/analytics/standard/unanswered-reviews/", {
+      signal,
     }),
   );
 }
