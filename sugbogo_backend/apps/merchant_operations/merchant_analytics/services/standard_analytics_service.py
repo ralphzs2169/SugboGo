@@ -48,17 +48,33 @@ class StandardAnalyticsService:
         return values, standard_meta(period, availability=availability, partial_reasons=reasons)
 
     @staticmethod
-    def review_counts(business_id, period):
-        """Count current published reviews and period-cohort replies by generated_at cutoff."""
-        cutoff = period.generated_at
+    def published_reviews_at_cutoff(
+        business_id,
+        cutoff,
+    ):
+        """Share current published eligibility and the existing qualifying-reply cutoff."""
         eligible_reply = ReviewReply.objects.filter(
-            REVW_ID=OuterRef("pk"), RPLY_CREATED_AT__lte=cutoff,
+            REVW_ID=OuterRef("pk"),
+            RPLY_CREATED_AT__lte=cutoff,
             RPLY_CREATED_AT__gte=OuterRef("REVW_CREATED_AT"),
         )
-        published = Review.objects.filter(
-            BUSN_ID=business_id, REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+        return Review.objects.filter(
+            BUSN_ID=business_id,
+            REVW_STATUS=Review.ReviewStatus.PUBLISHED,
             REVW_CREATED_AT__lte=cutoff,
         ).annotate(has_eligible_reply=Exists(eligible_reply))
+
+    @staticmethod
+    def review_counts(
+        business_id,
+        period,
+    ):
+        """Count current published reviews and period-cohort replies by generated_at cutoff."""
+        cutoff = period.generated_at
+        published = StandardAnalyticsService.published_reviews_at_cutoff(
+            business_id,
+            cutoff,
+        )
         current = published.aggregate(
             total=Count("pk"), unanswered=Count("pk", filter=Q(has_eligible_reply=False)),
         )

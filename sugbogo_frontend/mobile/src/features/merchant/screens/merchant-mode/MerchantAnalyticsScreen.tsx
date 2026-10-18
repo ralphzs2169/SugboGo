@@ -325,6 +325,7 @@ export default function MerchantAnalyticsScreen() {
           {/* Current specialty support */}
           <AnalyticsOverviewSection
             title="Specialty Support"
+            description="Current support · All dates"
             accessory={
               plusAccess.allowed ? (
                 <SafePressable

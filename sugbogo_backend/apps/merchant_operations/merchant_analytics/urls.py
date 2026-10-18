@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .views.aged_unanswered_reviews_views import AgedUnansweredReviewsView
 from .views.report_export_views import MerchantReportExportView
 from .views.engagement_heatmap_views import EngagementHeatmapView
 from .views.standard_analytics_views import StandardAnalyticsView
@@ -12,6 +13,11 @@ from .views.premium_analytics_views import (
 
 
 urlpatterns = [
+    path(
+        "standard/unanswered-reviews/",
+        AgedUnansweredReviewsView.as_view(),
+        name="merchant-analytics-aged-unanswered-reviews",
+    ),
     path("premium/report/export/", MerchantReportExportView.as_view(), name="merchant-analytics-premium-report-export"),
     path("premium/engagement-heatmap/", EngagementHeatmapView.as_view(), name="merchant-analytics-premium-engagement-heatmap"),
     path("premium/recommendations/", RecommendationView.as_view(), name="merchant-analytics-premium-recommendations"),
