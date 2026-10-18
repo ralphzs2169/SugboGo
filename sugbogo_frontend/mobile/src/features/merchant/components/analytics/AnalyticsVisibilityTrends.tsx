@@ -18,7 +18,7 @@ import { PlusAccessGate, PlusRequestState } from "./AnalyticsPlusStates";
 const METRICS = [
   { value: "profile_visits", label: "Profile visits" },
   { value: "impressions", label: "Impressions" },
-  { value: "distinct_profile_visitors", label: "Distinct visitors" },
+  { value: "distinct_profile_visitors", label: "Visitor accounts" },
 ] as const;
 
 /** Owns the overview's primary chart while leaving Standard sections independent. */
@@ -58,13 +58,13 @@ export default function AnalyticsVisibilityTrends({
         <View className="gap-4">
           {/* Switching metrics reuses the same report; only interval/period changes fetch. */}
           <AnalyticsChoiceChips
-            label="Visibility metric"
+            label="Show"
             options={METRICS}
             value={metric}
             onChange={setMetric}
           />
           <AnalyticsChoiceChips
-            label="Interval"
+            label="Group by"
             options={[
               { value: "daily", label: "Daily" },
               { value: "weekly", label: "Weekly" },

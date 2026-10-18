@@ -3,6 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import ErrorState from "@/shared/components/ErrorState";
 import MerchantAnalyticsDetailScreen, {
   PLUS_DETAIL_TITLES,
+  isPlusDetailKind,
 } from "@/features/merchant/screens/merchant-mode/MerchantAnalyticsDetailScreen";
 import type { MerchantAnalyticsPeriod } from "@/features/merchant/types/merchantAnalytics.types";
 
@@ -10,7 +11,7 @@ import type { MerchantAnalyticsPeriod } from "@/features/merchant/types/merchant
 export default function MerchantAnalyticsDetailRoute() {
   const params = useLocalSearchParams<{ report?: string; period?: string }>();
   const kind = params.report;
-  if (kind !== "pocket" && kind !== "specialties" && kind !== "reviews") {
+  if (!isPlusDetailKind(kind)) {
     return (
       <SafeAreaView className="flex-1 bg-background">
         <ErrorState

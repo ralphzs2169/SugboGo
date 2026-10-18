@@ -12,7 +12,10 @@ export type AnalyticsSelection =
 export type AnalyticsInterval = "daily" | "weekly";
 export type VisibilityMetric =
   "impressions" | "profile_visits" | "distinct_profile_visitors";
-export type PlusDetailKind = "pocket" | "specialties" | "reviews";
+export type CorePlusDetailKind = "pocket" | "specialties" | "reviews";
+export type AdvancedPlusDetailKind =
+  "peers" | "review-insights" | "timing" | "recommendations";
+export type PlusDetailKind = CorePlusDetailKind | AdvancedPlusDetailKind;
 export type PlusReportKind = "visibility" | PlusDetailKind;
 export type OwnedAnalyticsBusiness = MerchantStandardAnalytics["business"];
 

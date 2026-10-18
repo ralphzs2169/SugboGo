@@ -12,11 +12,11 @@ const INSIGHTS: {
   title: string;
   description: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
-  kind?: PlusDetailKind;
+  kind: PlusDetailKind;
 }[] = [
   {
     title: "Pocket Trends",
-    description: "Recorded saves and distinct saver accounts",
+    description: "Recorded saves and accounts that saved your business",
     icon: "bookmark-outline",
     kind: "pocket",
   },
@@ -28,22 +28,31 @@ const INSIGHTS: {
   },
   {
     title: "Peer Comparisons",
-    description: "Planned for a later phase",
+    description: "Recorded activity compared with similar businesses",
     icon: "store-outline",
+    kind: "peers",
   },
   {
-    title: "Customer Activity Times",
-    description: "Planned for a later phase",
+    title: "Review Insights",
+    description: "Review summaries and common mentions",
+    icon: "text-box-outline",
+    kind: "review-insights",
+  },
+  {
+    title: "Profile-Visit Timing",
+    description: "Recorded online visits by day and hour",
     icon: "clock-outline",
+    kind: "timing",
   },
   {
     title: "Business Recommendations",
-    description: "Planned for a later phase",
+    description: "Suggestions based on available activity and reviews",
     icon: "lightbulb-outline",
+    kind: "recommendations",
   },
 ];
 
-/** Opens only implemented, permitted reports; future phases remain non-interactive. */
+/** Keeps secondary reports behind permitted, lazy detail entry points. */
 export default function AnalyticsMoreInsights({
   access,
   onOpen,

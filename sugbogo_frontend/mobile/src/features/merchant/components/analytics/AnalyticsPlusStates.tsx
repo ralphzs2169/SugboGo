@@ -113,27 +113,24 @@ export function PlusRequestState({
   );
 }
 
-/** Discloses reporting coverage without equating a partial response with total failure. */
+/** Keeps report dates visible and measurement definitions behind an expandable explanation. */
 export function PlusReportContext({
   meta,
   note,
+  children,
 }: {
   meta: PlusAnalyticsMeta;
   note?: string;
+  children?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <InfoBanner
-      title={
-        meta.is_partial ? "About this partial report" : "About this report"
-      }
-    >
+    <View className="gap-2">
+      {/* Dates and meaningful availability limits remain visible. */}
       <AppText className="text-sm leading-5 text-text-secondary">
         {formatAnalyticsDate(meta.period.start_date)} –{" "}
-        {formatAnalyticsDate(meta.period.end_date)} · Asia/Manila.
-        {!meta.coverage_verified
-          ? " Tracking coverage is unverified; recorded observations may be incomplete."
-          : " Records reflect what remains eligible at report time."}
+        {formatAnalyticsDate(meta.period.end_date)} · Manila time.
+        {!meta.coverage_verified ? " Some activity may not be recorded." : ""}
         {meta.partial_reasons.includes("current_day_incomplete")
           ? " Today is still in progress."
           : ""}
@@ -144,10 +141,7 @@ export function PlusReportContext({
             "visibility_read_unavailable",
           ].includes(reason),
         )
-          ? " Some source reads could not complete. Available values remain visible."
-          : ""}
-        {meta.partial_reasons.includes("current_state_reporting")
-          ? " This report describes retained records, not historical snapshots."
+          ? " Some figures could not be loaded. Available figures are shown."
           : ""}
       </AppText>
       <Pressable
@@ -162,22 +156,34 @@ export function PlusReportContext({
         className="min-h-12 justify-center self-start py-2 active:opacity-70"
       >
         <AppText weight="semibold" className="text-sm text-text-info">
-          {expanded ? "Hide measurement details" : "Measurement details"}
+          {expanded ? "Hide measurement details" : "About these numbers"}
         </AppText>
       </Pressable>
-      {expanded && note && (
-        <AppText className="text-sm leading-5 text-text-secondary">
-          {note}
-        </AppText>
-      )}
       {expanded && (
-        <AppText className="text-sm leading-5 text-text-secondary">
-          Report generated {formatAnalyticsTimestamp(meta.generated_at)}.{" "}
-          {meta.data_through
-            ? `Data through ${formatAnalyticsTimestamp(meta.data_through)}.`
-            : "Data freshness is unverified."}
-        </AppText>
+        <View className="gap-2 border-t border-border-primary pt-3">
+          {/* Free-form server notes are retained without attempting to rewrite them. */}
+          {note && (
+            <AppText className="text-sm leading-5 text-text-secondary">
+              {note}
+            </AppText>
+          )}
+          {meta.partial_reasons.includes("current_state_reporting") && (
+            <AppText className="text-sm leading-5 text-text-secondary">
+              Counts reflect records that still qualify today. Earlier results
+              can change when reviews or vouches are removed or their status
+              changes.
+            </AppText>
+          )}
+          {children}
+          <AppText className="text-sm leading-5 text-text-secondary">
+            Report prepared {formatAnalyticsTimestamp(meta.generated_at)} ·
+            Manila time.{" "}
+            {meta.data_through
+              ? `Data available through ${formatAnalyticsTimestamp(meta.data_through)} · Manila time.`
+              : "The latest data time could not be verified."}
+          </AppText>
+        </View>
       )}
-    </InfoBanner>
+    </View>
   );
 }

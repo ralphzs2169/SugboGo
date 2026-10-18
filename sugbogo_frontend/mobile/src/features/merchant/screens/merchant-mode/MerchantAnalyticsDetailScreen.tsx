@@ -29,14 +29,46 @@ import MerchantContentSection from "../../layout/MerchantContentSection";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type {
   PlusDetailKind,
+  CorePlusDetailKind,
   PlusSpecialtyReport,
 } from "../../types/merchantPlusAnalytics.types";
+import MerchantAdvancedAnalyticsDetailScreen from "./MerchantAdvancedAnalyticsDetailScreen";
 
 export const PLUS_DETAIL_TITLES: Record<PlusDetailKind, string> = {
   pocket: "Pocket Trends",
   specialties: "Specialty Trends",
   reviews: "Review Performance",
+  peers: "Peer Comparisons",
+  "review-insights": "Review Insights",
+  timing: "Profile-Visit Timing",
+  recommendations: "Business Recommendations",
 };
+
+export function isPlusDetailKind(value: unknown): value is PlusDetailKind {
+  return typeof value === "string" && Object.hasOwn(PLUS_DETAIL_TITLES, value);
+}
+
+/** Keeps one route contract while advanced reports load independently of Core Plus. */
+export default function MerchantAnalyticsDetailScreen({
+  kind,
+  initialPeriod = "30",
+}: {
+  kind: PlusDetailKind;
+  initialPeriod?: MerchantAnalyticsPeriod;
+}) {
+  if (kind === "pocket" || kind === "specialties" || kind === "reviews") {
+    return (
+      <CoreAnalyticsDetailScreen kind={kind} initialPeriod={initialPeriod} />
+    );
+  }
+  return (
+    <MerchantAdvancedAnalyticsDetailScreen
+      kind={kind}
+      initialPeriod={initialPeriod}
+      title={PLUS_DETAIL_TITLES[kind]}
+    />
+  );
+}
 
 /** Retrieves specialty styling only for an authorized specialty detail. */
 function SpecialtyDetail({ report }: { report: PlusSpecialtyReport }) {
@@ -53,12 +85,12 @@ function SpecialtyDetail({ report }: { report: PlusSpecialtyReport }) {
       />
       {profile.error && (
         <InfoBanner
-          title="Specialty styling unavailable"
+          title="Specialty icons and colors unavailable"
           actionTitle="Retry"
           onAction={() => void profile.refetch()}
         >
           <AppText className="text-sm leading-5 text-text-secondary">
-            Your analytics counts remain available. Icons and colors could not
+            Counts are still available. Specialty icons and colors could not
             refresh.
           </AppText>
         </InfoBanner>
@@ -68,11 +100,11 @@ function SpecialtyDetail({ report }: { report: PlusSpecialtyReport }) {
 }
 
 /** Loads one focused Plus detail while retaining the overview's selected period on entry. */
-export default function MerchantAnalyticsDetailScreen({
+function CoreAnalyticsDetailScreen({
   kind,
   initialPeriod = "30",
 }: {
-  kind: PlusDetailKind;
+  kind: CorePlusDetailKind;
   initialPeriod?: MerchantAnalyticsPeriod;
 }) {
   const [period, setPeriod] = useState<MerchantAnalyticsPeriod>(initialPeriod);
@@ -122,7 +154,7 @@ export default function MerchantAnalyticsDetailScreen({
       {/* Native stack owns the header; date controls remain visible through request failures. */}
       <View className="bg-surface px-5 pb-3 pt-2">
         <AppText className="text-sm text-text-secondary">
-          Selected period · Asia/Manila
+          Selected dates · Manila time
         </AppText>
         <AnalyticsPeriodSelector period={period} onChange={setPeriod} />
       </View>
@@ -150,8 +182,8 @@ export default function MerchantAnalyticsDetailScreen({
               {/* Unavailable report states never become successful empty charts. */}
               {query.data?.meta.availability === "unavailable" ? (
                 <AnalyticsChartEmptyState
-                  title="Report source unavailable"
-                  description="Unavailable data is not zero activity."
+                  title="Report data unavailable"
+                  description="This report could not be loaded. Unavailable counts do not mean zero activity."
                   icon="cloud-off-outline"
                   onRetry={() => void query.refetch()}
                 />

@@ -7,9 +7,16 @@ import {
   formatReplyComparison,
   formatReplyDuration,
   splitObservedSeries,
+  formatOptionalAnalyticsTimestamp,
 } from "../merchantPlusAnalytics.utils";
 
 describe("Plus analytics measurement presentation", () => {
+  it("keeps missing generation timestamps unavailable and dates in Manila with a year", () => {
+    expect(formatOptionalAnalyticsTimestamp(null)).toBe("Unavailable");
+    expect(formatOptionalAnalyticsTimestamp("2026-10-10T23:00:00Z")).toContain(
+      "Oct 11, 2026",
+    );
+  });
   it("splits sparse daily lines without inserting or mutating observations", () => {
     const points = eventMetric().series!;
     const original = JSON.stringify(points);

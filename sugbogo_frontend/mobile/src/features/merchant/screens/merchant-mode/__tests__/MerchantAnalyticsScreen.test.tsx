@@ -136,20 +136,18 @@ describe("MerchantAnalyticsScreen", () => {
     await screen.findByLabelText(/^Recorded profile visits: 24$/);
     expect(screen.getAllByTestId("analytics-line-segment")).toHaveLength(2);
     await fireEvent.press(
-      screen.getByRole("button", { name: "Visibility metric: Impressions" }),
+      screen.getByRole("button", { name: "Show: Impressions" }),
     );
     expect(screen.getByLabelText("Recorded impressions: 39")).toBeTruthy();
     await fireEvent.press(
       screen.getByRole("button", {
-        name: "Visibility metric: Distinct visitors",
+        name: "Show: Visitor accounts",
       }),
     );
-    expect(
-      screen.getByLabelText("Recorded distinct visitors: 12"),
-    ).toBeTruthy();
+    expect(screen.getByLabelText("Recorded visitor accounts: 12")).toBeTruthy();
     expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(1);
     await fireEvent.press(
-      screen.getByRole("button", { name: "Interval: Weekly" }),
+      screen.getByRole("button", { name: "Group by: Weekly" }),
     );
     await waitFor(() =>
       expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(2),
@@ -163,7 +161,9 @@ describe("MerchantAnalyticsScreen", () => {
       ),
     );
     expect(getAnalytics).toHaveBeenLastCalledWith("90");
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts with your business in a Pocket: 18"),
+    ).toBeTruthy();
   });
 
   it("opens only implemented Plus details with the selected reporting period", async () => {
@@ -194,9 +194,20 @@ describe("MerchantAnalyticsScreen", () => {
       pathname: "/(merchant)/analytics/[report]",
       params: { report: "reviews", period: "7" },
     });
-    expect(
-      screen.queryByRole("button", { name: /Peer Comparisons/ }),
-    ).toBeNull();
+    for (const [title, report] of [
+      ["Peer Comparisons", "peers"],
+      ["Review Insights", "review-insights"],
+      ["Profile-Visit Timing", "timing"],
+      ["Business Recommendations", "recommendations"],
+    ]) {
+      await fireEvent.press(
+        screen.getByRole("button", { name: `Open ${title}` }),
+      );
+      expect(mockNavigate).toHaveBeenLastCalledWith({
+        pathname: "/(merchant)/analytics/[report]",
+        params: { report, period: "7" },
+      });
+    }
     expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
     expect(plusService.getMerchantPlusSpecialties).not.toHaveBeenCalled();
   });
@@ -214,7 +225,9 @@ describe("MerchantAnalyticsScreen", () => {
     const retry = await screen.findByRole("button", {
       name: /Unable to load this report.*retry/i,
     });
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts with your business in a Pocket: 18"),
+    ).toBeTruthy();
     await fireEvent.press(retry);
     await screen.findByLabelText(/^Recorded profile visits: 24$/);
     expect(getAnalytics).toHaveBeenCalledTimes(1);
@@ -239,11 +252,20 @@ describe("MerchantAnalyticsScreen", () => {
       }),
     ).toBeTruthy();
     expect(screen.queryAllByTestId("analytics-line-segment")).toHaveLength(0);
-    expect(screen.getByText(/Growth comparison unavailable/)).toBeTruthy();
+    expect(screen.queryByText(/Previous period ·/)).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Show Plus measurement details" }),
+    );
+    expect(screen.getByText(/Previous period ·/)).toBeTruthy();
+    expect(
+      screen.getByText(/cannot reliably show business growth/),
+    ).toBeTruthy();
     expect(screen.getByTestId("analytics-chart-empty-state")).toHaveStyle({
       minHeight: 196,
     });
-    expect(screen.queryByText("No recorded activity yet")).toBeNull();
+    expect(
+      screen.queryByText("No recorded activity in this period"),
+    ).toBeNull();
     await fireEvent.press(
       screen.getByRole("button", {
         name: /Recorded activity unavailable.*retry/i,
@@ -272,7 +294,9 @@ describe("MerchantAnalyticsScreen", () => {
       screen.getByLabelText(/^Recorded profile visits, .*: 2$/),
     ).toBeTruthy();
     expect(screen.queryAllByTestId("analytics-line-segment")).toHaveLength(0);
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts with your business in a Pocket: 18"),
+    ).toBeTruthy();
   });
 
   it("does not request Plus reports for restricted merchants", async () => {
@@ -317,7 +341,9 @@ describe("MerchantAnalyticsScreen", () => {
     expect(getAnalytics).toHaveBeenLastCalledWith("7");
     expect(screen.queryByLabelText(/Recorded profile visits: 24/)).toBeNull();
     expect(screen.getByLabelText("Loading activity")).toBeTruthy();
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts with your business in a Pocket: 18"),
+    ).toBeTruthy();
     expect(screen.getByLabelText("Published reviews: 10")).toBeTruthy();
 
     await act(async () =>
@@ -326,7 +352,9 @@ describe("MerchantAnalyticsScreen", () => {
       ),
     );
     await screen.findByLabelText(/Recorded profile visits: 2\./);
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts with your business in a Pocket: 18"),
+    ).toBeTruthy();
     expect(screen.getByLabelText("Published reviews: 10")).toBeTruthy();
 
     await fireEvent.press(screen.getByRole("button", { name: "Last 90 days" }));
@@ -347,13 +375,15 @@ describe("MerchantAnalyticsScreen", () => {
       await screen.findByLabelText(/Recorded profile visits: Unavailable/),
     ).toBeTruthy();
     expect(screen.getByLabelText(/Recorded saves: 0\./)).toBeTruthy();
-    expect(screen.getByLabelText(/Reply rate: 25.4%.*1 of 4/)).toBeTruthy();
+    expect(
+      screen.getByLabelText(/Reviews replied to: 25.4%.*1 of 4/),
+    ).toBeTruthy();
     expect(
       screen.getByRole("button", {
         name: /Some activity is unavailable.*retry/i,
       }),
     ).toBeTruthy();
-    expect(screen.getByText(/coverage is unverified/)).toBeTruthy();
+    expect(screen.getByText(/Some activity may not be recorded/)).toBeTruthy();
   });
 
   it("does not manufacture a rate or review action for an empty review cohort", async () => {
@@ -377,7 +407,9 @@ describe("MerchantAnalyticsScreen", () => {
       await screen.findByLabelText(/Recorded profile visits: 0\./),
     ).toBeTruthy();
     expect(
-      screen.getByLabelText(/Reply rate: Unavailable.*No eligible reviews/),
+      screen.getByLabelText(
+        /Reviews replied to: Unavailable.*No published reviews/,
+      ),
     ).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "View merchant reviews" }),
@@ -405,7 +437,9 @@ describe("MerchantAnalyticsScreen", () => {
     });
 
     expect(screen.getByLabelText(/New reviews: 4\./)).toBeTruthy();
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts with your business in a Pocket: 18"),
+    ).toBeTruthy();
     await fireEvent.press(retry);
     await screen.findByLabelText(/Recorded profile visits: 24/);
     expect(getAnalytics).toHaveBeenCalledTimes(2);
@@ -438,10 +472,12 @@ describe("MerchantAnalyticsScreen", () => {
       screen.getByLabelText(/Recorded profile visits: Unavailable/),
     ).toBeTruthy();
     expect(screen.getByLabelText(/Recorded saves: Unavailable/)).toBeTruthy();
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts with your business in a Pocket: 18"),
+    ).toBeTruthy();
     expect(screen.getByLabelText("Published reviews: 10")).toBeTruthy();
     expect(screen.getByLabelText(/New reviews: 4\./)).toBeTruthy();
-    expect(screen.getByLabelText(/Reply rate: 25%/)).toBeTruthy();
+    expect(screen.getByLabelText(/Reviews replied to: 25%/)).toBeTruthy();
     await fireEvent.press(retry);
     await screen.findByLabelText(/Recorded profile visits: 24/);
   });
@@ -499,7 +535,9 @@ describe("MerchantAnalyticsScreen", () => {
     await screen.findByRole("button", {
       name: /Unable to refresh analytics.*retry/i,
     });
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts with your business in a Pocket: 18"),
+    ).toBeTruthy();
     expect(screen.getByLabelText(/Recorded profile visits: 24/)).toBeTruthy();
   });
 
@@ -516,7 +554,7 @@ describe("MerchantAnalyticsScreen", () => {
       "Visibility Trends",
       "Review Performance",
       "Peer Comparisons",
-      "Customer Activity Times",
+      "Profile-Visit Timing",
       "Business Recommendations",
     ]) {
       expect(screen.getByText(title)).toBeTruthy();
@@ -539,11 +577,13 @@ describe("MerchantAnalyticsScreen", () => {
     const screen = await renderScreen();
 
     expect(
-      await screen.findByLabelText(/^1\. Friendly service: 6 valid vouches/),
+      await screen.findByLabelText(
+        /^1\. Friendly service: 6 vouches that still count/,
+      ),
     ).toBeTruthy();
     expect(
       screen.getByLabelText(
-        /^3\. Local produce: 0 valid vouches, 0 distinct supporters/,
+        /^3\. Local produce: 0 vouches that still count, 0 supporting accounts/,
       ),
     ).toBeTruthy();
     expect(report.specialty_support[0].specialty_name).toBe("Coffee");
@@ -576,7 +616,7 @@ describe("MerchantAnalyticsScreen", () => {
       undefined,
     );
     expect(screen.getByTestId("specialty-support-bar-1")).toBeTruthy();
-    expect(screen.getByText(/highest count filling the scale/)).toBeTruthy();
+    expect(screen.getByText(/longest bar has/)).toBeTruthy();
   });
 
   it("does not use specialty identities from a different business", async () => {
@@ -588,16 +628,20 @@ describe("MerchantAnalyticsScreen", () => {
       expect.objectContaining({ name: "coffee-outline" }),
       undefined,
     );
-    expect(screen.getByLabelText(/^2\. Coffee: 2 valid vouches/)).toBeTruthy();
+    expect(
+      screen.getByLabelText(/^2\. Coffee: 2 vouches that still count/),
+    ).toBeTruthy();
   });
 
   it("retains specialty counts when profile metadata fails and retries only that source", async () => {
     mockProfileError = { code: "NETWORK_ERROR" };
     const screen = await renderScreen();
-    await screen.findByText("Specialty styling unavailable");
+    await screen.findByText("Specialty icons and colors unavailable");
 
     expect(
-      screen.getByLabelText(/^1\. Friendly service: 6 valid vouches/),
+      screen.getByLabelText(
+        /^1\. Friendly service: 6 vouches that still count/,
+      ),
     ).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: "Retry" }));
     expect(mockRefetchProfile).toHaveBeenCalledTimes(1);

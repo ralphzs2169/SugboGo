@@ -4,7 +4,6 @@ import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import InfoBanner from "@/shared/components/InfoBanner";
 
 import type { MerchantStandardAnalytics } from "../../types/merchantAnalytics.types";
 import {
@@ -23,7 +22,7 @@ export default function AnalyticsCurrentSnapshot({ report, onRetry }: Props) {
     return (
       <ErrorState
         size="section"
-        title="Business snapshots unavailable"
+        title="Current business counts unavailable"
         description="Your current business counts couldn't be loaded."
         primaryActionTitle="Retry"
         onPrimaryAction={onRetry}
@@ -33,7 +32,7 @@ export default function AnalyticsCurrentSnapshot({ report, onRetry }: Props) {
 
   const rows = [
     {
-      label: "Current Pocket holders",
+      label: "Accounts with your business in a Pocket",
       value: report.current_pocket_holders,
       icon: "bookmark-outline" as const,
     },
@@ -72,13 +71,10 @@ export default function AnalyticsCurrentSnapshot({ report, onRetry }: Props) {
           </AppText>
         </View>
       ))}
-      <InfoBanner title="Your current snapshot">
-        <AppText className="text-sm leading-5 text-text-secondary">
-          As of {formatAnalyticsTimestamp(report.snapshot_as_of)} · Manila time.
-          These counts are independent of the selected period. Pocket holders
-          are accounts that still have your business saved.
-        </AppText>
-      </InfoBanner>
+      <AppText className="text-sm leading-5 text-text-secondary">
+        As of {formatAnalyticsTimestamp(report.snapshot_as_of)} · Manila time.
+        Current totals are not affected by the selected dates.
+      </AppText>
     </View>
   );
 }

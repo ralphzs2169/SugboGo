@@ -8,6 +8,15 @@ import AppText from "@/shared/components/AppText";
 import type { MerchantStandardAnalytics } from "../../types/merchantAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 
+/** Soft, low-contrast elevation shared by the metric cards. */
+const CARD_SHADOW = {
+  shadowColor: "#000",
+  shadowOpacity: 0.05,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
+} as const;
+
 type MetricCardProps = {
   label: string;
   value: string;
@@ -30,26 +39,40 @@ function MetricCard({
     <View
       accessible
       accessibilityLabel={`${label}: ${unavailable ? "Unavailable" : value}. ${detail}`}
-      className={`min-w-0 rounded-card border border-border-primary/60 bg-background p-4 ${
+      className={`min-w-0 rounded-card border border-border-primary/60 bg-surface p-4 ${
         stacked ? "w-full" : "flex-1"
       }`}
+      style={CARD_SHADOW}
     >
-      {/* Metric identity and value */}
-      <View className="mb-3 h-9 w-9 items-center justify-center rounded-xl bg-brand/10">
+      {/* Metric identity: small icon beside the label, no background tile */}
+      <View className="flex-row items-center gap-2">
         <MaterialCommunityIcons
           accessible={false}
           name={icon}
-          size={20}
+          size={18}
           color={theme.extends.colors.brand}
         />
+        <AppText
+          weight="medium"
+          className="min-w-0 flex-1 text-sm text-text-secondary"
+          numberOfLines={2}
+        >
+          {label}
+        </AppText>
       </View>
-      <AppText weight="semibold" className="text-sm text-text-primary">
-        {label}
-      </AppText>
-      <AppText weight="extrabold" className="mt-3 text-3xl text-text-primary">
+
+      {/* Hero value, muted when the source is unavailable */}
+      <AppText
+        weight="semibold"
+        className={`mt-3 text-3xl ${
+          unavailable ? "text-text-secondary" : "text-text-primary"
+        }`}
+      >
         {value}
       </AppText>
-      <AppText className="mt-2 text-sm leading-5 text-text-secondary">
+
+      {/* Measurement context */}
+      <AppText className="mt-1 text-xs leading-4 text-text-secondary">
         {detail}
       </AppText>
     </View>
@@ -74,12 +97,12 @@ export default function AnalyticsActivityOverview({
   const saves = visibilityAvailable ? report.saves_in_period : null;
   const reviews = report.reviews;
   const replyRate = domainAvailable ? reviews.reply_rate : null;
-  let replyDetail = "Reply rate unavailable";
+  let replyDetail = "Reply percentage unavailable";
 
   if (domainAvailable && reviews.period_eligible_published === 0) {
-    replyDetail = "No eligible reviews in this period";
+    replyDetail = "No published reviews from these dates";
   } else if (domainAvailable) {
-    replyDetail = `${formatAnalyticsCount(reviews.period_replied_published)} of ${formatAnalyticsCount(reviews.period_eligible_published)} eligible reviews replied to`;
+    replyDetail = `${formatAnalyticsCount(reviews.period_replied_published)} of ${formatAnalyticsCount(reviews.period_eligible_published)} published reviews replied to`;
   }
 
   const rowClassName = useSingleColumn ? "gap-3" : "flex-row gap-3";
@@ -96,8 +119,8 @@ export default function AnalyticsActivityOverview({
           unavailable={visits === null}
           detail={
             visitors === null
-              ? "Distinct visitors unavailable"
-              : `${formatAnalyticsCount(visitors)} distinct visitors`
+              ? "Visitor accounts unavailable"
+              : `${formatAnalyticsCount(visitors)} visitor accounts`
           }
         />
         <MetricCard
@@ -124,12 +147,11 @@ export default function AnalyticsActivityOverview({
             domainAvailable ? reviews.new_published_in_period : null,
           )}
           unavailable={!domainAvailable}
-          detail="Created in this period and currently published"
+          detail="Added during these dates and still published"
         />
         <MetricCard
-          icon="message-check-outline"
           stacked={useSingleColumn}
-          label="Reply rate"
+          label="Reviews replied to"
           value={replyRate === null ? "—" : `${replyRate}%`}
           unavailable={replyRate === null}
           detail={replyDetail}

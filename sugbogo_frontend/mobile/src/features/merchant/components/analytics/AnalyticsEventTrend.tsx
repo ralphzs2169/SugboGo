@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { View } from "react-native";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
@@ -5,12 +6,15 @@ import type {
   AnalyticsEventMetric,
   AnalyticsInterval,
 } from "../../types/merchantPlusAnalytics.types";
-import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
+import {
+  formatAnalyticsCount,
+  formatAnalyticsDate,
+} from "../../utils/merchantAnalytics.utils";
 import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import { PlusReportContext } from "./AnalyticsPlusStates";
 
-/** Keeps totals, series and comparison availability independent within an event report. */
+/** Leads with the recorded total, then supporting counts, with comparisons in measurement details. */
 export default function AnalyticsEventTrend({
   metric,
   label,
@@ -18,6 +22,7 @@ export default function AnalyticsEventTrend({
   kind = "line",
   retry,
   note,
+  children,
 }: {
   metric: AnalyticsEventMetric;
   label: string;
@@ -25,6 +30,7 @@ export default function AnalyticsEventTrend({
   kind?: "line" | "bar";
   retry: () => void;
   note?: string;
+  children?: ReactNode;
 }) {
   const unavailable =
     metric.value === null ||
@@ -46,19 +52,13 @@ export default function AnalyticsEventTrend({
         >
           {formatAnalyticsCount(metric.value)}
         </AppText>
-        <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-          Previous recorded total: {formatAnalyticsCount(metric.previous_value)}
-          .{" "}
-          {metric.change.value === null
-            ? "Growth comparison unavailable."
-            : "Tracking observations do not establish business growth."}
-        </AppText>
       </View>
+      {children}
       {unavailable && !chartUnavailable && (
         <ErrorState
           size="section"
           title="Some recorded activity is unavailable"
-          description="Available totals or buckets are still shown. Missing values are not zero."
+          description="Available counts are shown. Unavailable values do not mean zero activity."
           primaryActionTitle="Retry"
           onPrimaryAction={retry}
         />
@@ -90,9 +90,20 @@ export default function AnalyticsEventTrend({
         meta={metric.sources.current}
         note={
           note ??
-          "Observations are deduplicated per account, business and event type each UTC day. Period-wide distinct accounts are not sums of daily or weekly distinct accounts."
+          "For each business, each type of activity is counted once per account per UTC day. Account totals count each account once across the selected dates; adding daily or weekly account counts would count some accounts more than once."
         }
-      />
+      >
+        <AppText className="text-sm leading-5 text-text-secondary">
+          Previous period ·{" "}
+          {formatAnalyticsDate(metric.sources.previous.period.start_date)} –{" "}
+          {formatAnalyticsDate(metric.sources.previous.period.end_date)}:{" "}
+          {formatAnalyticsCount(metric.previous_value)}.
+          {metric.previous_value === null
+            ? " The previous count is unavailable."
+            : ""}{" "}
+          These records cannot reliably show business growth.
+        </AppText>
+      </PlusReportContext>
     </View>
   );
 }

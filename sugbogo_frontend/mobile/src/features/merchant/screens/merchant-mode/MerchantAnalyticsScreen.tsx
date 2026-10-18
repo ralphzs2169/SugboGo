@@ -166,7 +166,7 @@ export default function MerchantAnalyticsScreen() {
                   onAction={() => router.navigate("/(merchant)/(tabs)/reviews")}
                 >
                   <AppText className="text-sm leading-5 text-text-secondary">
-                    Current published reviews across all dates.
+                    Includes published reviews from all dates.
                   </AppText>
                 </InfoBanner>
               )}
@@ -180,7 +180,7 @@ export default function MerchantAnalyticsScreen() {
               report && !showPeriodLoading
                 ? `${formatAnalyticsDate(report.meta.period.start_date)} – ${formatAnalyticsDate(report.meta.period.end_date)}`
                 : `Last ${period} days`
-            } · Asia/Manila`}
+            } · Manila time`}
           >
             {showPeriodLoading ? (
               <AnalyticsSectionSkeleton section="activity" />
@@ -231,7 +231,7 @@ export default function MerchantAnalyticsScreen() {
                 />
                 {profileError && (
                   <InfoBanner
-                    title="Specialty styling unavailable"
+                    title="Specialty icons and colors unavailable"
                     actionTitle="Retry"
                     onAction={() => {
                       void refetchProfile();
@@ -254,10 +254,9 @@ export default function MerchantAnalyticsScreen() {
           {/* Generation time is not a guarantee of tracking freshness */}
           {report && (
             <AppText className="px-5 py-4 text-sm leading-5 text-text-secondary">
-              Report generated{" "}
+              Report prepared{" "}
               {formatAnalyticsTimestamp(report.meta.generated_at)} · Manila
-              time. This is the report time, not a guarantee of complete
-              tracking.
+              time.
             </AppText>
           )}
         </View>

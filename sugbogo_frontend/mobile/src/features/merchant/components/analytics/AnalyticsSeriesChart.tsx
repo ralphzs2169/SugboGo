@@ -27,8 +27,8 @@ export default function AnalyticsSeriesChart({
   color = theme.extends.colors.brand,
   range,
   total,
-  emptyTitle = "No recorded activity yet",
-  emptyDescription = "No activity was recorded for this metric in the selected period. Check back as explorers interact with your business.",
+  emptyTitle = "No recorded activity in this period",
+  emptyDescription = "No activity was recorded for this metric during the selected dates.",
 }: {
   points: AnalyticsPlotPoint[];
   interval: AnalyticsInterval;
@@ -110,8 +110,8 @@ export default function AnalyticsSeriesChart({
   if (ordered.length === 0) {
     return (
       <AnalyticsChartEmptyState
-        title="No dated observations returned"
-        description={`There are no dated ${label.toLowerCase()} values to plot for this period. Any available total is shown above; missing dates are not zero activity.`}
+        title="Dated counts are unavailable"
+        description={`Dated counts for ${label.toLowerCase()} are unavailable. Any available total is shown above. Dates without data do not necessarily mean no activity.`}
       />
     );
   }
@@ -122,16 +122,16 @@ export default function AnalyticsSeriesChart({
           title="Not enough data for a trend yet"
           description={
             kind === "line"
-              ? `More connected ${label.toLowerCase()} observations are needed for a trend. Exact dated counts are shown below.`
-              : `More active weeks are needed to compare ${label.toLowerCase()}. Exact weekly counts are shown below.`
+              ? `There are too few connected dates to show a ${label.toLowerCase()} trend. Exact counts are shown below.`
+              : `There are too few active weeks to compare ${label.toLowerCase()}. Exact counts are shown below.`
           }
         />
         {/* Returned values remain available without implying a continuous trend. */}
         <AppText className="text-sm leading-5 text-text-secondary">
           {ordered.length > 4 && !showValues
-            ? "Showing the latest four returned buckets. "
+            ? `Showing the latest four recorded ${interval === "daily" ? "dates" : "weeks"}. `
             : ""}
-          Missing buckets are not confirmed zeros.
+          Dates without data do not necessarily mean no activity.
         </AppText>
         {values}
         {ordered.length > 4 && (
@@ -168,7 +168,7 @@ export default function AnalyticsSeriesChart({
           style={{ width, height }}
           accessible
           accessibilityRole="image"
-          accessibilityLabel={`${label}. ${ordered.length} observed ${interval} buckets. Exact values follow the chart.`}
+          accessibilityLabel={`${label}. ${ordered.length} recorded ${interval} counts. Use View exact values to read the counts.`}
         >
           <Svg
             width={width}
@@ -291,8 +291,8 @@ export default function AnalyticsSeriesChart({
       {/* Text values provide precise counts and a screen-reader alternative. */}
       <AppText className="text-sm leading-5 text-text-secondary">
         {kind === "line"
-          ? "Gaps have no connecting line. Missing buckets are not confirmed zeros."
-          : "Only returned weeks are shown. Missing weeks are not confirmed zeros."}
+          ? "Gaps show dates without data, not necessarily zero activity."
+          : "Only weeks with available counts are shown. Missing weeks do not necessarily mean no activity."}
       </AppText>
       <Pressable
         onPress={() => setShowValues(!showValues)}

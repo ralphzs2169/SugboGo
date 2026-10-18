@@ -70,7 +70,7 @@ export default function AnalyticsSpecialtySupport({
             <View
               key={specialty.specialty_id}
               accessible
-              accessibilityLabel={`${index + 1}. ${specialty.specialty_name}: ${formatAnalyticsCount(specialty.valid_vouches)} valid vouches, ${formatAnalyticsCount(specialty.distinct_supporters)} distinct supporters`}
+              accessibilityLabel={`${index + 1}. ${specialty.specialty_name}: ${formatAnalyticsCount(specialty.valid_vouches)} vouches that still count, ${formatAnalyticsCount(specialty.distinct_supporters)} supporting accounts`}
               className={`py-4 ${
                 index > 0 ? "border-t border-border-primary" : ""
               }`}
@@ -98,10 +98,10 @@ export default function AnalyticsSpecialtySupport({
                   </AppText>
                   <AppText className="mt-0.5 text-sm text-text-secondary">
                     {formatAnalyticsCount(specialty.distinct_supporters)}{" "}
-                    distinct{" "}
+                    supporting{" "}
                     {specialty.distinct_supporters === 1
-                      ? "supporter"
-                      : "supporters"}
+                      ? "account"
+                      : "accounts"}
                   </AppText>
                 </View>
                 <View className="items-end">
@@ -130,9 +130,8 @@ export default function AnalyticsSpecialtySupport({
         })
       )}
       <AppText className="border-t border-border-primary py-3 text-sm leading-5 text-text-secondary">
-        Bars compare current valid vouches, with the highest count filling the
-        scale. One account can support multiple specialties. Counts are
-        independent of the selected period.
+        Current vouches, unaffected by the selected dates. The longest bar has
+        the most vouches. One account can support more than one specialty.
       </AppText>
     </View>
   );

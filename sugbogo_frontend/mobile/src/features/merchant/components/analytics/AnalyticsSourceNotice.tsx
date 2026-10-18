@@ -3,7 +3,6 @@ import { Pressable, View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import InfoBanner from "@/shared/components/InfoBanner";
 
 import type { MerchantStandardAnalytics } from "../../types/merchantAnalytics.types";
 import { formatAnalyticsTimestamp } from "../../utils/merchantAnalytics.utils";
@@ -41,10 +40,10 @@ export default function AnalyticsSourceNotice({ report, onRetry }: Props) {
       )}
 
       {/* One consistent notice keeps the overview scannable */}
-      <InfoBanner title="About these numbers">
+      <View className="gap-2">
         <AppText className="text-sm leading-5 text-text-secondary">
           {!visibility.coverage_verified
-            ? "Tracking coverage is unverified. These are recorded events, not every interaction."
+            ? "Some activity may not be recorded."
             : visibility.is_partial
               ? "Some recorded activity is incomplete or delayed."
               : "Recorded activity follows the selected reporting period."}
@@ -67,41 +66,36 @@ export default function AnalyticsSourceNotice({ report, onRetry }: Props) {
         {showDetails && (
           <View className="gap-2 border-t border-border-info pt-3">
             <AppText className="text-sm leading-5 text-text-secondary">
-              Visits and saves are counted once per account, business and event
-              type each UTC day. Replies are assessed at report time, including
-              replies made after the selected period.
+              For each business, visits and saves are each counted once per
+              account per UTC day. Visitor accounts are counted once across the
+              selected period. Replies are checked when this report is prepared,
+              including replies made after the selected dates.
             </AppText>
             <AppText className="text-sm leading-5 text-text-secondary">
-              Report status: {report.meta.availability}.
-              {report.meta.is_partial
-                ? " Some measures have coverage or current-state limitations."
-                : ""}
-            </AppText>
-            <AppText className="text-sm leading-5 text-text-secondary">
-              Visibility source: {visibility.availability}.
               {visibility.data_through
-                ? ` Data through ${formatAnalyticsTimestamp(visibility.data_through)} Manila time.`
-                : " Data freshness is unverified."}
+                ? `Visit and save data available through ${formatAnalyticsTimestamp(visibility.data_through)} · Manila time.`
+                : "The latest visit and save data time could not be verified."}
             </AppText>
             <AppText className="text-sm leading-5 text-text-secondary">
-              Business records: {report.sources.domain.availability}. Reviews,
-              replies and specialty support reflect records that remain eligible
-              now. Deletions and moderation can revise earlier results.
+              Reviews, replies and vouches reflect records that still qualify
+              today. Earlier counts can change when records are removed or their
+              status changes.
             </AppText>
             <AppText className="text-sm leading-5 text-text-secondary">
-              Reply cutoff:{" "}
+              Replies checked through{" "}
               {formatAnalyticsTimestamp(report.reviews.reply_cutoff)} Manila
-              time. A missing reply rate means no valid rate is available, not a
-              0% rate.
+              time. A dash means a reply percentage is unavailable; it does not
+              mean 0%.
             </AppText>
             {report.reviews.excluded_reply_timestamp_count > 0 && (
               <AppText className="text-sm leading-5 text-text-secondary">
-                Some reply timestamps were excluded from reply counts.
+                Replies with unusable timing data are excluded from reply
+                counts.
               </AppText>
             )}
           </View>
         )}
-      </InfoBanner>
+      </View>
     </View>
   );
 }

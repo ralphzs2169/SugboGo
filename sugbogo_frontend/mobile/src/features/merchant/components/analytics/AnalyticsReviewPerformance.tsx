@@ -39,22 +39,21 @@ export default function AnalyticsReviewPerformance({
           Review sentiment
         </AppText>
         <AppText className="text-sm leading-5 text-text-secondary">
-          {cohort.classified_review_count} classified ·{" "}
-          {cohort.unclassified_review_count} unclassified ·{" "}
-          {cohort.published_review_count} currently published reviews created in
-          this period
+          {cohort.published_review_count} reviews added during these dates and
+          still published · {cohort.classified_review_count} with a sentiment
+          label · {cohort.unclassified_review_count} without a label
         </AppText>
         {!showShares && (
           <AnalyticsChartEmptyState
             title={
               cohort.published_review_count === 0
                 ? "No review sentiment yet"
-                : "Insufficient sentiment data"
+                : "More reviews are needed to show a pattern"
             }
             description={
               cohort.published_review_count === 0
                 ? "No currently published reviews were created in the selected period."
-                : "More classified reviews are needed to show a sentiment pattern. Available counts are shown below; sentiment shares are withheld until the sample is sufficient."
+                : "Counts are shown below. Percentages will appear when enough reviews have a sentiment label."
             }
             icon="comment-text-outline"
           />
@@ -65,7 +64,7 @@ export default function AnalyticsReviewPerformance({
             <View
               key={key}
               accessible
-              accessibilityLabel={`${label}: ${sentiment.count} reviews${showShares && sentiment.percentage !== null ? `, ${sentiment.percentage}% of classified reviews` : ""}`}
+              accessibilityLabel={`${label}: ${sentiment.count} reviews${showShares && sentiment.percentage !== null ? `, ${sentiment.percentage}% of reviews with a sentiment label` : ""}`}
               className="gap-2 py-2"
             >
               <View className="flex-row flex-wrap justify-between gap-2">
@@ -100,8 +99,8 @@ export default function AnalyticsReviewPerformance({
           );
         })}
         <AppText className="text-sm leading-5 text-text-secondary">
-          {showShares ? "Bars compare classified review counts. " : ""}
-          Shares, when available, exclude unclassified reviews.
+          {showShares ? "Bars compare counts, not percentages. " : ""}
+          Percentages include only reviews with a sentiment label.
         </AppText>
       </View>
       {/* Server-computed rates, comparisons and medians retain zero/null distinctions. */}
@@ -110,9 +109,11 @@ export default function AnalyticsReviewPerformance({
           Reply performance
         </AppText>
         <View className="rounded-card bg-background p-4">
-          <AppText className="text-sm text-text-secondary">Reply rate</AppText>
+          <AppText className="text-sm text-text-secondary">
+            Reviews replied to
+          </AppText>
           <AppText
-            accessibilityLabel={`Plus reply rate: ${cohort.reply_rate === null ? "Unavailable" : `${cohort.reply_rate}%`}`}
+            accessibilityLabel={`Reviews replied to: ${cohort.reply_rate === null ? "Unavailable" : `${cohort.reply_rate}%`}`}
             weight="bold"
             className="mt-1 text-2xl text-text-primary"
           >
@@ -120,11 +121,11 @@ export default function AnalyticsReviewPerformance({
           </AppText>
           <AppText className="mt-2 text-sm leading-5 text-text-secondary">
             {cohort.replied_review_count} of {cohort.published_review_count}{" "}
-            eligible reviews replied to.{" "}
+            published reviews from these dates replied to.{" "}
             {cohort.published_review_count === 0
-              ? "No eligible reviews in this period."
+              ? "No published reviews from these dates."
               : cohort.published_review_count === 1
-                ? "With one eligible review, this rate describes that review only."
+                ? "This percentage describes one review only."
                 : ""}
           </AppText>
           <AppText className="mt-2 text-sm leading-5 text-text-secondary">
@@ -133,7 +134,7 @@ export default function AnalyticsReviewPerformance({
         </View>
         <View className="rounded-card bg-background p-4">
           <AppText className="text-sm text-text-secondary">
-            Median reply time
+            Reply time (median)
           </AppText>
           <AppText weight="bold" className="mt-1 text-2xl text-text-primary">
             {formatReplyDuration(
@@ -143,26 +144,26 @@ export default function AnalyticsReviewPerformance({
             )}
           </AppText>
           <AppText className="mt-2 text-sm leading-5 text-text-secondary">
-            Based on {cohort.median_replied_sample_size} retained replies with
-            valid timestamps.
+            Based on {cohort.median_replied_sample_size} replies with usable
+            timing data.
             {cohort.median_first_reply_seconds === null ||
             cohort.median_replied_sample_size === 0
-              ? " A median is unavailable without valid retained reply timing."
+              ? " A median cannot be shown without usable reply times."
               : cohort.median_replied_sample_size === 1
-                ? " This reflects one reply and does not establish a typical response time."
-                : ""}
+                ? " This is one reply, so it does not show a typical response time."
+                : " The median is the middle reply time when times are ordered from shortest to longest."}
           </AppText>
         </View>
         {report.excluded_reply_timestamp_count > 0 && (
           <AppText className="text-sm leading-5 text-text-secondary">
-            Some invalid reply timestamps were excluded.
+            Replies with unusable timing data are excluded.
           </AppText>
         )}
       </View>
       {/* Weekly volume uses returned current-published creation cohorts, including explicit zeros. */}
       <View className="gap-3 border-t border-border-primary pt-5">
         <AppText weight="bold" className="text-base text-text-primary">
-          Weekly published-review volume
+          Published reviews by week
         </AppText>
         <AnalyticsSeriesChart
           label="Published reviews"

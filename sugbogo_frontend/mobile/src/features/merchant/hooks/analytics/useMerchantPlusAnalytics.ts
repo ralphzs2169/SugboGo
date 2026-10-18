@@ -17,7 +17,7 @@ import { merchantPlusReportKey } from "./merchantPlusAnalyticsQueryKeys";
 import { denyMerchantPlusAccess } from "./useMerchantPlusAccess";
 
 /** Loads one permitted report without cross-period placeholders or cross-account data. */
-function usePlusReport<T>(
+export function usePlusReport<T>(
   kind: PlusReportKind,
   selection: AnalyticsSelection,
   interval: AnalyticsInterval,

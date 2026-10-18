@@ -60,7 +60,7 @@ describe("AnalyticsSeriesChart", () => {
       <AnalyticsSeriesChart points={[]} interval="daily" label="Visits" />,
     );
 
-    expect(screen.getByText("No dated observations returned")).toBeTruthy();
+    expect(screen.getByText("Dated counts are unavailable")).toBeTruthy();
     expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
   });
 
@@ -73,7 +73,9 @@ describe("AnalyticsSeriesChart", () => {
         total={0}
       />,
     );
-    expect(screen.getByText("No recorded activity yet")).toBeTruthy();
+    expect(
+      screen.getByText("No recorded activity in this period"),
+    ).toBeTruthy();
     expect(screen.getByTestId("analytics-chart-empty-state")).toHaveStyle({
       minHeight: 196,
     });
@@ -91,7 +93,9 @@ describe("AnalyticsSeriesChart", () => {
       />,
     );
     expect(screen.getByLabelText("Visits, Oct 1: 0")).toBeTruthy();
-    expect(screen.queryByText("No recorded activity yet")).toBeNull();
+    expect(
+      screen.queryByText("No recorded activity in this period"),
+    ).toBeNull();
   });
 
   it("preserves a gap between observed runs without drawing a connecting segment", async () => {
@@ -145,7 +149,8 @@ describe("AnalyticsSeriesChart", () => {
       />,
     );
     expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
-    expect(screen.getByText(/More active weeks are needed/)).toBeTruthy();
+    expect(screen.getByLabelText("Saves, Oct 1: 0")).toBeTruthy();
+    expect(screen.getByLabelText("Saves, Oct 3: 3")).toBeTruthy();
   });
 
   it("keeps long limited lists compact while allowing access to every returned observation", async () => {
@@ -166,7 +171,7 @@ describe("AnalyticsSeriesChart", () => {
     );
     expect(screen.queryByLabelText("Visits, Oct 1: 1")).toBeNull();
     expect(
-      screen.getByText(/Showing the latest four returned buckets/),
+      screen.getByText(/Showing the latest four recorded dates/),
     ).toBeTruthy();
     await fireEvent.press(
       screen.getByRole("button", { name: "Show all Visits values" }),

@@ -77,22 +77,23 @@ export default function AnalyticsSpecialtyTrends({
             {selected.specialty_name}
           </AppText>
           <AppText
-            accessibilityLabel={`${selected.specialty_name}: ${selected.added_and_still_valid} additions still valid, ${selected.distinct_supporters} distinct supporters`}
+            accessibilityLabel={`${selected.specialty_name}: ${selected.added_and_still_valid} vouches added in this period that still count, ${selected.distinct_supporters} supporting accounts`}
             className="text-sm leading-5 text-text-secondary"
           >
-            {selected.added_and_still_valid.toLocaleString("en-PH")} additions
-            still valid · {selected.distinct_supporters.toLocaleString("en-PH")}{" "}
-            distinct supporters
+            {selected.added_and_still_valid.toLocaleString("en-PH")} vouches
+            added during these dates that still count ·{" "}
+            {selected.distinct_supporters.toLocaleString("en-PH")} supporting
+            accounts
           </AppText>
           <AnalyticsSeriesChart
             key={selected.specialty_id}
-            label={`${selected.specialty_name} valid additions`}
+            label={`${selected.specialty_name} vouches added that still count`}
             interval="weekly"
             kind="bar"
             color={selectedColor}
             total={selected.added_and_still_valid}
-            emptyTitle="No qualifying specialty additions"
-            emptyDescription="No vouches created in this period remain valid for this specialty at report time. Current support is shown separately in Standard analytics."
+            emptyTitle="No vouches from these dates still count"
+            emptyDescription="No vouches added during these dates still qualify for this specialty. Current support is shown separately in Analytics."
             points={selected.series.map((bucket) => ({
               ...bucket,
               value: bucket.added_and_still_valid,
@@ -108,7 +109,7 @@ export default function AnalyticsSpecialtyTrends({
       )}
       <PlusReportContext
         meta={report.meta}
-        note={`Vouches created during the selected period that remain valid at ${formatAnalyticsTimestamp(report.snapshot_as_of)}. These are not historical balances or net growth. Removals, invalidation and inactive specialties can revise earlier counts.`}
+        note={`Counts include vouches added during the selected dates that still qualify as of ${formatAnalyticsTimestamp(report.snapshot_as_of)} · Manila time. They do not show net growth or past support totals. Removed vouches and inactive specialties can change earlier counts.`}
       />
     </View>
   );

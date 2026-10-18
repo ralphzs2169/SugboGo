@@ -1,9 +1,8 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
-import type { ComponentProps, ComponentType } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Easing, FlatList, RefreshControl, View } from "react-native";
+import type { ComponentType } from "react";
+import { useCallback, useRef, useState } from "react";
+import { FlatList, RefreshControl, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -17,13 +16,16 @@ import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
-import SafePressable from "@/shared/components/SafePressable";
+import SegmentedControl, {
+  type SegmentedControlOption,
+} from "@/shared/components/SegmentedControl";
 import Skeleton from "@/shared/components/Skeleton";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import {
   defaultStackScreenOptions,
   slideFromRight,
 } from "@/shared/navigation/stackOptions";
+import { shadows } from "@/shared/styles/shadows";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
@@ -38,21 +40,23 @@ import type {
   VouchHistoryBusiness,
   VouchHistoryOrdering,
 } from "../types/vouchHistory.types";
-import { shadows } from "@/shared/styles/shadows";
 
-/** Minimum row count before the "end of list" message is worth showing. */
+/** Minimum row count before the end-of-list message appears. */
 const END_MESSAGE_MIN_ITEMS = 5;
 
-/** Inner padding of the sort track, shared with the sliding thumb. */
-const SORT_TRACK_PADDING = 4;
-
-const SORT_OPTIONS: {
-  value: VouchHistoryOrdering;
-  label: string;
-  icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
-}[] = [
-  { value: "newest", label: "Newest", icon: "sort-calendar-descending" },
-  { value: "oldest", label: "Oldest", icon: "sort-calendar-ascending" },
+const SORT_OPTIONS: SegmentedControlOption<VouchHistoryOrdering>[] = [
+  {
+    value: "newest",
+    label: "Newest",
+    icon: "sort-calendar-descending",
+    accessibilityLabel: "Sort history by Newest",
+  },
+  {
+    value: "oldest",
+    label: "Oldest",
+    icon: "sort-calendar-ascending",
+    accessibilityLabel: "Sort history by Oldest",
+  },
 ];
 
 const keyExtractor = (business: VouchHistoryBusiness) => String(business.id);
@@ -77,12 +81,12 @@ function SummaryCard({ Icon, label, value, testID }: SummaryCardProps) {
       className="min-w-0 flex-1 rounded-2xl border border-border-primary/60 bg-surface p-4"
       style={shadows.subtle}
     >
-      {/* Illustration, shown as-is without a background */}
+      {/* Metric illustration */}
       <View className="h-12 w-12 items-center justify-center">
         <Icon width={48} height={48} />
       </View>
 
-      {/* Hero metric value */}
+      {/* Metric value */}
       <AppText
         weight="semibold"
         className="mt-4 text-text-primary"
@@ -100,107 +104,20 @@ function SummaryCard({ Icon, label, value, testID }: SummaryCardProps) {
   );
 }
 
-type SortControlProps = {
-  ordering: VouchHistoryOrdering;
-  onChange: (value: VouchHistoryOrdering) => void;
-};
-
-/** Compact segmented control for choosing the history order. */
-function SortControl({ ordering, onChange }: SortControlProps) {
-  const [trackWidth, setTrackWidth] = useState(0);
-  const thumbX = useRef(new Animated.Value(0)).current;
-
-  const selectedIndex = SORT_OPTIONS.findIndex(
-    (option) => option.value === ordering,
-  );
-  const segmentWidth = Math.max(
-    (trackWidth - SORT_TRACK_PADDING * 2) / SORT_OPTIONS.length,
-    0,
-  );
-
-  // Slide the thumb to the selected segment.
-  useEffect(() => {
-    Animated.timing(thumbX, {
-      toValue: selectedIndex * segmentWidth,
-      duration: 180,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [selectedIndex, segmentWidth, thumbX]);
-
-  return (
-    <View
-      className="mt-4 flex-row rounded-full bg-surface-muted"
-      style={{ padding: SORT_TRACK_PADDING }}
-      onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
-    >
-      {/* Sliding selection thumb */}
-      {segmentWidth > 0 && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            shadows.subtle,
-            {
-              position: "absolute",
-              top: SORT_TRACK_PADDING,
-              bottom: SORT_TRACK_PADDING,
-              left: SORT_TRACK_PADDING,
-              width: segmentWidth,
-              borderRadius: 999,
-              backgroundColor: theme.extends.colors.surface,
-              transform: [{ translateX: thumbX }],
-            },
-          ]}
-        />
-      )}
-
-      {SORT_OPTIONS.map(({ value, label, icon }) => {
-        const selected = ordering === value;
-
-        return (
-          <SafePressable
-            key={value}
-            onPress={() => onChange(value)}
-            accessibilityLabel={`Sort history by ${label}`}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-            hitSlop={{ top: 4, bottom: 4 }}
-            className="min-h-[40px] min-w-0 flex-1 cursor-pointer flex-row items-center justify-center gap-xs rounded-full px-sm py-sm active:opacity-75"
-          >
-            <MaterialCommunityIcons
-              name={icon}
-              size={16}
-              color={theme.extends.colors.brand}
-              style={{ opacity: selected ? 1 : 0.45 }}
-              accessibilityElementsHidden
-              importantForAccessibility="no"
-            />
-
-            <AppText
-              weight={selected ? "semibold" : "medium"}
-              className={`text-small ${
-                selected ? "text-text-primary" : "text-text-secondary"
-              }`}
-            >
-              {label}
-            </AppText>
-          </SafePressable>
-        );
-      })}
-    </View>
-  );
-}
-
 /**
  * Displays backend-grouped vouch history and full-history totals.
  *
  * Presents illustrated summary cards consistent with Merchant Business
  * Overview while preserving pagination, sorting, refresh, and vouch management.
+ *
+ * Uses the shared SegmentedControl for sorting history entries.
  */
 export default function VouchHistoryScreen() {
   const [ordering, setOrdering] = useState<VouchHistoryOrdering>("newest");
+
   const [selectedBusiness, setSelectedBusiness] =
     useState<VouchHistoryBusiness | null>(null);
+
   const [pendingBusinessId, setPendingBusinessId] = useState<number | null>(
     null,
   );
@@ -224,16 +141,21 @@ export default function VouchHistoryScreen() {
     fallbackMessage: "Please try again.",
   });
 
+  // Update ordering and return to the beginning of the history list.
   const changeOrdering = useCallback(
     (value: VouchHistoryOrdering) => {
       if (value === ordering) return;
 
       setOrdering(value);
-      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      listRef.current?.scrollToOffset({
+        offset: 0,
+        animated: false,
+      });
     },
     [ordering],
   );
 
+  // Add or remove a specialty vouch for the selected business.
   async function toggleSpecialty(tag: ExploreBusinessSpecialtyTag) {
     if (requestPendingRef.current || !selectedBusiness) return;
 
@@ -267,6 +189,7 @@ export default function VouchHistoryScreen() {
     }
   }
 
+  // Load the next page without triggering duplicate requests.
   function loadNextPage() {
     if (
       nextPagePendingRef.current ||
@@ -283,7 +206,7 @@ export default function VouchHistoryScreen() {
     });
   }
 
-  // setSelectedBusiness and router are stable, so rows keep a stable renderer.
+  // Keep the row renderer stable across screen updates.
   const renderItem = useCallback(
     ({ item }: { item: VouchHistoryBusiness }) => (
       <VouchHistoryItem
@@ -292,7 +215,9 @@ export default function VouchHistoryScreen() {
         onOpenBusiness={() =>
           router.push({
             pathname: "/(explorer)/business/[businessId]",
-            params: { businessId: String(item.business_id) },
+            params: {
+              businessId: String(item.business_id),
+            },
           })
         }
       />
@@ -301,7 +226,9 @@ export default function VouchHistoryScreen() {
   );
 
   const hasLoadedData = history.hasData;
+
   const initialError = Boolean(history.error) && !hasLoadedData;
+
   const refreshError =
     Boolean(history.error) && hasLoadedData && !history.isFetchNextPageError;
 
@@ -313,6 +240,7 @@ export default function VouchHistoryScreen() {
 
   return (
     <SafeAreaView edges={["left", "right"]} className="flex-1 bg-surface">
+      {/* Screen navigation */}
       <Stack.Screen
         options={{
           ...defaultStackScreenOptions,
@@ -331,6 +259,7 @@ export default function VouchHistoryScreen() {
               value={history.summary.total_businesses}
               testID="history-business-total"
             />
+
             <SummaryCard
               Icon={SpecialtyVouchesIllustration}
               label="Specialty vouches"
@@ -342,10 +271,15 @@ export default function VouchHistoryScreen() {
           <Skeleton className="h-12 w-4/5 rounded-md" />
         ) : null}
 
-        <SortControl ordering={ordering} onChange={changeOrdering} />
+        <SegmentedControl
+          options={SORT_OPTIONS}
+          value={ordering}
+          onChange={changeOrdering}
+          className="mt-4"
+        />
       </View>
 
-      {/* Business history list and request recovery */}
+      {/* Paginated business history and request recovery */}
       <FlatList
         ref={listRef}
         testID="vouch-history-list"
@@ -392,7 +326,10 @@ export default function VouchHistoryScreen() {
                 source={loadingAnimation}
                 autoPlay
                 loop
-                style={{ width: 50, height: 50 }}
+                style={{
+                  width: 50,
+                  height: 50,
+                }}
               />
             </View>
           ) : history.isFetchNextPageError ? (

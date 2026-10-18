@@ -6,6 +6,19 @@ import type {
 
 export type AnalyticsPlotPoint = AnalyticsBucket & { value: number };
 
+/** Retains unavailable stored timestamps and includes the year for generation coverage. */
+export function formatOptionalAnalyticsTimestamp(value: string | null) {
+  if (value === null) return "Unavailable";
+  return new Date(value).toLocaleString("en-PH", {
+    year: "numeric",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  });
+}
+
 /** Splits actual observations at missing calendar buckets; never inserts zero points. */
 export function splitObservedSeries(
   points: AnalyticsPlotPoint[],
@@ -68,5 +81,5 @@ export function formatReplyDuration(seconds: number | null) {
 export function formatReplyComparison(change: AnalyticsChange) {
   if (change.value === null || change.unit !== "percentage_points")
     return "Comparison unavailable";
-  return `${change.value > 0 ? "+" : ""}${change.value} percentage points vs previous review cohort`;
+  return `${change.value > 0 ? "+" : ""}${change.value} percentage points compared with reviews from the previous period`;
 }

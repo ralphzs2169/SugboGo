@@ -100,11 +100,9 @@ describe("lazy Core Plus detail reports", () => {
 
   it("fetches only Pocket detail, preserves distinct savers and exposes explicit zero weeks", async () => {
     const screen = await renderDetail("pocket");
-    await screen.findByLabelText("Distinct saver accounts: 3");
+    await screen.findByLabelText("Accounts that saved your business: 3");
     expect(screen.getByLabelText("Recorded saves: 5")).toBeTruthy();
-    expect(
-      screen.getByText(/These are not current Pocket holders/),
-    ).toBeTruthy();
+    expect(screen.getByText(/even if it later/)).toBeTruthy();
     expect(service.getMerchantPlusPocket).toHaveBeenCalledWith(
       { period: "90" },
       expect.anything(),
@@ -127,14 +125,14 @@ describe("lazy Core Plus detail reports", () => {
   it("selects individual specialty cohorts without requesting another report", async () => {
     const screen = await renderDetail("specialties");
     await screen.findByLabelText(
-      "Coffee: 2 additions still valid, 2 distinct supporters",
+      "Coffee: 2 vouches added in this period that still count, 2 supporting accounts",
     );
     await fireEvent.press(
       screen.getByRole("button", { name: "Specialty: Friendly service" }),
     );
     expect(
       screen.getByLabelText(
-        "Friendly service: 1 additions still valid, 1 distinct supporters",
+        "Friendly service: 1 vouches added in this period that still count, 1 supporting accounts",
       ),
     ).toBeTruthy();
     expect(
@@ -147,24 +145,30 @@ describe("lazy Core Plus detail reports", () => {
       screen.getByRole("button", { name: "Show Plus measurement details" }),
     );
     expect(
-      screen.getByText(/not historical balances or net growth/),
+      screen.getByText(/do not show net growth or past support totals/),
     ).toBeTruthy();
   });
 
   it("uses backend sentiment percentages and percentage-point reply comparisons", async () => {
     const screen = await renderDetail("reviews");
-    await screen.findByLabelText("Plus reply rate: 25%");
+    await screen.findByLabelText("Reviews replied to: 25%");
     expect(
       screen.getByLabelText(
-        "Positive: 2 reviews, 66.67% of classified reviews",
+        "Positive: 2 reviews, 66.67% of reviews with a sentiment label",
       ),
     ).toBeTruthy();
     expect(
-      screen.getByLabelText("Negative: 0 reviews, 0% of classified reviews"),
+      screen.getByLabelText(
+        "Negative: 0 reviews, 0% of reviews with a sentiment label",
+      ),
     ).toBeTruthy();
-    expect(screen.getByText(/3 classified · 1 unclassified/)).toBeTruthy();
     expect(
-      screen.getByText("+25 percentage points vs previous review cohort"),
+      screen.getByText(/3 with a sentiment label · 1 without a label/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "+25 percentage points compared with reviews from the previous period",
+      ),
     ).toBeTruthy();
     expect(screen.getByText("1 hr")).toBeTruthy();
   });
@@ -182,10 +186,10 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
-    await screen.findByText("Insufficient sentiment data");
+    await screen.findByText("More reviews are needed to show a pattern");
     expect(screen.queryByText(/66\.67%/)).toBeNull();
     expect(screen.getByLabelText("Positive: 2 reviews")).toBeTruthy();
-    expect(screen.getByLabelText("Plus reply rate: 0%")).toBeTruthy();
+    expect(screen.getByLabelText("Reviews replied to: 0%")).toBeTruthy();
     expect(screen.getByText("Unavailable")).toBeTruthy();
     expect(screen.getByText("Comparison unavailable")).toBeTruthy();
     expect(screen.queryAllByTestId("analytics-sentiment-bar")).toHaveLength(0);
@@ -200,15 +204,17 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusPocket)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("pocket");
-    await screen.findByText("No recorded activity yet");
+    await screen.findByText("No recorded activity in this period");
     expect(screen.getByTestId("analytics-chart-empty-state")).toHaveStyle({
       minHeight: 196,
     });
     expect(screen.getByLabelText("Recorded saves: 0")).toBeTruthy();
-    expect(screen.getByLabelText("Distinct saver accounts: 0")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Accounts that saved your business: 0"),
+    ).toBeTruthy();
     expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
-    expect(screen.getByText(/Tracking coverage is unverified/)).toBeTruthy();
+    expect(screen.getByText(/Some activity may not be recorded/)).toBeTruthy();
   });
 
   it("retains dated saves when the total is unavailable and retries the affected report", async () => {
@@ -224,10 +230,10 @@ describe("lazy Core Plus detail reports", () => {
     const screen = await renderDetail("pocket");
     await screen.findByLabelText("Recorded saves: Unavailable");
     expect(screen.getByTestId("analytics-chart-viewport")).toBeTruthy();
+    expect(screen.getByText(/Some figures could not be loaded/)).toBeTruthy();
     expect(
-      screen.getByText(/Some source reads could not complete/),
+      screen.getByLabelText("Accounts that saved your business: 3"),
     ).toBeTruthy();
-    expect(screen.getByLabelText("Distinct saver accounts: 3")).toBeTruthy();
     await fireEvent.press(
       screen.getByRole("button", {
         name: /Some recorded activity is unavailable.*retry/i,
@@ -244,15 +250,17 @@ describe("lazy Core Plus detail reports", () => {
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("pocket");
     await screen.findByRole("button", {
-      name: /Report source unavailable.*retry/i,
+      name: /Report data unavailable.*retry/i,
     });
-    expect(screen.queryByText("No recorded activity yet")).toBeNull();
+    expect(
+      screen.queryByText("No recorded activity in this period"),
+    ).toBeNull();
     expect(screen.queryByLabelText("Recorded saves: 5")).toBeNull();
     expect(screen.getByTestId("analytics-chart-empty-state")).toHaveStyle({
       minHeight: 196,
     });
     await fireEvent.press(
-      screen.getByRole("button", { name: /Report source unavailable.*retry/i }),
+      screen.getByRole("button", { name: /Report data unavailable.*retry/i }),
     );
     await screen.findByLabelText("Recorded saves: 5");
   });
@@ -270,10 +278,10 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusSpecialties)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("specialties");
-    await screen.findByText("No qualifying specialty additions");
+    await screen.findByText("No vouches from these dates still count");
     expect(
       screen.getByLabelText(
-        "Coffee: 0 additions still valid, 0 distinct supporters",
+        "Coffee: 0 vouches added in this period that still count, 0 supporting accounts",
       ),
     ).toBeTruthy();
     expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
@@ -281,7 +289,9 @@ describe("lazy Core Plus detail reports", () => {
       screen.getByRole("button", { name: "Specialty: Friendly service" }),
     );
     expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
-    expect(screen.queryByText("No qualifying specialty additions")).toBeNull();
+    expect(
+      screen.queryByText("No vouches from these dates still count"),
+    ).toBeNull();
   });
 
   it("keeps a single classified review as counts rather than a sentiment conclusion", async () => {
@@ -302,12 +312,14 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
-    await screen.findByText("Insufficient sentiment data");
+    await screen.findByText("More reviews are needed to show a pattern");
     expect(screen.getByLabelText("Positive: 1 reviews")).toBeTruthy();
     expect(screen.queryAllByTestId("analytics-sentiment-bar")).toHaveLength(0);
-    expect(screen.getByText(/With one eligible review/)).toBeTruthy();
     expect(
-      screen.getByText(/does not establish a typical response time/),
+      screen.getByText(/This percentage describes one review only/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/does not show a typical response time/),
     ).toBeTruthy();
   });
 
@@ -350,8 +362,12 @@ describe("lazy Core Plus detail reports", () => {
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
     await screen.findByText("No published reviews in this period");
-    expect(screen.getByLabelText("Plus reply rate: Unavailable")).toBeTruthy();
-    expect(screen.getByText(/No eligible reviews in this period/)).toBeTruthy();
+    expect(
+      screen.getByLabelText("Reviews replied to: Unavailable"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/No published reviews from these dates/),
+    ).toBeTruthy();
     expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
   });
 
@@ -375,7 +391,7 @@ describe("lazy Core Plus detail reports", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Check access again" }),
     );
-    await screen.findByLabelText("Distinct saver accounts: 3");
+    await screen.findByLabelText("Accounts that saved your business: 3");
   });
 
   it("recovers a report failure and keeps cached data after a failed refresh", async () => {
