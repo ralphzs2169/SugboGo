@@ -1,117 +1,231 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "expo-router";
-import { useState } from "react";
-import { View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  View,
+  useWindowDimensions,
+} from "react-native";
+
+import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import ErrorState from "@/shared/components/ErrorState";
+import SafePressable from "@/shared/components/SafePressable";
+import SegmentedControl from "@/shared/components/SegmentedControl";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-import type { MerchantPlusAccess } from "../../hooks/analytics/useMerchantPlusAccess";
+
 import { useMerchantPlusVisibility } from "../../hooks/analytics/useMerchantPlusAnalytics";
-import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
-import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type {
   AnalyticsInterval,
   VisibilityMetric,
 } from "../../types/merchantPlusAnalytics.types";
-import AnalyticsChoiceChips from "./AnalyticsChoiceChips";
+import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
+
 import AnalyticsEventTrend from "./AnalyticsEventTrend";
-import { PlusAccessGate, PlusRequestState } from "./AnalyticsPlusStates";
+import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
+import AnalyticsVisibilityMeasurementSheet from "./AnalyticsVisibilityMeasurementSheet";
+import AnalyticsVisibilityMetricTabs from "./AnalyticsVisibilityMetricTabs";
 
 const METRICS = [
   { value: "profile_visits", label: "Profile visits" },
   { value: "impressions", label: "Impressions" },
-  { value: "distinct_profile_visitors", label: "Visitor accounts" },
+  {
+    value: "distinct_profile_visitors",
+    label: "Visitor accounts",
+  },
 ] as const;
 
-/** Owns the overview's primary chart while leaving Standard sections independent. */
+const INTERVAL_OPTIONS = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+] as const;
+
+/**
+ * Presents recorded visibility trends in a focused chart dashboard.
+ *
+ * Keeps metric selection and grouping accessible, preserves report
+ * accuracy, and moves detailed explanations into a measurement sheet.
+ */
 export default function AnalyticsVisibilityTrends({
   period,
-  access,
 }: {
   period: MerchantAnalyticsPeriod;
-  access: MerchantPlusAccess;
 }) {
   const focused = useIsFocused();
+  const { fontScale } = useWindowDimensions();
+
+  const measurementSheetRef = useRef<BottomSheetModal>(null);
+
   const [metric, setMetric] = useState<VisibilityMetric>("profile_visits");
+
   const [intervalSelections, setIntervalSelections] = useState<
     Partial<Record<MerchantAnalyticsPeriod, AnalyticsInterval>>
   >({});
+
+  // Use weekly grouping for longer reporting periods.
   const interval =
-    intervalSelections[period] ?? (period === "90" ? "weekly" : "daily");
+    intervalSelections[period] ?? (period === "7" ? "daily" : "weekly");
+
+  const query = useMerchantPlusVisibility({ period }, interval, focused);
+
+  useQueryErrorNotification({
+    error: focused ? query.error : null,
+    toastId: "merchant-visibility-error",
+    title: "Unable to load visibility",
+    fallbackMessage: "Please retry this section.",
+  });
+
+  const selectedMetric = METRICS.find((option) => option.value === metric)!;
+
+  const currentMetric = query.data?.metrics[metric];
+
+  const selectMetric = (selected: VisibilityMetric) => {
+    measurementSheetRef.current?.dismiss();
+    setMetric(selected);
+  };
+
   const selectInterval = (selected: AnalyticsInterval) => {
+    measurementSheetRef.current?.dismiss();
+
     setIntervalSelections((current) => ({
       ...current,
       [period]: selected,
     }));
   };
-  const query = useMerchantPlusVisibility(
-    { period },
-    interval,
-    access.allowed && focused,
-  );
-  useQueryErrorNotification({
-    error: focused ? query.error : null,
-    toastId: "plus-visibility-error",
-    title: "Unable to load visibility",
-    fallbackMessage: "Please retry this section.",
-  });
-  const title = METRICS.find((option) => option.value === metric)!.label;
 
   return (
-    <AnalyticsOverviewSection title="Visibility Trends" plus>
-      <PlusAccessGate access={access}>
+    <>
+      <AnalyticsOverviewSection
+        title="Visibility trends"
+        accessory={
+          query.data ? (
+            <SafePressable
+              onPress={() => measurementSheetRef.current?.present()}
+              accessibilityRole="button"
+              accessibilityLabel="About visibility trends"
+              accessibilityHint="Opens information about recorded activity and chart measurements"
+              className="h-11 w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
+            >
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={22}
+                color={theme.extends.colors.text.secondary}
+                accessible={false}
+              />
+            </SafePressable>
+          ) : undefined
+        }
+      >
         <View className="gap-4">
-          {/* Switching metrics reuses the same report; only interval/period changes fetch. */}
-          <AnalyticsChoiceChips
-            label="Show"
-            options={METRICS}
-            value={metric}
-            onChange={setMetric}
-          />
-          <View className="flex-row flex-wrap items-end justify-between gap-3">
-            <AnalyticsChoiceChips
-              label="Group by"
-              segmented
-              options={[
-                { value: "daily", label: "Daily" },
-                { value: "weekly", label: "Weekly" },
-              ]}
-              value={interval}
-              onChange={selectInterval}
+          {/* Metric navigation with a clear selected indicator */}
+          <View className="border-b border-border-primary/60">
+            {/* Animated visibility metric navigation */}
+            <AnalyticsVisibilityMetricTabs
+              options={METRICS}
+              value={metric}
+              onChange={selectMetric}
             />
-            {query.data && (
-              <View className="min-w-0 items-end">
-                <AppText className="text-xs text-text-secondary">
-                  Recorded in period
+          </View>
+
+          {/* Unified chart surface */}
+          <View className="gap-4 rounded-2xl border border-border-primary/60 bg-surface p-4">
+            {/* Recorded total and chart grouping */}
+            <View className="flex-row flex-wrap items-end justify-between gap-3">
+              <View className="min-w-0 flex-1 gap-1">
+                <AppText className="text-sm text-text-secondary">
+                  {selectedMetric.label}
                 </AppText>
+
                 <AppText
-                  accessibilityLabel={`Recorded ${title.toLowerCase()}: ${query.data.metrics[metric].value === null ? "Unavailable" : query.data.metrics[metric].value}`}
                   weight="extrabold"
                   className="text-3xl text-text-primary"
+                  accessibilityLabel={`Recorded ${selectedMetric.label.toLowerCase()} in the selected period: ${
+                    currentMetric?.value == null
+                      ? "Unavailable"
+                      : currentMetric.value
+                  }`}
                 >
-                  {formatAnalyticsCount(query.data.metrics[metric].value)}
+                  {formatAnalyticsCount(currentMetric?.value ?? null)}
+                </AppText>
+              </View>
+
+              <View
+                style={{
+                  width: 150 * Math.max(1, fontScale),
+                  maxWidth: "100%",
+                }}
+              >
+                <SegmentedControl
+                  options={INTERVAL_OPTIONS.map((option) => ({
+                    ...option,
+                    accessibilityLabel: `Group by ${option.label.toLowerCase()}`,
+                  }))}
+                  value={interval}
+                  onChange={selectInterval}
+                  variant="sm"
+                />
+              </View>
+            </View>
+
+            {/* Independent chart loading and recovery */}
+            {query.isPending && !query.data && (
+              <View className="min-h-44 items-center justify-center gap-3">
+                <ActivityIndicator color={theme.extends.colors.brand} />
+                <AppText className="text-sm text-text-secondary">
+                  Loading visibility activity…
                 </AppText>
               </View>
             )}
-          </View>
-          <PlusRequestState
-            error={query.error}
-            hasData={!!query.data}
-            loading={query.isPending}
-            retry={() => void query.refetch()}
-          >
+
+            {query.error && (
+              <ErrorState
+                size="section"
+                title={
+                  query.data
+                    ? "Unable to refresh visibility"
+                    : "Visibility activity unavailable"
+                }
+                description={
+                  query.data
+                    ? "Previously loaded values are still shown."
+                    : "The visibility report couldn't be loaded."
+                }
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void query.refetch()}
+              />
+            )}
+
+            {/* Calendar chart and compact chart footer */}
             {query.data && (
               <AnalyticsEventTrend
                 metric={query.data.metrics[metric]}
-                label={`Recorded ${title.toLowerCase()}`}
+                label={`Recorded ${selectedMetric.label.toLowerCase()}`}
                 interval={query.data.interval}
                 note={query.data.measurement_note}
                 retry={() => void query.refetch()}
                 showTotal={false}
+                showContext={false}
               />
             )}
-          </PlusRequestState>
+          </View>
         </View>
-      </PlusAccessGate>
-    </AnalyticsOverviewSection>
+      </AnalyticsOverviewSection>
+
+      {/* Shared Gorhom sheet pattern; mounted outside chart scrolling */}
+      {query.data && (
+        <AnalyticsVisibilityMeasurementSheet
+          sheetRef={measurementSheetRef}
+          metric={query.data.metrics[metric]}
+          metricKey={metric}
+          metricLabel={selectedMetric.label}
+          interval={query.data.interval}
+          note={query.data.measurement_note}
+        />
+      )}
+    </>
   );
 }

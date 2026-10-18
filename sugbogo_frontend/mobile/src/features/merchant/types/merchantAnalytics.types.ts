@@ -39,6 +39,8 @@ export type MerchantStandardAnalytics = {
   distinct_profile_visitors: number | null;
   saves_in_period: number | null;
   current_pocket_holders: number;
+  /** Current eligible vouch records; optional while older API responses remain cached. */
+  current_valid_vouches?: number | null;
   specialty_support: AnalyticsSpecialtySupport[];
   reviews: {
     new_published_in_period: number;

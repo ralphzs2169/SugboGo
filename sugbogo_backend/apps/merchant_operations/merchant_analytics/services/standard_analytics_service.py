@@ -85,6 +85,16 @@ class StandardAnalyticsService:
         business = BusinessProfileService.get_business_for_merchant(user)
         visibility, visibility_meta = cls.visibility(business.pk, period)
         reviews = cls.review_counts(business.pk, period)
+        specialty_support = VouchService.get_current_specialty_support(
+            business.pk,
+            as_of=period.generated_at,
+        )
+        # Each VOUCH_ID belongs to one TAG_ID and each business/tag link is unique.
+        # These disjoint evidence counts include multiple specialties per supporter.
+        current_valid_vouches = sum(
+            specialty["valid_vouches"]
+            for specialty in specialty_support
+        )
         reasons = ["current_state_reporting"]
         if reviews["excluded_reply_timestamp_count"]:
             reasons.append("reply_timestamp_anomalies")
@@ -94,7 +104,8 @@ class StandardAnalyticsService:
             "business": {"id": business.pk, "name": business.BUSN_NAME, "status": business.BUSN_STATUS},
             **visibility,
             "current_pocket_holders": PocketService.get_current_holder_count(business.pk, as_of=period.generated_at),
-            "specialty_support": VouchService.get_current_specialty_support(business.pk, as_of=period.generated_at),
+            "specialty_support": specialty_support,
+            "current_valid_vouches": current_valid_vouches,
             "reviews": reviews,
             "snapshot_as_of": period.generated_at.isoformat(),
             "meta": standard_meta(period, availability="partial", partial_reasons=reasons),

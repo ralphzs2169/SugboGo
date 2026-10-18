@@ -1,11 +1,48 @@
 """Premium query validation and aggregate response allowlists."""
 
+from datetime import timedelta
+
 from rest_framework import serializers
+
+from apps.shared.analytics.date_ranges import resolve_period
 
 from .standard_analytics_serializers import OwnedBusinessSerializer, StandardAnalyticsQuerySerializer
 
 
-class PremiumVisibilityQuerySerializer(StandardAnalyticsQuerySerializer):
+class PremiumSnapshotQuerySerializer(StandardAnalyticsQuerySerializer):
+    """Optionally align an individual Plus read to a recent Standard reporting cutoff."""
+
+    as_of = serializers.DateTimeField(required=False)
+
+    def validate(
+        self,
+        attrs,
+    ):
+        """Bound client cutoffs using the server clock without changing default selections."""
+        attrs = super().validate(attrs)
+        cutoff = attrs.get("as_of")
+        if cutoff is None:
+            return attrs
+        now = attrs["report_period"].generated_at
+        if cutoff > now or now - cutoff > timedelta(minutes=5):
+            raise serializers.ValidationError(
+                {
+                    "as_of": (
+                        "Use a reporting cutoff from the last five minutes, "
+                        "not a future time."
+                    ),
+                },
+            )
+        attrs["report_period"] = resolve_period(
+            preset=attrs["period"],
+            start_date=attrs.get("start_date"),
+            end_date=attrs.get("end_date"),
+            now=cutoff,
+        )
+        return attrs
+
+
+class PremiumVisibilityQuerySerializer(PremiumSnapshotQuerySerializer):
     """Accept only approved periods and Manila daily or weekly reporting buckets."""
 
     interval = serializers.ChoiceField(choices=("daily", "weekly"), default="daily")
@@ -18,6 +55,12 @@ class ChangeSerializer(serializers.Serializer):
     direction = serializers.CharField(allow_null=True)
     unit = serializers.CharField()
     reason = serializers.CharField(allow_null=True)
+
+
+class CountChangeSerializer(ChangeSerializer):
+    """Expose an absolute count difference as an integer, including zero."""
+
+    value = serializers.IntegerField(allow_null=True)
 
 
 class BucketSerializer(serializers.Serializer):
@@ -43,6 +86,7 @@ class EventMetricSerializer(serializers.Serializer):
     series = EventBucketSerializer(many=True, allow_null=True)
     series_is_sparse = serializers.BooleanField()
     sources = serializers.DictField(child=serializers.JSONField())
+    comparison_eligibility = serializers.JSONField()
 
 
 class PremiumReportSerializer(serializers.Serializer):
@@ -133,6 +177,7 @@ class PremiumReviewPerformanceSerializer(PremiumReportSerializer):
     current = ReviewCohortSerializer()
     previous = ReviewCohortSerializer()
     reply_rate_change = ChangeSerializer()
+    published_review_count_change = CountChangeSerializer()
     series = ReviewBucketSerializer(many=True)
     current_unanswered_published = serializers.IntegerField()
     reply_cutoff = serializers.CharField()

@@ -8,7 +8,7 @@ from django.db.models.functions import TruncWeek
 from apps.merchant_operations.business_profile.services.business_profile_service import BusinessProfileService
 from apps.shared.analytics.policy import current_policy, with_policy_snapshot
 from apps.reviews.models import Review, ReviewReply
-from apps.shared.analytics.comparisons import compare_values
+from apps.shared.analytics.comparisons import compare_count_difference, compare_values, equal_elapsed_periods
 from apps.shared.analytics.date_ranges import MANILA
 
 from .premium_common import owned_business_data, previous_period, snapshot_meta, week_buckets
@@ -80,9 +80,17 @@ class PremiumReviewPerformanceService:
         anomalies = ReviewReply.objects.filter(REVW_ID__in=published).filter(
             Q(RPLY_CREATED_AT__gt=period.generated_at) | Q(RPLY_CREATED_AT__lt=F("REVW_ID__REVW_CREATED_AT")),
         ).count()
+        count_change = compare_count_difference(
+            current=current["published_review_count"],
+            previous=previous["published_review_count"],
+            data_available=equal_elapsed_periods(period),
+        )
+        if not equal_elapsed_periods(period):
+            count_change["reason"] = "unequal_comparison_periods"
         return {
             "business": owned_business_data(business), "policy_version": current_policy().version,
             "interval": "weekly", "current": current, "previous": previous,
+            "published_review_count_change": count_change,
             "reply_rate_change": compare_values(
                 current=current["reply_rate"], previous=previous["reply_rate"],
                 current_sample_size=current["published_review_count"], previous_sample_size=previous["published_review_count"],
@@ -93,6 +101,8 @@ class PremiumReviewPerformanceService:
             "current_unanswered_published": published.filter(has_reply=False).count(),
             "reply_cutoff": period.generated_at.isoformat(), "excluded_reply_timestamp_count": anomalies,
             "measurement_note": (
+                "Review counts compare creation cohorts still published at generated_at, "
+                "not publication transitions or immutable historical totals. "
                 "Replies are assessed at generated_at for reviews created in each cohort; recent cohorts have less time to receive replies. "
                 "Median uses retained reply creation timestamps; deleting and recreating replies loses original first-reply history. "
                 "Sentiment uses stored labels on current published reviews, not historical moderation or classification snapshots."

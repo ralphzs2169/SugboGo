@@ -4,6 +4,7 @@ import {
   cleanup,
   fireEvent,
   render,
+  within,
   waitFor,
 } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
@@ -23,6 +24,7 @@ import { merchantPlusReportKey } from "../../../hooks/analytics/merchantPlusAnal
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
 import * as plusService from "../../../api/merchantPlusAnalytics.service";
 import {
+  pocketReport,
   plusStatus,
   plusSuccess,
   reviewReport,
@@ -122,6 +124,10 @@ describe("MerchantAnalyticsScreen", () => {
       .mocked(plusService.getMerchantPlusReviewPerformance)
       .mockReset()
       .mockResolvedValue(plusSuccess(reviewReport()));
+    jest
+      .mocked(plusService.getMerchantPlusPocket)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(pocketReport()));
     mockNavigate.mockClear();
     jest.mocked(Toast.show).mockClear();
     mockRefetchProfile.mockReset();
@@ -143,6 +149,60 @@ describe("MerchantAnalyticsScreen", () => {
       </QueryClientProvider>,
     );
   }
+
+  it("shows four business KPIs with replies outside the grid and specialty support immediately next", async () => {
+    const screen = await renderScreen();
+    const grid = within(await screen.findByTestId("business-overview-grid"));
+    for (const name of [
+      "Recorded profile visits",
+      "Recorded saves",
+      "New reviews",
+      "Total vouches",
+    ]) {
+      expect(grid.getByLabelText(new RegExp(`^${name}:`))).toBeTruthy();
+    }
+    expect(grid.queryByLabelText(/^Reviews replied to:/)).toBeNull();
+    expect(screen.getByTestId("analytics-reply-card")).toBeTruthy();
+    const headings = screen
+      .getAllByRole("header")
+      .map((heading) => heading.props.children);
+    const businessIndex = headings.indexOf("Business overview");
+    expect(businessIndex).toBeGreaterThanOrEqual(0);
+    expect(headings.slice(businessIndex, businessIndex + 4)).toEqual([
+      "Business overview",
+      "Specialty Support",
+      "Visibility Trends",
+      "Your business now",
+    ]);
+    expect(screen.getAllByText("Total vouches")).toHaveLength(1);
+  });
+
+  it.each([0, null, undefined])(
+    "preserves a vouch snapshot of %s without summing supporters",
+    async (value) => {
+      getAnalytics.mockResolvedValueOnce(
+        analyticsSuccess(
+          standardAnalyticsReport({ current_valid_vouches: value }),
+        ),
+      );
+      const screen = await renderScreen();
+      expect(
+        await screen.findByLabelText(
+          `Total vouches: ${value === 0 ? "0" : "Unavailable"}. Current.`,
+        ),
+      ).toBeTruthy();
+    },
+  );
+
+  it("hides a cached vouch count when the domain source is unavailable", async () => {
+    const report = standardAnalyticsReport();
+    report.sources.domain.availability = "unavailable";
+    getAnalytics.mockResolvedValueOnce(analyticsSuccess(report));
+    const screen = await renderScreen();
+    expect(
+      await screen.findByLabelText("Total vouches: Unavailable. Current."),
+    ).toBeTruthy();
+  });
 
   it("opens the shared notification inbox from the Analytics header", async () => {
     const screen = await renderScreen();
@@ -304,7 +364,7 @@ describe("MerchantAnalyticsScreen", () => {
         params: { report, period: "7" },
       });
     }
-    expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusPocket).toHaveBeenCalled();
     expect(plusService.getMerchantPlusSpecialties).not.toHaveBeenCalled();
   });
 
@@ -414,21 +474,48 @@ describe("MerchantAnalyticsScreen", () => {
 
     expect(
       await screen.findByLabelText(
-        /Reviews replied to: 25%\. 1 of 4 published reviews replied to\. \+25 pp versus the previous period/,
+        /Reviews replied to: 25%\. 1 of 4 reviews\. \+25 pp versus the previous period/,
       ),
     ).toBeTruthy();
     expect(screen.getByText("+25 pp")).toBeTruthy();
+    expect(
+      screen.getByTestId("analytics-reply-progress-fill").props.style,
+    ).toEqual({ width: "25%" });
     expect(screen.getByText("vs previous period")).toBeTruthy();
     expect(plusService.getMerchantPlusReviewPerformance).toHaveBeenCalledWith(
-      { period: "30" },
+      { period: "30", as_of: standardAnalyticsMeta().generated_at },
       expect.anything(),
     );
     expect(screen.queryByText(/\+12%|\+3 vs prev/)).toBeNull();
   });
 
+  it("shows an approved absolute review difference using the Standard cutoff", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const report = reviewReport();
+    report.published_review_count_change = {
+      value: 3,
+      direction: "up",
+      unit: "count",
+      reason: null,
+    };
+    jest
+      .mocked(plusService.getMerchantPlusReviewPerformance)
+      .mockResolvedValue(plusSuccess(report));
+    const screen = await renderScreen();
+    expect(
+      await screen.findByLabelText(
+        /New reviews: 4\..*\+3 versus the previous period/,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("+3")).toBeTruthy();
+    expect(screen.getByText("+25 pp")).toBeTruthy();
+  });
+
   it.each([
     { value: -10, direction: "down" as const, label: "−10 pp" },
-    { value: 0, direction: "unchanged" as const, label: "0 pp" },
+    { value: 0, direction: "unchanged" as const, label: "No change" },
   ])(
     "shows $direction reply-rate changes in percentage points",
     async (caseValue) => {
@@ -483,10 +570,13 @@ describe("MerchantAnalyticsScreen", () => {
 
     expect(
       await screen.findByLabelText(
-        /Reviews replied to: 0%\. 0 of 4 published reviews replied to\. −25 pp/,
+        /Reviews replied to: 0%\. 0 of 4 reviews\. −25 pp/,
       ),
     ).toBeTruthy();
     expect(screen.getByTestId("analytics-reply-progress")).toBeTruthy();
+    expect(
+      screen.getByTestId("analytics-reply-progress-fill").props.style,
+    ).toEqual({ width: "0%" });
   });
 
   it("omits a null or ineligible reply comparison without changing Standard metrics", async () => {
@@ -508,7 +598,10 @@ describe("MerchantAnalyticsScreen", () => {
     await waitFor(() =>
       expect(
         client.getQueryState(
-          merchantPlusReportKey(42, "reviews", { period: "30" }),
+          merchantPlusReportKey(42, "reviews", {
+            period: "30",
+            as_of: standardAnalyticsMeta().generated_at,
+          }),
         )?.status,
       ).toBe("success"),
     );
@@ -532,7 +625,10 @@ describe("MerchantAnalyticsScreen", () => {
     await waitFor(() =>
       expect(
         client.getQueryState(
-          merchantPlusReportKey(42, "reviews", { period: "30" }),
+          merchantPlusReportKey(42, "reviews", {
+            period: "30",
+            as_of: standardAnalyticsMeta().generated_at,
+          }),
         )?.status,
       ).toBe("success"),
     );
@@ -558,7 +654,10 @@ describe("MerchantAnalyticsScreen", () => {
     await waitFor(() =>
       expect(
         client.getQueryState(
-          merchantPlusReportKey(42, "reviews", { period: "30" }),
+          merchantPlusReportKey(42, "reviews", {
+            period: "30",
+            as_of: standardAnalyticsMeta().generated_at,
+          }),
         )?.status,
       ).toBe("error"),
     );
@@ -593,6 +692,7 @@ describe("MerchantAnalyticsScreen", () => {
   it("changes periods without relabeling old KPI data or filtering current snapshots", async () => {
     const screen = await renderScreen();
     await screen.findByLabelText(/Recorded profile visits: 24/);
+    expect(screen.getByLabelText("Total vouches: 8. Current.")).toBeTruthy();
     const pending = deferredAnalytics();
     getAnalytics.mockReturnValueOnce(pending.promise);
 
@@ -612,6 +712,7 @@ describe("MerchantAnalyticsScreen", () => {
       ),
     );
     await screen.findByLabelText(/Recorded profile visits: 2\./);
+    expect(screen.getByLabelText("Total vouches: 8. Current.")).toBeTruthy();
     expect(
       screen.getByLabelText("Accounts with your business in a Pocket: 18"),
     ).toBeTruthy();

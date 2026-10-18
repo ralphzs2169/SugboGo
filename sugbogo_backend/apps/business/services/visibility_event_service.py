@@ -16,6 +16,7 @@ from rest_framework.exceptions import APIException, NotFound, ValidationError
 from apps.business.models import Business
 from apps.shared.analytics.date_ranges import MANILA
 from apps.shared.services.mongodb_service import MongoDBService
+from apps.business.services.visibility_coverage_service import VisibilityCoverageService
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +271,49 @@ class VisibilityEventService:
         business_ids: Iterable[int],
         occurred_at: datetime,
     ) -> VisibilityEventWriteResult:
+        """Monitor eligible server-side attempts while preserving ingestion and deduplication."""
+        business_ids = cls._normalize_business_ids(business_ids)
+        try:
+            result = cls._persist_events(
+                event_type=event_type,
+                explorer_id=explorer_id,
+                business_ids=business_ids,
+                occurred_at=occurred_at,
+            )
+        except Exception as error:
+            if business_ids:
+                reason = "persistence_failed"
+                if isinstance(error, VisibilityTrackingUnavailable):
+                    if error.cooldown_short_circuit:
+                        reason = "ingestion_cooldown"
+                VisibilityCoverageService.observe(
+                    event_type=event_type,
+                    business_ids=business_ids,
+                    occurred_at=occurred_at,
+                    outcome="failed",
+                    reason=reason,
+                )
+            raise
+        if business_ids:
+            VisibilityCoverageService.observe(
+                event_type=event_type,
+                business_ids=business_ids,
+                occurred_at=occurred_at,
+                outcome="accepted",
+                recorded_count=result.recorded_count,
+                duplicate_count=result.duplicate_count,
+            )
+        return result
+
+    @classmethod
+    def _persist_events(
+        cls,
+        event_type: VisibilityEventType,
+        explorer_id: int,
+        business_ids: Iterable[int],
+        occurred_at: datetime,
+    ) -> VisibilityEventWriteResult:
+        """Persist the existing UTC-day deduplicated documents without changing their schema."""
         normalized_business_ids = cls._normalize_business_ids(
             business_ids,
         )
@@ -335,9 +379,13 @@ class VisibilityEventService:
                 [],
             )
 
-            if not write_errors or any(
-                error.get("code") != 11000
-                for error in write_errors
+            if (
+                error_details.get("writeConcernErrors")
+                or not write_errors
+                or any(
+                    error.get("code") != 11000
+                    for error in write_errors
+                )
             ):
                 cls._mark_temporarily_unavailable()
                 logger.exception(

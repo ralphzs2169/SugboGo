@@ -5,9 +5,10 @@ import type {
 } from "./merchantAnalytics.types";
 
 /** Preset UI selections and the backend's existing custom-date query contract. */
-export type AnalyticsSelection =
+export type AnalyticsSelection = (
   | { period: MerchantAnalyticsPeriod }
-  | { period: "custom"; start_date: string; end_date: string };
+  | { period: "custom"; start_date: string; end_date: string }
+) & { as_of?: string };
 
 export type AnalyticsInterval = "daily" | "weekly";
 export type VisibilityMetric =
@@ -47,6 +48,12 @@ export type AnalyticsEventMetric = {
   series: (AnalyticsBucket & { value: number })[] | null;
   series_is_sparse: boolean;
   sources: { current: PlusAnalyticsMeta; previous: PlusAnalyticsMeta };
+  comparison_eligibility?: {
+    eligible: boolean;
+    reason: string | null;
+    reasons: string[];
+    definition_version: string;
+  };
 };
 
 export type PlusEventReport<K extends string> = {
@@ -107,6 +114,8 @@ export type PlusReviewPerformanceReport = {
   current: ReviewCohort;
   previous: ReviewCohort;
   reply_rate_change: AnalyticsChange;
+  /** Optional for older cached reports during a backend rollout. */
+  published_review_count_change?: AnalyticsChange;
   series: (AnalyticsBucket & ReviewMeasures)[];
   current_unanswered_published: number;
   reply_cutoff: string;

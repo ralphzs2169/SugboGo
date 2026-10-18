@@ -155,7 +155,7 @@ describe("server-gated, account-scoped Plus queries", () => {
       await result.current.access.refetch();
     });
     await waitFor(() => expect(result.current.access.allowed).toBe(false));
-    expect(result.current.report.data).toBeUndefined();
+    await waitFor(() => expect(result.current.report.data).toBeUndefined());
     expect(
       client
         .getQueriesData({ queryKey: merchantPlusReportScope(42) })

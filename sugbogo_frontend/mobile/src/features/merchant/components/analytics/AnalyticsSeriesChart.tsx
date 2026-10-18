@@ -1,9 +1,11 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from "react-native-svg";
+
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
+
 import type { AnalyticsInterval } from "../../types/merchantPlusAnalytics.types";
 import {
   analyticsCalendarLabel,
@@ -15,9 +17,14 @@ import {
   type AnalyticsPlotPoint,
 } from "../../utils/merchantPlusAnalytics.utils";
 
+import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
+
 /**
- * Plots counts on Manila calendar positions using columns and distinct missing/zero marks.
- * Sparse reports show exact counts directly; larger charts retain expandable calendar values.
+ * Draws calendar-aligned recorded counts with a linear Y-axis.
+ *
+ * Distinguishes missing observations from recorded zeros, preserves
+ * partial intervals, and provides an accessible exact-values view.
+ * The compact footer is used when context lives in a separate sheet.
  */
 export default function AnalyticsSeriesChart({
   points,
@@ -26,6 +33,7 @@ export default function AnalyticsSeriesChart({
   color = theme.extends.colors.brand,
   range,
   total,
+  minimalFooter = false,
   emptyTitle = "No recorded activity in this period",
   emptyDescription = "No activity was recorded for this metric during the selected dates.",
 }: {
@@ -35,95 +43,156 @@ export default function AnalyticsSeriesChart({
   color?: string;
   range?: AnalyticsChartRange;
   total?: number | null;
+  minimalFooter?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
 }) {
   const { width: windowWidth, fontScale } = useWindowDimensions();
+
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const [showValues, setShowValues] = useState(false);
+
   const slots = buildAnalyticsCalendar(points, interval, range);
+
   const observed = slots.filter((slot) => slot.observation !== null);
+
   const hasMissing = slots.some((slot) => slot.observation === null);
+
   const hasZero = observed.some((slot) => slot.observation?.value === 0);
+
   const hasPartial = slots.some((slot) => slot.partial);
+
+  // Only a supplied total can establish a period-wide zero.
   const knownZero =
-    total === 0 && !observed.some((slot) => slot.observation!.value > 0);
+    total === 0 && !observed.some((slot) => (slot.observation?.value ?? 0) > 0);
+
   const compact = observed.length <= 2;
+
+  // Responsive axis labels and chart measurements.
   const scale = Math.max(1, fontScale);
-  const fontSize = 12 * scale;
-  const ticks = analyticsCountTicks(
-    Math.max(0, ...observed.map((slot) => slot.observation!.value)),
+  const fontSize = 11 * scale;
+
+  const maximumObserved = Math.max(
+    0,
+    ...observed.map((slot) => slot.observation?.value ?? 0),
   );
-  const countFormatter = new Intl.NumberFormat("en-PH", {
+
+  const ticks = analyticsCountTicks(maximumObserved);
+
+  const formatter = new Intl.NumberFormat("en-PH", {
     notation: "compact",
     maximumFractionDigits: 1,
   });
-  const tickLabels = ticks.map((tick) => countFormatter.format(tick));
-  const chartWidth = Math.max(160, measuredWidth || windowWidth - 40);
-  // Reserve only the space needed by the count labels, including font scaling.
+
+  const tickLabels = ticks.map((tick) => formatter.format(tick));
+
+  const chartWidth = Math.max(160, measuredWidth || windowWidth - 72);
+
   const axisWidth = Math.max(
-    24 * scale,
+    25 * scale,
     Math.ceil(
       Math.max(...tickLabels.map((text) => text.length)) * fontSize * 0.65,
     ) +
-      8 * scale,
+      9 * scale,
   );
-  const slotMinimum = (interval === "weekly" ? 56 : 28) * scale;
+
+  // Five weekly bars should usually fit on a mobile viewport.
+  // Longer calendars still scroll horizontally.
+  const slotMinimum = (interval === "weekly" ? 48 : 30) * scale;
+
   const plotWidth = Math.max(
     chartWidth - axisWidth,
     slots.length * slotMinimum,
   );
+
   const stepWidth = plotWidth / Math.max(1, slots.length);
-  const barWidth = Math.min(26 * scale, stepWidth * 0.6);
-  const maximum = ticks[ticks.length - 1];
-  const top = Math.max(16, fontSize);
-  const bottom = top + Math.max(144, fontSize * 4);
-  const height = bottom + fontSize * 3 + 16;
-  const labelEvery = Math.max(1, Math.ceil((72 * scale) / stepWidth));
-  const y = (value: number) => bottom - (value / maximum) * (bottom - top);
+
+  const barWidth = Math.min(26 * scale, stepWidth * 0.56);
+
+  const maximum = Math.max(1, ticks[ticks.length - 1] ?? 1);
+
+  const top = Math.max(16, fontSize * 1.25);
+
+  const plotHeight = Math.max(152, 152 * Math.min(scale, 1.3));
+
+  const bottom = top + plotHeight;
+  const height = bottom + fontSize * 3.2 + 8;
+
+  const labelEvery = Math.max(1, Math.ceil((74 * scale) / stepWidth));
+
+  // All dates use the same linear scale, including off-screen dates.
+  const y = (value: number) => bottom - (value / maximum) * plotHeight;
+
+  const canScroll = plotWidth > chartWidth - axisWidth + 1;
 
   const renderValue = (slot: AnalyticsCalendarSlot) => {
     const dates = analyticsCalendarLabel(slot, interval);
+
     const value = slot.observation?.value;
+
     return (
       <View
         key={slot.date}
         accessible
-        accessibilityLabel={`${label}, ${dates}: ${value === undefined ? "No data" : value}`}
+        accessibilityLabel={`${label}, ${dates}: ${
+          value === undefined ? "No data" : value
+        }`}
         className="min-h-12 flex-row items-center justify-between gap-4 border-b border-border-primary/60 py-2"
       >
         <AppText className="min-w-0 flex-1 text-sm text-text-secondary">
           {dates}
         </AppText>
-        <AppText weight="bold" className="text-base text-text-primary">
+
+        <AppText weight="semibold" className="text-sm text-text-primary">
           {value === undefined ? "No data" : value.toLocaleString("en-PH")}
         </AppText>
       </View>
     );
   };
+
   const exactValues = <View className="gap-1">{slots.map(renderValue)}</View>;
+
   const valuesToggle = (
     <Pressable
-      onPress={() => setShowValues(!showValues)}
+      onPress={() => setShowValues((current) => !current)}
       accessibilityRole="button"
-      accessibilityLabel={`${showValues ? "Hide" : "Show"} ${label} values`}
+      accessibilityLabel={`${
+        showValues ? "Hide" : "View"
+      } ${label} exact values`}
       accessibilityState={{ expanded: showValues }}
-      className="min-h-12 cursor-pointer justify-center self-start py-2 active:opacity-70"
+      className="min-h-12 flex-row cursor-pointer items-center justify-between gap-3 py-2 active:opacity-70"
     >
-      <AppText weight="semibold" className="text-sm text-text-info">
-        {showValues ? "Hide values" : "View exact values"}
-      </AppText>
+      <View className="flex-row items-center gap-2">
+        <MaterialCommunityIcons
+          name="format-list-bulleted"
+          size={19}
+          color={theme.extends.colors.text.secondary}
+          accessible={false}
+        />
+
+        <AppText weight="semibold" className="text-sm text-text-primary">
+          {showValues ? "Hide exact values" : "View exact values"}
+        </AppText>
+      </View>
+
+      <MaterialCommunityIcons
+        name={showValues ? "chevron-up" : "chevron-down"}
+        size={21}
+        color={theme.extends.colors.text.secondary}
+        accessible={false}
+      />
     </Pressable>
   );
+
   const partialNote = hasPartial ? (
-    <AppText className="text-sm leading-5 text-text-secondary">
+    <AppText className="text-xs leading-5 text-text-secondary">
       {interval === "weekly"
-        ? "Partial weeks cover less time than full weeks. Counts are not adjusted."
-        : "Partial days cover less time than full days. Counts are not adjusted."}
+        ? "Partial weeks cover fewer days. Counts are not adjusted."
+        : "Partial days cover less time. Counts are not adjusted."}
     </AppText>
   ) : null;
 
-  // Only a supplied total can establish recorded zero activity across the reporting period.
+  // Confirmed period-wide zero state.
   if (knownZero) {
     return (
       <View className="gap-2">
@@ -132,54 +201,66 @@ export default function AnalyticsSeriesChart({
           title={emptyTitle}
           description={emptyDescription}
         />
+
         {observed.length > 0 && valuesToggle}
         {showValues && exactValues}
       </View>
     );
   }
+
+  // Missing dated observations remain unavailable, not zero.
   if (observed.length === 0) {
     return (
       <AnalyticsChartEmptyState
         compact
         title="Dated counts are unavailable"
-        description="Any available total is shown above. Dates without data do not necessarily mean no activity."
+        description="Any available total is shown above. Missing dates do not necessarily mean no activity."
       />
     );
   }
+
+  // Sparse reporting favors exact values over a mostly empty graph.
   if (compact) {
     return (
       <View className="gap-2">
-        {/* Available counts are useful information, even without a full chart. */}
         <AppText weight="semibold" className="text-sm text-text-primary">
           Recorded counts
         </AppText>
+
         {observed.map(renderValue)}
+
         {hasMissing && (
-          <AppText className="text-sm leading-5 text-text-secondary">
-            Only available counts are shown. Dates without data do not
-            necessarily mean no activity.
+          <AppText className="text-xs leading-5 text-text-secondary">
+            Only available dates are shown. Missing data is not the same as zero
+            activity.
           </AppText>
         )}
-        {partialNote}
+
+        {!minimalFooter && partialNote}
       </View>
     );
   }
 
   return (
     <View
-      onLayout={(event) => setMeasuredWidth(event.nativeEvent.layout.width)}
       className="gap-2"
-    >
-      <AppText className="text-sm text-text-secondary">
-        Count · {interval === "weekly" ? "weeks starting Monday" : "days"} ·
-        Manila time
-      </AppText>
+      onLayout={(event) => {
+        const nextWidth = event.nativeEvent.layout.width;
 
-      {/* The count axis stays visible while the calendar columns scroll. */}
+        if (nextWidth !== measuredWidth) {
+          setMeasuredWidth(nextWidth);
+        }
+      }}
+    >
+      {/* Fixed count axis with horizontally scrolling date columns */}
       <View
         accessible
         accessibilityRole="image"
-        accessibilityLabel={`${label}. ${observed.length} recorded ${interval} counts. ${slots.length - observed.length} calendar positions have no data. View exact values expands the dates and counts below.`}
+        accessibilityLabel={`${label}. ${
+          observed.length
+        } recorded ${interval} counts. ${
+          slots.length - observed.length
+        } calendar positions have no data. View exact values for individual dates.`}
         className="flex-row"
       >
         <Svg width={axisWidth} height={height} accessible={false}>
@@ -197,12 +278,16 @@ export default function AnalyticsSeriesChart({
             </SvgText>
           ))}
         </Svg>
+
         <ScrollView
           testID="analytics-chart-viewport"
           horizontal
-          style={{ height, flex: 1 }}
+          style={{
+            height,
+            flex: 1,
+          }}
           contentContainerStyle={{ height }}
-          showsHorizontalScrollIndicator={plotWidth > chartWidth - axisWidth}
+          showsHorizontalScrollIndicator={canScroll}
         >
           <Svg
             width={plotWidth}
@@ -210,6 +295,7 @@ export default function AnalyticsSeriesChart({
             accessible={false}
             fontFamily="NunitoSans_400Regular"
           >
+            {/* Full-period count grid */}
             {ticks.map((tick) => (
               <Line
                 key={tick}
@@ -218,31 +304,38 @@ export default function AnalyticsSeriesChart({
                 y1={y(tick)}
                 y2={y(tick)}
                 stroke={theme.extends.colors.border.primary}
+                strokeOpacity={tick === 0 ? 0.8 : 0.5}
                 strokeDasharray="3 4"
               />
             ))}
+
+            {/* Columns, reported zeros, and missing-data marks */}
             {slots.map((slot, index) => {
               const center = (index + 0.5) * stepWidth;
+
               const value = slot.observation?.value;
+
               const showDate =
                 index === slots.length - 1 ||
                 (index % labelEvery === 0 &&
                   slots.length - 1 - index >= labelEvery);
+
               const labelX =
                 index === 0
                   ? 2
                   : index === slots.length - 1
                     ? plotWidth - 2
                     : center;
+
               const textAnchor =
                 index === 0
                   ? "start"
                   : index === slots.length - 1
                     ? "end"
                     : "middle";
+
               return (
                 <G key={slot.date}>
-                  {/* Missing marks carry no magnitude; a hollow circle means a reported zero. */}
                   {value === undefined ? (
                     <Line
                       testID={`analytics-missing-${slot.date}`}
@@ -270,10 +363,12 @@ export default function AnalyticsSeriesChart({
                       y={y(value)}
                       width={barWidth}
                       height={bottom - y(value)}
-                      rx={3}
+                      rx={4}
                       fill={color}
                     />
                   )}
+
+                  {/* Calendar ticks and partial-interval markers */}
                   {showDate && (
                     <>
                       <SvgText
@@ -285,6 +380,7 @@ export default function AnalyticsSeriesChart({
                       >
                         {shortAnalyticsDate(`${slot.date}T00:00:00+08:00`)}
                       </SvgText>
+
                       {slot.partial && (
                         <SvgText
                           x={labelX}
@@ -305,56 +401,73 @@ export default function AnalyticsSeriesChart({
         </ScrollView>
       </View>
 
-      {/* Shapes and text distinguish absent observations from confirmed zeros. */}
-      {(hasMissing || hasZero) && (
-        <View className="flex-row flex-wrap gap-4">
-          {hasZero && (
-            <View className="flex-row items-center gap-2">
-              <Svg width={12} height={14} accessible={false}>
-                <Circle
-                  cx={6}
-                  cy={7}
-                  r={3}
-                  fill={theme.extends.colors.surface}
-                  stroke={theme.extends.colors.text.secondary}
-                  strokeWidth={1.5}
-                />
-              </Svg>
-              <AppText className="text-sm text-text-secondary">
-                Recorded zero
+      {/* Essential chart legend and horizontal navigation cue */}
+      {(hasMissing || hasZero || canScroll) && (
+        <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <View className="flex-row flex-wrap items-center gap-x-3 gap-y-2">
+            {hasZero && (
+              <View className="flex-row items-center gap-1.5">
+                <Svg width={12} height={14} accessible={false}>
+                  <Circle
+                    cx={6}
+                    cy={7}
+                    r={3}
+                    fill={theme.extends.colors.surface}
+                    stroke={theme.extends.colors.text.secondary}
+                    strokeWidth={1.5}
+                  />
+                </Svg>
+
+                <AppText className="text-xs text-text-secondary">Zero</AppText>
+              </View>
+            )}
+
+            {hasMissing && (
+              <View className="flex-row items-center gap-1.5">
+                <Svg width={12} height={14} accessible={false}>
+                  <Line
+                    x1={2}
+                    x2={10}
+                    y1={7}
+                    y2={7}
+                    stroke={theme.extends.colors.text.secondary}
+                    strokeWidth={2}
+                  />
+                </Svg>
+
+                <AppText className="text-xs text-text-secondary">
+                  No data
+                </AppText>
+              </View>
+            )}
+          </View>
+
+          {canScroll && (
+            <View className="flex-row items-center gap-1">
+              <AppText className="text-xs text-text-secondary">
+                Swipe for more
               </AppText>
-            </View>
-          )}
-          {hasMissing && (
-            <View className="flex-row items-center gap-2">
-              <Svg width={12} height={14} accessible={false}>
-                <Line
-                  x1={2}
-                  x2={10}
-                  y1={7}
-                  y2={7}
-                  stroke={theme.extends.colors.text.secondary}
-                  strokeWidth={2}
-                />
-              </Svg>
-              <AppText className="text-sm text-text-secondary">No data</AppText>
+
+              <MaterialCommunityIcons
+                name="arrow-right"
+                size={16}
+                color={theme.extends.colors.text.secondary}
+                accessible={false}
+              />
             </View>
           )}
         </View>
       )}
-      {plotWidth > chartWidth - axisWidth && (
-        <AppText className="text-sm text-text-secondary">
-          Swipe to view all {interval === "weekly" ? "weeks" : "dates"}.
-        </AppText>
-      )}
-      {hasMissing && (
-        <AppText className="text-sm leading-5 text-text-secondary">
-          Dates without data do not necessarily mean no activity.
-        </AppText>
-      )}
-      {partialNote}
-      {valuesToggle}
-      {showValues && exactValues}
+
+      {/* Other reports retain their existing partial-period explanation */}
+      {!minimalFooter && partialNote}
+
+      {/* Exact values are grouped into the chart's own footer */}
+      <View className="mt-1 border-t border-border-primary/60 pt-1">
+        {valuesToggle}
+
+        {showValues && <View className="pb-2">{exactValues}</View>}
+      </View>
     </View>
   );
 }

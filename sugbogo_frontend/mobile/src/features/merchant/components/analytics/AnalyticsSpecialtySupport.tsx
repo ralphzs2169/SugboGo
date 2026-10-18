@@ -20,7 +20,12 @@ type Props = {
   specialtyTags: MerchantBusinessSpecialty[];
 };
 
-/** Compares valid vouch counts using each specialty's real identity and a shared zero baseline. */
+/**
+ * Displays current valid specialty support as a ranked comparison.
+ *
+ * Preserves specialty identities, real vouch and supporter counts,
+ * and a shared zero baseline without treating bar lengths as percentages.
+ */
 export default function AnalyticsSpecialtySupport({
   report,
   onRetry,
@@ -39,98 +44,129 @@ export default function AnalyticsSpecialtySupport({
   }
 
   const specialties = rankSpecialtySupport(report.specialty_support);
+
   const maximumVouches = Math.max(
     0,
     ...specialties.map((specialty) => specialty.valid_vouches),
   );
+
+  const hasNoVouches = specialties.length > 0 && maximumVouches === 0;
+
   const tagsById = new Map(specialtyTags.map((tag) => [tag.id, tag]));
 
+  if (specialties.length === 0) {
+    return (
+      <View className="py-4">
+        {/* Empty specialty configuration */}
+        <AppText weight="semibold" className="text-sm text-text-primary">
+          No active specialties
+        </AppText>
+
+        <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+          Your active business specialties and their support will appear here.
+        </AppText>
+      </View>
+    );
+  }
+
   return (
-    <View>
-      {/* Complete current specialty ranking */}
-      {specialties.length === 0 ? (
-        <View className="py-4">
-          <AppText weight="semibold" className="text-sm text-text-primary">
-            No active specialties
-          </AppText>
-          <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-            Your active business specialties and their support will appear here.
-          </AppText>
-        </View>
-      ) : (
-        specialties.map((specialty, index) => {
-          const tag = tagsById.get(specialty.specialty_id);
-          const colors = tag ? getSpecialtyTagColor(tag.color) : null;
-          const barWidth =
-            maximumVouches > 0
-              ? (specialty.valid_vouches / maximumVouches) * 100
-              : 0;
+    <View className="gap-4">
+      {/* One compact explanation when all current counts are zero */}
+      {hasNoVouches && (
+        <AppText className="text-sm leading-5 text-text-secondary">
+          No specialty vouches yet.
+        </AppText>
+      )}
 
-          return (
-            <View
-              key={specialty.specialty_id}
-              accessible
-              accessibilityLabel={`${index + 1}. ${specialty.specialty_name}: ${formatAnalyticsCount(specialty.valid_vouches)} vouches that still count, ${formatAnalyticsCount(specialty.distinct_supporters)} supporting accounts`}
-              className="pb-5"
-            >
-              {/* Specialty identity comes from the owned profile, counts from analytics */}
-              <View className="flex-row items-center gap-3">
-                <View
-                  className={`h-9 w-9 shrink-0 items-center justify-center rounded-xl ${colors?.softBackground ?? "bg-surface-muted"}`}
-                >
-                  <MaterialCommunityIcons
-                    accessible={false}
-                    name={getSpecialtyTagIcon(tag?.icon)}
-                    size={20}
-                    color={
-                      colors?.softIcon ?? theme.extends.colors.text.secondary
-                    }
-                  />
-                </View>
-                <View className="min-w-0 flex-1">
-                  <AppText
-                    weight="semibold"
-                    className="text-sm leading-5 text-text-primary"
-                  >
-                    {specialty.specialty_name}
-                  </AppText>
-                  <AppText className="mt-0.5 text-xs leading-5 text-text-secondary">
-                    {formatAnalyticsCount(specialty.distinct_supporters)}{" "}
-                    supporting{" "}
-                    {specialty.distinct_supporters === 1
-                      ? "account"
-                      : "accounts"}
-                  </AppText>
-                </View>
-                <View className="items-end">
-                  <AppText weight="bold" className="text-xl text-text-primary">
-                    {formatAnalyticsCount(specialty.valid_vouches)}
-                  </AppText>
-                  <AppText className="text-xs text-text-secondary">
-                    {specialty.valid_vouches === 1 ? "vouch" : "vouches"}
-                  </AppText>
-                </View>
-              </View>
+      {/* Ranked current specialty support */}
+      {specialties.map((specialty, index) => {
+        const tag = tagsById.get(specialty.specialty_id);
 
-              {/* Length compares counts with the highest specialty; it is not a customer percentage */}
+        const colors = tag ? getSpecialtyTagColor(tag.color) : null;
+
+        const barWidth =
+          maximumVouches > 0
+            ? (specialty.valid_vouches / maximumVouches) * 100
+            : 0;
+
+        const vouchLabel = specialty.valid_vouches === 1 ? "vouch" : "vouches";
+
+        const supporterLabel =
+          specialty.distinct_supporters === 1
+            ? "supporting account"
+            : "supporting accounts";
+
+        return (
+          <View
+            key={specialty.specialty_id}
+            accessible
+            accessibilityLabel={`${index + 1}. ${
+              specialty.specialty_name
+            }: ${formatAnalyticsCount(
+              specialty.valid_vouches,
+            )} valid ${vouchLabel}, ${formatAnalyticsCount(
+              specialty.distinct_supporters,
+            )} ${supporterLabel}`}
+            className="gap-3"
+          >
+            {/* Specialty identity, supporter context, and vouch total */}
+            <View className="flex-row items-center gap-3">
               <View
-                testID={`specialty-support-bar-${specialty.specialty_id}`}
-                accessible={false}
-                className="mt-3 h-2 overflow-hidden rounded-full bg-surface-muted"
+                className={`h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  colors?.softBackground ?? "bg-surface-muted"
+                }`}
               >
-                <View
-                  className={`h-full rounded-full ${colors?.background ?? "bg-text-secondary"}`}
-                  style={{ width: `${barWidth}%` }}
+                <MaterialCommunityIcons
+                  accessible={false}
+                  name={getSpecialtyTagIcon(tag?.icon)}
+                  size={21}
+                  color={
+                    colors?.softIcon ?? theme.extends.colors.text.secondary
+                  }
                 />
               </View>
+
+              <View className="min-w-0 flex-1 gap-0.5">
+                <AppText
+                  weight="semibold"
+                  className="text-sm leading-5 text-text-primary"
+                >
+                  {specialty.specialty_name}
+                </AppText>
+
+                <AppText className="text-xs leading-5 text-text-secondary">
+                  {formatAnalyticsCount(specialty.distinct_supporters)}{" "}
+                  {supporterLabel}
+                </AppText>
+              </View>
+
+              <View className="shrink-0 items-end gap-0.5">
+                <AppText weight="bold" className="text-xl text-text-primary">
+                  {formatAnalyticsCount(specialty.valid_vouches)}
+                </AppText>
+
+                <AppText className="text-xs text-text-secondary">
+                  {vouchLabel}
+                </AppText>
+              </View>
             </View>
-          );
-        })
-      )}
-      <AppText className="border-t border-border-primary pt-3 text-xs leading-5 text-text-secondary">
-        Current vouches, unaffected by the selected dates. The longest bar has
-        the most vouches. One account can support more than one specialty.
-      </AppText>
+
+            {/* Shared-scale bar comparing this specialty with the highest count */}
+            <View
+              testID={`specialty-support-bar-${specialty.specialty_id}`}
+              accessible={false}
+              className="h-2 overflow-hidden rounded-full bg-surface-muted"
+            >
+              <View
+                className={`h-full rounded-full ${
+                  colors?.background ?? "bg-text-secondary"
+                }`}
+                style={{ width: `${barWidth}%` }}
+              />
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }

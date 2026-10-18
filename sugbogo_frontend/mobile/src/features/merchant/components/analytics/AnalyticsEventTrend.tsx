@@ -1,20 +1,29 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
+
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
+
 import type {
   AnalyticsEventMetric,
   AnalyticsInterval,
 } from "../../types/merchantPlusAnalytics.types";
+
 import {
   formatAnalyticsCount,
   formatAnalyticsDate,
 } from "../../utils/merchantAnalytics.utils";
-import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
+
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
+import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
 import { PlusReportContext } from "./AnalyticsPlusStates";
 
-/** Leads with the recorded total, then supporting counts, with comparisons in measurement details. */
+/**
+ * Displays a recorded activity chart with independent error handling.
+ *
+ * Supports a concise overview presentation while retaining existing
+ * source context in other analytics reports by default.
+ */
 export default function AnalyticsEventTrend({
   metric,
   label,
@@ -23,6 +32,7 @@ export default function AnalyticsEventTrend({
   note,
   children,
   showTotal = true,
+  showContext = true,
 }: {
   metric: AnalyticsEventMetric;
   label: string;
@@ -31,31 +41,40 @@ export default function AnalyticsEventTrend({
   note?: string;
   children?: ReactNode;
   showTotal?: boolean;
+  showContext?: boolean;
 }) {
   const unavailable =
     metric.value === null ||
     metric.series === null ||
     metric.sources.current.availability === "unavailable";
+
   const chartUnavailable =
     metric.series === null || (unavailable && metric.series.length === 0);
+
   return (
-    <View className="gap-4">
-      {/* Totals are never reconstructed by summing bucket-level account counts. */}
+    <View className="gap-3">
+      {/* Optional recorded total for standalone reports */}
       {showTotal && (
         <View>
           <AppText className="text-sm text-text-secondary">
             {label} · selected period
           </AppText>
+
           <AppText
-            accessibilityLabel={`${label}: ${metric.value === null ? "Unavailable" : metric.value}`}
             weight="extrabold"
             className="mt-1 text-3xl text-text-primary"
+            accessibilityLabel={`${label}: ${
+              metric.value === null ? "Unavailable" : metric.value
+            }`}
           >
             {formatAnalyticsCount(metric.value)}
           </AppText>
         </View>
       )}
+
       {children}
+
+      {/* Retain available data even when some measurements fail */}
       {unavailable && !chartUnavailable && (
         <ErrorState
           size="section"
@@ -65,6 +84,7 @@ export default function AnalyticsEventTrend({
           onPrimaryAction={retry}
         />
       )}
+
       {chartUnavailable && (
         <AnalyticsChartEmptyState
           title="Recorded activity unavailable"
@@ -73,6 +93,8 @@ export default function AnalyticsEventTrend({
           onRetry={retry}
         />
       )}
+
+      {/* Actual recorded series, with no invented calendar values */}
       {!chartUnavailable && metric.series !== null && (
         <AnalyticsSeriesChart
           key={`${label}-${interval}`}
@@ -85,26 +107,31 @@ export default function AnalyticsEventTrend({
               ? null
               : metric.value
           }
+          minimalFooter={!showContext}
         />
       )}
-      <PlusReportContext
-        meta={metric.sources.current}
-        note={
-          note ??
-          "For each business, each type of activity is counted once per account per UTC day. Account totals count each account once across the selected dates; adding daily or weekly account counts would count some accounts more than once."
-        }
-      >
-        <AppText className="text-sm leading-5 text-text-secondary">
-          Previous period ·{" "}
-          {formatAnalyticsDate(metric.sources.previous.period.start_date)} –{" "}
-          {formatAnalyticsDate(metric.sources.previous.period.end_date)}:{" "}
-          {formatAnalyticsCount(metric.previous_value)}.
-          {metric.previous_value === null
-            ? " The previous count is unavailable."
-            : ""}{" "}
-          These records cannot reliably show business growth.
-        </AppText>
-      </PlusReportContext>
+
+      {/* Existing source disclosure for standalone reports */}
+      {showContext && (
+        <PlusReportContext
+          meta={metric.sources.current}
+          note={
+            note ??
+            "For each business, each type of activity is counted once per account per UTC day. Account totals count each account once across the selected dates; adding daily or weekly account counts would count some accounts more than once."
+          }
+        >
+          <AppText className="text-sm leading-5 text-text-secondary">
+            Previous period ·{" "}
+            {formatAnalyticsDate(metric.sources.previous.period.start_date)} –{" "}
+            {formatAnalyticsDate(metric.sources.previous.period.end_date)}:{" "}
+            {formatAnalyticsCount(metric.previous_value)}.
+            {metric.previous_value === null
+              ? " The previous count is unavailable."
+              : ""}{" "}
+            These records cannot reliably show business growth.
+          </AppText>
+        </PlusReportContext>
+      )}
     </View>
   );
 }

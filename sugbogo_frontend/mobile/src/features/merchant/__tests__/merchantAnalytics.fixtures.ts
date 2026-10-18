@@ -61,6 +61,7 @@ export function standardAnalyticsReport(
     distinct_profile_visitors: 12,
     saves_in_period: 5,
     current_pocket_holders: 18,
+    current_valid_vouches: 8,
     specialty_support: [
       {
         specialty_id: 1,

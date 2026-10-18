@@ -3,21 +3,74 @@
 from math import isfinite
 
 
-def _unavailable(reason, unit):
+def _unavailable(
+    reason,
+    unit,
+):
     """Return a comparison absence without inventing a zero change."""
     return {"value": None, "direction": None, "unit": unit, "reason": reason}
 
 
+def equal_elapsed_periods(period):
+    """Require positive, adjacent comparison windows of exactly equal elapsed duration."""
+    return (
+        period.previous_end == period.start
+        and period.end > period.start
+        and period.end - period.start == period.previous_end - period.previous_start
+    )
+
+
+def compare_count_difference(
+    *,
+    current,
+    previous,
+    data_available=True,
+):
+    """Compare complete count cohorts without a denominator or a growth claim."""
+    if not data_available:
+        return _unavailable("data_unavailable", "count")
+    if current is None or previous is None:
+        return _unavailable("missing_value", "count")
+    if (
+        not isinstance(current, int)
+        or not isinstance(previous, int)
+        or current < 0
+        or previous < 0
+    ):
+        raise ValueError("Count comparisons require non-negative integers.")
+    value = current - previous
+    direction = "unchanged"
+    if value > 0:
+        direction = "up"
+    elif value < 0:
+        direction = "down"
+    return {
+        "value": value,
+        "direction": direction,
+        "unit": "count",
+        "reason": None,
+    }
+
+
 def compare_values(
-    *, current, previous, current_sample_size, previous_sample_size,
-    minimum_sample_size=1, unit="percent", current_denominator=None,
-    previous_denominator=None, data_available=True,
+    *,
+    current,
+    previous,
+    current_sample_size,
+    previous_sample_size,
+    minimum_sample_size=1,
+    unit="percent",
+    current_denominator=None,
+    previous_denominator=None,
+    data_available=True,
 ):
     """Return a signed change or an explicit reason why it cannot be computed."""
     if unit not in {"percent", "percentage_points"}:
         raise ValueError("Unsupported comparison unit.")
-    if minimum_sample_size < 1:
-        raise ValueError("Minimum sample size must be positive.")
+    if minimum_sample_size < 0 or (
+        minimum_sample_size == 0 and unit == "percentage_points"
+    ):
+        raise ValueError("Minimum sample size must be positive for rate comparisons.")
     if not data_available:
         return _unavailable("data_unavailable", unit)
     if current is None or previous is None:

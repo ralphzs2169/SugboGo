@@ -4,60 +4,115 @@ import AppText from "@/shared/components/AppText";
 import { shadows } from "@/shared/styles/shadows";
 
 import type { MerchantStandardAnalytics } from "../../types/merchantAnalytics.types";
-import type { PlusReviewPerformanceReport } from "../../types/merchantPlusAnalytics.types";
+import type {
+  PlusPocketReport,
+  PlusReviewPerformanceReport,
+  PlusVisibilityReport,
+} from "../../types/merchantPlusAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
+import {
+  formatKpiTrend,
+  replyRateTrend,
+  reviewCountTrend,
+  visibilityKpiTrend,
+  type KpiTrend,
+} from "../../utils/merchantKpiComparisons.utils";
+
+export type AnalyticsActivityOverviewProps = {
+  report: MerchantStandardAnalytics;
+  plusReviews?: PlusReviewPerformanceReport | null;
+  plusVisibility?: PlusVisibilityReport | null;
+  plusPocket?: PlusPocketReport | null;
+};
 
 type MetricCardProps = {
   label: string;
   value: string;
-  detail: string;
+  detail?: string;
   unavailable?: boolean;
   stacked: boolean;
-  trend?: { value: number; direction: "up" | "down" | "unchanged" };
+  trend?: KpiTrend;
   progress?: number | null;
+  fullWidth?: boolean;
 };
 
-/** Accept only a server-approved comparison for the exact Standard review cohort. */
-function supportedReplyTrend(
-  standard: MerchantStandardAnalytics,
-  plus: PlusReviewPerformanceReport | null | undefined,
-): MetricCardProps["trend"] {
-  if (!plus || standard.reviews.reply_rate === null) return undefined;
+type TrendTone = "increase" | "decrease" | "stable";
 
-  const change = plus.reply_rate_change;
-  const sameCohort =
-    plus.business.id === standard.business.id &&
-    plus.meta.period.start === standard.meta.period.start &&
-    plus.meta.period.end_exclusive === standard.meta.period.end_exclusive &&
-    plus.current.published_review_count ===
-      standard.reviews.period_eligible_published &&
-    plus.current.replied_review_count ===
-      standard.reviews.period_replied_published;
-  const comparisonAvailable =
-    plus.meta.availability !== "unavailable" &&
-    plus.meta.coverage_verified &&
-    plus.previous.published_review_count > 0 &&
-    plus.current.reply_rate !== null &&
-    plus.previous.reply_rate !== null &&
-    // Standard rounds to one decimal; Plus retains two for the same cohort.
-    Math.abs(plus.current.reply_rate - standard.reviews.reply_rate) <= 0.051 &&
-    change.reason === null &&
-    change.unit === "percentage_points" &&
-    change.value !== null &&
-    Number.isFinite(change.value);
+const TREND_STYLES = {
+  increase: {
+    badge: "bg-green-50",
+    text: "text-green-800",
+  },
+  decrease: {
+    badge: "bg-red-50",
+    text: "text-red-800",
+  },
+  stable: {
+    badge: "bg-slate-100",
+    text: "text-slate-700",
+  },
+} as const;
 
-  if (!sameCohort || !comparisonAvailable || change.value === null) {
-    return undefined;
+/**
+ * Selects a visual tone from the signed comparison label.
+ * Unknown formats remain neutral rather than implying a direction.
+ */
+function getTrendTone(text: string): TrendTone {
+  const normalized = text.trim();
+
+  if (/^\+(?!0(?:\.0+)?(?:\s|$))/.test(normalized)) {
+    return "increase";
   }
 
-  const direction =
-    change.value > 0 ? "up" : change.value < 0 ? "down" : "unchanged";
-  if (change.direction !== direction) return undefined;
+  if (/^[-−](?!0(?:\.0+)?(?:\s|$))/.test(normalized)) {
+    return "decrease";
+  }
 
-  return { value: change.value, direction };
+  return "stable";
 }
 
-/** Presents one metric and its denominator or measurement context as a readable unit. */
+/**
+ * Displays a compact, color-coded comparison while retaining
+ * readable direction and period context.
+ */
+
+/**
+ * Shows an approved comparison as one compact,
+ * direction-coded line without a separate badge.
+ */
+function TrendComparison({
+  trend,
+  compact = false,
+}: {
+  trend: KpiTrend;
+  compact?: boolean;
+}) {
+  const text = formatKpiTrend(trend);
+  const tone = getTrendTone(text);
+
+  const toneClass =
+    tone === "increase"
+      ? "text-emerald-700"
+      : tone === "decrease"
+        ? "text-red-500"
+        : "text-text-secondary";
+
+  return (
+    <View className="mt-2">
+      <AppText className="text-xs leading-5 text-text-secondary">
+        <AppText weight="semibold" className={`text-xs ${toneClass}`}>
+          {text}
+        </AppText>
+        {compact ? " vs previous" : " vs previous period"}
+      </AppText>
+    </View>
+  );
+}
+
+/**
+ * Displays a merchant metric with compact context, an optional
+ * progress indicator, and an approved previous-period comparison.
+ */
 function MetricCard({
   label,
   value,
@@ -66,162 +121,188 @@ function MetricCard({
   stacked,
   trend,
   progress,
+  fullWidth = false,
 }: MetricCardProps) {
-  const trendText = trend
-    ? `${trend.direction === "up" ? "+" : trend.direction === "down" ? "−" : ""}${Math.abs(trend.value).toLocaleString("en-PH", { maximumFractionDigits: 2 })} pp`
-    : null;
+  const trendText = trend ? formatKpiTrend(trend) : null;
+
+  const showProgress =
+    typeof progress === "number" &&
+    Number.isFinite(progress) &&
+    progress >= 0 &&
+    progress <= 100;
+
+  const accessibilityDescription = [
+    `${label}: ${unavailable ? "Unavailable" : value}`,
+    detail,
+    trendText ? `${trendText} compared with the previous period` : null,
+  ]
+    .filter(Boolean)
+    .join(". ");
 
   return (
     <View
       accessible
-      accessibilityLabel={`${label}: ${unavailable ? "Unavailable" : value}. ${detail}${trendText ? `. ${trendText} versus the previous period` : ""}`}
-      className={`min-w-0 rounded-2xl border border-border-primary bg-surface p-4 ${
+      testID={fullWidth ? "analytics-reply-card" : undefined}
+      accessibilityLabel={accessibilityDescription}
+      className={`min-w-0 rounded-card border border-border-primary/60 bg-surface p-4 ${
         stacked ? "w-full" : "flex-1"
       }`}
       style={shadows.subtle}
     >
-      {/* Metric identity and the optional server-approved comparison. */}
-      <View className="flex-row flex-wrap items-start justify-between gap-2">
+      {/* Metric heading */}
+      <AppText
+        weight="medium"
+        className="text-sm leading-5 text-text-secondary"
+      >
+        {label}
+      </AppText>
+
+      {/* Primary value and supporting count */}
+      <View className="mt-2 gap-1">
         <AppText
           weight="semibold"
-          className="min-w-0 flex-1 text-sm leading-5 text-text-secondary"
+          className={`${
+            value.length > 7 && !stacked ? "text-2xl" : "text-3xl"
+          } ${unavailable ? "text-text-secondary" : "text-text-primary"}`}
         >
-          {label}
+          {value}
         </AppText>
-        {trendText && (
-          <View className="rounded-full bg-brand/10 px-2 py-1">
-            <AppText weight="bold" className="text-xs text-brand">
-              {trendText}
-            </AppText>
-          </View>
+
+        {detail && (
+          <AppText className="text-sm leading-5 text-text-secondary">
+            {detail}
+          </AppText>
         )}
       </View>
 
-      {/* The reported number remains primary, including at larger font scales. */}
-      <AppText
-        weight="extrabold"
-        className={`mt-1 ${value.length > 7 && !stacked ? "text-2xl" : "text-3xl"} ${
-          unavailable ? "text-text-secondary" : "text-text-primary"
-        }`}
-      >
-        {value}
-      </AppText>
-
-      {/* Measurement context */}
-      <View className="mt-3 flex-1 justify-end">
-        <View className="gap-2 border-t border-border-primary/60 pt-3">
-          {progress !== undefined &&
-            progress !== null &&
-            Number.isFinite(progress) &&
-            progress >= 0 &&
-            progress <= 100 && (
-              <View
-                testID="analytics-reply-progress"
-                accessible={false}
-                className="h-1.5 overflow-hidden rounded-full bg-surface-muted"
-              >
-                <View
-                  className="h-full rounded-full bg-brand"
-                  style={{ width: `${progress}%` }}
-                />
-              </View>
-            )}
-          <AppText className="text-xs leading-5 text-text-secondary">
-            {detail}
-          </AppText>
-          {trendText && (
-            <AppText className="text-xs leading-4 text-text-secondary">
-              vs previous period
-            </AppText>
-          )}
+      {/* Reply-rate progress */}
+      {showProgress && (
+        <View
+          testID="analytics-reply-progress"
+          accessible={false}
+          className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-muted"
+        >
+          <View
+            testID="analytics-reply-progress-fill"
+            className="h-full rounded-full bg-brand"
+            style={{ width: `${progress}%` }}
+          />
         </View>
-      </View>
+      )}
+
+      {/* Backend-approved comparison */}
+      {trend && <TrendComparison trend={trend} compact={!fullWidth} />}
     </View>
   );
 }
 
-/** Shows period activity without treating missing tracking or empty cohorts as zero. */
+/**
+ * Displays selected-period business activity alongside current
+ * valid vouch support, with reply performance in a full-width card.
+ */
 export default function AnalyticsActivityOverview({
   report,
   plusReviews,
-}: {
-  report: MerchantStandardAnalytics;
-  plusReviews?: PlusReviewPerformanceReport | null;
-}) {
+  plusVisibility,
+  plusPocket,
+}: AnalyticsActivityOverviewProps) {
   const { fontScale, width } = useWindowDimensions();
   const useSingleColumn = fontScale >= 1.5 || width < 340;
+
   const visibilityAvailable =
     report.sources.visibility.availability !== "unavailable";
+
   const domainAvailable = report.sources.domain.availability !== "unavailable";
+
   const visits = visibilityAvailable ? report.profile_visits : null;
+
   const visitors = visibilityAvailable
     ? report.distinct_profile_visitors
     : null;
-  const saves = visibilityAvailable ? report.saves_in_period : null;
-  const reviews = report.reviews;
-  const replyRate = domainAvailable ? reviews.reply_rate : null;
-  const replyTrend = domainAvailable
-    ? supportedReplyTrend(report, plusReviews)
-    : undefined;
-  let replyDetail = "Reply percentage unavailable";
 
-  if (domainAvailable && reviews.period_eligible_published === 0) {
+  const saves = visibilityAvailable ? report.saves_in_period : null;
+
+  const reviews = report.reviews;
+
+  const replyRate = domainAvailable ? reviews.reply_rate : null;
+
+  const vouches = domainAvailable
+    ? (report.current_valid_vouches ?? null)
+    : null;
+
+  let replyDetail: string;
+
+  if (!domainAvailable) {
+    replyDetail = "Reply information unavailable";
+  } else if (reviews.period_eligible_published === 0) {
     replyDetail = "No published reviews from these dates";
-  } else if (domainAvailable) {
-    replyDetail = `${formatAnalyticsCount(reviews.period_replied_published)} of ${formatAnalyticsCount(reviews.period_eligible_published)} published reviews replied to`;
+  } else {
+    replyDetail = `${formatAnalyticsCount(
+      reviews.period_replied_published,
+    )} of ${formatAnalyticsCount(reviews.period_eligible_published)} reviews`;
   }
 
   const rowClassName = useSingleColumn ? "gap-3" : "flex-row gap-3";
 
   return (
     <View className="gap-3">
-      {/* Visibility and expressed interest */}
-      <View className={rowClassName}>
-        <MetricCard
-          stacked={useSingleColumn}
-          label="Recorded profile visits"
-          value={formatAnalyticsCount(visits)}
-          unavailable={visits === null}
-          detail={
-            visitors === null
-              ? "Visitor accounts unavailable"
-              : `${formatAnalyticsCount(visitors)} visitor accounts`
-          }
-        />
-        <MetricCard
-          stacked={useSingleColumn}
-          label="Recorded saves"
-          value={formatAnalyticsCount(saves)}
-          unavailable={saves === null}
-          detail={
-            saves === null
-              ? "Save activity unavailable"
-              : "Recorded in this period"
-          }
-        />
+      {/* Four compact business overview metrics */}
+      <View testID="business-overview-grid" className="gap-3">
+        <View className={rowClassName}>
+          <MetricCard
+            stacked={useSingleColumn}
+            label="Recorded profile visits"
+            value={formatAnalyticsCount(visits)}
+            unavailable={visits === null}
+            detail={
+              visitors === null
+                ? "Visitor accounts unavailable"
+                : `${formatAnalyticsCount(visitors)} visitor accounts`
+            }
+            trend={visibilityKpiTrend(report, plusVisibility, "profile_visits")}
+          />
+
+          <MetricCard
+            stacked={useSingleColumn}
+            label="Recorded saves"
+            value={formatAnalyticsCount(saves)}
+            unavailable={saves === null}
+            trend={visibilityKpiTrend(report, plusPocket, "saves")}
+          />
+        </View>
+
+        <View className={rowClassName}>
+          <MetricCard
+            stacked={useSingleColumn}
+            label="New reviews"
+            value={formatAnalyticsCount(
+              domainAvailable ? reviews.new_published_in_period : null,
+            )}
+            unavailable={!domainAvailable}
+            trend={reviewCountTrend(report, plusReviews)}
+          />
+
+          <MetricCard
+            stacked={useSingleColumn}
+            label="Total vouches"
+            value={formatAnalyticsCount(vouches)}
+            unavailable={vouches === null}
+            detail="Current"
+          />
+        </View>
       </View>
 
-      {/* Published review creation cohort and backend reply rate */}
-      <View className={rowClassName}>
-        <MetricCard
-          stacked={useSingleColumn}
-          label="New reviews"
-          value={formatAnalyticsCount(
-            domainAvailable ? reviews.new_published_in_period : null,
-          )}
-          unavailable={!domainAvailable}
-          detail="Added during these dates and still published"
-        />
-        <MetricCard
-          stacked={useSingleColumn}
-          label="Reviews replied to"
-          value={replyRate === null ? "—" : `${replyRate}%`}
-          unavailable={replyRate === null}
-          detail={replyDetail}
-          trend={replyTrend}
-          progress={replyRate}
-        />
-      </View>
+      {/* Full-width review response performance */}
+      <MetricCard
+        stacked
+        fullWidth
+        label="Reviews replied to"
+        value={replyRate === null ? "—" : `${replyRate}%`}
+        unavailable={replyRate === null}
+        detail={replyDetail}
+        trend={replyRateTrend(report, plusReviews)}
+        progress={replyRate}
+      />
     </View>
   );
 }

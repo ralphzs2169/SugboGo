@@ -24,5 +24,6 @@ export function merchantPlusReportKey(
     selection.period === "custom" ? selection.start_date : null,
     selection.period === "custom" ? selection.end_date : null,
     interval,
+    ...(selection.as_of ? [selection.as_of] : []),
   ] as const;
 }
