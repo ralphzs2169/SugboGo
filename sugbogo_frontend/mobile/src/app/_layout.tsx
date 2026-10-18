@@ -25,6 +25,7 @@ import {
   SafeAreaProvider,
 } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import NotificationRealtimeSync from "@/features/notifications/components/NotificationRealtimeSync";
 
 import "../../global.css";
 
@@ -58,6 +59,7 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <NotificationRealtimeSync />
       <GestureHandlerRootView style={{ flex: 1 }}>
         <StatusBar style="dark" />
 
@@ -85,6 +87,14 @@ export default function RootLayout() {
                   <Stack.Screen
                     name="(merchant)"
                     options={{ animation: "none" }}
+                  />
+
+                  <Stack.Screen
+                    name="notifications"
+                    options={{
+                      headerShown: false,
+                      animation: "slide_from_right",
+                    }}
                   />
                 </Stack>
               </BottomSheetModalProvider>

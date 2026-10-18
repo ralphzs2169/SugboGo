@@ -1,3 +1,4 @@
+from apps.merchant_application.models import MerchantApplicationReview
 from apps.notifications.services.notification_service import NotificationService
 from apps.reviews.models import Review
 from apps.users.models import User
@@ -5,6 +6,30 @@ from apps.users.models import User
 
 class NotificationEventService:
     """Create private recipient notices inside the owning transaction."""
+
+    @staticmethod
+    def under_review_resolved(review):
+        """Notify the author of an Admin decision on a held review."""
+        if review.REVW_STATUS == Review.ReviewStatus.PUBLISHED:
+            event_type = "review_published"
+            title = "Review published"
+            body = "Your review has been approved and is now visible to the community."
+            outcome = "published"
+        elif review.REVW_STATUS == Review.ReviewStatus.REJECTED:
+            event_type = "review_rejected"
+            title = "Review not approved"
+            body = "Your review was not approved and will not be published."
+            outcome = "rejected"
+        else:
+            return
+
+        NotificationService.create(
+            recipient=review.USER_ID,
+            event_type=event_type,
+            title=title,
+            body=body,
+            dedup_key=f"review:{review.pk}:{outcome}",
+        )
 
     @staticmethod
     def review_cases_closed_by_author(
@@ -128,4 +153,36 @@ class NotificationEventService:
             dedup_key=f"{request_type}:{request_id}:resolved",
             target_type=request_type,
             target_id=request_id,
+        )
+
+    @staticmethod
+    def merchant_application_resolved(review):
+        """Notify an applicant once for a persisted submission decision."""
+        content = {
+            MerchantApplicationReview.Decision.APPROVED: (
+                "Application Approved",
+                (
+                    "Your merchant application has been approved. "
+                    "You can now access Merchant mode."
+                ),
+            ),
+            MerchantApplicationReview.Decision.REJECTED: (
+                "Application Update",
+                (
+                    "Your merchant application was not approved. "
+                    "Review the feedback for more details."
+                ),
+            ),
+        }
+        title, body = content[review.MAREV_DECISION]
+
+        NotificationService.create(
+            recipient=review.MAPP_ID.USER_ID,
+            event_type=f"merchant_application_{review.MAREV_DECISION}",
+            title=title,
+            body=body,
+            dedup_key=(
+                "merchant-application-submission:"
+                f"{review.MASUB_ID_id}:resolved"
+            ),
         )

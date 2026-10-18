@@ -19,7 +19,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
-from apps.business.models import Business, Category, Cluster, Location
+from apps.business.models import Business, BusinessPocket, Category, Cluster, Location
 from apps.business.services.pocket_service import PocketService
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
 from apps.shared.analytics.date_ranges import resolve_period
@@ -201,11 +201,104 @@ class VisibilityLiveMongoTests(TestCase):
             PocketService.create_pocket(user, business.pk)
         self.assertEqual(self.live(lambda: VisibilityEventService.get_analytics_totals(**self.query))["SAVE"], 1)
 
+    def test_tracking_api_to_owned_standard_report_and_owner_exclusion(self):
+        explorer = self.explorers[0]
+        business = self.businesses[0]
+        owner = business.USER_ID
+        client = APIClient()
+        client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(explorer)}",
+        )
+        visit_url = reverse("business-profile-visit", args=[business.pk])
+
+        with patch.object(
+            VisibilityEventService,
+            "_get_current_time",
+            return_value=self.START,
+        ):
+            first = self.live(lambda: client.post(visit_url, {}, format="json"))
+            repeated = self.live(lambda: client.post(visit_url, {}, format="json"))
+            self.assertTrue(first.data["data"]["recorded"])
+            self.assertTrue(repeated.data["data"]["duplicate"])
+            with self.captureOnCommitCallbacks(execute=True):
+                saved = self.live(
+                    lambda: client.post(
+                        reverse("business-pocket", args=[business.pk]),
+                        {},
+                        format="json",
+                    ),
+                )
+            self.assertEqual(saved.status_code, 200)
+            # Align the isolated SQL relationship with the fixed event/report clock.
+            BusinessPocket.objects.filter(pk=saved.data["data"]["id"]).update(
+                PCKT_CREATED_AT=self.START,
+            )
+
+            client.credentials(
+                HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(owner)}",
+            )
+            ignored = self.live(lambda: client.post(visit_url, {}, format="json"))
+            self.assertEqual(ignored.status_code, 200)
+            self.assertEqual(
+                ignored.data["data"],
+                {"business_id": business.pk, "recorded": False, "duplicate": False},
+            )
+            other_business = self.businesses[1]
+            other_visit = self.live(
+                lambda: client.post(
+                    reverse("business-profile-visit", args=[other_business.pk]),
+                    {},
+                    format="json",
+                ),
+            )
+            self.assertTrue(other_visit.data["data"]["recorded"])
+            mixed_impressions = self.live(
+                lambda: client.post(
+                    reverse("business-impressions"),
+                    {"business_ids": [business.pk, other_business.pk]},
+                    format="json",
+                ),
+            )
+            self.assertEqual(
+                mixed_impressions.data["data"],
+                {
+                    "business_ids": [other_business.pk],
+                    "recorded_count": 1,
+                    "duplicate_count": 0,
+                },
+            )
+
+        with patch(
+            "apps.shared.analytics.date_ranges.timezone.now",
+            return_value=self.END + timedelta(days=1),
+        ):
+            response = self.live(
+                lambda: client.get(
+                    reverse("merchant-analytics-standard"),
+                    {"period": "custom", "start_date": "2026-10-05", "end_date": "2026-10-12"},
+                ),
+            )
+        self.assertEqual(response.status_code, 200)
+        report = response.data["data"]
+        self.assertEqual(report["profile_visits"], 1)
+        self.assertEqual(report["distinct_profile_visitors"], 1)
+        self.assertEqual(report["saves_in_period"], 1)
+        self.assertEqual(report["current_pocket_holders"], 1)
+        self.assertFalse(report["sources"]["visibility"]["coverage_verified"])
+
     def test_empty_reads_do_not_create_collection_and_injected_failure_is_not_a_live_outage(self):
+        self.live(
+            lambda: self.assertRaises(
+                VisibilityTrackingUnavailable,
+                VisibilityEventService.get_analytics_totals,
+                **self.query,
+            ),
+        )
+        self.assertEqual(self.live(lambda: self.client[self.temp_database].list_collection_names()), [])
+        self.live(VisibilityEventService.ensure_indexes)
         self.assertEqual(self.live(lambda: VisibilityEventService.get_analytics_totals(**self.query)),
                          {"IMPRESSION": 0, "PROFILE_VISIT": 0, "SAVE": 0})
         self.assertEqual(self.live(lambda: VisibilityEventService.get_analytics_series(**self.query)), [])
-        self.assertEqual(self.live(lambda: self.client[self.temp_database].list_collection_names()), [])
         with patch.object(VisibilityEventService, "_get_collection", side_effect=AutoReconnect("Controlled injected outage")):
             with self.captureOnCommitCallbacks(execute=True):
                 PocketService.create_pocket(self.explorers[0], self.businesses[0].pk)

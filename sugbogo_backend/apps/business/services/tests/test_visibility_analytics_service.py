@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -18,6 +19,11 @@ class ReadOnlyCollection:
     def __init__(self, documents):
         self.documents = documents
         self.calls = []
+        self.database = SimpleNamespace(
+            list_collection_names=lambda **kwargs: [
+                VisibilityEventService.COLLECTION_NAME,
+            ],
+        )
 
     def expression(self, row, expression):
         if isinstance(expression, str) and expression.startswith("$"):
@@ -34,6 +40,11 @@ class ReadOnlyCollection:
                     raise AssertionError("Unexpected week boundary.")
                 value -= timedelta(days=value.weekday())
             return value.astimezone(UTC).replace(tzinfo=None)
+        if isinstance(expression, dict) and any(key in expression for key in ("$isoDayOfWeek", "$hour")):
+            operator = "$isoDayOfWeek" if "$isoDayOfWeek" in expression else "$hour"
+            options = expression[operator]
+            value = self.expression(row, options["date"]).astimezone(ZoneInfo(options["timezone"]))
+            return value.isoweekday() if operator == "$isoDayOfWeek" else value.hour
         if isinstance(expression, dict):
             return {key: self.expression(row, value) for key, value in expression.items()}
         return expression
@@ -128,6 +139,39 @@ class VisibilityAnalyticsTests(SimpleTestCase):
         self.assertEqual(scoped, {"PROFILE_VISIT": 4, "SAVE": 1, "IMPRESSION": 0})
         self.assertEqual(self.collection.calls[-1][0]["$match"]["business_id"]["$in"], [10, 20])
 
+    def test_profile_timing_uses_manila_weekdays_hours_and_explicit_half_open_scope(self):
+        self.documents.extend([
+            self.event("PROFILE_VISIT", 3, 10, self.START + timedelta(hours=23, minutes=59)),
+            self.event("PROFILE_VISIT", 3, 10, self.END),
+            self.event("SAVE", 4, 10, self.START),
+            self.event("PROFILE_VISIT", 4, 99, self.START),
+        ])
+        rows = self.query(VisibilityEventService.get_profile_visit_timing, business_ids=[10])
+        self.assertEqual(rows, [
+            {"weekday": 1, "hour": 0, "count": 1},
+            {"weekday": 1, "hour": 23, "count": 1},
+            {"weekday": 2, "hour": 0, "count": 1},
+            {"weekday": 3, "hour": 0, "count": 1},
+        ])
+        pipeline = self.collection.calls[-1]
+        self.assertEqual(pipeline[0]["$match"]["business_id"], {"$in": [10]})
+        self.assertEqual(pipeline[0]["$match"]["event_type"], "PROFILE_VISIT")
+        self.assertEqual(pipeline[1]["$group"]["_id"]["weekday"]["$isoDayOfWeek"]["timezone"], "Asia/Manila")
+
+    def test_profile_timing_requires_scope_and_returns_no_data_without_querying_empty_ids(self):
+        with self.assertRaises(ValidationError):
+            self.query(VisibilityEventService.get_profile_visit_timing, business_ids=None)
+        self.assertEqual(self.query(VisibilityEventService.get_profile_visit_timing, business_ids=[]), [])
+        self.assertEqual(self.collection.calls, [])
+        for ids in ([True], [0], ["10"]):
+            with self.assertRaises(ValidationError):
+                self.query(VisibilityEventService.get_profile_visit_timing, business_ids=ids)
+
+    def test_profile_timing_source_failure_is_not_an_empty_success(self):
+        with patch.object(self.collection, "aggregate", side_effect=AutoReconnect("Unavailable")):
+            with self.assertRaises(VisibilityTrackingUnavailable):
+                self.query(VisibilityEventService.get_profile_visit_timing, business_ids=[10])
+
     def test_period_distincts_do_not_add_daily_business_or_event_uniques(self):
         self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers), 3)
         self.assertEqual(self.query(VisibilityEventService.count_analytics_explorers, business_ids=[10]), 2)
@@ -208,6 +252,52 @@ class VisibilityAnalyticsTests(SimpleTestCase):
         self.assertIsNone(observed["SAVE"])
         self.assertEqual(VisibilityEventService.get_first_observed_events()["IMPRESSION"],
                          self.START - timedelta(seconds=1))
+
+    def test_missing_collection_is_unavailable_without_initialization_or_write_cooldown(self):
+        self.documents.clear()
+        with patch.object(
+            self.collection.database,
+            "list_collection_names",
+            return_value=[],
+        ) as collection_names:
+            with self.assertRaises(VisibilityTrackingUnavailable) as failure:
+                self.query(VisibilityEventService.get_analytics_totals)
+
+        self.assertEqual(failure.exception.reason, "visibility_collection_missing")
+        self.assertEqual(VisibilityEventService._unavailable_until, 0)
+        collection_names.assert_called_once_with(
+            filter={"name": VisibilityEventService.COLLECTION_NAME},
+        )
+        # A subsequent initialized, empty collection is a legitimate recorded zero.
+        self.assertEqual(
+            self.query(VisibilityEventService.get_analytics_totals),
+            {"PROFILE_VISIT": 0, "SAVE": 0, "IMPRESSION": 0},
+        )
+
+    def test_empty_existing_collection_is_zero_and_catalog_failure_is_unavailable(self):
+        self.documents.clear()
+        self.assertEqual(
+            self.query(VisibilityEventService.count_analytics_explorers),
+            0,
+        )
+        with patch.object(
+            self.collection.database,
+            "list_collection_names",
+            side_effect=AutoReconnect("Catalog unavailable"),
+        ):
+            with self.assertRaises(VisibilityTrackingUnavailable):
+                self.query(VisibilityEventService.get_analytics_series)
+
+    def test_nonempty_read_does_not_need_an_additional_catalog_query(self):
+        with patch.object(
+            self.collection.database,
+            "list_collection_names",
+            side_effect=AssertionError("Unnecessary catalog read"),
+        ):
+            self.assertEqual(
+                self.query(VisibilityEventService.count_analytics_explorers),
+                3,
+            )
 
     def test_mongo_failure_never_returns_zero_and_cooldown_blocks_retry(self):
         with patch.object(self.collection, "aggregate", side_effect=AutoReconnect("Unavailable")) as aggregate:

@@ -32,6 +32,9 @@ from apps.merchant_application.utils.application_queue import (
 from apps.merchant_application.services.application_service import (
     ApplicationService as MerchantApplicationService,
 )
+from apps.notifications.services.notification_event_service import (
+    NotificationEventService,
+)
 from apps.users.models import User
 
 
@@ -325,6 +328,8 @@ class ApplicationService:
             ],
         )
 
+        NotificationEventService.merchant_application_resolved(review)
+
         return application
 
 
@@ -397,7 +402,7 @@ class ApplicationService:
             reviewed_at,
         )
 
-        MerchantApplicationReview.objects.create(
+        review = MerchantApplicationReview.objects.create(
             MAPP_ID=application,
             MASUB_ID=submission,
             USER_ID=reviewer,
@@ -534,5 +539,7 @@ class ApplicationService:
                 "USER_UPDATED_AT",
             ],
         )
+
+        NotificationEventService.merchant_application_resolved(review)
 
         return application

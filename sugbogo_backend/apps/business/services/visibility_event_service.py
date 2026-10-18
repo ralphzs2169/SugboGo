@@ -29,6 +29,7 @@ class VisibilityTrackingUnavailable(APIException):
         self,
         *args,
         cooldown_short_circuit=False,
+        reason=None,
         **kwargs,
     ):
         super().__init__(
@@ -36,6 +37,7 @@ class VisibilityTrackingUnavailable(APIException):
             **kwargs,
         )
         self.cooldown_short_circuit = cooldown_short_circuit
+        self.reason = reason
 
 
 class VisibilityEventType(StrEnum):
@@ -196,7 +198,10 @@ class VisibilityEventService:
     @staticmethod
     def _validate_active_business_ids(
         business_ids: Iterable[int],
+        *,
+        explorer_id: int,
     ) -> list[int]:
+        """Validate the whole active batch before excluding the actor's owned business."""
         normalized_business_ids = (
             VisibilityEventService._normalize_business_ids(
                 business_ids,
@@ -206,7 +211,7 @@ class VisibilityEventService:
         if not normalized_business_ids:
             return []
 
-        eligible_business_ids = list(
+        businesses = list(
             Business.objects.filter(
                 BUSN_ID__in=normalized_business_ids,
                 BUSN_STATUS=Business.BusinessStatus.ACTIVE,
@@ -216,11 +221,16 @@ class VisibilityEventService:
             )
             .values_list(
                 "BUSN_ID",
-                flat=True,
+                "USER_ID",
             ),
         )
 
-        if eligible_business_ids != normalized_business_ids:
+        active_business_ids = [
+            business_id
+            for business_id, owner_id in businesses
+        ]
+
+        if active_business_ids != normalized_business_ids:
             raise ValidationError(
                 {
                     "business_ids": [
@@ -232,7 +242,11 @@ class VisibilityEventService:
                 },
             )
 
-        return eligible_business_ids
+        return [
+            business_id
+            for business_id, owner_id in businesses
+            if owner_id != explorer_id
+        ]
 
     @staticmethod
     def _validate_active_business(
@@ -367,6 +381,7 @@ class VisibilityEventService:
 
         eligible_business_ids = cls._validate_active_business_ids(
             business_ids,
+            explorer_id=explorer_id,
         )
 
         return cls._record_events(
@@ -391,9 +406,11 @@ class VisibilityEventService:
         return cls._record_events(
             event_type=VisibilityEventType.PROFILE_VISIT,
             explorer_id=explorer_id,
-            business_ids=[
-                business.BUSN_ID,
-            ],
+            business_ids=(
+                [business.BUSN_ID]
+                if business.USER_ID_id != explorer_id
+                else []
+            ),
             occurred_at=cls._get_current_time(),
         )
 
@@ -411,9 +428,11 @@ class VisibilityEventService:
         return cls._record_events(
             event_type=VisibilityEventType.SAVE,
             explorer_id=explorer_id,
-            business_ids=[
-                business.BUSN_ID,
-            ],
+            business_ids=(
+                [business.BUSN_ID]
+                if business.USER_ID_id != explorer_id
+                else []
+            ),
             occurred_at=cls._get_current_time(),
         )
 
@@ -581,13 +600,47 @@ class VisibilityEventService:
         cls._raise_if_temporarily_unavailable()
         # Deliberately bypass ensure_indexes: analytics reads must never create indexes.
         try:
-            rows = list(cls._get_collection().aggregate(pipeline))
+            collection = cls._get_collection()
+            rows = list(collection.aggregate(pipeline))
+            # Mongo returns an empty cursor for both a healthy zero and an absent collection.
+            # Check only empty reads; do not cache absence or block first-event initialization.
+            if not rows:
+                collection_names = collection.database.list_collection_names(
+                    filter={"name": cls.COLLECTION_NAME},
+                )
+                if cls.COLLECTION_NAME not in collection_names:
+                    raise VisibilityTrackingUnavailable(
+                        reason="visibility_collection_missing",
+                    )
         except PyMongoError as exc:
             cls._mark_temporarily_unavailable()
             logger.exception("Failed to read visibility analytics.")
             raise VisibilityTrackingUnavailable() from exc
         cls._clear_temporary_unavailability()
         return rows
+
+    @classmethod
+    def get_profile_visit_timing(cls, *, business_ids, start_time, end_time):
+        """Count scoped recorded profile visits by ISO weekday and hour in Manila time."""
+        if business_ids is None:
+            raise ValidationError({"business_ids": "An explicit business scope is required."})
+        match = cls._analytics_match(business_ids, "PROFILE_VISIT")
+        match["occurred_at"] = cls._analytics_window(start_time, end_time)
+        if not match["business_id"]["$in"]:
+            return []
+        local_date = {"date": "$occurred_at", "timezone": "Asia/Manila"}
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {
+                "_id": {
+                    "weekday": {"$isoDayOfWeek": local_date},
+                    "hour": {"$hour": local_date},
+                },
+                "count": {"$sum": 1},
+            }},
+            {"$sort": {"_id.weekday": 1, "_id.hour": 1}},
+        ])
+        return [{**row["_id"], "count": row["count"]} for row in rows]
 
     @classmethod
     def get_analytics_totals(cls, *, start_time, end_time, business_ids=None):

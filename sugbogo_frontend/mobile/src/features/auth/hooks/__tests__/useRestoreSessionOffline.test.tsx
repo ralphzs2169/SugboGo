@@ -1,8 +1,9 @@
-import { renderHook, waitFor } from "@testing-library/react-native";
+import { beginAuthSession, invalidateAuthSession } from "@/shared/api/authSessionGeneration.service";
+import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useAuthStore } from "../../store/auth.store";
 import { getCurrentUser } from "../../api/auth.service";
-import { clearTokens, getAccessToken } from "@/shared/api/storage.service";
+import { clearSessionTokens, getAccessToken } from "@/shared/api/storage.service";
 import {
   clearOfflineAccess,
   getOfflineOwner,
@@ -14,12 +15,20 @@ import { useRestoreSession } from "../useRestoreSession";
 jest.mock("../../api/auth.service", () => ({ getCurrentUser: jest.fn() }));
 jest.mock("@/shared/api/storage.service", () => ({
   getAccessToken: jest.fn(),
-  clearTokens: jest.fn(),
+  clearSessionTokens: jest.fn(),
 }));
 jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
   clearOfflineAccess: jest.fn(),
   getOfflineOwner: jest.fn(),
 }));
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 describe("offline startup boundary", () => {
   beforeEach(() => {
@@ -32,7 +41,7 @@ describe("offline startup boundary", () => {
     useOfflineAccessStore.setState({ ownerId: null, isRevoking: false });
     (getAccessToken as jest.Mock).mockResolvedValue("stored-token");
     (getOfflineOwner as jest.Mock).mockResolvedValue(7);
-    (clearTokens as jest.Mock).mockResolvedValue(undefined);
+    (clearSessionTokens as jest.Mock).mockResolvedValue(undefined);
     (clearOfflineAccess as jest.Mock).mockResolvedValue(undefined);
   });
 
@@ -47,7 +56,7 @@ describe("offline startup boundary", () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(useAuthStore.getState().user).toBeNull();
       expect(useOfflineAccessStore.getState().ownerId).toBe(7);
-      expect(clearTokens).not.toHaveBeenCalled();
+      expect(clearSessionTokens).not.toHaveBeenCalled();
       hook.unmount();
     },
   );
@@ -68,7 +77,7 @@ describe("offline startup boundary", () => {
     );
     const hook = await renderHook(() => useRestoreSession());
     await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
-    expect(clearTokens).toHaveBeenCalled();
+    expect(clearSessionTokens).toHaveBeenCalled();
     expect(getOfflineOwner).not.toHaveBeenCalled();
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
     hook.unmount();
@@ -85,6 +94,32 @@ describe("offline startup boundary", () => {
     await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    hook.unmount();
+  });
+
+  it("does not restore a session after logout during the initial token read", async () => {
+    const read = deferred<string | null>();
+    jest.mocked(getAccessToken).mockReturnValueOnce(read.promise);
+    const hook = await renderHook(() => useRestoreSession());
+    invalidateAuthSession();
+    await act(async () => read.resolve("old-token"));
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(getCurrentUser).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    hook.unmount();
+  });
+
+  it("does not grant old offline ownership after a newer login", async () => {
+    const read = deferred<number | null>();
+    jest.mocked(getOfflineOwner).mockReturnValueOnce(read.promise);
+    jest.mocked(getCurrentUser).mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
+    const hook = await renderHook(() => useRestoreSession());
+    await waitFor(() => expect(getOfflineOwner).toHaveBeenCalled());
+    beginAuthSession();
+    useAuthStore.getState().setUser({ id: 8 } as never);
+    await act(async () => read.resolve(7));
+    expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+    expect(useAuthStore.getState().user?.id).toBe(8);
     hook.unmount();
   });
 

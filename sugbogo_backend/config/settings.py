@@ -238,6 +238,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
 
+# Let authenticated web downloads use the server's safe attachment filename.
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
@@ -319,11 +322,14 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [{
-                "address": os.getenv("NOTIFICATION_REDIS_URL", "redis://127.0.0.1:6379/1"),
-                "socket_connect_timeout": 1,
-                "socket_timeout": 1,
-            }],
+            "hosts": [
+                {
+                    "address": os.getenv(
+                        "NOTIFICATION_REDIS_URL",
+                        "redis://127.0.0.1:6379/1",
+                    ),
+                }
+            ],
             "prefix": "sugbogo_notifications",
         },
     },

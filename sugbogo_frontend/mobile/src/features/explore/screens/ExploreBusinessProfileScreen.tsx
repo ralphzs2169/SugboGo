@@ -58,7 +58,11 @@ function ExploreBusinessProfileScreenContent({
 }: Props) {
   const { business, error, refetch } = useExploreBusinessProfile(businessId);
 
-  useBusinessProfileVisit(businessId, business?.id);
+  useBusinessProfileVisit(
+    businessId,
+    business?.id,
+    business?.is_own_business ?? false,
+  );
 
   const { totalCount: reviewCount } = useBusinessReviewPreview(businessId);
 

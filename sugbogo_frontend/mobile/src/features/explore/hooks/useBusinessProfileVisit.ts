@@ -8,6 +8,7 @@ import { useRecordBusinessProfileVisit } from "./useVisibilityMutations";
 export default function useBusinessProfileVisit(
   businessId: number,
   displayedBusinessId: number | undefined,
+  isOwnBusiness = false,
 ) {
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState(AppState.currentState);
@@ -27,6 +28,7 @@ export default function useBusinessProfileVisit(
 
     if (
       appState !== "active" ||
+      isOwnBusiness ||
       !Number.isInteger(businessId) ||
       businessId <= 0 ||
       displayedBusinessId !== businessId ||
@@ -37,5 +39,5 @@ export default function useBusinessProfileVisit(
 
     attemptedId.current = businessId;
     mutate(businessId);
-  }, [appState, businessId, displayedBusinessId, isFocused, mutate]);
+  }, [appState, businessId, displayedBusinessId, isFocused, isOwnBusiness, mutate]);
 }

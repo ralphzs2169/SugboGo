@@ -213,6 +213,22 @@ describe("real React Query visibility mutations", () => {
 });
 
 describe("displayed profile lifecycle", () => {
+  it("suppresses an owned profile but still records another business", async () => {
+    const { wrapper } = setupClient();
+    const { rerender } = await renderHook(
+      ({ id, owned }: { id: number; owned: boolean }) =>
+        useBusinessProfileVisit(id, id, owned),
+      { wrapper, initialProps: { id: 1, owned: true } },
+    );
+
+    expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
+    await rerender({ id: 2, owned: false });
+    await waitFor(() =>
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2),
+    );
+    expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1);
+  });
+
   it("waits for displayed matching content and suppresses ordinary rerenders", async () => {
     const { wrapper } = setupClient();
     const { rerender } = await renderHook(

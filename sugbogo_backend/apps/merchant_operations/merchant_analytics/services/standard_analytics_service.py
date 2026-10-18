@@ -31,14 +31,18 @@ class StandardAnalyticsService:
             totals = VisibilityEventService.get_analytics_totals(**query)
             values["profile_visits"] = totals["PROFILE_VISIT"]
             values["saves_in_period"] = totals["SAVE"]
-        except VisibilityTrackingUnavailable:
+        except VisibilityTrackingUnavailable as error:
             reasons.append("event_totals_unavailable")
+            if error.reason is not None:
+                reasons.append(error.reason)
         try:
             values["distinct_profile_visitors"] = VisibilityEventService.count_analytics_explorers(
                 **query, event_type="PROFILE_VISIT",
             )
-        except VisibilityTrackingUnavailable:
+        except VisibilityTrackingUnavailable as error:
             reasons.append("distinct_visitors_unavailable")
+            if error.reason is not None:
+                reasons.append(error.reason)
         successful = sum(value is not None for value in values.values())
         availability = "unavailable" if successful == 0 else "partial" if reasons else "available"
         return values, standard_meta(period, availability=availability, partial_reasons=reasons)
