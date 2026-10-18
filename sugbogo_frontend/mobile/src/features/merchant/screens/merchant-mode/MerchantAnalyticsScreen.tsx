@@ -1,10 +1,12 @@
 import { useIsFocused, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import InfoBanner from "@/shared/components/InfoBanner";
@@ -22,10 +24,11 @@ import AnalyticsSourceNotice from "../../components/analytics/AnalyticsSourceNot
 import AnalyticsSpecialtySupport from "../../components/analytics/AnalyticsSpecialtySupport";
 import useMerchantStandardAnalytics from "../../hooks/analytics/useMerchantStandardAnalytics";
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
+import { useMerchantPlusReviews } from "../../hooks/analytics/useMerchantPlusAnalytics";
 import { merchantPlusReportScope } from "../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import type { PlusDetailKind } from "../../types/merchantPlusAnalytics.types";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
-import MerchantContentSection from "../../layout/MerchantContentSection";
+import AnalyticsOverviewSection from "../../components/analytics/AnalyticsOverviewSection";
 import MerchantScreenHeader from "../../layout/MerchantScreenHeader";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import {
@@ -48,6 +51,16 @@ export default function MerchantAnalyticsScreen() {
   const [period, setPeriod] = useState<MerchantAnalyticsPeriod>("30");
   const { report, isLoading, isRefetching, error, refetch } =
     useMerchantStandardAnalytics(period);
+  const replyComparison = useMerchantPlusReviews(
+    { period },
+    focused &&
+      plusAccess.allowed &&
+      !isLoading &&
+      !error &&
+      !!report &&
+      report.sources.domain.availability !== "unavailable" &&
+      report.reviews.period_eligible_published > 0,
+  );
   const {
     business,
     error: profileError,
@@ -70,6 +83,13 @@ export default function MerchantAnalyticsScreen() {
     toastId: "merchant-plus-access-error",
     title: "Unable to check Plus access",
     fallbackMessage: "Your Standard analytics remain available.",
+  });
+
+  useQueryErrorNotification({
+    error: focused && plusAccess.allowed ? replyComparison.error : null,
+    toastId: "merchant-reply-comparison-error",
+    title: "Unable to load reply comparison",
+    fallbackMessage: "Your Standard review counts remain available.",
   });
 
   const retry = () => {
@@ -112,14 +132,19 @@ export default function MerchantAnalyticsScreen() {
       edges={["top", "left", "right"]}
       className="flex-1 bg-background"
     >
-      {/* Stable merchant header and reporting controls */}
-      <MerchantScreenHeader title="Analytics" />
-      <View className="bg-surface px-5 pb-2 pt-2">
-        <AppText className="text-sm text-text-secondary">
-          See how your business is performing
-        </AppText>
-        <AnalyticsPeriodSelector period={period} onChange={setPeriod} />
-      </View>
+      {/* Only the compact screen identity remains fixed while content scrolls. */}
+      <MerchantScreenHeader
+        title="Analytics"
+        subtitle={report?.business.name}
+        leadingIcon="storefront-outline"
+        coverPhotoUrl={
+          business?.id === report?.business.id
+            ? business?.display_cover_photo_url
+            : null
+        }
+        compact
+        rightAccessory={<NotificationBellButton />}
+      />
 
       <ScrollView
         testID="merchant-analytics-scroll"
@@ -135,6 +160,31 @@ export default function MerchantAnalyticsScreen() {
         }
       >
         <View className="bg-background">
+          {/* Reporting controls scroll with the report instead of occupying a tall sticky area. */}
+          <View className="gap-3 bg-surface px-5 pb-4 pt-3">
+            <AppText className="text-sm text-text-secondary">
+              See how your business is performing
+            </AppText>
+            <View className="flex-row flex-wrap items-center gap-1.5 self-start rounded-full border border-border-primary bg-surface-muted px-3 py-1.5">
+              <MaterialCommunityIcons
+                name="calendar-outline"
+                size={14}
+                color={theme.extends.colors.text.secondary}
+                accessible={false}
+              />
+              <AppText className="text-xs text-text-secondary">
+                {report && !showPeriodLoading
+                  ? `${formatAnalyticsDate(report.meta.period.start_date)} – ${formatAnalyticsDate(report.meta.period.end_date)}`
+                  : `Last ${period} days`}{" "}
+                · Manila time
+              </AppText>
+            </View>
+            <AnalyticsPeriodSelector
+              period={period}
+              onChange={setPeriod}
+              overview
+            />
+          </View>
           {/* Recoverable request failure, including failed cached refreshes */}
           {(error || showUnanswered) && (
             <View className="gap-3 bg-surface px-5 pb-4 pt-3">
@@ -174,37 +224,39 @@ export default function MerchantAnalyticsScreen() {
           )}
 
           {/* Selected-period activity; previous-period placeholders never populate KPI cards */}
-          <MerchantContentSection
+          <AnalyticsOverviewSection
             title="Activity overview"
-            description={`${
-              report && !showPeriodLoading
-                ? `${formatAnalyticsDate(report.meta.period.start_date)} – ${formatAnalyticsDate(report.meta.period.end_date)}`
-                : `Last ${period} days`
-            } · Manila time`}
+            description="Recorded activity during the selected dates"
           >
             {showPeriodLoading ? (
               <AnalyticsSectionSkeleton section="activity" />
             ) : report ? (
               <View className="gap-4">
-                <AnalyticsActivityOverview report={report} />
+                <AnalyticsActivityOverview
+                  report={report}
+                  plusReviews={plusAccess.allowed ? replyComparison.data : null}
+                />
                 <AnalyticsSourceNotice report={report} onRetry={retry} />
               </View>
             ) : null}
-          </MerchantContentSection>
+          </AnalyticsOverviewSection>
 
           <AnalyticsVisibilityTrends period={period} access={plusAccess} />
 
           {/* Current snapshots can remain visible while a new period loads */}
-          <MerchantContentSection title="Your business now">
+          <AnalyticsOverviewSection
+            title="Your business now"
+            description="Current counts, across all dates"
+          >
             {report ? (
               <AnalyticsCurrentSnapshot report={report} onRetry={retry} />
             ) : showPeriodLoading ? (
               <AnalyticsSectionSkeleton section="snapshot" />
             ) : null}
-          </MerchantContentSection>
+          </AnalyticsOverviewSection>
 
           {/* Current active specialty support */}
-          <MerchantContentSection
+          <AnalyticsOverviewSection
             title="Specialty Support"
             description="What explorers vouch for most"
             accessory={
@@ -247,13 +299,13 @@ export default function MerchantAnalyticsScreen() {
             ) : showPeriodLoading ? (
               <AnalyticsSectionSkeleton section="specialties" />
             ) : null}
-          </MerchantContentSection>
+          </AnalyticsOverviewSection>
 
           <AnalyticsMoreInsights access={plusAccess} onOpen={openPlusDetail} />
 
           {/* Generation time is not a guarantee of tracking freshness */}
           {report && (
-            <AppText className="px-5 py-4 text-sm leading-5 text-text-secondary">
+            <AppText className="px-5 py-4 text-xs leading-5 text-text-secondary">
               Report prepared{" "}
               {formatAnalyticsTimestamp(report.meta.generated_at)} · Manila
               time.

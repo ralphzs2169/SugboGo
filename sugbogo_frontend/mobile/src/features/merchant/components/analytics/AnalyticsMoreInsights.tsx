@@ -5,7 +5,7 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import type { MerchantPlusAccess } from "../../hooks/analytics/useMerchantPlusAccess";
-import MerchantContentSection from "../../layout/MerchantContentSection";
+import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
 import type { PlusDetailKind } from "../../types/merchantPlusAnalytics.types";
 
 const INSIGHTS: {
@@ -61,7 +61,7 @@ export default function AnalyticsMoreInsights({
   onOpen: (kind: PlusDetailKind) => void;
 }) {
   return (
-    <MerchantContentSection
+    <AnalyticsOverviewSection
       title="More Insights"
       accessory={
         <AppText weight="bold" className="text-sm text-brand">
@@ -69,58 +69,60 @@ export default function AnalyticsMoreInsights({
         </AppText>
       }
     >
-      {/* Detail entry points keep secondary charts out of the overview. */}
-      {INSIGHTS.map((insight, index) => {
-        const content = (
-          <>
-            <View className="h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background">
+      <View>
+        {/* Detail entry points keep secondary charts out of the overview. */}
+        {INSIGHTS.map((insight, index) => {
+          const content = (
+            <>
+              <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10">
+                <MaterialCommunityIcons
+                  accessible={false}
+                  name={insight.icon}
+                  size={20}
+                  color={theme.extends.colors.brand}
+                />
+              </View>
+              <View className="min-w-0 flex-1">
+                <AppText
+                  weight="semibold"
+                  className="text-sm leading-5 text-text-primary"
+                >
+                  {insight.title}
+                </AppText>
+                <AppText className="mt-0.5 text-xs leading-5 text-text-secondary">
+                  {insight.description}
+                </AppText>
+              </View>
               <MaterialCommunityIcons
                 accessible={false}
-                name={insight.icon}
-                size={22}
-                color={theme.extends.colors.brand}
+                name={
+                  insight.kind && access.allowed
+                    ? "chevron-right"
+                    : "lock-outline"
+                }
+                size={20}
+                color={theme.extends.colors.text.secondary}
               />
+            </>
+          );
+          const rowClass = `min-h-16 flex-row items-center gap-3 py-4 ${index > 0 ? "border-t border-border-primary" : ""}`;
+          return insight.kind && access.allowed ? (
+            <SafePressable
+              key={insight.title}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${insight.title}`}
+              onPress={() => onOpen(insight.kind!)}
+              className={`${rowClass} cursor-pointer active:bg-surface-muted`}
+            >
+              {content}
+            </SafePressable>
+          ) : (
+            <View key={insight.title} className={rowClass}>
+              {content}
             </View>
-            <View className="min-w-0 flex-1">
-              <AppText
-                weight="semibold"
-                className="text-base text-text-primary"
-              >
-                {insight.title}
-              </AppText>
-              <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-                {insight.description}
-              </AppText>
-            </View>
-            <MaterialCommunityIcons
-              accessible={false}
-              name={
-                insight.kind && access.allowed
-                  ? "chevron-right"
-                  : "lock-outline"
-              }
-              size={20}
-              color={theme.extends.colors.text.secondary}
-            />
-          </>
-        );
-        const rowClass = `min-h-16 flex-row items-center gap-3 py-4 ${index > 0 ? "border-t border-border-primary" : ""}`;
-        return insight.kind && access.allowed ? (
-          <SafePressable
-            key={insight.title}
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${insight.title}`}
-            onPress={() => onOpen(insight.kind!)}
-            className={`${rowClass} active:opacity-70`}
-          >
-            {content}
-          </SafePressable>
-        ) : (
-          <View key={insight.title} className={rowClass}>
-            {content}
-          </View>
-        );
-      })}
-    </MerchantContentSection>
+          );
+        })}
+      </View>
+    </AnalyticsOverviewSection>
   );
 }

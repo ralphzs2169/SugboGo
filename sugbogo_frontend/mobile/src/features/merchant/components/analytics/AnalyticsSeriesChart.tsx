@@ -51,18 +51,30 @@ export default function AnalyticsSeriesChart({
   const compact = observed.length <= 2;
   const scale = Math.max(1, fontScale);
   const fontSize = 12 * scale;
+  const ticks = analyticsCountTicks(
+    Math.max(0, ...observed.map((slot) => slot.observation!.value)),
+  );
+  const countFormatter = new Intl.NumberFormat("en-PH", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
+  const tickLabels = ticks.map((tick) => countFormatter.format(tick));
   const chartWidth = Math.max(160, measuredWidth || windowWidth - 40);
-  const axisWidth = 48 * scale;
-  const slotMinimum = (interval === "weekly" ? 80 : 28) * scale;
+  // Reserve only the space needed by the count labels, including font scaling.
+  const axisWidth = Math.max(
+    24 * scale,
+    Math.ceil(
+      Math.max(...tickLabels.map((text) => text.length)) * fontSize * 0.65,
+    ) +
+      8 * scale,
+  );
+  const slotMinimum = (interval === "weekly" ? 56 : 28) * scale;
   const plotWidth = Math.max(
     chartWidth - axisWidth,
     slots.length * slotMinimum,
   );
   const stepWidth = plotWidth / Math.max(1, slots.length);
   const barWidth = Math.min(26 * scale, stepWidth * 0.6);
-  const ticks = analyticsCountTicks(
-    Math.max(0, ...observed.map((slot) => slot.observation!.value)),
-  );
   const maximum = ticks[ticks.length - 1];
   const top = Math.max(16, fontSize);
   const bottom = top + Math.max(144, fontSize * 4);
@@ -159,8 +171,7 @@ export default function AnalyticsSeriesChart({
       className="gap-2"
     >
       <AppText className="text-sm text-text-secondary">
-        Count ·{" "}
-        {interval === "weekly" ? "weeks starting Monday" : "days"} ·
+        Count · {interval === "weekly" ? "weeks starting Monday" : "days"} ·
         Manila time
       </AppText>
 
@@ -172,20 +183,17 @@ export default function AnalyticsSeriesChart({
         className="flex-row"
       >
         <Svg width={axisWidth} height={height} accessible={false}>
-          {ticks.map((tick) => (
+          {ticks.map((tick, index) => (
             <SvgText
               key={tick}
-              x={axisWidth - 10}
+              x={axisWidth - 6 * scale}
               y={y(tick) + fontSize / 3}
               fontFamily="NunitoSans_400Regular"
               fontSize={fontSize}
               fill={theme.extends.colors.text.secondary}
               textAnchor="end"
             >
-              {new Intl.NumberFormat("en-PH", {
-                notation: "compact",
-                maximumFractionDigits: 1,
-              }).format(tick)}
+              {tickLabels[index]}
             </SvgText>
           ))}
         </Svg>
@@ -264,8 +272,6 @@ export default function AnalyticsSeriesChart({
                       height={bottom - y(value)}
                       rx={3}
                       fill={color}
-                      stroke={theme.extends.colors.text.primary}
-                      strokeWidth={1}
                     />
                   )}
                   {showDate && (

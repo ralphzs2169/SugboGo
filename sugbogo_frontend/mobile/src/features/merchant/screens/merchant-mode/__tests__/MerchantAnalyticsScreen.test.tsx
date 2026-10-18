@@ -19,11 +19,13 @@ import {
   standardAnalyticsReport,
 } from "../../../__tests__/merchantAnalytics.fixtures";
 import { getMerchantStandardAnalytics } from "../../../api/merchantAnalytics.service";
+import { merchantPlusReportKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
 import * as plusService from "../../../api/merchantPlusAnalytics.service";
 import {
   plusStatus,
   plusSuccess,
+  reviewReport,
   visibilityReport,
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
@@ -32,11 +34,16 @@ const mockRefetchProfile = jest.fn();
 let mockProfileError: unknown = null;
 let mockProfileBusinessId = 8;
 
+jest.mock("@/features/notifications/hooks/useNotifications", () => ({
+  useNotificationUnreadCount: () => ({ unreadCount: 4 }),
+}));
+
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => ({
     business: {
       id: mockProfileBusinessId,
+      display_cover_photo_url: "https://example.com/business-cover.jpg",
       specialty_tags: [
         { id: 2, name: "Friendly service", color: "green", icon: "heart" },
         { id: 1, name: "Coffee", color: "purple", icon: "coffee" },
@@ -69,6 +76,10 @@ jest.mock("react-native-toast-message", () => ({
 jest.mock("@expo/vector-icons", () => ({
   MaterialCommunityIcons: jest.fn(() => null),
 }));
+jest.mock("expo-image", () => {
+  const { View } = jest.requireActual("react-native");
+  return { Image: (props: Record<string, unknown>) => <View {...props} /> };
+});
 jest.mock("react-native-safe-area-context", () => {
   const { View } =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -107,7 +118,12 @@ describe("MerchantAnalyticsScreen", () => {
       .mockImplementation(async (_, interval) =>
         plusSuccess(visibilityReport(interval)),
       );
+    jest
+      .mocked(plusService.getMerchantPlusReviewPerformance)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(reviewReport()));
     mockNavigate.mockClear();
+    jest.mocked(Toast.show).mockClear();
     mockRefetchProfile.mockReset();
     mockRefetchProfile.mockResolvedValue({});
     mockProfileError = null;
@@ -127,6 +143,15 @@ describe("MerchantAnalyticsScreen", () => {
       </QueryClientProvider>,
     );
   }
+
+  it("opens the shared notification inbox from the Analytics header", async () => {
+    const screen = await renderScreen();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Notifications, 4 unread" }),
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith("/notifications");
+  });
 
   it("switches visibility metrics without fetching another report and separates interval/period queries", async () => {
     jest
@@ -374,10 +399,174 @@ describe("MerchantAnalyticsScreen", () => {
     const screen = await renderScreen();
     await screen.findByText("Merchant Plus access required");
     expect(plusService.getMerchantPlusVisibility).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusReviewPerformance).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/Recorded profile visits: 24\./)).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "Open Pocket Trends" }),
     ).toBeNull();
+  });
+
+  it("shows only the backend-approved Plus reply-rate change for the matching Standard cohort", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const screen = await renderScreen();
+
+    expect(
+      await screen.findByLabelText(
+        /Reviews replied to: 25%\. 1 of 4 published reviews replied to\. \+25 pp versus the previous period/,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("+25 pp")).toBeTruthy();
+    expect(screen.getByText("vs previous period")).toBeTruthy();
+    expect(plusService.getMerchantPlusReviewPerformance).toHaveBeenCalledWith(
+      { period: "30" },
+      expect.anything(),
+    );
+    expect(screen.queryByText(/\+12%|\+3 vs prev/)).toBeNull();
+  });
+
+  it.each([
+    { value: -10, direction: "down" as const, label: "−10 pp" },
+    { value: 0, direction: "unchanged" as const, label: "0 pp" },
+  ])(
+    "shows $direction reply-rate changes in percentage points",
+    async (caseValue) => {
+      jest
+        .mocked(plusService.getMerchantPlusStatus)
+        .mockResolvedValue(plusSuccess(plusStatus()));
+      const review = reviewReport();
+      review.reply_rate_change = {
+        value: caseValue.value,
+        direction: caseValue.direction,
+        unit: "percentage_points",
+        reason: null,
+      };
+      review.previous = {
+        ...review.previous,
+        published_review_count: caseValue.value < 0 ? 20 : 4,
+        replied_review_count: caseValue.value < 0 ? 7 : 1,
+        reply_rate: caseValue.value < 0 ? 35 : 25,
+      };
+      jest
+        .mocked(plusService.getMerchantPlusReviewPerformance)
+        .mockResolvedValue(plusSuccess(review));
+      const screen = await renderScreen();
+
+      expect(await screen.findByText(caseValue.label)).toBeTruthy();
+    },
+  );
+
+  it("keeps a genuine zero reply rate distinct from an unavailable rate", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const standard = standardAnalyticsReport();
+    standard.reviews.period_replied_published = 0;
+    standard.reviews.reply_rate = 0;
+    getAnalytics.mockResolvedValue(analyticsSuccess(standard));
+    const review = reviewReport();
+    review.current.replied_review_count = 0;
+    review.current.reply_rate = 0;
+    review.reply_rate_change = {
+      value: -25,
+      direction: "down",
+      unit: "percentage_points",
+      reason: null,
+    };
+    review.previous.reply_rate = 25;
+    review.previous.replied_review_count = 1;
+    jest
+      .mocked(plusService.getMerchantPlusReviewPerformance)
+      .mockResolvedValue(plusSuccess(review));
+    const screen = await renderScreen();
+
+    expect(
+      await screen.findByLabelText(
+        /Reviews replied to: 0%\. 0 of 4 published reviews replied to\. −25 pp/,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByTestId("analytics-reply-progress")).toBeTruthy();
+  });
+
+  it("omits a null or ineligible reply comparison without changing Standard metrics", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const review = reviewReport();
+    review.reply_rate_change = {
+      value: null,
+      direction: null,
+      unit: "percentage_points",
+      reason: "insufficient_sample",
+    };
+    jest
+      .mocked(plusService.getMerchantPlusReviewPerformance)
+      .mockResolvedValue(plusSuccess(review));
+    const screen = await renderScreen();
+
+    await waitFor(() =>
+      expect(
+        client.getQueryState(
+          merchantPlusReportKey(42, "reviews", { period: "30" }),
+        )?.status,
+      ).toBe("success"),
+    );
+    expect(
+      screen.getByLabelText(/Reviews replied to: 25%\. 1 of 4/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/pp$/)).toBeNull();
+  });
+
+  it("omits comparisons from a different review cohort", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const review = reviewReport();
+    review.current.published_review_count = 5;
+    jest
+      .mocked(plusService.getMerchantPlusReviewPerformance)
+      .mockResolvedValue(plusSuccess(review));
+    const screen = await renderScreen();
+
+    await waitFor(() =>
+      expect(
+        client.getQueryState(
+          merchantPlusReportKey(42, "reviews", { period: "30" }),
+        )?.status,
+      ).toBe("success"),
+    );
+    expect(
+      screen.getByLabelText(/Reviews replied to: 25%\. 1 of 4/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/pp$/)).toBeNull();
+  });
+
+  it("keeps Standard cards usable if the optional Plus comparison request fails", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    jest
+      .mocked(plusService.getMerchantPlusReviewPerformance)
+      .mockResolvedValue({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    const screen = await renderScreen();
+
+    await waitFor(() =>
+      expect(
+        client.getQueryState(
+          merchantPlusReportKey(42, "reviews", { period: "30" }),
+        )?.status,
+      ).toBe("error"),
+    );
+    expect(
+      screen.getByLabelText(/Reviews replied to: 25%\. 1 of 4/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/pp$/)).toBeNull();
+    expect(Toast.show).toHaveBeenCalled();
   });
 
   it("keeps the header and selected 30-day filter visible during section loading", async () => {
@@ -488,6 +677,8 @@ describe("MerchantAnalyticsScreen", () => {
     expect(
       screen.queryByRole("button", { name: /activity is unavailable.*retry/i }),
     ).toBeNull();
+    expect(plusService.getMerchantPlusReviewPerformance).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("analytics-reply-progress")).toBeNull();
   });
 
   it("preserves SQL results during a visibility outage and retries the same query", async () => {
@@ -690,10 +881,24 @@ describe("MerchantAnalyticsScreen", () => {
     expect(screen.getByText(/longest bar has/)).toBeTruthy();
   });
 
+  it("uses the business display cover in the header and falls back if it fails", async () => {
+    const screen = await renderScreen();
+    const cover = await screen.findByLabelText("Cebu Coffee cover photo");
+
+    expect(cover.props.source).toEqual({
+      uri: "https://example.com/business-cover.jpg",
+    });
+    await fireEvent(cover, "error");
+    expect(screen.queryByLabelText("Cebu Coffee cover photo")).toBeNull();
+    expect(screen.getByText("Analytics")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Last 30 days" })).toBeTruthy();
+  });
+
   it("does not use specialty identities from a different business", async () => {
     mockProfileBusinessId = 999;
     const screen = await renderScreen();
     await screen.findByLabelText(/^1\. Friendly service/);
+    expect(screen.queryByLabelText("Cebu Coffee cover photo")).toBeNull();
 
     expect(MaterialCommunityIcons).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: "coffee-outline" }),

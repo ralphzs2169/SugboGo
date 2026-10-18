@@ -22,6 +22,7 @@ export default function AnalyticsEventTrend({
   retry,
   note,
   children,
+  showTotal = true,
 }: {
   metric: AnalyticsEventMetric;
   label: string;
@@ -29,6 +30,7 @@ export default function AnalyticsEventTrend({
   retry: () => void;
   note?: string;
   children?: ReactNode;
+  showTotal?: boolean;
 }) {
   const unavailable =
     metric.value === null ||
@@ -39,18 +41,20 @@ export default function AnalyticsEventTrend({
   return (
     <View className="gap-4">
       {/* Totals are never reconstructed by summing bucket-level account counts. */}
-      <View>
-        <AppText className="text-sm text-text-secondary">
-          {label} · selected period
-        </AppText>
-        <AppText
-          accessibilityLabel={`${label}: ${metric.value === null ? "Unavailable" : metric.value}`}
-          weight="extrabold"
-          className="mt-1 text-3xl text-text-primary"
-        >
-          {formatAnalyticsCount(metric.value)}
-        </AppText>
-      </View>
+      {showTotal && (
+        <View>
+          <AppText className="text-sm text-text-secondary">
+            {label} · selected period
+          </AppText>
+          <AppText
+            accessibilityLabel={`${label}: ${metric.value === null ? "Unavailable" : metric.value}`}
+            weight="extrabold"
+            className="mt-1 text-3xl text-text-primary"
+          >
+            {formatAnalyticsCount(metric.value)}
+          </AppText>
+        </View>
+      )}
       {children}
       {unavailable && !chartUnavailable && (
         <ErrorState

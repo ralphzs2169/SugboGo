@@ -7,6 +7,7 @@ import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.type
 type Props = {
   period: MerchantAnalyticsPeriod;
   onChange: (period: MerchantAnalyticsPeriod) => void;
+  overview?: boolean;
 };
 
 const PERIOD_OPTIONS: SegmentedControlOption<MerchantAnalyticsPeriod>[] = [
@@ -33,13 +34,17 @@ const PERIOD_OPTIONS: SegmentedControlOption<MerchantAnalyticsPeriod>[] = [
  * Uses the shared animated segmented control while preserving the
  * selected period during analytics loading, refreshes, and errors.
  */
-export default function AnalyticsPeriodSelector({ period, onChange }: Props) {
+export default function AnalyticsPeriodSelector({
+  period,
+  onChange,
+  overview = false,
+}: Props) {
   return (
     <SegmentedControl
       options={PERIOD_OPTIONS}
       value={period}
       onChange={onChange}
-      className="my-2"
+      className={overview ? "border border-border-primary" : "my-2"}
       variant="sm"
     />
   );

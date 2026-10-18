@@ -1,21 +1,11 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import type { ComponentProps } from "react";
 import { View, useWindowDimensions } from "react-native";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import { shadows } from "@/shared/styles/shadows";
 
 import type { MerchantStandardAnalytics } from "../../types/merchantAnalytics.types";
+import type { PlusReviewPerformanceReport } from "../../types/merchantPlusAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
-
-/** Soft, low-contrast elevation shared by the metric cards. */
-const CARD_SHADOW = {
-  shadowColor: "#000",
-  shadowOpacity: 0.05,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 2 },
-  elevation: 1,
-} as const;
 
 type MetricCardProps = {
   label: string;
@@ -23,8 +13,49 @@ type MetricCardProps = {
   detail: string;
   unavailable?: boolean;
   stacked: boolean;
-  icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
+  trend?: { value: number; direction: "up" | "down" | "unchanged" };
+  progress?: number | null;
 };
+
+/** Accept only a server-approved comparison for the exact Standard review cohort. */
+function supportedReplyTrend(
+  standard: MerchantStandardAnalytics,
+  plus: PlusReviewPerformanceReport | null | undefined,
+): MetricCardProps["trend"] {
+  if (!plus || standard.reviews.reply_rate === null) return undefined;
+
+  const change = plus.reply_rate_change;
+  const sameCohort =
+    plus.business.id === standard.business.id &&
+    plus.meta.period.start === standard.meta.period.start &&
+    plus.meta.period.end_exclusive === standard.meta.period.end_exclusive &&
+    plus.current.published_review_count ===
+      standard.reviews.period_eligible_published &&
+    plus.current.replied_review_count ===
+      standard.reviews.period_replied_published;
+  const comparisonAvailable =
+    plus.meta.availability !== "unavailable" &&
+    plus.meta.coverage_verified &&
+    plus.previous.published_review_count > 0 &&
+    plus.current.reply_rate !== null &&
+    plus.previous.reply_rate !== null &&
+    // Standard rounds to one decimal; Plus retains two for the same cohort.
+    Math.abs(plus.current.reply_rate - standard.reviews.reply_rate) <= 0.051 &&
+    change.reason === null &&
+    change.unit === "percentage_points" &&
+    change.value !== null &&
+    Number.isFinite(change.value);
+
+  if (!sameCohort || !comparisonAvailable || change.value === null) {
+    return undefined;
+  }
+
+  const direction =
+    change.value > 0 ? "up" : change.value < 0 ? "down" : "unchanged";
+  if (change.direction !== direction) return undefined;
+
+  return { value: change.value, direction };
+}
 
 /** Presents one metric and its denominator or measurement context as a readable unit. */
 function MetricCard({
@@ -33,38 +64,43 @@ function MetricCard({
   detail,
   unavailable,
   stacked,
-  icon,
+  trend,
+  progress,
 }: MetricCardProps) {
+  const trendText = trend
+    ? `${trend.direction === "up" ? "+" : trend.direction === "down" ? "−" : ""}${Math.abs(trend.value).toLocaleString("en-PH", { maximumFractionDigits: 2 })} pp`
+    : null;
+
   return (
     <View
       accessible
-      accessibilityLabel={`${label}: ${unavailable ? "Unavailable" : value}. ${detail}`}
-      className={`min-w-0 rounded-card border border-border-primary/60 bg-surface p-4 ${
+      accessibilityLabel={`${label}: ${unavailable ? "Unavailable" : value}. ${detail}${trendText ? `. ${trendText} versus the previous period` : ""}`}
+      className={`min-w-0 rounded-2xl border border-border-primary bg-surface p-4 ${
         stacked ? "w-full" : "flex-1"
       }`}
-      style={CARD_SHADOW}
+      style={shadows.subtle}
     >
-      {/* Metric identity: small icon beside the label, no background tile */}
-      <View className="flex-row items-center gap-2">
-        <MaterialCommunityIcons
-          accessible={false}
-          name={icon}
-          size={18}
-          color={theme.extends.colors.brand}
-        />
+      {/* Metric identity and the optional server-approved comparison. */}
+      <View className="flex-row flex-wrap items-start justify-between gap-2">
         <AppText
-          weight="medium"
-          className="min-w-0 flex-1 text-sm text-text-secondary"
-          numberOfLines={2}
+          weight="semibold"
+          className="min-w-0 flex-1 text-sm leading-5 text-text-secondary"
         >
           {label}
         </AppText>
+        {trendText && (
+          <View className="rounded-full bg-brand/10 px-2 py-1">
+            <AppText weight="bold" className="text-xs text-brand">
+              {trendText}
+            </AppText>
+          </View>
+        )}
       </View>
 
-      {/* Hero value, muted when the source is unavailable */}
+      {/* The reported number remains primary, including at larger font scales. */}
       <AppText
-        weight="semibold"
-        className={`mt-3 text-3xl ${
+        weight="extrabold"
+        className={`mt-1 ${value.length > 7 && !stacked ? "text-2xl" : "text-3xl"} ${
           unavailable ? "text-text-secondary" : "text-text-primary"
         }`}
       >
@@ -72,9 +108,34 @@ function MetricCard({
       </AppText>
 
       {/* Measurement context */}
-      <AppText className="mt-1 text-xs leading-4 text-text-secondary">
-        {detail}
-      </AppText>
+      <View className="mt-3 flex-1 justify-end">
+        <View className="gap-2 border-t border-border-primary/60 pt-3">
+          {progress !== undefined &&
+            progress !== null &&
+            Number.isFinite(progress) &&
+            progress >= 0 &&
+            progress <= 100 && (
+              <View
+                testID="analytics-reply-progress"
+                accessible={false}
+                className="h-1.5 overflow-hidden rounded-full bg-surface-muted"
+              >
+                <View
+                  className="h-full rounded-full bg-brand"
+                  style={{ width: `${progress}%` }}
+                />
+              </View>
+            )}
+          <AppText className="text-xs leading-5 text-text-secondary">
+            {detail}
+          </AppText>
+          {trendText && (
+            <AppText className="text-xs leading-4 text-text-secondary">
+              vs previous period
+            </AppText>
+          )}
+        </View>
+      </View>
     </View>
   );
 }
@@ -82,8 +143,10 @@ function MetricCard({
 /** Shows period activity without treating missing tracking or empty cohorts as zero. */
 export default function AnalyticsActivityOverview({
   report,
+  plusReviews,
 }: {
   report: MerchantStandardAnalytics;
+  plusReviews?: PlusReviewPerformanceReport | null;
 }) {
   const { fontScale, width } = useWindowDimensions();
   const useSingleColumn = fontScale >= 1.5 || width < 340;
@@ -97,6 +160,9 @@ export default function AnalyticsActivityOverview({
   const saves = visibilityAvailable ? report.saves_in_period : null;
   const reviews = report.reviews;
   const replyRate = domainAvailable ? reviews.reply_rate : null;
+  const replyTrend = domainAvailable
+    ? supportedReplyTrend(report, plusReviews)
+    : undefined;
   let replyDetail = "Reply percentage unavailable";
 
   if (domainAvailable && reviews.period_eligible_published === 0) {
@@ -112,7 +178,6 @@ export default function AnalyticsActivityOverview({
       {/* Visibility and expressed interest */}
       <View className={rowClassName}>
         <MetricCard
-          icon="eye-outline"
           stacked={useSingleColumn}
           label="Recorded profile visits"
           value={formatAnalyticsCount(visits)}
@@ -124,7 +189,6 @@ export default function AnalyticsActivityOverview({
           }
         />
         <MetricCard
-          icon="bookmark-outline"
           stacked={useSingleColumn}
           label="Recorded saves"
           value={formatAnalyticsCount(saves)}
@@ -140,7 +204,6 @@ export default function AnalyticsActivityOverview({
       {/* Published review creation cohort and backend reply rate */}
       <View className={rowClassName}>
         <MetricCard
-          icon="comment-text-outline"
           stacked={useSingleColumn}
           label="New reviews"
           value={formatAnalyticsCount(
@@ -155,6 +218,8 @@ export default function AnalyticsActivityOverview({
           value={replyRate === null ? "—" : `${replyRate}%`}
           unavailable={replyRate === null}
           detail={replyDetail}
+          trend={replyTrend}
+          progress={replyRate}
         />
       </View>
     </View>

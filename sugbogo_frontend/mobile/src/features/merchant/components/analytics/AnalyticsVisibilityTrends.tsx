@@ -5,7 +5,8 @@ import AppText from "@/shared/components/AppText";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { MerchantPlusAccess } from "../../hooks/analytics/useMerchantPlusAccess";
 import { useMerchantPlusVisibility } from "../../hooks/analytics/useMerchantPlusAnalytics";
-import MerchantContentSection from "../../layout/MerchantContentSection";
+import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
+import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type {
   AnalyticsInterval,
@@ -56,14 +57,7 @@ export default function AnalyticsVisibilityTrends({
   const title = METRICS.find((option) => option.value === metric)!.label;
 
   return (
-    <MerchantContentSection
-      title="Visibility Trends"
-      accessory={
-        <AppText weight="bold" className="text-sm text-brand">
-          Plus
-        </AppText>
-      }
-    >
+    <AnalyticsOverviewSection title="Visibility Trends" plus>
       <PlusAccessGate access={access}>
         <View className="gap-4">
           {/* Switching metrics reuses the same report; only interval/period changes fetch. */}
@@ -73,15 +67,32 @@ export default function AnalyticsVisibilityTrends({
             value={metric}
             onChange={setMetric}
           />
-          <AnalyticsChoiceChips
-            label="Group by"
-            options={[
-              { value: "daily", label: "Daily" },
-              { value: "weekly", label: "Weekly" },
-            ]}
-            value={interval}
-            onChange={selectInterval}
-          />
+          <View className="flex-row flex-wrap items-end justify-between gap-3">
+            <AnalyticsChoiceChips
+              label="Group by"
+              segmented
+              options={[
+                { value: "daily", label: "Daily" },
+                { value: "weekly", label: "Weekly" },
+              ]}
+              value={interval}
+              onChange={selectInterval}
+            />
+            {query.data && (
+              <View className="min-w-0 items-end">
+                <AppText className="text-xs text-text-secondary">
+                  Recorded in period
+                </AppText>
+                <AppText
+                  accessibilityLabel={`Recorded ${title.toLowerCase()}: ${query.data.metrics[metric].value === null ? "Unavailable" : query.data.metrics[metric].value}`}
+                  weight="extrabold"
+                  className="text-3xl text-text-primary"
+                >
+                  {formatAnalyticsCount(query.data.metrics[metric].value)}
+                </AppText>
+              </View>
+            )}
+          </View>
           <PlusRequestState
             error={query.error}
             hasData={!!query.data}
@@ -95,11 +106,12 @@ export default function AnalyticsVisibilityTrends({
                 interval={query.data.interval}
                 note={query.data.measurement_note}
                 retry={() => void query.refetch()}
+                showTotal={false}
               />
             )}
           </PlusRequestState>
         </View>
       </PlusAccessGate>
-    </MerchantContentSection>
+    </AnalyticsOverviewSection>
   );
 }

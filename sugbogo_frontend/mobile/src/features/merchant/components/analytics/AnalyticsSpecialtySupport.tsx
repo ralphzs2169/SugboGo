@@ -71,19 +71,17 @@ export default function AnalyticsSpecialtySupport({
               key={specialty.specialty_id}
               accessible
               accessibilityLabel={`${index + 1}. ${specialty.specialty_name}: ${formatAnalyticsCount(specialty.valid_vouches)} vouches that still count, ${formatAnalyticsCount(specialty.distinct_supporters)} supporting accounts`}
-              className={`py-4 ${
-                index > 0 ? "border-t border-border-primary" : ""
-              }`}
+              className="pb-5"
             >
               {/* Specialty identity comes from the owned profile, counts from analytics */}
               <View className="flex-row items-center gap-3">
                 <View
-                  className={`h-10 w-10 shrink-0 items-center justify-center rounded-xl ${colors?.softBackground ?? "bg-surface-muted"}`}
+                  className={`h-9 w-9 shrink-0 items-center justify-center rounded-xl ${colors?.softBackground ?? "bg-surface-muted"}`}
                 >
                   <MaterialCommunityIcons
                     accessible={false}
                     name={getSpecialtyTagIcon(tag?.icon)}
-                    size={22}
+                    size={20}
                     color={
                       colors?.softIcon ?? theme.extends.colors.text.secondary
                     }
@@ -92,11 +90,11 @@ export default function AnalyticsSpecialtySupport({
                 <View className="min-w-0 flex-1">
                   <AppText
                     weight="semibold"
-                    className="text-base text-text-primary"
+                    className="text-sm leading-5 text-text-primary"
                   >
                     {specialty.specialty_name}
                   </AppText>
-                  <AppText className="mt-0.5 text-sm text-text-secondary">
+                  <AppText className="mt-0.5 text-xs leading-5 text-text-secondary">
                     {formatAnalyticsCount(specialty.distinct_supporters)}{" "}
                     supporting{" "}
                     {specialty.distinct_supporters === 1
@@ -108,7 +106,7 @@ export default function AnalyticsSpecialtySupport({
                   <AppText weight="bold" className="text-xl text-text-primary">
                     {formatAnalyticsCount(specialty.valid_vouches)}
                   </AppText>
-                  <AppText className="text-sm text-text-secondary">
+                  <AppText className="text-xs text-text-secondary">
                     {specialty.valid_vouches === 1 ? "vouch" : "vouches"}
                   </AppText>
                 </View>
@@ -129,7 +127,7 @@ export default function AnalyticsSpecialtySupport({
           );
         })
       )}
-      <AppText className="border-t border-border-primary py-3 text-sm leading-5 text-text-secondary">
+      <AppText className="border-t border-border-primary pt-3 text-xs leading-5 text-text-secondary">
         Current vouches, unaffected by the selected dates. The longest bar has
         the most vouches. One account can support more than one specialty.
       </AppText>
