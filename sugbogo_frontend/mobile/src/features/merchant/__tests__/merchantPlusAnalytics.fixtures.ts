@@ -51,6 +51,32 @@ export function bucket(date: string, days = 1): AnalyticsBucket {
   };
 }
 
+const REPORT_WEEKS = [
+  "2026-09-14",
+  "2026-09-21",
+  "2026-09-28",
+  "2026-10-05",
+  "2026-10-12",
+];
+
+/** Mirrors the backend's Monday weeks clipped to the selected Manila reporting bounds. */
+function weeklyBucket(date: string): AnalyticsBucket {
+  const week = bucket(date, 7);
+  const period = plusMeta().period;
+  return {
+    date,
+    start: new Date(
+      Math.max(Date.parse(week.start), Date.parse(period.start)),
+    ).toISOString(),
+    end_exclusive: new Date(
+      Math.min(
+        Date.parse(week.end_exclusive),
+        Date.parse(period.end_exclusive),
+      ),
+    ).toISOString(),
+  };
+}
+
 export function eventMetric(values = [2, 6, 7, 9]): AnalyticsEventMetric {
   return {
     value: 24,
@@ -80,7 +106,7 @@ export function visibilityReport(
       "2026-10-05",
       "2026-10-12",
     ].map((date, index) => ({
-      ...bucket(date, 7),
+      ...weeklyBucket(date),
       value: [2, 6, 7, 9][index],
     }));
   }
@@ -117,7 +143,7 @@ export function pocketReport(): PlusPocketReport {
     ...eventMetric(),
     value: 5,
     series: [2, 0, 3].map((value, index) => ({
-      ...bucket(["2026-09-21", "2026-09-28", "2026-10-12"][index], 7),
+      ...weeklyBucket(["2026-09-21", "2026-09-28", "2026-10-12"][index]),
       value,
     })),
   };
@@ -152,10 +178,10 @@ export function specialtyReport(): PlusSpecialtyReport {
         specialty_name: "Coffee",
         added_and_still_valid: 2,
         distinct_supporters: 2,
-        series: [0, 2].map((value, index) => ({
-          ...bucket(index ? "2026-10-05" : "2026-09-28", 7),
-          added_and_still_valid: value,
-          distinct_supporters: value,
+        series: REPORT_WEEKS.map((date) => ({
+          ...weeklyBucket(date),
+          added_and_still_valid: date === "2026-10-05" ? 2 : 0,
+          distinct_supporters: date === "2026-10-05" ? 2 : 0,
         })),
       },
       {
@@ -163,13 +189,11 @@ export function specialtyReport(): PlusSpecialtyReport {
         specialty_name: "Friendly service",
         added_and_still_valid: 1,
         distinct_supporters: 1,
-        series: [
-          {
-            ...bucket("2026-10-05", 7),
-            added_and_still_valid: 1,
-            distinct_supporters: 1,
-          },
-        ],
+        series: REPORT_WEEKS.map((date) => ({
+          ...weeklyBucket(date),
+          added_and_still_valid: date === "2026-10-05" ? 1 : 0,
+          distinct_supporters: date === "2026-10-05" ? 1 : 0,
+        })),
       },
     ],
   };
@@ -188,6 +212,20 @@ export function reviewReport(): PlusReviewPerformanceReport {
       positive: { count: 2, percentage: 66.67 },
       neutral: { count: 1, percentage: 33.33 },
       negative: { count: 0, percentage: 0 },
+    },
+  };
+  const emptyMeasures: ReviewMeasures = {
+    published_review_count: 0,
+    replied_review_count: 0,
+    unanswered_cohort_count: 0,
+    reply_rate: null,
+    classified_review_count: 0,
+    unclassified_review_count: 0,
+    has_sufficient_sentiment_data: false,
+    sentiment: {
+      positive: { count: 0, percentage: null },
+      neutral: { count: 0, percentage: null },
+      negative: { count: 0, percentage: null },
     },
   };
   return {
@@ -221,7 +259,10 @@ export function reviewReport(): PlusReviewPerformanceReport {
       unit: "percentage_points",
       reason: null,
     },
-    series: [{ ...bucket("2026-10-05", 7), ...measures }],
+    series: REPORT_WEEKS.map((date) => ({
+      ...weeklyBucket(date),
+      ...(date === "2026-10-05" ? measures : emptyMeasures),
+    })),
     current_unanswered_published: 3,
     reply_cutoff: plusMeta().generated_at,
     excluded_reply_timestamp_count: 0,

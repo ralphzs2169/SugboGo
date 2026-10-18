@@ -25,10 +25,6 @@ export default function AnalyticsReviewPerformance({
   report: PlusReviewPerformanceReport;
 }) {
   const cohort = report.current;
-  const maximum = Math.max(
-    1,
-    ...SENTIMENTS.map(({ key }) => cohort.sentiment[key].count),
-  );
   const showShares =
     cohort.has_sufficient_sentiment_data && cohort.classified_review_count > 0;
   return (
@@ -45,6 +41,7 @@ export default function AnalyticsReviewPerformance({
         </AppText>
         {!showShares && (
           <AnalyticsChartEmptyState
+            compact
             title={
               cohort.published_review_count === 0
                 ? "No review sentiment yet"
@@ -60,11 +57,18 @@ export default function AnalyticsReviewPerformance({
         )}
         {SENTIMENTS.map(({ key, label, color }) => {
           const sentiment = cohort.sentiment[key];
+          const percentage = sentiment.percentage;
+          const hasPercentage =
+            showShares &&
+            percentage !== null &&
+            Number.isFinite(percentage) &&
+            percentage >= 0 &&
+            percentage <= 100;
           return (
             <View
               key={key}
               accessible
-              accessibilityLabel={`${label}: ${sentiment.count} reviews${showShares && sentiment.percentage !== null ? `, ${sentiment.percentage}% of reviews with a sentiment label` : ""}`}
+              accessibilityLabel={`${label}: ${sentiment.count} reviews${hasPercentage ? `, ${percentage}% of reviews with a sentiment label` : ""}`}
               className="gap-2 py-2"
             >
               <View className="flex-row flex-wrap justify-between gap-2">
@@ -77,21 +81,22 @@ export default function AnalyticsReviewPerformance({
                 <AppText className="text-sm text-text-secondary">
                   {sentiment.count} reviews
                   {showShares
-                    ? sentiment.percentage === null
-                      ? " · Share unavailable"
-                      : ` · ${sentiment.percentage}%`
+                    ? hasPercentage
+                      ? ` · ${percentage}%`
+                      : " · Share unavailable"
                     : ""}
                 </AppText>
               </View>
-              {showShares && (
+              {hasPercentage && (
                 <View
                   accessible={false}
                   testID="analytics-sentiment-bar"
                   className="h-2 overflow-hidden rounded-full bg-surface-muted"
                 >
                   <View
+                    testID={`analytics-sentiment-fill-${key}`}
                     className={`h-full rounded-full ${color}`}
-                    style={{ width: `${(sentiment.count / maximum) * 100}%` }}
+                    style={{ width: `${percentage}%` }}
                   />
                 </View>
               )}
@@ -99,7 +104,7 @@ export default function AnalyticsReviewPerformance({
           );
         })}
         <AppText className="text-sm leading-5 text-text-secondary">
-          {showShares ? "Bars compare counts, not percentages. " : ""}
+          {showShares ? "Bars use the same 0–100% scale. " : ""}
           Percentages include only reviews with a sentiment label.
         </AppText>
       </View>
@@ -168,7 +173,7 @@ export default function AnalyticsReviewPerformance({
         <AnalyticsSeriesChart
           label="Published reviews"
           interval="weekly"
-          kind="bar"
+          range={report.meta.period}
           total={cohort.published_review_count}
           emptyTitle="No published reviews in this period"
           emptyDescription="No currently published reviews were created in the selected period. Reviews from other dates are outside this report."

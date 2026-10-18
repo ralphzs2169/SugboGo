@@ -4,23 +4,25 @@ import { Pressable, View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 
-/** Reserves the chart canvas for a centered message without adding a nested card. */
+/** Provides centered chart feedback with a compact option for known zero or missing counts. */
 export default function AnalyticsChartEmptyState({
   title,
   description,
   icon = "chart-timeline-variant",
   onRetry,
+  compact = false,
 }: {
   title: string;
   description: string;
   icon?: ComponentProps<typeof MaterialCommunityIcons>["name"];
   onRetry?: () => void;
+  compact?: boolean;
 }) {
   return (
     <View
       testID="analytics-chart-empty-state"
-      style={{ minHeight: 196 }}
-      className="items-center justify-center px-4 py-6"
+      style={compact ? undefined : { minHeight: 196 }}
+      className={`items-center justify-center px-4 ${compact ? "py-3" : "py-6"}`}
     >
       {/* Quiet chart identity and centered explanation */}
       <MaterialCommunityIcons

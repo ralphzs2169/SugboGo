@@ -19,7 +19,6 @@ export default function AnalyticsPocketTrends({
       metric={report.metrics.saves}
       label="Recorded saves"
       interval="weekly"
-      kind="bar"
       note={report.measurement_note}
       retry={retry}
     >

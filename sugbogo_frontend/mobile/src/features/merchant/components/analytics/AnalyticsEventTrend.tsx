@@ -19,7 +19,6 @@ export default function AnalyticsEventTrend({
   metric,
   label,
   interval,
-  kind = "line",
   retry,
   note,
   children,
@@ -27,7 +26,6 @@ export default function AnalyticsEventTrend({
   metric: AnalyticsEventMetric;
   label: string;
   interval: AnalyticsInterval;
-  kind?: "line" | "bar";
   retry: () => void;
   note?: string;
   children?: ReactNode;
@@ -77,7 +75,6 @@ export default function AnalyticsEventTrend({
           label={label}
           points={metric.series}
           interval={interval}
-          kind={kind}
           range={metric.sources.current.period}
           total={
             metric.sources.current.availability === "unavailable"

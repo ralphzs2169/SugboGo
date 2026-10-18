@@ -171,6 +171,15 @@ describe("lazy Core Plus detail reports", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText("1 hr")).toBeTruthy();
+    expect(screen.getByTestId("analytics-sentiment-fill-positive")).toHaveStyle(
+      { width: "66.67%" },
+    );
+    expect(screen.getByTestId("analytics-sentiment-fill-neutral")).toHaveStyle({
+      width: "33.33%",
+    });
+    expect(screen.getByTestId("analytics-sentiment-fill-negative")).toHaveStyle(
+      { width: "0%" },
+    );
   });
 
   it("withholds sentiment shares for insufficient samples and preserves zero/null reply measures", async () => {
@@ -205,9 +214,6 @@ describe("lazy Core Plus detail reports", () => {
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("pocket");
     await screen.findByText("No recorded activity in this period");
-    expect(screen.getByTestId("analytics-chart-empty-state")).toHaveStyle({
-      minHeight: 196,
-    });
     expect(screen.getByLabelText("Recorded saves: 0")).toBeTruthy();
     expect(
       screen.getByLabelText("Accounts that saved your business: 0"),
@@ -288,7 +294,7 @@ describe("lazy Core Plus detail reports", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Specialty: Friendly service" }),
     );
-    expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
+    expect(screen.getByTestId("analytics-column-2026-10-05")).toBeTruthy();
     expect(
       screen.queryByText("No vouches from these dates still count"),
     ).toBeNull();
@@ -334,8 +340,34 @@ describe("lazy Core Plus detail reports", () => {
     await screen.findByText("0 sec");
     expect(screen.getByLabelText("Positive: 2 reviews")).toBeTruthy();
     expect(screen.getByText(/Share unavailable/)).toBeTruthy();
-    expect(screen.getAllByTestId("analytics-sentiment-bar")).toHaveLength(3);
+    expect(screen.getAllByTestId("analytics-sentiment-bar")).toHaveLength(2);
+    expect(
+      screen.queryByTestId("analytics-sentiment-fill-positive"),
+    ).toBeNull();
+    expect(screen.getByTestId("analytics-sentiment-fill-negative")).toHaveStyle(
+      { width: "0%" },
+    );
   });
+
+  it.each([-1, 101, Number.NaN])(
+    "retains counts without drawing an invalid sentiment percentage %s",
+    async (percentage) => {
+      const report = reviewReport();
+      report.current.sentiment.positive.percentage = percentage;
+      jest
+        .mocked(service.getMerchantPlusReviewPerformance)
+        .mockResolvedValueOnce(plusSuccess(report));
+      const screen = await renderDetail("reviews");
+      await screen.findByLabelText("Positive: 2 reviews");
+      expect(
+        screen.queryByTestId("analytics-sentiment-fill-positive"),
+      ).toBeNull();
+      expect(screen.getByText(/Share unavailable/)).toBeTruthy();
+      expect(
+        screen.getByTestId("analytics-sentiment-fill-neutral"),
+      ).toHaveStyle({ width: "33.33%" });
+    },
+  );
 
   it("shows an empty review volume and null reply rate for an empty published cohort", async () => {
     const report = reviewReport();

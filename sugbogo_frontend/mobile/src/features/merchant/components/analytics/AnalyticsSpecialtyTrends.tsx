@@ -89,7 +89,7 @@ export default function AnalyticsSpecialtyTrends({
             key={selected.specialty_id}
             label={`${selected.specialty_name} vouches added that still count`}
             interval="weekly"
-            kind="bar"
+            range={report.meta.period}
             color={selectedColor}
             total={selected.added_and_still_valid}
             emptyTitle="No vouches from these dates still count"

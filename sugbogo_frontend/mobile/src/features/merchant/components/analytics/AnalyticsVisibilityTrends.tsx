@@ -31,7 +31,17 @@ export default function AnalyticsVisibilityTrends({
 }) {
   const focused = useIsFocused();
   const [metric, setMetric] = useState<VisibilityMetric>("profile_visits");
-  const [interval, setInterval] = useState<AnalyticsInterval>("daily");
+  const [intervalSelections, setIntervalSelections] = useState<
+    Partial<Record<MerchantAnalyticsPeriod, AnalyticsInterval>>
+  >({});
+  const interval =
+    intervalSelections[period] ?? (period === "90" ? "weekly" : "daily");
+  const selectInterval = (selected: AnalyticsInterval) => {
+    setIntervalSelections((current) => ({
+      ...current,
+      [period]: selected,
+    }));
+  };
   const query = useMerchantPlusVisibility(
     { period },
     interval,
@@ -70,7 +80,7 @@ export default function AnalyticsVisibilityTrends({
               { value: "weekly", label: "Weekly" },
             ]}
             value={interval}
-            onChange={setInterval}
+            onChange={selectInterval}
           />
           <PlusRequestState
             error={query.error}

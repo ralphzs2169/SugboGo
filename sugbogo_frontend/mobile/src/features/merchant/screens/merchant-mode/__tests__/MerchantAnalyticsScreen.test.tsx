@@ -134,7 +134,7 @@ describe("MerchantAnalyticsScreen", () => {
       .mockResolvedValue(plusSuccess(plusStatus()));
     const screen = await renderScreen();
     await screen.findByLabelText(/^Recorded profile visits: 24$/);
-    expect(screen.getAllByTestId("analytics-line-segment")).toHaveLength(2);
+    expect(screen.getAllByTestId(/^analytics-column-/)).toHaveLength(4);
     await fireEvent.press(
       screen.getByRole("button", { name: "Show: Impressions" }),
     );
@@ -164,6 +164,77 @@ describe("MerchantAnalyticsScreen", () => {
     expect(
       screen.getByLabelText("Accounts with your business in a Pocket: 18"),
     ).toBeTruthy();
+  });
+
+  it("defaults 90 days to weekly and preserves explicit daily choices through metric changes and refresh", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const screen = await renderScreen();
+    await screen.findByLabelText(/^Recorded profile visits: 24$/);
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+      { period: "30" },
+      "daily",
+      expect.anything(),
+    );
+
+    await fireEvent.press(screen.getByRole("button", { name: "Last 90 days" }));
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+        { period: "90" },
+        "weekly",
+        expect.anything(),
+      ),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Group by: Daily" }),
+    );
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+        { period: "90" },
+        "daily",
+        expect.anything(),
+      ),
+    );
+    const beforeMetricChange = jest.mocked(
+      plusService.getMerchantPlusVisibility,
+    ).mock.calls.length;
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Show: Visitor accounts" }),
+    );
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(
+      beforeMetricChange,
+    );
+    expect(screen.getByLabelText("Recorded visitor accounts: 12")).toBeTruthy();
+
+    await act(async () => {
+      screen
+        .getByTestId("merchant-analytics-scroll")
+        .props.refreshControl.props.onRefresh();
+    });
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(
+        beforeMetricChange + 1,
+      ),
+    );
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+      { period: "90" },
+      "daily",
+      expect.anything(),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+        { period: "7" },
+        "daily",
+        expect.anything(),
+      ),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Last 90 days" }));
+    expect(
+      screen.getByRole("button", { name: "Group by: Daily" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
   });
 
   it("opens only implemented Plus details with the selected reporting period", async () => {
@@ -251,7 +322,7 @@ describe("MerchantAnalyticsScreen", () => {
         name: /Recorded activity unavailable.*retry/i,
       }),
     ).toBeTruthy();
-    expect(screen.queryAllByTestId("analytics-line-segment")).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^analytics-column-/)).toHaveLength(0);
     expect(screen.queryByText(/Previous period ·/)).toBeNull();
     await fireEvent.press(
       screen.getByRole("button", { name: "Show Plus measurement details" }),
@@ -272,7 +343,7 @@ describe("MerchantAnalyticsScreen", () => {
       }),
     );
     await screen.findByLabelText(/^Recorded profile visits: 24$/);
-    expect(screen.getAllByTestId("analytics-line-segment")).toHaveLength(2);
+    expect(screen.getAllByTestId(/^analytics-column-/)).toHaveLength(4);
     expect(getAnalytics).toHaveBeenCalledTimes(1);
   });
 
@@ -289,11 +360,11 @@ describe("MerchantAnalyticsScreen", () => {
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderScreen();
     await screen.findByLabelText("Recorded profile visits: Unavailable");
-    expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
+    expect(screen.getByText("Recorded counts")).toBeTruthy();
     expect(
       screen.getByLabelText(/^Recorded profile visits, .*: 2$/),
     ).toBeTruthy();
-    expect(screen.queryAllByTestId("analytics-line-segment")).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^analytics-column-/)).toHaveLength(0);
     expect(
       screen.getByLabelText("Accounts with your business in a Pocket: 18"),
     ).toBeTruthy();
