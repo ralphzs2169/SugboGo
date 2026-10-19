@@ -6,13 +6,19 @@ import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { communityReviewsKey } from "@/features/community/hooks/communityReviewQueryKeys";
 import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
-import { clearSessionTokens } from "@/shared/api/storage.service";
+import {
+  clearSessionTokens,
+  getRefreshToken,
+} from "@/shared/api/storage.service";
+import { revokeRefreshToken } from "../../api/token.service";
 
 import { useLogout } from "../useLogout";
 
 jest.mock("@/shared/api/storage.service", () => ({
   clearSessionTokens: jest.fn(),
+  getRefreshToken: jest.fn(),
 }));
+jest.mock("../../api/token.service", () => ({ revokeRefreshToken: jest.fn() }));
 jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
   clearOfflineAccess: jest.fn(),
 }));
@@ -28,6 +34,8 @@ jest.mock("@/features/merchant/stores/merchantRegistrationStore", () => ({
 describe("useLogout account cleanup", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(getRefreshToken).mockResolvedValue("old-refresh");
+    jest.mocked(revokeRefreshToken).mockResolvedValue(undefined);
     beginAuthSession();
     useAuthStore.setState({
       user: {
@@ -77,6 +85,7 @@ describe("useLogout account cleanup", () => {
     });
 
     expect(clearSessionTokens).toHaveBeenCalledTimes(1);
+    expect(revokeRefreshToken).toHaveBeenCalledWith("old-refresh");
     expect(client.getQueryData(newestKey)).toBeUndefined();
     expect(client.getQueryData(helpfulKey)).toBeUndefined();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
@@ -85,4 +94,38 @@ describe("useLogout account cleanup", () => {
     unmount();
     client.clear();
   });
+
+  it.each(["unavailable", "pending", "missing"])(
+    "clears local credentials without waiting for remote revocation: %s",
+    async (scenario) => {
+      jest.mocked(clearSessionTokens).mockResolvedValue(true);
+      if (scenario === "unavailable") {
+        jest.mocked(revokeRefreshToken).mockRejectedValue(new Error("Offline"));
+      } else if (scenario === "pending") {
+        jest
+          .mocked(revokeRefreshToken)
+          .mockReturnValue(new Promise(() => undefined));
+      } else {
+        jest.mocked(getRefreshToken).mockResolvedValue(null);
+      }
+      const client = new QueryClient();
+      function Wrapper({ children }: PropsWithChildren) {
+        return (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        );
+      }
+      const { result, unmount } = await renderHook(() => useLogout(), {
+        wrapper: Wrapper,
+      });
+      await act(async () => {
+        await expect(result.current.logout()).resolves.toBe(true);
+      });
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(clearSessionTokens).toHaveBeenCalled();
+      if (scenario === "missing")
+        expect(revokeRefreshToken).not.toHaveBeenCalled();
+      unmount();
+      client.clear();
+    },
+  );
 });

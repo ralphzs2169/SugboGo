@@ -26,6 +26,11 @@ export async function refreshAccessToken(refreshToken) {
   return response.data;
 }
 
+/** Revokes refresh renewal through the public authentication client. */
+export async function revokeRefreshToken(refreshToken) {
+  await authClient.post("/auth/logout/", { refresh: refreshToken }, { timeout: 5000 });
+}
+
 export async function forgotPassword(email) {
   const response = await authClient.post("/auth/admin/forgot-password/", {
     email,
