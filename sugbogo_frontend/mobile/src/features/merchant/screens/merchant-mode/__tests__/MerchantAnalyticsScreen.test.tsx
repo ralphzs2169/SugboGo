@@ -41,13 +41,59 @@ import {
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
 const mockNavigate = jest.fn();
+const mockPresentInformation = jest.fn();
+const mockDismissInformation = jest.fn();
+const mockPresentPeriod = jest.fn();
 let mockFocused = true;
 jest.mock("../../../api/merchantRoutePlanning.service", () => ({
   getMerchantRoutePlanning: jest.fn(),
 }));
 jest.mock("../../../components/analytics/AnalyticsRoutePlanningSheet", () => ({
   __esModule: true,
-  default: () => null,
+  default: function MockRouteSheet({
+    sheetRef,
+  }: {
+    sheetRef: { current: unknown };
+  }) {
+    const { useImperativeHandle } = jest.requireActual("react");
+    useImperativeHandle(sheetRef, () => ({
+      present: () => mockPresentInformation("route"),
+      dismiss: jest.fn(),
+    }));
+    return null;
+  },
+}));
+jest.mock("@/shared/components/bottom-sheets/SelectionBottomSheet", () => ({
+  __esModule: true,
+  default: function MockPeriodSheet({
+    sheetRef,
+    options,
+    onSelect,
+    selectedValue,
+  }: {
+    sheetRef: { current: unknown };
+    options: { label: string; value: string }[];
+    onSelect: (value: string) => void;
+    selectedValue: string;
+  }) {
+    const { useImperativeHandle } = jest.requireActual("react");
+    const { Pressable, Text } = jest.requireActual("react-native");
+    useImperativeHandle(sheetRef, () => ({
+      present: mockPresentPeriod,
+      dismiss: jest.fn(),
+    }));
+    return options.map((option) => (
+      <Pressable
+        key={option.value}
+        accessibilityRole="button"
+        accessibilityLabel={option.label}
+        accessibilityState={{ selected: selectedValue === option.value }}
+        onPress={() => onSelect(option.value)}
+      >
+        <Text>{option.label}</Text>
+      </Pressable>
+    ));
+  },
 }));
 const mockRefetchProfile = jest.fn();
 let mockProfileError: unknown = null;
@@ -117,12 +163,34 @@ jest.mock(
   "../../../components/analytics/AnalyticsVisibilityMeasurementSheet",
   () => ({
     __esModule: true,
-    default: () => null,
+    default: function MockVisibilitySheet({
+      sheetRef,
+    }: {
+      sheetRef: { current: unknown };
+    }) {
+      const { useImperativeHandle } = jest.requireActual("react");
+      useImperativeHandle(sheetRef, () => ({
+        present: () => mockPresentInformation("visibility"),
+        dismiss: () => mockDismissInformation("visibility"),
+      }));
+      return null;
+    },
   }),
 );
 jest.mock("../../../components/analytics/AnalyitcsMeasurementSheet", () => ({
   __esModule: true,
-  default: () => null,
+  default: function MockBusinessSheet({
+    sheetRef,
+  }: {
+    sheetRef: { current: unknown };
+  }) {
+    const { useImperativeHandle } = jest.requireActual("react");
+    useImperativeHandle(sheetRef, () => ({
+      present: () => mockPresentInformation("business"),
+      dismiss: () => mockDismissInformation("business"),
+    }));
+    return null;
+  },
 }));
 jest.mock(
   "../../../components/analytics/AnalyticsVisibilityMetricTabs",
@@ -222,10 +290,356 @@ describe("MerchantAnalyticsScreen", () => {
     );
   }
 
-  it("renews the reporting cutoff before comparisons resume on return", async () => {
-    jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(
-      plusSuccess(plusStatus()),
+  function sectionPeriodControl(
+    screen: Awaited<ReturnType<typeof renderScreen>>,
+    title: string,
+  ) {
+    return within(
+      screen.getByRole("header", { name: title }).parent!,
+    ).getByRole("button", { name: /Change reporting period/ });
+  }
+
+  async function chooseSectionPeriod(
+    screen: Awaited<ReturnType<typeof renderScreen>>,
+    title: string,
+    days: "7" | "30" | "90",
+  ) {
+    await fireEvent.press(sectionPeriodControl(screen, title));
+    await fireEvent.press(
+      screen.getByRole("button", { name: `Last ${days} days` }),
     );
+  }
+
+  function allowCachedPlusAccess() {
+    const status = plusStatus();
+    client.setQueryData(merchantPlusStatusKey(42), status);
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(status));
+  }
+
+  it("targets independent periods through one sheet and refreshes each active dataset", async () => {
+    allowCachedPlusAccess();
+    const screen = await renderScreen();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    expect(
+      screen.getAllByRole("button", {
+        name: "Change reporting period, currently 30 days",
+      }),
+    ).toHaveLength(3);
+
+    await chooseSectionPeriod(screen, "Business overview", "7");
+    await waitFor(() => expect(getAnalytics).toHaveBeenLastCalledWith("7"));
+    expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(1);
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(1);
+
+    await fireEvent.press(sectionPeriodControl(screen, "Visibility trends"));
+    expect(
+      screen.getByRole("button", { name: "Last 30 days" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Last 90 days" }));
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+        { period: "90" },
+        "weekly",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(getAnalytics).toHaveBeenCalledTimes(2);
+    expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(1);
+
+    await chooseSectionPeriod(screen, "Route-planning activity", "7");
+    await waitFor(() =>
+      expect(getMerchantRoutePlanning).toHaveBeenLastCalledWith(
+        "7",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(
+      sectionPeriodControl(screen, "Business overview").props
+        .accessibilityLabel,
+    ).toContain("7 days");
+    expect(
+      sectionPeriodControl(screen, "Visibility trends").props
+        .accessibilityLabel,
+    ).toContain("90 days");
+    expect(
+      sectionPeriodControl(screen, "Route-planning activity").props
+        .accessibilityLabel,
+    ).toContain("7 days");
+    expect(getAnalytics).toHaveBeenCalledTimes(2);
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(2);
+    expect(getMerchantUnansweredReviews).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText(/Total vouches: 8.*Current/)).toBeTruthy();
+    expect(
+      screen.getByLabelText("8 published reviews waiting for your reply"),
+    ).toBeTruthy();
+
+    for (const [title, selected] of [
+      ["Visibility trends", "90"],
+      ["Business overview", "7"],
+      ["Route-planning activity", "7"],
+    ] as const) {
+      await fireEvent.press(sectionPeriodControl(screen, title));
+      expect(
+        screen.getByRole("button", { name: `Last ${selected} days` }).props
+          .accessibilityState.selected,
+      ).toBe(true);
+      await fireEvent.press(
+        screen.getByRole("button", { name: `Last ${selected} days` }),
+      );
+    }
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    const previousCounts = [
+      getAnalytics.mock.calls.length,
+      jest.mocked(plusService.getMerchantPlusVisibility).mock.calls.length,
+      jest.mocked(getMerchantRoutePlanning).mock.calls.length,
+    ];
+    await act(async () => {
+      screen
+        .getByTestId("merchant-analytics-scroll")
+        .props.refreshControl.props.onRefresh();
+    });
+    await waitFor(() => {
+      expect(getAnalytics).toHaveBeenCalledTimes(previousCounts[0] + 1);
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(
+        previousCounts[1] + 1,
+      );
+      expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(
+        previousCounts[2] + 1,
+      );
+    });
+    expect(getAnalytics).toHaveBeenLastCalledWith("7");
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+      { period: "90" },
+      "weekly",
+      expect.any(AbortSignal),
+    );
+    expect(getMerchantRoutePlanning).toHaveBeenLastCalledWith(
+      "7",
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("reuses fresh visibility and route periods without fetching unrelated datasets", async () => {
+    allowCachedPlusAccess();
+    const screen = await renderScreen();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    for (const days of ["90", "30", "90"] as const) {
+      await chooseSectionPeriod(screen, "Visibility trends", days);
+      await waitFor(() => expect(client.isFetching()).toBe(0));
+    }
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(2);
+    for (const days of ["7", "30", "7"] as const) {
+      await chooseSectionPeriod(screen, "Route-planning activity", days);
+      await waitFor(() => expect(client.isFetching()).toBe(0));
+    }
+    expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(2);
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
+    expect(getMerchantUnansweredReviews).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("Loading activity")).toBeNull();
+    expect(
+      screen.queryByLabelText("Loading route-planning activity"),
+    ).toBeNull();
+  });
+
+  it("loads visibility independently while the overview and route values remain usable", async () => {
+    allowCachedPlusAccess();
+    const screen = await renderScreen();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    let finish!: (
+      response: Awaited<
+        ReturnType<typeof plusService.getMerchantPlusVisibility>
+      >,
+    ) => void;
+    jest.mocked(plusService.getMerchantPlusVisibility).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await chooseSectionPeriod(screen, "Visibility trends", "90");
+    expect(screen.getByText("Loading visibility activity…")).toBeTruthy();
+    expect(screen.getByLabelText(/Recorded profile visits: 24/)).toBeTruthy();
+    expect(
+      screen.getByLabelText(/Route-planning method breakdown/),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Loading activity")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "About visibility trends" }),
+    );
+    expect(mockPresentInformation).toHaveBeenCalledWith("visibility");
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
+    expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(1);
+    await act(async () => finish(plusSuccess(visibilityReport("weekly"))));
+  });
+
+  it("loads route planning independently while the overview and visibility retain their periods", async () => {
+    allowCachedPlusAccess();
+    const screen = await renderScreen();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    let finish!: (
+      response: Awaited<ReturnType<typeof getMerchantRoutePlanning>>,
+    ) => void;
+    jest.mocked(getMerchantRoutePlanning).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await chooseSectionPeriod(screen, "Route-planning activity", "7");
+    expect(
+      screen.getByLabelText("Loading route-planning activity"),
+    ).toBeTruthy();
+    expect(screen.getByLabelText(/Recorded profile visits: 24/)).toBeTruthy();
+    expect(screen.queryByText("Loading visibility activity…")).toBeNull();
+    expect(screen.queryByLabelText("Loading activity")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "About route-planning activity" }),
+    );
+    expect(mockPresentInformation).toHaveBeenCalledWith("route");
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish({
+        success: true,
+        message: "Success",
+        data: routePlanningReport(),
+      }),
+    );
+  });
+
+  it("does not dismiss unopened measurement sheets when reporting controls change", async () => {
+    const screen = await renderScreen();
+    await screen.findByLabelText(/Recorded profile visits: 24/);
+    expect(mockPresentInformation).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await waitFor(() => expect(getAnalytics).toHaveBeenLastCalledWith("7"));
+    await fireEvent.press(screen.getByRole("tab", { name: "Impressions" }));
+    await fireEvent.press(screen.getByLabelText("Group by weekly"));
+
+    // Gorhom 5.2.14 can remain stuck if dismiss precedes its first present.
+    expect(mockDismissInformation).not.toHaveBeenCalled();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "How analytics are measured",
+      }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "About visibility trends",
+      }),
+    );
+    expect(mockPresentInformation.mock.calls).toEqual([
+      ["business"],
+      ["visibility"],
+    ]);
+  });
+
+  it("keeps all activity header controls usable during initial skeleton loading", async () => {
+    const pending = deferredAnalytics();
+    getAnalytics.mockReturnValue(pending.promise);
+    jest
+      .mocked(plusService.getMerchantPlusVisibility)
+      .mockReturnValue(new Promise(() => {}));
+    jest
+      .mocked(getMerchantRoutePlanning)
+      .mockReturnValue(new Promise(() => {}));
+    const screen = await renderScreen();
+
+    expect(screen.getByLabelText("Loading activity")).toBeTruthy();
+    const controls = screen.getAllByRole("button", {
+      name: "Change reporting period, currently 30 days",
+    });
+    expect(controls).toHaveLength(3);
+    for (const control of controls) {
+      await fireEvent.press(control);
+    }
+    expect(mockPresentPeriod).toHaveBeenCalledTimes(3);
+
+    for (const label of [
+      "How analytics are measured",
+      "About visibility trends",
+      "About route-planning activity",
+    ]) {
+      const information = screen.getByRole("button", { name: label });
+      expect(
+        within(information.parent!).getByRole("button", {
+          name: "Change reporting period, currently 30 days",
+        }),
+      ).toBeTruthy();
+      await fireEvent.press(information);
+    }
+    expect(mockPresentInformation.mock.calls).toEqual([
+      ["business"],
+      ["visibility"],
+      ["route"],
+    ]);
+    for (const title of ["Specialty Support", "Reviews needing replies"]) {
+      expect(
+        within(screen.getByRole("header", { name: title }).parent!).queryByRole(
+          "button",
+          { name: /Change reporting period/ },
+        ),
+      ).toBeNull();
+    }
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve(analyticsSuccess()));
+  });
+
+  it("changes only the overview period and keeps information available during its skeleton", async () => {
+    allowCachedPlusAccess();
+    const screen = await renderScreen();
+    await screen.findByLabelText(/Recorded profile visits: 24/);
+    const pending = deferredAnalytics();
+    getAnalytics.mockReturnValueOnce(pending.promise);
+
+    await fireEvent.press(
+      screen.getAllByRole("button", {
+        name: "Change reporting period, currently 30 days",
+      })[0],
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+
+    expect(screen.getByLabelText("Loading activity")).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", {
+        name: "Change reporting period, currently 7 days",
+      }),
+    ).toHaveLength(1);
+    expect(getAnalytics).toHaveBeenLastCalledWith("7");
+    await waitFor(() =>
+      expect(getMerchantRoutePlanning).toHaveBeenLastCalledWith(
+        "30",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+      { period: "30" },
+      "weekly",
+      expect.any(AbortSignal),
+    );
+    expect(getMerchantUnansweredReviews).toHaveBeenCalledTimes(1);
+    for (const label of [
+      "How analytics are measured",
+      "About visibility trends",
+      "About route-planning activity",
+    ]) {
+      await fireEvent.press(screen.getByRole("button", { name: label }));
+    }
+    expect(mockPresentInformation).toHaveBeenCalledWith("business");
+    expect(mockPresentInformation).toHaveBeenCalledWith("visibility");
+    expect(mockPresentInformation).toHaveBeenCalledWith("route");
+    expect(getAnalytics).toHaveBeenCalledTimes(2);
+    expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(1);
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve(analyticsSuccess()));
+  });
+
+  it("renews the reporting cutoff before comparisons resume on return", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
     const screen = await renderScreen();
     await waitFor(() =>
       expect(plusService.getMerchantPlusPocket).toHaveBeenCalled(),
@@ -271,9 +685,9 @@ describe("MerchantAnalyticsScreen", () => {
   });
 
   it("keeps expired comparisons disabled when the return refresh fails", async () => {
-    jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(
-      plusSuccess(plusStatus()),
-    );
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
     const screen = await renderScreen();
     await waitFor(() =>
       expect(plusService.getMerchantPlusPocket).toHaveBeenCalled(),
@@ -301,9 +715,9 @@ describe("MerchantAnalyticsScreen", () => {
   });
 
   it("does not refetch old pinned comparisons during pull-to-refresh", async () => {
-    jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(
-      plusSuccess(plusStatus()),
-    );
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
     const screen = await renderScreen();
     await waitFor(() =>
       expect(plusService.getMerchantPlusPocket).toHaveBeenCalled(),
@@ -314,7 +728,8 @@ describe("MerchantAnalyticsScreen", () => {
     jest.mocked(plusService.getMerchantPlusReviewPerformance).mockClear();
 
     await act(async () => {
-      screen.getByTestId("merchant-analytics-scroll")
+      screen
+        .getByTestId("merchant-analytics-scroll")
         .props.refreshControl.props.onRefresh();
     });
     expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
@@ -386,12 +801,12 @@ describe("MerchantAnalyticsScreen", () => {
 
   it("changes route-planning periods and includes the independent section in pull-to-refresh", async () => {
     const screen = await renderScreen();
-    await screen.findByLabelText("Recorded route requests: 4");
+    await screen.findByLabelText(/Route-planning method breakdown/);
     expect(getMerchantRoutePlanning).toHaveBeenLastCalledWith(
       "30",
       expect.anything(),
     );
-    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await chooseSectionPeriod(screen, "Route-planning activity", "7");
     await waitFor(() =>
       expect(getMerchantRoutePlanning).toHaveBeenLastCalledWith(
         "7",
@@ -620,7 +1035,7 @@ describe("MerchantAnalyticsScreen", () => {
       params: { report: "pocket", period: "7" },
     });
     await fireEvent.press(
-      screen.getByRole("button", { name: "View Plus specialty trends" }),
+      screen.getByRole("button", { name: "View specialty trends" }),
     );
     expect(mockNavigate).toHaveBeenLastCalledWith({
       pathname: "/(merchant)/analytics/[report]",

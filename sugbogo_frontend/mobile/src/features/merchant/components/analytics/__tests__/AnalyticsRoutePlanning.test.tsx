@@ -31,6 +31,8 @@ describe("route-planning activity presentation", () => {
   it("preserves the existing method chart and exact counts with a measurement action", async () => {
     const screen = await render(
       <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
         data={routePlanningReport()}
         loading={false}
         error={null}
@@ -52,6 +54,8 @@ describe("route-planning activity presentation", () => {
   it("keeps genuine zero counts and no fabricated bar or Retry", async () => {
     const screen = await render(
       <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
         data={routePlanningReport({
           total_requests: 0,
           distinct_explorer_accounts: 0,
@@ -74,6 +78,8 @@ describe("route-planning activity presentation", () => {
   it("preserves available counts when part of a report is unavailable", async () => {
     const screen = await render(
       <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
         data={routePlanningReport({
           distinct_explorer_accounts: null,
           jeepney_requests: null,
@@ -101,6 +107,8 @@ describe("route-planning activity presentation", () => {
   it("distinguishes unavailable source counts from zero and offers recovery", async () => {
     const screen = await render(
       <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
         data={routePlanningReport({
           total_requests: null,
           distinct_explorer_accounts: null,
@@ -128,13 +136,21 @@ describe("route-planning activity presentation", () => {
   });
   it("has independent loading and preserves values alongside a refresh error", async () => {
     const screen = await render(
-      <AnalyticsRoutePlanning loading error={null} onRetry={retry} />,
+      <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
+        loading
+        error={null}
+        onRetry={retry}
+      />,
     );
     expect(
       screen.getByLabelText("Loading route-planning activity"),
     ).toBeTruthy();
     await screen.rerender(
       <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
         data={routePlanningReport()}
         loading={false}
         error={new Error("Offline")}
@@ -149,9 +165,11 @@ describe("route-planning activity presentation", () => {
     );
     expect(retry).toHaveBeenCalledTimes(1);
   });
-  it("retains partial recorded values and explains collection start without a misleading date", async () => {
+  it("retains partial recorded values with access to tracking details", async () => {
     const screen = await render(
       <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
         data={routePlanningReport({
           tracking_started_at: "2026-10-16T16:30:00Z",
           meta: {
@@ -168,9 +186,12 @@ describe("route-planning activity presentation", () => {
       />,
     );
     expect(screen.getByLabelText("Distinct explorer accounts: 3")).toBeTruthy();
-    expect(
-      JSON.stringify(screen.getByText(/Tracking began/).props.children),
-    ).not.toContain("Invalid Date");
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "About route-planning activity",
+      }),
+    );
+    expect(mockPresent).toHaveBeenCalledTimes(1);
   });
   it.each([
     "route_intent_collection_missing",
@@ -180,6 +201,8 @@ describe("route-planning activity presentation", () => {
     async (reason) => {
       const screen = await render(
         <AnalyticsRoutePlanning
+          period="30"
+          onOpenPeriod={() => {}}
           data={routePlanningReport({
             total_requests: null,
             distinct_explorer_accounts: null,
@@ -207,6 +230,8 @@ describe("route-planning activity presentation", () => {
   it("does not show zero or Retry for dates entirely before tracking", async () => {
     const screen = await render(
       <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
         data={routePlanningReport({
           total_requests: null,
           distinct_explorer_accounts: null,
@@ -232,6 +257,8 @@ describe("route-planning activity presentation", () => {
   it("provides section Retry when the initial request fails", async () => {
     const screen = await render(
       <AnalyticsRoutePlanning
+        period="30"
+        onOpenPeriod={() => {}}
         loading={false}
         error={new Error("Offline")}
         onRetry={retry}

@@ -1,11 +1,8 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "expo-router";
 import { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
-  ScrollView,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -13,7 +10,6 @@ import {
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import SafePressable from "@/shared/components/SafePressable";
 import SegmentedControl from "@/shared/components/SegmentedControl";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
@@ -26,6 +22,7 @@ import type {
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 
 import AnalyticsEventTrend from "./AnalyticsEventTrend";
+import AnalyticsHeaderControls from "./AnalyticsHeaderControls";
 import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
 import AnalyticsVisibilityMeasurementSheet from "./AnalyticsVisibilityMeasurementSheet";
 import AnalyticsVisibilityMetricTabs from "./AnalyticsVisibilityMetricTabs";
@@ -52,8 +49,10 @@ const INTERVAL_OPTIONS = [
  */
 export default function AnalyticsVisibilityTrends({
   period,
+  onOpenPeriod,
 }: {
   period: MerchantAnalyticsPeriod;
+  onOpenPeriod: () => void;
 }) {
   const focused = useIsFocused();
   const { fontScale } = useWindowDimensions();
@@ -84,13 +83,10 @@ export default function AnalyticsVisibilityTrends({
   const currentMetric = query.data?.metrics[metric];
 
   const selectMetric = (selected: VisibilityMetric) => {
-    measurementSheetRef.current?.dismiss();
     setMetric(selected);
   };
 
   const selectInterval = (selected: AnalyticsInterval) => {
-    measurementSheetRef.current?.dismiss();
-
     setIntervalSelections((current) => ({
       ...current,
       [period]: selected,
@@ -104,22 +100,13 @@ export default function AnalyticsVisibilityTrends({
 
         description="See how explorers interact with your business over time."
         accessory={
-          query.data ? (
-            <SafePressable
-              onPress={() => measurementSheetRef.current?.present()}
-              accessibilityRole="button"
-              accessibilityLabel="About visibility trends"
-              accessibilityHint="Opens information about recorded activity and chart measurements"
-              className="h-11 w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
-            >
-              <MaterialCommunityIcons
-                name="information-outline"
-                size={22}
-                color={theme.extends.colors.text.secondary}
-                accessible={false}
-              />
-            </SafePressable>
-          ) : undefined
+          <AnalyticsHeaderControls
+            period={period}
+            onOpenPeriod={onOpenPeriod}
+            onOpenInformation={() => measurementSheetRef.current?.present()}
+            informationLabel="About visibility trends"
+            informationHint="Opens information about recorded activity and chart measurements"
+          />
         }
       >
         <View className="gap-4">
@@ -218,16 +205,14 @@ export default function AnalyticsVisibilityTrends({
       </AnalyticsOverviewSection>
 
       {/* Shared Gorhom sheet pattern; mounted outside chart scrolling */}
-      {query.data && (
-        <AnalyticsVisibilityMeasurementSheet
-          sheetRef={measurementSheetRef}
-          metric={query.data.metrics[metric]}
-          metricKey={metric}
-          metricLabel={selectedMetric.label}
-          interval={query.data.interval}
-          note={query.data.measurement_note}
-        />
-      )}
+      <AnalyticsVisibilityMeasurementSheet
+        sheetRef={measurementSheetRef}
+        metric={query.data?.metrics[metric]}
+        metricKey={metric}
+        metricLabel={selectedMetric.label}
+        interval={interval}
+        note={query.data?.measurement_note}
+      />
     </>
   );
 }

@@ -1,5 +1,7 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View, useWindowDimensions } from "react-native";
 
+import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import { shadows } from "@/shared/styles/shadows";
 
@@ -9,6 +11,7 @@ import type {
   PlusReviewPerformanceReport,
   PlusVisibilityReport,
 } from "../../types/merchantPlusAnalytics.types";
+
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 import {
   formatKpiTrend,
@@ -38,25 +41,7 @@ type MetricCardProps = {
 
 type TrendTone = "increase" | "decrease" | "stable";
 
-const TREND_STYLES = {
-  increase: {
-    badge: "bg-green-50",
-    text: "text-green-800",
-  },
-  decrease: {
-    badge: "bg-red-50",
-    text: "text-red-800",
-  },
-  stable: {
-    badge: "bg-slate-100",
-    text: "text-slate-700",
-  },
-} as const;
-
-/**
- * Selects a visual tone from the signed comparison label.
- * Unknown formats remain neutral rather than implying a direction.
- */
+/** Identifies a comparison direction without assuming unknown formats. */
 function getTrendTone(text: string): TrendTone {
   const normalized = text.trim();
 
@@ -71,15 +56,7 @@ function getTrendTone(text: string): TrendTone {
   return "stable";
 }
 
-/**
- * Displays a compact, color-coded comparison while retaining
- * readable direction and period context.
- */
-
-/**
- * Shows an approved comparison as one compact,
- * direction-coded line without a separate badge.
- */
+/** Shows approved previous-period comparisons as understated text. */
 function TrendComparison({
   trend,
   compact = false,
@@ -110,8 +87,8 @@ function TrendComparison({
 }
 
 /**
- * Displays a merchant metric with compact context, an optional
- * progress indicator, and an approved previous-period comparison.
+ * Displays a business metric with supporting context,
+ * optional progress, and previous-period comparison.
  */
 function MetricCard({
   label,
@@ -190,15 +167,18 @@ function MetricCard({
         </View>
       )}
 
-      {/* Backend-approved comparison */}
+      {/* Previous-period comparison */}
       {trend && <TrendComparison trend={trend} compact={!fullWidth} />}
     </View>
   );
 }
 
 /**
- * Displays selected-period business activity alongside current
- * valid vouch support, with reply performance in a full-width card.
+ * Presents selected-period business metrics alongside current
+ * vouch support and review-reply performance.
+ *
+ * Includes a non-interactive period-selector preview above
+ * the existing KPI layout.
  */
 export default function AnalyticsActivityOverview({
   report,
@@ -207,6 +187,7 @@ export default function AnalyticsActivityOverview({
   plusPocket,
 }: AnalyticsActivityOverviewProps) {
   const { fontScale, width } = useWindowDimensions();
+
   const useSingleColumn = fontScale >= 1.5 || width < 340;
 
   const visibilityAvailable =
@@ -245,7 +226,7 @@ export default function AnalyticsActivityOverview({
   const rowClassName = useSingleColumn ? "gap-3" : "flex-row gap-3";
 
   return (
-    <View className="gap-3">
+    <View className="gap-4">
       {/* Four compact business overview metrics */}
       <View testID="business-overview-grid" className="gap-3">
         <View className={rowClassName}>

@@ -27,7 +27,7 @@ import { PlusReportContext } from "./AnalyticsPlusStates";
 
 type Props = {
   sheetRef: RefObject<BottomSheetModal | null>;
-  metric: AnalyticsEventMetric;
+  metric?: AnalyticsEventMetric;
   metricKey: VisibilityMetric;
   metricLabel: string;
   interval: AnalyticsInterval;
@@ -271,23 +271,27 @@ export default function AnalyticsVisibilityMeasurementSheet({
           {showRules && (
             <View className="gap-5 pb-4 pt-2">
               {/* Date range and measurement rules */}
-              <View className="gap-2">
-                <AppText
-                  weight="semibold"
-                  className="text-sm text-text-primary"
-                >
-                  Reporting dates
-                </AppText>
+              {metric && (
+                <View className="gap-2">
+                  <AppText
+                    weight="semibold"
+                    className="text-sm text-text-primary"
+                  >
+                    Reporting dates
+                  </AppText>
 
-                <AppText className="text-sm leading-6 text-text-secondary">
-                  {formatAnalyticsDate(
-                    metric.sources.current.period.start_date,
-                  )}{" "}
-                  –{" "}
-                  {formatAnalyticsDate(metric.sources.current.period.end_date)}{" "}
-                  · Manila time
-                </AppText>
-              </View>
+                  <AppText className="text-sm leading-6 text-text-secondary">
+                    {formatAnalyticsDate(
+                      metric.sources.current.period.start_date,
+                    )}{" "}
+                    –{" "}
+                    {formatAnalyticsDate(
+                      metric.sources.current.period.end_date,
+                    )}{" "}
+                    · Manila time
+                  </AppText>
+                </View>
+              )}
 
               <View className="gap-2">
                 <AppText
@@ -304,39 +308,41 @@ export default function AnalyticsVisibilityMeasurementSheet({
               </View>
 
               {/* Existing source context and previous-period limitations */}
-              <View className="gap-2">
-                <AppText
-                  weight="semibold"
-                  className="text-sm text-text-primary"
-                >
-                  Source and comparison information
-                </AppText>
-
-                <PlusReportContext
-                  meta={metric.sources.current}
-                  note={
-                    note ??
-                    "Recorded activity may be incomplete. Missing dates are not confirmed zero activity."
-                  }
-                >
-                  <AppText className="text-sm leading-6 text-text-secondary">
-                    Previous period:{" "}
-                    {formatAnalyticsDate(
-                      metric.sources.previous.period.start_date,
-                    )}{" "}
-                    –{" "}
-                    {formatAnalyticsDate(
-                      metric.sources.previous.period.end_date,
-                    )}
-                    . Recorded count:{" "}
-                    {formatAnalyticsCount(metric.previous_value)}.
-                    {metric.previous_value === null
-                      ? " The previous count is unavailable."
-                      : ""}{" "}
-                    These records cannot reliably establish business growth.
+              {metric && (
+                <View className="gap-2">
+                  <AppText
+                    weight="semibold"
+                    className="text-sm text-text-primary"
+                  >
+                    Source and comparison information
                   </AppText>
-                </PlusReportContext>
-              </View>
+
+                  <PlusReportContext
+                    meta={metric.sources.current}
+                    note={
+                      note ??
+                      "Recorded activity may be incomplete. Missing dates are not confirmed zero activity."
+                    }
+                  >
+                    <AppText className="text-sm leading-6 text-text-secondary">
+                      Previous period:{" "}
+                      {formatAnalyticsDate(
+                        metric.sources.previous.period.start_date,
+                      )}{" "}
+                      –{" "}
+                      {formatAnalyticsDate(
+                        metric.sources.previous.period.end_date,
+                      )}
+                      . Recorded count:{" "}
+                      {formatAnalyticsCount(metric.previous_value)}.
+                      {metric.previous_value === null
+                        ? " The previous count is unavailable."
+                        : ""}{" "}
+                      These records cannot reliably establish business growth.
+                    </AppText>
+                  </PlusReportContext>
+                </View>
+              )}
             </View>
           )}
         </View>

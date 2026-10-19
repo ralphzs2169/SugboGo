@@ -17,7 +17,7 @@ import { formatAnalyticsTimestamp } from "../../utils/merchantAnalytics.utils";
 
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
-  report: MerchantStandardAnalytics;
+  report?: MerchantStandardAnalytics | null;
 };
 
 /**
@@ -29,8 +29,8 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
   const insets = useSafeAreaInsets();
   const [showRules, setShowRules] = useState(false);
 
-  const visibility = report.sources.visibility;
-  const currentDayIncomplete = report.meta.partial_reasons.includes(
+  const visibility = report?.sources.visibility;
+  const currentDayIncomplete = report?.meta.partial_reasons.includes(
     "current_day_incomplete",
   );
 
@@ -160,7 +160,8 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
 
             <AppText className="text-sm leading-6 text-text-secondary">
               Total vouches, Pocket holders, and total published reviews reflect
-              your business's current records, regardless of the selected dates.
+              your business&apos;s current records, regardless of the selected
+              dates.
             </AppText>
           </View>
         </View>
@@ -184,16 +185,18 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
             </AppText>
 
             <AppText className="text-sm leading-6 text-text-secondary">
-              {visibility.coverage_verified
-                ? visibility.is_partial
-                  ? "Some activity may be incomplete or delayed."
-                  : "Recorded activity is shown for the selected dates."
-                : "Some activity may not be recorded. Your displayed totals reflect the available records."}
+              {!visibility
+                ? "Report-specific availability information will appear once your analytics load."
+                : visibility.coverage_verified
+                  ? visibility.is_partial
+                    ? "Some activity may be incomplete or delayed."
+                    : "Recorded activity is shown for the selected dates."
+                  : "Some activity may not be recorded. Your displayed totals reflect the available records."}
             </AppText>
 
             {currentDayIncomplete && (
               <AppText className="text-sm leading-6 text-text-secondary">
-                Today's reporting period is still in progress.
+                Today&apos;s reporting period is still in progress.
               </AppText>
             )}
 
@@ -238,9 +241,9 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
                 </AppText>
 
                 <AppText className="text-sm leading-6 text-text-secondary">
-                  Each account's visits and saves are each recorded at most once
-                  per business per UTC day. Visitor accounts are counted once
-                  across the selected period.
+                  Each account&apos;s visits and saves are each recorded at most
+                  once per business per UTC day. Visitor accounts are counted
+                  once across the selected period.
                 </AppText>
               </View>
 
@@ -259,18 +262,21 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
                   counts can change when records no longer qualify.
                 </AppText>
 
-                <AppText className="text-xs leading-5 text-text-secondary">
-                  Replies checked through{" "}
-                  {formatAnalyticsTimestamp(report.reviews.reply_cutoff)} ·
-                  Manila time.
-                </AppText>
-
-                {report.reviews.excluded_reply_timestamp_count > 0 && (
+                {report && (
                   <AppText className="text-xs leading-5 text-text-secondary">
-                    Replies with unusable timing data are excluded from reply
-                    counts.
+                    Replies checked through{" "}
+                    {formatAnalyticsTimestamp(report.reviews.reply_cutoff)} ·
+                    Manila time.
                   </AppText>
                 )}
+
+                {report &&
+                  report.reviews.excluded_reply_timestamp_count > 0 && (
+                    <AppText className="text-xs leading-5 text-text-secondary">
+                      Replies with unusable timing data are excluded from reply
+                      counts.
+                    </AppText>
+                  )}
 
                 <AppText className="text-xs leading-5 text-text-secondary">
                   A dash indicates an unavailable reply percentage, not 0%.
@@ -301,7 +307,7 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
                 </AppText>
 
                 <AppText className="text-sm leading-6 text-text-secondary">
-                  {visibility.data_through
+                  {visibility?.data_through
                     ? `Visit and save data available through ${formatAnalyticsTimestamp(
                         visibility.data_through,
                       )} · Manila time.`

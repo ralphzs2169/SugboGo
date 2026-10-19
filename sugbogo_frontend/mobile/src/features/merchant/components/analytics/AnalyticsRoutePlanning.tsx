@@ -7,17 +7,20 @@ import Svg, { Circle, G } from "react-native-svg";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import SafePressable from "@/shared/components/SafePressable";
 import Skeleton from "@/shared/components/Skeleton";
 
 import type { RoutePlanningAnalytics } from "../../types/routePlanningAnalytics.types";
+import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
+import AnalyticsHeaderControls from "./AnalyticsHeaderControls";
 import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
 import AnalyticsRoutePlanningSheet from "./AnalyticsRoutePlanningSheet";
 
 type Props = {
+  period: MerchantAnalyticsPeriod;
+  onOpenPeriod: () => void;
   data?: RoutePlanningAnalytics;
   loading: boolean;
   error: unknown;
@@ -210,6 +213,8 @@ function MetricRow({
 
 /** Presents method-level recorded guidance interest without implying completed visits. */
 export default function AnalyticsRoutePlanning({
+  period,
+  onOpenPeriod,
   data,
   loading,
   error,
@@ -284,20 +289,13 @@ export default function AnalyticsRoutePlanning({
         title="Route-planning activity"
         description="How explorers requested directions"
         accessory={
-          <SafePressable
-            onPress={() => sheetRef.current?.present()}
-            accessibilityRole="button"
-            accessibilityLabel="About route-planning activity"
-            accessibilityHint="Opens measurement definitions and limitations"
-            className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-muted"
-          >
-            <MaterialCommunityIcons
-              accessible={false}
-              name="information-outline"
-              size={22}
-              color={theme.extends.colors.text.secondary}
-            />
-          </SafePressable>
+          <AnalyticsHeaderControls
+            period={period}
+            onOpenPeriod={onOpenPeriod}
+            onOpenInformation={() => sheetRef.current?.present()}
+            informationLabel="About route-planning activity"
+            informationHint="Opens measurement definitions and limitations"
+          />
         }
       >
         {/* Independent loading and persistent request recovery */}
