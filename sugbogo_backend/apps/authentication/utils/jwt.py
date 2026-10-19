@@ -4,6 +4,9 @@ from django.db import transaction
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.utils import datetime_from_epoch
+from rest_framework.exceptions import PermissionDenied
+
+from apps.users.models import User
 
 REMEMBER_ME_OFF_LIFETIME = timedelta(hours=12)
 
@@ -15,7 +18,17 @@ def issue_tokens(user, remember_me: bool):
     If remember_me is False, the refresh token's lifetime is shortened
     from the SIMPLE_JWT default (30 days) down to 12 hours.
     """
-    refresh = RefreshToken.for_user(user)
+    try:
+        account = User.objects.select_for_update().get(pk=user.pk)
+    except User.DoesNotExist as exc:
+        raise PermissionDenied("This account is no longer available.") from exc
+    if (
+        not account.is_active
+        or not account.EMAIL_VERIFIED
+        or account.password != user.password
+    ):
+        raise PermissionDenied("This account has changed. Please sign in again.")
+    refresh = RefreshToken.for_user(account)
 
     if not remember_me:
         refresh.set_exp(lifetime=REMEMBER_ME_OFF_LIFETIME)

@@ -62,7 +62,7 @@ class OAuthAccountService:
             # If the user has previously logged in with this OAuth provider, 
             # we update their last login timestamp and return the associated User.
             if oauth_account:
-                user = oauth_account.USER
+                user = User.objects.select_for_update().get(pk=oauth_account.USER_id)
                 OAuthAccountService._validate_user_access(user)
 
                 oauth_account.OAUTH_LAST_LOGIN = timezone.now()
@@ -86,7 +86,7 @@ class OAuthAccountService:
 
                 return user
 
-            user = User.objects.filter(
+            user = User.objects.select_for_update().filter(
                 USER_EMAIL__iexact=oauth_user.email
             ).first()
 

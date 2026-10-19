@@ -44,6 +44,18 @@ export default function AccountSettingsScreen() {
             ? "You sign in with a linked account. Use email recovery to create a password."
             : "Keep your account secure with a password you don't use elsewhere."}
         </AppText>
+
+        {/* Account access and retention */}
+        <View className="mt-6">
+          <ProfileMenuSection title="Account access">
+            <ProfileMenuItem
+              title="Deactivate account"
+              icon="account-cancel-outline"
+              variant="danger"
+              onPress={() => router.push("/profile/deactivate-account" as Href)}
+            />
+          </ProfileMenuSection>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

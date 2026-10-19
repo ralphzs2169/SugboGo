@@ -35,6 +35,19 @@ class ChangePasswordSerializer(serializers.Serializer):
         return attrs
 
 
+class DeactivateAccountSerializer(serializers.Serializer):
+    """Requires current-password proof and explicit account-deactivation consent."""
+
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    confirm_deactivation = serializers.BooleanField()
+
+    def validate_confirm_deactivation(self, value):
+        """Rejects a request that does not explicitly confirm deactivation."""
+        if not value:
+            raise serializers.ValidationError("Confirm that you want to deactivate your account.")
+        return value
+
+
 class LoginResponseSerializer(serializers.Serializer):
     user = UserSerializer(read_only=True)
     access = serializers.CharField(read_only=True)

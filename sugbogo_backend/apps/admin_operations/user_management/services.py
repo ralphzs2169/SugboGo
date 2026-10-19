@@ -313,7 +313,7 @@ class UserManagementService:
         actor: User,
         user_id: int,
     ) -> User:
-        """Reactivates an eligible suspended user."""
+        """Reactivates an eligible suspended or disabled user after manual review."""
         target_user = UserManagementService._get_locked_user(
             user_id,
         )
@@ -323,9 +323,12 @@ class UserManagementService:
             target_user=target_user,
         )
 
-        if target_user.USER_STATUS != User.UserStatus.SUSPENDED:
+        if target_user.USER_STATUS not in (
+            User.UserStatus.SUSPENDED,
+            User.UserStatus.DISABLED,
+        ):
             raise ValidationError(
-                "Only suspended users can be reactivated.",
+                "Only suspended or disabled users can be reactivated.",
             )
 
         target_user.USER_STATUS = User.UserStatus.ACTIVE

@@ -9,6 +9,7 @@ import {
   ForgotPasswordRequest,
   ResetPasswordRequest,
   ChangePasswordRequest,
+  DeactivateAccountRequest,
 } from "../types/auth.types";
 import {
   ApiMessageResponse,
@@ -191,5 +192,14 @@ export function changePassword(
 ): Promise<ApiResponse<null>> {
   return request(
     apiClient.post<ApiResponse<null>>("/auth/change-password/", data),
+  );
+}
+
+/** Disables the signed-in account while preserving its stored contributions. */
+export function deactivateAccount(
+  data: DeactivateAccountRequest,
+): Promise<ApiResponse<null>> {
+  return request(
+    apiClient.post<ApiResponse<null>>("/auth/deactivate-account/", data),
   );
 }

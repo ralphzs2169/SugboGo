@@ -353,7 +353,7 @@ class AdminUserManagementAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_disabled_user_cannot_be_reactivated(self):
+    def test_disabled_user_can_be_manually_reactivated(self):
         self.explorer.USER_STATUS = User.UserStatus.DISABLED
         self.explorer.save(
             update_fields=[
@@ -367,7 +367,9 @@ class AdminUserManagementAPITests(APITestCase):
             self.explorer,
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.explorer.refresh_from_db()
+        self.assertEqual(self.explorer.USER_STATUS, User.UserStatus.ACTIVE)
 
     def test_pending_user_cannot_be_reactivated(self):
         self.explorer.USER_STATUS = User.UserStatus.PENDING

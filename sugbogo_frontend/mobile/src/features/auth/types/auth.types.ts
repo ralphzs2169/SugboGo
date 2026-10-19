@@ -68,3 +68,9 @@ export interface ChangePasswordRequest {
   new_password: string;
   confirm_password: string;
 }
+
+/** Password proof and explicit consent for account deactivation. */
+export interface DeactivateAccountRequest {
+  current_password: string;
+  confirm_deactivation: true;
+}
