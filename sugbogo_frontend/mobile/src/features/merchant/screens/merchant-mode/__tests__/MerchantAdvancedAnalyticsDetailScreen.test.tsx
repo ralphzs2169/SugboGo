@@ -170,10 +170,8 @@ describe("advanced Plus detail integration", () => {
   it("uses stored insights' own coverage without a date selector or generation request", async () => {
     const screen = await renderDetail("review-insights");
     await screen.findByText("Stored narrative from eligible reviews.");
-    expect(screen.getByText(/Review summary · needs updating/)).toBeTruthy();
-    expect(
-      screen.getByText(/Based on 6 of 8 reviews that qualified for analysis/),
-    ).toBeTruthy();
+    expect(screen.getByText("This summary needs updating")).toBeTruthy();
+    expect(screen.getByText(/Based on 6 reviews/)).toBeTruthy();
     expect(screen.getByText(/Sep 10/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Last 90 days" })).toBeNull();
     expect(service.getMerchantPlusStoredInsights).toHaveBeenCalledWith(
@@ -196,6 +194,66 @@ describe("advanced Plus detail integration", () => {
     expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
   });
 
+  it("keeps the review insights header and sheet available during loading", async () => {
+    let finish!: (
+      value: Awaited<ReturnType<typeof service.getMerchantPlusStoredInsights>>,
+    ) => void;
+    jest.mocked(service.getMerchantPlusStoredInsights).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const screen = await renderDetail("review-insights");
+    await screen.findByLabelText("Loading review insights");
+    expect(screen.getByRole("header", { name: "Review summary" })).toBeTruthy();
+    expect(screen.getByText("Commonly mentioned")).toBeTruthy();
+    expect(screen.queryByText("Reporting period")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Show review summary details" }),
+    );
+    expect(screen.getByText("Summary and common mentions")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close review summary information" }),
+    );
+    await act(async () => finish(plusSuccess(storedInsightsReport())));
+    await screen.findByText("Stored narrative from eligible reviews.");
+  });
+
+  it("recovers review insights errors without losing cached content", async () => {
+    jest
+      .mocked(service.getMerchantPlusStoredInsights)
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    const screen = await renderDetail("review-insights");
+    await screen.findByText("Unable to load review insights");
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Unable to load review insights.*retry/i,
+      }),
+    );
+    await screen.findByText("Stored narrative from eligible reviews.");
+    jest
+      .mocked(service.getMerchantPlusStoredInsights)
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    await act(async () =>
+      screen
+        .getByTestId("advanced-plus-detail-scroll")
+        .props.refreshControl.props.onRefresh(),
+    );
+    await screen.findByText("Unable to refresh review insights");
+    expect(
+      screen.getByText("Stored narrative from eligible reviews."),
+    ).toBeTruthy();
+    expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
+  });
+
   it("handles a missing stored summary without fabricating content", async () => {
     const report = storedInsightsReport();
     report.stored_summary = null;
@@ -215,18 +273,24 @@ describe("advanced Plus detail integration", () => {
       .mocked(service.getMerchantPlusStoredInsights)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("review-insights");
-    await screen.findByText("Review summary unavailable");
+    await screen.findByText("More reviews are needed");
     expect(
       screen.queryByText("Stored narrative from eligible reviews."),
     ).toBeNull();
     expect(screen.queryByText("Coffee")).toBeNull();
+    expect(screen.queryByText(/Based on 6 reviews/)).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Show review summary details" }),
+    );
     expect(screen.getByText(/Based on 6 of 8 reviews/)).toBeTruthy();
   });
 
   it("shows all weekdays in a heatmap and inspects exact counts without another request", async () => {
     const screen = await renderDetail("timing");
     await screen.findByLabelText("Timing profile visits: 3");
-    expect(screen.queryByText(/Plus preview access|Plus demo access/)).toBeNull();
+    expect(
+      screen.queryByText(/Plus preview access|Plus demo access/),
+    ).toBeNull();
     expect(screen.getByLabelText("Monday, 09:00–10:00: 2")).toBeTruthy();
     expect(screen.getByLabelText("Monday, 08:00–09:00: 0")).toBeTruthy();
     expect(screen.queryByText("— Data unavailable")).toBeNull();

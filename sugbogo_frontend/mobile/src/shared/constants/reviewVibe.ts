@@ -1,4 +1,36 @@
 import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
+import colors from "tailwindcss/colors";
+
+/** Explicit native colors keep semantic badge colors reliable through text wrappers. */
+export const REVIEW_VIBE_COLORS = {
+  mostly_positive: {
+    background: colors.green[50],
+    foreground: colors.green[800],
+    dot: colors.green[700],
+    border: colors.green[300],
+  },
+  mostly_neutral: {
+    background: colors.slate[100],
+    foreground: colors.slate[700],
+    dot: colors.slate[600],
+    border: colors.slate[300],
+  },
+  mostly_negative: {
+    background: colors.red[50],
+    foreground: colors.red[700],
+    dot: colors.red[700],
+    border: colors.red[200],
+  },
+  mixed: {
+    background: colors.amber[50],
+    foreground: colors.amber[800],
+    dot: colors.amber[700],
+    border: colors.amber[200],
+  },
+} satisfies Record<
+  ReviewVibe,
+  { background: string; foreground: string; dot: string; border: string }
+>;
 
 export const OVERALL_REVIEW_VIBE_LABELS: Record<ReviewVibe, string> = {
   mostly_positive: "Mostly positive",

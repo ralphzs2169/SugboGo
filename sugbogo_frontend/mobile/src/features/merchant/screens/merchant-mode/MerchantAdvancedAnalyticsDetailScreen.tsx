@@ -100,7 +100,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   return (
     <SafeAreaView
       edges={["left", "right"]}
-      className={`flex-1 ${kind === "timing" ? "bg-surface" : "bg-background"}`}
+      className={`flex-1 ${kind === "timing" || kind === "review-insights" ? "bg-surface" : "bg-background"}`}
     >
       {/* Stored insights retain their own dates, with no dashboard date selector. */}
       <ScrollView
@@ -116,16 +116,16 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
           />
         }
       >
-        {kind !== "timing" && (
+        {kind !== "timing" && kind !== "review-insights" && (
           <AnalyticsDetailHeader
             title={title}
             description={ANALYTICS_DETAIL_DESCRIPTIONS[kind]}
-            period={kind === "review-insights" ? undefined : period}
+            period={period}
             onPeriodChange={setPeriod}
           />
         )}
         <View
-          className={`${kind === "timing" ? "" : "mt-2"} bg-surface px-5 py-5`}
+          className={`${kind === "timing" || kind === "review-insights" ? "" : "mt-2"} bg-surface px-5 py-5`}
         >
           <PlusAccessGate access={access}>
             {kind === "timing" ? (
@@ -136,6 +136,13 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
                 onPeriodChange={setPeriod}
                 loading={timing.isPending}
                 error={timing.error}
+              />
+            ) : kind === "review-insights" ? (
+              <AnalyticsStoredReviewInsights
+                report={insights.data}
+                loading={insights.isPending}
+                error={insights.error}
+                retry={() => void insights.refetch()}
               />
             ) : (
               <PlusRequestState
@@ -160,9 +167,6 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
                         report={peers.data}
                         retry={() => void peers.refetch()}
                       />
-                    )}
-                    {kind === "review-insights" && insights.data && (
-                      <AnalyticsStoredReviewInsights report={insights.data} />
                     )}
                     {kind === "recommendations" && recommendations.data && (
                       <AnalyticsBusinessRecommendations

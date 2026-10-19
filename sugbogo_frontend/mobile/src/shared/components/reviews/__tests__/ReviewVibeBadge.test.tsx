@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react-native";
 import ReviewVibeBadge from "../ReviewVibeBadge";
+import { REVIEW_VIBE_COLORS } from "@/shared/constants/reviewVibe";
 
 describe("soft review vibe badge", () => {
   it.each([
@@ -20,6 +21,12 @@ describe("soft review vibe badge", () => {
         "text-white",
       );
       expect(screen.queryByRole("button")).toBeNull();
+      expect(screen.getByText(label)).toHaveStyle({
+        color: REVIEW_VIBE_COLORS[vibe].foreground,
+      });
+      expect(screen.getByTestId("vibe")).toHaveStyle({
+        backgroundColor: REVIEW_VIBE_COLORS[vibe].background,
+      });
     },
   );
 
