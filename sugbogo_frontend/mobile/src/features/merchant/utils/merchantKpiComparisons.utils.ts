@@ -6,6 +6,7 @@ import type {
   AnalyticsChange,
   PlusPocketReport,
   PlusReviewPerformanceReport,
+  PlusSpecialtyReport,
   PlusVisibilityReport,
 } from "../types/merchantPlusAnalytics.types";
 
@@ -60,6 +61,35 @@ function samePeriod(
     meta.period.end_exclusive === standard.meta.period.end_exclusive &&
     meta.period.timezone === standard.meta.period.timezone
   );
+}
+
+/** Requires the same retained creation cohort and snapshot before accepting a vouch badge. */
+export function vouchCountTrend(
+  standard: MerchantStandardAnalytics,
+  plus: PlusSpecialtyReport | null | undefined,
+) {
+  const value = standard.vouches_added_and_still_valid;
+  const previous = plus?.previous_vouches_added_and_still_valid;
+  if (
+    !plus ||
+    plus.business.id !== standard.business.id ||
+    !samePeriod(standard, plus.meta) ||
+    plus.snapshot_as_of !== standard.snapshot_as_of ||
+    standard.sources.domain.availability === "unavailable" ||
+    plus.meta.availability === "unavailable" ||
+    !plus.meta.coverage_verified ||
+    value == null ||
+    !Number.isInteger(value) ||
+    value < 0 ||
+    plus.vouches_added_and_still_valid !== value ||
+    previous == null ||
+    !Number.isInteger(previous) ||
+    previous < 0
+  ) {
+    return undefined;
+  }
+  const trend = approvedChange(plus.vouches_added_change, "count");
+  return trend?.value === value - previous ? trend : undefined;
 }
 
 /** Protects Standard cohort cards against later, older, or differently scoped Plus reads. */

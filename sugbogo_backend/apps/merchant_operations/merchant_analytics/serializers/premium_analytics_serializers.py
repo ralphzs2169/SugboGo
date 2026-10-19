@@ -128,6 +128,9 @@ class PremiumSpecialtySerializer(PremiumReportSerializer):
     label = serializers.CharField()
     specialties = SpecialtyTrendSerializer(many=True)
     snapshot_as_of = serializers.CharField()
+    vouches_added_and_still_valid = serializers.IntegerField()
+    previous_vouches_added_and_still_valid = serializers.IntegerField()
+    vouches_added_change = CountChangeSerializer()
 
 
 class PremiumReviewInsightsSerializer(PremiumReportSerializer):

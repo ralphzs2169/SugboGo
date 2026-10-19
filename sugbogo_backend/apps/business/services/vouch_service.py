@@ -15,6 +15,27 @@ class VouchService:
     """Handles creating, removing, and checking user vouches."""
 
     @staticmethod
+    def get_retained_vouches(
+        business_id,
+        *,
+        as_of,
+    ):
+        """Select surviving valid evidence on specialties active at the current read."""
+        active_link = BusinessSpecialtyTag.objects.filter(
+            BUSN_ID=business_id,
+            TAG_ID=models.OuterRef("TAG_ID"),
+            BST_IS_ACTIVE=True,
+            BST_CREATED_AT__lte=as_of,
+        )
+        return BusinessVouch.objects.filter(
+            BUSN_ID=business_id,
+            VOUCH_EVIDENCE_IS_VALID=True,
+            VOUCH_CREATED_AT__lte=as_of,
+        ).filter(
+            models.Exists(active_link),
+        )
+
+    @staticmethod
     def get_current_specialty_support(business_id, *, as_of):
         """Report valid endorsements and distinct supporters for every current active specialty."""
         links = list(BusinessSpecialtyTag.objects.filter(

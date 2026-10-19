@@ -106,7 +106,18 @@ class StandardAnalyticsService:
             specialty["valid_vouches"]
             for specialty in specialty_support
         )
-        reasons = ["current_state_reporting"]
+        vouches_added_and_still_valid = VouchService.get_retained_vouches(
+            business.pk,
+            as_of=period.generated_at,
+        ).filter(
+            VOUCH_CREATED_AT__gte=period.start,
+            VOUCH_CREATED_AT__lt=period.end,
+        ).count()
+        reasons = [
+            "current_state_reporting",
+            "retained_valid_vouches_only",
+            "vouch_removal_history_unavailable",
+        ]
         if reviews["excluded_reply_timestamp_count"]:
             reasons.append("reply_timestamp_anomalies")
         if any(value is None for value in visibility.values()):
@@ -117,6 +128,7 @@ class StandardAnalyticsService:
             "current_pocket_holders": PocketService.get_current_holder_count(business.pk, as_of=period.generated_at),
             "specialty_support": specialty_support,
             "current_valid_vouches": current_valid_vouches,
+            "vouches_added_and_still_valid": vouches_added_and_still_valid,
             "reviews": reviews,
             "snapshot_as_of": period.generated_at.isoformat(),
             "meta": standard_meta(period, availability="partial", partial_reasons=reasons),

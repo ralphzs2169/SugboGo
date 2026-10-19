@@ -34,6 +34,7 @@ import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import {
   useMerchantPlusPocket,
   useMerchantPlusReviews,
+  useMerchantPlusSpecialties,
   useMerchantPlusVisibility,
 } from "../../hooks/analytics/useMerchantPlusAnalytics";
 import useMerchantRoutePlanning from "../../hooks/analytics/useMerchantRoutePlanning";
@@ -165,6 +166,11 @@ export default function MerchantAnalyticsScreen() {
     canReadComparisons && report?.sources.domain.availability !== "unavailable",
   );
 
+  const vouchComparison = useMerchantPlusSpecialties(
+    comparisonSelection,
+    canReadComparisons && report?.sources.domain.availability !== "unavailable",
+  );
+
   // Merchant business profile and specialty styling
   const {
     business,
@@ -225,6 +231,13 @@ export default function MerchantAnalyticsScreen() {
     toastId: "merchant-review-summary-error",
     title: "Unable to load review summary",
     fallbackMessage: "Please retry this section.",
+  });
+
+  useQueryErrorNotification({
+    error: canReadComparisons ? vouchComparison.error : null,
+    toastId: "merchant-vouch-comparison-error",
+    title: "Unable to load vouch comparison",
+    fallbackMessage: "Your selected-period vouch count remains available.",
   });
 
   // One sheet edits only the section that opened it.
@@ -402,6 +415,11 @@ export default function MerchantAnalyticsScreen() {
                     plusAccess.allowed ? visibilityComparison.data : null
                   }
                   plusPocket={plusAccess.allowed ? pocketComparison.data : null}
+                  plusSpecialties={
+                    canReadComparisons && !vouchComparison.error
+                      ? vouchComparison.data
+                      : null
+                  }
                 />
 
                 <AnalyticsSourceNotice report={report} onRetry={retry} />

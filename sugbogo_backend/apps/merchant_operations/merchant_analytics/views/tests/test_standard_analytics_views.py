@@ -28,6 +28,7 @@ class StandardAnalyticsViewTests(MerchantAnalyticsFixtures, APIResponseAssertion
         self.assertEqual(response.data["data"]["business"]["id"], self.business_a.pk)
         self.assertEqual(response.data["data"]["saves_in_period"], 0)
         self.assertEqual(response.data["data"]["current_valid_vouches"], 0)
+        self.assertEqual(response.data["data"]["vouches_added_and_still_valid"], 0)
         self.client.force_authenticate(user=self.merchant_b)
         response = self.client.get(self.url)
         self.assertEqual(response.data["data"]["business"]["id"], self.business_b.pk)

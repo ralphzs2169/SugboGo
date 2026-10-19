@@ -2,6 +2,7 @@ import { standardAnalyticsReport } from "../../__tests__/merchantAnalytics.fixtu
 import {
   pocketReport,
   reviewReport,
+  specialtyReport,
   visibilityReport,
 } from "../../__tests__/merchantPlusAnalytics.fixtures";
 import { merchantPlusReportKey } from "../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
@@ -10,9 +11,78 @@ import {
   replyRateTrend,
   reviewCountTrend,
   visibilityKpiTrend,
+  vouchCountTrend,
 } from "../merchantKpiComparisons.utils";
 
 describe("backend-approved KPI comparisons", () => {
+  it.each([
+    [3, 0, 3],
+    [0, 3, -3],
+    [0, 0, 0],
+  ])(
+    "accepts retained-vouch count comparisons from %s versus %s",
+    (current, previous, change) => {
+      const standard = standardAnalyticsReport({
+        vouches_added_and_still_valid: current,
+      });
+      const plus = specialtyReport();
+      plus.snapshot_as_of = standard.snapshot_as_of;
+      plus.vouches_added_and_still_valid = current;
+      plus.previous_vouches_added_and_still_valid = previous;
+      plus.vouches_added_change = {
+        value: change,
+        direction: change > 0 ? "up" : change < 0 ? "down" : "unchanged",
+        unit: "count",
+        reason: null,
+      };
+      expect(vouchCountTrend(standard, plus)?.value).toBe(change);
+      plus.snapshot_as_of = "2020-01-01T00:00:00Z";
+      expect(vouchCountTrend(standard, plus)).toBeUndefined();
+    },
+  );
+
+  it("withholds vouch badges for missing, unavailable or mismatched evidence", () => {
+    const standard = standardAnalyticsReport();
+    const plus = specialtyReport();
+    plus.snapshot_as_of = standard.snapshot_as_of;
+    plus.vouches_added_and_still_valid =
+      standard.vouches_added_and_still_valid!;
+    plus.previous_vouches_added_and_still_valid = 0;
+    plus.vouches_added_change = {
+      value: 3,
+      direction: "up",
+      unit: "count",
+      reason: null,
+    };
+    expect(vouchCountTrend(standard, plus)?.value).toBe(3);
+    for (const changed of [
+      { ...plus, business: { ...plus.business, id: 999 } },
+      { ...plus, vouches_added_change: undefined },
+      { ...plus, vouches_added_and_still_valid: 99 },
+      { ...plus, meta: { ...plus.meta, coverage_verified: false } },
+      { ...plus, meta: { ...plus.meta, availability: "unavailable" as const } },
+      {
+        ...plus,
+        meta: {
+          ...plus.meta,
+          period: {
+            ...plus.meta.period,
+            end_exclusive: "2020-01-01T00:00:00Z",
+          },
+        },
+      },
+    ]) {
+      expect(vouchCountTrend(standard, changed)).toBeUndefined();
+    }
+    expect(vouchCountTrend(standard, null)).toBeUndefined();
+    expect(
+      vouchCountTrend(
+        { ...standard, vouches_added_and_still_valid: undefined },
+        plus,
+      ),
+    ).toBeUndefined();
+  });
+
   it.each([3, -3, 0])(
     "displays a signed absolute review change of %s without calculating growth",
     (value) => {

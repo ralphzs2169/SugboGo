@@ -17,7 +17,7 @@ class PremiumAnalyticsViewTests(MerchantAnalyticsFixtures, APIResponseAssertions
     @override_settings(MERCHANT_PLUS_ENFORCED=False)
     def test_individual_reports_accept_a_recent_standard_cutoff_and_reject_future_or_old_cutoffs(self):
         cutoff = self.NOW - timedelta(seconds=2)
-        for name in ("visibility", "pocket", "review-performance"):
+        for name in ("visibility", "pocket", "review-performance", "specialties"):
             response = self.client.get(
                 self.url(name),
                 {"as_of": cutoff.isoformat()},
@@ -39,6 +39,10 @@ class PremiumAnalyticsViewTests(MerchantAnalyticsFixtures, APIResponseAssertions
                 self.assertValidationError(response, "as_of")
         response = self.client.get(self.url("review-performance"))
         self.assertIn("published_review_count_change", response.data["data"])
+        response = self.client.get(self.url("specialties"))
+        self.assertEqual(response.data["data"]["vouches_added_and_still_valid"], 0)
+        self.assertEqual(response.data["data"]["previous_vouches_added_and_still_valid"], 0)
+        self.assertEqual(response.data["data"]["vouches_added_change"]["value"], 0)
 
     def setUp(self):
         super().setUp()

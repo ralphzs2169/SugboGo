@@ -29,6 +29,9 @@ import {
   merchantPlusStatusKey,
 } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
+jest.mock("@gorhom/bottom-sheet", () =>
+  jest.requireActual("../../../__tests__/analyticsSheet.mock").analyticsSheetMock(),
+);
 import { getMerchantRoutePlanning } from "../../../api/merchantRoutePlanning.service";
 import { routePlanningReport } from "../../../__tests__/routePlanningAnalytics.fixtures";
 import * as plusService from "../../../api/merchantPlusAnalytics.service";
@@ -37,6 +40,7 @@ import {
   plusStatus,
   plusSuccess,
   reviewReport,
+  specialtyReport,
   visibilityReport,
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
@@ -268,6 +272,10 @@ describe("MerchantAnalyticsScreen", () => {
       .mocked(plusService.getMerchantPlusPocket)
       .mockReset()
       .mockResolvedValue(plusSuccess(pocketReport()));
+    jest
+      .mocked(plusService.getMerchantPlusSpecialties)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(specialtyReport()));
     mockNavigate.mockClear();
     jest.mocked(Toast.show).mockClear();
     mockRefetchProfile.mockReset();
@@ -876,21 +884,48 @@ describe("MerchantAnalyticsScreen", () => {
   });
 
   it.each([0, null, undefined])(
-    "preserves a vouch snapshot of %s without summing supporters",
+    "preserves a period vouch count of %s without falling back to the snapshot",
     async (value) => {
       getAnalytics.mockResolvedValueOnce(
         analyticsSuccess(
-          standardAnalyticsReport({ current_valid_vouches: value }),
+          standardAnalyticsReport({ vouches_added_and_still_valid: value }),
         ),
       );
       const screen = await renderScreen();
       expect(
         await screen.findByLabelText(
-          `Total vouches: ${value === 0 ? "0" : "Unavailable"}. Current.`,
+          `Vouches added: ${value === 0 ? "0" : "Unavailable"}. Still valid today`,
         ),
       ).toBeTruthy();
     },
   );
+
+  it("loads a cutoff-aligned retained-vouch badge while preserving the period count", async () => {
+    jest.mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(plusStatus()));
+    const standard = standardAnalyticsReport();
+    const specialties = specialtyReport();
+    specialties.snapshot_as_of = standard.snapshot_as_of;
+    specialties.vouches_added_and_still_valid = 3;
+    specialties.previous_vouches_added_and_still_valid = 1;
+    specialties.vouches_added_change = {
+      value: 2,
+      direction: "up",
+      unit: "count",
+      reason: null,
+    };
+    jest.mocked(plusService.getMerchantPlusSpecialties)
+      .mockResolvedValue(plusSuccess(specialties));
+    const screen = await renderScreen();
+    await screen.findByLabelText(
+      /Vouches added: 3\. Still valid today\. Increase: \+2 compared with the previous period/,
+    );
+    expect(plusService.getMerchantPlusSpecialties).toHaveBeenCalledWith(
+      { period: "30", as_of: standard.meta.generated_at },
+      expect.anything(),
+    );
+    expect(screen.queryByText("Current vouches")).toBeNull();
+  });
 
   it("hides a cached vouch count when the domain source is unavailable", async () => {
     const report = standardAnalyticsReport();
@@ -898,7 +933,7 @@ describe("MerchantAnalyticsScreen", () => {
     getAnalytics.mockResolvedValueOnce(analyticsSuccess(report));
     const screen = await renderScreen();
     expect(
-      await screen.findByLabelText("Total vouches: Unavailable. Current."),
+      await screen.findByLabelText("Vouches added: Unavailable. Still valid today"),
     ).toBeTruthy();
   });
 

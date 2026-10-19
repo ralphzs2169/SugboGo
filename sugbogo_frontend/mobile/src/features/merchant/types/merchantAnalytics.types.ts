@@ -51,6 +51,8 @@ export type MerchantStandardAnalytics = {
   current_pocket_holders: number;
   /** Current eligible vouch records; optional while older API responses remain cached. */
   current_valid_vouches?: number | null;
+  /** Retained valid additions in the selection; absent on older cached responses. */
+  vouches_added_and_still_valid?: number | null;
   specialty_support: AnalyticsSpecialtySupport[];
   reviews: {
     new_published_in_period: number;

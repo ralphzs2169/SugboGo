@@ -134,8 +134,8 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
             </AppText>
 
             <AppText className="text-sm leading-6 text-text-secondary">
-              Profile visits, saves, new reviews, and reply rates follow your
-              selected 7, 30, or 90 days.
+              Profile visits, saves, new reviews, vouches added, and reply rates
+              follow your selected 7, 30, or 90 days.
             </AppText>
           </View>
         </View>
@@ -159,9 +159,9 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
             </AppText>
 
             <AppText className="text-sm leading-6 text-text-secondary">
-              Total vouches, Pocket holders, and total published reviews reflect
-              your business&apos;s current records, regardless of the selected
-              dates.
+              Specialty support, Pocket holders, and total published reviews
+              reflect your business&apos;s current records, regardless of the
+              selected dates.
             </AppText>
           </View>
         </View>
@@ -292,9 +292,13 @@ export default function AnalyticsMeasurementSheet({ sheetRef, report }: Props) {
                 </AppText>
 
                 <AppText className="text-sm leading-6 text-text-secondary">
-                  Total vouches count current valid support for active
-                  specialties. One account may vouch for multiple specialties.
-                  The total may change if support no longer qualifies.
+                  Vouches added counts vouches created during the selected dates
+                  that still count for currently active specialties. The badge
+                  shows the absolute difference from the previous equal-duration
+                  period, using the same reporting cutoff. Both counts can
+                  change after removal, invalidation, or specialty deactivation.
+                  One account may vouch for multiple specialties; these are
+                  vouches, not distinct supporters or net growth.
                 </AppText>
               </View>
 

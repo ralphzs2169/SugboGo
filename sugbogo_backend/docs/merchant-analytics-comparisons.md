@@ -1,5 +1,33 @@
 # Merchant KPI comparisons
 
+## Retained vouch additions
+
+Business overview uses Standard's `vouches_added_and_still_valid`: surviving
+valid vouches created in the selected half-open period for currently active
+specialties. It does not use `current_valid_vouches` as a period value.
+The card reads **Vouches added / Still valid today**.
+
+The existing Premium specialties endpoint additionally returns
+`vouches_added_and_still_valid`, `previous_vouches_added_and_still_valid`, and
+`vouches_added_change` (`value`, `direction`, `unit: "count"`, `reason`).
+Both creation cohorts use the same current validity/specialty scope and snapshot,
+with adjacent equal elapsed durations. Zero baselines are valid absolute
+comparisons; no percentage growth is calculated. The endpoint accepts the same
+bounded `as_of` input as the other individual comparison reports.
+
+Mobile displays the badge only for permitted, successfully read evidence matching
+the Standard business, exact period, snapshot, and selected count. Older cached
+Standard responses without the new field show unavailable, never the current
+snapshot as a substitute. Existing Plus access rules continue to govern badges;
+the selected-period count remains Standard.
+
+Unvouch physically removes evidence. Invalidation and specialty deactivation can
+also revise both cohorts. These are retained additions, not immutable historical
+additions, net growth, historical support balances, or distinct supporters.
+No lifecycle history or migrations are introduced.
+
+## Existing review and visibility comparisons
+
 The Plus review-performance endpoint adds `published_review_count_change`
 (`value`, `direction`, `unit: "count"`, nullable `reason`). This is an absolute
 difference between equal elapsed-duration creation cohorts still published at

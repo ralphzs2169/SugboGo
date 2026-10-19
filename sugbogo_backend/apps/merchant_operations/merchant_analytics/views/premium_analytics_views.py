@@ -60,6 +60,7 @@ class PremiumSpecialtyView(PremiumAnalyticsView):
     """Serve weekly surviving valid endorsement cohorts for current active specialties."""
 
     response_serializer = PremiumSpecialtySerializer
+    query_serializer = PremiumSnapshotQuerySerializer
 
     def get_report(self, user, query):
         """Read retained endorsement timestamps without reconstructing deleted support."""

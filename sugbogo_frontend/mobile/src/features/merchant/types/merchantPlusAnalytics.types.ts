@@ -85,6 +85,9 @@ export type PlusSpecialtyReport = {
   label: string;
   specialties: SpecialtyTrend[];
   snapshot_as_of: string;
+  vouches_added_and_still_valid?: number;
+  previous_vouches_added_and_still_valid?: number;
+  vouches_added_change?: AnalyticsChange;
   meta: PlusAnalyticsMeta;
 };
 

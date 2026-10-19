@@ -127,6 +127,7 @@ export function previewReports(
   if (state === "zero") {
     standard.current_pocket_holders = 0;
     standard.current_valid_vouches = 0;
+    standard.vouches_added_and_still_valid = 0;
     standard.specialty_support = [];
     standard.reviews = {
       ...standard.reviews,

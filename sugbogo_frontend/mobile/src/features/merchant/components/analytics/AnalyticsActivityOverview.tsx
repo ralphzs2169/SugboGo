@@ -11,6 +11,7 @@ import type { MerchantStandardAnalytics } from "../../types/merchantAnalytics.ty
 import type {
   PlusPocketReport,
   PlusReviewPerformanceReport,
+  PlusSpecialtyReport,
   PlusVisibilityReport,
 } from "../../types/merchantPlusAnalytics.types";
 
@@ -19,6 +20,7 @@ import {
   replyRateTrend,
   reviewCountTrend,
   visibilityKpiTrend,
+  vouchCountTrend,
   type KpiTrend,
 } from "../../utils/merchantKpiComparisons.utils";
 import TrendComparison, { describeKpiTrend } from "./TrendComparison";
@@ -30,6 +32,7 @@ export type AnalyticsActivityOverviewProps = {
   plusReviews?: PlusReviewPerformanceReport | null;
   plusVisibility?: PlusVisibilityReport | null;
   plusPocket?: PlusPocketReport | null;
+  plusSpecialties?: PlusSpecialtyReport | null;
 };
 
 type MetricCardProps = {
@@ -152,8 +155,8 @@ function MetricCard({
 }
 
 /**
- * Presents selected-period business metrics alongside current
- * vouch support and review-reply performance.
+ * Presents selected-period business metrics, retained vouch
+ * additions, and review-reply performance.
  *
  * Keeps unavailable values distinct from zero and adapts
  * the KPI grid for narrow screens and larger font scales.
@@ -163,6 +166,7 @@ export default function AnalyticsActivityOverview({
   plusReviews,
   plusVisibility,
   plusPocket,
+  plusSpecialties,
 }: AnalyticsActivityOverviewProps) {
   const { fontScale, width } = useWindowDimensions();
 
@@ -186,7 +190,7 @@ export default function AnalyticsActivityOverview({
   const replyRate = domainAvailable ? reviews.reply_rate : null;
 
   const vouches = domainAvailable
-    ? (report.current_valid_vouches ?? null)
+    ? (report.vouches_added_and_still_valid ?? null)
     : null;
 
   let replyDetail: string;
@@ -247,10 +251,11 @@ export default function AnalyticsActivityOverview({
           <MetricCard
             icon="thumb-up-outline"
             stacked={useSingleColumn}
-            label="Current vouches"
+            label="Vouches added"
             value={formatAnalyticsCount(vouches)}
             unavailable={vouches === null}
-            detail="All dates"
+            detail="Still valid today"
+            trend={vouchCountTrend(report, plusSpecialties)}
           />
         </View>
       </View>
@@ -310,9 +315,9 @@ export function AnalyticsActivitySkeleton() {
           />
           <MetricCard
             icon="thumb-up-outline"
-            label="Current vouches"
+            label="Vouches added"
             value=""
-            detail="All dates"
+            detail="Still valid today"
             stacked={stacked}
             loading
           />

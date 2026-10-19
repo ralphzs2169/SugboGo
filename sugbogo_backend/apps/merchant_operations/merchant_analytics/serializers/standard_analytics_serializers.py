@@ -92,6 +92,7 @@ class StandardAnalyticsSerializer(serializers.Serializer):
     saves_in_period = serializers.IntegerField(allow_null=True)
     current_pocket_holders = serializers.IntegerField()
     current_valid_vouches = serializers.IntegerField(allow_null=True)
+    vouches_added_and_still_valid = serializers.IntegerField()
     specialty_support = SpecialtySupportSerializer(many=True)
     reviews = StandardReviewsSerializer()
     snapshot_as_of = serializers.CharField()
