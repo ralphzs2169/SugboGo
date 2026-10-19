@@ -61,6 +61,7 @@ export function useMerchantPlusRecommendations(
   const key = merchantPlusReportKey(accountId, "recommendations", selection);
   const scope = JSON.stringify(key);
   const pendingRefreshes = useRef(new Set<string>());
+  const [cooldownClock, setCooldownClock] = useState(() => Date.now());
   const [cooldown, setCooldown] = useState<{
     scope: string;
     until: number;
@@ -112,12 +113,15 @@ export function useMerchantPlusRecommendations(
         errors?: { retry_after?: unknown };
       };
       const seconds = error.errors?.retry_after;
+      // A new error without retry timing must not inherit an expired deadline.
+      setCooldown(null);
       if (
         error.code === "RATE_LIMIT_EXCEEDED" &&
         typeof seconds === "number" &&
         Number.isFinite(seconds) &&
         seconds > 0
       ) {
+        setCooldownClock(Date.now());
         setCooldown({
           scope: String(variables.accountId),
           until: Date.now() + Math.min(seconds * 1000, 2_147_483_647),
@@ -146,22 +150,36 @@ export function useMerchantPlusRecommendations(
   const belongsToSelection =
     mutation.variables?.accountId === accountId &&
     JSON.stringify(mutation.variables?.key) === scope;
-  const refreshError = belongsToSelection ? mutation.error : null;
+  const accountCooldown =
+    cooldown?.scope === String(accountId) ? cooldown : null;
+  const cooldownRemainingSeconds = accountCooldown
+    ? Math.max(0, Math.ceil((accountCooldown.until - cooldownClock) / 1000))
+    : 0;
+  const isThrottled = cooldownRemainingSeconds > 0;
+  const expiredRateLimit =
+    accountCooldown !== null &&
+    !isThrottled &&
+    (mutation.error as { code?: string } | null)?.code ===
+      "RATE_LIMIT_EXCEEDED";
+  const refreshError =
+    belongsToSelection && !expiredRateLimit ? mutation.error : null;
   useEffect(() => {
-    if (!cooldown) return;
-    const timer = setTimeout(
-      () => setCooldown(null),
-      Math.max(0, cooldown.until - Date.now()),
-    );
-    return () => clearTimeout(timer);
+    if (!cooldown || cooldown.until <= Date.now()) return;
+    // Use the deadline, rather than decrementing, so suspended apps catch up correctly.
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setCooldownClock(now);
+      if (now >= cooldown.until) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
   }, [cooldown]);
-  const isThrottled = cooldown?.scope === String(accountId);
   return {
     ...query,
     refreshError,
     refreshResult: belongsToSelection ? mutation.data : undefined,
     isRequestingRefresh: belongsToSelection && mutation.isPending,
     isThrottled,
+    cooldownRemainingSeconds,
     requestRefresh: () => {
       if (
         enabled &&

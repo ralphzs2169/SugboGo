@@ -7,19 +7,13 @@ import {
 } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-import AnalyticsDetailHeader, {
-  ANALYTICS_DETAIL_DESCRIPTIONS,
-} from "../../components/analytics/AnalyticsDetailHeader";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import AnalyticsPeerComparisons from "../../components/analytics/AnalyticsPeerComparisons";
 import AnalyticsStoredReviewInsights from "../../components/analytics/AnalyticsStoredReviewInsights";
 import AnalyticsProfileVisitTiming from "../../components/analytics/AnalyticsProfileVisitTiming";
 import AnalyticsBusinessRecommendations from "../../components/analytics/AnalyticsBusinessRecommendations";
-import {
-  PlusAccessGate,
-  PlusRequestState,
-} from "../../components/analytics/AnalyticsPlusStates";
+import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import {
   useMerchantPlusPeers,
@@ -34,7 +28,6 @@ import type { AdvancedPlusDetailKind } from "../../types/merchantPlusAnalytics.t
 export default function MerchantAdvancedAnalyticsDetailScreen({
   kind,
   initialPeriod,
-  title,
 }: {
   kind: AdvancedPlusDetailKind;
   initialPeriod: MerchantAnalyticsPeriod;
@@ -53,7 +46,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   );
   const timing = useMerchantPlusTiming(selection, enabled && kind === "timing");
   const recommendations = useMerchantPlusRecommendations(
-    selection,
+    { period: "30" },
     enabled && kind === "recommendations",
   );
   const query =
@@ -64,9 +57,6 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
         : kind === "timing"
           ? timing
           : recommendations;
-  const retry = () => {
-    void query.refetch();
-  };
   useQueryErrorNotification({
     error: focused ? access.error : null,
     toastId: "advanced-plus-access",
@@ -99,10 +89,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
     }
   };
   return (
-    <SafeAreaView
-      edges={["left", "right"]}
-      className={`flex-1 ${kind !== "recommendations" ? "bg-surface" : "bg-background"}`}
-    >
+    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-surface">
       {/* Stored insights retain their own dates, with no dashboard date selector. */}
       <ScrollView
         testID="advanced-plus-detail-scroll"
@@ -117,17 +104,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
           />
         }
       >
-        {kind === "recommendations" && (
-          <AnalyticsDetailHeader
-            title={title}
-            description={ANALYTICS_DETAIL_DESCRIPTIONS[kind]}
-            period={period}
-            onPeriodChange={setPeriod}
-          />
-        )}
-        <View
-          className={`${kind !== "recommendations" ? "" : "mt-2"} bg-surface px-5 py-5`}
-        >
+        <View className="bg-surface px-5 py-5">
           <PlusAccessGate access={access}>
             {kind === "timing" ? (
               <AnalyticsProfileVisitTiming
@@ -155,31 +132,50 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
                 error={peers.error}
               />
             ) : (
-              <PlusRequestState
-                error={query.error}
-                hasData={!!query.data}
-                loading={query.isPending}
-                retry={retry}
-              >
-                {recommendations.data && (
-                  <AnalyticsBusinessRecommendations
-                    report={recommendations.data}
-                    refreshResult={recommendations.refreshResult}
-                    refreshError={recommendations.refreshError}
-                    requesting={recommendations.isRequestingRefresh}
-                    checking={recommendations.isFetching}
-                    throttled={recommendations.isThrottled}
-                    requestRefresh={recommendations.requestRefresh}
-                    checkStatus={() => void recommendations.refetch()}
-                  />
-                )}
-              </PlusRequestState>
+              <AnalyticsBusinessRecommendations
+                report={recommendations.data}
+                refreshResult={recommendations.refreshResult}
+                refreshError={recommendations.refreshError}
+                requesting={recommendations.isRequestingRefresh}
+                checking={recommendations.isFetching}
+                throttled={recommendations.isThrottled}
+                cooldownRemainingSeconds={
+                  recommendations.cooldownRemainingSeconds
+                }
+                requestRefresh={recommendations.requestRefresh}
+                checkStatus={() => void recommendations.refetch()}
+                loading={recommendations.isPending}
+                error={recommendations.error}
+                onOpenAction={(code) => {
+                  if (code === "UNANSWERED_REVIEWS") {
+                    router.push({
+                      pathname: "/(merchant)/(tabs)/reviews",
+                      params: {
+                        filter: "needs-reply",
+                        ordering: "oldest",
+                        reviewIntent: String(Date.now()),
+                      },
+                    });
+                  } else if (code === "STORED_INSIGHTS_OUTDATED") {
+                    router.push({
+                      pathname: "/(merchant)/analytics/[report]",
+                      params: { report: "review-insights", period },
+                    });
+                  }
+                }}
+              />
             )}
           </PlusAccessGate>
-          {__DEV__ && kind === "peers" && (
+          {__DEV__ && (kind === "peers" || kind === "recommendations") && (
             <SafePressable
-              onPress={() => router.push("/(merchant)/analytics/peer-preview")}
-              accessibilityLabel="Open peer comparisons development preview"
+              onPress={() =>
+                router.push(
+                  kind === "peers"
+                    ? "/(merchant)/analytics/peer-preview"
+                    : "/(merchant)/analytics/recommendations-preview",
+                )
+              }
+              accessibilityLabel={`Open ${kind === "peers" ? "peer comparisons" : "recommendations"} development preview`}
               className="mt-4 min-h-12 cursor-pointer justify-center border-t border-border-primary/60 py-3"
             >
               <AppText className="text-sm text-text-secondary">
