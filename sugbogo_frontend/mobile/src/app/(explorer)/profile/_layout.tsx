@@ -58,6 +58,14 @@ export default function ProfileLayout() {
             title: "Your Interests",
           }}
         />
+        <Stack.Screen
+          name="change-password"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Password",
+          }}
+        />
       </Stack>
     </>
   );
