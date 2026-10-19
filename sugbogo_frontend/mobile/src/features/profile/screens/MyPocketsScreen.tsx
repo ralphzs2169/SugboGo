@@ -1,194 +1,207 @@
-import { View, Text, FlatList, Pressable, TextInput } from "react-native";
-import { useState, useMemo } from "react";
-import { Stack } from "expo-router";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import PocketCard from "@/features/profile/components/pockets/PocketCard";
+import { router, Stack } from "expo-router";
+import LottieView from "lottie-react-native";
+import { useEffect, useRef } from "react";
+import { FlatList, RefreshControl, View } from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
 import { theme } from "@/constants/theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import PocketCollectionCard from "@/features/pockets/components/PocketCollectionCard";
+import PocketCollectionsSkeleton from "@/features/pockets/components/PocketCollectionsSkeleton";
+import usePocketCollections from "@/features/pockets/hooks/usePocketCollections";
+import loadingAnimation from "@/shared/assets/animations/loading.json";
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
+import EndOfListMessage from "@/shared/components/EndOfListMessage";
+import ErrorState from "@/shared/components/ErrorState";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
-const MOCK_POCKETS = [
-  {
-    id: "1",
-    name: "Lola Nena's Bakeshop",
-    photoUrl:
-      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=200&h=200&fit=crop",
-    category: "Culinary",
-    location: "Colon St, Cebu City",
-  },
-  {
-    id: "2",
-    name: "Danao Weaves & Crafts",
-    photoUrl:  "https://images.unsplash.com/photo-1729383456185-dec6084f0271?q=80&w=846&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    category: "Creative",
-    location: "Danao City, Cebu",
-  },
-  {
-    id: "3",
-    name: "Barako Brew Café",
-    photoUrl:
-      "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&h=200&fit=crop",
-    category: "Culinary",
-    location: "IT Park, Lahug",
-  },
-  {
-    id: "4",
-    name: "Oslob Souvenir House",
-    photoUrl:
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200&h=200&fit=crop",
-    category: "Creative",
-    location: "Oslob, Cebu",
-  },
-  {
-    id: "5",
-    name: "Bohol Bee Farm",
-    photoUrl:
-      "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=200&h=200&fit=crop",
-    category: "Experiential",
-    location: "Panglao, Bohol",
-  },
-];
+/** Separates collection cards using the existing list spacing. */
+function CollectionSeparator() {
+  return <View className="h-3" />;
+}
 
+/**
+ * Displays the authenticated explorer's collection overview in backend order.
+ * Keeps loaded collections visible through refresh and pagination failures.
+ */
 export default function MyPocketsScreen() {
-  const [pockets, setPockets] = useState(MOCK_POCKETS);
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const pockets = usePocketCollections();
   const insets = useSafeAreaInsets();
+  const requests = useRef({ armed: false, paging: false, refreshing: false });
 
-  const filteredPockets = useMemo(() => {
-    if (!searchQuery.trim()) return pockets;
-    return pockets.filter((p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [pockets, searchQuery]);
+  useEffect(() => {
+    // Old requests keep their own guard object when the account changes.
+    requests.current = { armed: false, paging: false, refreshing: false };
+  }, [pockets.userId, pockets.isEnabled]);
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id],
-    );
-  };
+  useQueryErrorNotification({
+    error: pockets.isEnabled ? pockets.error : null,
+    toastId: "my-pockets-error",
+    title: "Unable to load your Pockets",
+    fallbackMessage: "Please try again.",
+  });
 
-  const allSelected =
-    filteredPockets.length > 0 && selectedIds.length === filteredPockets.length;
-
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredPockets.map((p) => p.id));
+  function refreshCollections() {
+    const request = requests.current;
+    if (
+      !pockets.isEnabled ||
+      request.refreshing ||
+      request.paging ||
+      pockets.isFetching
+    ) {
+      return;
     }
-  };
 
-  const handleDeleteSelected = () => {
-    setPockets((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
-    setSelectedIds([]);
-    setIsEditing(false);
-  };
+    request.refreshing = true;
+    request.armed = false;
+    void pockets.refetch().finally(() => {
+      request.refreshing = false;
+    });
+  }
+
+  function loadNextPage(retry = false) {
+    const request = requests.current;
+    if (
+      !pockets.isEnabled ||
+      request.paging ||
+      request.refreshing ||
+      pockets.isFetching ||
+      !pockets.hasNextPage ||
+      (!retry && (!request.armed || pockets.isFetchNextPageError))
+    ) {
+      return;
+    }
+
+    request.paging = true;
+    request.armed = false;
+    void pockets.fetchNextPage().finally(() => {
+      request.paging = false;
+    });
+  }
+
+  const collections = pockets.isEnabled ? pockets.collections : [];
+  const hasCollections = collections.length > 0;
+  const initialLoading =
+    pockets.isAuthLoading ||
+    (pockets.isEnabled && !pockets.hasData && !pockets.error);
 
   return (
-    <View className="flex-1 bg-background">
-      <Stack.Screen
-        options={{
-          title: "My Pockets",
-          headerRight: () => (
-            <Pressable
-              onPress={() => {
-                setIsEditing((prev) => !prev);
-                setSelectedIds([]);
-              }}
-            >
-              <Text className="text-brand font-semibold">
-                {isEditing ? "Done" : "Edit"}
-              </Text>
-            </Pressable>
-          ),
-        }}
-      />
+    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-background">
+      {/* Profile stack header */}
+      <Stack.Screen options={{ title: "My Pockets" }} />
 
-      <View className="flex-row items-center rounded-md bg-surface border-2 border-brand mx-4 mt-4 px-3 py-2">
-        <MaterialCommunityIcons
-          name="magnify"
-          size={20}
-          color={theme.extends.colors.text.tertiary}
-        />
-        <TextInput
-          className="ml-2 flex-1 text-sm text-text-primary"
-          placeholder="Search saved MSMEs..."
-          placeholderTextColor={theme.extends.colors.text.tertiary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
+      {/* Collections and request recovery */}
       <FlatList
-        contentContainerClassName="p-4 pb-24"
-        data={filteredPockets}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <PocketCard
-            name={item.name}
-            photoUrl={item.photoUrl}
-            category={item.category}
-            location={item.location}
-            isEditing={isEditing}
-            isSelected={selectedIds.includes(item.id)}
-            onSelect={() => toggleSelect(item.id)}
-            onRemove={() =>
-              setPockets((prev) => prev.filter((p) => p.id !== item.id))
-            }
-            onPress={() => {}}
-          />
-        )}
+        key={pockets.userId ?? "signed-out"}
+        testID="my-pockets-list"
+        data={collections}
+        keyExtractor={(collection) => String(collection.id)}
+        renderItem={({ item }) => <PocketCollectionCard collection={item} />}
+        ItemSeparatorComponent={CollectionSeparator}
+        contentContainerClassName="px-4 pt-4"
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 24,
+          flexGrow: 1,
+        }}
         ListEmptyComponent={
-          <Text className="mt-8 text-center text-text-tertiary">
-            No saved pockets yet.
-          </Text>
+          initialLoading ? (
+            <PocketCollectionsSkeleton />
+          ) : !pockets.isEnabled ? (
+            <View className="items-center py-10">
+              <AppText
+                weight="semibold"
+                className="text-center text-lg text-text-primary"
+              >
+                Sign in to view your Pockets
+              </AppText>
+              <Button
+                title="Sign in"
+                onPress={() => router.push("/(auth)/login")}
+                size="sm"
+                rounded="full"
+                className="mt-4"
+              />
+            </View>
+          ) : pockets.error ? (
+            <ErrorState
+              title="Unable to load your Pockets"
+              description="Please try again to load your collections."
+              primaryActionTitle="Retry"
+              onPrimaryAction={refreshCollections}
+            />
+          ) : pockets.hasData ? (
+            <View testID="my-pockets-empty" className="items-center py-10">
+              <AppText
+                weight="semibold"
+                className="text-center text-lg text-text-primary"
+              >
+                No Pockets yet
+              </AppText>
+              <AppText className="mt-2 text-center text-body text-text-secondary">
+                Your saved-business collections will appear here.
+              </AppText>
+            </View>
+          ) : null
+        }
+        ListFooterComponent={
+          pockets.isEnabled && hasCollections ? (
+            pockets.isFetchingNextPage ? (
+              <View
+                testID="my-pockets-page-loader"
+                className="items-center py-5"
+              >
+                <LottieView
+                  source={loadingAnimation}
+                  autoPlay
+                  loop
+                  style={{ width: 50, height: 50 }}
+                />
+              </View>
+            ) : pockets.error ? (
+              <View className="-mx-4 py-4">
+                <ErrorState
+                  size="section"
+                  title={
+                    pockets.isFetchNextPageError
+                      ? "Unable to load more Pockets"
+                      : "Unable to refresh your Pockets"
+                  }
+                  description="Your loaded collections are still available."
+                  primaryActionTitle="Retry"
+                  onPrimaryAction={
+                    pockets.isFetchNextPageError
+                      ? () => loadNextPage(true)
+                      : refreshCollections
+                  }
+                />
+              </View>
+            ) : !pockets.hasNextPage && !pockets.isFetching ? (
+              <EndOfListMessage description="You've seen all your Pockets." />
+            ) : null
+          ) : null
+        }
+        onScrollBeginDrag={() => {
+          requests.current.armed = true;
+        }}
+        onEndReached={() => loadNextPage()}
+        onEndReachedThreshold={0.35}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            enabled={pockets.isEnabled}
+            refreshing={
+              pockets.isEnabled &&
+              pockets.isRefetching &&
+              !pockets.isFetchingNextPage
+            }
+            onRefresh={refreshCollections}
+            tintColor={theme.extends.colors.brand}
+          />
         }
       />
-
-      {isEditing && (
-        <View
-          className="absolute bottom-0 left-0 right-0 flex-row items-center justify-between bg-surface px-4 border-t border-border"
-          style={{ paddingBottom: insets.bottom + 16, paddingTop: 16 }}
-        >
-          <Pressable
-            onPress={toggleSelectAll}
-            className="flex-row items-center"
-            hitSlop={8}
-          >
-            <View
-              className={`mr-2 h-5 w-5 items-center justify-center rounded border ${
-                allSelected ? "bg-brand border-brand" : "border-border"
-              }`}
-            >
-              {allSelected && (
-                <MaterialCommunityIcons
-                  name="check"
-                  size={14}
-                  color="#FFFFFF"
-                />
-              )}
-            </View>
-            <Text className="text-text-primary">All</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleDeleteSelected}
-            disabled={selectedIds.length === 0}
-            className={`rounded-md px-6 py-2 ${
-              selectedIds.length === 0 ? "bg-disabled" : "bg-brand"
-            }`}
-          >
-            <Text
-              className={`font-semibold ${
-                selectedIds.length === 0 ? "text-text-tertiary" : "text-white"
-              }`}
-            >
-              Delete
-            </Text>
-          </Pressable>
-        </View>
-      )}
-    </View>
+    </SafeAreaView>
   );
 }
