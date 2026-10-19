@@ -15,7 +15,7 @@ export default function AccountSettingsScreen() {
   return (
     <SafeAreaView
       edges={["bottom", "left", "right"]}
-      className="flex-1 bg-background"
+      className="flex-1 bg-surface"
     >
       <ScrollView
         contentContainerClassName="p-4"
