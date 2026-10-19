@@ -1,110 +1,164 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import type { ComponentProps } from "react";
 import { useRef } from "react";
-import { View } from "react-native";
+import { ActivityIndicator, View, useWindowDimensions } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import SafePressable from "@/shared/components/SafePressable";
+import Skeleton from "@/shared/components/Skeleton";
+import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
+import { shadows } from "@/shared/styles/shadows";
 
+import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { PlusPocketReport } from "../../types/merchantPlusAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 
+import AnalyticsHeaderControls from "./AnalyticsHeaderControls";
 import AnalyticsEventTrend from "./AnalyticsEventTrend";
 import AnalyticsPocketMeasurementSheet from "./AnalyticsPocketMeasurementSheet";
 
 type Props = {
-  report: PlusPocketReport;
+  report?: PlusPocketReport;
   retry: () => void;
+  loading?: boolean;
+};
+
+type PocketMetricCardProps = {
+  icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
+  label: string;
+  value: number | null;
+  detail: string;
+  stacked: boolean;
+  loading?: boolean;
 };
 
 /**
- * Displays recorded Pocket saves as the primary metric, with unique
- * saving accounts as supporting context and weekly chart activity.
+ * Displays a Pocket activity metric using the same compact
+ * card styling and number hierarchy as Business Overview.
  *
- * Uses a flat section layout while preserving the existing metric
- * hierarchy and on-demand measurement explanations.
+ * Distinguishes unavailable measurements from recorded zero.
  */
-export default function AnalyticsPocketTrends({ report, retry }: Props) {
-  const measurementSheetRef = useRef<BottomSheetModal>(null);
+function PocketMetricCard({
+  icon,
+  label,
+  value,
+  detail,
+  stacked,
+  loading = false,
+}: PocketMetricCardProps) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${
+        loading
+          ? "Loading"
+          : value === null
+            ? "Unavailable"
+            : formatAnalyticsCount(value)
+      }. ${detail}`}
+      className={`min-w-0 rounded-card border border-border-primary/60 bg-surface p-4 ${
+        stacked ? "w-full" : "flex-1"
+      }`}
+      style={shadows.subtle}
+    >
+      {/* Metric heading and supporting icon */}
+      <View className="flex-row items-start justify-between gap-2">
+        <AppText
+          weight="medium"
+          className="min-w-0 flex-1 text-sm leading-5 text-text-secondary"
+        >
+          {label}
+        </AppText>
 
-  const saves = report.metrics.saves;
-  const distinct = report.metrics.distinct_savers;
+        <MaterialCommunityIcons
+          name={icon}
+          size={18}
+          color={theme.extends.colors.text.secondary}
+          accessible={false}
+        />
+      </View>
+
+      {/* Primary count and brief definition */}
+      <View className="mt-3 gap-1">
+        {loading ? (
+          <Skeleton className="h-9 w-16 rounded" />
+        ) : (
+          <AppText
+            weight="semibold"
+            className={`text-3xl tabular-nums ${
+              value === null ? "text-text-secondary" : "text-text-primary"
+            }`}
+          >
+            {formatAnalyticsCount(value)}
+          </AppText>
+        )}
+
+        <AppText className="text-xs leading-5 text-text-secondary">
+          {detail}
+        </AppText>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Presents recorded Pocket save activity through two independent
+ * KPI cards and a calendar-aware weekly activity chart.
+ *
+ * Preserves existing analytics values, coverage notices,
+ * unavailable states, and on-demand measurement explanations.
+ */
+export default function AnalyticsPocketTrends({
+  report,
+  retry,
+  loading = false,
+}: Props) {
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < 360 || fontScale >= 1.35;
+
+  const saves = report?.metrics.saves;
+  const distinct = report?.metrics.distinct_savers;
+
+  const currentSource = saves?.sources.current;
+
+  const hasReadLimitations = currentSource?.partial_reasons.some((reason) =>
+    [
+      "total_read_unavailable",
+      "series_read_unavailable",
+      "visibility_read_unavailable",
+    ].includes(reason),
+  );
 
   return (
     <>
-      <View className="gap-4">
-        {/* Primary recorded saves and measurement information */}
-        <View className="flex-row items-start justify-between gap-3">
-          <View className="min-w-0 flex-1 gap-1">
-            <AppText className="text-sm text-text-secondary">
-              Recorded saves
-            </AppText>
-
-            <AppText
-              weight="extrabold"
-              className="text-3xl text-text-primary"
-              accessibilityLabel={`Recorded saves: ${
-                saves.value === null ? "Unavailable" : saves.value
-              }`}
-            >
-              {formatAnalyticsCount(saves.value)}
-            </AppText>
-
-            <AppText className="text-xs text-text-secondary">
-              During the selected period
-            </AppText>
-          </View>
-
-          <SafePressable
-            onPress={() => measurementSheetRef.current?.present()}
-            accessibilityRole="button"
-            accessibilityLabel="About Pocket activity"
-            accessibilityHint="Opens explanations about recorded saves and saving accounts"
-            className="h-11 w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
-          >
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={22}
-              color={theme.extends.colors.text.secondary}
-              accessible={false}
+      <View className="gap-5">
+        {/* Two KPI cards matching the main Business Overview style */}
+        <View className="gap-3">
+          <View className={stacked ? "gap-3" : "flex-row gap-3"}>
+            <PocketMetricCard
+              icon="bookmark-outline"
+              label="Recorded saves"
+              value={saves?.value ?? null}
+              loading={loading}
+              detail="During selected dates"
+              stacked={stacked}
             />
-          </SafePressable>
-        </View>
 
-        {/* Secondary unique saving-account metric */}
-        <View className="flex-row items-center gap-3 rounded-xl bg-surface-muted px-3 py-3">
-          <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface">
-            <MaterialCommunityIcons
-              name="account-multiple-outline"
-              size={20}
-              color={theme.extends.colors.text.secondary}
-              accessible={false}
+            <PocketMetricCard
+              icon="account-multiple-outline"
+              label="Saving accounts"
+              value={distinct?.value ?? null}
+              loading={loading}
+              detail="Distinct explorer accounts"
+              stacked={stacked}
             />
-          </View>
-
-          <View className="min-w-0 flex-1">
-            <View className="flex-row flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <AppText
-                weight="bold"
-                className="text-xl text-text-primary"
-                accessibilityLabel={`Unique saving accounts: ${
-                  distinct.value === null ? "Unavailable" : distinct.value
-                }`}
-              >
-                {formatAnalyticsCount(distinct.value)}
-              </AppText>
-
-              <AppText className="text-sm ml-2 leading-5 text-text-secondary">
-                Unique saving accounts
-              </AppText>
-            </View>
           </View>
         </View>
 
-        {/* Independent recovery for saving-account data */}
-        {distinct.value === null && (
+        {/* Independent recovery for the saving-accounts metric */}
+        {!loading && distinct?.value === null ? (
           <ErrorState
             size="section"
             title="Saving accounts unavailable"
@@ -112,35 +166,124 @@ export default function AnalyticsPocketTrends({ report, retry }: Props) {
             primaryActionTitle="Retry"
             onPrimaryAction={retry}
           />
-        )}
+        ) : null}
 
-        {/* Weekly save activity */}
-        <View className="gap-3 border-t border-border-primary/60 pt-4">
-          <View className="flex-row items-center justify-between gap-3">
-            <AppText weight="semibold" className="text-base text-text-primary">
-              Save activity
+        {/* Weekly save activity and chart */}
+        <View className="gap-3 border-t border-border-primary/60 pt-5">
+          <View className="gap-1">
+            <AppText weight="bold" className="text-base text-text-primary">
+              Saves over time
             </AppText>
 
-            <View className="rounded-lg bg-surface-muted px-2.5 py-1">
-              <AppText weight="medium" className="text-xs text-text-secondary">
-                Weekly
-              </AppText>
-            </View>
+            <AppText className="text-sm leading-5 text-text-secondary">
+              Recorded save activity by{" "}
+              {report?.interval === "daily" ? "day" : "week"}
+            </AppText>
           </View>
 
-          <AnalyticsEventTrend
-            metric={saves}
-            label="Recorded saves"
-            interval="weekly"
-            note={report.measurement_note}
-            retry={retry}
-            showTotal={false}
-            showContext={false}
+          {loading ? (
+            <View
+              accessibilityRole="progressbar"
+              accessibilityLabel="Loading save activity"
+              className="min-h-44 items-center justify-center gap-3"
+            >
+              <ActivityIndicator color={theme.extends.colors.brand} />
+              <AppText className="text-sm text-text-secondary">
+                Loading save activity…
+              </AppText>
+            </View>
+          ) : saves && report ? (
+            <AnalyticsEventTrend
+              metric={saves}
+              label="Recorded saves"
+              interval={report.interval}
+              variant="line"
+              retry={retry}
+              showTotal={false}
+              showContext={false}
+            />
+          ) : null}
+        </View>
+
+        {/* Read failures stay visible; routine coverage details live in the information sheet. */}
+        {hasReadLimitations && (
+          <View className="flex-row items-start gap-2">
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={17}
+              color={theme.extends.colors.text.secondary}
+              accessible={false}
+            />
+
+            <View className="min-w-0 flex-1 gap-1">
+              {hasReadLimitations && (
+                <AppText className="text-xs leading-5 text-text-secondary">
+                  Some figures could not be loaded. Available measurements are
+                  shown.
+                </AppText>
+              )}
+            </View>
+          </View>
+        )}
+      </View>
+    </>
+  );
+}
+
+const POCKET_PERIOD_OPTIONS = [
+  { label: "Last 7 days", value: "7" },
+  { label: "Last 30 days", value: "30" },
+  { label: "Last 90 days", value: "90" },
+];
+
+/** Keeps the overview's compact period and information actions usable throughout report loading. */
+export function AnalyticsPocketHeader({
+  period,
+  onPeriodChange,
+  report,
+}: {
+  period: MerchantAnalyticsPeriod;
+  onPeriodChange: (period: MerchantAnalyticsPeriod) => void;
+  report?: PlusPocketReport;
+}) {
+  const periodSheetRef = useRef<BottomSheetModal>(null);
+  const measurementSheetRef = useRef<BottomSheetModal>(null);
+  return (
+    <>
+      <View className="gap-1">
+        <View className="flex-row items-center justify-between gap-3">
+          <AppText
+            weight="bold"
+            accessibilityRole="header"
+            className="min-w-0 flex-1 text-base text-text-primary"
+          >
+            Save activity
+          </AppText>
+          <AnalyticsHeaderControls
+            period={period}
+            onOpenPeriod={() => periodSheetRef.current?.present()}
+            onOpenInformation={() => measurementSheetRef.current?.present()}
+            informationLabel="About Pocket activity"
+            informationHint="Opens measurement definitions for saves and saving accounts"
           />
         </View>
+        <AppText className="text-sm leading-5 text-text-secondary">
+          How explorers saved your business
+        </AppText>
       </View>
-
-      {/* On-demand measurement information */}
+      {/* Reuse the exact overview selection sheet and its own dismissal behavior. */}
+      <SelectionBottomSheet
+        sheetRef={periodSheetRef}
+        title="Reporting period"
+        description="Choose a time range for this section."
+        options={POCKET_PERIOD_OPTIONS}
+        selectedValue={period}
+        onSelect={(value) => {
+          if (value === "7" || value === "30" || value === "90")
+            onPeriodChange(value);
+        }}
+        snapPoints={["50%"]}
+      />
       <AnalyticsPocketMeasurementSheet
         sheetRef={measurementSheetRef}
         report={report}

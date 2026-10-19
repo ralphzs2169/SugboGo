@@ -9,8 +9,8 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 
-import type { RoutePlanningAnalytics } from "../../types/routePlanningAnalytics.types";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
+import type { RoutePlanningAnalytics } from "../../types/routePlanningAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
@@ -29,10 +29,13 @@ type Props = {
 
 const DONUT_SIZE = 132;
 const DONUT_STROKE = 14;
-/** Visible gap between the two arcs, in px along the circle. */
 const DONUT_GAP = 4;
 
-/** Soft, low-contrast elevation shared with the other Analytics panels. */
+const METHOD_COLORS = {
+  road: theme.extends.colors.brand,
+  jeepney: "#698CAD",
+} as const;
+
 const PANEL_SHADOW = {
   shadowColor: "#000",
   shadowOpacity: 0.05,
@@ -41,62 +44,58 @@ const PANEL_SHADOW = {
   elevation: 1,
 } as const;
 
-/** Keeps digits the same width so counts line up across rows. */
 const TABULAR_NUMBERS: TextStyle = {
   fontVariant: ["tabular-nums"],
 };
-
-function withAlpha(color: string, alpha: number) {
-  if (!color.startsWith("#")) return color;
-  const hex = color.replace("#", "");
-
-  if (hex.length !== 6) return color;
-
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 function formatPercent(value: number) {
   return `${value.toFixed(1)}%`;
 }
 
+type RoutePlanningDonutProps = {
+  total: number;
+  roadCount: number;
+  jeepneyCount: number;
+};
+
+/**
+ * Displays the distribution of recorded route requests as a donut.
+ *
+ * Uses consistent method colors, proportional segments, and a
+ * centered total. Separates segments only when both methods
+ * contain recorded requests.
+ */
 function RoutePlanningDonut({
   total,
   roadCount,
   jeepneyCount,
-}: {
-  total: number;
-  roadCount: number;
-  jeepneyCount: number;
-}) {
+}: RoutePlanningDonutProps) {
+  const center = DONUT_SIZE / 2;
   const radius = (DONUT_SIZE - DONUT_STROKE) / 2;
   const circumference = 2 * Math.PI * radius;
-  const center = DONUT_SIZE / 2;
 
   const roadLength = total > 0 ? circumference * (roadCount / total) : 0;
+
   const jeepneyLength = total > 0 ? circumference * (jeepneyCount / total) : 0;
 
-  // Only separate the arcs when both exist; a lone arc fills the ring.
   const gap = roadLength > 0 && jeepneyLength > 0 ? DONUT_GAP : 0;
 
-  const roadColor = theme.extends.colors.brand;
-  const jeepneyColor = withAlpha(theme.extends.colors.brand, 0.4);
   const trackColor = theme.extends.colors.surfaceMuted ?? "#F3F4F6";
 
   return (
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={`Route-planning method breakdown. ${roadCount} Road Route requests and ${jeepneyCount} Jeepney guidance requests out of ${total} total recorded requests.`}
+      accessibilityLabel={`Route-planning breakdown. ${roadCount} Road Route requests and ${jeepneyCount} Jeepney guidance requests out of ${total} total recorded requests.`}
       className="items-center justify-center"
-      style={{ width: DONUT_SIZE, height: DONUT_SIZE }}
+      style={{
+        width: DONUT_SIZE,
+        height: DONUT_SIZE,
+      }}
     >
+      {/* Donut track and colored navigation-method segments */}
       <Svg width={DONUT_SIZE} height={DONUT_SIZE} accessible={false}>
         <G rotation="-90" origin={`${center}, ${center}`}>
-          {/* Track */}
           <Circle
             cx={center}
             cy={center}
@@ -106,16 +105,18 @@ function RoutePlanningDonut({
             fill="none"
           />
 
-          {/* Butt caps keep arc lengths exactly proportional to the counts. */}
           {roadLength > 0 ? (
             <Circle
               cx={center}
               cy={center}
               r={radius}
-              stroke={roadColor}
+              stroke={METHOD_COLORS.road}
               strokeWidth={DONUT_STROKE}
               fill="none"
-              strokeDasharray={`${Math.max(roadLength - gap, 0)} ${circumference}`}
+              strokeDasharray={`${Math.max(
+                roadLength - gap,
+                0,
+              )} ${circumference}`}
             />
           ) : null}
 
@@ -124,17 +125,20 @@ function RoutePlanningDonut({
               cx={center}
               cy={center}
               r={radius}
-              stroke={jeepneyColor}
+              stroke={METHOD_COLORS.jeepney}
               strokeWidth={DONUT_STROKE}
               fill="none"
-              strokeDasharray={`${Math.max(jeepneyLength - gap, 0)} ${circumference}`}
+              strokeDasharray={`${Math.max(
+                jeepneyLength - gap,
+                0,
+              )} ${circumference}`}
               strokeDashoffset={-roadLength}
             />
           ) : null}
         </G>
       </Svg>
 
-      {/* Center total */}
+      {/* Centered total recorded requests */}
       <View className="absolute items-center px-6">
         <AppText
           weight="semibold"
@@ -143,54 +147,74 @@ function RoutePlanningDonut({
         >
           {formatAnalyticsCount(total)}
         </AppText>
+
         <AppText className="text-xs text-text-secondary">Requests</AppText>
       </View>
     </View>
   );
 }
 
-type MetricRowProps = {
+type MethodLegendRowProps = {
   label: string;
   count: number | null;
-  /** Share of total requests, shown under the count when known. */
+  color: string;
   percent?: number | null;
-  dotColor?: string;
-  accessibilityLabel: string;
-  /** Draws a hairline above the row. */
   divider?: boolean;
 };
 
-/** One label/value line, used for the method legend and the supporting counts. */
-function MetricRow({
+/**
+ * Identifies a donut segment using a clearly visible color
+ * swatch, method label, exact count, and optional percentage.
+ *
+ * Uses explicit React Native dimensions for reliable swatch
+ * rendering on Android and iOS.
+ */
+
+/**
+ * Displays a compact navigation-method legend with a small
+ * matching color indicator, exact count, and percentage.
+ *
+ * Keeps values right-aligned beside the donut chart.
+ */
+function MethodLegendRow({
   label,
   count,
+  color,
   percent = null,
-  dotColor,
-  accessibilityLabel,
-  divider,
-}: MetricRowProps) {
+  divider = false,
+}: MethodLegendRowProps) {
   return (
     <View
       accessible
-      accessibilityLabel={accessibilityLabel}
-      className={`flex-row items-center justify-between gap-3 py-2.5 ${
+      accessibilityLabel={`${label}: ${
+        count ?? "Unavailable"
+      } recorded requests${
+        percent !== null ? `, ${formatPercent(percent)}` : ""
+      }`}
+      className={`flex-row items-center justify-between gap-2 py-2.5 ${
         divider ? "border-t border-border-primary/60" : ""
       }`}
     >
-      <View className="min-w-0 flex-1 flex-row items-center gap-2.5">
-        {dotColor ? (
-          <View
-            accessible={false}
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: dotColor }}
-          />
-        ) : null}
+      {/* Compact legend indicator and method label */}
+      <View className="min-w-0 flex-1 flex-row items-center gap-2">
+        <View
+          accessible={false}
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 3,
+            backgroundColor: color,
+            flexShrink: 0,
+          }}
+        />
+
         <AppText className="min-w-0 flex-1 text-sm text-text-secondary">
           {label}
         </AppText>
       </View>
 
-      <View className="items-end">
+      {/* Right-aligned count and percentage */}
+      <View className="shrink-0 items-end">
         <AppText
           weight="semibold"
           className="text-sm text-text-primary"
@@ -198,20 +222,67 @@ function MetricRow({
         >
           {formatAnalyticsCount(count)}
         </AppText>
-        {percent !== null ? (
+
+        {percent !== null && (
           <AppText
             className="text-xs text-text-secondary"
             style={TABULAR_NUMBERS}
           >
             {formatPercent(percent)}
           </AppText>
-        ) : null}
+        )}
       </View>
     </View>
   );
 }
 
-/** Presents method-level recorded guidance interest without implying completed visits. */
+type SupportingMetricRowProps = {
+  label: string;
+  count: number | null;
+  divider?: boolean;
+};
+
+/**
+ * Displays a supporting analytics count separately from the
+ * donut's navigation-method distribution.
+ */
+function SupportingMetricRow({
+  label,
+  count,
+  divider = false,
+}: SupportingMetricRowProps) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${count ?? "Unavailable"}`}
+      className={`flex-row items-center justify-between gap-3 py-3 ${
+        divider ? "border-t border-border-primary/60" : ""
+      }`}
+    >
+      {/* Supporting metric name */}
+      <AppText className="min-w-0 flex-1 text-sm text-text-secondary">
+        {label}
+      </AppText>
+
+      {/* Exact supporting count */}
+      <AppText
+        weight="semibold"
+        className="text-sm text-text-primary"
+        style={TABULAR_NUMBERS}
+      >
+        {formatAnalyticsCount(count)}
+      </AppText>
+    </View>
+  );
+}
+
+/**
+ * Presents recorded route-planning activity for a merchant.
+ *
+ * Shows a proportional donut with a matching, accessible method
+ * legend and distinct explorer accounts. Preserves independent
+ * loading, retry, unavailable, partial-coverage, and zero states.
+ */
 export default function AnalyticsRoutePlanning({
   period,
   onOpenPeriod,
@@ -221,21 +292,26 @@ export default function AnalyticsRoutePlanning({
   onRetry,
 }: Props) {
   const sheetRef = useRef<BottomSheetModal>(null);
+
   const { width, fontScale } = useWindowDimensions();
+
   const stacked = width < 360 || fontScale >= 1.3;
 
   const unavailable = data?.meta.availability === "unavailable";
+
   const reasons = data?.meta.partial_reasons ?? [];
+
   const uninitialized = reasons.some((reason) =>
     [
       "route_intent_collection_missing",
       "route_tracking_not_initialized",
     ].includes(reason),
   );
+
   const beforeTracking = reasons.includes("tracking_not_started_in_period");
 
   const partialCounts =
-    data &&
+    !!data &&
     !unavailable &&
     [
       data.total_requests,
@@ -252,9 +328,9 @@ export default function AnalyticsRoutePlanning({
     data.road_route_requests !== null &&
     data.jeepney_requests !== null;
 
+  const totalRequests = data?.total_requests ?? null;
   const roadCount = data?.road_route_requests ?? null;
   const jeepneyCount = data?.jeepney_requests ?? null;
-  const totalRequests = data?.total_requests ?? null;
 
   const roadPercent =
     canRenderDonut && totalRequests ? (roadCount! / totalRequests) * 100 : null;
@@ -263,25 +339,6 @@ export default function AnalyticsRoutePlanning({
     canRenderDonut && totalRequests
       ? (jeepneyCount! / totalRequests) * 100
       : null;
-
-  const methods = data
-    ? [
-        {
-          key: "road",
-          label: "Road Route",
-          count: data.road_route_requests,
-          percent: roadPercent,
-          dotColor: theme.extends.colors.brand,
-        },
-        {
-          key: "jeepney",
-          label: "Jeepney guidance",
-          count: data.jeepney_requests,
-          percent: jeepneyPercent,
-          dotColor: withAlpha(theme.extends.colors.brand, 0.4),
-        },
-      ]
-    : [];
 
   return (
     <>
@@ -298,8 +355,8 @@ export default function AnalyticsRoutePlanning({
           />
         }
       >
-        {/* Independent loading and persistent request recovery */}
-        {loading && !data ? (
+        {/* Initial loading state */}
+        {loading && !data && !error ? (
           <View
             accessibilityLabel="Loading route-planning activity"
             accessibilityState={{ busy: true }}
@@ -310,6 +367,7 @@ export default function AnalyticsRoutePlanning({
           </View>
         ) : null}
 
+        {/* Independent request recovery */}
         {error ? (
           <ErrorState
             size="section"
@@ -328,9 +386,11 @@ export default function AnalyticsRoutePlanning({
           />
         ) : null}
 
+        {/* Route-planning report and its availability states */}
         {data ? (
           <View className="gap-3">
             {unavailable && !uninitialized && !beforeTracking ? (
+              /* Temporary source failure */
               <ErrorState
                 size="section"
                 title="Route-planning data unavailable"
@@ -339,6 +399,7 @@ export default function AnalyticsRoutePlanning({
                 onPrimaryAction={onRetry}
               />
             ) : unavailable ? (
+              /* Tracking unavailable for the requested period */
               <AnalyticsChartEmptyState
                 compact
                 icon="map-marker-path"
@@ -354,7 +415,7 @@ export default function AnalyticsRoutePlanning({
                 }
               />
             ) : data.total_requests === 0 ? (
-              /* Known zeros remain visible without drawing an empty chart. */
+              /* Known zero activity without a misleading donut */
               <View
                 className="rounded-card border border-border-primary/60 bg-surface px-4 py-4"
                 style={PANEL_SHADOW}
@@ -362,6 +423,7 @@ export default function AnalyticsRoutePlanning({
                 <AppText className="text-sm text-text-secondary">
                   Recorded route requests
                 </AppText>
+
                 <AppText
                   weight="semibold"
                   className="mt-1 text-4xl text-text-primary"
@@ -370,34 +432,41 @@ export default function AnalyticsRoutePlanning({
                 >
                   {formatAnalyticsCount(data.total_requests)}
                 </AppText>
+
                 <AppText className="mb-3 mt-1 text-sm leading-5 text-text-secondary">
                   No recorded route requests for the available tracking dates.
                 </AppText>
 
-                {[
-                  { label: "Road Route", count: data.road_route_requests },
-                  { label: "Jeepney guidance", count: data.jeepney_requests },
-                  {
-                    label: "Distinct explorer accounts",
-                    count: data.distinct_explorer_accounts,
-                  },
-                ].map(({ label, count }) => (
-                  <MetricRow
-                    key={label}
-                    divider
-                    label={label}
-                    count={count}
-                    accessibilityLabel={`${label}: ${count ?? "Unavailable"}`}
+                {/* Both navigation methods retain their color keys */}
+                <View className="border-t border-border-primary/60">
+                  <MethodLegendRow
+                    label="Road Route"
+                    count={data.road_route_requests}
+                    color={METHOD_COLORS.road}
                   />
-                ))}
+
+                  <MethodLegendRow
+                    divider
+                    label="Jeepney guidance"
+                    count={data.jeepney_requests}
+                    color={METHOD_COLORS.jeepney}
+                  />
+                </View>
+
+                {/* Account count is not part of the method distribution */}
+                <SupportingMetricRow
+                  divider
+                  label="Distinct explorer accounts"
+                  count={data.distinct_explorer_accounts}
+                />
               </View>
             ) : (
+              /* Main donut chart and its breakdown panel */
               <View
                 className="rounded-card border border-border-primary/60 bg-surface"
                 style={PANEL_SHADOW}
               >
                 {canRenderDonut ? (
-                  /* Donut beside its legend; stacks on narrow screens or large text. */
                   <View
                     className={`p-4 ${
                       stacked
@@ -405,41 +474,41 @@ export default function AnalyticsRoutePlanning({
                         : "flex-row items-center gap-5"
                     }`}
                   >
+                    {/* Proportional recorded-request donut */}
                     <RoutePlanningDonut
                       total={data.total_requests!}
                       roadCount={data.road_route_requests!}
                       jeepneyCount={data.jeepney_requests!}
                     />
 
+                    {/* Visible legend matching each chart segment */}
                     <View className={stacked ? "w-full" : "min-w-0 flex-1"}>
-                      {methods.map((method, index) => (
-                        <MetricRow
-                          key={method.key}
-                          divider={index > 0}
-                          label={method.label}
-                          count={method.count}
-                          percent={method.percent}
-                          dotColor={method.dotColor}
-                          accessibilityLabel={`${method.label}: ${
-                            method.count ?? "Unavailable"
-                          } requests${
-                            method.percent !== null
-                              ? `, ${formatPercent(method.percent)}`
-                              : ""
-                          }`}
-                        />
-                      ))}
+                      <MethodLegendRow
+                        label="Road Route"
+                        count={data.road_route_requests}
+                        percent={roadPercent}
+                        color={METHOD_COLORS.road}
+                      />
+
+                      <MethodLegendRow
+                        divider
+                        label="Jeepney guidance"
+                        count={data.jeepney_requests}
+                        percent={jeepneyPercent}
+                        color={METHOD_COLORS.jeepney}
+                      />
                     </View>
                   </View>
                 ) : (
-                  /* Fallback when totals exist but the method split is incomplete */
-                  <View className="px-4 pb-2 pt-4">
+                  /* Incomplete method data cannot form a valid donut */
+                  <View className="px-4 pb-3 pt-4">
                     <AppText className="text-sm text-text-secondary">
                       Recorded route requests
                     </AppText>
+
                     <AppText
                       weight="semibold"
-                      className="mb-2 mt-1 text-4xl text-text-primary"
+                      className="mb-3 mt-1 text-4xl text-text-primary"
                       style={TABULAR_NUMBERS}
                       accessibilityLabel={`Recorded route requests: ${
                         data.total_requests ?? "Unavailable"
@@ -448,39 +517,40 @@ export default function AnalyticsRoutePlanning({
                       {formatAnalyticsCount(data.total_requests)}
                     </AppText>
 
-                    {methods.map((method, index) => (
-                      <MetricRow
-                        key={method.key}
-                        divider={index > 0}
-                        label={method.label}
-                        count={method.count}
-                        accessibilityLabel={`${method.label}: ${
-                          method.count ?? "Unavailable"
-                        } recorded requests`}
+                    {/* Method counts remain readable without a chart */}
+                    <View className="border-t border-border-primary/60">
+                      <MethodLegendRow
+                        label="Road Route"
+                        count={data.road_route_requests}
+                        color={METHOD_COLORS.road}
                       />
-                    ))}
 
-                    <AppText className="pb-2 pt-1 text-sm leading-5 text-text-secondary">
+                      <MethodLegendRow
+                        divider
+                        label="Jeepney guidance"
+                        count={data.jeepney_requests}
+                        color={METHOD_COLORS.jeepney}
+                      />
+                    </View>
+
+                    <AppText className="pt-2 text-sm leading-5 text-text-secondary">
                       Some route-planning counts are unavailable, so the method
                       breakdown cannot be charted.
                     </AppText>
                   </View>
                 )}
 
-                {/* Distinct explorer accounts stays separate from the method split */}
+                {/* Distinct explorers are separate from method shares */}
                 <View className="border-t border-border-primary/60 px-4">
-                  <MetricRow
+                  <SupportingMetricRow
                     label="Distinct explorer accounts"
                     count={data.distinct_explorer_accounts}
-                    accessibilityLabel={`Distinct explorer accounts: ${
-                      data.distinct_explorer_accounts ?? "Unavailable"
-                    }`}
                   />
                 </View>
               </View>
             )}
 
-            {/* Surface incomplete counts without repeating measurement details */}
+            {/* Incomplete-count notice for otherwise valid charts */}
             {!unavailable && partialCounts && canRenderDonut ? (
               <View className="flex-row items-center gap-2 px-1">
                 <MaterialCommunityIcons
@@ -499,7 +569,7 @@ export default function AnalyticsRoutePlanning({
         ) : null}
       </AnalyticsOverviewSection>
 
-      {/* Measurement details stay out of the compact overview. */}
+      {/* Measurement definitions and reporting limitations */}
       <AnalyticsRoutePlanningSheet sheetRef={sheetRef} report={data} />
     </>
   );

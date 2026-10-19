@@ -1,4 +1,5 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import SafePressable from "@/shared/components/SafePressable";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import InfoBanner from "@/shared/components/InfoBanner";
@@ -10,7 +11,7 @@ import type {
 } from "../../types/merchantAdvancedAnalytics.types";
 import { formatAnalyticsDate } from "../../utils/merchantAnalytics.utils";
 import { formatOptionalAnalyticsTimestamp as formatAnalyticsTimestamp } from "../../utils/merchantPlusAnalytics.utils";
-import { PlusReportContext } from "./AnalyticsPlusStates";
+import AnalyticsDetailContext from "./AnalyticsDetailContext";
 
 const STATE_COPY: Record<
   RecommendationState,
@@ -95,6 +96,24 @@ export default function AnalyticsBusinessRecommendations({
 
   return (
     <View className="gap-5">
+      {/* Meaningful failures and outdated content remain explicit. */}
+      {state === "invalidated" || state === "failed" ? (
+        <InfoBanner title={copy.title}>
+          <AppText className="text-sm leading-5 text-text-secondary">
+            {copy.description}
+          </AppText>
+        </InfoBanner>
+      ) : (
+        <View className="gap-2">
+          <AppText weight="semibold" className="text-base text-text-primary">
+            {copy.title}
+          </AppText>
+          <AppText className="text-sm leading-5 text-text-secondary">
+            {copy.description}
+          </AppText>
+        </View>
+      )}
+
       {/* Only current, publishable recommendations are shown. */}
       {report.content_available &&
         report.state === "ready" &&
@@ -106,7 +125,7 @@ export default function AnalyticsBusinessRecommendations({
             {report.ai_recommendations.map((item, index) => (
               <View
                 key={`${item.action_code}-${index}`}
-                className="gap-2 rounded-card bg-background p-4"
+                className="gap-2 rounded-card border border-border-primary/60 bg-surface p-4"
               >
                 <AppText className="text-base leading-6 text-text-primary">
                   {item.message}
@@ -214,23 +233,6 @@ export default function AnalyticsBusinessRecommendations({
           )}
       </View>
 
-      {/* Meaningful failures and outdated content remain explicit. */}
-      {state === "invalidated" || state === "failed" ? (
-        <InfoBanner title={copy.title}>
-          <AppText className="text-sm leading-5 text-text-secondary">
-            {copy.description}
-          </AppText>
-        </InfoBanner>
-      ) : (
-        <View className="gap-2">
-          <AppText weight="semibold" className="text-base text-text-primary">
-            {copy.title}
-          </AppText>
-          <AppText className="text-sm leading-5 text-text-secondary">
-            {copy.description}
-          </AppText>
-        </View>
-      )}
       {refreshResult && (
         <AppText className="text-sm leading-5 text-text-secondary">
           {refreshResult.created
@@ -264,7 +266,7 @@ export default function AnalyticsBusinessRecommendations({
             Please wait before requesting again. You can still check status.
           </AppText>
         )}
-        <Pressable
+        <SafePressable
           accessibilityRole="button"
           accessibilityLabel={requestLabel}
           accessibilityState={{
@@ -273,31 +275,35 @@ export default function AnalyticsBusinessRecommendations({
           }}
           disabled={active || requesting || checking || throttled}
           onPress={requestRefresh}
-          className={`min-h-12 items-center justify-center rounded-full bg-brand px-4 py-3 ${active || requesting || checking || throttled ? "opacity-50" : "active:opacity-70"}`}
+          className={`min-h-12 cursor-pointer items-center justify-center rounded-full bg-brand px-4 py-3 ${active || requesting || checking || throttled ? "opacity-50" : "active:opacity-70"}`}
         >
           <AppText weight="bold" className="text-sm text-white">
             {requesting ? "Sending request…" : requestLabel}
           </AppText>
-        </Pressable>
-        <Pressable
+        </SafePressable>
+        <SafePressable
           accessibilityRole="button"
           accessibilityLabel="Check recommendation status"
           accessibilityState={{ disabled: checking, busy: checking }}
           disabled={checking}
           onPress={checkStatus}
-          className="min-h-12 items-center justify-center px-4 py-2 active:opacity-70"
+          className="min-h-12 cursor-pointer items-center justify-center px-4 py-2 active:opacity-70"
         >
           <AppText weight="semibold" className="text-sm text-text-info">
             {checking ? "Checking status…" : "Check status"}
           </AppText>
-        </Pressable>
+        </SafePressable>
         <AppText className="text-sm leading-5 text-text-secondary">
           Pull to refresh checks status. It does not request new
           recommendations.
         </AppText>
       </View>
 
-      <PlusReportContext meta={report.meta} note={report.measurement_note} />
+      <AnalyticsDetailContext
+        title="About business recommendations"
+        meta={report.meta}
+        note={report.measurement_note}
+      />
     </View>
   );
 }

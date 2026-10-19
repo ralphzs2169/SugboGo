@@ -6,9 +6,10 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
-import AppText from "@/shared/components/AppText";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-import AnalyticsPeriodSelector from "../../components/analytics/AnalyticsPeriodSelector";
+import AnalyticsDetailHeader, {
+  ANALYTICS_DETAIL_DESCRIPTIONS,
+} from "../../components/analytics/AnalyticsDetailHeader";
 import AnalyticsChartEmptyState from "../../components/analytics/AnalyticsChartEmptyState";
 import AnalyticsPeerComparisons from "../../components/analytics/AnalyticsPeerComparisons";
 import AnalyticsStoredReviewInsights from "../../components/analytics/AnalyticsStoredReviewInsights";
@@ -25,7 +26,6 @@ import {
   useMerchantPlusTiming,
   useMerchantPlusRecommendations,
 } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
-import MerchantContentSection from "../../layout/MerchantContentSection";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { AdvancedPlusDetailKind } from "../../types/merchantPlusAnalytics.types";
 
@@ -99,17 +99,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   };
   return (
     <SafeAreaView edges={["left", "right"]} className="flex-1 bg-background">
-      {/* Stored insights own their generation window and have no misleading period selector. */}
-      <View className="bg-surface px-5 pb-3 pt-2">
-        <AppText className="text-sm leading-5 text-text-secondary">
-          {kind === "review-insights"
-            ? "This summary uses its own review dates."
-            : "Selected dates · Manila time"}
-        </AppText>
-        {kind !== "review-insights" && (
-          <AnalyticsPeriodSelector period={period} onChange={setPeriod} />
-        )}
-      </View>
+      {/* Stored insights retain their own dates, with no dashboard date selector. */}
       <ScrollView
         testID="advanced-plus-detail-scroll"
         showsVerticalScrollIndicator={false}
@@ -123,7 +113,13 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
           />
         }
       >
-        <MerchantContentSection title={title}>
+        <AnalyticsDetailHeader
+          title={title}
+          description={ANALYTICS_DETAIL_DESCRIPTIONS[kind]}
+          period={kind === "review-insights" ? undefined : period}
+          onPeriodChange={setPeriod}
+        />
+        <View className="mt-2 bg-surface px-5 py-5">
           <PlusAccessGate access={access}>
             <PlusRequestState
               error={query.error}
@@ -174,7 +170,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
               )}
             </PlusRequestState>
           </PlusAccessGate>
-        </MerchantContentSection>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

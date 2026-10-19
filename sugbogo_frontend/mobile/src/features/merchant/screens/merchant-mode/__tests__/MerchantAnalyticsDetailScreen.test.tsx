@@ -19,6 +19,11 @@ import {
 import MerchantAnalyticsDetailScreen from "../MerchantAnalyticsDetailScreen";
 import type { PlusDetailKind } from "../../../types/merchantPlusAnalytics.types";
 
+jest.mock("@gorhom/bottom-sheet", () =>
+  jest
+    .requireActual("../../../__tests__/analyticsSheet.mock")
+    .analyticsSheetMock(),
+);
 jest.mock("expo-router", () => ({
   useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
@@ -102,7 +107,13 @@ describe("lazy Core Plus detail reports", () => {
     const screen = await renderDetail("pocket");
     await screen.findByLabelText("Accounts that saved your business: 3");
     expect(screen.getByLabelText("Recorded saves: 5")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "About Pocket activity" }),
+    );
     expect(screen.getByText(/even if it later/)).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close Pocket information" }),
+    );
     expect(service.getMerchantPlusPocket).toHaveBeenCalledWith(
       { period: "90" },
       expect.anything(),
@@ -110,7 +121,7 @@ describe("lazy Core Plus detail reports", () => {
     expect(service.getMerchantPlusSpecialties).not.toHaveBeenCalled();
     expect(service.getMerchantPlusReviewPerformance).not.toHaveBeenCalled();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Show Recorded saves values" }),
+      screen.getByRole("button", { name: "View Recorded saves exact values" }),
     );
     expect(screen.getByText("0")).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));

@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import AppText from "@/shared/components/AppText";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import type {
@@ -9,8 +9,10 @@ import {
   formatReplyComparison,
   formatReplyDuration,
 } from "../../utils/merchantPlusAnalytics.utils";
+import AnalyticsDetailMetric from "./AnalyticsDetailMetric";
+import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
-import { PlusReportContext } from "./AnalyticsPlusStates";
+import AnalyticsDetailContext from "./AnalyticsDetailContext";
 
 const SENTIMENTS: { key: SentimentLabel; label: string; color: string }[] = [
   { key: "positive", label: "Positive", color: "bg-success" },
@@ -24,11 +26,19 @@ export default function AnalyticsReviewPerformance({
 }: {
   report: PlusReviewPerformanceReport;
 }) {
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < 340 || fontScale >= 1.5;
   const cohort = report.current;
   const showShares =
     cohort.has_sufficient_sentiment_data && cohort.classified_review_count > 0;
   return (
     <View className="gap-6">
+      {/* Period review activity comes before its sentiment breakdown. */}
+      <AnalyticsDetailMetric
+        label="New published reviews"
+        value={formatAnalyticsCount(cohort.published_review_count)}
+        detail="Reviews created during these dates that are still published"
+      />
       {/* Classified counts stay visible; percentages are withheld for insufficient samples. */}
       <View className="gap-3">
         <AppText weight="bold" className="text-base text-text-primary">
@@ -113,51 +123,56 @@ export default function AnalyticsReviewPerformance({
         <AppText weight="bold" className="text-base text-text-primary">
           Reply performance
         </AppText>
-        <View className="rounded-card bg-background p-4">
-          <AppText className="text-sm text-text-secondary">
-            Reviews replied to
-          </AppText>
-          <AppText
-            accessibilityLabel={`Reviews replied to: ${cohort.reply_rate === null ? "Unavailable" : `${cohort.reply_rate}%`}`}
-            weight="bold"
-            className="mt-1 text-2xl text-text-primary"
-          >
-            {cohort.reply_rate === null ? "—" : `${cohort.reply_rate}%`}
-          </AppText>
-          <AppText className="mt-2 text-sm leading-5 text-text-secondary">
-            {cohort.replied_review_count} of {cohort.published_review_count}{" "}
-            published reviews from these dates replied to.{" "}
-            {cohort.published_review_count === 0
-              ? "No published reviews from these dates."
-              : cohort.published_review_count === 1
-                ? "This percentage describes one review only."
-                : ""}
-          </AppText>
-          <AppText className="mt-2 text-sm leading-5 text-text-secondary">
-            {formatReplyComparison(report.reply_rate_change)}
-          </AppText>
-        </View>
-        <View className="rounded-card bg-background p-4">
-          <AppText className="text-sm text-text-secondary">
-            Reply time (median)
-          </AppText>
-          <AppText weight="bold" className="mt-1 text-2xl text-text-primary">
-            {formatReplyDuration(
-              cohort.median_replied_sample_size > 0
-                ? cohort.median_first_reply_seconds
-                : null,
-            )}
-          </AppText>
-          <AppText className="mt-2 text-sm leading-5 text-text-secondary">
-            Based on {cohort.median_replied_sample_size} replies with usable
-            timing data.
-            {cohort.median_first_reply_seconds === null ||
-            cohort.median_replied_sample_size === 0
-              ? " A median cannot be shown without usable reply times."
-              : cohort.median_replied_sample_size === 1
-                ? " This is one reply, so it does not show a typical response time."
-                : " The median is the middle reply time when times are ordered from shortest to longest."}
-          </AppText>
+        <View className={stacked ? "gap-3" : "flex-row gap-3"}>
+          <View className="min-w-0 flex-1 rounded-card border border-border-primary/60 bg-surface p-4">
+            <AppText className="text-sm text-text-secondary">
+              Reviews replied to
+            </AppText>
+            <AppText
+              accessibilityLabel={`Reviews replied to: ${cohort.reply_rate === null ? "Unavailable" : `${cohort.reply_rate}%`}`}
+              weight="bold"
+              className="mt-1 text-2xl tabular-nums text-text-primary"
+            >
+              {cohort.reply_rate === null ? "—" : `${cohort.reply_rate}%`}
+            </AppText>
+            <AppText className="mt-2 text-sm leading-5 text-text-secondary">
+              {cohort.replied_review_count} of {cohort.published_review_count}{" "}
+              published reviews from these dates replied to.{" "}
+              {cohort.published_review_count === 0
+                ? "No published reviews from these dates."
+                : cohort.published_review_count === 1
+                  ? "This percentage describes one review only."
+                  : ""}
+            </AppText>
+            <AppText className="mt-2 text-sm leading-5 text-text-secondary">
+              {formatReplyComparison(report.reply_rate_change)}
+            </AppText>
+          </View>
+          <View className="min-w-0 flex-1 rounded-card border border-border-primary/60 bg-surface p-4">
+            <AppText className="text-sm text-text-secondary">
+              Reply time (median)
+            </AppText>
+            <AppText
+              weight="bold"
+              className="mt-1 text-2xl tabular-nums text-text-primary"
+            >
+              {formatReplyDuration(
+                cohort.median_replied_sample_size > 0
+                  ? cohort.median_first_reply_seconds
+                  : null,
+              )}
+            </AppText>
+            <AppText className="mt-2 text-sm leading-5 text-text-secondary">
+              Based on {cohort.median_replied_sample_size} replies with usable
+              timing data.
+              {cohort.median_first_reply_seconds === null ||
+              cohort.median_replied_sample_size === 0
+                ? " A median cannot be shown without usable reply times."
+                : cohort.median_replied_sample_size === 1
+                  ? " This is one reply, so it does not show a typical response time."
+                  : " The median is the middle reply time when times are ordered from shortest to longest."}
+            </AppText>
+          </View>
         </View>
         {report.excluded_reply_timestamp_count > 0 && (
           <AppText className="text-sm leading-5 text-text-secondary">
@@ -183,7 +198,11 @@ export default function AnalyticsReviewPerformance({
           }))}
         />
       </View>
-      <PlusReportContext meta={report.meta} note={report.measurement_note} />
+      <AnalyticsDetailContext
+        title="About review performance"
+        meta={report.meta}
+        note={report.measurement_note}
+      />
     </View>
   );
 }

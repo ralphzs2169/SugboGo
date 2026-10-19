@@ -1,5 +1,8 @@
-import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { useRef } from "react";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import SafePressable from "@/shared/components/SafePressable";
+import AnalyticsReportSheet from "./AnalyticsReportSheet";
+import { View } from "react-native";
 import AppText from "@/shared/components/AppText";
 import InfoBanner from "@/shared/components/InfoBanner";
 import type { PlusStoredInsightsReport } from "../../types/merchantAdvancedAnalytics.types";
@@ -15,7 +18,7 @@ export default function AnalyticsStoredReviewInsights({
 }: {
   report: PlusStoredInsightsReport;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const sheetRef = useRef<BottomSheetModal>(null);
   const summary = report.stored_summary;
   const mentions = [...(summary?.frequent_mentions ?? [])].sort(
     (a, b) => b.count - a.count,
@@ -128,23 +131,24 @@ export default function AnalyticsStoredReviewInsights({
 
       {/* Keep free-form explanations available without rewriting server messages. */}
       <View className="gap-2">
-        <Pressable
+        <SafePressable
           accessibilityRole="button"
-          accessibilityLabel={
-            expanded
-              ? "Hide review summary details"
-              : "Show review summary details"
-          }
-          accessibilityState={{ expanded }}
-          onPress={() => setExpanded(!expanded)}
-          className="min-h-12 cursor-pointer justify-center self-start py-2 active:opacity-70"
+          accessibilityLabel="Show review summary details"
+          accessibilityHint="Opens the summary coverage and preparation information"
+          onPress={() => sheetRef.current?.present()}
+          className="min-h-11 cursor-pointer justify-center self-start py-2 active:opacity-70"
         >
-          <AppText weight="semibold" className="text-sm text-text-info">
-            {expanded ? "Hide summary details" : "About this summary"}
+          <AppText weight="medium" className="text-sm text-text-secondary">
+            About this summary
           </AppText>
-        </Pressable>
-        {expanded && (
-          <View className="gap-2 border-t border-border-primary pt-3">
+        </SafePressable>
+        <AnalyticsReportSheet
+          sheetRef={sheetRef}
+          title="About review insights"
+          description="A prepared summary, separate from live review performance"
+          closeLabel="Close review summary information"
+        >
+          <View className="gap-4">
             <AppText className="text-sm leading-5 text-text-secondary">
               {report.measurement_note}
             </AppText>
@@ -181,7 +185,7 @@ export default function AnalyticsStoredReviewInsights({
               </>
             )}
           </View>
-        )}
+        </AnalyticsReportSheet>
       </View>
     </View>
   );

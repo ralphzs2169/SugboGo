@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import type {
@@ -6,7 +6,7 @@ import type {
   PlusPeerReport,
 } from "../../types/merchantAdvancedAnalytics.types";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
-import { PlusReportContext } from "./AnalyticsPlusStates";
+import AnalyticsDetailContext from "./AnalyticsDetailContext";
 
 const REASONS: Record<string, string> = {
   peer_group_too_small:
@@ -39,6 +39,8 @@ export default function AnalyticsPeerComparisons({
   report: PlusPeerReport;
   retry: () => void;
 }) {
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < 340 || fontScale >= 1.5;
   const insufficient =
     report.status === "insufficient_data" ||
     report.group.size < report.group.minimum_size;
@@ -90,7 +92,10 @@ export default function AnalyticsPeerComparisons({
                 </AppText>
                 {supported ? (
                   <>
-                    <View className="flex-row gap-4">
+                    <View
+                      testID={`analytics-peer-pair-${key}`}
+                      className={stacked ? "gap-3" : "flex-row gap-4"}
+                    >
                       <View className="flex-1">
                         <AppText className="text-sm text-text-secondary">
                           Your business
@@ -98,7 +103,7 @@ export default function AnalyticsPeerComparisons({
                         <AppText
                           accessibilityLabel={`${label}, your business: ${metricValue(metric.merchant_value, metric)}`}
                           weight="bold"
-                          className="mt-1 text-xl text-text-primary"
+                          className="mt-1 text-2xl tabular-nums text-text-primary"
                         >
                           {metricValue(metric.merchant_value, metric)}
                         </AppText>
@@ -110,7 +115,7 @@ export default function AnalyticsPeerComparisons({
                         <AppText
                           accessibilityLabel={`${label}, similar businesses: median: ${metricValue(metric.peer_median, metric)}`}
                           weight="bold"
-                          className="mt-1 text-xl text-text-primary"
+                          className="mt-1 text-2xl tabular-nums text-text-primary"
                         >
                           {metricValue(metric.peer_median, metric)}
                         </AppText>
@@ -165,7 +170,8 @@ export default function AnalyticsPeerComparisons({
           })}
         </View>
       )}
-      <PlusReportContext
+      <AnalyticsDetailContext
+        title="About peer comparisons"
         meta={report.meta}
         note="The median is the middle value when the businesses' values are ordered. Businesses may have been listed for different lengths of time, so this comparison is context, not a competitive ranking. Review labels and vouches that still count can change after the original activity."
       >
@@ -180,7 +186,7 @@ export default function AnalyticsPeerComparisons({
         <AppText className="text-sm leading-5 text-text-secondary">
           {report.group.eligibility}
         </AppText>
-      </PlusReportContext>
+      </AnalyticsDetailContext>
     </View>
   );
 }

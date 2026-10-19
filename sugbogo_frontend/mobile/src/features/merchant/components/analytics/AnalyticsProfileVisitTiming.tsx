@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import AppText from "@/shared/components/AppText";
 import type { PlusProfileTimingReport } from "../../types/merchantAdvancedAnalytics.types";
 import AnalyticsChoiceChips from "./AnalyticsChoiceChips";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
-import { PlusReportContext } from "./AnalyticsPlusStates";
+import AnalyticsDetailContext from "./AnalyticsDetailContext";
 
 /** Focuses one backend-ordered weekday at a time so every hourly value remains readable. */
 export default function AnalyticsProfileVisitTiming({
@@ -14,6 +14,8 @@ export default function AnalyticsProfileVisitTiming({
   report: PlusProfileTimingReport;
   retry: () => void;
 }) {
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < 340 || fontScale >= 1.5;
   const [weekday, setWeekday] = useState("");
   const selected =
     report.weekdays.find((day) => String(day.weekday) === weekday) ??
@@ -29,7 +31,7 @@ export default function AnalyticsProfileVisitTiming({
         <AppText
           accessibilityLabel={`Timing profile visits: ${report.total_profile_visits ?? "Unavailable"}`}
           weight="bold"
-          className="mt-1 text-3xl text-text-primary"
+          className="mt-1 text-3xl tabular-nums text-text-primary"
         >
           {report.total_profile_visits?.toLocaleString("en-PH") ?? "—"}
         </AppText>
@@ -68,6 +70,10 @@ export default function AnalyticsProfileVisitTiming({
           <AppText weight="semibold" className="text-base text-text-primary">
             {selected?.label} · hours in {report.timezone}
           </AppText>
+          <AppText className="text-small leading-5 text-text-secondary">
+            Each row covers one hour. Bars use the same scale across all
+            weekdays.
+          </AppText>
           {/* Backend ordering and explicit cell states are preserved, including nulls. */}
           {report.hours.map((hour) => {
             const cell = report.cells.find(
@@ -93,13 +99,16 @@ export default function AnalyticsProfileVisitTiming({
                 accessibilityLabel={`${selected?.label}, ${hourLabel}: ${value}${cell?.includes_partial_hour ? ", includes a partial hour" : ""}`}
                 className="min-h-12 gap-1 border-b border-border-primary py-2"
               >
-                <View className="flex-row items-center gap-3">
-                  <AppText className="w-28 text-sm text-text-secondary">
-                    {hourLabel}
+                <View
+                  testID={`analytics-timing-hour-${hour}`}
+                  className={stacked ? "gap-2" : "flex-row items-center gap-3"}
+                >
+                  <AppText className="text-sm text-text-secondary">
+                    {String(hour).padStart(2, "0")}:00
                   </AppText>
                   <View
                     accessible={false}
-                    className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-muted"
+                    className={`h-2 min-w-0 overflow-hidden rounded-full bg-surface-muted ${stacked ? "w-full" : "flex-1"}`}
                   >
                     {count !== null &&
                       count !== undefined &&
@@ -116,7 +125,7 @@ export default function AnalyticsProfileVisitTiming({
                   </View>
                   <AppText
                     weight="semibold"
-                    className="text-sm text-text-primary"
+                    className="shrink text-sm tabular-nums text-text-primary"
                   >
                     {value}
                   </AppText>
@@ -134,7 +143,8 @@ export default function AnalyticsProfileVisitTiming({
           })}
         </View>
       )}
-      <PlusReportContext
+      <AnalyticsDetailContext
+        title="About profile visit timing"
         meta={report.sources.visibility}
         note={report.measurement_note}
       >
@@ -150,7 +160,7 @@ export default function AnalyticsProfileVisitTiming({
           {report.sample.nonzero_cells ?? "Unavailable"} weekday and hour
           combinations have recorded visits.
         </AppText>
-      </PlusReportContext>
+      </AnalyticsDetailContext>
     </View>
   );
 }

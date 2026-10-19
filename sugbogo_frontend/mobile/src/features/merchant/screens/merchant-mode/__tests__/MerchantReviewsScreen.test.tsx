@@ -145,7 +145,7 @@ describe("merchant Reviews screen backlog integration", () => {
         .accessibilityState.selected,
     ).toBe(true);
     expect(
-      screen.getByRole("button", { name: "Oldest first" }).props
+      screen.getByRole("button", { name: "Sort by Oldest, selected" }).props
         .accessibilityState.selected,
     ).toBe(true);
     expect(screen.getByText("Matching reviews")).toBeTruthy();
@@ -167,11 +167,51 @@ describe("merchant Reviews screen backlog integration", () => {
       2,
     );
     await fireEvent.press(screen.getByRole("button", { name: "All" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Newest first" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Sort by Newest" }),
+    );
     await waitFor(() =>
       expect(getReviews).toHaveBeenLastCalledWith(
         8,
         expect.objectContaining({ needsReply: false, ordering: "newest" }),
+        1,
+      ),
+    );
+  });
+
+  it("clears reply-status filtering while preserving the selected ordering", async () => {
+    const screen = await openScreen();
+    await screen.findByText("Review 1");
+    expect(screen.getByText("Filter & sort")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Clear review filters" }),
+    );
+    await waitFor(() =>
+      expect(getReviews).toHaveBeenLastCalledWith(
+        8,
+        expect.objectContaining({
+          needsReply: false,
+          merchantReplied: false,
+          ordering: "oldest",
+        }),
+        1,
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Clear review filters" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Sort by Oldest, selected" }),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Replied" }));
+    await waitFor(() =>
+      expect(getReviews).toHaveBeenLastCalledWith(
+        8,
+        expect.objectContaining({
+          needsReply: false,
+          merchantReplied: true,
+          ordering: "oldest",
+        }),
         1,
       ),
     );
@@ -188,7 +228,9 @@ describe("merchant Reviews screen backlog integration", () => {
       name: /Unable to load reviews.*retry/i,
     });
     expect(screen.queryByText("All caught up")).toBeNull();
-    expect(screen.getByRole("button", { name: "Oldest first" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Sort by Oldest, selected" }),
+    ).toBeTruthy();
     getReviews.mockResolvedValue(response([]));
     await fireEvent.press(retry);
     await screen.findByText("All caught up");

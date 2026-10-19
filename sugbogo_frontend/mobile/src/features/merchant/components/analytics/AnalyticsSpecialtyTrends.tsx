@@ -10,7 +10,7 @@ import type { PlusSpecialtyReport } from "../../types/merchantPlusAnalytics.type
 import { formatAnalyticsTimestamp } from "../../utils/merchantAnalytics.utils";
 import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
-import { PlusReportContext } from "./AnalyticsPlusStates";
+import AnalyticsDetailContext from "./AnalyticsDetailContext";
 
 /** Adds per-specialty creation cohorts without replacing current Standard rankings. */
 export default function AnalyticsSpecialtyTrends({
@@ -107,7 +107,8 @@ export default function AnalyticsSpecialtyTrends({
           icon="tag-outline"
         />
       )}
-      <PlusReportContext
+      <AnalyticsDetailContext
+        title="About specialty trends"
         meta={report.meta}
         note={`Counts include vouches added during the selected dates that still qualify as of ${formatAnalyticsTimestamp(report.snapshot_as_of)} · Manila time. They do not show net growth or past support totals. Removed vouches and inactive specialties can change earlier counts.`}
       />

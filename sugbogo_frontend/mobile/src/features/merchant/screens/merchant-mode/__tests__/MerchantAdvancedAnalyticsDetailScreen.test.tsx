@@ -24,6 +24,11 @@ import MerchantAnalyticsDetailScreen from "../MerchantAnalyticsDetailScreen";
 import type { AdvancedPlusDetailKind } from "../../../types/merchantPlusAnalytics.types";
 import type { RecommendationState } from "../../../types/merchantAdvancedAnalytics.types";
 
+jest.mock("@gorhom/bottom-sheet", () =>
+  jest
+    .requireActual("../../../__tests__/analyticsSheet.mock")
+    .analyticsSheetMock(),
+);
 jest.mock("expo-router", () => ({
   useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
@@ -185,7 +190,7 @@ describe("advanced Plus detail integration", () => {
     expect(screen.getByText(/rolling 30-day generation window/)).toBeTruthy();
     expect(screen.getByText(/Review criteria have changed/)).toBeTruthy();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Hide review summary details" }),
+      screen.getByRole("button", { name: "Close review summary information" }),
     );
     expect(screen.queryByText(/rolling 30-day generation window/)).toBeNull();
     expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();

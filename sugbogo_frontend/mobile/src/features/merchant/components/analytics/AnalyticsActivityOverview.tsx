@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
 import { View, useWindowDimensions } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -14,12 +15,14 @@ import type {
 
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 import {
-  formatKpiTrend,
   replyRateTrend,
   reviewCountTrend,
   visibilityKpiTrend,
   type KpiTrend,
 } from "../../utils/merchantKpiComparisons.utils";
+import TrendComparison, { describeKpiTrend } from "./TrendComparison";
+
+type MetricIconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
 
 export type AnalyticsActivityOverviewProps = {
   report: MerchantStandardAnalytics;
@@ -29,6 +32,7 @@ export type AnalyticsActivityOverviewProps = {
 };
 
 type MetricCardProps = {
+  icon: MetricIconName;
   label: string;
   value: string;
   detail?: string;
@@ -39,58 +43,12 @@ type MetricCardProps = {
   fullWidth?: boolean;
 };
 
-type TrendTone = "increase" | "decrease" | "stable";
-
-/** Identifies a comparison direction without assuming unknown formats. */
-function getTrendTone(text: string): TrendTone {
-  const normalized = text.trim();
-
-  if (/^\+(?!0(?:\.0+)?(?:\s|$))/.test(normalized)) {
-    return "increase";
-  }
-
-  if (/^[-−](?!0(?:\.0+)?(?:\s|$))/.test(normalized)) {
-    return "decrease";
-  }
-
-  return "stable";
-}
-
-/** Shows approved previous-period comparisons as understated text. */
-function TrendComparison({
-  trend,
-  compact = false,
-}: {
-  trend: KpiTrend;
-  compact?: boolean;
-}) {
-  const text = formatKpiTrend(trend);
-  const tone = getTrendTone(text);
-
-  const toneClass =
-    tone === "increase"
-      ? "text-emerald-700"
-      : tone === "decrease"
-        ? "text-red-500"
-        : "text-text-secondary";
-
-  return (
-    <View className="mt-2">
-      <AppText className="text-xs leading-5 text-text-secondary">
-        <AppText weight="semibold" className={`text-xs ${toneClass}`}>
-          {text}
-        </AppText>
-        {compact ? " vs previous" : " vs previous period"}
-      </AppText>
-    </View>
-  );
-}
-
 /**
- * Displays a business metric with supporting context,
- * optional progress, and previous-period comparison.
+ * Displays a business KPI with a subtle right-aligned icon,
+ * supporting context, optional progress, and period comparison.
  */
 function MetricCard({
+  icon,
   label,
   value,
   detail,
@@ -100,8 +58,6 @@ function MetricCard({
   progress,
   fullWidth = false,
 }: MetricCardProps) {
-  const trendText = trend ? formatKpiTrend(trend) : null;
-
   const showProgress =
     typeof progress === "number" &&
     Number.isFinite(progress) &&
@@ -111,7 +67,7 @@ function MetricCard({
   const accessibilityDescription = [
     `${label}: ${unavailable ? "Unavailable" : value}`,
     detail,
-    trendText ? `${trendText} compared with the previous period` : null,
+    trend ? describeKpiTrend(trend) : null,
   ]
     .filter(Boolean)
     .join(". ");
@@ -126,13 +82,22 @@ function MetricCard({
       }`}
       style={shadows.subtle}
     >
-      {/* Metric heading */}
-      <AppText
-        weight="medium"
-        className="text-sm leading-5 text-text-secondary"
-      >
-        {label}
-      </AppText>
+      {/* Metric heading and right-aligned icon */}
+      <View className="flex-row items-start justify-between gap-2">
+        <AppText
+          weight="medium"
+          className="min-w-0 flex-1 text-sm leading-5 text-text-secondary"
+        >
+          {label}
+        </AppText>
+
+        <MaterialCommunityIcons
+          name={icon}
+          size={18}
+          color={theme.extends.colors.text.secondary}
+          accessible={false}
+        />
+      </View>
 
       {/* Primary value and supporting count */}
       <View className="mt-2 gap-1">
@@ -168,7 +133,7 @@ function MetricCard({
       )}
 
       {/* Previous-period comparison */}
-      {trend && <TrendComparison trend={trend} compact={!fullWidth} />}
+      {trend && <TrendComparison trend={trend} />}
     </View>
   );
 }
@@ -177,8 +142,8 @@ function MetricCard({
  * Presents selected-period business metrics alongside current
  * vouch support and review-reply performance.
  *
- * Includes a non-interactive period-selector preview above
- * the existing KPI layout.
+ * Keeps unavailable values distinct from zero and adapts
+ * the KPI grid for narrow screens and larger font scales.
  */
 export default function AnalyticsActivityOverview({
   report,
@@ -231,8 +196,9 @@ export default function AnalyticsActivityOverview({
       <View testID="business-overview-grid" className="gap-3">
         <View className={rowClassName}>
           <MetricCard
+            icon="eye-outline"
             stacked={useSingleColumn}
-            label="Recorded profile visits"
+            label="Profile visits"
             value={formatAnalyticsCount(visits)}
             unavailable={visits === null}
             detail={
@@ -244,8 +210,9 @@ export default function AnalyticsActivityOverview({
           />
 
           <MetricCard
+            icon="bookmark-outline"
             stacked={useSingleColumn}
-            label="Recorded saves"
+            label="Saves"
             value={formatAnalyticsCount(saves)}
             unavailable={saves === null}
             trend={visibilityKpiTrend(report, plusPocket, "saves")}
@@ -254,6 +221,7 @@ export default function AnalyticsActivityOverview({
 
         <View className={rowClassName}>
           <MetricCard
+            icon="message-text-outline"
             stacked={useSingleColumn}
             label="New reviews"
             value={formatAnalyticsCount(
@@ -264,20 +232,22 @@ export default function AnalyticsActivityOverview({
           />
 
           <MetricCard
+            icon="thumb-up-outline"
             stacked={useSingleColumn}
-            label="Total vouches"
+            label="Current vouches"
             value={formatAnalyticsCount(vouches)}
             unavailable={vouches === null}
-            detail="Current"
+            detail="All dates"
           />
         </View>
       </View>
 
       {/* Full-width review response performance */}
       <MetricCard
+        icon="reply"
         stacked
         fullWidth
-        label="Reviews replied to"
+        label="Review reply rate"
         value={replyRate === null ? "—" : `${replyRate}%`}
         unavailable={replyRate === null}
         detail={replyDetail}

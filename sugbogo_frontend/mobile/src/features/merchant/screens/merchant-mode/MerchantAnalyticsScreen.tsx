@@ -44,7 +44,7 @@ import MerchantScreenHeader from "../../layout/MerchantScreenHeader";
 
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { PlusDetailKind } from "../../types/merchantPlusAnalytics.types";
-import { formatAnalyticsTimestamp } from "../../utils/merchantAnalytics.utils";
+
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 
 const PERIOD_OPTIONS = [
@@ -398,10 +398,30 @@ export default function MerchantAnalyticsScreen() {
             ) : null}
           </AnalyticsOverviewSection>
 
+          {/* Current actionable review backlog */}
+          <AnalyticsUnansweredReviews
+            data={unanswered.data}
+            loading={unanswered.isPending}
+            error={unanswered.error}
+            onRetry={() => {
+              void unanswered.refetch();
+            }}
+            onReview={() =>
+              router.navigate({
+                pathname: "/(merchant)/(tabs)/reviews",
+                params: {
+                  filter: "needs-reply",
+                  ordering: "oldest",
+                  reviewIntent: String(Date.now()),
+                },
+              })
+            }
+          />
+
           {/* Current specialty support */}
           <AnalyticsOverviewSection
-            title="Specialty Support"
-            description="Current support · All dates"
+            title="Specialty vouches"
+            description="Current valid vouches by specialty"
             accessory={
               plusAccess.allowed ? (
                 <SafePressable
@@ -452,26 +472,6 @@ export default function MerchantAnalyticsScreen() {
             ) : null}
           </AnalyticsOverviewSection>
 
-          {/* Current actionable review backlog */}
-          <AnalyticsUnansweredReviews
-            data={unanswered.data}
-            loading={unanswered.isPending}
-            error={unanswered.error}
-            onRetry={() => {
-              void unanswered.refetch();
-            }}
-            onReview={() =>
-              router.navigate({
-                pathname: "/(merchant)/(tabs)/reviews",
-                params: {
-                  filter: "needs-reply",
-                  ordering: "oldest",
-                  reviewIntent: String(Date.now()),
-                },
-              })
-            }
-          />
-
           {/* Visibility trends */}
           <AnalyticsVisibilityTrends
             period={visibilityPeriod}
@@ -492,6 +492,7 @@ export default function MerchantAnalyticsScreen() {
 
           {/* Additional analytics detail reports */}
           <AnalyticsMoreInsights
+            hasPlusAccess={plusAccess.allowed}
             onOpen={openPlusDetail}
             onOpenDiscoverySources={() =>
               router.push({
@@ -500,15 +501,6 @@ export default function MerchantAnalyticsScreen() {
               })
             }
           />
-
-          {/* Report preparation timestamp */}
-          {report ? (
-            <AppText className="px-5 py-4 text-xs leading-5 text-text-secondary">
-              Report prepared{" "}
-              {formatAnalyticsTimestamp(report.meta.generated_at)} · Manila
-              time.
-            </AppText>
-          ) : null}
         </View>
       </ScrollView>
 

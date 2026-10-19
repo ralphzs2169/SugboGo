@@ -1,15 +1,8 @@
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  type BottomSheetBackdropProps,
-} from "@gorhom/bottom-sheet";
-import { useCallback, type RefObject } from "react";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import type { RefObject } from "react";
 import { View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import SafePressable from "@/shared/components/SafePressable";
+import AnalyticsReportSheet from "./AnalyticsReportSheet";
 
 const NOTES = [
   "Each account contributes at most one recorded profile visit per business per UTC day. A new UTC day starts at 8 AM in Manila.",
@@ -19,70 +12,41 @@ const NOTES = [
   "These are online business-profile openings, not confirmed physical visits.",
 ];
 
-/** Explains daily first-recorded attribution using the existing Gorhom sheet pattern. */
+/** Explains first-recorded attribution without changing the Standard access contract. */
 export default function DiscoverySourcesMeasurementSheet({
   sheetRef,
 }: {
   sheetRef: RefObject<BottomSheetModal | null>;
 }) {
-  const insets = useSafeAreaInsets();
-  const backdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        pressBehavior="close"
-      />
-    ),
-    [],
-  );
+  const headings = [
+    "Daily recorded visits",
+    "First source of the day",
+    "App-reported sources",
+    "Source not recorded",
+    "Online activity",
+  ];
   return (
-    <BottomSheetModal
-      ref={sheetRef}
-      enablePanDownToClose
-      topInset={insets.top}
-      backdropComponent={backdrop}
-      backgroundStyle={{ backgroundColor: theme.extends.colors.surface }}
+    <AnalyticsReportSheet
+      sheetRef={sheetRef}
+      title="About visit sources"
+      description="Understand how profile openings are attributed"
+      closeLabel="Close visit-source information"
     >
-      <BottomSheetScrollView
-        contentContainerStyle={{
-          padding: 20,
-          paddingBottom: insets.bottom + 24,
-        }}
-      >
-        {/* Title and explicit dismissal */}
-        <View className="mb-4 flex-row items-center justify-between gap-3">
-          <AppText
-            weight="bold"
-            accessibilityRole="header"
-            className="min-w-0 flex-1 text-xl text-text-primary"
+      <View className="gap-5">
+        {NOTES.map((note, index) => (
+          <View
+            key={note}
+            className={`gap-2 ${index > 0 ? "border-t border-border-primary/60 pt-4" : ""}`}
           >
-            About visit sources
-          </AppText>
-          <SafePressable
-            onPress={() => sheetRef.current?.dismiss()}
-            accessibilityRole="button"
-            accessibilityLabel="Close visit-source information"
-            className="min-h-12 justify-center px-2 active:opacity-70"
-          >
-            <AppText weight="semibold" className="text-sm text-brand">
-              Close
+            <AppText weight="semibold" className="text-sm text-text-primary">
+              {headings[index]}
             </AppText>
-          </SafePressable>
-        </View>
-        {/* Measurement definitions and limitations */}
-        <View className="gap-4">
-          {NOTES.map((note) => (
-            <AppText
-              key={note}
-              className="text-sm leading-6 text-text-secondary"
-            >
+            <AppText className="text-sm leading-6 text-text-secondary">
               {note}
             </AppText>
-          ))}
-        </View>
-      </BottomSheetScrollView>
-    </BottomSheetModal>
+          </View>
+        ))}
+      </View>
+    </AnalyticsReportSheet>
   );
 }

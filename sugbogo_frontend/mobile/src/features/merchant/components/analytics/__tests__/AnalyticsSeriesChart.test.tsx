@@ -86,9 +86,11 @@ describe("AnalyticsSeriesChart calendar columns", () => {
     expect(screen.getByTestId("analytics-zero-2026-09-28")).toBeTruthy();
     expect(screen.getByTestId("analytics-missing-2026-10-05")).toBeTruthy();
     expect(screen.getByRole("image").props.accessibilityLabel).toContain(
-      "View exact values expands",
+      "View exact values for individual dates",
     );
-    const toggle = screen.getByRole("button", { name: "Show Saves values" });
+    const toggle = screen.getByRole("button", {
+      name: "View Saves exact values",
+    });
     expect(toggle.props.accessibilityState.expanded).toBe(false);
     await fireEvent.press(toggle);
     expect(screen.getByLabelText("Saves, Sep 28 – Oct 4: 0")).toBeTruthy();
@@ -96,7 +98,7 @@ describe("AnalyticsSeriesChart calendar columns", () => {
       screen.getByLabelText("Saves, Oct 5 – Oct 11: No data"),
     ).toBeTruthy();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Hide Saves values" }),
+      screen.getByRole("button", { name: "Hide Saves exact values" }),
     );
     expect(
       screen.queryByLabelText("Saves, Oct 5 – Oct 11: No data"),
@@ -120,9 +122,9 @@ describe("AnalyticsSeriesChart calendar columns", () => {
         label="Reviews"
       />,
     );
-    expect(screen.getByText(/Partial weeks cover less time/)).toBeTruthy();
+    expect(screen.getByText(/Partial weeks cover fewer days/)).toBeTruthy();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Show Reviews values" }),
+      screen.getByRole("button", { name: "View Reviews exact values" }),
     );
     expect(
       screen.getByLabelText("Reviews, Sep 24 – Sep 27 · partial week: 2"),
@@ -152,9 +154,9 @@ describe("AnalyticsSeriesChart calendar columns", () => {
       screen.getByTestId("analytics-chart-viewport").props
         .showsHorizontalScrollIndicator,
     ).toBe(true);
-    expect(screen.getByText("Swipe to view all dates.")).toBeTruthy();
+    expect(screen.getByText("Swipe for more")).toBeTruthy();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Show Visits values" }),
+      screen.getByRole("button", { name: "View Visits exact values" }),
     );
     expect(screen.getByLabelText("Visits, Oct 18: 3")).toBeTruthy();
     expect(screen.getByLabelText("Visits, Jul 22: No data")).toBeTruthy();
@@ -197,5 +199,124 @@ describe("AnalyticsSeriesChart calendar columns", () => {
     expect(
       screen.queryByText("No recorded activity in this period"),
     ).toBeNull();
+  });
+
+  it("renders ordered line segments through genuine zeros without changing default bars", async () => {
+    const points = [
+      point("2026-10-03", 4),
+      point("2026-10-01", 2),
+      point("2026-10-02", 0),
+    ];
+    const screen = await render(
+      <AnalyticsSeriesChart
+        points={points}
+        interval="daily"
+        label="Saves"
+        variant="line"
+      />,
+    );
+    expect(screen.getByRole("image").props.accessibilityLabel).toContain(
+      "Line chart",
+    );
+    expect(
+      screen.getByTestId("analytics-line-2026-10-01-2026-10-02"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("analytics-line-2026-10-02-2026-10-03"),
+    ).toBeTruthy();
+    expect(screen.getAllByTestId(/^analytics-area-/)).toHaveLength(2);
+    expect(
+      screen.getByTestId("analytics-area-2026-10-01-2026-10-02").props.fill
+        .brushRef,
+    ).toBe("analytics-line-fill");
+    const zero = screen.getByTestId("analytics-zero-2026-10-02");
+    expect(
+      screen.getByTestId("analytics-line-2026-10-01-2026-10-02").props.y2,
+    ).toBe(zero.props.cy);
+    expect(screen.queryAllByTestId(/^analytics-column-/)).toHaveLength(0);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "View Saves exact values" }),
+    );
+    expect(screen.getByLabelText("Saves, Oct 2: 0")).toBeTruthy();
+    await screen.rerender(
+      <AnalyticsSeriesChart points={points} interval="daily" label="Saves" />,
+    );
+    expect(screen.getByTestId("analytics-column-2026-10-01")).toBeTruthy();
+    expect(screen.queryAllByTestId(/^analytics-line-/)).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^analytics-area-/)).toHaveLength(0);
+  });
+
+  it("breaks a line at missing weeks and retains exact partial-week values", async () => {
+    const screen = await render(
+      <AnalyticsSeriesChart
+        points={[
+          point("2026-09-21", 2, 7),
+          point("2026-09-28", 0, 7),
+          point("2026-10-12", 3, 3),
+        ]}
+        interval="weekly"
+        label="Saves"
+        variant="line"
+        total={5}
+      />,
+    );
+    expect(screen.getAllByTestId(/^analytics-line-/)).toHaveLength(1);
+    expect(screen.getAllByTestId(/^analytics-area-/)).toHaveLength(1);
+    expect(screen.getByTestId("analytics-missing-2026-10-05")).toBeTruthy();
+    expect(screen.queryByTestId("analytics-zero-2026-10-05")).toBeNull();
+    expect(
+      screen.queryByTestId("analytics-line-2026-09-28-2026-10-12"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("analytics-area-2026-09-28-2026-10-12"),
+    ).toBeNull();
+    expect(screen.getByTestId("analytics-point-2026-10-12")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "View Saves exact values" }),
+    );
+    expect(
+      screen.getByLabelText("Saves, Oct 5 – Oct 11: No data"),
+    ).toBeTruthy();
+    expect(
+      screen.getByLabelText("Saves, Oct 12 – Oct 14 · partial week: 3"),
+    ).toBeTruthy();
+  });
+
+  it("keeps sparse and zero states when the line presentation is requested", async () => {
+    const screen = await render(
+      <AnalyticsSeriesChart
+        points={[point("2026-10-01", 2)]}
+        interval="daily"
+        label="Saves"
+        variant="line"
+        total={2}
+      />,
+    );
+    expect(screen.getByLabelText("Saves, Oct 1: 2")).toBeTruthy();
+    expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+    expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
+    await screen.rerender(
+      <AnalyticsSeriesChart
+        points={[]}
+        interval="daily"
+        label="Saves"
+        variant="line"
+        total={0}
+      />,
+    );
+    expect(
+      screen.getByText("No recorded activity in this period"),
+    ).toBeTruthy();
+    await screen.rerender(
+      <AnalyticsSeriesChart
+        points={[]}
+        interval="daily"
+        label="Saves"
+        variant="line"
+        total={null}
+      />,
+    );
+    expect(screen.getByText("Dated counts are unavailable")).toBeTruthy();
   });
 });

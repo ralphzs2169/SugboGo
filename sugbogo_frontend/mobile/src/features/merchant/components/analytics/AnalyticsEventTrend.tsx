@@ -33,6 +33,7 @@ export default function AnalyticsEventTrend({
   children,
   showTotal = true,
   showContext = true,
+  variant = "bar",
 }: {
   metric: AnalyticsEventMetric;
   label: string;
@@ -42,6 +43,7 @@ export default function AnalyticsEventTrend({
   children?: ReactNode;
   showTotal?: boolean;
   showContext?: boolean;
+  variant?: "bar" | "line";
 }) {
   const unavailable =
     metric.value === null ||
@@ -101,6 +103,7 @@ export default function AnalyticsEventTrend({
           label={label}
           points={metric.series}
           interval={interval}
+          variant={variant}
           range={metric.sources.current.period}
           total={
             metric.sources.current.availability === "unavailable"

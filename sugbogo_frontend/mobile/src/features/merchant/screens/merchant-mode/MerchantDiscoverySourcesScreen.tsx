@@ -15,7 +15,7 @@ import Skeleton from "@/shared/components/Skeleton";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import AnalyticsChartEmptyState from "../../components/analytics/AnalyticsChartEmptyState";
 import AnalyticsOverviewSection from "../../components/analytics/AnalyticsOverviewSection";
-import AnalyticsPeriodSelector from "../../components/analytics/AnalyticsPeriodSelector";
+import AnalyticsDetailHeader from "../../components/analytics/AnalyticsDetailHeader";
 import DiscoverySourcesMeasurementSheet from "../../components/analytics/DiscoverySourcesMeasurementSheet";
 import useMerchantDiscoverySources from "../../hooks/analytics/useMerchantDiscoverySources";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
@@ -52,18 +52,10 @@ export default function MerchantDiscoverySourcesScreen({
   });
   return (
     <SafeAreaView edges={["left", "right"]} className="flex-1 bg-background">
-      {/* The existing merchant native stack owns the detail header. */}
-      <View className="bg-surface px-5 pb-3 pt-2">
-        <AppText className="text-sm leading-5 text-text-secondary">
-          Sources of recorded business profile visits.
-        </AppText>
-        <AnalyticsPeriodSelector period={period} onChange={setPeriod} />
-        <AppText className="text-xs text-text-secondary">
-          Selected dates · Manila time
-        </AppText>
-      </View>
+      {/* Standard report navigation and query ownership remain independent of Plus. */}
       <ScrollView
         testID="discovery-sources-scroll"
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         refreshControl={
           <RefreshControl
@@ -74,6 +66,12 @@ export default function MerchantDiscoverySourcesScreen({
           />
         }
       >
+        <AnalyticsDetailHeader
+          title="Where visits came from"
+          description="Sources of recorded business profile visits."
+          period={period}
+          onPeriodChange={setPeriod}
+        />
         <AnalyticsOverviewSection
           title="Recorded profile visits"
           accessory={
@@ -81,11 +79,11 @@ export default function MerchantDiscoverySourcesScreen({
               onPress={() => sheetRef.current?.present()}
               accessibilityRole="button"
               accessibilityLabel="About visit sources"
-              className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-muted"
+              className="h-11 w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
             >
               <MaterialCommunityIcons
                 name="information-outline"
-                size={22}
+                size={20}
                 accessible={false}
                 color={theme.extends.colors.text.secondary}
               />
@@ -119,8 +117,8 @@ export default function MerchantDiscoverySourcesScreen({
           {report ? (
             <View className="gap-5">
               <AppText
-                weight="bold"
-                className="text-4xl text-text-primary"
+                weight="semibold"
+                className="text-3xl tabular-nums text-text-primary"
                 accessibilityLabel={`Recorded profile visits: ${report.profile_visits ?? "Unavailable"}`}
               >
                 {formatAnalyticsCount(report.profile_visits)}

@@ -6,118 +6,150 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 
-import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
 import type { PlusDetailKind } from "../../types/merchantPlusAnalytics.types";
+import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
 
-const INSIGHTS: {
+type ReportIconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
+
+type ReportItem = {
   title: string;
   description: string;
-  icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
+  icon: ReportIconName;
   kind: PlusDetailKind | "discovery-sources";
-}[] = [
+  requiresPlus: boolean;
+};
+
+type Props = {
+  hasPlusAccess: boolean;
+  onOpen: (kind: PlusDetailKind) => void;
+  onOpenDiscoverySources: () => void;
+};
+
+const REPORTS: ReportItem[] = [
   {
     title: "Where visits came from",
-    description: "Sources of recorded business profile visits.",
+    description: "See where explorers opened your profile",
     icon: "compass-outline",
     kind: "discovery-sources",
+    requiresPlus: false,
   },
   {
-    title: "Pocket Trends",
-    description: "Recorded saves and accounts that saved your business",
-    icon: "bookmark-outline",
-    kind: "pocket",
-  },
-  {
-    title: "Review Performance",
-    description: "Sentiment, weekly reviews and replies",
-    icon: "comment-text-outline",
-    kind: "reviews",
-  },
-  {
-    title: "Peer Comparisons",
-    description: "Recorded activity compared with similar businesses",
-    icon: "store-outline",
-    kind: "peers",
-  },
-  {
-    title: "Review Insights",
-    description: "Review summaries and common mentions",
-    icon: "text-box-outline",
-    kind: "review-insights",
-  },
-  {
-    title: "Profile-Visit Timing",
-    description: "Recorded online visits by day and hour",
+    title: "Profile visit timing",
+    description: "Explore profile visits by day and hour",
     icon: "clock-outline",
     kind: "timing",
+    requiresPlus: true,
   },
   {
-    title: "Business Recommendations",
+    title: "Pocket trends",
+    description: "Track saves and accounts that saved your business",
+    icon: "bookmark-outline",
+    kind: "pocket",
+    requiresPlus: true,
+  },
+  {
+    title: "Review performance",
+    description: "Review activity, replies, and sentiment",
+    icon: "comment-text-outline",
+    kind: "reviews",
+    requiresPlus: true,
+  },
+  {
+    title: "Review insights",
+    description: "Discover common themes in customer feedback",
+    icon: "text-box-outline",
+    kind: "review-insights",
+    requiresPlus: true,
+  },
+  {
+    title: "Peer comparisons",
+    description: "Compare activity with similar businesses",
+    icon: "store-outline",
+    kind: "peers",
+    requiresPlus: true,
+  },
+  {
+    title: "Business recommendations",
     description: "Suggestions based on available activity and reviews",
     icon: "lightbulb-outline",
     kind: "recommendations",
+    requiresPlus: true,
   },
 ];
 
 /**
- * Displays additional merchant analytics reports as accessible
- * navigation entries without subscription labels or locked states.
+ * Displays accessible merchant analytics detail reports in a
+ * compact, consistently styled navigation list.
+ *
+ * Groups reports by relevance and hides inaccessible destinations
+ * so merchants do not encounter nonfunctional navigation actions.
  */
 export default function AnalyticsMoreInsights({
+  hasPlusAccess,
   onOpen,
   onOpenDiscoverySources,
-}: {
-  onOpen: (kind: PlusDetailKind) => void;
-  onOpenDiscoverySources: () => void;
-}) {
+}: Props) {
+  const availableReports = REPORTS.filter(
+    (report) => !report.requiresPlus || hasPlusAccess,
+  );
+
+  const handleOpenReport = (kind: ReportItem["kind"]) => {
+    if (kind === "discovery-sources") {
+      onOpenDiscoverySources();
+      return;
+    }
+
+    onOpen(kind);
+  };
+
   return (
-    <AnalyticsOverviewSection title="More insights">
+    <AnalyticsOverviewSection
+      title="Detailed reports"
+      description="Explore your business activity in more detail."
+    >
+      {/* Available analytics report destinations */}
       <View>
-        {/* Navigable analytics reports */}
-        {INSIGHTS.map((insight, index) => (
+        {availableReports.map((report, index) => (
           <SafePressable
-            key={insight.kind}
+            key={report.kind}
             accessibilityRole="button"
-            accessibilityLabel={`Open ${insight.title}`}
-            onPress={() =>
-              insight.kind === "discovery-sources"
-                ? onOpenDiscoverySources()
-                : onOpen(insight.kind)
-            }
-            className={`min-h-16 flex-row cursor-pointer items-center gap-3 py-4 active:bg-surface-muted ${
-              index > 0 ? "border-t border-border-primary" : ""
+            accessibilityLabel={`Open ${report.title}`}
+            accessibilityHint={report.description}
+            onPress={() => handleOpenReport(report.kind)}
+            className={`min-h-16 flex-row cursor-pointer items-center gap-3 py-3.5 active:bg-surface-muted ${
+              index > 0 ? "border-t border-border-primary/60" : ""
             }`}
           >
-            {/* Report identity */}
-            <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10">
+            {/* Neutral report icon */}
+            <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-muted">
               <MaterialCommunityIcons
+                name={report.icon}
+                size={19}
+                color={theme.extends.colors.text.secondary}
                 accessible={false}
-                name={insight.icon}
-                size={20}
-                color={theme.extends.colors.brand}
               />
             </View>
 
-            {/* Report title and description */}
-            <View className="min-w-0 flex-1">
+            {/* Report title and supporting description */}
+            <View className="min-w-0 flex-1 gap-0.5">
               <AppText
                 weight="semibold"
                 className="text-sm leading-5 text-text-primary"
               >
-                {insight.title}
+                {report.title}
               </AppText>
 
-              <AppText className="mt-0.5 text-xs leading-5 text-text-secondary">
-                {insight.description}
+              <AppText className="text-xs leading-5 text-text-secondary">
+                {report.description}
               </AppText>
             </View>
 
             {/* Navigation indicator */}
             <MaterialCommunityIcons
-              accessible={false}
               name="chevron-right"
               size={20}
               color={theme.extends.colors.text.secondary}
+              accessible={false}
             />
           </SafePressable>
         ))}

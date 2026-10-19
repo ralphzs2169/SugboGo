@@ -2,7 +2,8 @@ import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 import FilterChip from "@/shared/components/FilterChip";
-import SegmentedControl from "@/shared/components/SegmentedControl";
+import FilterSortControls from "@/shared/components/filters/FilterSortControls";
+import { theme } from "@/constants/theme";
 import type {
   MerchantReviewFilter,
   MerchantReviewOrdering,
@@ -17,6 +18,11 @@ type Props = {
   ordering: MerchantReviewOrdering;
   onOrderingChange: (ordering: MerchantReviewOrdering) => void;
 };
+
+const SORT_OPTIONS: { label: string; value: MerchantReviewOrdering }[] = [
+  { label: "Newest", value: "newest" },
+  { label: "Oldest", value: "oldest" },
+];
 
 const FILTERS: { label: string; value: ReviewFilter }[] = [
   {
@@ -58,53 +64,47 @@ export default function MerchantReviewFilters({
         </AppText>
       </View>
 
-      {/* Reply-status filters */}
-      <View className="mt-4 flex-row flex-wrap gap-2">
-        {FILTERS.map((item) => (
-          <FilterChip
-            key={item.value}
-            label={item.label}
-            selected={filter === item.value}
-            count={item.value === "needs-reply" ? needsReplyCount : undefined}
-            onPress={() => onFilterChange(item.value)}
-            accessibilityLabel={
-              item.value === "needs-reply" &&
-              needsReplyCount !== undefined &&
-              needsReplyCount > 0
-                ? `${item.label}, ${needsReplyCount}`
-                : item.label
-            }
-          />
-        ))}
-      </View>
-      {/* Small shared sorting control keeps the server's order visible and editable. */}
-      <View className="mt-3 self-start">
-        {/* Review ordering controls */}
-        <View className="mt-4 gap-2">
-          <AppText weight="semibold" className="text-sm text-text-secondary">
-            Sort by
-          </AppText>
-
-          <View className="self-start">
-            <SegmentedControl
-              variant="sm"
-              value={ordering}
-              onChange={onOrderingChange}
-              options={[
-                {
-                  value: "newest",
-                  label: "Newest first",
-                  accessibilityLabel: "Sort reviews by newest first",
-                },
-                {
-                  value: "oldest",
-                  label: "Oldest first",
-                  accessibilityLabel: "Sort reviews by oldest first",
-                },
-              ]}
+      {/* Quick reply-status filtering and sorting match Reviews Collection. */}
+      <View className="mt-4">
+        <FilterSortControls
+          activeFilterCount={filter === "all" ? 0 : 1}
+          onClear={() => onFilterChange("all")}
+          testID="merchant-review-quick-controls"
+          backgroundColor={theme.extends.colors.surface}
+        >
+          {FILTERS.map((item) => (
+            <FilterChip
+              key={item.value}
+              label={item.label}
+              selected={filter === item.value}
+              showSelectedCheck
+              count={item.value === "needs-reply" ? needsReplyCount : undefined}
+              onPress={() => onFilterChange(item.value)}
+              accessibilityLabel={
+                item.value === "needs-reply" &&
+                needsReplyCount !== undefined &&
+                needsReplyCount > 0
+                  ? `${item.label}, ${needsReplyCount}`
+                  : item.label
+              }
             />
-          </View>
-        </View>
+          ))}
+
+          <View className="mx-1 h-6 w-px bg-border-primary" />
+
+          {SORT_OPTIONS.map((option) => (
+            <FilterChip
+              key={option.value}
+              label={option.label}
+              selected={ordering === option.value}
+              showSelectedCheck
+              onPress={() => onOrderingChange(option.value)}
+              accessibilityLabel={`Sort by ${option.label}${
+                ordering === option.value ? ", selected" : ""
+              }`}
+            />
+          ))}
+        </FilterSortControls>
       </View>
     </View>
   );

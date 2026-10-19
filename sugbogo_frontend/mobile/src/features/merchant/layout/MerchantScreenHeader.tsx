@@ -40,7 +40,7 @@ export default function MerchantScreenHeader({
 
   return (
     <View
-      className={`flex-row items-center justify-between bg-background ${compact ? "gap-3 border-b border-border-primary px-4 py-3" : "px-6 py-4"}`}
+      className={`flex-row items-center justify-between bg-surface ${compact ? "gap-3 border-b border-border-primary px-4 py-3" : "px-6 py-4"}`}
     >
       {/* Screen title */}
       {(visibleCoverUrl || leadingIcon) && (

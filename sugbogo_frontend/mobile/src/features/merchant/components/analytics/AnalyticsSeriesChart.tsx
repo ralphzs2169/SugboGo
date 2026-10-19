@@ -1,7 +1,17 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
-import Svg, { Circle, G, Line, Rect, Text as SvgText } from "react-native-svg";
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  Line,
+  LinearGradient,
+  Path,
+  Rect,
+  Stop,
+  Text as SvgText,
+} from "react-native-svg";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -33,6 +43,7 @@ export default function AnalyticsSeriesChart({
   color = theme.extends.colors.brand,
   range,
   total,
+  variant = "bar",
   minimalFooter = false,
   emptyTitle = "No recorded activity in this period",
   emptyDescription = "No activity was recorded for this metric during the selected dates.",
@@ -43,6 +54,7 @@ export default function AnalyticsSeriesChart({
   color?: string;
   range?: AnalyticsChartRange;
   total?: number | null;
+  variant?: "bar" | "line";
   minimalFooter?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -197,7 +209,6 @@ export default function AnalyticsSeriesChart({
     return (
       <View className="gap-2">
         <AnalyticsChartEmptyState
-          compact
           title={emptyTitle}
           description={emptyDescription}
         />
@@ -212,7 +223,6 @@ export default function AnalyticsSeriesChart({
   if (observed.length === 0) {
     return (
       <AnalyticsChartEmptyState
-        compact
         title="Dated counts are unavailable"
         description="Any available total is shown above. Missing dates do not necessarily mean no activity."
       />
@@ -223,13 +233,20 @@ export default function AnalyticsSeriesChart({
   if (compact) {
     return (
       <View className="gap-2">
-        <AppText weight="semibold" className="text-sm text-text-primary">
-          Recorded counts
-        </AppText>
+        {variant === "line" ? (
+          <AnalyticsChartEmptyState
+            title="Not enough data for a trend yet"
+            description="More recorded dates are needed."
+          />
+        ) : (
+          <AppText weight="semibold" className="text-sm text-text-primary">
+            Recorded counts
+          </AppText>
+        )}
 
         {observed.map(renderValue)}
 
-        {hasMissing && (
+        {hasMissing && !(variant === "line" && minimalFooter) && (
           <AppText className="text-xs leading-5 text-text-secondary">
             Only available dates are shown. Missing data is not the same as zero
             activity.
@@ -252,11 +269,11 @@ export default function AnalyticsSeriesChart({
         }
       }}
     >
-      {/* Fixed count axis with horizontally scrolling date columns */}
+      {/* Both presentations use the same fixed axis and calendar-aligned positions. */}
       <View
         accessible
         accessibilityRole="image"
-        accessibilityLabel={`${label}. ${
+        accessibilityLabel={`${variant === "line" ? "Line chart. " : ""}${label}. ${
           observed.length
         } recorded ${interval} counts. ${
           slots.length - observed.length
@@ -295,6 +312,22 @@ export default function AnalyticsSeriesChart({
             accessible={false}
             fontFamily="NunitoSans_400Regular"
           >
+            {variant === "line" && (
+              <Defs>
+                <LinearGradient
+                  id="analytics-line-fill"
+                  x1={0}
+                  y1={top}
+                  x2={0}
+                  y2={bottom}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <Stop offset="0" stopColor={color} stopOpacity={0.2} />
+                  <Stop offset="1" stopColor={color} stopOpacity={0} />
+                </LinearGradient>
+              </Defs>
+            )}
+
             {/* Full-period count grid */}
             {ticks.map((tick) => (
               <Line
@@ -308,6 +341,40 @@ export default function AnalyticsSeriesChart({
                 strokeDasharray="3 4"
               />
             ))}
+
+            {/* Join only adjacent observed intervals; a missing bucket always breaks the line. */}
+            {variant === "line" &&
+              slots.map((slot, index) => {
+                const previous = slots[index - 1];
+                const value = slot.observation?.value;
+                const previousValue = previous?.observation?.value;
+                if (value === undefined || previousValue === undefined) {
+                  return null;
+                }
+
+                const startX = (index - 0.5) * stepWidth;
+                const endX = (index + 0.5) * stepWidth;
+
+                return (
+                  <G key={`${previous.date}-${slot.date}`}>
+                    <Path
+                      testID={`analytics-area-${previous.date}-${slot.date}`}
+                      d={`M ${startX} ${bottom} L ${startX} ${y(previousValue)} L ${endX} ${y(value)} L ${endX} ${bottom} Z`}
+                      fill="url(#analytics-line-fill)"
+                    />
+                    <Line
+                      testID={`analytics-line-${previous.date}-${slot.date}`}
+                      x1={startX}
+                      y1={y(previousValue)}
+                      x2={endX}
+                      y2={y(value)}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                    />
+                  </G>
+                );
+              })}
 
             {/* Columns, reported zeros, and missing-data marks */}
             {slots.map((slot, index) => {
@@ -355,6 +422,14 @@ export default function AnalyticsSeriesChart({
                       fill={theme.extends.colors.surface}
                       stroke={theme.extends.colors.text.secondary}
                       strokeWidth={1.5}
+                    />
+                  ) : variant === "line" ? (
+                    <Circle
+                      testID={`analytics-point-${slot.date}`}
+                      cx={center}
+                      cy={y(value)}
+                      r={3.5}
+                      fill={color}
                     />
                   ) : (
                     <Rect
