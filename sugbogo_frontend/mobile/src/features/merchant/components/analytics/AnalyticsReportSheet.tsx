@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
+import useBottomSheetBackHandler from "@/shared/hooks/useBottomSheetBackHandler";
 
 const SNAP_POINTS = ["70%", "90%"];
 
@@ -21,6 +22,8 @@ export default function AnalyticsReportSheet({
   description,
   closeLabel,
   onDismiss,
+  snapPoints = SNAP_POINTS,
+  stackBehavior,
   children,
 }: {
   sheetRef: RefObject<BottomSheetModal | null>;
@@ -28,9 +31,12 @@ export default function AnalyticsReportSheet({
   description?: string;
   closeLabel: string;
   onDismiss?: () => void;
+  snapPoints?: (string | number)[];
+  stackBehavior?: "push" | "switch" | "replace";
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const backHandler = useBottomSheetBackHandler(sheetRef);
   const backdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
@@ -47,7 +53,8 @@ export default function AnalyticsReportSheet({
     <BottomSheetModal
       ref={sheetRef}
       index={0}
-      snapPoints={SNAP_POINTS}
+      snapPoints={snapPoints}
+      stackBehavior={stackBehavior}
       topInset={insets.top}
       enableDynamicSizing={false}
       enablePanDownToClose
@@ -60,7 +67,11 @@ export default function AnalyticsReportSheet({
         backgroundColor: theme.extends.colors.text.disabled,
         width: 40,
       }}
-      onDismiss={onDismiss}
+      onChange={backHandler.onChange}
+      onDismiss={() => {
+        backHandler.onDismiss();
+        onDismiss?.();
+      }}
     >
       <BottomSheetScrollView
         contentContainerClassName="px-5 pt-2"

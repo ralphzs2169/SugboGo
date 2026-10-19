@@ -1155,7 +1155,7 @@ describe("MerchantAnalyticsScreen", () => {
 
   it("does not request Plus reports for restricted merchants", async () => {
     const screen = await renderScreen();
-    await screen.findByText("Merchant Plus access required");
+    await screen.findByText("Report access unavailable");
     expect(plusService.getMerchantPlusVisibility).not.toHaveBeenCalled();
     expect(plusService.getMerchantPlusReviewPerformance).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/Recorded profile visits: 24\./)).toBeTruthy();

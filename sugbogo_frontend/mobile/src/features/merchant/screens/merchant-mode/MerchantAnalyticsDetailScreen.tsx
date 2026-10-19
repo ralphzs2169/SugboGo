@@ -210,7 +210,7 @@ function CoreAnalyticsDetailScreen({
         }
       >
         {/* Report description and segmented reporting period */}
-        {kind !== "pocket" && (
+        {kind === "specialties" && (
           <AnalyticsDetailHeader
             title={PLUS_DETAIL_TITLES[kind]}
             description={ANALYTICS_DETAIL_DESCRIPTIONS[kind]}
@@ -221,92 +221,100 @@ function CoreAnalyticsDetailScreen({
 
         {/* Report content uses the same background and gutters as Analytics */}
         <View className="gap-4 bg-surface px-5 pb-6 pt-5">
-          {kind === "pocket" && (
-            <AnalyticsPocketHeader
+          {kind === "reviews" ? (
+            <AnalyticsReviewPerformance
+              report={reviews.data}
               period={period}
               onPeriodChange={setPeriod}
-              report={pocket.data}
-            />
-          )}
-          {/* Initial request state */}
-          {isInitialLoading ? (
-            kind === "pocket" ? (
-              <AnalyticsPocketTrends loading retry={retry} />
-            ) : (
-              <View
-                accessibilityRole="progressbar"
-                className="min-h-48 items-center justify-center gap-3"
-              >
-                <ActivityIndicator
-                  size="large"
-                  color={theme.extends.colors.brand}
-                />
-                <AppText className="text-sm text-text-secondary">
-                  Loading report…
-                </AppText>
-              </View>
-            )
-          ) : hasInitialError ? (
-            <ErrorState
-              size="section"
-              title="Unable to load this report"
-              description="Your analytics could not be loaded. Please try again."
-              primaryActionTitle="Retry"
-              onPrimaryAction={retry}
+              loading={reviews.isPending}
+              error={reviews.error}
+              retry={() => void reviews.refetch()}
             />
           ) : (
             <>
-              {/* Recover from failed refreshes without hiding cached data */}
-              {hasCachedError && (
-                <InfoBanner
-                  title="Report couldn't refresh"
-                  actionTitle="Retry"
-                  onAction={retry}
-                >
-                  <AppText className="text-sm leading-5 text-text-secondary">
-                    Showing previously loaded information. Try again to get the
-                    latest data.
-                  </AppText>
-                </InfoBanner>
+              {kind === "pocket" && (
+                <AnalyticsPocketHeader
+                  period={period}
+                  onPeriodChange={setPeriod}
+                  report={pocket.data}
+                />
               )}
-
-              {/* Unavailable data remains distinct from recorded zero */}
-              {query.data?.meta.availability === "unavailable" ? (
-                <AnalyticsChartEmptyState
-                  title="Report data unavailable"
-                  description="This report is currently unavailable. Missing counts do not mean zero activity."
-                  icon="cloud-off-outline"
-                  onRetry={retry}
+              {/* Initial request state */}
+              {isInitialLoading ? (
+                kind === "pocket" ? (
+                  <AnalyticsPocketTrends loading retry={retry} />
+                ) : (
+                  <View
+                    accessibilityRole="progressbar"
+                    className="min-h-48 items-center justify-center gap-3"
+                  >
+                    <ActivityIndicator
+                      size="large"
+                      color={theme.extends.colors.brand}
+                    />
+                    <AppText className="text-sm text-text-secondary">
+                      Loading report…
+                    </AppText>
+                  </View>
+                )
+              ) : hasInitialError ? (
+                <ErrorState
+                  size="section"
+                  title="Unable to load this report"
+                  description="Your analytics could not be loaded. Please try again."
+                  primaryActionTitle="Retry"
+                  onPrimaryAction={retry}
                 />
               ) : (
                 <>
-                  {/* Pocket trends */}
-                  {kind === "pocket" && pocket.data && (
-                    <AnalyticsPocketTrends
-                      report={pocket.data}
-                      retry={() => void pocket.refetch()}
+                  {/* Recover from failed refreshes without hiding cached data */}
+                  {hasCachedError && (
+                    <InfoBanner
+                      title="Report couldn't refresh"
+                      actionTitle="Retry"
+                      onAction={retry}
+                    >
+                      <AppText className="text-sm leading-5 text-text-secondary">
+                        Showing previously loaded information. Try again to get
+                        the latest data.
+                      </AppText>
+                    </InfoBanner>
+                  )}
+
+                  {/* Unavailable data remains distinct from recorded zero */}
+                  {query.data?.meta.availability === "unavailable" ? (
+                    <AnalyticsChartEmptyState
+                      title="Report data unavailable"
+                      description="This report is currently unavailable. Missing counts do not mean zero activity."
+                      icon="cloud-off-outline"
+                      onRetry={retry}
                     />
-                  )}
+                  ) : (
+                    <>
+                      {/* Pocket trends */}
+                      {kind === "pocket" && pocket.data && (
+                        <AnalyticsPocketTrends
+                          report={pocket.data}
+                          retry={() => void pocket.refetch()}
+                        />
+                      )}
 
-                  {/* Specialty trends */}
-                  {kind === "specialties" && specialties.data && (
-                    <SpecialtyDetail report={specialties.data} />
-                  )}
+                      {/* Specialty trends */}
+                      {kind === "specialties" && specialties.data && (
+                        <SpecialtyDetail report={specialties.data} />
+                      )}
 
-                  {/* Review performance */}
-                  {kind === "reviews" && reviews.data && (
-                    <AnalyticsReviewPerformance report={reviews.data} />
-                  )}
-
-                  {/* No response available despite a completed request */}
-                  {!query.data && (
-                    <ErrorState
-                      size="section"
-                      title="Report unavailable"
-                      description="No report information was returned. Please try again."
-                      primaryActionTitle="Retry"
-                      onPrimaryAction={retry}
-                    />
+                      {/* No response available despite a completed request */}
+                      {!query.data && (
+                        <ErrorState
+                          size="section"
+                          title="Report unavailable"
+                          description="No report information was returned. Please try again."
+                          primaryActionTitle="Retry"
+                          onPrimaryAction={retry}
+                        />
+                      )}
+                    </>
                   )}
                 </>
               )}

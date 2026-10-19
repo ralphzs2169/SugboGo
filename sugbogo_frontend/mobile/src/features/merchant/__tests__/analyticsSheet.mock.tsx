@@ -11,14 +11,19 @@ export function analyticsSheetMock() {
       ref,
       children,
       onDismiss,
+      onChange,
     }: {
       ref: unknown;
       children: ReactNode;
       onDismiss?: () => void;
+      onChange?: (index: number) => void;
     }) {
       const [visible, setVisible] = useState(false);
       useImperativeHandle(ref, () => ({
-        present: () => setVisible(true),
+        present: () => {
+          setVisible(true);
+          onChange?.(0);
+        },
         dismiss: () => {
           setVisible(false);
           onDismiss?.();

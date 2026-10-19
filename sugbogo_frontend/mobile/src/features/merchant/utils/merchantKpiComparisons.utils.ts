@@ -15,6 +15,21 @@ export type KpiTrend = {
   unit: "count" | "percent" | "percentage_points";
 };
 
+/** Uses an approved comparison from the same review report without matching a separate Standard response. */
+export function reviewPerformanceReplyTrend(
+  report: PlusReviewPerformanceReport,
+) {
+  if (
+    report.meta.availability === "unavailable" ||
+    report.current.reply_rate === null ||
+    report.previous.reply_rate === null ||
+    report.current.published_review_count <= 0 ||
+    report.previous.published_review_count <= 0
+  )
+    return undefined;
+  return approvedChange(report.reply_rate_change, "percentage_points");
+}
+
 /** Accepts only explicit backend comparisons with consistent units and direction. */
 function approvedChange(
   change: AnalyticsChange | undefined,

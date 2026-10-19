@@ -223,20 +223,156 @@ describe("advanced Plus detail integration", () => {
     expect(screen.getByText(/Based on 6 of 8 reviews/)).toBeTruthy();
   });
 
-  it("shows exact hourly observations and switches weekday without another request", async () => {
+  it("shows all weekdays in a heatmap and inspects exact counts without another request", async () => {
     const screen = await renderDetail("timing");
     await screen.findByLabelText("Timing profile visits: 3");
+    expect(screen.queryByText(/Plus preview access|Plus demo access/)).toBeNull();
     expect(screen.getByLabelText("Monday, 09:00–10:00: 2")).toBeTruthy();
     expect(screen.getByLabelText("Monday, 08:00–09:00: 0")).toBeTruthy();
+    expect(screen.queryByText("— Data unavailable")).toBeNull();
+    expect(screen.queryByText("× Outside selected dates")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Tuesday, 10:00–11:00: 1" }),
+    );
+    expect(screen.getByLabelText("Tuesday, 10:00–11:00: 1")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Hourly recorded profile visits: 1"),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Tuesday, 10:00–11:00: 1" }).props
+        .className,
+    ).toContain("border-text-info");
+    expect(screen.getByText("Across this hour on 4 dates")).toBeTruthy();
+    expect(service.getMerchantPlusProfileTiming).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("timing-heatmap-scroll").props.horizontal).toBe(
+      true,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close hourly visit details" }),
+    );
+    expect(
+      screen.queryByLabelText("Hourly recorded profile visits: 1"),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Tuesday, 10:00–11:00: 1" }).props
+        .accessibilityState.selected,
+    ).toBe(false);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Monday, 09:00–10:00: 2" }),
+    );
+    expect(
+      screen.getByLabelText("Hourly recorded profile visits: 2"),
+    ).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close hourly visit details" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "About visit timing" }),
+    );
+    expect(screen.getByText(/not physical customer arrivals/)).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Detailed visit-timing measurements",
+      }),
+    );
     expect(
       screen.getByText(/cannot reliably identify your busiest hours/),
     ).toBeTruthy();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Day of week: Tuesday" }),
+      screen.getByRole("button", { name: "Close visit-timing information" }),
     );
-    expect(screen.getByLabelText("Tuesday, 10:00–11:00: 1")).toBeTruthy();
-    expect(service.getMerchantPlusProfileTiming).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/not physical customer arrivals/)).toBeTruthy();
+    expect(
+      screen.queryByText(/cannot reliably identify your busiest hours/),
+    ).toBeNull();
+  });
+
+  it("keeps timing controls and headings visible during period changes", async () => {
+    const screen = await renderDetail("timing");
+    await screen.findByLabelText("Timing profile visits: 3");
+    let finish!: (
+      value: Awaited<ReturnType<typeof service.getMerchantPlusProfileTiming>>,
+    ) => void;
+    jest.mocked(service.getMerchantPlusProfileTiming).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 90 days",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Last 90 days" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    expect(screen.getByLabelText("Loading visit timing")).toBeTruthy();
+    expect(screen.getByText("Visits by day and hour")).toBeTruthy();
+    expect(screen.getByText("Recorded profile visits")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "About visit timing" }),
+    ).toBeTruthy();
+    await act(async () => finish(plusSuccess(timingReport())));
+    await screen.findByLabelText("Timing profile visits: 3");
+    expect(
+      jest
+        .mocked(service.getMerchantPlusProfileTiming)
+        .mock.calls.map(([selection]) => selection.period),
+    ).toEqual(["90", "7"]);
+  });
+
+  it("shows exact partial-hour details without a redundant values list", async () => {
+    const screen = await renderDetail("timing");
+    await screen.findByLabelText("Timing profile visits: 3");
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Sunday, 23:00–00:00: 0, includes a partial hour",
+      }),
+    );
+    expect(screen.getByText("Across this hour on 4 dates")).toBeTruthy();
+    expect(screen.getByText("Includes a partial hour")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Hourly recorded profile visits: 0"),
+    ).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close hourly visit details" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "View exact values" }),
+    ).toBeNull();
+  });
+
+  it("retries timing failures and keeps cached heatmap data on refresh errors", async () => {
+    jest.mocked(service.getMerchantPlusProfileTiming).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
+    const screen = await renderDetail("timing");
+    await screen.findByText("Unable to load visit timing");
+    expect(
+      screen.getByRole("button", { name: "About visit timing" }),
+    ).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Unable to load visit timing.*retry/i,
+      }),
+    );
+    await screen.findByLabelText("Timing profile visits: 3");
+    jest.mocked(service.getMerchantPlusProfileTiming).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
+    await act(async () =>
+      screen
+        .getByTestId("advanced-plus-detail-scroll")
+        .props.refreshControl.props.onRefresh(),
+    );
+    await screen.findByText("Unable to refresh visit timing");
+    expect(screen.getByLabelText("Timing profile visits: 3")).toBeTruthy();
+    expect(screen.getByLabelText("Monday, 09:00–10:00: 2")).toBeTruthy();
   });
 
   it.each(["zero_recorded_visits", "visibility_unavailable"] as const)(
@@ -280,6 +416,36 @@ describe("advanced Plus detail integration", () => {
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("timing");
     await screen.findByLabelText("Monday, 00:00–01:00: Outside period");
+    expect(screen.getByText("— Data unavailable")).toBeTruthy();
+    expect(screen.getByText("× Outside selected dates")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Monday, 00:00–01:00: Outside period",
+      }),
+    );
+    expect(
+      screen.getByLabelText("Hourly recorded profile visits: Outside period"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "This weekday and hour fall outside the selected reporting period.",
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close hourly visit details" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Monday, 01:00–02:00: Unavailable" }),
+    );
+    expect(
+      screen.getByLabelText("Hourly recorded profile visits: Unavailable"),
+    ).toBeTruthy();
+    expect(
+      screen.queryByLabelText("Hourly recorded profile visits: 0"),
+    ).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close hourly visit details" }),
+    );
     expect(
       screen.getByLabelText("Monday, 01:00–02:00: Unavailable"),
     ).toBeTruthy();
@@ -424,7 +590,7 @@ describe("advanced Plus detail integration", () => {
       .mocked(service.getMerchantPlusStatus)
       .mockResolvedValueOnce(plusSuccess(plusStatus(false)));
     const screen = await renderDetail("recommendations");
-    await screen.findByText("Merchant Plus access required");
+    await screen.findByText("Report access unavailable");
     expect(service.getMerchantPlusRecommendations).not.toHaveBeenCalled();
     expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
   });

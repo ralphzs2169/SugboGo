@@ -69,7 +69,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   useQueryErrorNotification({
     error: focused ? access.error : null,
     toastId: "advanced-plus-access",
-    title: "Unable to check Plus access",
+    title: "Unable to check report access",
     fallbackMessage: "Please retry the access check.",
   });
   useQueryErrorNotification({
@@ -98,7 +98,10 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
     }
   };
   return (
-    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-background">
+    <SafeAreaView
+      edges={["left", "right"]}
+      className={`flex-1 ${kind === "timing" ? "bg-surface" : "bg-background"}`}
+    >
       {/* Stored insights retain their own dates, with no dashboard date selector. */}
       <ScrollView
         testID="advanced-plus-detail-scroll"
@@ -113,62 +116,70 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
           />
         }
       >
-        <AnalyticsDetailHeader
-          title={title}
-          description={ANALYTICS_DETAIL_DESCRIPTIONS[kind]}
-          period={kind === "review-insights" ? undefined : period}
-          onPeriodChange={setPeriod}
-        />
-        <View className="mt-2 bg-surface px-5 py-5">
+        {kind !== "timing" && (
+          <AnalyticsDetailHeader
+            title={title}
+            description={ANALYTICS_DETAIL_DESCRIPTIONS[kind]}
+            period={kind === "review-insights" ? undefined : period}
+            onPeriodChange={setPeriod}
+          />
+        )}
+        <View
+          className={`${kind === "timing" ? "" : "mt-2"} bg-surface px-5 py-5`}
+        >
           <PlusAccessGate access={access}>
-            <PlusRequestState
-              error={query.error}
-              hasData={!!query.data}
-              loading={query.isPending}
-              retry={retry}
-            >
-              {/* Each report preserves usable partial data, with recovery localized to this query. */}
-              {query.data?.meta.availability === "unavailable" &&
-              kind !== "timing" &&
-              kind !== "recommendations" ? (
-                <AnalyticsChartEmptyState
-                  title="Report data unavailable"
-                  description="This report could not be loaded. Unavailable counts do not mean zero activity."
-                  icon="cloud-off-outline"
-                  onRetry={retry}
-                />
-              ) : (
-                <>
-                  {kind === "peers" && peers.data && (
-                    <AnalyticsPeerComparisons
-                      report={peers.data}
-                      retry={() => void peers.refetch()}
-                    />
-                  )}
-                  {kind === "review-insights" && insights.data && (
-                    <AnalyticsStoredReviewInsights report={insights.data} />
-                  )}
-                  {kind === "timing" && timing.data && (
-                    <AnalyticsProfileVisitTiming
-                      report={timing.data}
-                      retry={() => void timing.refetch()}
-                    />
-                  )}
-                  {kind === "recommendations" && recommendations.data && (
-                    <AnalyticsBusinessRecommendations
-                      report={recommendations.data}
-                      refreshResult={recommendations.refreshResult}
-                      refreshError={recommendations.refreshError}
-                      requesting={recommendations.isRequestingRefresh}
-                      checking={recommendations.isFetching}
-                      throttled={recommendations.isThrottled}
-                      requestRefresh={recommendations.requestRefresh}
-                      checkStatus={() => void recommendations.refetch()}
-                    />
-                  )}
-                </>
-              )}
-            </PlusRequestState>
+            {kind === "timing" ? (
+              <AnalyticsProfileVisitTiming
+                report={timing.data}
+                retry={() => void timing.refetch()}
+                period={period}
+                onPeriodChange={setPeriod}
+                loading={timing.isPending}
+                error={timing.error}
+              />
+            ) : (
+              <PlusRequestState
+                error={query.error}
+                hasData={!!query.data}
+                loading={query.isPending}
+                retry={retry}
+              >
+                {/* Each report preserves usable partial data, with recovery localized to this query. */}
+                {query.data?.meta.availability === "unavailable" &&
+                kind !== "recommendations" ? (
+                  <AnalyticsChartEmptyState
+                    title="Report data unavailable"
+                    description="This report could not be loaded. Unavailable counts do not mean zero activity."
+                    icon="cloud-off-outline"
+                    onRetry={retry}
+                  />
+                ) : (
+                  <>
+                    {kind === "peers" && peers.data && (
+                      <AnalyticsPeerComparisons
+                        report={peers.data}
+                        retry={() => void peers.refetch()}
+                      />
+                    )}
+                    {kind === "review-insights" && insights.data && (
+                      <AnalyticsStoredReviewInsights report={insights.data} />
+                    )}
+                    {kind === "recommendations" && recommendations.data && (
+                      <AnalyticsBusinessRecommendations
+                        report={recommendations.data}
+                        refreshResult={recommendations.refreshResult}
+                        refreshError={recommendations.refreshError}
+                        requesting={recommendations.isRequestingRefresh}
+                        checking={recommendations.isFetching}
+                        throttled={recommendations.isThrottled}
+                        requestRefresh={recommendations.requestRefresh}
+                        checkStatus={() => void recommendations.refetch()}
+                      />
+                    )}
+                  </>
+                )}
+              </PlusRequestState>
+            )}
           </PlusAccessGate>
         </View>
       </ScrollView>

@@ -1,166 +1,184 @@
-import { useState } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { useRef } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import ErrorState from "@/shared/components/ErrorState";
+import Skeleton from "@/shared/components/Skeleton";
+import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
+import { shadows } from "@/shared/styles/shadows";
+import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { PlusProfileTimingReport } from "../../types/merchantAdvancedAnalytics.types";
-import AnalyticsChoiceChips from "./AnalyticsChoiceChips";
+import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
+import AnalyticsHeaderControls from "./AnalyticsHeaderControls";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
-import AnalyticsDetailContext from "./AnalyticsDetailContext";
+import AnalyticsTimingHeatmap from "./AnalyticsTimingHeatmap";
+import AnalyticsTimingMeasurementSheet from "./AnalyticsTimingMeasurementSheet";
 
-/** Focuses one backend-ordered weekday at a time so every hourly value remains readable. */
+const PERIOD_OPTIONS = [
+  { label: "Last 7 days", value: "7" },
+  { label: "Last 30 days", value: "30" },
+  { label: "Last 90 days", value: "90" },
+];
+
+/** Keeps timing controls and report structure visible while the selected period loads. */
 export default function AnalyticsProfileVisitTiming({
   report,
   retry,
+  period = "30",
+  onPeriodChange,
+  loading = false,
+  error,
 }: {
-  report: PlusProfileTimingReport;
+  report?: PlusProfileTimingReport;
   retry: () => void;
+  period?: MerchantAnalyticsPeriod;
+  onPeriodChange?: (period: MerchantAnalyticsPeriod) => void;
+  loading?: boolean;
+  error?: unknown;
 }) {
-  const { width, fontScale } = useWindowDimensions();
-  const stacked = width < 340 || fontScale >= 1.5;
-  const [weekday, setWeekday] = useState("");
-  const selected =
-    report.weekdays.find((day) => String(day.weekday) === weekday) ??
-    report.weekdays[0];
-  const maximum = report.legend.maximum;
+  const periodSheetRef = useRef<BottomSheetModal>(null);
+  const measurementSheetRef = useRef<BottomSheetModal>(null);
+  const pending = loading && !report;
   return (
-    <View className="gap-5">
-      {/* Online observations are never interpreted as arrivals or operating-hour advice. */}
-      <View>
-        <AppText className="text-sm text-text-secondary">
-          Recorded online profile visits · selected period
-        </AppText>
-        <AppText
-          accessibilityLabel={`Timing profile visits: ${report.total_profile_visits ?? "Unavailable"}`}
-          weight="bold"
-          className="mt-1 text-3xl tabular-nums text-text-primary"
-        >
-          {report.total_profile_visits?.toLocaleString("en-PH") ?? "—"}
-        </AppText>
-        <AppText className="mt-2 text-sm leading-5 text-text-secondary">
-          Recorded online visits, not physical customer arrivals ·{" "}
-          {report.timezone}.
-          {!report.sample.conclusions_available
-            ? " These records cannot reliably identify your busiest hours or guide opening hours."
-            : ""}
-        </AppText>
-      </View>
-      {report.display_state === "visibility_unavailable" ? (
-        <AnalyticsChartEmptyState
-          title="Profile-visit timing unavailable"
-          description="Recorded visit data could not be loaded. Unavailable counts do not mean zero visits."
-          icon="cloud-off-outline"
-          onRetry={retry}
-        />
-      ) : report.display_state === "zero_recorded_visits" ? (
-        <AnalyticsChartEmptyState
-          title="No recorded profile visits in this period"
-          description="No online profile visits were recorded during these dates. Some activity may not be recorded."
-          icon="clock-outline"
-        />
-      ) : (
-        <View className="gap-3">
-          <AnalyticsChoiceChips
-            label="Day of week"
-            options={report.weekdays.map((day) => ({
-              value: String(day.weekday),
-              label: day.label,
-            }))}
-            value={String(selected?.weekday ?? "")}
-            onChange={setWeekday}
-          />
-          <AppText weight="semibold" className="text-base text-text-primary">
-            {selected?.label} · hours in {report.timezone}
+    <>
+      {/* Compact controls follow Pocket trends and stay available through transitions. */}
+      <View className="gap-5">
+        <View className="gap-1">
+          <View className="flex-row items-center justify-between gap-3">
+            <AppText
+              weight="bold"
+              accessibilityRole="header"
+              className="min-w-0 flex-1 text-base text-text-primary"
+            >
+              Visit timing
+            </AppText>
+            <AnalyticsHeaderControls
+              period={period}
+              onOpenPeriod={() => periodSheetRef.current?.present()}
+              onOpenInformation={() => measurementSheetRef.current?.present()}
+              informationLabel="About visit timing"
+              informationHint="Opens information about recorded profile visits by day and hour"
+            />
+          </View>
+          <AppText className="text-sm leading-5 text-text-secondary">
+            When explorers opened your profile
           </AppText>
-          <AppText className="text-small leading-5 text-text-secondary">
-            Each row covers one hour. Bars use the same scale across all
-            weekdays.
-          </AppText>
-          {/* Backend ordering and explicit cell states are preserved, including nulls. */}
-          {report.hours.map((hour) => {
-            const cell = report.cells.find(
-              (item) =>
-                item.weekday === selected?.weekday && item.hour === hour,
-            );
-            const count =
-              cell?.state === "outside_period" ||
-              cell?.state === "visibility_unavailable"
-                ? null
-                : cell?.profile_visits;
-            const value =
-              cell?.state === "outside_period"
-                ? "Outside period"
-                : count === null || count === undefined
-                  ? "Unavailable"
-                  : String(count);
-            const hourLabel = `${String(hour).padStart(2, "0")}:00–${String((hour + 1) % 24).padStart(2, "0")}:00`;
-            return (
-              <View
-                key={hour}
-                accessible
-                accessibilityLabel={`${selected?.label}, ${hourLabel}: ${value}${cell?.includes_partial_hour ? ", includes a partial hour" : ""}`}
-                className="min-h-12 gap-1 border-b border-border-primary py-2"
-              >
-                <View
-                  testID={`analytics-timing-hour-${hour}`}
-                  className={stacked ? "gap-2" : "flex-row items-center gap-3"}
-                >
-                  <AppText className="text-sm text-text-secondary">
-                    {String(hour).padStart(2, "0")}:00
-                  </AppText>
-                  <View
-                    accessible={false}
-                    className={`h-2 min-w-0 overflow-hidden rounded-full bg-surface-muted ${stacked ? "w-full" : "flex-1"}`}
-                  >
-                    {count !== null &&
-                      count !== undefined &&
-                      count > 0 &&
-                      maximum !== null &&
-                      maximum > 0 && (
-                        <View
-                          className="h-full rounded-full bg-brand"
-                          style={{
-                            width: `${Math.min(100, (count / maximum) * 100)}%`,
-                          }}
-                        />
-                      )}
-                  </View>
-                  <AppText
-                    weight="semibold"
-                    className="shrink text-sm tabular-nums text-text-primary"
-                  >
-                    {value}
-                  </AppText>
-                </View>
-                {cell && (
-                  <AppText className="text-xs text-text-secondary">
-                    Includes this hour on {cell.period_occurrences} dates
-                    {cell.includes_partial_hour
-                      ? " · includes a partial hour"
-                      : ""}
-                  </AppText>
-                )}
-              </View>
-            );
-          })}
         </View>
-      )}
-      <AnalyticsDetailContext
-        title="About profile visit timing"
-        meta={report.sources.visibility}
-        note={report.measurement_note}
-      >
-        <AppText className="text-sm leading-5 text-text-secondary">
-          Each row combines the same weekday and hour across the selected dates.
-          The number of included dates does not confirm that tracking was
-          complete or that your business was open.
-        </AppText>
-        <AppText className="text-sm leading-5 text-text-secondary">
-          {report.period_occurrences_note}
-        </AppText>
-        <AppText className="text-sm leading-5 text-text-secondary">
-          {report.sample.nonzero_cells ?? "Unavailable"} weekday and hour
-          combinations have recorded visits.
-        </AppText>
-      </AnalyticsDetailContext>
-    </View>
+        <View
+          className="min-w-0 rounded-card border border-border-primary/60 bg-surface p-4"
+          style={shadows.subtle}
+        >
+          <View className="flex-row items-start justify-between gap-2">
+            <AppText
+              weight="medium"
+              className="min-w-0 flex-1 text-sm leading-5 text-text-secondary"
+            >
+              Recorded profile visits
+            </AppText>
+            <MaterialCommunityIcons
+              name="clock-outline"
+              size={18}
+              color={theme.extends.colors.text.secondary}
+              accessible={false}
+            />
+          </View>
+          <View className="mt-3 gap-1">
+            {pending ? (
+              <Skeleton className="h-9 w-24 rounded" />
+            ) : (
+              <AppText
+                accessibilityLabel={`Timing profile visits: ${report?.total_profile_visits ?? "Unavailable"}`}
+                weight="semibold"
+                className={`text-3xl tabular-nums ${report?.total_profile_visits == null ? "text-text-secondary" : "text-text-primary"}`}
+              >
+                {formatAnalyticsCount(report?.total_profile_visits ?? null)}
+              </AppText>
+            )}
+            <AppText className="text-xs leading-5 text-text-secondary">
+              During selected dates
+            </AppText>
+          </View>
+        </View>
+
+        {/* One heatmap replaces repeated weekday filtering and long hourly rows. */}
+        <View className="gap-3 border-t border-border-primary/60 pt-5">
+          <AppText weight="bold" className="text-base text-text-primary">
+            Visits by day and hour
+          </AppText>
+          <AppText className="text-sm text-text-secondary">
+            Philippine time
+          </AppText>
+          {pending && (
+            <View
+              accessibilityRole="progressbar"
+              accessibilityLabel="Loading visit timing"
+              className="min-h-44 items-center justify-center gap-3"
+            >
+              <ActivityIndicator color={theme.extends.colors.brand} />
+              <AppText className="text-sm text-text-secondary">
+                Loading visit timing…
+              </AppText>
+            </View>
+          )}
+          {Boolean(error) && (
+            <ErrorState
+              size="section"
+              title={
+                report
+                  ? "Unable to refresh visit timing"
+                  : "Unable to load visit timing"
+              }
+              description={
+                report
+                  ? "Previously loaded values are still shown."
+                  : "Please try this report again."
+              }
+              primaryActionTitle="Retry"
+              onPrimaryAction={retry}
+            />
+          )}
+          {report &&
+            (report.display_state === "visibility_unavailable" ? (
+              <AnalyticsChartEmptyState
+                title="Profile-visit timing unavailable"
+                description="Recorded visit data could not be loaded."
+                icon="cloud-off-outline"
+                onRetry={retry}
+              />
+            ) : report.display_state === "zero_recorded_visits" ? (
+              <AnalyticsChartEmptyState
+                compact
+                title="No recorded profile visits in this period"
+                description="No online profile visits were recorded during these dates."
+                icon="clock-outline"
+              />
+            ) : (
+              <AnalyticsTimingHeatmap
+                key={`${report.business.id}-${period}`}
+                report={report}
+              />
+            ))}
+        </View>
+      </View>
+      {/* Both sheets remain mounted independently of report availability. */}
+      <SelectionBottomSheet
+        sheetRef={periodSheetRef}
+        title="Reporting period"
+        description="Choose a time range for this section."
+        options={PERIOD_OPTIONS}
+        selectedValue={period}
+        onSelect={(value) => {
+          if (value === "7" || value === "30" || value === "90")
+            onPeriodChange?.(value);
+        }}
+        snapPoints={["50%"]}
+      />
+      <AnalyticsTimingMeasurementSheet
+        sheetRef={measurementSheetRef}
+        report={report}
+      />
+    </>
   );
 }

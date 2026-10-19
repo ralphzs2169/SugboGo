@@ -163,6 +163,15 @@ class ReviewCohortSerializer(ReviewMeasuresSerializer):
 
     median_first_reply_seconds = serializers.FloatField(allow_null=True)
     median_replied_sample_size = serializers.IntegerField()
+    overall_vibe = serializers.ChoiceField(
+        choices=(
+            "mostly_positive",
+            "mostly_neutral",
+            "mostly_negative",
+            "mixed",
+        ),
+        allow_null=True,
+    )
 
 
 class ReviewBucketSerializer(ReviewMeasuresSerializer, BucketSerializer):

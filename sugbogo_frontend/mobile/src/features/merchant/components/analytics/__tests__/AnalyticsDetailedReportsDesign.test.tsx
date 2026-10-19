@@ -22,6 +22,7 @@ jest.mock("@gorhom/bottom-sheet", () =>
 );
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("expo-router", () => ({
+  useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -140,7 +141,7 @@ describe("detailed report design consistency", () => {
     ).toBeTruthy();
   });
 
-  it("stacks comparison and hourly rows at larger font sizes", async () => {
+  it("stacks comparisons and keeps timing cells scrollable at larger font sizes", async () => {
     jest
       .spyOn(ReactNative, "useWindowDimensions")
       .mockReturnValue({ width: 320, height: 640, scale: 1, fontScale: 2 });
@@ -156,9 +157,13 @@ describe("detailed report design consistency", () => {
     expect(
       screen.getByTestId("analytics-peer-pair-profile_visits").props.className,
     ).not.toContain("flex-row");
+    expect(screen.getByTestId("timing-heatmap-scroll").props.horizontal).toBe(
+      true,
+    );
     expect(
-      screen.getByTestId("analytics-timing-hour-9").props.className,
-    ).not.toContain("flex-row");
+      screen.getByRole("button", { name: "Monday, 09:00–10:00: 2" }).props.style
+        .width,
+    ).toBeGreaterThanOrEqual(44);
     expect(screen.getByLabelText("Monday, 09:00–10:00: 2")).toBeTruthy();
   });
 });

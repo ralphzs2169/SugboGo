@@ -160,37 +160,77 @@ describe("lazy Core Plus detail reports", () => {
     ).toBeTruthy();
   });
 
+  it("uses only the current period's supplied vibe, and updates it with the period", async () => {
+    const current = reviewReport();
+    current.current.overall_vibe = "mostly_positive";
+    current.previous.overall_vibe = "mostly_negative";
+    jest
+      .mocked(service.getMerchantPlusReviewPerformance)
+      .mockResolvedValueOnce(plusSuccess(current));
+    const screen = await renderDetail("reviews");
+    await screen.findByText("Mostly positive");
+    expect(screen.queryByText("Mostly negative")).toBeNull();
+    const next = reviewReport();
+    next.current.overall_vibe = "mixed";
+    jest
+      .mocked(service.getMerchantPlusReviewPerformance)
+      .mockResolvedValueOnce(plusSuccess(next));
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 90 days",
+      }),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await screen.findByText("Mixed");
+    expect(screen.queryByText("Mostly positive")).toBeNull();
+    expect(
+      jest
+        .mocked(service.getMerchantPlusReviewPerformance)
+        .mock.calls.map(([selection]) => selection.period),
+    ).toEqual(["90", "7"]);
+  });
+
+  it.each(["missing", "null", "insufficient"])(
+    "withholds a vibe when %s, without guessing from percentages",
+    async (state) => {
+      const report = reviewReport();
+      if (state === "null") report.current.overall_vibe = null;
+      if (state === "insufficient") {
+        report.current.overall_vibe = "mostly_positive";
+        report.current.has_sufficient_sentiment_data = false;
+      }
+      jest
+        .mocked(service.getMerchantPlusReviewPerformance)
+        .mockResolvedValueOnce(plusSuccess(report));
+      const screen = await renderDetail("reviews");
+      await screen.findByLabelText("New reviews: 4");
+      expect(screen.queryByTestId("analytics-review-vibe")).toBeNull();
+    },
+  );
+
   it("uses backend sentiment percentages and percentage-point reply comparisons", async () => {
     const screen = await renderDetail("reviews");
     await screen.findByLabelText("Reviews replied to: 25%");
     expect(
       screen.getByLabelText(
-        "Positive: 2 reviews, 66.67% of reviews with a sentiment label",
+        "Positive: 2 reviews, 66.67% of categorized reviews",
       ),
     ).toBeTruthy();
     expect(
-      screen.getByLabelText(
-        "Negative: 0 reviews, 0% of reviews with a sentiment label",
-      ),
+      screen.getByLabelText("Negative: 0 reviews, 0% of categorized reviews"),
     ).toBeTruthy();
-    expect(
-      screen.getByText(/3 with a sentiment label · 1 without a label/),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        "+25 percentage points compared with reviews from the previous period",
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText("Based on 3 of 4 reviews")).toBeTruthy();
+    expect(screen.getByText("+25 pp")).toBeTruthy();
     expect(screen.getByText("1 hr")).toBeTruthy();
-    expect(screen.getByTestId("analytics-sentiment-fill-positive")).toHaveStyle(
-      { width: "66.67%" },
-    );
-    expect(screen.getByTestId("analytics-sentiment-fill-neutral")).toHaveStyle({
+    expect(screen.getByTestId("review-feedback-fill-positive")).toHaveStyle({
+      width: "66.67%",
+    });
+    expect(screen.getByTestId("review-feedback-fill-neutral")).toHaveStyle({
       width: "33.33%",
     });
-    expect(screen.getByTestId("analytics-sentiment-fill-negative")).toHaveStyle(
-      { width: "0%" },
-    );
+    expect(screen.getByTestId("review-feedback-fill-negative")).toHaveStyle({
+      width: "0%",
+    });
   });
 
   it("withholds sentiment shares for insufficient samples and preserves zero/null reply measures", async () => {
@@ -206,14 +246,143 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
-    await screen.findByText("More reviews are needed to show a pattern");
+    await screen.findByText("More reviews are needed to show percentages.");
     expect(screen.queryByText(/66\.67%/)).toBeNull();
     expect(screen.getByLabelText("Positive: 2 reviews")).toBeTruthy();
     expect(screen.getByLabelText("Reviews replied to: 0%")).toBeTruthy();
-    expect(screen.getByText("Unavailable")).toBeTruthy();
-    expect(screen.getByText("Comparison unavailable")).toBeTruthy();
-    expect(screen.queryAllByTestId("analytics-sentiment-bar")).toHaveLength(0);
+    expect(screen.getByText("No usable reply times")).toBeTruthy();
+    expect(screen.queryByText("vs prev")).toBeNull();
+    expect(screen.queryAllByTestId("review-feedback-bar")).toHaveLength(0);
   });
+
+  it("keeps review controls and section structure visible while periods load", async () => {
+    let finish!: (
+      value: Awaited<
+        ReturnType<typeof service.getMerchantPlusReviewPerformance>
+      >,
+    ) => void;
+    jest.mocked(service.getMerchantPlusReviewPerformance).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const screen = await renderDetail("reviews");
+    expect(
+      screen.getByRole("header", { name: "Review activity" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Customer feedback")).toBeTruthy();
+    expect(screen.getByText("Your replies")).toBeTruthy();
+    expect(screen.getByLabelText("Loading review activity")).toBeTruthy();
+    expect(screen.queryByText("Reporting period")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "About review activity" }),
+    );
+    expect(screen.getByText(/Uses the median: the middle time/)).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close review activity information" }),
+    );
+    await act(async () => finish(plusSuccess(reviewReport())));
+    await screen.findByLabelText("New reviews: 4");
+    expect(screen.getByTestId("review-reply-progress")).toHaveStyle({
+      width: "25%",
+    });
+    jest.mocked(service.getMerchantPlusReviewPerformance).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 90 days",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Last 90 days" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    expect(screen.getByLabelText("Loading review activity")).toBeTruthy();
+    expect(screen.queryByLabelText("New reviews: 4")).toBeNull();
+    expect(screen.getByText("Reviews over time")).toBeTruthy();
+    await act(async () => finish(plusSuccess(reviewReport())));
+    await screen.findByLabelText("New reviews: 4");
+    expect(
+      jest
+        .mocked(service.getMerchantPlusReviewPerformance)
+        .mock.calls.map(([selection]) => selection.period),
+    ).toEqual(["90", "7"]);
+    expect(service.getMerchantPlusStatus).not.toHaveBeenCalled();
+    expect(service.getMerchantPlusPocket).not.toHaveBeenCalled();
+  });
+
+  it("recovers review request failures and retains cached reviews on refresh failure", async () => {
+    jest
+      .mocked(service.getMerchantPlusReviewPerformance)
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    const screen = await renderDetail("reviews");
+    await screen.findByText("Unable to load review activity");
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Unable to load review activity.*retry/i,
+      }),
+    );
+    await screen.findByLabelText("New reviews: 4");
+    jest
+      .mocked(service.getMerchantPlusReviewPerformance)
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    await act(async () =>
+      screen
+        .getByTestId("analytics-detail-scroll")
+        .props.refreshControl.props.onRefresh(),
+    );
+    await screen.findByText("Unable to refresh review activity");
+    expect(screen.getByLabelText("New reviews: 4")).toBeTruthy();
+    expect(
+      screen.getByLabelText(
+        "Positive: 2 reviews, 66.67% of categorized reviews",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("keeps an unavailable review report distinct from a zero-review period", async () => {
+    const report = reviewReport();
+    report.meta.availability = "unavailable";
+    jest
+      .mocked(service.getMerchantPlusReviewPerformance)
+      .mockResolvedValueOnce(plusSuccess(report));
+    const screen = await renderDetail("reviews");
+    await screen.findByLabelText("New reviews: Unavailable");
+    expect(screen.queryByText("No reviews in this period")).toBeNull();
+    expect(screen.queryByLabelText("New reviews: 4")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Review activity unavailable.*retry/i,
+      }),
+    );
+    await screen.findByLabelText("New reviews: 4");
+  });
+
+  it.each(["percent", "count"])(
+    "omits unsupported review-reply comparison units: %s",
+    async (unit) => {
+      const report = reviewReport();
+      report.reply_rate_change.unit = unit;
+      jest
+        .mocked(service.getMerchantPlusReviewPerformance)
+        .mockResolvedValueOnce(plusSuccess(report));
+      const screen = await renderDetail("reviews");
+      await screen.findByLabelText("Reviews replied to: 25%");
+      expect(screen.queryByText("vs prev")).toBeNull();
+    },
+  );
 
   it("shows a friendly save empty state without a report Retry for legitimate zero activity", async () => {
     const report = pocketReport();
@@ -329,15 +498,11 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
-    await screen.findByText("More reviews are needed to show a pattern");
-    expect(screen.getByLabelText("Positive: 1 reviews")).toBeTruthy();
-    expect(screen.queryAllByTestId("analytics-sentiment-bar")).toHaveLength(0);
-    expect(
-      screen.getByText(/This percentage describes one review only/),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/does not show a typical response time/),
-    ).toBeTruthy();
+    await screen.findByText("More reviews are needed to show percentages.");
+    expect(screen.getByLabelText("Positive: 1 review")).toBeTruthy();
+    expect(screen.queryAllByTestId("review-feedback-bar")).toHaveLength(0);
+    expect(screen.getByText(/Based on 1 review/)).toBeTruthy();
+    expect(screen.getByText("Based on 1 reply")).toBeTruthy();
   });
 
   it("preserves a null sentiment share and a valid zero-second reply median", async () => {
@@ -350,14 +515,12 @@ describe("lazy Core Plus detail reports", () => {
     const screen = await renderDetail("reviews");
     await screen.findByText("0 sec");
     expect(screen.getByLabelText("Positive: 2 reviews")).toBeTruthy();
-    expect(screen.getByText(/Share unavailable/)).toBeTruthy();
-    expect(screen.getAllByTestId("analytics-sentiment-bar")).toHaveLength(2);
-    expect(
-      screen.queryByTestId("analytics-sentiment-fill-positive"),
-    ).toBeNull();
-    expect(screen.getByTestId("analytics-sentiment-fill-negative")).toHaveStyle(
-      { width: "0%" },
-    );
+    expect(screen.getByText(/Percentage unavailable/)).toBeTruthy();
+    expect(screen.getAllByTestId("review-feedback-bar")).toHaveLength(2);
+    expect(screen.queryByTestId("review-feedback-fill-positive")).toBeNull();
+    expect(screen.getByTestId("review-feedback-fill-negative")).toHaveStyle({
+      width: "0%",
+    });
   });
 
   it.each([-1, 101, Number.NaN])(
@@ -370,13 +533,11 @@ describe("lazy Core Plus detail reports", () => {
         .mockResolvedValueOnce(plusSuccess(report));
       const screen = await renderDetail("reviews");
       await screen.findByLabelText("Positive: 2 reviews");
-      expect(
-        screen.queryByTestId("analytics-sentiment-fill-positive"),
-      ).toBeNull();
-      expect(screen.getByText(/Share unavailable/)).toBeTruthy();
-      expect(
-        screen.getByTestId("analytics-sentiment-fill-neutral"),
-      ).toHaveStyle({ width: "33.33%" });
+      expect(screen.queryByTestId("review-feedback-fill-positive")).toBeNull();
+      expect(screen.getByText(/Percentage unavailable/)).toBeTruthy();
+      expect(screen.getByTestId("review-feedback-fill-neutral")).toHaveStyle({
+        width: "33.33%",
+      });
     },
   );
 
@@ -404,13 +565,11 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
-    await screen.findByText("No published reviews in this period");
+    await screen.findByText("No new reviews in this period");
     expect(
       screen.getByLabelText("Reviews replied to: Unavailable"),
     ).toBeTruthy();
-    expect(
-      screen.getByText(/No published reviews from these dates/),
-    ).toBeTruthy();
+    expect(screen.getByText("No reviews in this period")).toBeTruthy();
     expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
   });
 
@@ -422,14 +581,14 @@ describe("lazy Core Plus detail reports", () => {
     });
     const screen = await renderDetail("pocket");
     const retry = await screen.findByRole("button", {
-      name: /Unable to check Plus access.*retry/i,
+      name: /Unable to check report access.*retry/i,
     });
     expect(service.getMerchantPlusPocket).not.toHaveBeenCalled();
     jest
       .mocked(service.getMerchantPlusStatus)
       .mockResolvedValueOnce(plusSuccess(plusStatus(false)));
     await fireEvent.press(retry);
-    await screen.findByText("Merchant Plus access required");
+    await screen.findByText("Report access unavailable");
     expect(service.getMerchantPlusPocket).not.toHaveBeenCalled();
     await fireEvent.press(
       screen.getByRole("button", { name: "Check access again" }),

@@ -200,7 +200,7 @@ export default function MerchantAnalyticsScreen() {
   useQueryErrorNotification({
     error: focused ? plusAccess.error : null,
     toastId: "merchant-plus-access-error",
-    title: "Unable to check Plus access",
+    title: "Unable to check report access",
     fallbackMessage: "Your Standard analytics remain available.",
   });
 

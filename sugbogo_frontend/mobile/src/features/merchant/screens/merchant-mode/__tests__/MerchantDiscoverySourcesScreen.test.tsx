@@ -20,6 +20,11 @@ import MerchantDiscoverySourcesScreen from "../MerchantDiscoverySourcesScreen";
 import AnalyticsMoreInsights from "../../../components/analytics/AnalyticsMoreInsights";
 
 let mockFocused = true;
+jest.mock("@gorhom/bottom-sheet", () =>
+  jest
+    .requireActual("../../../__tests__/analyticsSheet.mock")
+    .analyticsSheetMock(),
+);
 jest.mock("expo-router", () => ({
   useIsFocused: () => mockFocused,
   useNavigation: () => ({ isFocused: () => true }),
@@ -108,6 +113,13 @@ describe("Standard discovery sources", () => {
       screen.getByRole("button", { name: "About visit sources" }),
     );
     expect(mockPresent).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Where visits came from")).toBeNull();
+    expect(screen.getByText("Source breakdown")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 7 days",
+      }),
+    );
     await fireEvent.press(screen.getByRole("button", { name: "Last 90 days" }));
     await waitFor(() =>
       expect(getReport).toHaveBeenCalledWith("90", expect.anything()),
@@ -133,6 +145,12 @@ describe("Standard discovery sources", () => {
       wrapper: Wrapper,
     });
     expect(screen.getByLabelText("Loading visit sources")).toBeTruthy();
+    expect(screen.getByText("Visit sources")).toBeTruthy();
+    expect(screen.getByText("Source breakdown")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "About visit sources" }),
+    );
+    expect(mockPresent).toHaveBeenCalledTimes(1);
     await act(async () =>
       resolve({
         success: true,
@@ -150,6 +168,58 @@ describe("Standard discovery sources", () => {
     expect(screen.getByText("No recorded profile visits yet")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
   });
+  it("keeps the layout and controls visible while a different period loads", async () => {
+    const screen = await render(<MerchantDiscoverySourcesScreen />, {
+      wrapper: Wrapper,
+    });
+    await screen.findByLabelText("Recorded profile visits: 7");
+    let finish!: (
+      value: Awaited<ReturnType<typeof getMerchantDiscoverySources>>,
+    ) => void;
+    getReport.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 30 days",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Last 30 days" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    expect(screen.getByLabelText("Loading visit sources")).toBeTruthy();
+    expect(screen.getByText("Source breakdown")).toBeTruthy();
+    expect(screen.getByText("Recorded profile visits")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "About visit sources" }),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Recorded profile visits: 7")).toBeNull();
+    await act(async () =>
+      finish({
+        success: true,
+        message: "Report",
+        data: discoverySourcesReport(),
+      }),
+    );
+    await screen.findByLabelText("Recorded profile visits: 7");
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 7 days",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Last 7 days" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Last 30 days" }));
+    expect(screen.queryByLabelText("Loading visit sources")).toBeNull();
+    expect(getReport.mock.calls.map(([period]) => period)).toEqual(["30", "7"]);
+  });
+
   it("preserves unknown-source visits rather than hiding their counts", async () => {
     getReport.mockResolvedValue({
       success: true,
@@ -170,8 +240,46 @@ describe("Standard discovery sources", () => {
       ).toBeTruthy(),
     );
     expect(
-      screen.getByText(/Some visits have no recorded source/),
-    ).toBeTruthy();
+      screen.queryByText(/Some visits have no recorded source/),
+    ).toBeNull();
+    expect(
+      screen.getByTestId("discovery-source-bar-UNKNOWN").props.style.width,
+    ).toBe("100%");
+  });
+
+  it("keeps unknown attribution last even when it has the largest count", async () => {
+    getReport.mockResolvedValueOnce({
+      success: true,
+      message: "Report",
+      data: discoverySourcesReport({
+        profile_visits: 10,
+        sources: [
+          { source: "UNKNOWN", label: "Source not recorded", count: 6 },
+          { source: "MAP", label: "Map", count: 1 },
+          { source: "EXPLORE_DISCOVERY", label: "Explore", count: 3 },
+        ],
+      }),
+    });
+    const screen = await render(<MerchantDiscoverySourcesScreen />, {
+      wrapper: Wrapper,
+    });
+    await screen.findByLabelText("Recorded profile visits: 10");
+    expect(
+      screen
+        .getAllByLabelText(/: \d+ recorded profile visits$/)
+        .map((row) => row.props.accessibilityLabel),
+    ).toEqual([
+      "Explore: 3 recorded profile visits",
+      "Map: 1 recorded profile visits",
+      "Source not recorded: 6 recorded profile visits",
+    ]);
+    expect(
+      screen.getByTestId("discovery-source-bar-UNKNOWN").props.style.width,
+    ).toBe("100%");
+    expect(
+      screen.getByTestId("discovery-source-bar-EXPLORE_DISCOVERY").props.style
+        .width,
+    ).toBe("50%");
   });
   it("notifies request errors and offers persistent Retry without reloading other analytics", async () => {
     getReport.mockResolvedValueOnce({
@@ -262,7 +370,11 @@ describe("Standard discovery sources", () => {
     const open = jest.fn();
     const openPlus = jest.fn();
     const screen = await render(
-      <AnalyticsMoreInsights onOpen={openPlus} onOpenDiscoverySources={open} />,
+      <AnalyticsMoreInsights
+        onOpen={openPlus}
+        onOpenDiscoverySources={open}
+        hasPlusAccess={false}
+      />,
     );
     expect(getReport).not.toHaveBeenCalled();
     await fireEvent.press(

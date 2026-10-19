@@ -1,3 +1,4 @@
+import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
 import type {
   MerchantAnalyticsPeriod,
   MerchantStandardAnalytics,
@@ -103,6 +104,8 @@ export type ReviewMeasures = {
 };
 
 export type ReviewCohort = ReviewMeasures & {
+  /** Optional while older API responses or cached reports are still in use. */
+  overall_vibe?: ReviewVibe | null;
   median_first_reply_seconds: number | null;
   median_replied_sample_size: number;
 };

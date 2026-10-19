@@ -17,7 +17,7 @@ import {
 export function PlusAnalyticsSkeleton() {
   return (
     <View
-      accessibilityLabel="Loading Plus analytics"
+      accessibilityLabel="Loading analytics"
       accessibilityState={{ busy: true }}
       className="gap-4 py-3"
     >
@@ -40,8 +40,8 @@ export function PlusAccessGate({
     return (
       <ErrorState
         size="section"
-        title="Unable to check Plus access"
-        description="Your Standard analytics are still available. Retry the access check."
+        title="Unable to check report access"
+        description="Your other analytics are still available. Retry the access check."
         primaryActionTitle="Retry"
         onPrimaryAction={() => void access.refetch()}
       />
@@ -49,29 +49,18 @@ export function PlusAccessGate({
   if (!access.allowed)
     return (
       <InfoBanner
-        title="Merchant Plus access required"
+        title="Report access unavailable"
         icon="lock-outline"
         actionTitle="Check access again"
         onAction={() => void access.refetch()}
       >
         <AppText className="text-sm leading-5 text-text-secondary">
-          These reports require access granted by SugboGo. Your Standard
-          analytics remain available.
+          These reports require access granted by SugboGo. Your other analytics
+          remain available.
         </AppText>
       </InfoBanner>
     );
-  return (
-    <View className="gap-3">
-      {access.status?.access_source !== "none" && (
-        <AppText className="text-sm text-text-secondary">
-          {access.status?.access_source === "preview"
-            ? "Plus preview access"
-            : "Plus demo access"}
-        </AppText>
-      )}
-      {children}
-    </View>
-  );
+  return <View className="gap-3">{children}</View>;
 }
 
 /** Localizes request recovery and preserves cached content after a failed refresh. */

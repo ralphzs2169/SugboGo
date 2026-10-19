@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { BackHandler } from "react-native";
 import { analyticsMerchant } from "../../../__tests__/merchantAnalytics.fixtures";
 import {
   pocketReport,
@@ -203,6 +204,36 @@ describe("Pocket trends compact controls and line chart", () => {
     ).toBeTruthy();
     await act(async () => finish(plusSuccess(pocketReport())));
     await screen.findByLabelText(/^Recorded saves: 5/);
+  });
+
+  it("consumes Android back for both sheets without leaving the report", async () => {
+    let back!: () => boolean | null | undefined;
+    const remove = jest.fn();
+    const subscription = jest
+      .spyOn(BackHandler, "addEventListener")
+      .mockImplementation((_, handler) => {
+        back = () => handler({} as Parameters<typeof handler>[0]);
+        return { remove };
+      });
+    try {
+      const screen = await open();
+      await screen.findByLabelText(/^Recorded saves: 5/);
+      for (const [button, content] of [
+        ["Change reporting period, currently 30 days", "Reporting period"],
+        ["About Pocket activity", "Reading the chart"],
+      ]) {
+        await fireEvent.press(screen.getByRole("button", { name: button }));
+        expect(screen.getByText(content)).toBeTruthy();
+        await act(() => {
+          expect(back()).toBe(true);
+        });
+        expect(screen.queryByText(content)).toBeNull();
+        expect(screen.getByLabelText(/^Recorded saves: 5/)).toBeTruthy();
+      }
+      expect(remove).toHaveBeenCalledTimes(2);
+    } finally {
+      subscription.mockRestore();
+    }
   });
 
   it("keeps dates inside the information sheet and omits coverage notices when verified", async () => {

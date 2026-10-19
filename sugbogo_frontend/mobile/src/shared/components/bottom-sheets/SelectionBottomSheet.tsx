@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import useBottomSheetBackHandler from "@/shared/hooks/useBottomSheetBackHandler";
 
 export type SelectionOption = {
   label: string;
@@ -45,6 +46,7 @@ export default function SelectionBottomSheet({
   snapPoints = ["55%"],
 }: Props) {
   const insets = useSafeAreaInsets();
+  const backHandler = useBottomSheetBackHandler(sheetRef);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -71,6 +73,8 @@ export default function SelectionBottomSheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
+      onChange={backHandler.onChange}
+      onDismiss={backHandler.onDismiss}
       snapPoints={snapPoints}
       topInset={insets.top}
       enableDynamicSizing={false}

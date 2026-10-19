@@ -10,6 +10,7 @@ from apps.shared.analytics.policy import current_policy, with_policy_snapshot
 from apps.reviews.models import Review, ReviewReply
 from apps.shared.analytics.comparisons import compare_count_difference, compare_values, equal_elapsed_periods
 from apps.shared.analytics.date_ranges import MANILA
+from apps.shared.analytics.review_vibe import classify_review_vibe
 
 from .premium_common import owned_business_data, previous_period, snapshot_meta, week_buckets
 
@@ -46,10 +47,21 @@ class PremiumReviewPerformanceService:
         }
 
     @classmethod
-    def cohort(cls, published, period):
+    def cohort(
+        cls,
+        published,
+        period,
+    ):
         """Return selected cohort metrics and median duration among retained valid replies."""
         cohort = published.filter(REVW_CREATED_AT__gte=period.start, REVW_CREATED_AT__lt=period.end)
         measures = cls.measures(cohort.aggregate(**cls.count_expressions()))
+        measures["overall_vibe"] = classify_review_vibe(
+            counts={
+                label: measures["sentiment"][label]["count"]
+                for label in ("positive", "neutral", "negative")
+            },
+            classified_count=measures["classified_review_count"],
+        )
         durations = list(cohort.filter(has_reply=True).annotate(
             duration=F("reply__RPLY_CREATED_AT") - F("REVW_CREATED_AT"),
         ).values_list("duration", flat=True))
