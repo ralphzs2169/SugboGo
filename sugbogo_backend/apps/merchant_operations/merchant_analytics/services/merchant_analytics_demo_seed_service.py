@@ -16,12 +16,20 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from apps.admin_operations.system_configuration.services import DiscoveryAlgorithmConfigurationService
 from apps.business.models import Business, BusinessPocket, BusinessSpecialtyTag, BusinessVouch
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityEventType
+from apps.business.services.route_planning_event_service import NavigationMethod
 from apps.reviews.models import Review, ReviewReply
 from apps.shared.analytics.policy import current_policy, policy_scope
 from apps.users.models import User
 
 from ..entitlements import merchant_has_plus_access
-from .analytics_demo_dataset import DATASET_VERSION, build_dataset, parse_timestamp
+from .analytics_demo_dataset import (
+    DATASET_VERSION,
+    build_dataset,
+    build_route_dataset,
+    discovery_sources,
+    parse_timestamp,
+)
+from .analytics_demo_routes import AnalyticsDemoRoutes
 from .analytics_demo_manifest import AnalyticsDemoManifest, row_snapshot
 from .analytics_demo_visibility import AnalyticsDemoVisibility
 
@@ -292,6 +300,91 @@ class MerchantAnalyticsDemoSeedService:
                             "A demo account gained permission/group relationships; refusing cleanup.",
                         )
 
+    @classmethod
+    def verify_completed_sql(
+        cls,
+        data,
+    ):
+        """Verify complete fixture identities and strict actors without claiming mutable SQL content."""
+        plan = data["plan"]
+        rows = {
+            row["key"]: row
+            for row in data["rows"]
+        }
+        if len(rows) != len(data["rows"]):
+            raise ValidationError("The completed SQL manifest contains duplicate fixture keys.")
+        actors = cls.actors(data)
+        identities = {}
+        for actor in plan["actors"]:
+            identities[f"actor:{actor}"] = (User, {})
+        for item in plan["reviews"]:
+            identities[item["key"]] = (
+                Review,
+                {
+                    "BUSN_ID_id": data["context"]["business_id"],
+                    "USER_ID_id": actors.get(item["actor"]),
+                    "REVW_CREATED_AT": parse_timestamp(item["at"]),
+                },
+            )
+        for item in plan["replies"]:
+            review = rows.get(item["review"], {})
+            identities[f"reply:{item['review']}"] = (
+                ReviewReply,
+                {
+                    "REVW_ID_id": review.get("id"),
+                    "RPLY_CREATED_AT": parse_timestamp(item["at"]),
+                },
+            )
+        for key, model, created_field in (
+            ("pockets", BusinessPocket, "PCKT_CREATED_AT"),
+            ("vouches", BusinessVouch, "VOUCH_CREATED_AT"),
+        ):
+            for index, item in enumerate(plan[key]):
+                fields = {
+                    "BUSN_ID_id": data["context"]["business_id"],
+                    "USER_ID_id": actors.get(item["actor"]),
+                    created_field: parse_timestamp(item["at"]),
+                }
+                if model is BusinessVouch:
+                    fields["TAG_ID_id"] = item["tag_id"]
+                prefix = "pocket" if model is BusinessPocket else "vouch"
+                identities[f"{prefix}:{index}"] = (model, fields)
+        if not identities or set(rows) != set(identities):
+            raise ValidationError("The completed SQL manifest does not contain the full signed dataset.")
+        drift = []
+        seen = set()
+        for key, (model, fields) in identities.items():
+            expected = rows[key]
+            identity = (expected["model"], expected["id"])
+            if expected["model"] != model._meta.label_lower or identity in seen:
+                raise ValidationError("The completed SQL manifest contains invalid fixture identities.")
+            seen.add(identity)
+            record = model.objects.filter(pk=expected["id"]).first()
+            if record is None:
+                raise ValidationError(
+                    "A completed seed-owned SQL record is missing; refusing MongoDB extension.",
+                )
+            if any(
+                getattr(record, name) != value
+                for name, value in fields.items()
+            ):
+                raise ValidationError(
+                    "A completed SQL fixture relationship or creation timestamp changed; "
+                    "refusing MongoDB extension.",
+                )
+            actual = row_snapshot(record)
+            if actual["fingerprint"] != expected["fingerprint"]:
+                if model is User:
+                    raise ValidationError(
+                        "A seed-owned Explorer account was edited; refusing MongoDB extension.",
+                    )
+                drift.append({
+                    "model": expected["model"],
+                    "id": expected["id"],
+                    "key": key,
+                })
+        return drift
+
     @staticmethod
     def create_record(
         model,
@@ -428,6 +521,10 @@ class MerchantAnalyticsDemoSeedService:
         if not data["rows"]:
             return []
         business_id = data["context"]["business_id"]
+        assignments = discovery_sources(
+            data["plan"]["namespace"],
+            data["plan"]["events"],
+        )
         result = []
         for item in data["plan"]["events"]:
             stamp = parse_timestamp(item["at"])
@@ -440,14 +537,106 @@ class MerchantAnalyticsDemoSeedService:
                 business_id,
                 VisibilityEventService._get_event_day(stamp),
             )
-            result.append({
+            document = {
                 "event_type": item["type"],
                 "business_id": business_id,
                 "explorer_id": actor,
                 "occurred_at": stamp,
                 "dedupe_key": key,
-            })
+            }
+            if (
+                item["type"] == "PROFILE_VISIT"
+                and (
+                    "discovery_source" in item
+                    or "reporting_extension" in data
+                )
+            ):
+                document["discovery_source"] = assignments[(item["actor"], item["at"])]
+            result.append(document)
         return result
+
+    @classmethod
+    def legacy_documents(
+        cls,
+        data,
+    ):
+        """Allow only exact missing-source visits authenticated by a legacy signed plan."""
+        if not data.get("reporting_extension", {}).get("legacy_visibility"):
+            return []
+        return [
+            {
+                key: value
+                for key, value in document.items()
+                if key != "discovery_source"
+            }
+            for item, document in zip(data["plan"]["events"], cls.documents(data))
+            if (
+                item["type"] == "PROFILE_VISIT"
+                and "discovery_source" not in item
+            )
+        ]
+
+    @classmethod
+    def route_documents(
+        cls,
+        data,
+    ):
+        """Map the signed extension to the existing route schema and reserved explorer IDs."""
+        plan = data.get("reporting_extension", {}).get("route_plan")
+        if plan is None or not data["rows"]:
+            return []
+        actors = cls.actors(data)
+        documents = []
+        for item in plan["events"]:
+            actor = actors[item["actor"]]
+            if actor == data["context"]["owner_id"]:
+                raise ValidationError("A seed explorer cannot be the selected business owner.")
+            stamp = parse_timestamp(item["at"])
+            documents.append({
+                "business_id": data["context"]["business_id"],
+                "explorer_id": actor,
+                "navigation_method": NavigationMethod(item["method"]).value,
+                "utc_day": stamp.date().isoformat(),
+                "occurred_at": stamp,
+            })
+        return documents
+
+    @staticmethod
+    def extend_plan(
+        data,
+        route_inventory,
+    ):
+        """Add a resumable extension without moving the original demo's timestamps or actors."""
+        extension = data.setdefault(
+            "reporting_extension",
+            {
+                "version": 1,
+                "legacy_visibility": any(
+                    row["type"] == "PROFILE_VISIT"
+                    and "discovery_source" not in row
+                    for row in data["plan"]["events"]
+                ),
+                "route_plan": None,
+            },
+        )
+        extension.setdefault(
+            "preserve_existing_visibility",
+            data["phase"] == "complete",
+        )
+        extension.setdefault("phase", "planned")
+        if extension["route_plan"] is None and route_inventory["tracking_started_at"]:
+            anchor = timezone.now().astimezone(UTC)
+            started_at = parse_timestamp(route_inventory["tracking_started_at"])
+            if started_at < anchor:
+                route_plan = build_route_dataset(
+                    data["context"],
+                    anchor,
+                    started_at,
+                    data["plan"]["actors"],
+                )
+                route_plan["business_id"] = data["context"]["business_id"]
+                extension["route_plan"] = route_plan
+                extension["phase"] = "planned"
 
     @classmethod
     def resume_sql(
@@ -486,6 +675,7 @@ class MerchantAnalyticsDemoSeedService:
         data,
         journal,
         visibility,
+        routes,
     ):
         """Remove exact observations before transactionally deleting unedited fixture rows."""
         records = cls.verify_rows(
@@ -495,10 +685,14 @@ class MerchantAnalyticsDemoSeedService:
         cls.verify_references(records, data)
         actors = list(cls.actors(data).values())
         documents = cls.documents(data)
-        visibility.verify(documents, actors)
+        legacy = cls.legacy_documents(data)
+        route_documents = cls.route_documents(data)
+        visibility.verify(documents, actors, legacy)
+        routes.verify(route_documents, actors)
         data["phase"] = "cleanup"
         journal.write(data)
-        deleted = visibility.cleanup(documents, actors)
+        route_deleted = routes.cleanup(route_documents, actors)
+        deleted = visibility.cleanup(documents, actors, legacy)
         with transaction.atomic():
             cls.target(data["context"]["business_id"], cleanup=True, lock=True)
             records = cls.verify_rows(data, allow_missing=True)
@@ -512,7 +706,12 @@ class MerchantAnalyticsDemoSeedService:
                 model.objects.filter(pk__in=ids).delete()
         data["phase"] = "cleaned"
         receipt = journal.archive(data)
-        return {"state": "cleaned", "mongo_deleted_this_run": deleted, "receipt": receipt}
+        return {
+            "state": "cleaned",
+            "mongo_deleted_this_run": deleted,
+            "route_mongo_deleted_this_run": route_deleted,
+            "receipt": receipt,
+        }
 
     @classmethod
     def run(
@@ -599,6 +798,18 @@ class MerchantAnalyticsDemoSeedService:
             raise ValidationError(
                 "Target ownership, lifetime or specialties changed since this plan was created.",
             )
+        # Older extension runs temporarily reused mongo_writing after a completed
+        # seed; their signed preservation flag distinguishes them from initial recovery.
+        extension_only = not cleanup and (
+            data["phase"] == "complete"
+            or (
+                data["phase"] == "mongo_writing"
+                and data.get("reporting_extension", {}).get("preserve_existing_visibility") is True
+            )
+        )
+        sql_drift = []
+        if extension_only:
+            sql_drift = cls.verify_completed_sql(data)
         if not cleanup and data["phase"] == "planned":
             emails = [
                 cls.email(data["plan"], actor)
@@ -609,14 +820,38 @@ class MerchantAnalyticsDemoSeedService:
                     "Reserved demo emails already exist without committed manifest ownership.",
                 )
         visibility = AnalyticsDemoVisibility()
+        routes = AnalyticsDemoRoutes()
+        route_inventory = routes.inspect(business_id)
+        if not cleanup:
+            cls.extend_plan(data, route_inventory)
+            routes.validate_plan(data["reporting_extension"]["route_plan"])
         inventory = {
             "reviews": Review.objects.filter(BUSN_ID=business).count(),
             "replies": ReviewReply.objects.filter(REVW_ID__BUSN_ID=business).count(),
             "pockets": BusinessPocket.objects.filter(BUSN_ID=business).count(),
             "vouches": BusinessVouch.objects.filter(BUSN_ID=business).count(),
             "visibility": visibility.inspect(business_id),
+            "route_planning": route_inventory,
         }
         quantities = cls.quantities(data["plan"])
+        route_plan = data.get("reporting_extension", {}).get("route_plan")
+        route_events = route_plan["events"] if route_plan else []
+        quantities["route_requests"] = len(route_events)
+        quantities["route_explorer_accounts"] = len({row["actor"] for row in route_events})
+        quantities["route_methods"] = {
+            method.value: sum(row["method"] == method.value for row in route_events)
+            for method in NavigationMethod
+        }
+        quantities["discovery_sources"] = {}
+        assignments = discovery_sources(
+            data["plan"]["namespace"],
+            data["plan"]["events"],
+        )
+        for item in data["plan"]["events"]:
+            if item["type"] == "PROFILE_VISIT":
+                source = assignments[(item["actor"], item["at"])]
+                counts = quantities["discovery_sources"]
+                counts[source] = counts.get(source, 0) + 1
         result = {
             "state": "dry_run_cleanup" if cleanup else "dry_run",
             "business_id": business_id,
@@ -634,21 +869,50 @@ class MerchantAnalyticsDemoSeedService:
             "plus_access": merchant_has_plus_access(business.USER_ID),
             "manifest": str(journal.path),
             "manifest_phase": data["phase"],
+            "execution_mode": "mongodb_extension" if extension_only else "full_dataset",
+            "sql_verification": (
+                "fixture_identities_and_account_fingerprints"
+                if extension_only
+                else "full_row_fingerprints"
+            ),
+            "sql_drift": sql_drift,
+            "extension_phase": data.get("reporting_extension", {}).get("phase"),
+            "route_plan_anchor": route_plan["anchor"] if route_plan else None,
             "skipped": [
                 "No peers, stored summaries, recommendation jobs or new event types are created.",
                 "All existing counters, business fields and discovery scores remain unchanged.",
                 "Activity before business/specialty eligibility is omitted; at most three active specialties are used.",
             ],
         }
+        if route_plan is None:
+            result["skipped"].append(
+                "Route observations require valid initialization and an elapsed tracked interval; "
+                "see inventory.route_planning. Existing tracking metadata is never changed.",
+            )
         if not apply:
             if data["rows"]:
-                records = cls.verify_rows(
-                    data,
-                    allow_missing=data["phase"] in {"cleanup", "sql_commit_intent", "cleaned"},
-                )
+                records = []
+                if not extension_only:
+                    records = cls.verify_rows(
+                        data,
+                        allow_missing=data["phase"] in {"cleanup", "sql_commit_intent", "cleaned"},
+                    )
                 if cleanup:
                     cls.verify_references(records, data)
-                visibility.verify(cls.documents(data), list(cls.actors(data).values()))
+                actors = list(cls.actors(data).values())
+                visibility.verify(
+                    cls.documents(data),
+                    actors,
+                    cls.legacy_documents(data),
+                    require_all=(
+                        not cleanup
+                        and (
+                            extension_only
+                            or data.get("reporting_extension", {}).get("preserve_existing_visibility", False)
+                        )
+                    ),
+                )
+                routes.verify(cls.route_documents(data), actors)
             return result
         if cleanup:
             if not journal.path.exists():
@@ -657,7 +921,7 @@ class MerchantAnalyticsDemoSeedService:
                 present = cls.verify_rows(data, allow_missing=True)
                 if not present:
                     data["rows"] = []
-            result.update(cls.cleanup(data, journal, visibility))
+            result.update(cls.cleanup(data, journal, visibility, routes))
             return result
         if data["phase"] in {"cleanup", "cleaned"}:
             raise ValidationError("Finish the interrupted cleanup before applying a new dataset.")
@@ -665,19 +929,44 @@ class MerchantAnalyticsDemoSeedService:
             raise ValidationError(
                 "There are no elapsed eligible fixture slots; no records were written.",
             )
-        if not journal.path.exists():
-            journal.write(data)
-        cls.resume_sql(data, journal)
-        data["phase"] = "mongo_writing"
+        # Persist legacy attribution permission and route plans before any write.
         journal.write(data)
-        inserted = visibility.apply(cls.documents(data), list(cls.actors(data).values()))
+        if extension_only:
+            cls.verify_completed_sql(data)
+            data["phase"] = "complete"
+        else:
+            cls.resume_sql(data, journal)
+            data["phase"] = "mongo_writing"
+        data["reporting_extension"]["phase"] = "applying"
+        journal.write(data)
+        actors = list(cls.actors(data).values())
+        routes.validate_plan(data["reporting_extension"]["route_plan"])
+        routes.verify(cls.route_documents(data), actors)
+        inserted = visibility.apply(
+            cls.documents(data),
+            actors,
+            cls.legacy_documents(data),
+            allow_insert=(
+                not extension_only
+                and not data["reporting_extension"]["preserve_existing_visibility"]
+            ),
+        )
+        route_inserted = routes.apply(cls.route_documents(data), actors)
         data["phase"] = "complete"
+        data["reporting_extension"]["preserve_existing_visibility"] = True
+        if data["reporting_extension"]["route_plan"] is None:
+            data["reporting_extension"]["phase"] = "awaiting_initialization"
+        else:
+            data["reporting_extension"]["phase"] = "complete"
         journal.write(data)
         result.update({
             "state": "complete",
             "manifest_phase": "complete",
+            "extension_phase": data["reporting_extension"]["phase"],
             "seeded_contribution": quantities,
             "verified_sql_records": len(data["rows"]),
             "mongo_inserted_this_run": inserted,
+            "route_mongo_inserted_this_run": route_inserted,
+            "profile_sources_updated_this_run": visibility.attributed_this_run,
         })
         return result

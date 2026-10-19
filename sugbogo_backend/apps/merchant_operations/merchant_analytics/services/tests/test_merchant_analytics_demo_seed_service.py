@@ -16,9 +16,11 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from pymongo.errors import ServerSelectionTimeoutError
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from apps.admin_operations.system_configuration.services import DiscoveryAlgorithmConfigurationService
 from apps.business.models import (
     Business,
     BusinessPocket,
@@ -30,6 +32,9 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.business.services.tests.test_visibility_analytics_service import ReadOnlyCollection
+from apps.business.services.tests.discovery_source_fixtures import DiscoverySourceCollection
+from apps.business.services.route_planning_event_service import RoutePlanningEventService
+from apps.business.services.discovery_source import DiscoverySource
 from apps.business.services.visibility_event_service import VisibilityEventService
 from apps.reviews.models import BusinessReviewSummary, Review, ReviewReply
 from apps.notifications.models import Notification
@@ -37,7 +42,7 @@ from apps.users.models import ReputationEvent, User
 from apps.shared.analytics.date_ranges import resolve_period
 
 from ..analytics_demo_dataset import build_dataset, observation_identity, parse_timestamp
-from ..analytics_demo_manifest import AnalyticsDemoManifest
+from ..analytics_demo_manifest import AnalyticsDemoManifest, row_snapshot
 from ..analytics_demo_visibility import AnalyticsDemoVisibility, INDEXES
 from ..engagement_heatmap_service import EngagementHeatmapService
 from ..merchant_analytics_demo_seed_service import MerchantAnalyticsDemoSeedService as Seeder
@@ -46,14 +51,16 @@ from ..premium_specialty_service import PremiumSpecialtyService
 from ..premium_visibility_service import PremiumVisibilityService
 from ..standard_analytics_service import StandardAnalyticsService
 from ..recommendation_service import RecommendationService
+from ..route_planning_analytics_service import RoutePlanningAnalyticsService
+from ..discovery_sources_service import DiscoverySourcesService
 from ...models import MerchantRecommendation
 
 
-class MemoryCollection(ReadOnlyCollection):
+class MemoryCollection(DiscoverySourceCollection):
     """Extend the repository's pipeline test double with exact fixture write operations."""
 
     def __init__(self):
-        super().__init__([])
+        super().__init__()
         self.indexes = {}
         self.exists = False
         self.database = self
@@ -84,6 +91,8 @@ class MemoryCollection(ReadOnlyCollection):
             "key": keys,
             "unique": options.get("unique", False),
         }
+        if "partialFilterExpression" in options:
+            self.indexes[options["name"]]["partialFilterExpression"] = options["partialFilterExpression"]
 
     @staticmethod
     def matches(
@@ -92,7 +101,10 @@ class MemoryCollection(ReadOnlyCollection):
     ):
         for key, value in query.items():
             if isinstance(value, dict):
-                if row.get(key) not in value["$in"]:
+                if "$exists" in value:
+                    if (key in row) != value["$exists"]:
+                        return False
+                elif row.get(key) not in value["$in"]:
                     return False
             elif row.get(key) != value:
                 return False
@@ -129,10 +141,17 @@ class MemoryCollection(ReadOnlyCollection):
     ):
         existing = self.find_one(query)
         if existing is not None:
-            return SimpleNamespace(upserted_id=None)
+            if "$set" in changes:
+                for row in self.documents:
+                    if self.matches(row, query):
+                        row.update(changes["$set"])
+                        return SimpleNamespace(upserted_id=None, modified_count=1)
+            return SimpleNamespace(upserted_id=None, modified_count=0)
+        if not upsert:
+            return SimpleNamespace(upserted_id=None, modified_count=0)
         self.exists = True
         document = copy.deepcopy(changes["$setOnInsert"])
-        if self.find_one({"dedupe_key": document["dedupe_key"]}) is not None:
+        if "dedupe_key" in document and self.find_one({"dedupe_key": document["dedupe_key"]}) is not None:
             raise AssertionError("A conflicting observation would violate the unique index.")
         document["_id"] = f"doc-{len(self.documents)}"
         self.documents.append(document)
@@ -147,6 +166,84 @@ class MemoryCollection(ReadOnlyCollection):
                 self.documents.pop(index)
                 return SimpleNamespace(deleted_count=1)
         return SimpleNamespace(deleted_count=0)
+
+    def expression(
+        self,
+        row,
+        expression,
+    ):
+        """Reuse the reporting-expression evaluators without changing write semantics."""
+        if isinstance(expression, dict):
+            if "$eq" in expression:
+                left, right = expression["$eq"]
+                return self.expression(row, left) == self.expression(row, right)
+            if "$add" in expression:
+                return sum(
+                    self.expression(row, value)
+                    for value in expression["$add"]
+                )
+        return super().expression(row, expression)
+
+    def aggregate(
+        self,
+        pipeline,
+    ):
+        """Ignore the initialization singleton as Mongo's event match naturally does."""
+        documents = self.documents
+        self.documents = [
+            row
+            for row in documents
+            if row.get("_id") != RoutePlanningEventService.STATE_ID
+        ]
+        try:
+            if pipeline[-1] == {"$project": {"_id": 0}}:
+                owner_id = pipeline[0]["$match"]["explorer_id"]["$ne"]
+                self.documents = [
+                    row
+                    for row in self.documents
+                    if row.get("explorer_id") != owner_id
+                ]
+                rows = list(super().aggregate(pipeline[:-1]))
+                for row in rows:
+                    row.pop("_id", None)
+                return iter(rows)
+            return super().aggregate(pipeline)
+        finally:
+            self.documents = documents
+
+
+class MemoryDatabase:
+    """Keep event collections and initialization metadata isolated in tests."""
+
+    name = "analytics_demo_test"
+
+    def __init__(
+        self,
+        visibility,
+        routes,
+    ):
+        self.collections = {
+            VisibilityEventService.COLLECTION_NAME: visibility,
+            RoutePlanningEventService.COLLECTION_NAME: routes,
+        }
+        for collection in self.collections.values():
+            collection.database = self
+
+    def __getitem__(
+        self,
+        name,
+    ):
+        return self.collections[name]
+
+    def list_collection_names(
+        self,
+        **options,
+    ):
+        return [
+            name
+            for name, collection in self.collections.items()
+            if collection.exists
+        ]
 
 
 @override_settings(
@@ -220,9 +317,11 @@ class MerchantAnalyticsDemoSeedTests(TestCase):
         self.directory = TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.mongo = MemoryCollection()
+        self.routes = MemoryCollection()
+        self.database = MemoryDatabase(self.mongo, self.routes)
         mongo = patch(
             "apps.shared.services.mongodb_service.MongoDBService.get_database",
-            return_value=self.mongo,
+            return_value=self.database,
         )
         mongo.start()
         self.addCleanup(mongo.stop)
@@ -267,6 +366,755 @@ class MerchantAnalyticsDemoSeedTests(TestCase):
             self.command()
         with self.assertRaises(CommandError):
             self.command("--business-id", "-1")
+
+    def initialize_routes(
+        self,
+        started_at,
+    ):
+        self.routes.exists = True
+        self.routes.documents.append({
+            "_id": RoutePlanningEventService.STATE_ID,
+            "started_at": started_at,
+        })
+
+    def seed_previous_version(self):
+        """Build the original signed v1 SQL/visibility fixture without modern upgrade execution."""
+        context = Seeder.context(Seeder.target(self.business.pk))
+        configuration = DiscoveryAlgorithmConfigurationService.require_complete_reputation_configuration()
+        plan = build_dataset(
+            context,
+            self.NOW,
+            configuration.DAC_REPUTATION_BASELINE,
+        )
+        for event in plan["events"]:
+            event.pop("discovery_source", None)
+        data = {
+            "version": 1,
+            "identity": Seeder.environment(
+                apply=True,
+                confirm_postgres_database=connection.settings_dict["NAME"],
+                confirm_mongodb_database="analytics_demo_test",
+                workers_stopped=True,
+            ),
+            "context": context,
+            "phase": "planned",
+            "rows": [],
+            "plan": plan,
+            "counter_adjustments": {},
+        }
+        self.journal.write(data)
+        Seeder.create_sql(data, self.journal)
+        AnalyticsDemoVisibility().apply(
+            Seeder.documents(data),
+            list(Seeder.actors(data).values()),
+        )
+        data["phase"] = "complete"
+        self.journal.write(data)
+        return data
+
+    def existing_analytics_reports(self):
+        """Capture prior Standard/Core Plus metrics at fixed reporting cutoffs."""
+        reports = {}
+        for days in ("7", "30", "90"):
+            period = resolve_period(
+                preset=days,
+                now=self.NOW,
+            )
+            reports[days] = {
+                "standard": StandardAnalyticsService.get_report(self.owner, period),
+                "visibility": PremiumVisibilityService.get_report(self.owner, period),
+                "specialties": PremiumSpecialtyService.get_report(self.owner, period),
+                "reviews": PremiumReviewPerformanceService.get_report(self.owner, period),
+            }
+        return reports
+
+    def completed_with_sentiment_drift(self):
+        """Reproduce normal enrichment of two unclassified reviews in a legacy completed seed."""
+        data = self.seed_previous_version()
+        unclassified = [
+            item["key"]
+            for item in data["plan"]["reviews"]
+            if item["sentiment"] is None
+        ][:2]
+        changed = [
+            row["id"]
+            for row in data["rows"]
+            if row["key"] in unclassified
+        ]
+        self.assertEqual(len(changed), 2)
+        Review.objects.filter(pk__in=changed).update(
+            REVW_SENTIMENT_LABEL="neutral",
+            REVW_SENTIMENT_SCORE=0.004,
+            REVW_UPDATED_AT=self.NOW + timedelta(seconds=2),
+        )
+        self.initialize_routes(self.NOW - timedelta(days=100))
+        return data, changed
+
+    def test_completed_review_drift_allows_only_mongodb_extension_and_idempotent_repeats(self):
+        data, changed = self.completed_with_sentiment_drift()
+        original_rows = copy.deepcopy(data["rows"])
+        original_plan = copy.deepcopy(data["plan"])
+        models = (User, Review, ReviewReply, BusinessPocket, BusinessVouch)
+        snapshots = {
+            model: list(model.objects.order_by("pk").values())
+            for model in models
+        }
+        state = copy.deepcopy(self.routes.documents[0])
+        for iteration in (1, 2, 3):
+            with self.subTest(iteration=iteration):
+                with patch.object(
+                    Seeder,
+                    "resume_sql",
+                    side_effect=AssertionError("Completed extensions cannot enter SQL recovery"),
+                ), CaptureQueriesContext(connection) as queries:
+                    result = self.run_seed(apply=True)
+                self.assertFalse(
+                    any(
+                        query["sql"].lstrip().upper().startswith(
+                            ("INSERT", "UPDATE", "DELETE"),
+                        )
+                        for query in queries
+                    ),
+                )
+                self.assertEqual(result["execution_mode"], "mongodb_extension")
+                self.assertEqual(
+                    {
+                        row["id"]
+                        for row in result["sql_drift"]
+                    },
+                    set(changed),
+                )
+                self.assertEqual(result["mongo_inserted_this_run"], 0)
+                self.assertEqual(
+                    result["profile_sources_updated_this_run"],
+                    165 if iteration == 1 else 0,
+                )
+                self.assertEqual(
+                    result["route_mongo_inserted_this_run"],
+                    92 if iteration == 1 else 0,
+                )
+                self.assertEqual(result["extension_phase"], "complete")
+                self.assertEqual(self.journal.read()["rows"], original_rows)
+                self.assertEqual(self.journal.read()["plan"], original_plan)
+                self.assertEqual(self.journal.read()["phase"], "complete")
+                for model in models:
+                    self.assertEqual(
+                        list(model.objects.order_by("pk").values()),
+                        snapshots[model],
+                    )
+                self.assertEqual(self.routes.documents[0], state)
+        report = DiscoverySourcesService.get_report(
+            self.owner,
+            resolve_period(preset="90", now=self.NOW),
+        )
+        self.assertEqual(
+            sum(
+                row["count"]
+                for row in report["sources"]
+            ),
+            report["profile_visits"],
+        )
+        self.assertEqual(report["profile_visits"], 166)
+        with self.assertRaisesMessage(ValidationError, "was edited"):
+            self.run_seed(
+                cleanup=True,
+                apply=True,
+                confirm_cleanup=self.business.pk,
+            )
+
+    def test_pending_extension_plan_and_dry_run_preserve_manifest_and_all_data(self):
+        data, changed = self.completed_with_sentiment_drift()
+        Seeder.extend_plan(
+            data,
+            {
+                "tracking_started_at": (self.NOW - timedelta(days=100)).isoformat(),
+            },
+        )
+        data["reporting_extension"]["route_plan"]["events"] = (
+            data["reporting_extension"]["route_plan"]["events"][:3]
+        )
+        self.journal.write(data)
+        original = self.journal.path.read_bytes()
+        documents = copy.deepcopy(self.mongo.documents)
+        routes = copy.deepcopy(self.routes.documents)
+        with CaptureQueriesContext(connection) as queries:
+            preview = self.run_seed()
+        self.assertEqual(preview["extension_phase"], "planned")
+        self.assertEqual(len(preview["sql_drift"]), len(changed))
+        self.assertEqual(self.journal.path.read_bytes(), original)
+        self.assertEqual(self.mongo.documents, documents)
+        self.assertEqual(self.routes.documents, routes)
+        self.assertFalse(
+            any(
+                query["sql"].lstrip().upper().startswith(
+                    ("INSERT", "UPDATE", "DELETE"),
+                )
+                for query in queries
+            ),
+        )
+        pending = copy.deepcopy(data["reporting_extension"]["route_plan"])
+        with patch(
+            "django.utils.timezone.now",
+            return_value=self.NOW + timedelta(days=1),
+        ):
+            applied = self.run_seed(apply=True)
+        self.assertEqual(applied["route_mongo_inserted_this_run"], 3)
+        self.assertEqual(
+            self.journal.read()["reporting_extension"]["route_plan"],
+            pending,
+        )
+
+    def test_completed_extension_interruption_keeps_original_completion_and_resumes(self):
+        data, _ = self.completed_with_sentiment_drift()
+        original = self.routes.update_one
+        writes = []
+
+        def interrupt(
+            *args,
+            **kwargs,
+        ):
+            if len(writes) == 3:
+                raise ServerSelectionTimeoutError("Isolated extension interruption")
+            writes.append(1)
+            return original(*args, **kwargs)
+
+        with patch.object(self.routes, "update_one", side_effect=interrupt):
+            with self.assertRaises(ServerSelectionTimeoutError):
+                self.run_seed(apply=True)
+        pending = self.journal.read()
+        self.assertEqual(pending["phase"], "complete")
+        self.assertEqual(pending["reporting_extension"]["phase"], "applying")
+        self.assertEqual(pending["rows"], data["rows"])
+        result = self.run_seed(apply=True)
+        self.assertEqual(result["route_mongo_inserted_this_run"], 89)
+        self.assertEqual(result["extension_phase"], "complete")
+        self.assertEqual(
+            self.journal.read()["reporting_extension"]["route_plan"],
+            pending["reporting_extension"]["route_plan"],
+        )
+
+    def test_initial_sql_recovery_remains_strict_despite_extension_metadata(self):
+        data, _ = self.completed_with_sentiment_drift()
+        for phase in ("sql_commit_intent", "sql_ready", "mongo_writing"):
+            with self.subTest(phase=phase):
+                data["phase"] = phase
+                data["reporting_extension"] = {
+                    "version": 1,
+                    "preserve_existing_visibility": False,
+                    "legacy_visibility": True,
+                    "route_plan": None,
+                }
+                self.journal.write(data)
+                documents = copy.deepcopy(self.mongo.documents)
+                with self.assertRaisesMessage(ValidationError, "was edited"):
+                    self.run_seed(apply=True)
+                self.assertEqual(self.mongo.documents, documents)
+
+    def test_completed_extension_refuses_modified_explorer_before_manifest_or_mongo_writes(self):
+        data, _ = self.completed_with_sentiment_drift()
+        actor = next(iter(Seeder.actors(data).values()))
+        User.objects.filter(pk=actor).update(USER_FNAME="Changed demo account")
+        original = self.journal.path.read_bytes()
+        documents = copy.deepcopy(self.mongo.documents)
+        with self.assertRaisesMessage(ValidationError, "Explorer account was edited"):
+            self.run_seed(apply=True)
+        self.assertEqual(self.journal.path.read_bytes(), original)
+        self.assertEqual(self.mongo.documents, documents)
+
+    def test_completed_extension_requires_all_original_sql_records(self):
+        data, _ = self.completed_with_sentiment_drift()
+        pocket = next(
+            row
+            for row in data["rows"]
+            if row["model"] == "business.businesspocket"
+        )
+        BusinessPocket.objects.filter(pk=pocket["id"]).delete()
+        with self.assertRaisesMessage(ValidationError, "record is missing"):
+            self.run_seed(apply=True)
+
+    def test_completed_extension_refuses_changed_fixture_identity(self):
+        _, changed = self.completed_with_sentiment_drift()
+        Review.objects.filter(pk=changed[0]).update(REVW_CREATED_AT=self.NOW)
+        with self.assertRaisesMessage(
+            ValidationError,
+            "relationship or creation timestamp changed",
+        ):
+            self.run_seed(apply=True)
+
+    def test_completed_extension_refuses_incomplete_signed_sql_inventory(self):
+        data, _ = self.completed_with_sentiment_drift()
+        data["rows"] = data["rows"][:-1]
+        self.journal.write(data)
+        with self.assertRaisesMessage(ValidationError, "full signed dataset"):
+            self.run_seed(apply=True)
+
+    def test_older_interrupted_completed_extension_can_resume_with_review_drift(self):
+        data, _ = self.completed_with_sentiment_drift()
+        Seeder.extend_plan(
+            data,
+            {
+                "tracking_started_at": (self.NOW - timedelta(days=100)).isoformat(),
+            },
+        )
+        data["phase"] = "mongo_writing"
+        data["reporting_extension"].pop("phase")
+        self.journal.write(data)
+        result = self.run_seed(apply=True)
+        self.assertEqual(result["execution_mode"], "mongodb_extension")
+        self.assertEqual(self.journal.read()["phase"], "complete")
+        self.assertEqual(result["extension_phase"], "complete")
+
+    def test_completed_extension_does_not_relax_mongodb_ownership(self):
+        self.completed_with_sentiment_drift()
+        self.mongo.documents[1]["occurred_at"] += timedelta(hours=1)
+        documents = copy.deepcopy(self.mongo.documents)
+        with self.assertRaisesMessage(ValidationError, "edited or unrelated analytics"):
+            self.run_seed(apply=True)
+        self.assertEqual(self.mongo.documents, documents)
+        self.assertEqual(len(self.routes.documents), 1)
+
+    def test_completed_extension_refuses_tampered_signature(self):
+        self.completed_with_sentiment_drift()
+        wrapper = json.loads(self.journal.path.read_text())
+        wrapper["data"]["phase"] = "sql_ready"
+        self.journal.path.write_text(json.dumps(wrapper))
+        documents = copy.deepcopy(self.mongo.documents)
+        with self.assertRaisesMessage(ValidationError, "signature is invalid"):
+            self.run_seed(apply=True)
+        self.assertEqual(self.mongo.documents, documents)
+
+    def test_completed_extension_refuses_other_business_or_database_manifest(self):
+        data, _ = self.completed_with_sentiment_drift()
+        for mismatch in ("business", "environment"):
+            with self.subTest(mismatch=mismatch):
+                changed = copy.deepcopy(data)
+                if mismatch == "business":
+                    changed["context"]["business_id"] = self.business.pk + 100
+                else:
+                    changed["identity"]["mongodb"]["database"] = "another_development_database"
+                self.journal.write(changed)
+                documents = copy.deepcopy(self.mongo.documents)
+                with self.assertRaisesMessage(
+                    ValidationError,
+                    "another version, database environment or business",
+                ):
+                    self.run_seed(apply=True)
+                self.assertEqual(self.mongo.documents, documents)
+
+    def test_completed_extension_context_change_is_still_rejected(self):
+        self.completed_with_sentiment_drift()
+        link = BusinessSpecialtyTag.objects.filter(BUSN_ID=self.business).first()
+        BusinessSpecialtyTag.objects.filter(pk=link.pk).update(BST_IS_ACTIVE=False)
+        with self.assertRaisesMessage(ValidationError, "ownership, lifetime or specialties changed"):
+            self.run_seed(apply=True)
+
+    def test_previous_version_incremental_upgrade_preserves_metrics_through_three_runs_and_cleanup(self):
+        legacy = self.seed_previous_version()
+        self.assertNotIn("reporting_extension", self.journal.read())
+        self.assertEqual(len(legacy["plan"]["events"]), 655)
+        self.assertTrue(all(
+            "discovery_source" not in row
+            for row in self.mongo.documents
+        ))
+        original_rows = copy.deepcopy(legacy["rows"])
+        original_plan = copy.deepcopy(legacy["plan"])
+        original_documents = copy.deepcopy(self.mongo.documents)
+        original_metrics = self.existing_analytics_reports()
+        sql_counts = {
+            model: model.objects.count()
+            for model in (User, Review, ReviewReply, BusinessPocket, BusinessVouch)
+        }
+        self.initialize_routes(self.NOW - timedelta(days=100))
+        state = copy.deepcopy(self.routes.documents[0])
+        upgraded_routes = None
+        for run_number in (1, 2, 3):
+            with self.subTest(run=run_number):
+                with patch.object(
+                    Seeder,
+                    "create_sql",
+                    side_effect=AssertionError("Previously seeded SQL must not be recreated"),
+                ), patch(
+                    "apps.merchant_operations.merchant_analytics.services."
+                    "merchant_analytics_demo_seed_service.build_dataset",
+                    side_effect=AssertionError("Previously seeded activity must not be regenerated"),
+                ):
+                    result = self.run_seed(apply=True)
+                self.assertEqual(result["mongo_inserted_this_run"], 0)
+                self.assertEqual(
+                    result["profile_sources_updated_this_run"],
+                    165 if run_number == 1 else 0,
+                )
+                self.assertEqual(
+                    result["route_mongo_inserted_this_run"],
+                    92 if run_number == 1 else 0,
+                )
+                saved = self.journal.read()
+                self.assertEqual(saved["rows"], original_rows)
+                self.assertEqual(saved["plan"], original_plan)
+                self.assertEqual(
+                    [row_snapshot(record) for record in Seeder.verify_rows(saved)],
+                    [
+                        {
+                            key: row[key]
+                            for key in ("model", "id", "fingerprint")
+                        }
+                        for row in original_rows
+                    ],
+                )
+                self.assertEqual(self.existing_analytics_reports(), original_metrics)
+                for model, count in sql_counts.items():
+                    self.assertEqual(model.objects.count(), count)
+                self.assertEqual(
+                    [
+                        {
+                            key: value
+                            for key, value in document.items()
+                            if key != "discovery_source"
+                        }
+                        for document in self.mongo.documents
+                    ],
+                    original_documents,
+                )
+                self.assertEqual(self.mongo.documents[0], original_documents[0])
+                for days in ("7", "30", "90"):
+                    period = resolve_period(preset=days, now=self.NOW)
+                    sources = DiscoverySourcesService.get_report(self.owner, period)
+                    self.assertEqual(
+                        sources["profile_visits"],
+                        original_metrics[days]["standard"]["profile_visits"],
+                    )
+                    self.assertEqual(
+                        sum(row["count"] for row in sources["sources"]),
+                        sources["profile_visits"],
+                    )
+                seeded_visits = [
+                    document
+                    for document in Seeder.documents(saved)
+                    if document["event_type"] == "PROFILE_VISIT"
+                ]
+                self.assertEqual(len(seeded_visits), 165)
+                self.assertEqual(
+                    sum(result["seeded_contribution"]["discovery_sources"].values()),
+                    len(seeded_visits),
+                )
+                if upgraded_routes is None:
+                    upgraded_routes = copy.deepcopy(self.routes.documents)
+                else:
+                    self.assertEqual(self.routes.documents, upgraded_routes)
+                self.assertEqual(self.routes.documents[0], state)
+        cleaned = self.run_seed(
+            apply=True,
+            cleanup=True,
+            confirm_cleanup=self.business.pk,
+        )
+        self.assertEqual(cleaned["mongo_deleted_this_run"], 655)
+        self.assertEqual(cleaned["route_mongo_deleted_this_run"], 92)
+        self.assertEqual(self.routes.documents, [state])
+        self.assertEqual(self.mongo.documents, [original_documents[0]])
+        self.assertTrue(Review.objects.filter(pk=self.real_review.pk).exists())
+        self.assertTrue(User.objects.filter(pk=self.other.pk).exists())
+
+    def test_previous_version_without_manifest_refuses_to_guess_ownership(self):
+        self.seed_previous_version()
+        documents = copy.deepcopy(self.mongo.documents)
+        counts = {
+            model: model.objects.count()
+            for model in (User, Review, ReviewReply, BusinessPocket, BusinessVouch)
+        }
+        self.journal.path.unlink()
+        with self.assertRaisesMessage(ValidationError, "Reserved demo emails"):
+            self.run_seed(apply=True)
+        self.assertEqual(self.mongo.documents, documents)
+        self.assertFalse(self.journal.path.exists())
+        self.assertEqual(self.routes.documents, [])
+        for model, count in counts.items():
+            self.assertEqual(model.objects.count(), count)
+
+    def test_previous_version_missing_completed_observation_is_not_regenerated(self):
+        self.seed_previous_version()
+        original = copy.deepcopy(self.mongo.documents)
+        for event_type in ("IMPRESSION", "PROFILE_VISIT", "SAVE"):
+            with self.subTest(event_type=event_type):
+                self.mongo.documents = copy.deepcopy(original)
+                missing = next(
+                    row
+                    for row in self.mongo.documents
+                    if row["event_type"] == event_type and row.get("_id") != "real"
+                )
+                self.mongo.documents.remove(missing)
+                documents = copy.deepcopy(self.mongo.documents)
+                metrics = self.existing_analytics_reports()
+                with self.assertRaisesMessage(ValidationError, "missing"):
+                    self.run_seed(apply=True)
+                self.assertEqual(self.mongo.documents, documents)
+                self.assertEqual(self.existing_analytics_reports(), metrics)
+
+    def test_source_distribution_matches_existing_profile_counts_in_all_periods(self):
+        result = self.run_seed(apply=True)
+        distribution = result["seeded_contribution"]["discovery_sources"]
+        self.assertEqual(set(distribution), {source.value for source in DiscoverySource})
+        self.assertEqual(sum(distribution.values()), 165)
+        for days in ("7", "30", "90"):
+            period = resolve_period(preset=days, now=self.NOW)
+            standard = StandardAnalyticsService.get_report(self.owner, period)
+            sources = DiscoverySourcesService.get_report(self.owner, period)
+            self.assertEqual(sources["profile_visits"], standard["profile_visits"])
+            self.assertEqual(sum(row["count"] for row in sources["sources"]), sources["profile_visits"])
+            self.assertFalse(sources["meta"]["coverage_verified"])
+        self.assertNotIn("discovery_source", self.mongo.documents[0])
+
+    def test_legacy_visits_are_enriched_only_after_signed_ownership_verification(self):
+        self.run_seed(apply=True)
+        data = self.journal.read()
+        actors = set(Seeder.actors(data).values())
+        data.pop("reporting_extension")
+        for event in data["plan"]["events"]:
+            event.pop("discovery_source", None)
+        for document in self.mongo.documents:
+            if document["explorer_id"] in actors:
+                document.pop("discovery_source", None)
+        self.journal.write(data)
+        before = copy.deepcopy(self.mongo.documents)
+        self.run_seed()
+        self.assertEqual(self.mongo.documents, before)
+        self.assertNotIn("reporting_extension", self.journal.read())
+        result = self.run_seed(apply=True)
+        self.assertEqual(result["profile_sources_updated_this_run"], 165)
+        self.assertEqual(result["mongo_inserted_this_run"], 0)
+        self.assertEqual(self.mongo.documents[0], before[0])
+        self.assertEqual(len(self.mongo.documents), len(before))
+        self.assertEqual(self.run_seed(apply=True)["profile_sources_updated_this_run"], 0)
+
+    def test_initialized_routes_keep_method_deduplication_distinct_accounts_and_coverage(self):
+        started_at = self.NOW - timedelta(days=100)
+        self.initialize_routes(started_at)
+        first = self.run_seed(apply=True)
+        plan = self.journal.read()
+        documents = Seeder.route_documents(plan)
+        self.assertEqual(first["route_mongo_inserted_this_run"], 92)
+        identities = {
+            (row["explorer_id"], row["business_id"], row["navigation_method"], row["utc_day"])
+            for row in documents
+        }
+        self.assertEqual(len(identities), len(documents))
+        self.assertEqual({row["navigation_method"] for row in documents}, {"ROAD_ROUTE", "JEEPNEY"})
+        self.assertNotIn(self.owner.pk, {row["explorer_id"] for row in documents})
+        for row in documents:
+            self.assertEqual(row["utc_day"], row["occurred_at"].astimezone(UTC).date().isoformat())
+            self.assertGreaterEqual(row["occurred_at"], started_at)
+            self.assertLess(row["occurred_at"], self.NOW)
+        for days in ("7", "30", "90"):
+            period = resolve_period(preset=days, now=self.NOW)
+            report = RoutePlanningAnalyticsService.get_report(self.owner, period)
+            matching = [row for row in documents if period.start <= row["occurred_at"] < period.end]
+            self.assertEqual(report["total_requests"], len(matching))
+            self.assertEqual(report["road_route_requests"] + report["jeepney_requests"], len(matching))
+            self.assertEqual(
+                report["distinct_explorer_accounts"],
+                len({row["explorer_id"] for row in matching}),
+            )
+            self.assertFalse(report["meta"]["coverage_verified"])
+        self.assertEqual(self.run_seed(apply=True)["route_mongo_inserted_this_run"], 0)
+        self.assertEqual(self.routes.documents[0]["started_at"], started_at)
+
+    def test_recent_initialization_never_fabricates_older_activity(self):
+        started_at = self.NOW - timedelta(seconds=30)
+        self.initialize_routes(started_at)
+        self.run_seed(apply=True)
+        documents = Seeder.route_documents(self.journal.read())
+        self.assertEqual(len(documents), 2)
+        self.assertTrue(all(row["occurred_at"] >= started_at for row in documents))
+        report = RoutePlanningAnalyticsService.get_report(
+            self.owner,
+            resolve_period(preset="90", now=self.NOW),
+        )
+        self.assertEqual(report["total_requests"], 2)
+        self.assertEqual(report["distinct_explorer_accounts"], 1)
+        self.assertIn("tracking_started_during_period", report["meta"]["partial_reasons"])
+        self.assertFalse(report["meta"]["coverage_verified"])
+
+    def test_missing_initialization_can_be_added_later_without_reseeding_visibility(self):
+        first = self.run_seed(apply=True)
+        anchor = first["anchor"]
+        self.assertEqual(first["route_mongo_inserted_this_run"], 0)
+        self.assertEqual(self.routes.documents, [])
+        self.assertEqual(self.routes.indexes, {})
+        self.initialize_routes(self.NOW - timedelta(seconds=30))
+        second = self.run_seed(apply=True)
+        self.assertEqual(second["anchor"], anchor)
+        self.assertEqual(second["mongo_inserted_this_run"], 0)
+        self.assertEqual(second["route_mongo_inserted_this_run"], 2)
+
+    def test_partial_route_writes_resume_without_duplicate_events(self):
+        self.initialize_routes(self.NOW - timedelta(days=100))
+        original = self.routes.update_one
+        calls = []
+
+        def interrupted(
+            *args,
+            **kwargs,
+        ):
+            if len(calls) == 7:
+                raise ServerSelectionTimeoutError("Isolated interruption")
+            calls.append(1)
+            return original(*args, **kwargs)
+
+        with patch.object(self.routes, "update_one", side_effect=interrupted):
+            with self.assertRaises(ServerSelectionTimeoutError):
+                self.run_seed(apply=True)
+        self.assertEqual(self.journal.read()["phase"], "mongo_writing")
+        resumed = self.run_seed(apply=True)
+        self.assertEqual(resumed["route_mongo_inserted_this_run"], 85)
+        self.assertEqual(resumed["mongo_inserted_this_run"], 0)
+
+    def test_cleanup_preserves_real_routes_metadata_and_indexes(self):
+        started_at = self.NOW - timedelta(days=100)
+        self.initialize_routes(started_at)
+        real = {
+            "business_id": self.business.pk,
+            "explorer_id": self.other.pk,
+            "navigation_method": "ROAD_ROUTE",
+            "utc_day": self.NOW.date().isoformat(),
+            "occurred_at": self.NOW - timedelta(minutes=1),
+        }
+        self.routes.documents.append(copy.deepcopy(real))
+        self.run_seed(apply=True)
+        indexes = copy.deepcopy(self.routes.indexes)
+        cleaned = self.run_seed(apply=True, cleanup=True, confirm_cleanup=self.business.pk)
+        self.assertEqual(cleaned["route_mongo_deleted_this_run"], 92)
+        self.assertEqual(self.routes.documents, [
+            {"_id": RoutePlanningEventService.STATE_ID, "started_at": started_at},
+            real,
+        ])
+        self.assertEqual(self.routes.indexes, indexes)
+        self.assertTrue(User.objects.filter(pk=self.other.pk).exists())
+
+    def test_altered_tracking_start_is_not_reset_or_silently_replanned(self):
+        self.initialize_routes(self.NOW - timedelta(days=100))
+        self.run_seed(apply=True)
+        changed = self.NOW - timedelta(days=1)
+        self.routes.documents[0]["started_at"] = changed
+        with self.assertRaises(ValidationError):
+            self.run_seed(apply=True)
+        self.assertEqual(self.routes.documents[0]["started_at"], changed)
+
+    def test_foreign_route_activity_using_demo_actors_blocks_cleanup(self):
+        self.initialize_routes(self.NOW - timedelta(days=100))
+        self.run_seed(apply=True)
+        actor = next(iter(Seeder.actors(self.journal.read()).values()))
+        self.routes.documents.append({
+            "explorer_id": actor,
+            "business_id": self.business.pk + 999,
+            "navigation_method": "ROAD_ROUTE",
+            "utc_day": self.NOW.date().isoformat(),
+            "occurred_at": self.NOW,
+        })
+        before = copy.deepcopy(self.routes.documents)
+        with self.assertRaises(ValidationError):
+            self.run_seed(apply=True, cleanup=True, confirm_cleanup=self.business.pk)
+        self.assertEqual(self.routes.documents, before)
+
+    def test_future_tracking_boundary_does_not_create_observations(self):
+        future = self.NOW + timedelta(days=1)
+        self.initialize_routes(future)
+        result = self.run_seed(apply=True)
+        self.assertEqual(result["route_mongo_inserted_this_run"], 0)
+        self.assertEqual(len(self.routes.documents), 1)
+        report = RoutePlanningAnalyticsService.get_report(
+            self.owner,
+            resolve_period(preset="30", now=self.NOW),
+        )
+        self.assertIsNone(report["total_requests"])
+        self.assertIn("tracking_not_started_in_period", report["meta"]["partial_reasons"])
+
+    def test_partial_legacy_attribution_is_resumable_and_cleans_both_shapes(self):
+        self.run_seed(apply=True)
+        data = self.journal.read()
+        actors = set(Seeder.actors(data).values())
+        data.pop("reporting_extension")
+        for event in data["plan"]["events"]:
+            event.pop("discovery_source", None)
+        for document in self.mongo.documents:
+            if document["explorer_id"] in actors:
+                document.pop("discovery_source", None)
+        self.journal.write(data)
+        original = self.mongo.update_one
+        updated = []
+
+        def interrupt_attribution(
+            *args,
+            **kwargs,
+        ):
+            if "$set" in args[1]:
+                if len(updated) == 5:
+                    raise ServerSelectionTimeoutError("Isolated attribution interruption")
+                updated.append(1)
+            return original(*args, **kwargs)
+
+        with patch.object(self.mongo, "update_one", side_effect=interrupt_attribution):
+            with self.assertRaises(ServerSelectionTimeoutError):
+                self.run_seed(apply=True)
+        result = self.run_seed(apply=True)
+        self.assertEqual(result["profile_sources_updated_this_run"], 160)
+        self.assertEqual(result["mongo_inserted_this_run"], 0)
+        self.run_seed(apply=True, cleanup=True, confirm_cleanup=self.business.pk)
+        self.assertEqual(len(self.mongo.documents), 1)
+        self.assertEqual(self.mongo.documents[0]["_id"], "real")
+
+    def test_partial_route_cleanup_preserves_metadata_and_resumes(self):
+        started_at = self.NOW - timedelta(days=100)
+        self.initialize_routes(started_at)
+        self.run_seed(apply=True)
+        original = self.routes.delete_one
+        deleted = []
+
+        def interrupt_cleanup(
+            *args,
+            **kwargs,
+        ):
+            if len(deleted) == 3:
+                raise ServerSelectionTimeoutError("Isolated cleanup interruption")
+            deleted.append(1)
+            return original(*args, **kwargs)
+
+        with patch.object(self.routes, "delete_one", side_effect=interrupt_cleanup):
+            with self.assertRaises(ServerSelectionTimeoutError):
+                self.run_seed(apply=True, cleanup=True, confirm_cleanup=self.business.pk)
+        self.assertEqual(self.journal.read()["phase"], "cleanup")
+        self.assertEqual(len(Seeder.verify_rows(self.journal.read())), 147)
+        result = self.run_seed(apply=True, cleanup=True, confirm_cleanup=self.business.pk)
+        self.assertEqual(result["route_mongo_deleted_this_run"], 89)
+        self.assertEqual(self.routes.documents, [
+            {"_id": RoutePlanningEventService.STATE_ID, "started_at": started_at},
+        ])
+
+    def test_new_routes_have_bson_millisecond_precision(self):
+        self.initialize_routes(self.NOW - timedelta(microseconds=456789))
+        self.run_seed(apply=True)
+        for document in Seeder.route_documents(self.journal.read()):
+            self.assertEqual(document["occurred_at"].microsecond % 1000, 0)
+
+    def test_legacy_attribution_refuses_edited_seed_observations(self):
+        self.run_seed(apply=True)
+        data = self.journal.read()
+        data.pop("reporting_extension")
+        for event in data["plan"]["events"]:
+            event.pop("discovery_source", None)
+        actor_ids = set(Seeder.actors(data).values())
+        for document in self.mongo.documents:
+            if document["explorer_id"] in actor_ids:
+                document.pop("discovery_source", None)
+        owned = next(
+            document
+            for document in self.mongo.documents
+            if document["event_type"] == "PROFILE_VISIT" and document["explorer_id"] in actor_ids
+        )
+        owned["occurred_at"] += timedelta(minutes=1)
+        self.journal.write(data)
+        before = copy.deepcopy(self.mongo.documents)
+        with self.assertRaises(ValidationError):
+            self.run_seed(apply=True)
+        self.assertEqual(self.mongo.documents, before)
 
     def test_default_dry_run_writes_no_sql_mongo_manifest_or_indexes(self):
         before = User.objects.count(), Review.objects.count(), copy.deepcopy(self.mongo.documents)

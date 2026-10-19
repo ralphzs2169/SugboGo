@@ -2,8 +2,11 @@
 
 import random
 from datetime import UTC, datetime, time, timedelta
+from hashlib import sha256
 
 from apps.shared.analytics.date_ranges import MANILA
+from apps.business.services.discovery_source import DiscoverySource
+from apps.business.services.route_planning_event_service import NavigationMethod
 
 
 DATASET_VERSION = 1
@@ -20,6 +23,128 @@ SENTIMENTS = (
     ("positive", "negative", "positive", "neutral", "positive", "negative", "positive", "positive"),
     ("positive", "neutral", "positive", "negative", "positive", None, "positive", "positive"),
 )
+
+
+def discovery_source(
+    namespace,
+    event,
+):
+    """Assign reproducible weighted attribution without changing any observation identity."""
+    value = f"{namespace}:{event['actor']}:{event['at']}"
+    bucket = int(sha256(value.encode()).hexdigest()[:8], 16) % 100
+    for ceiling, source in (
+        (32, DiscoverySource.EXPLORE_DISCOVERY),
+        (57, DiscoverySource.SEARCH_RESULTS),
+        (77, DiscoverySource.MAP),
+        (85, DiscoverySource.COLLECTION),
+        (91, DiscoverySource.SIMILAR_BUSINESSES),
+        (96, DiscoverySource.COMMUNITY),
+        (100, DiscoverySource.UNKNOWN),
+    ):
+        if bucket < ceiling:
+            return source.value
+
+
+def build_route_dataset(
+    context,
+    anchor,
+    started_at,
+    actors,
+):
+    """Plan bounded guidance observations only within the initialized reporting interval."""
+    earliest = max(parse_timestamp(context["created_at"]), started_at)
+    events = []
+    seen = set()
+    bands = (
+        (0, 6, 14, 6),
+        (7, 29, 18, 8),
+        (30, 59, 18, 8),
+        (60, 89, 14, 6),
+    )
+    for band, (first, last, road, jeepney) in enumerate(bands):
+        slots, days = _slots(
+            anchor,
+            first,
+            last,
+            earliest,
+        )
+        paired = None
+        for method, requested in (
+            (NavigationMethod.ROAD_ROUTE.value, road),
+            (NavigationMethod.JEEPNEY.value, jeepney),
+        ):
+            randomizer = random.Random(f"routes:{context['business_id']}:{band}:{method}")
+            wanted = _band_count(requested, days, first, last)
+            added = 0
+            for attempt in range(wanted * 100):
+                if not slots or not actors or added >= wanted:
+                    break
+                stamp = randomizer.choice(slots)
+                actor = actors[(attempt * 7 + band * 3) % len(actors)]
+                if (
+                    method == NavigationMethod.JEEPNEY.value
+                    and attempt == 0
+                    and paired
+                ):
+                    actor, stamp = paired
+                key = observation_identity(
+                    method,
+                    actor,
+                    stamp,
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                events.append({
+                    "method": method,
+                    "actor": actor,
+                    "at": stamp.isoformat(),
+                })
+                if method == NavigationMethod.ROAD_ROUTE.value and paired is None:
+                    paired = (actor, stamp)
+                added += 1
+    # A just-initialized development database may not yet contain an elapsed
+    # scheduled hour. Demonstrate both methods inside that real, short interval.
+    if not events and actors and earliest < anchor:
+        stamp = earliest + (anchor - earliest) / 2
+        stamp = stamp.replace(microsecond=stamp.microsecond // 1000 * 1000)
+        if earliest <= stamp < anchor:
+            for method in NavigationMethod:
+                events.append({
+                    "method": method.value,
+                    "actor": actors[0],
+                    "at": stamp.isoformat(),
+                })
+    return {
+        "anchor": anchor.isoformat(),
+        "tracking_started_at": started_at.isoformat(),
+        "events": events,
+    }
+
+
+def discovery_sources(
+    namespace,
+    events,
+):
+    """Keep stored assignments stable and exercise all channels when volume permits."""
+    visits = [
+        event
+        for event in events
+        if event["type"] == "PROFILE_VISIT"
+    ]
+    assignments = {
+        (event["actor"], event["at"]): event.get(
+            "discovery_source",
+            discovery_source(namespace, event),
+        )
+        for event in visits
+    }
+    if len(visits) >= len(DiscoverySource):
+        for index, source in enumerate(DiscoverySource):
+            event = visits[index * len(visits) // len(DiscoverySource)]
+            if "discovery_source" not in event:
+                assignments[(event["actor"], event["at"])] = source.value
+    return assignments
 
 
 def parse_timestamp(value):
@@ -194,6 +319,10 @@ def build_dataset(
                 "at": stamp.isoformat(),
             })
     events.sort(key=lambda row: (row["at"], row["type"], row["actor"]))
+    assignments = discovery_sources(namespace, events)
+    for event in events:
+        if event["type"] == "PROFILE_VISIT":
+            event["discovery_source"] = assignments[(event["actor"], event["at"])]
     saved = {}
     for event in events:
         if event["type"] == "SAVE":
