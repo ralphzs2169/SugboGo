@@ -1,192 +1,401 @@
-import { View, useWindowDimensions } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { useRef } from "react";
+import { View } from "react-native";
+import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
+import Skeleton from "@/shared/components/Skeleton";
+import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import type {
   PeerMetric,
   PlusPeerReport,
 } from "../../types/merchantAdvancedAnalytics.types";
+import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
-import AnalyticsDetailContext from "./AnalyticsDetailContext";
+import AnalyticsHeaderControls from "./AnalyticsHeaderControls";
+import AnalyticsReportSheet from "./AnalyticsReportSheet";
+import { PlusReportContext } from "./AnalyticsPlusStates";
 
+const METRICS = [
+  {
+    key: "profile_visits",
+    label: "Recorded profile visits",
+    icon: "eye-outline",
+  },
+  { key: "saves", label: "Recorded saves", icon: "bookmark-outline" },
+  {
+    key: "specialty_support",
+    label: "Specialty vouches added",
+    icon: "thumb-up-outline",
+  },
+  {
+    key: "positive_review_share",
+    label: "Positive feedback",
+    icon: "emoticon-happy-outline",
+  },
+] as const;
+const PERIOD_OPTIONS = [
+  { label: "Last 7 days", value: "7" },
+  { label: "Last 30 days", value: "30" },
+  { label: "Last 90 days", value: "90" },
+];
 const REASONS: Record<string, string> = {
-  peer_group_too_small:
-    "There are too few qualifying businesses for an anonymous comparison.",
   merchant_sentiment_sample_too_small:
-    "Your business needs more reviews with a sentiment label for this comparison.",
+    "More reviews with feedback labels are needed for your business.",
   peer_sentiment_sample_too_small:
-    "Too few similar businesses have enough reviews with a sentiment label.",
-  visibility_unavailable: "Recorded visibility data is currently unavailable.",
+    "More similar businesses need enough reviews with feedback labels.",
+  peer_group_too_small:
+    "More qualifying businesses are needed for an anonymous comparison.",
 };
+const RULES = [
+  {
+    icon: "store-outline",
+    title: "Similar businesses",
+    text: "Other active businesses in your category are used first. A broader business group is used when the category is too small. Individual businesses are not identified.",
+  },
+  {
+    icon: "scale-balance",
+    title: "The middle value",
+    text: "The comparison uses the median, or middle value, not the combined total. For example, counts of 40, 65, 94, 120, and 180 give a middle value of 94. With an even number of businesses, the two middle values are averaged. This is context, not a ranking. Businesses may have been listed for different lengths of time.",
+  },
+  {
+    icon: "eye-outline",
+    title: "Recorded activity",
+    text: "Profile visits and saves describe recorded observations. Tracking may be incomplete. Saves are not current Pocket holders, and profile visits are not physical arrivals.",
+  },
+  {
+    icon: "thumb-up-outline",
+    title: "Specialty vouches",
+    text: "Counts vouches added during the selected dates that remain valid on active specialties today. It is not current total support or net growth.",
+  },
+  {
+    icon: "emoticon-outline",
+    title: "Positive feedback",
+    text: "Compares each business’s positive share of categorized published reviews created during these dates. Reviews without a category are excluded. Each business must meet the review sample requirement.",
+  },
+] as const;
 
-const METRIC_LABELS: Record<string, string> = {
-  profile_visits: "Recorded profile visits",
-  saves: "Recorded saves",
-  specialty_support: "Vouches added that still count",
-  positive_review_share: "Positive reviews (%)",
-};
-
-function metricValue(value: number | null, metric: PeerMetric) {
-  return value === null
-    ? "Unavailable"
-    : `${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}${metric.unit === "percent" ? "%" : ""}`;
+function validValue(value: number | null, percent: boolean) {
+  return (
+    value !== null &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    (!percent || value <= 100)
+  );
 }
 
-/** Leads with anonymous comparisons and discloses group definitions below the values. */
+/** Compares anonymous backend medians with exact paired bars, preserving suppression and source failures. */
 export default function AnalyticsPeerComparisons({
   report,
   retry,
+  period = "30",
+  onPeriodChange,
+  loading = false,
+  error,
 }: {
-  report: PlusPeerReport;
+  report?: PlusPeerReport;
   retry: () => void;
+  period?: MerchantAnalyticsPeriod;
+  onPeriodChange?: (period: MerchantAnalyticsPeriod) => void;
+  loading?: boolean;
+  error?: unknown;
 }) {
-  const { width, fontScale } = useWindowDimensions();
-  const stacked = width < 340 || fontScale >= 1.5;
+  const periodSheetRef = useRef<BottomSheetModal>(null);
+  const informationRef = useRef<BottomSheetModal>(null);
+  const pending = loading && !report;
   const insufficient =
-    report.status === "insufficient_data" ||
-    report.group.size < report.group.minimum_size;
+    report &&
+    (report.status === "insufficient_data" ||
+      report.group.size < report.group.minimum_size);
+  const unavailable = report?.meta.availability === "unavailable";
+
   return (
-    <View className="gap-5">
-      {/* The group is anonymous and excludes the merchant's own business. */}
-      <AppText className="text-sm leading-5 text-text-secondary">
-        Compared with {report.group.size} other active businesses in the same{" "}
-        {report.group.scope === "category"
-          ? "category"
-          : "broader business group"}
-        . Individual businesses are not identified.
-      </AppText>
-      {!insufficient &&
-        Object.values(report.metrics).some(
-          (metric) => metric.status === "unavailable",
-        ) && (
+    <>
+      {/* Stable controls and concise anonymous group context. */}
+      <View className="gap-5">
+        <View className="gap-1">
+          <View className="flex-row items-center justify-between gap-3">
+            <AppText
+              accessibilityRole="header"
+              weight="bold"
+              className="min-w-0 flex-1 text-base text-text-primary"
+            >
+              Business comparison
+            </AppText>
+            <AnalyticsHeaderControls
+              period={period}
+              onOpenPeriod={() => periodSheetRef.current?.present()}
+              onOpenInformation={() => informationRef.current?.present()}
+              informationLabel="About peer comparisons"
+              informationHint="Explains comparison groups, middle values, and measurement limits"
+            />
+          </View>
+        </View>
+        {pending ? (
+          <Skeleton className="h-10 w-52 rounded" />
+        ) : (
+          report &&
+          !insufficient &&
+          !unavailable && (
+            <View className="flex-row items-start gap-3 rounded-xl bg-surface-muted px-3 py-3">
+              <MaterialCommunityIcons
+                name="store-outline"
+                size={20}
+                color={theme.extends.colors.text.secondary}
+                accessible={false}
+              />
+              <View className="min-w-0 flex-1 gap-1">
+                <AppText
+                  weight="semibold"
+                  className="text-sm text-text-primary"
+                >
+                  {report.group.size} similar businesses
+                </AppText>
+                <AppText className="text-xs leading-5 text-text-secondary">
+                  The comparison shows the group&apos;s middle value.
+                </AppText>
+              </View>
+            </View>
+          )
+        )}
+        {Boolean(error) && (
           <ErrorState
             size="section"
-            title="Some peer comparisons unavailable"
-            description="Some figures could not be loaded. Available comparisons are shown."
+            title={
+              report
+                ? "Unable to refresh comparisons"
+                : "Unable to load comparisons"
+            }
+            description={
+              report
+                ? "Previously loaded comparisons are still shown."
+                : "Please try this report again."
+            }
             primaryActionTitle="Retry"
             onPrimaryAction={retry}
           />
         )}
-      {insufficient ? (
-        <AnalyticsChartEmptyState
-          title="Not enough comparable businesses yet"
-          description="More qualifying businesses are needed before an anonymous comparison can be shown."
-          icon="store-outline"
-        />
-      ) : (
-        <View>
-          {/* Compact paired values preserve each metric's own sample and source status. */}
-          {Object.entries(report.metrics).map(([key, metric]) => {
-            const label = METRIC_LABELS[key] ?? metric.label;
-            const supported =
-              metric.status === "available" || metric.status === "partial";
-            return (
-              <View
-                key={key}
-                className="gap-2 border-b border-border-primary py-4"
-              >
+        {insufficient ? (
+          <AnalyticsChartEmptyState
+            title="Not enough comparable businesses yet"
+            description="More qualifying businesses are needed before an anonymous comparison can be shown."
+            icon="store-outline"
+          />
+        ) : unavailable ? (
+          !error && (
+            <ErrorState
+              size="section"
+              title="Peer comparisons unavailable"
+              description="Comparison data could not be loaded."
+              primaryActionTitle="Retry"
+              onPrimaryAction={retry}
+            />
+          )
+        ) : (
+          (pending || report) && (
+            <View>
+              {/* Each metric has its own scale; percentages always use 0–100. */}
+              {METRICS.map(({ key, label, icon }) => {
+                const metric: PeerMetric | undefined = report?.metrics[key];
+                const percent = metric?.unit === "percent";
+                const supported =
+                  metric && ["available", "partial"].includes(metric.status);
+                const failed = metric?.status === "unavailable";
+                const maximum = percent
+                  ? 100
+                  : Math.max(
+                      1,
+                      metric?.merchant_value ?? 0,
+                      metric?.peer_median ?? 0,
+                    );
+                return (
+                  <View
+                    key={key}
+                    className="gap-5 border-t border-border-primary/60 py-5"
+                  >
+                    <View className="flex-row items-center gap-2">
+                      <AppText
+                        weight="bold"
+                        className="min-w-0 flex-1 text-base text-text-primary"
+                      >
+                        {label}
+                      </AppText>
+                      <MaterialCommunityIcons
+                        name={icon}
+                        size={20}
+                        color={theme.extends.colors.text.secondary}
+                        accessible={false}
+                      />
+                    </View>
+                    {pending ? (
+                      <View className="gap-4">
+                        <Skeleton className="h-4 w-full rounded" />
+                        <Skeleton className="h-2 w-full rounded-full" />
+                        <Skeleton className="h-4 w-full rounded" />
+                        <Skeleton className="h-2 w-full rounded-full" />
+                      </View>
+                    ) : supported && metric ? (
+                      <View
+                        testID={`analytics-peer-pair-${key}`}
+                        className="gap-4"
+                      >
+                        {[
+                          {
+                            id: "merchant",
+                            label: "Your business",
+                            value: metric.merchant_value,
+                            color: "bg-brand",
+                          },
+                          {
+                            id: "peer",
+                            label: "Similar businesses · Middle value",
+                            value: metric.peer_median,
+                            color: "bg-slate-500",
+                          },
+                        ].map((row) => {
+                          const valid = validValue(row.value, percent);
+                          const text = valid
+                            ? `${row.value!.toLocaleString("en-PH", { maximumFractionDigits: 2 })}${percent ? "%" : ""}`
+                            : "Unavailable";
+                          return (
+                            <View
+                              key={row.id}
+                              accessible
+                              accessibilityLabel={`${label}, ${row.id === "merchant" ? "your business" : "similar businesses: median"}: ${text}`}
+                              className="gap-2"
+                            >
+                              <View className="flex-row flex-wrap items-center justify-between gap-2">
+                                <AppText className="text-sm text-text-secondary">
+                                  {row.label}
+                                </AppText>
+                                <AppText
+                                  weight="semibold"
+                                  className="text-base tabular-nums text-text-primary"
+                                >
+                                  {text}
+                                </AppText>
+                              </View>
+                              {valid && (
+                                <View
+                                  accessible={false}
+                                  className="h-2 overflow-hidden rounded-full bg-surface-muted"
+                                >
+                                  <View
+                                    testID={`peer-bar-${key}-${row.id}`}
+                                    className={`h-full rounded-full ${row.color}`}
+                                    style={{
+                                      width: `${Math.min(100, (row.value! / maximum) * 100)}%`,
+                                    }}
+                                  />
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
+                        {metric.eligible_peer_sample_size != null &&
+                          metric.eligible_peer_sample_size !==
+                            report?.group.size && (
+                            <AppText className="text-xs text-text-secondary">
+                              Based on {metric.eligible_peer_sample_size}{" "}
+                              qualifying businesses
+                            </AppText>
+                          )}
+                      </View>
+                    ) : failed ? (
+                      <ErrorState
+                        size="section"
+                        title={`${label} unavailable`}
+                        description="Other available comparisons are still shown."
+                        primaryActionTitle="Retry"
+                        onPrimaryAction={retry}
+                      />
+                    ) : (
+                      <AnalyticsChartEmptyState
+                        compact
+                        icon="chart-box-outline"
+                        title="Not enough data to compare yet"
+                        description={
+                          REASONS[metric?.reason ?? ""] ??
+                          "More eligible activity is needed for this comparison."
+                        }
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )
+        )}
+      </View>
+      {/* Measurement details are available during loading and never imply a competitive score. */}
+      <SelectionBottomSheet
+        sheetRef={periodSheetRef}
+        title="Reporting period"
+        description="Choose a time range for this section."
+        options={PERIOD_OPTIONS}
+        selectedValue={period}
+        onSelect={(value) => {
+          if (value === "7" || value === "30" || value === "90")
+            onPeriodChange?.(value);
+        }}
+        snapPoints={["50%"]}
+      />
+      <AnalyticsReportSheet
+        sheetRef={informationRef}
+        title="About peer comparisons"
+        description="Understand the anonymous comparison."
+        closeLabel="Close peer comparison information"
+      >
+        <View className="gap-5">
+          {RULES.map((rule, index) => (
+            <View
+              key={rule.title}
+              className={`flex-row items-start gap-3 ${index ? "border-t border-border-primary/60 pt-4" : ""}`}
+            >
+              <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-muted">
+                <MaterialCommunityIcons
+                  name={rule.icon}
+                  size={19}
+                  color={theme.extends.colors.text.secondary}
+                  accessible={false}
+                />
+              </View>
+              <View className="min-w-0 flex-1 gap-1">
                 <AppText
                   weight="semibold"
-                  className="text-base text-text-primary"
+                  className="text-sm text-text-primary"
                 >
-                  {label}
+                  {rule.title}
                 </AppText>
-                {supported ? (
-                  <>
-                    <View
-                      testID={`analytics-peer-pair-${key}`}
-                      className={stacked ? "gap-3" : "flex-row gap-4"}
-                    >
-                      <View className="flex-1">
-                        <AppText className="text-sm text-text-secondary">
-                          Your business
-                        </AppText>
-                        <AppText
-                          accessibilityLabel={`${label}, your business: ${metricValue(metric.merchant_value, metric)}`}
-                          weight="bold"
-                          className="mt-1 text-2xl tabular-nums text-text-primary"
-                        >
-                          {metricValue(metric.merchant_value, metric)}
-                        </AppText>
-                      </View>
-                      <View className="flex-1">
-                        <AppText className="text-sm text-text-secondary">
-                          Similar businesses: median
-                        </AppText>
-                        <AppText
-                          accessibilityLabel={`${label}, similar businesses: median: ${metricValue(metric.peer_median, metric)}`}
-                          weight="bold"
-                          className="mt-1 text-2xl tabular-nums text-text-primary"
-                        >
-                          {metricValue(metric.peer_median, metric)}
-                        </AppText>
-                      </View>
-                    </View>
-                    {metric.position &&
-                      metric.merchant_value !== null &&
-                      metric.peer_median !== null && (
-                        <AppText className="text-sm text-text-secondary">
-                          {metric.position === "above_median"
-                            ? "Above"
-                            : metric.position === "below_median"
-                              ? "Below"
-                              : "At"}{" "}
-                          the comparison median ·{" "}
-                          {metric.eligible_peer_sample_size ?? "Unavailable"}{" "}
-                          qualifying businesses
-                        </AppText>
-                      )}
-                    {metric.status === "partial" && (
-                      <AppText className="text-sm leading-5 text-text-secondary">
-                        Some activity may not be recorded.
-                      </AppText>
-                    )}
-                    {key === "specialty_support" && (
-                      <AppText className="text-sm leading-5 text-text-secondary">
-                        Vouches added during these dates that still count for
-                        active specialties. This is not the current support
-                        total.
-                      </AppText>
-                    )}
-                    {key === "positive_review_share" && (
-                      <AppText className="text-sm leading-5 text-text-secondary">
-                        Each business needs at least{" "}
-                        {report.group.positive_share_min_classified_reviews}{" "}
-                        published reviews with a sentiment label. Your labeled
-                        reviews:{" "}
-                        {metric.merchant_classified_review_count ??
-                          "Unavailable"}
-                        . Reviews without a sentiment label are excluded.
-                      </AppText>
-                    )}
-                  </>
-                ) : (
-                  <AppText className="text-sm leading-5 text-text-secondary">
-                    {REASONS[metric.reason ?? ""] ??
-                      "A reliable comparison is not available for this metric."}
-                  </AppText>
-                )}
+                <AppText className="text-sm leading-6 text-text-secondary">
+                  {rule.text}
+                </AppText>
               </View>
-            );
-          })}
+            </View>
+          ))}
+          {report && (
+            <View className="gap-3 border-t border-border-primary/60 pt-4">
+              <AppText className="text-sm leading-6 text-text-secondary">
+                At least {report.group.minimum_size} other qualifying businesses
+                are required. Your business is excluded.
+                {report.group.fallback_reason === "category_group_too_small"
+                  ? " This category has too few businesses, so a broader business group is used."
+                  : ""}
+              </AppText>
+              <AppText className="text-sm leading-6 text-text-secondary">
+                Positive feedback requires at least{" "}
+                {report.group.positive_share_min_classified_reviews} categorized
+                reviews per business.
+              </AppText>
+              <PlusReportContext
+                meta={report.meta}
+                note="Recorded activity may be incomplete. Review labels and retained vouches can change after the original activity. Peer business lifetimes are not normalized."
+              />
+            </View>
+          )}
         </View>
-      )}
-      <AnalyticsDetailContext
-        title="About peer comparisons"
-        meta={report.meta}
-        note="The median is the middle value when the businesses' values are ordered. Businesses may have been listed for different lengths of time, so this comparison is context, not a competitive ranking. Review labels and vouches that still count can change after the original activity."
-      >
-        <AppText className="text-sm leading-5 text-text-secondary">
-          An anonymous comparison needs at least {report.group.minimum_size}{" "}
-          other qualifying businesses. Your business is excluded from that
-          group.
-          {report.group.fallback_reason === "category_group_too_small"
-            ? " This category has too few businesses, so a broader business group is used."
-            : ""}
-        </AppText>
-        <AppText className="text-sm leading-5 text-text-secondary">
-          {report.group.eligibility}
-        </AppText>
-      </AnalyticsDetailContext>
-    </View>
+      </AnalyticsReportSheet>
+    </>
   );
 }

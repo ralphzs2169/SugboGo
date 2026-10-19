@@ -44,6 +44,7 @@ export default function AnalyticsSeriesChart({
   range,
   total,
   variant = "bar",
+  showSparseBars = false,
   minimalFooter = false,
   emptyTitle = "No recorded activity in this period",
   emptyDescription = "No activity was recorded for this metric during the selected dates.",
@@ -55,6 +56,7 @@ export default function AnalyticsSeriesChart({
   range?: AnalyticsChartRange;
   total?: number | null;
   variant?: "bar" | "line";
+  showSparseBars?: boolean;
   minimalFooter?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -78,7 +80,8 @@ export default function AnalyticsSeriesChart({
   const knownZero =
     total === 0 && !observed.some((slot) => (slot.observation?.value ?? 0) > 0);
 
-  const compact = observed.length <= 2;
+  const compact =
+    observed.length <= 2 && !(variant === "bar" && showSparseBars);
 
   // Responsive axis labels and chart measurements.
   const scale = Math.max(1, fontScale);
