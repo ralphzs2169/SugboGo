@@ -286,6 +286,7 @@ export default function MapScreen() {
       pathname: "/(explorer)/business/[businessId]",
       params: {
         businessId: String(selectedBusiness.id),
+        profileSource: "MAP",
       },
     });
   };

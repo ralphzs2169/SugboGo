@@ -188,6 +188,7 @@ class VisibilityEventViewTests(APITestCase):
         record_profile_visit.assert_called_once_with(
             explorer_id=self.explorer.USER_ID,
             business_id=self.business.BUSN_ID,
+            discovery_source="UNKNOWN",
         )
 
     def test_duplicate_profile_visit_is_still_successful(self):

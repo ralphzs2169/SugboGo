@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions, type TextStyle } from "react-native";
 import Svg, { Circle, G } from "react-native-svg";
 
 import { theme } from "@/constants/theme";
@@ -39,7 +39,9 @@ const PANEL_SHADOW = {
 } as const;
 
 /** Keeps digits the same width so counts line up across rows. */
-const TABULAR_NUMBERS = { fontVariant: ["tabular-nums"] } as const;
+const TABULAR_NUMBERS: TextStyle = {
+  fontVariant: ["tabular-nums"],
+};
 
 function withAlpha(color: string, alpha: number) {
   if (!color.startsWith("#")) return color;

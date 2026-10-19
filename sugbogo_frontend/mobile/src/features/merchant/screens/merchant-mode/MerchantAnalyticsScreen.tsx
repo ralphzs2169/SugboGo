@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsFocused, useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -76,6 +76,29 @@ export default function MerchantAnalyticsScreen() {
   // Plus entitlement
   const plusAccess = useMerchantPlusAccess();
 
+  const [validatedSnapshot, setValidatedSnapshot] = useState<string | null>(null);
+  const snapshotKey = `${plusAccess.accountId}:${period}:${report?.meta.generated_at}`;
+
+  // Returning to this mounted screen must renew the server cutoff before Plus
+  // comparisons are enabled. Cached Standard values remain visible meanwhile.
+  useEffect(() => {
+    if (!focused || !plusAccess.accountId) return;
+
+    let active = true;
+    void refetch({ cancelRefetch: false }).then((result) => {
+      if (active && !result.error && result.data) {
+        setValidatedSnapshot(
+          `${plusAccess.accountId}:${period}:${result.data.meta.generated_at}`,
+        );
+      }
+    });
+
+    return () => {
+      active = false;
+      setValidatedSnapshot(null);
+    };
+  }, [focused, period, plusAccess.accountId, refetch]);
+
   // Backend-aligned Plus comparisons
   const comparisonSelection = {
     period,
@@ -83,7 +106,13 @@ export default function MerchantAnalyticsScreen() {
   };
 
   const canReadComparisons =
-    focused && plusAccess.allowed && !isLoading && !error && !!report;
+    focused &&
+    plusAccess.allowed &&
+    !isLoading &&
+    !isRefetching &&
+    !error &&
+    !!report &&
+    validatedSnapshot === snapshotKey;
 
   const visibilityInterval = period === "90" ? "weekly" : "daily";
 
@@ -109,12 +138,7 @@ export default function MerchantAnalyticsScreen() {
 
   const replyComparison = useMerchantPlusReviews(
     comparisonSelection,
-    focused &&
-      plusAccess.allowed &&
-      !isLoading &&
-      !error &&
-      !!report &&
-      report.sources.domain.availability !== "unavailable",
+    canReadComparisons && report.sources.domain.availability !== "unavailable",
   );
 
   // Merchant business profile and specialty styling
@@ -157,14 +181,14 @@ export default function MerchantAnalyticsScreen() {
   });
 
   useQueryErrorNotification({
-    error: focused && plusAccess.allowed ? replyComparison.error : null,
+    error: canReadComparisons ? replyComparison.error : null,
     toastId: "merchant-reply-comparison-error",
     title: "Unable to load reply comparison",
     fallbackMessage: "Your Standard review counts remain available.",
   });
 
   useQueryErrorNotification({
-    error: focused && plusAccess.allowed ? pocketComparison.error : null,
+    error: canReadComparisons ? pocketComparison.error : null,
     toastId: "merchant-save-comparison-error",
     title: "Unable to load save comparison",
     fallbackMessage: "Your Standard metrics remain available.",
@@ -177,7 +201,13 @@ export default function MerchantAnalyticsScreen() {
   };
 
   const retry = () => {
-    void refetch();
+    void refetch().then((result) => {
+      if (!result.error && result.data) {
+        setValidatedSnapshot(
+          `${plusAccess.accountId}:${period}:${result.data.meta.generated_at}`,
+        );
+      }
+    });
   };
 
   const refreshPlus = async () => {
@@ -190,6 +220,8 @@ export default function MerchantAnalyticsScreen() {
         await queryClient.refetchQueries({
           queryKey: merchantPlusReportScope(plusAccess.accountId),
           type: "active",
+          // Pinned KPI comparisons renew through the new Standard snapshot.
+          predicate: (query) => query.queryKey[7] === undefined,
         });
       }
     } finally {
@@ -198,8 +230,15 @@ export default function MerchantAnalyticsScreen() {
   };
 
   const refresh = () => {
+    setValidatedSnapshot(null);
     void Promise.all([
-      refetch(),
+      refetch().then((result) => {
+        if (!result.error && result.data) {
+          setValidatedSnapshot(
+            `${plusAccess.accountId}:${period}:${result.data.meta.generated_at}`,
+          );
+        }
+      }),
       refetchProfile(),
       unanswered.refetch(),
       routePlanning.refetch(),
@@ -438,7 +477,15 @@ export default function MerchantAnalyticsScreen() {
           />
 
           {/* Additional analytics reports */}
-          <AnalyticsMoreInsights onOpen={openPlusDetail} />
+          <AnalyticsMoreInsights
+            onOpen={openPlusDetail}
+            onOpenDiscoverySources={() =>
+              router.push({
+                pathname: "/(merchant)/analytics/discovery-sources",
+                params: { period },
+              })
+            }
+          />
 
           {/* Report preparation timestamp */}
           {report && (

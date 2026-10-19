@@ -99,7 +99,7 @@ describe("CommunityReviewCard", () => {
 
     expect(mockPush).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]",
-      params: { businessId: "12" },
+      params: { businessId: "12", profileSource: "COMMUNITY" },
     });
   });
 

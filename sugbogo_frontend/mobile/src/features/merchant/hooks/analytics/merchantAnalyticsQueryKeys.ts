@@ -4,6 +4,19 @@ export const MERCHANT_STANDARD_ANALYTICS_QUERY_KEY = [
   "merchant-standard-analytics",
 ] as const;
 
+/** Keeps Standard source classification isolated across accounts and periods. */
+export function merchantDiscoverySourcesKey(
+  userId: number | undefined,
+  period: MerchantAnalyticsPeriod,
+) {
+  return [
+    ...MERCHANT_STANDARD_ANALYTICS_QUERY_KEY,
+    userId,
+    "discovery-sources",
+    period,
+  ] as const;
+}
+
 /** Keeps recorded route intent scoped by account and selected reporting window. */
 export function merchantRoutePlanningKey(
   userId: number | undefined,

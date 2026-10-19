@@ -1,4 +1,5 @@
 from django.urls import path
+from .views.discovery_sources_views import DiscoverySourcesView
 
 from .views.aged_unanswered_reviews_views import AgedUnansweredReviewsView
 from .views.route_planning_views import RoutePlanningAnalyticsView
@@ -14,6 +15,11 @@ from .views.premium_analytics_views import (
 
 
 urlpatterns = [
+    path(
+        "standard/discovery-sources/",
+        DiscoverySourcesView.as_view(),
+        name="merchant-analytics-discovery-sources",
+    ),
     path(
         "standard/route-planning/",
         RoutePlanningAnalyticsView.as_view(),

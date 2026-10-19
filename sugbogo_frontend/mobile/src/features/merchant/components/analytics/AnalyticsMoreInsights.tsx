@@ -13,8 +13,14 @@ const INSIGHTS: {
   title: string;
   description: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
-  kind: PlusDetailKind;
+  kind: PlusDetailKind | "discovery-sources";
 }[] = [
+  {
+    title: "Where visits came from",
+    description: "Sources of recorded business profile visits.",
+    icon: "compass-outline",
+    kind: "discovery-sources",
+  },
   {
     title: "Pocket Trends",
     description: "Recorded saves and accounts that saved your business",
@@ -59,8 +65,10 @@ const INSIGHTS: {
  */
 export default function AnalyticsMoreInsights({
   onOpen,
+  onOpenDiscoverySources,
 }: {
   onOpen: (kind: PlusDetailKind) => void;
+  onOpenDiscoverySources: () => void;
 }) {
   return (
     <AnalyticsOverviewSection title="More insights">
@@ -71,7 +79,11 @@ export default function AnalyticsMoreInsights({
             key={insight.kind}
             accessibilityRole="button"
             accessibilityLabel={`Open ${insight.title}`}
-            onPress={() => onOpen(insight.kind)}
+            onPress={() =>
+              insight.kind === "discovery-sources"
+                ? onOpenDiscoverySources()
+                : onOpen(insight.kind)
+            }
             className={`min-h-16 flex-row cursor-pointer items-center gap-3 py-4 active:bg-surface-muted ${
               index > 0 ? "border-t border-border-primary" : ""
             }`}

@@ -365,6 +365,7 @@ export default function AnalyticsSeriesChart({
                       height={bottom - y(value)}
                       rx={4}
                       fill={color}
+                      fillOpacity={value === maximumObserved ? 1 : 0.5}
                     />
                   )}
 

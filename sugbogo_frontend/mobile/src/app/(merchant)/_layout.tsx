@@ -13,6 +13,15 @@ export default function MerchantLayout() {
       <Stack.Screen name="(tabs)" />
 
       <Stack.Screen name="business-location-map" />
+      <Stack.Screen
+        name="analytics/discovery-sources"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Where visits came from",
+        }}
+      />
 
       <Stack.Screen
         name="analytics/[report]"

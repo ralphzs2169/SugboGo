@@ -24,7 +24,10 @@ import {
   getMerchantStandardAnalytics,
   getMerchantUnansweredReviews,
 } from "../../../api/merchantAnalytics.service";
-import { merchantPlusReportKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
+import {
+  merchantPlusReportKey,
+  merchantPlusStatusKey,
+} from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
 import { getMerchantRoutePlanning } from "../../../api/merchantRoutePlanning.service";
 import { routePlanningReport } from "../../../__tests__/routePlanningAnalytics.fixtures";
@@ -38,6 +41,7 @@ import {
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
 const mockNavigate = jest.fn();
+let mockFocused = true;
 jest.mock("../../../api/merchantRoutePlanning.service", () => ({
   getMerchantRoutePlanning: jest.fn(),
 }));
@@ -71,7 +75,7 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ navigate: mockNavigate, push: mockNavigate }),
-  useIsFocused: () => true,
+  useIsFocused: () => mockFocused,
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("../../../api/merchantAnalytics.service", () => ({
@@ -161,20 +165,18 @@ describe("MerchantAnalyticsScreen", () => {
   let client: QueryClient;
 
   beforeEach(() => {
+    mockFocused = true;
     client = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
     useAuthStore.setState({ user: analyticsMerchant() });
     getAnalytics.mockReset();
     getAnalytics.mockResolvedValue(analyticsSuccess());
-    jest
-      .mocked(getMerchantRoutePlanning)
-      .mockReset()
-      .mockResolvedValue({
-        success: true,
-        message: "Success",
-        data: routePlanningReport(),
-      });
+    jest.mocked(getMerchantRoutePlanning).mockReset().mockResolvedValue({
+      success: true,
+      message: "Success",
+      data: routePlanningReport(),
+    });
     jest.mocked(getMerchantUnansweredReviews).mockReset().mockResolvedValue({
       success: true,
       message: "Success",
@@ -219,6 +221,139 @@ describe("MerchantAnalyticsScreen", () => {
       </QueryClientProvider>,
     );
   }
+
+  it("renews the reporting cutoff before comparisons resume on return", async () => {
+    jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(
+      plusSuccess(plusStatus()),
+    );
+    const screen = await renderScreen();
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusPocket).toHaveBeenCalled(),
+    );
+
+    mockFocused = false;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantAnalyticsScreen />
+      </QueryClientProvider>,
+    );
+    const pending = deferredAnalytics();
+    getAnalytics.mockReturnValueOnce(pending.promise);
+    jest.mocked(plusService.getMerchantPlusPocket).mockClear();
+    jest.mocked(plusService.getMerchantPlusReviewPerformance).mockClear();
+
+    mockFocused = true;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantAnalyticsScreen />
+      </QueryClientProvider>,
+    );
+    expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusReviewPerformance).not.toHaveBeenCalled();
+    expect(screen.getByText("Recorded saves")).toBeTruthy();
+
+    const fresh = standardAnalyticsReport();
+    fresh.meta.generated_at = new Date(
+      Date.parse(fresh.meta.generated_at) + 10 * 60_000,
+    ).toISOString();
+    await act(async () => pending.resolve(analyticsSuccess(fresh)));
+
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusPocket).toHaveBeenCalledWith(
+        { period: "30", as_of: fresh.meta.generated_at },
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(plusService.getMerchantPlusReviewPerformance).toHaveBeenCalledWith(
+      { period: "30", as_of: fresh.meta.generated_at },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("keeps expired comparisons disabled when the return refresh fails", async () => {
+    jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(
+      plusSuccess(plusStatus()),
+    );
+    const screen = await renderScreen();
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusPocket).toHaveBeenCalled(),
+    );
+    mockFocused = false;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantAnalyticsScreen />
+      </QueryClientProvider>,
+    );
+    getAnalytics.mockRejectedValueOnce(new Error("Network unavailable"));
+    jest.mocked(plusService.getMerchantPlusPocket).mockClear();
+    jest.mocked(plusService.getMerchantPlusReviewPerformance).mockClear();
+    mockFocused = true;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantAnalyticsScreen />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Unable to refresh analytics")).toBeTruthy();
+    expect(screen.getByText("Recorded saves")).toBeTruthy();
+    expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusReviewPerformance).not.toHaveBeenCalled();
+  });
+
+  it("does not refetch old pinned comparisons during pull-to-refresh", async () => {
+    jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(
+      plusSuccess(plusStatus()),
+    );
+    const screen = await renderScreen();
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusPocket).toHaveBeenCalled(),
+    );
+    const pending = deferredAnalytics();
+    getAnalytics.mockReturnValueOnce(pending.promise);
+    jest.mocked(plusService.getMerchantPlusPocket).mockClear();
+    jest.mocked(plusService.getMerchantPlusReviewPerformance).mockClear();
+
+    await act(async () => {
+      screen.getByTestId("merchant-analytics-scroll")
+        .props.refreshControl.props.onRefresh();
+    });
+    expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusReviewPerformance).not.toHaveBeenCalled();
+
+    const fresh = standardAnalyticsReport();
+    fresh.meta.generated_at = "2026-10-17T04:15:00+00:00";
+    await act(async () => pending.resolve(analyticsSuccess(fresh)));
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusPocket).toHaveBeenCalledWith(
+        { period: "30", as_of: fresh.meta.generated_at },
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it("opens the Standard visit-source report with the selected period despite restricted Plus access", async () => {
+    const screen = await renderScreen();
+    await waitFor(() =>
+      expect(
+        client.getQueryData(
+          merchantPlusStatusKey(useAuthStore.getState().user?.id),
+        ),
+      ).toMatchObject({ has_plus_access: false }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Open Where visits came from" }),
+      ).toBeTruthy(),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Where visits came from" }),
+    );
+    expect(mockNavigate).toHaveBeenCalledWith({
+      pathname: "/(merchant)/analytics/discovery-sources",
+      params: { period: "7" },
+    });
+  });
 
   it("shows four business KPIs with replies outside the grid and specialty support immediately next", async () => {
     const screen = await renderScreen();
@@ -276,13 +411,11 @@ describe("MerchantAnalyticsScreen", () => {
   });
 
   it("recovers a route-planning request error without refetching Standard KPIs", async () => {
-    jest
-      .mocked(getMerchantRoutePlanning)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "NETWORK_ERROR",
-        message: "Offline",
-      });
+    jest.mocked(getMerchantRoutePlanning).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
     const screen = await renderScreen();
     const retry = await screen.findByRole("button", {
       name: /Unable to load route-planning activity.*retry/i,

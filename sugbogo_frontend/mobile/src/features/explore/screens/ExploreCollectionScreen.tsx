@@ -232,6 +232,7 @@ export default function ExploreCollectionScreen() {
       pathname: "/(explorer)/business/[businessId]",
       params: {
         businessId: String(business.id),
+        profileSource: "COLLECTION",
         distance: distance === null ? "" : String(distance),
         distanceAccuracy:
           userLocation?.coords.accuracy === null ||

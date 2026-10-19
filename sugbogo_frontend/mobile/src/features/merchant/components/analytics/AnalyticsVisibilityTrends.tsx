@@ -101,6 +101,8 @@ export default function AnalyticsVisibilityTrends({
     <>
       <AnalyticsOverviewSection
         title="Visibility trends"
+
+        description="See how explorers interact with your business over time."
         accessory={
           query.data ? (
             <SafePressable

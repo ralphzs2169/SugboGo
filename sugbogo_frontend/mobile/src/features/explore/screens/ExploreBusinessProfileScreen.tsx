@@ -27,6 +27,7 @@ import ReviewComposerSheet from "../components/business-profile/ReviewComposerSh
 import RideProviderSheet from "../components/business-profile/RideProviderSheet";
 import SimilarPlacesSection from "../components/business-profile/SimilarPlacesSection";
 import useBusinessProfileVisit from "../hooks/useBusinessProfileVisit";
+import type { DiscoverySource } from "../constants/discoverySources";
 import { useBusinessReviewPreview } from "../hooks/useBusinessReviews";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 import useRoutePlanningIntent from "../hooks/useRoutePlanningIntent";
@@ -42,6 +43,7 @@ type Props = {
   distance: number | null;
   distanceAccuracy: number | null;
   previewAsExplorer?: boolean;
+  profileSource?: DiscoverySource;
 };
 
 /**
@@ -56,6 +58,7 @@ function ExploreBusinessProfileScreenContent({
   distance,
   distanceAccuracy,
   previewAsExplorer = false,
+  profileSource = "UNKNOWN",
 }: Props) {
   const { business, error, refetch } = useExploreBusinessProfile(businessId);
   const recordRouteIntent = useRoutePlanningIntent(
@@ -67,6 +70,7 @@ function ExploreBusinessProfileScreenContent({
     businessId,
     business?.id,
     business?.is_own_business ?? false,
+    profileSource,
   );
 
   const { totalCount: reviewCount } = useBusinessReviewPreview(businessId);

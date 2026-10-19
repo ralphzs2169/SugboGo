@@ -14,6 +14,11 @@ from rest_framework import status
 from rest_framework.exceptions import APIException, NotFound, ValidationError
 
 from apps.business.models import Business
+from apps.business.services.discovery_source import (
+    DISCOVERY_SOURCE_LABELS,
+    DiscoverySource,
+    normalize_discovery_source,
+)
 from apps.shared.analytics.date_ranges import MANILA
 from apps.shared.services.mongodb_service import MongoDBService
 from apps.business.services.visibility_coverage_service import VisibilityCoverageService
@@ -270,6 +275,8 @@ class VisibilityEventService:
         explorer_id: int,
         business_ids: Iterable[int],
         occurred_at: datetime,
+        *,
+        discovery_source=None,
     ) -> VisibilityEventWriteResult:
         """Monitor eligible server-side attempts while preserving ingestion and deduplication."""
         business_ids = cls._normalize_business_ids(business_ids)
@@ -279,6 +286,7 @@ class VisibilityEventService:
                 explorer_id=explorer_id,
                 business_ids=business_ids,
                 occurred_at=occurred_at,
+                discovery_source=discovery_source,
             )
         except Exception as error:
             if business_ids:
@@ -312,8 +320,10 @@ class VisibilityEventService:
         explorer_id: int,
         business_ids: Iterable[int],
         occurred_at: datetime,
+        *,
+        discovery_source=None,
     ) -> VisibilityEventWriteResult:
-        """Persist the existing UTC-day deduplicated documents without changing their schema."""
+        """Preserve daily identity and attach opening context only on profile inserts."""
         normalized_business_ids = cls._normalize_business_ids(
             business_ids,
         )
@@ -348,6 +358,10 @@ class VisibilityEventService:
                     "dedupe_key": dedupe_key,
                 },
             )
+            if event_type == VisibilityEventType.PROFILE_VISIT:
+                documents[-1]["discovery_source"] = normalize_discovery_source(
+                    discovery_source,
+                )
 
         operations = [
             UpdateOne(
@@ -444,6 +458,8 @@ class VisibilityEventService:
         cls,
         explorer_id: int,
         business_id: int,
+        *,
+        discovery_source=None,
     ) -> VisibilityEventWriteResult:
         """Records a visibility profile visit for a single business."""
 
@@ -460,6 +476,7 @@ class VisibilityEventService:
                 else []
             ),
             occurred_at=cls._get_current_time(),
+            discovery_source=discovery_source,
         )
 
     @classmethod
@@ -689,6 +706,50 @@ class VisibilityEventService:
             {"$sort": {"_id.weekday": 1, "_id.hour": 1}},
         ])
         return [{**row["_id"], "count": row["count"]} for row in rows]
+
+    @classmethod
+    def get_profile_visit_sources(
+        cls,
+        *,
+        business_ids,
+        start_time,
+        end_time,
+    ):
+        """Classify every recorded visit, including legacy unknowns, in one read."""
+        if business_ids is None:
+            raise ValidationError({
+                "business_ids": "An explicit business scope is required.",
+            })
+        match = cls._analytics_match(business_ids, "PROFILE_VISIT")
+        match["occurred_at"] = cls._analytics_window(start_time, end_time)
+        source = {"$ifNull": ["$discovery_source", DiscoverySource.UNKNOWN.value]}
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {
+                "_id": {
+                    "$cond": [
+                        {"$in": [source, list(DISCOVERY_SOURCE_LABELS)]},
+                        source,
+                        DiscoverySource.UNKNOWN.value,
+                    ],
+                },
+                "count": {"$sum": 1},
+            }},
+        ])
+        counts = {
+            source_id: 0
+            for source_id in DISCOVERY_SOURCE_LABELS
+        }
+        for row in rows:
+            counts[row["_id"]] += row["count"]
+        return [
+            {
+                "source": source_id.value,
+                "label": label,
+                "count": counts[source_id],
+            }
+            for source_id, label in DISCOVERY_SOURCE_LABELS.items()
+        ]
 
     @classmethod
     def get_analytics_totals(cls, *, start_time, end_time, business_ids=None):
