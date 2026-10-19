@@ -7,7 +7,7 @@ import AppText from "@/shared/components/AppText";
 import ProfileMenuItem from "../components/ProfileMenuItem";
 import ProfileMenuSection from "../components/ProfileMenuSection";
 
-/** Provides account identity and the available password-management action. */
+/** Provides account identity, credential management, and deactivation actions. */
 export default function AccountSettingsScreen() {
   const user = useAuthStore((state) => state.user);
   const needsPasswordSetup = user?.has_usable_password === false;
@@ -33,6 +33,11 @@ export default function AccountSettingsScreen() {
 
         {/* Password management */}
         <ProfileMenuSection title="Security">
+          <ProfileMenuItem
+            title="Change email"
+            icon="email-outline"
+            onPress={() => router.push("/profile/change-email" as Href)}
+          />
           <ProfileMenuItem
             title={needsPasswordSetup ? "Set up a password" : "Change password"}
             icon="lock-outline"

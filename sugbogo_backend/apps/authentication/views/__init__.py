@@ -4,6 +4,12 @@ from .admin_forgot_password import (
 from .admin_login_view import admin_login_view as admin_login_view
 from .change_password import change_password_view as change_password_view
 from .deactivate_account import deactivate_account_view as deactivate_account_view
+from .change_email import (
+    request_email_change_view as request_email_change_view,
+    email_change_status_view as email_change_status_view,
+    cancel_email_change_view as cancel_email_change_view,
+    confirm_email_change_view as confirm_email_change_view,
+)
 from .admin_invitation import (
     complete_admin_invitation_view as complete_admin_invitation_view,
 )

@@ -10,7 +10,7 @@ class LoginService:
     def authenticate(email: str, password: str):
         """Authenticate an active user whose email ownership is verified."""
         try:
-            user = User.objects.get(USER_EMAIL=email)
+            user = User.objects.get(USER_EMAIL__iexact=email)
         except User.DoesNotExist:
             user = None
 
