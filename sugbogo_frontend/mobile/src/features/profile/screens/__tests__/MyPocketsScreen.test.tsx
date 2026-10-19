@@ -35,6 +35,7 @@ jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("lottie-react-native", () => () => null);
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
+  useNavigation: () => ({ isFocused: () => true }),
   Stack: { Screen: () => null },
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -185,7 +186,7 @@ describe("MyPocketsScreen", () => {
     expect(screen.queryByTestId("pocket-collections-skeleton")).toBeNull();
   }, 15000);
 
-  it("preserves backend order and removes prototype controls and navigation affordances", async () => {
+  it("preserves backend order and opens each Pocket without prototype management controls", async () => {
     jest
       .mocked(getPocketCollections)
       .mockResolvedValueOnce(page([favorites, coffee, weekend]));
@@ -198,7 +199,19 @@ describe("MyPocketsScreen", () => {
     ).toEqual(["Favorites", "Coffee spots", "Weekend food trips"]);
     expect(screen.queryByPlaceholderText("Search saved MSMEs...")).toBeNull();
     expect(screen.queryByText(/^(Edit|Done|Delete|All)$/)).toBeNull();
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getAllByRole("button")).toHaveLength(3);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Favorites Pocket" }),
+    );
+    expect(router.push).toHaveBeenLastCalledWith(
+      "/(explorer)/profile/pockets/20",
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Coffee spots Pocket" }),
+    );
+    expect(router.push).toHaveBeenLastCalledWith(
+      "/(explorer)/profile/pockets/30",
+    );
     expect(screen.queryAllByRole("link")).toHaveLength(0);
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });

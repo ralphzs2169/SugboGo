@@ -1,4 +1,4 @@
-import { router, Stack } from "expo-router";
+import { type Href, router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useEffect, useRef } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
@@ -16,6 +16,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
+import SafePressable from "@/shared/components/SafePressable";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
 /** Separates collection cards using the existing list spacing. */
@@ -99,7 +100,19 @@ export default function MyPocketsScreen() {
         testID="my-pockets-list"
         data={collections}
         keyExtractor={(collection) => String(collection.id)}
-        renderItem={({ item }) => <PocketCollectionCard collection={item} />}
+        renderItem={({ item }) => (
+          <SafePressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${item.name} Pocket`}
+            accessibilityHint="View saved businesses"
+            className="cursor-pointer active:opacity-80"
+            onPress={() =>
+              router.push(`/(explorer)/profile/pockets/${item.id}` as Href)
+            }
+          >
+            <PocketCollectionCard collection={item} />
+          </SafePressable>
+        )}
         ItemSeparatorComponent={CollectionSeparator}
         contentContainerClassName="px-4 pt-4"
         contentContainerStyle={{

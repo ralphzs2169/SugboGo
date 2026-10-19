@@ -12,3 +12,14 @@ export function pocketCollectionQueryKey(
 ) {
   return [...pocketCollectionsQueryKey(userId), collectionId] as const;
 }
+
+/** Separates paginated contents while retaining collection-prefix invalidation. */
+export function pocketCollectionBusinessesQueryKey(
+  userId: number | null,
+  collectionId: number | null,
+) {
+  return [
+    ...pocketCollectionQueryKey(userId, collectionId),
+    "businesses",
+  ] as const;
+}

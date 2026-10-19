@@ -58,6 +58,15 @@ export default function ProfileLayout() {
             title: "Your Interests",
           }}
         />
+
+        <Stack.Screen
+          name="pockets/[collectionId]"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Pocket",
+          }}
+        />
       </Stack>
     </>
   );
