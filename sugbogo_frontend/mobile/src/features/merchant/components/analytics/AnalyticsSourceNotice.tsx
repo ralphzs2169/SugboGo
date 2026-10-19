@@ -26,7 +26,7 @@ export default function AnalyticsSourceNotice({ report, onRetry }: Props) {
 
   return (
     <ErrorState
-      size="section"
+      variant="analytics"
       title={
         visibility.availability === "unavailable"
           ? "Recorded activity unavailable"

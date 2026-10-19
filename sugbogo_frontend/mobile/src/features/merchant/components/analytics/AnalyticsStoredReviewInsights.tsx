@@ -1,3 +1,4 @@
+import { AnalyticsInsightsSkeleton } from "./AnalyticsLoadingSkeletons";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef } from "react";
@@ -48,11 +49,13 @@ export default function AnalyticsStoredReviewInsights({
   loading = false,
   error,
   retry,
+  onOpenReviews,
 }: {
   report?: PlusStoredInsightsReport;
   loading?: boolean;
   error?: unknown;
   retry: () => void;
+  onOpenReviews?: () => void;
 }) {
   const sheetRef = useRef<BottomSheetModal>(null);
   const router = useRouter();
@@ -102,7 +105,7 @@ export default function AnalyticsStoredReviewInsights({
         </View>
         {Boolean(error) && (
           <ErrorState
-            size="section"
+            variant="analytics"
             title={
               report
                 ? "Unable to refresh review insights"
@@ -118,19 +121,11 @@ export default function AnalyticsStoredReviewInsights({
           />
         )}
         {pending ? (
-          <View
-            accessibilityLabel="Loading review insights"
-            accessibilityState={{ busy: true }}
-            className="gap-4"
-          >
-            <Skeleton className="h-4 w-48 rounded" />
-            <Skeleton className="h-6 w-28 rounded-full" />
-            <Skeleton className="h-24 w-full rounded-lg" />
-          </View>
+          <AnalyticsInsightsSkeleton />
         ) : unavailable ? (
           !error && (
             <ErrorState
-              size="section"
+              variant="analytics"
               title="Review insights unavailable"
               description="This report could not be loaded."
               primaryActionTitle="Retry"
@@ -197,7 +192,6 @@ export default function AnalyticsStoredReviewInsights({
               </View>
             ) : (
               <AnalyticsChartEmptyState
-                compact
                 icon="comment-text-outline"
                 title={
                   summary.state === "pending"
@@ -217,7 +211,6 @@ export default function AnalyticsStoredReviewInsights({
         ) : (
           !error && (
             <AnalyticsChartEmptyState
-              compact
               title="No review summary yet"
               description="A review summary has not been prepared for your business."
               icon="comment-text-outline"
@@ -247,14 +240,16 @@ export default function AnalyticsStoredReviewInsights({
                   accessibilityLabel="View all merchant reviews"
                   accessibilityHint="Opens Reviews with all reviews selected, newest first"
                   onPress={() =>
-                    router.push({
-                      pathname: "/(merchant)/(tabs)/reviews",
-                      params: {
-                        filter: "all",
-                        ordering: "newest",
-                        reviewIntent: String(Date.now()),
-                      },
-                    })
+                    onOpenReviews
+                      ? onOpenReviews()
+                      : router.push({
+                          pathname: "/(merchant)/(tabs)/reviews",
+                          params: {
+                            filter: "all",
+                            ordering: "newest",
+                            reviewIntent: String(Date.now()),
+                          },
+                        })
                   }
                   className="min-h-11 cursor-pointer flex-row items-center gap-1 active:opacity-70"
                 >

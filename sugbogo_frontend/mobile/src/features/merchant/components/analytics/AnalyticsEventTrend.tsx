@@ -14,7 +14,6 @@ import {
   formatAnalyticsDate,
 } from "../../utils/merchantAnalytics.utils";
 
-import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import AnalyticsSeriesChart from "./AnalyticsSeriesChart";
 import { PlusReportContext } from "./AnalyticsPlusStates";
 
@@ -79,7 +78,7 @@ export default function AnalyticsEventTrend({
       {/* Retain available data even when some measurements fail */}
       {unavailable && !chartUnavailable && (
         <ErrorState
-          size="section"
+          variant="analytics"
           title="Some recorded activity is unavailable"
           description="Available counts are shown. Unavailable values do not mean zero activity."
           primaryActionTitle="Retry"
@@ -88,11 +87,13 @@ export default function AnalyticsEventTrend({
       )}
 
       {chartUnavailable && (
-        <AnalyticsChartEmptyState
+        <ErrorState
+          variant="analytics"
+          primaryActionTitle="Retry"
           title="Recorded activity unavailable"
           description={`${label} cannot currently be charted. Any available total remains above. Missing values are not zero activity.`}
           icon="cloud-off-outline"
-          onRetry={retry}
+          onPrimaryAction={retry}
         />
       )}
 

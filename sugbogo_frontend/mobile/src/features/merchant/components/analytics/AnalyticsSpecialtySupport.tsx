@@ -4,6 +4,7 @@ import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
+import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 import { getSpecialtyTagIcon } from "@/shared/constants/specialtyTagIcons";
 
@@ -34,7 +35,7 @@ export default function AnalyticsSpecialtySupport({
   if (report.sources.domain.availability === "unavailable") {
     return (
       <ErrorState
-        size="section"
+        variant="analytics"
         title="Specialty support unavailable"
         description="Your current specialty counts couldn't be loaded."
         primaryActionTitle="Retry"
@@ -54,30 +55,26 @@ export default function AnalyticsSpecialtySupport({
 
   const tagsById = new Map(specialtyTags.map((tag) => [tag.id, tag]));
 
-  if (specialties.length === 0) {
+  if (specialties.length === 0 || hasNoVouches) {
     return (
-      <View className="py-4">
-        {/* Empty specialty configuration */}
-        <AppText weight="semibold" className="text-sm text-text-primary">
-          No active specialties
-        </AppText>
-
-        <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-          Your active business specialties and their support will appear here.
-        </AppText>
-      </View>
+      <AnalyticsChartEmptyState
+        icon="thumb-up-outline"
+        title={
+          specialties.length === 0
+            ? "No active specialties"
+            : "No specialty vouches yet"
+        }
+        description={
+          specialties.length === 0
+            ? "Your active business specialties and their support will appear here."
+            : "Valid vouches for your specialties will appear here."
+        }
+      />
     );
   }
 
   return (
     <View className="gap-4">
-      {/* One compact explanation when all current counts are zero */}
-      {hasNoVouches && (
-        <AppText className="text-sm leading-5 text-text-secondary">
-          No specialty vouches yet.
-        </AppText>
-      )}
-
       {/* Ranked current specialty support */}
       {specialties.map((specialty, index) => {
         const tag = tagsById.get(specialty.specialty_id);

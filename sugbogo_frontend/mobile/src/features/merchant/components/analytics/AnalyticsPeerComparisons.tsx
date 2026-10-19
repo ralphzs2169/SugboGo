@@ -133,7 +133,10 @@ export default function AnalyticsPeerComparisons({
           </View>
         </View>
         {pending ? (
-          <Skeleton className="h-10 w-52 rounded" />
+          <View className="gap-2">
+            <Skeleton className="h-4 w-40 rounded" />
+            <Skeleton className="h-3 w-52 max-w-full rounded" />
+          </View>
         ) : (
           report &&
           !insufficient &&
@@ -161,7 +164,7 @@ export default function AnalyticsPeerComparisons({
         )}
         {Boolean(error) && (
           <ErrorState
-            size="section"
+            variant="analytics"
             title={
               report
                 ? "Unable to refresh comparisons"
@@ -185,7 +188,7 @@ export default function AnalyticsPeerComparisons({
         ) : unavailable ? (
           !error && (
             <ErrorState
-              size="section"
+              variant="analytics"
               title="Peer comparisons unavailable"
               description="Comparison data could not be loaded."
               primaryActionTitle="Retry"
@@ -304,7 +307,7 @@ export default function AnalyticsPeerComparisons({
                       </View>
                     ) : failed ? (
                       <ErrorState
-                        size="section"
+                        variant="analytics"
                         title={`${label} unavailable`}
                         description="Other available comparisons are still shown."
                         primaryActionTitle="Retry"

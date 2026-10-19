@@ -1,3 +1,4 @@
+import { AnalyticsRecommendationSkeleton } from "./AnalyticsLoadingSkeletons";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef, type ComponentProps } from "react";
@@ -6,7 +7,6 @@ import { theme } from "@/constants/theme";
 import SafePressable from "@/shared/components/SafePressable";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import Skeleton from "@/shared/components/Skeleton";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import type {
   PlusRecommendationsReport,
@@ -225,7 +225,7 @@ export default function AnalyticsBusinessRecommendations({
         </View>
         {Boolean(error) && (
           <ErrorState
-            size="section"
+            variant="analytics"
             title={
               report
                 ? "Unable to refresh suggestions"
@@ -241,15 +241,7 @@ export default function AnalyticsBusinessRecommendations({
           />
         )}
         {pending ? (
-          <View
-            accessibilityLabel="Loading recommendations"
-            accessibilityState={{ busy: true }}
-            className="gap-4"
-          >
-            <Skeleton className="h-4 w-48 rounded" />
-            <Skeleton className="h-44 w-full rounded-card" />
-            <Skeleton className="h-20 w-full rounded-card" />
-          </View>
+          <AnalyticsRecommendationSkeleton />
         ) : (
           report && (
             <>

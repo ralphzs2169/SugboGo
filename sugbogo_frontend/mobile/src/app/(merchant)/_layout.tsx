@@ -14,6 +14,24 @@ export default function MerchantLayout() {
 
       <Stack.Screen name="business-location-map" />
       <Stack.Screen
+        name="analytics/development-preview"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Analytics development preview",
+        }}
+      />
+      <Stack.Screen
+        name="analytics/specialties-preview"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Specialty trends preview",
+        }}
+      />
+      <Stack.Screen
         name="analytics/recommendations-preview"
         options={{
           ...defaultStackScreenOptions,

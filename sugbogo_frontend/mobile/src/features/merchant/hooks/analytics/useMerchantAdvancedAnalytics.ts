@@ -9,14 +9,8 @@ import {
   getMerchantPlusRecommendations,
   refreshMerchantPlusRecommendations,
 } from "../../api/merchantPlusAnalytics.service";
-import type {
-  AnalyticsSelection,
-  MerchantPlusStatus,
-} from "../../types/merchantPlusAnalytics.types";
-import {
-  merchantPlusReportKey,
-  merchantPlusStatusKey,
-} from "./merchantPlusAnalyticsQueryKeys";
+import type { AnalyticsSelection } from "../../types/merchantPlusAnalytics.types";
+import { merchantPlusReportKey } from "./merchantPlusAnalyticsQueryKeys";
 import { usePlusReport } from "./useMerchantPlusAnalytics";
 import { denyMerchantPlusAccess } from "./useMerchantPlusAccess";
 
@@ -81,18 +75,14 @@ export function useMerchantPlusRecommendations(
       selection: AnalyticsSelection;
       key: typeof key;
     }) => {
-      const access = client.getQueryData<MerchantPlusStatus>(
-        merchantPlusStatusKey(variables.accountId),
-      );
       if (
         !enabled ||
-        useAuthStore.getState().user?.id !== variables.accountId ||
-        !access?.has_plus_access
+        useAuthStore.getState().user?.id !== variables.accountId
       ) {
         throw {
           success: false,
-          code: "PLUS_REQUIRED",
-          message: "Check Plus access before refreshing.",
+          code: "AUTHENTICATION_REQUIRED",
+          message: "Sign in to request recommendations.",
         };
       }
       const response = await refreshMerchantPlusRecommendations(
@@ -129,13 +119,7 @@ export function useMerchantPlusRecommendations(
       }
     },
     onSuccess: async (_result, variables) => {
-      const access = client.getQueryData<MerchantPlusStatus>(
-        merchantPlusStatusKey(variables.accountId),
-      );
-      if (
-        useAuthStore.getState().user?.id === variables.accountId &&
-        access?.has_plus_access
-      ) {
+      if (useAuthStore.getState().user?.id === variables.accountId) {
         await client.invalidateQueries({
           queryKey: variables.key,
           exact: true,

@@ -1,13 +1,9 @@
+import { AnalyticsRowsSkeleton } from "../../components/analytics/AnalyticsLoadingSkeletons";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "expo-router";
 import { useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  View,
-} from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -42,6 +38,34 @@ export default function MerchantDiscoverySourcesScreen({
   const [period, setPeriod] = useState(initialPeriod);
   const focused = useIsFocused();
   const query = useMerchantDiscoverySources(period, focused);
+  useApiErrorNotification({
+    error: focused ? query.error : null,
+    toastId: "discovery-sources-error",
+    title: "Unable to load visit sources",
+    fallbackMessage: "Please retry this report.",
+  });
+  return (
+    <DiscoverySourcesReportView
+      period={period}
+      onPeriodChange={setPeriod}
+      query={query}
+    />
+  );
+}
+
+/** Query-free report presentation for both the real screen and development fixtures. */
+export function DiscoverySourcesReportView({
+  period,
+  onPeriodChange,
+  query,
+}: {
+  period: MerchantAnalyticsPeriod;
+  onPeriodChange: (value: MerchantAnalyticsPeriod) => void;
+  query: Pick<
+    ReturnType<typeof useMerchantDiscoverySources>,
+    "data" | "isPending" | "error" | "isRefetching"
+  > & { refetch: () => unknown };
+}) {
   const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetModal>(null);
   const periodSheetRef = useRef<BottomSheetModal>(null);
@@ -62,12 +86,6 @@ export default function MerchantDiscoverySourcesScreen({
   const retry = () => {
     void query.refetch();
   };
-  useApiErrorNotification({
-    error: focused ? query.error : null,
-    toastId: "discovery-sources-error",
-    title: "Unable to load visit sources",
-    fallbackMessage: "Please retry this report.",
-  });
   return (
     <SafeAreaView edges={["left", "right"]} className="flex-1 bg-surface">
       {/* Standard report navigation and query ownership remain independent of Plus. */}
@@ -138,22 +156,11 @@ export default function MerchantDiscoverySourcesScreen({
               <AppText weight="bold" className="text-base text-text-primary">
                 Source breakdown
               </AppText>
-              {loading && (
-                <View
-                  accessibilityRole="progressbar"
-                  accessibilityLabel="Loading visit sources"
-                  className="min-h-44 items-center justify-center gap-3"
-                >
-                  <ActivityIndicator color={theme.extends.colors.brand} />
-                  <AppText className="text-sm text-text-secondary">
-                    Loading visit sources…
-                  </AppText>
-                </View>
-              )}
+              {loading && <AnalyticsRowsSkeleton bars />}
               {/* Independent request recovery preserves cached content. */}
               {query.error ? (
                 <ErrorState
-                  size="section"
+                  variant="analytics"
                   title={
                     report
                       ? "Unable to refresh visit sources"
@@ -174,7 +181,7 @@ export default function MerchantDiscoverySourcesScreen({
                   {unavailable ? (
                     !query.error ? (
                       <ErrorState
-                        size="section"
+                        variant="analytics"
                         title="Visit-source data unavailable"
                         description="Recorded visits cannot currently be read. Unavailable counts do not mean zero activity."
                         primaryActionTitle="Retry"
@@ -183,7 +190,6 @@ export default function MerchantDiscoverySourcesScreen({
                     ) : null
                   ) : report.profile_visits === 0 ? (
                     <AnalyticsChartEmptyState
-                      compact
                       icon="compass-outline"
                       title="No recorded profile visits yet"
                       description="No profile visits were recorded for these dates."
@@ -244,7 +250,7 @@ export default function MerchantDiscoverySourcesScreen({
         selectedValue={period}
         onSelect={(value) => {
           if (value === "7" || value === "30" || value === "90") {
-            setPeriod(value);
+            onPeriodChange(value);
           }
         }}
         snapPoints={["50%"]}

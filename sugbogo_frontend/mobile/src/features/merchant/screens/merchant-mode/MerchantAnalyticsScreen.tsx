@@ -10,7 +10,6 @@ import { theme } from "@/constants/theme";
 import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import InfoBanner from "@/shared/components/InfoBanner";
 import SafePressable from "@/shared/components/SafePressable";
 
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -296,8 +295,6 @@ export default function MerchantAnalyticsScreen() {
 
   // Existing detail-report navigation
   const openPlusDetail = (kind: PlusDetailKind) => {
-    if (!plusAccess.allowed) return;
-
     router.push({
       pathname: "/(merchant)/analytics/[report]",
       params: { report: kind, period: overviewPeriod },
@@ -349,7 +346,7 @@ export default function MerchantAnalyticsScreen() {
           {error ? (
             <View className="bg-surface px-5 pb-4 pt-3">
               <ErrorState
-                size="section"
+                variant="analytics"
                 title={
                   report
                     ? "Unable to refresh analytics"
@@ -423,25 +420,23 @@ export default function MerchantAnalyticsScreen() {
             title="Specialty vouches"
             description="Current valid vouches by specialty"
             accessory={
-              plusAccess.allowed ? (
-                <SafePressable
-                  accessibilityRole="button"
-                  accessibilityLabel="View specialty trends"
-                  onPress={() => openPlusDetail("specialties")}
-                  className="min-h-12 flex-row cursor-pointer items-center justify-center gap-1 active:opacity-70"
-                >
-                  <AppText weight="semibold" className="text-sm text-brand">
-                    View trends
-                  </AppText>
+              <SafePressable
+                accessibilityRole="button"
+                accessibilityLabel="View specialty trends"
+                onPress={() => openPlusDetail("specialties")}
+                className="min-h-12 flex-row cursor-pointer items-center justify-center gap-1 active:opacity-70"
+              >
+                <AppText weight="semibold" className="text-sm text-brand">
+                  View trends
+                </AppText>
 
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={20}
-                    color={theme.extends.colors.brand}
-                    accessible={false}
-                  />
-                </SafePressable>
-              ) : undefined
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={20}
+                  color={theme.extends.colors.brand}
+                  accessible={false}
+                />
+              </SafePressable>
             }
           >
             {report ? (
@@ -453,18 +448,13 @@ export default function MerchantAnalyticsScreen() {
                 />
 
                 {profileError ? (
-                  <InfoBanner
+                  <ErrorState
+                    variant="analytics"
                     title="Specialty icons and colors unavailable"
-                    actionTitle="Retry"
-                    onAction={() => {
-                      void refetchProfile();
-                    }}
-                  >
-                    <AppText className="text-sm leading-5 text-text-secondary">
-                      Your counts are available. Specialty icons and colors
-                      could not refresh.
-                    </AppText>
-                  </InfoBanner>
+                    description="Counts are still available. Specialty icons and colors could not refresh."
+                    primaryActionTitle="Retry"
+                    onPrimaryAction={() => void refetchProfile()}
+                  />
                 ) : null}
               </View>
             ) : showPeriodLoading ? (
@@ -490,9 +480,24 @@ export default function MerchantAnalyticsScreen() {
             }}
           />
 
+          {__DEV__ && (
+            <View className="bg-surface px-5 py-3">
+              <SafePressable
+                accessibilityRole="button"
+                accessibilityLabel="Open Analytics development preview"
+                onPress={() =>
+                  router.push("/(merchant)/analytics/development-preview")
+                }
+                className="min-h-11 cursor-pointer justify-center"
+              >
+                <AppText className="text-sm text-brand">
+                  Open Analytics development preview
+                </AppText>
+              </SafePressable>
+            </View>
+          )}
           {/* Additional analytics detail reports */}
           <AnalyticsMoreInsights
-            hasPlusAccess={plusAccess.allowed}
             onOpen={openPlusDetail}
             onOpenDiscoverySources={() =>
               router.push({

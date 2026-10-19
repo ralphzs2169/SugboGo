@@ -1,13 +1,10 @@
+import { AnalyticsChartSkeleton } from "./AnalyticsLoadingSkeletons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "expo-router";
 import { useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { View, useWindowDimensions } from "react-native";
 
-import { theme } from "@/constants/theme";
+import Skeleton from "@/shared/components/Skeleton";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import SegmentedControl from "@/shared/components/SegmentedControl";
@@ -55,11 +52,6 @@ export default function AnalyticsVisibilityTrends({
   onOpenPeriod: () => void;
 }) {
   const focused = useIsFocused();
-  const { fontScale } = useWindowDimensions();
-
-  const measurementSheetRef = useRef<BottomSheetModal>(null);
-
-  const [metric, setMetric] = useState<VisibilityMetric>("profile_visits");
 
   const [intervalSelections, setIntervalSelections] = useState<
     Partial<Record<MerchantAnalyticsPeriod, AnalyticsInterval>>
@@ -78,6 +70,39 @@ export default function AnalyticsVisibilityTrends({
     fallbackMessage: "Please retry this section.",
   });
 
+  return (
+    <AnalyticsVisibilityReport
+      period={period}
+      onOpenPeriod={onOpenPeriod}
+      interval={interval}
+      onIntervalChange={(selected) =>
+        setIntervalSelections((current) => ({ ...current, [period]: selected }))
+      }
+      query={query}
+    />
+  );
+}
+
+/** Query-free renderer shared with the isolated development preview. */
+export function AnalyticsVisibilityReport({
+  period,
+  onOpenPeriod,
+  interval,
+  onIntervalChange,
+  query,
+}: {
+  period: MerchantAnalyticsPeriod;
+  onOpenPeriod: () => void;
+  interval: AnalyticsInterval;
+  onIntervalChange: (value: AnalyticsInterval) => void;
+  query: Pick<
+    ReturnType<typeof useMerchantPlusVisibility>,
+    "data" | "isPending" | "error"
+  > & { refetch: () => unknown };
+}) {
+  const { fontScale } = useWindowDimensions();
+  const measurementSheetRef = useRef<BottomSheetModal>(null);
+  const [metric, setMetric] = useState<VisibilityMetric>("profile_visits");
   const selectedMetric = METRICS.find((option) => option.value === metric)!;
 
   const currentMetric = query.data?.metrics[metric];
@@ -87,10 +112,7 @@ export default function AnalyticsVisibilityTrends({
   };
 
   const selectInterval = (selected: AnalyticsInterval) => {
-    setIntervalSelections((current) => ({
-      ...current,
-      [period]: selected,
-    }));
+    onIntervalChange(selected);
   };
 
   return (
@@ -129,17 +151,21 @@ export default function AnalyticsVisibilityTrends({
                   {selectedMetric.label}
                 </AppText>
 
-                <AppText
-                  weight="extrabold"
-                  className="text-3xl text-text-primary"
-                  accessibilityLabel={`Recorded ${selectedMetric.label.toLowerCase()} in the selected period: ${
-                    currentMetric?.value == null
-                      ? "Unavailable"
-                      : currentMetric.value
-                  }`}
-                >
-                  {formatAnalyticsCount(currentMetric?.value ?? null)}
-                </AppText>
+                {query.isPending && !query.data ? (
+                  <Skeleton className="h-9 w-24 rounded" />
+                ) : (
+                  <AppText
+                    weight="extrabold"
+                    className="text-3xl text-text-primary"
+                    accessibilityLabel={`Recorded ${selectedMetric.label.toLowerCase()} in the selected period: ${
+                      currentMetric?.value == null
+                        ? "Unavailable"
+                        : currentMetric.value
+                    }`}
+                  >
+                    {formatAnalyticsCount(currentMetric?.value ?? null)}
+                  </AppText>
+                )}
               </View>
 
               <View
@@ -161,18 +187,11 @@ export default function AnalyticsVisibilityTrends({
             </View>
 
             {/* Independent chart loading and recovery */}
-            {query.isPending && !query.data && (
-              <View className="min-h-44 items-center justify-center gap-3">
-                <ActivityIndicator color={theme.extends.colors.brand} />
-                <AppText className="text-sm text-text-secondary">
-                  Loading visibility activity…
-                </AppText>
-              </View>
-            )}
+            {query.isPending && !query.data && <AnalyticsChartSkeleton />}
 
             {query.error && (
               <ErrorState
-                size="section"
+                variant="analytics"
                 title={
                   query.data
                     ? "Unable to refresh visibility"

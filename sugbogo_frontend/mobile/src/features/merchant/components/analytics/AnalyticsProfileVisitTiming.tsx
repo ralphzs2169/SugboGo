@@ -1,7 +1,8 @@
+import { AnalyticsHeatmapSkeleton } from "./AnalyticsLoadingSkeletons";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
@@ -110,21 +111,10 @@ export default function AnalyticsProfileVisitTiming({
           <AppText className="text-sm text-text-secondary">
             Philippine time
           </AppText>
-          {pending && (
-            <View
-              accessibilityRole="progressbar"
-              accessibilityLabel="Loading visit timing"
-              className="min-h-44 items-center justify-center gap-3"
-            >
-              <ActivityIndicator color={theme.extends.colors.brand} />
-              <AppText className="text-sm text-text-secondary">
-                Loading visit timing…
-              </AppText>
-            </View>
-          )}
+          {pending && <AnalyticsHeatmapSkeleton />}
           {Boolean(error) && (
             <ErrorState
-              size="section"
+              variant="analytics"
               title={
                 report
                   ? "Unable to refresh visit timing"
@@ -141,15 +131,16 @@ export default function AnalyticsProfileVisitTiming({
           )}
           {report &&
             (report.display_state === "visibility_unavailable" ? (
-              <AnalyticsChartEmptyState
+              <ErrorState
+                variant="analytics"
+                primaryActionTitle="Retry"
                 title="Profile-visit timing unavailable"
                 description="Recorded visit data could not be loaded."
                 icon="cloud-off-outline"
-                onRetry={retry}
+                onPrimaryAction={retry}
               />
             ) : report.display_state === "zero_recorded_visits" ? (
               <AnalyticsChartEmptyState
-                compact
                 title="No recorded profile visits in this period"
                 description="No online profile visits were recorded during these dates."
                 icon="clock-outline"

@@ -13,8 +13,6 @@ import AnalyticsPeerComparisons from "../../components/analytics/AnalyticsPeerCo
 import AnalyticsStoredReviewInsights from "../../components/analytics/AnalyticsStoredReviewInsights";
 import AnalyticsProfileVisitTiming from "../../components/analytics/AnalyticsProfileVisitTiming";
 import AnalyticsBusinessRecommendations from "../../components/analytics/AnalyticsBusinessRecommendations";
-import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
-import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import {
   useMerchantPlusPeers,
   useMerchantPlusStoredInsights,
@@ -37,8 +35,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   const [refreshing, setRefreshing] = useState(false);
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
-  const access = useMerchantPlusAccess();
-  const enabled = access.allowed && focused;
+  const enabled = focused;
   const selection = { period };
   const peers = useMerchantPlusPeers(selection, enabled && kind === "peers");
   const insights = useMerchantPlusStoredInsights(
@@ -58,12 +55,6 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
           ? timing
           : recommendations;
   useQueryErrorNotification({
-    error: focused ? access.error : null,
-    toastId: "advanced-plus-access",
-    title: "Unable to check report access",
-    fallbackMessage: "Please retry the access check.",
-  });
-  useQueryErrorNotification({
     error: focused ? query.error : null,
     toastId: `advanced-plus-${kind}`,
     title: "Unable to load analytics",
@@ -82,8 +73,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   const refresh = async () => {
     setRefreshing(true);
     try {
-      const status = await access.refetch();
-      if (!status.error && status.data?.has_plus_access) await query.refetch();
+      await query.refetch();
     } finally {
       setRefreshing(false);
     }
@@ -105,7 +95,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
         }
       >
         <View className="bg-surface px-5 py-5">
-          <PlusAccessGate access={access}>
+          <View>
             {kind === "timing" ? (
               <AnalyticsProfileVisitTiming
                 report={timing.data}
@@ -165,7 +155,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
                 }}
               />
             )}
-          </PlusAccessGate>
+          </View>
           {__DEV__ && (kind === "peers" || kind === "recommendations") && (
             <SafePressable
               onPress={() =>

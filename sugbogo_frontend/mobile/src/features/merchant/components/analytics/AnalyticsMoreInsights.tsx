@@ -16,11 +16,10 @@ type ReportItem = {
   description: string;
   icon: ReportIconName;
   kind: PlusDetailKind | "discovery-sources";
-  requiresPlus: boolean;
 };
 
 type Props = {
-  hasPlusAccess: boolean;
+  hasPlusAccess?: boolean;
   onOpen: (kind: PlusDetailKind) => void;
   onOpenDiscoverySources: () => void;
 };
@@ -31,68 +30,50 @@ const REPORTS: ReportItem[] = [
     description: "See where explorers opened your profile",
     icon: "compass-outline",
     kind: "discovery-sources",
-    requiresPlus: false,
   },
   {
     title: "Profile visit timing",
     description: "Explore profile visits by day and hour",
     icon: "clock-outline",
     kind: "timing",
-    requiresPlus: true,
   },
   {
     title: "Pocket trends",
     description: "Track saves and accounts that saved your business",
     icon: "bookmark-outline",
     kind: "pocket",
-    requiresPlus: true,
   },
   {
     title: "Review performance",
     description: "Review activity, replies, and sentiment",
     icon: "comment-text-outline",
     kind: "reviews",
-    requiresPlus: true,
   },
   {
     title: "Review insights",
     description: "Discover common themes in customer feedback",
     icon: "text-box-outline",
     kind: "review-insights",
-    requiresPlus: true,
   },
   {
     title: "Peer comparisons",
     description: "Compare activity with similar businesses",
     icon: "store-outline",
     kind: "peers",
-    requiresPlus: true,
   },
   {
     title: "Business recommendations",
     description: "Suggestions based on available activity and reviews",
     icon: "lightbulb-outline",
     kind: "recommendations",
-    requiresPlus: true,
   },
 ];
 
-/**
- * Displays accessible merchant analytics detail reports in a
- * compact, consistently styled navigation list.
- *
- * Groups reports by relevance and hides inaccessible destinations
- * so merchants do not encounter nonfunctional navigation actions.
- */
+/** Shows every implemented report; endpoint authorization remains server-owned. */
 export default function AnalyticsMoreInsights({
-  hasPlusAccess,
   onOpen,
   onOpenDiscoverySources,
 }: Props) {
-  const availableReports = REPORTS.filter(
-    (report) => !report.requiresPlus || hasPlusAccess,
-  );
-
   const handleOpenReport = (kind: ReportItem["kind"]) => {
     if (kind === "discovery-sources") {
       onOpenDiscoverySources();
@@ -109,7 +90,7 @@ export default function AnalyticsMoreInsights({
     >
       {/* Available analytics report destinations */}
       <View>
-        {availableReports.map((report, index) => (
+        {REPORTS.map((report, index) => (
           <SafePressable
             key={report.kind}
             accessibilityRole="button"

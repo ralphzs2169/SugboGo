@@ -33,7 +33,7 @@ export default function MerchantPeerPreviewScreen() {
         <View className="gap-5 px-5 py-5">
           <View className="gap-1 border-b border-border-primary pb-4">
             <AppText weight="bold" className="text-sm text-text-primary">
-              Development preview � Synthetic data
+              Development preview - Synthetic data
             </AppText>
             <AppText className="text-xs leading-5 text-text-secondary">
               No real business data or API requests. Retry restores the

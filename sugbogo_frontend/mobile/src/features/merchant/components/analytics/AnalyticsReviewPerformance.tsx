@@ -1,7 +1,11 @@
+import {
+  AnalyticsChartSkeleton,
+  AnalyticsFeedbackSkeleton,
+} from "./AnalyticsLoadingSkeletons";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
@@ -131,7 +135,7 @@ export default function AnalyticsReviewPerformance({
         </View>
         {Boolean(error) && (
           <ErrorState
-            size="section"
+            variant="analytics"
             title={
               report
                 ? "Unable to refresh review activity"
@@ -148,7 +152,7 @@ export default function AnalyticsReviewPerformance({
         )}
         {unavailable && !error && (
           <ErrorState
-            size="section"
+            variant="analytics"
             title="Review activity unavailable"
             description="Review data could not be loaded."
             primaryActionTitle="Retry"
@@ -179,7 +183,7 @@ export default function AnalyticsReviewPerformance({
                 )}
               </View>
               {pending ? (
-                <Skeleton className="h-36 w-full rounded-lg" />
+                <AnalyticsFeedbackSkeleton />
               ) : (
                 cohort && (
                   <>
@@ -307,18 +311,7 @@ export default function AnalyticsReviewPerformance({
                   New reviews by week
                 </AppText>
               </View>
-              {pending && (
-                <View
-                  accessibilityRole="progressbar"
-                  accessibilityLabel="Loading review activity"
-                  className="min-h-44 items-center justify-center gap-3"
-                >
-                  <ActivityIndicator color={theme.extends.colors.brand} />
-                  <AppText className="text-sm text-text-secondary">
-                    Loading review activity…
-                  </AppText>
-                </View>
-              )}
+              {pending && <AnalyticsChartSkeleton />}
               {cohort && report && (
                 <AnalyticsSeriesChart
                   label="New reviews"

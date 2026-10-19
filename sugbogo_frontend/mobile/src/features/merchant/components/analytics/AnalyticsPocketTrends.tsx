@@ -1,8 +1,9 @@
+import { AnalyticsChartSkeleton } from "./AnalyticsLoadingSkeletons";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import type { ComponentProps } from "react";
 import { useRef } from "react";
-import { ActivityIndicator, View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -118,6 +119,7 @@ export default function AnalyticsPocketTrends({
   const { width, fontScale } = useWindowDimensions();
   const stacked = width < 360 || fontScale >= 1.35;
 
+  const pending = loading && !report;
   const saves = report?.metrics.saves;
   const distinct = report?.metrics.distinct_savers;
 
@@ -141,7 +143,7 @@ export default function AnalyticsPocketTrends({
               icon="bookmark-outline"
               label="Recorded saves"
               value={saves?.value ?? null}
-              loading={loading}
+              loading={pending}
               detail="During selected dates"
               stacked={stacked}
             />
@@ -150,7 +152,7 @@ export default function AnalyticsPocketTrends({
               icon="account-multiple-outline"
               label="Saving accounts"
               value={distinct?.value ?? null}
-              loading={loading}
+              loading={pending}
               detail="Distinct explorer accounts"
               stacked={stacked}
             />
@@ -158,9 +160,9 @@ export default function AnalyticsPocketTrends({
         </View>
 
         {/* Independent recovery for the saving-accounts metric */}
-        {!loading && distinct?.value === null ? (
+        {!pending && distinct?.value === null ? (
           <ErrorState
-            size="section"
+            variant="analytics"
             title="Saving accounts unavailable"
             description="Recorded save activity may still be available."
             primaryActionTitle="Retry"
@@ -181,17 +183,8 @@ export default function AnalyticsPocketTrends({
             </AppText>
           </View>
 
-          {loading ? (
-            <View
-              accessibilityRole="progressbar"
-              accessibilityLabel="Loading save activity"
-              className="min-h-44 items-center justify-center gap-3"
-            >
-              <ActivityIndicator color={theme.extends.colors.brand} />
-              <AppText className="text-sm text-text-secondary">
-                Loading save activity…
-              </AppText>
-            </View>
+          {pending ? (
+            <AnalyticsChartSkeleton />
           ) : saves && report ? (
             <AnalyticsEventTrend
               metric={saves}

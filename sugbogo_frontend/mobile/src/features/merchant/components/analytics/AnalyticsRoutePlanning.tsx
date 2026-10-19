@@ -1,3 +1,4 @@
+import { AnalyticsRoutePlanningSkeleton } from "./AnalyticsLoadingSkeletons";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef } from "react";
@@ -7,13 +8,11 @@ import Svg, { Circle, G } from "react-native-svg";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import Skeleton from "@/shared/components/Skeleton";
 
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { RoutePlanningAnalytics } from "../../types/routePlanningAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
 
-import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
 import AnalyticsHeaderControls from "./AnalyticsHeaderControls";
 import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
 import AnalyticsRoutePlanningSheet from "./AnalyticsRoutePlanningSheet";
@@ -356,21 +355,12 @@ export default function AnalyticsRoutePlanning({
         }
       >
         {/* Initial loading state */}
-        {loading && !data && !error ? (
-          <View
-            accessibilityLabel="Loading route-planning activity"
-            accessibilityState={{ busy: true }}
-            className="gap-4"
-          >
-            <Skeleton className="h-44 w-full rounded-card" />
-            <Skeleton className="h-12 w-full rounded-card" />
-          </View>
-        ) : null}
+        {loading && !data && !error ? <AnalyticsRoutePlanningSkeleton /> : null}
 
         {/* Independent request recovery */}
         {error ? (
           <ErrorState
-            size="section"
+            variant="analytics"
             title={
               data
                 ? "Unable to refresh route-planning activity"
@@ -391,17 +381,19 @@ export default function AnalyticsRoutePlanning({
           <View className="gap-3">
             {unavailable && !uninitialized && !beforeTracking ? (
               /* Temporary source failure */
-              <ErrorState
-                size="section"
-                title="Route-planning data unavailable"
-                description="We couldn't read recorded guidance activity. Please try again."
-                primaryActionTitle="Retry"
-                onPrimaryAction={onRetry}
-              />
+              !error && (
+                <ErrorState
+                  variant="analytics"
+                  title="Route-planning data unavailable"
+                  description="We couldn't read recorded guidance activity. Please try again."
+                  primaryActionTitle="Retry"
+                  onPrimaryAction={onRetry}
+                />
+              )
             ) : unavailable ? (
               /* Tracking unavailable for the requested period */
-              <AnalyticsChartEmptyState
-                compact
+              <ErrorState
+                variant="analytics"
                 icon="map-marker-path"
                 title={
                   uninitialized

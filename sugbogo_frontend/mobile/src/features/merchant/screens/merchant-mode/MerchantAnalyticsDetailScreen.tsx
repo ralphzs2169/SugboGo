@@ -1,11 +1,6 @@
-import { useIsFocused } from "expo-router";
+import { router, useIsFocused } from "expo-router";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  View,
-} from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -14,13 +9,9 @@ import {
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import InfoBanner from "@/shared/components/InfoBanner";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
-import AnalyticsChartEmptyState from "../../components/analytics/AnalyticsChartEmptyState";
-import AnalyticsDetailHeader, {
-  ANALYTICS_DETAIL_DESCRIPTIONS,
-} from "../../components/analytics/AnalyticsDetailHeader";
+import SafePressable from "@/shared/components/SafePressable";
 import AnalyticsPocketTrends, {
   AnalyticsPocketHeader,
 } from "../../components/analytics/AnalyticsPocketTrends";
@@ -97,7 +88,21 @@ export default function MerchantAnalyticsDetailScreen({
  * tag styling, with independent recovery if profile
  * information cannot be loaded.
  */
-function SpecialtyDetail({ report }: { report: PlusSpecialtyReport }) {
+function SpecialtyDetail({
+  report,
+  period,
+  onPeriodChange,
+  loading,
+  error,
+  retry,
+}: {
+  report?: PlusSpecialtyReport;
+  period: MerchantAnalyticsPeriod;
+  onPeriodChange: (value: MerchantAnalyticsPeriod) => void;
+  loading: boolean;
+  error: unknown;
+  retry: () => void;
+}) {
   const profile = useMerchantBusinessProfile();
 
   return (
@@ -105,8 +110,13 @@ function SpecialtyDetail({ report }: { report: PlusSpecialtyReport }) {
       {/* Specialty activity and business tag styling */}
       <AnalyticsSpecialtyTrends
         report={report}
+        period={period}
+        onPeriodChange={onPeriodChange}
+        loading={loading}
+        error={error}
+        retry={retry}
         tags={
-          profile.business?.id === report.business.id
+          profile.business && profile.business.id === report?.business.id
             ? profile.business.specialty_tags
             : []
         }
@@ -114,16 +124,13 @@ function SpecialtyDetail({ report }: { report: PlusSpecialtyReport }) {
 
       {/* Optional styling data failure */}
       {profile.error && (
-        <InfoBanner
+        <ErrorState
+          variant="analytics"
           title="Specialty icons and colors unavailable"
-          actionTitle="Retry"
-          onAction={() => void profile.refetch()}
-        >
-          <AppText className="text-sm leading-5 text-text-secondary">
-            Counts are still available. Specialty icons and colors could not
-            refresh.
-          </AppText>
-        </InfoBanner>
+          description="Counts are still available. Specialty icons and colors could not refresh."
+          primaryActionTitle="Retry"
+          onPrimaryAction={() => void profile.refetch()}
+        />
       )}
     </View>
   );
@@ -209,16 +216,6 @@ function CoreAnalyticsDetailScreen({
           />
         }
       >
-        {/* Report description and segmented reporting period */}
-        {kind === "specialties" && (
-          <AnalyticsDetailHeader
-            title={PLUS_DETAIL_TITLES[kind]}
-            description={ANALYTICS_DETAIL_DESCRIPTIONS[kind]}
-            period={period}
-            onPeriodChange={setPeriod}
-          />
-        )}
-
         {/* Report content uses the same background and gutters as Analytics */}
         <View className="gap-4 bg-surface px-5 pb-6 pt-5">
           {kind === "reviews" ? (
@@ -230,6 +227,30 @@ function CoreAnalyticsDetailScreen({
               error={reviews.error}
               retry={() => void reviews.refetch()}
             />
+          ) : kind === "specialties" ? (
+            <>
+              <SpecialtyDetail
+                report={specialties.data}
+                period={period}
+                onPeriodChange={setPeriod}
+                loading={specialties.isPending}
+                error={specialties.error}
+                retry={() => void specialties.refetch()}
+              />
+              {__DEV__ && (
+                <SafePressable
+                  onPress={() =>
+                    router.push("/(merchant)/analytics/specialties-preview")
+                  }
+                  accessibilityLabel="Open specialty trends development preview"
+                  className="min-h-11 cursor-pointer justify-center border-t border-border-primary/60 py-3"
+                >
+                  <AppText className="text-sm text-text-secondary">
+                    Open development preview
+                  </AppText>
+                </SafePressable>
+              )}
+            </>
           ) : (
             <>
               {kind === "pocket" && (
@@ -241,25 +262,10 @@ function CoreAnalyticsDetailScreen({
               )}
               {/* Initial request state */}
               {isInitialLoading ? (
-                kind === "pocket" ? (
-                  <AnalyticsPocketTrends loading retry={retry} />
-                ) : (
-                  <View
-                    accessibilityRole="progressbar"
-                    className="min-h-48 items-center justify-center gap-3"
-                  >
-                    <ActivityIndicator
-                      size="large"
-                      color={theme.extends.colors.brand}
-                    />
-                    <AppText className="text-sm text-text-secondary">
-                      Loading report…
-                    </AppText>
-                  </View>
-                )
+                <AnalyticsPocketTrends loading retry={retry} />
               ) : hasInitialError ? (
                 <ErrorState
-                  size="section"
+                  variant="analytics"
                   title="Unable to load this report"
                   description="Your analytics could not be loaded. Please try again."
                   primaryActionTitle="Retry"
@@ -269,26 +275,27 @@ function CoreAnalyticsDetailScreen({
                 <>
                   {/* Recover from failed refreshes without hiding cached data */}
                   {hasCachedError && (
-                    <InfoBanner
-                      title="Report couldn't refresh"
-                      actionTitle="Retry"
-                      onAction={retry}
-                    >
-                      <AppText className="text-sm leading-5 text-text-secondary">
-                        Showing previously loaded information. Try again to get
-                        the latest data.
-                      </AppText>
-                    </InfoBanner>
+                    <ErrorState
+                      variant="analytics"
+                      title="Unable to refresh this report"
+                      description="Previously loaded information is still shown."
+                      primaryActionTitle="Retry"
+                      onPrimaryAction={retry}
+                    />
                   )}
 
                   {/* Unavailable data remains distinct from recorded zero */}
                   {query.data?.meta.availability === "unavailable" ? (
-                    <AnalyticsChartEmptyState
-                      title="Report data unavailable"
-                      description="This report is currently unavailable. Missing counts do not mean zero activity."
-                      icon="cloud-off-outline"
-                      onRetry={retry}
-                    />
+                    !hasCachedError && (
+                      <ErrorState
+                        variant="analytics"
+                        primaryActionTitle="Retry"
+                        title="Report data unavailable"
+                        description="This report is currently unavailable. Missing counts do not mean zero activity."
+                        icon="cloud-off-outline"
+                        onPrimaryAction={retry}
+                      />
+                    )
                   ) : (
                     <>
                       {/* Pocket trends */}
@@ -299,15 +306,10 @@ function CoreAnalyticsDetailScreen({
                         />
                       )}
 
-                      {/* Specialty trends */}
-                      {kind === "specialties" && specialties.data && (
-                        <SpecialtyDetail report={specialties.data} />
-                      )}
-
                       {/* No response available despite a completed request */}
                       {!query.data && (
                         <ErrorState
-                          size="section"
+                          variant="analytics"
                           title="Report unavailable"
                           description="No report information was returned. Please try again."
                           primaryActionTitle="Retry"

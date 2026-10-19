@@ -4,8 +4,7 @@ import { Pressable, View } from "react-native";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import InfoBanner from "@/shared/components/InfoBanner";
-import Skeleton from "@/shared/components/Skeleton";
-import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
+import { AnalyticsChartSkeleton } from "./AnalyticsLoadingSkeletons";
 import type { MerchantPlusAccess } from "../../hooks/analytics/useMerchantPlusAccess";
 import type { PlusAnalyticsMeta } from "../../types/merchantPlusAnalytics.types";
 import {
@@ -21,8 +20,7 @@ export function PlusAnalyticsSkeleton() {
       accessibilityState={{ busy: true }}
       className="gap-4 py-3"
     >
-      <Skeleton className="h-8 w-28 rounded" />
-      <Skeleton className="h-48 w-full rounded-card" />
+      <AnalyticsChartSkeleton />
     </View>
   );
 }
@@ -39,7 +37,7 @@ export function PlusAccessGate({
   if (access.state === "error")
     return (
       <ErrorState
-        size="section"
+        variant="analytics"
         title="Unable to check report access"
         description="Your other analytics are still available. Retry the access check."
         primaryActionTitle="Retry"
@@ -82,18 +80,20 @@ export function PlusRequestState({
       {error ? (
         hasData ? (
           <ErrorState
-            size="section"
+            variant="analytics"
             title="Unable to refresh this report"
             description="Previously loaded values are still shown."
             primaryActionTitle="Retry"
             onPrimaryAction={retry}
           />
         ) : (
-          <AnalyticsChartEmptyState
+          <ErrorState
+            variant="analytics"
+            primaryActionTitle="Retry"
             title="Unable to load this report"
             description="Analytics cannot currently be displayed. Please retry this section."
             icon="cloud-off-outline"
-            onRetry={retry}
+            onPrimaryAction={retry}
           />
         )
       ) : null}

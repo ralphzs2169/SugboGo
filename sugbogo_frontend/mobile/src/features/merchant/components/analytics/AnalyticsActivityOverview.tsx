@@ -4,6 +4,7 @@ import { View, useWindowDimensions } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import Skeleton from "@/shared/components/Skeleton";
 import { shadows } from "@/shared/styles/shadows";
 
 import type { MerchantStandardAnalytics } from "../../types/merchantAnalytics.types";
@@ -41,6 +42,8 @@ type MetricCardProps = {
   trend?: KpiTrend;
   progress?: number | null;
   fullWidth?: boolean;
+  loading?: boolean;
+  loadingDetail?: boolean;
 };
 
 /**
@@ -57,6 +60,8 @@ function MetricCard({
   trend,
   progress,
   fullWidth = false,
+  loading = false,
+  loadingDetail = false,
 }: MetricCardProps) {
   const showProgress =
     typeof progress === "number" &&
@@ -65,7 +70,7 @@ function MetricCard({
     progress <= 100;
 
   const accessibilityDescription = [
-    `${label}: ${unavailable ? "Unavailable" : value}`,
+    `${label}: ${loading ? "Loading" : unavailable ? "Unavailable" : value}`,
     detail,
     trend ? describeKpiTrend(trend) : null,
   ]
@@ -77,6 +82,7 @@ function MetricCard({
       accessible
       testID={fullWidth ? "analytics-reply-card" : undefined}
       accessibilityLabel={accessibilityDescription}
+      accessibilityState={{ busy: loading }}
       className={`min-w-0 rounded-card border border-border-primary/60 bg-surface p-4 ${
         stacked ? "w-full" : "flex-1"
       }`}
@@ -101,15 +107,19 @@ function MetricCard({
 
       {/* Primary value and supporting count */}
       <View className="mt-2 gap-1">
-        <AppText
-          weight="semibold"
-          className={`${
-            value.length > 7 && !stacked ? "text-2xl" : "text-3xl"
-          } ${unavailable ? "text-text-secondary" : "text-text-primary"}`}
-        >
-          {value}
-        </AppText>
-
+        {loading ? (
+          <Skeleton className="h-9 w-20 rounded" />
+        ) : (
+          <AppText
+            weight="semibold"
+            className={`${
+              value.length > 7 && !stacked ? "text-2xl" : "text-3xl"
+            } ${unavailable ? "text-text-secondary" : "text-text-primary"}`}
+          >
+            {value}
+          </AppText>
+        )}
+        {loadingDetail && loading && <Skeleton className="h-4 w-28 rounded" />}
         {detail && (
           <AppText className="text-sm leading-5 text-text-secondary">
             {detail}
@@ -118,7 +128,10 @@ function MetricCard({
       </View>
 
       {/* Reply-rate progress */}
-      {showProgress && (
+      {loading && fullWidth && (
+        <Skeleton className="mt-3 h-1.5 w-full rounded-full" />
+      )}
+      {!loading && showProgress && (
         <View
           testID="analytics-reply-progress"
           accessible={false}
@@ -133,7 +146,7 @@ function MetricCard({
       )}
 
       {/* Previous-period comparison */}
-      {trend && <TrendComparison trend={trend} />}
+      {!loading && trend && <TrendComparison trend={trend} />}
     </View>
   );
 }
@@ -253,6 +266,66 @@ export default function AnalyticsActivityOverview({
         detail={replyDetail}
         trend={replyRateTrend(report, plusReviews)}
         progress={replyRate}
+      />
+    </View>
+  );
+}
+
+/** Uses the real KPI card shell so fixed labels, icons, and row sizing stay identical. */
+export function AnalyticsActivitySkeleton() {
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < 340 || fontScale >= 1.5;
+  const rowClassName = stacked ? "gap-3" : "flex-row gap-3";
+  return (
+    <View
+      accessibilityLabel="Loading business overview"
+      accessibilityState={{ busy: true }}
+      className="gap-4"
+    >
+      <View className="gap-3">
+        <View className={rowClassName}>
+          <MetricCard
+            icon="eye-outline"
+            label="Profile visits"
+            value=""
+            stacked={stacked}
+            loading
+            loadingDetail
+          />
+          <MetricCard
+            icon="bookmark-outline"
+            label="Saves"
+            value=""
+            stacked={stacked}
+            loading
+          />
+        </View>
+        <View className={rowClassName}>
+          <MetricCard
+            icon="message-text-outline"
+            label="New reviews"
+            value=""
+            stacked={stacked}
+            loading
+          />
+          <MetricCard
+            icon="thumb-up-outline"
+            label="Current vouches"
+            value=""
+            detail="All dates"
+            stacked={stacked}
+            loading
+          />
+        </View>
+      </View>
+      <MetricCard
+        icon="reply"
+        label="Review reply rate"
+        value=""
+        stacked
+        fullWidth
+        loading
+        loadingDetail
       />
     </View>
   );
