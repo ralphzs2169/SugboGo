@@ -27,6 +27,15 @@ class RoutePlanningUnavailable(APIException):
     default_code = "route_planning_unavailable"
 
 
+class RoutePlanningInitializationError(APIException):
+    status_code = 503
+    default_detail = (
+        "Route-planning initialization metadata is invalid. "
+        "Inspect tracking-state-v1; its timestamp has not been reset."
+    )
+    default_code = "route_tracking_not_initialized"
+
+
 class RoutePlanningEventService:
     """Atomically deduplicate requests without storing coordinates or route contents."""
 
@@ -59,10 +68,12 @@ class RoutePlanningEventService:
     def _ensure_indexes(
         cls,
         collection,
+        *,
+        verify=False,
     ):
-        """Create ingestion indexes only on writes, before any event can be inserted."""
+        """Ensure ingestion indexes, bypassing the process cache for explicit setup."""
         with cls._index_lock:
-            if cls._indexes_initialized:
+            if cls._indexes_initialized and not verify:
                 return
             collection.create_index(
                 [
@@ -85,6 +96,57 @@ class RoutePlanningEventService:
                 name=cls.AGGREGATION_INDEX_NAME,
             )
             cls._indexes_initialized = True
+
+    @classmethod
+    def initialize_tracking(
+        cls,
+        *,
+        verify_indexes=True,
+    ):
+        """Initialize indexes and a UTC history boundary without creating observations."""
+        try:
+            collection = cls._get_collection()
+            cls._ensure_indexes(
+                collection,
+                verify=verify_indexes,
+            )
+            initialized_at = timezone.now().astimezone(UTC)
+            try:
+                write = collection.update_one(
+                    {"_id": cls.STATE_ID},
+                    {"$setOnInsert": {"started_at": initialized_at}},
+                    upsert=True,
+                )
+                initialized = write.upserted_id is not None
+            except DuplicateKeyError:
+                # Another initializer may have inserted the singleton first.
+                initialized = False
+            state = collection.find_one({"_id": cls.STATE_ID})
+            if state is None:
+                raise RoutePlanningInitializationError()
+            started_at = state.get("started_at")
+            if not isinstance(started_at, datetime):
+                raise RoutePlanningInitializationError()
+            if timezone.is_naive(started_at):
+                started_at = started_at.replace(tzinfo=UTC)
+            return {
+                "initialized": initialized,
+                "started_at": started_at.astimezone(UTC),
+            }
+        except PyMongoError as exc:
+            # Driver messages can contain connection details; log only diagnostics.
+            logger.error(
+                "Route-planning initialization failed: type=%s code=%s",
+                type(exc).__name__,
+                getattr(exc, "code", None),
+            )
+            raise RoutePlanningUnavailable(
+                detail=(
+                    "Route-planning initialization failed "
+                    f"({type(exc).__name__}; code={getattr(exc, 'code', None)}). "
+                    "Check MongoDB connectivity, write permissions and index conflicts."
+                ),
+            ) from exc
 
     @classmethod
     def record_intent(
@@ -112,22 +174,9 @@ class RoutePlanningEventService:
             result["excluded_reason"] = "business_owner"
             return result
 
-        initialized_at = timezone.now().astimezone(UTC)
         try:
+            cls.initialize_tracking(verify_indexes=False)
             collection = cls._get_collection()
-            cls._ensure_indexes(collection)
-            # This records collection initialization, not complete client coverage.
-            # It is not reconstructed from event counts or seeded history.
-            try:
-                collection.update_one(
-                    {"_id": cls.STATE_ID},
-                    {"$setOnInsert": {"started_at": initialized_at}},
-                    upsert=True,
-                )
-            except DuplicateKeyError:
-                # A concurrent first request may initialize the same state document.
-                if collection.find_one({"_id": cls.STATE_ID}) is None:
-                    raise
             # Timestamp after initialization so concurrent first requests cannot
             # insert observations earlier than the persisted collection boundary.
             occurred_at = timezone.now().astimezone(UTC)
@@ -149,8 +198,19 @@ class RoutePlanningEventService:
                 # The unique index remains authoritative for simultaneous upserts.
                 result["duplicate"] = True
         except PyMongoError as exc:
-            logger.exception("Failed to persist route-planning intent.")
+            logger.error(
+                "Route-planning event write failed: type=%s code=%s method=%s",
+                type(exc).__name__,
+                getattr(exc, "code", None),
+                method.value,
+            )
             raise RoutePlanningUnavailable() from exc
+        logger.debug(
+            "Route-planning ingestion completed: method=%s recorded=%s duplicate=%s",
+            method.value,
+            result["recorded"],
+            result["duplicate"],
+        )
         return result
 
     @classmethod
@@ -246,8 +306,12 @@ class RoutePlanningEventService:
             rows = list(
                 collection.aggregate(pipeline),
             )
-        except PyMongoError:
-            logger.exception("Failed to read route-planning analytics.")
+        except PyMongoError as exc:
+            logger.error(
+                "Route-planning analytics read failed: type=%s code=%s",
+                type(exc).__name__,
+                getattr(exc, "code", None),
+            )
             return None, None, "route_source_unavailable"
         totals = {
             "total_requests": 0,

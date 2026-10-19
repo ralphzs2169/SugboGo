@@ -6,6 +6,43 @@ completed journeys, transport bookings, or physical visits. No migration,
 Discovery Score change, background generation, Plus entitlement, or new dependency
 is required.
 
+## Initialization and delivery investigation (October 19, 2026)
+
+A read-only development inspection established that MongoDB was reachable but
+the configured `sugbogo` database had no `route_planning_events` collection.
+Previously, only an eligible ingestion POST initialized this collection. Analytics
+GET and Retry could not initialize it. The missing collection explains the null
+analytics counts; it does **not** establish why Android taps did not create an
+event. No physical-device POST or live authentication failure was captured.
+Code inspection found the deliberate tap callbacks, authenticated API client,
+request payload, active-account checks and owner exclusions correctly connected.
+
+Run the following once against the **intended configured development database**,
+from `sugbogo_backend`, before testing an empty dashboard:
+
+```powershell
+.\.venv\Scripts\python.exe -B manage.py initialize_route_planning_tracking
+```
+
+This is a write/setup command, not a dry run. It creates/verifies the existing
+indexes and upserts the singleton tracking marker using the server's current UTC
+time. It creates no route observations, invokes no background jobs and requires
+no Django migration. It is safe to rerun: output reports `initialized` or
+`already_initialized`, the preserved `tracking_started_at`, and the index names.
+Use normal deployment authorization before running it outside development.
+It has not been executed against the shared development database as part of the
+automated tests.
+
+`RoutePlanningEventService.initialize_tracking()` is shared by the command and
+eligible ingestion. Explicit setup always rechecks indexes rather than trusting
+the process cache. MongoDB verifies existing index definitions; conflicts fail
+with a controlled command error containing the driver class/code, without
+dropping or replacing indexes. Invalid existing metadata fails rather than
+silently resetting history. Existing events remain untouched. If events exist
+without valid metadata, inspect their origin separately: this command establishes
+a new boundary now and never reconstructs a historical start from those events.
+Initialization does not certify delivery coverage or recover earlier activity.
+
 ## Exact collection triggers
 
 On the current branch, business profiles open guidance directly; the former
@@ -88,7 +125,7 @@ An observation contains only these fields, plus MongoDB's generated `_id`:
 not a client tap timestamp. This ordering also prevents simultaneous first
 requests from inserting timestamps before the initialization boundary.
 
-Indexes are initialized only on ingestion:
+Indexes are initialized by explicit setup or eligible ingestion, never by reporting:
 
 - `route_intent_account_business_method_day_unique`: unique compound index on
   `explorer_id`, `business_id`, `navigation_method`, `utc_day`; partial filter
@@ -108,7 +145,7 @@ The collection also has one non-event document:
 { _id: "tracking-state-v1", started_at: ISODate("...") }
 ```
 
-It is persisted during initial ingestion, not inferred from observation totals
+It is persisted during explicit setup or initial ingestion, not inferred from observation totals
 or reconstructed from seeded data. It bounds collection history only: it does
 not establish deployment-wide instrumentation coverage, successful delivery from
 every client, or outage-free operation. A failed first event can leave a valid
@@ -189,9 +226,91 @@ genuine zero are separate states. Parent pull-to-refresh includes this query.
 Only this query's `refetch()` is used by its Retry controls, and page notifications
 follow `useQueryErrorNotification`. There is no polling or Plus lock.
 
+Missing collection/metadata shows “Route tracking hasn't been initialized yet”
+without Retry; this requires server setup. Dates entirely before tracking show
+“No tracking history for these dates” without Retry. Recoverable source failures
+use persistent section-level `ErrorState` with Retry. Initialized zero activity
+shows all four numeric counts, without drawing a chart. The current method chart
+and measurement sheet remain intact for valid activity. Partial-period reports
+retain the actual counts and disclose unavailable earlier activity; the
+measurement sheet provides the tracking-start timestamp in Manila time.
+
+## Android delivery diagnostics and MongoDB verification
+
+Development builds emit bounded `[route-intent]` diagnostics for deliberate taps:
+
+- `skipped`: guest, inactive account, owner preview or invalid business target;
+- `submitting`: Road Route or Jeepney method only;
+- `HTTP response` / `HTTP request failed`: HTTP status when available;
+- `result`: recorded, duplicate and owner-exclusion flags;
+- `submission failed`: standardized API/transport error code.
+
+No tokens, account identifiers, coordinates, request headers, raw error objects
+or connection strings are logged. Release builds do not emit these diagnostics.
+Server failures log the driver exception class/code and, for event writes, the
+method. Normal Django access logs show request paths and HTTP status. Successful
+ingestion outcome logging is at DEBUG level. There is no automatic event retry;
+the shared authenticated client's existing expired-token refresh behavior remains
+unchanged. A missing HTTP status can indicate rejection before reaching the
+server, including offline/session checks; inspect the standardized error code.
+
+To verify the actual device path:
+
+1. Confirm the Android bundle's `EXPO_PUBLIC_API_URL` points to the running
+   development backend, including `/api`. Restart Expo after environment changes.
+2. Sign in with a separate active Explorer account, not the target business owner.
+   Open that business's profile and tap Road Route once. Navigation must proceed.
+3. Inspect Metro/device diagnostics and Django access logs for
+   `POST /api/explorer/explore/businesses/<business_id>/route-intent/`.
+   The body must contain only `navigation_method`. The shared API client attaches
+   the stored bearer credential; never copy tokens into logs or documentation.
+4. Expect HTTP 200 with `data.recorded: true`, or `duplicate: true` if already
+   recorded that UTC day. A backend owner response has
+   `excluded_reason: "business_owner"`. Check 400 payload/business validation,
+   401 session, 403 role/status, 404 business and 503 MongoDB errors separately.
+5. In the same configured database in Compass or mongosh, perform these read-only
+   checks (replace the business identifier below):
+
+   ```javascript
+   db.route_planning_events.getIndexes()
+   db.route_planning_events.findOne({ _id: "tracking-state-v1" })
+   db.route_planning_events.find(
+     { business_id: 9, navigation_method: { $in: ["ROAD_ROUTE", "JEEPNEY"] } },
+     { _id: 0, business_id: 1, navigation_method: 1, occurred_at: 1, utc_day: 1 }
+   ).sort({ occurred_at: -1 }).limit(10)
+   ```
+
+6. Repeat Road Route: no extra same-day observation. Tap Jeepney: its method
+   count increases but the distinct-account total remains one for this account.
+   Refresh guidance/change origin: no tracking POST should appear.
+7. As the merchant, read
+   `GET /api/merchant/analytics/standard/route-planning/?period=30` and refresh the
+   Analytics section. An initialized empty source yields zero with partial,
+   unverified coverage. Missing setup yields null counts with
+   `route_intent_collection_missing` or `route_tracking_not_initialized`.
+   MongoDB failures yield null counts with `route_source_unavailable`.
+8. Check 7/30/90-day periods. Activity before initialization is unavailable,
+   not zero; overlapping periods count only the available interval. The feature
+   measures recorded guidance requests, not completed routes or physical visits.
+
+These manual device checks remain required. Automated tests use Mongo doubles
+and isolated Django test fixtures; live driver tests remain opt-in against an
+explicitly configured safe local test database.
+
 ## Verification and manual QA
 
-Executed checks: 64 backend tests passed and the opt-in live MongoDB test was
+Initialization/delivery fix verification: 30 focused Django tests passed across
+initialization/command, ingestion and reporting API modules. Twenty-nine focused
+mobile tests passed across presentation, transport, hooks, guidance lifecycle
+and the selected profile tap-callback case. The first mobile run exposed a
+duplicate partial-data note (corrected) and a 5-second guidance test timeout;
+the affected suites passed with a 20-second test timeout. Scoped ESLint completed
+without remaining warnings, Python syntax checks passed, and `git diff --check`
+passed. The safe local live-MongoDB test was skipped because no explicit test URI
+was supplied. No application/shared database was initialized or seeded. Android
+delivery remains a manual verification item.
+
+Initial feature verification: 64 backend tests passed and the opt-in live MongoDB test was
 skipped (65 cases total). Thirty mobile tests passed across focused runs,
 including four affected Analytics-screen cases; unrelated cases in that broad
 screen suite were not run. Scoped ESLint and affected-file TypeScript diagnostics
@@ -246,6 +365,8 @@ Physical Android/development integration checklist:
 Backend paths are relative to `sugbogo_backend`:
 
 - `apps/business/services/route_planning_event_service.py`
+- `apps/business/management/commands/initialize_route_planning_tracking.py`
+- `apps/business/services/tests/test_route_planning_initialization.py`
 - `apps/business/services/tests/route_planning_fixtures.py`
 - `apps/business/services/tests/test_route_planning_event_service.py`
 - `apps/business/services/tests/test_route_planning_live_mongodb.py`

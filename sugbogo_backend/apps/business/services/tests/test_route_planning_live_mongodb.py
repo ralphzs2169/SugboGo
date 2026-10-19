@@ -50,6 +50,28 @@ class LiveRoutePlanningMongoTests(SimpleTestCase):
                 patch.object(RoutePlanningEventService, "_indexes_initialized", False),
                 patch("django.utils.timezone.now", return_value=now),
             ):
+                initialized = RoutePlanningEventService.initialize_tracking()
+                self.assertTrue(initialized["initialized"])
+                repeated = RoutePlanningEventService.initialize_tracking()
+                self.assertFalse(repeated["initialized"])
+                self.assertEqual(
+                    repeated["started_at"],
+                    initialized["started_at"],
+                )
+                self.assertEqual(
+                    collection.count_documents({
+                        "navigation_method": {"$exists": True},
+                    }),
+                    0,
+                )
+                empty, started, reason = RoutePlanningEventService.get_totals(
+                    business_id=business.pk,
+                    owner_id=business.USER_ID_id,
+                    period=resolve_period(now=now + timedelta(seconds=1)),
+                )
+                self.assertEqual(empty["total_requests"], 0)
+                self.assertIsNone(reason)
+
                 def record(value):
                     return RoutePlanningEventService.record_intent(
                         user=user,

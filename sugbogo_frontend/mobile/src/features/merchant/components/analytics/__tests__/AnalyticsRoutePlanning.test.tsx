@@ -28,7 +28,7 @@ jest.mock("../AnalyticsRoutePlanningSheet", () => ({
 describe("route-planning activity presentation", () => {
   const retry = jest.fn();
   beforeEach(() => jest.clearAllMocks());
-  it("shows exact counts and proportional method bars with a measurement action", async () => {
+  it("preserves the existing method chart and exact counts with a measurement action", async () => {
     const screen = await render(
       <AnalyticsRoutePlanning
         data={routePlanningReport()}
@@ -37,17 +37,13 @@ describe("route-planning activity presentation", () => {
         onRetry={retry}
       />,
     );
-    expect(screen.getByLabelText("Recorded route requests: 4")).toBeTruthy();
-    expect(screen.getByLabelText("Explorer accounts: 3")).toBeTruthy();
     expect(
-      screen.getByLabelText("Road Route: 3 recorded requests"),
+      screen.getByLabelText(
+        /3 Road Route requests and 1 Jeepney guidance requests out of 4/,
+      ),
     ).toBeTruthy();
-    expect(
-      screen.getByTestId("route-planning-bar-road").props.style.width,
-    ).toBe("75%");
-    expect(
-      screen.getByTestId("route-planning-bar-jeepney").props.style.width,
-    ).toBe("25%");
+    expect(screen.getByLabelText("Distinct explorer accounts: 3")).toBeTruthy();
+    expect(screen.getByLabelText("Road Route: 3 requests, 75.0%")).toBeTruthy();
     await fireEvent.press(
       screen.getByRole("button", { name: "About route-planning activity" }),
     );
@@ -69,6 +65,9 @@ describe("route-planning activity presentation", () => {
     );
     expect(screen.getByLabelText("Recorded route requests: 0")).toBeTruthy();
     expect(screen.getByText(/No recorded route requests/)).toBeTruthy();
+    expect(screen.getByLabelText("Road Route: 0")).toBeTruthy();
+    expect(screen.getByLabelText("Jeepney guidance: 0")).toBeTruthy();
+    expect(screen.getByLabelText("Distinct explorer accounts: 0")).toBeTruthy();
     expect(screen.queryByTestId("route-planning-bar-road")).toBeNull();
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
   });
@@ -86,7 +85,7 @@ describe("route-planning activity presentation", () => {
     );
     expect(screen.getByLabelText("Recorded route requests: 4")).toBeTruthy();
     expect(
-      screen.getByLabelText("Explorer accounts: Unavailable"),
+      screen.getByLabelText("Distinct explorer accounts: Unavailable"),
     ).toBeTruthy();
     expect(
       screen.getByLabelText("Road Route: 3 recorded requests"),
@@ -118,13 +117,11 @@ describe("route-planning activity presentation", () => {
         onRetry={retry}
       />,
     );
-    expect(
-      screen.getByLabelText("Recorded route requests: Unavailable"),
-    ).toBeTruthy();
+    expect(screen.getByText("Route-planning data unavailable")).toBeTruthy();
     expect(screen.queryByText(/No recorded route requests/)).toBeNull();
     await fireEvent.press(
       screen.getByRole("button", {
-        name: "Route-planning data unavailable. Retry",
+        name: /Route-planning data unavailable.*retry/i,
       }),
     );
     expect(retry).toHaveBeenCalledTimes(1);
@@ -144,7 +141,7 @@ describe("route-planning activity presentation", () => {
         onRetry={retry}
       />,
     );
-    expect(screen.getByLabelText("Recorded route requests: 4")).toBeTruthy();
+    expect(screen.getByLabelText("Distinct explorer accounts: 3")).toBeTruthy();
     await fireEvent.press(
       screen.getByRole("button", {
         name: /Unable to refresh route-planning activity.*retry/i,
@@ -170,9 +167,81 @@ describe("route-planning activity presentation", () => {
         onRetry={retry}
       />,
     );
-    expect(screen.getByLabelText("Recorded route requests: 4")).toBeTruthy();
+    expect(screen.getByLabelText("Distinct explorer accounts: 3")).toBeTruthy();
     expect(
-      screen.getByText(/Tracking began/).props.children.join(""),
+      JSON.stringify(screen.getByText(/Tracking began/).props.children),
     ).not.toContain("Invalid Date");
+  });
+  it.each([
+    "route_intent_collection_missing",
+    "route_tracking_not_initialized",
+  ])(
+    "explains %s without suggesting Retry can initialize the server",
+    async (reason) => {
+      const screen = await render(
+        <AnalyticsRoutePlanning
+          data={routePlanningReport({
+            total_requests: null,
+            distinct_explorer_accounts: null,
+            road_route_requests: null,
+            jeepney_requests: null,
+            tracking_started_at: null,
+            meta: {
+              ...standardAnalyticsMeta(),
+              availability: "unavailable",
+              partial_reasons: [reason, "source_unavailable"],
+            },
+          })}
+          loading={false}
+          error={null}
+          onRetry={retry}
+        />,
+      );
+      expect(
+        screen.getByText("Route tracking hasn't been initialized yet"),
+      ).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+      expect(screen.queryByText(/No recorded route requests/)).toBeNull();
+    },
+  );
+  it("does not show zero or Retry for dates entirely before tracking", async () => {
+    const screen = await render(
+      <AnalyticsRoutePlanning
+        data={routePlanningReport({
+          total_requests: null,
+          distinct_explorer_accounts: null,
+          road_route_requests: null,
+          jeepney_requests: null,
+          meta: {
+            ...standardAnalyticsMeta(),
+            availability: "unavailable",
+            partial_reasons: ["tracking_not_started_in_period"],
+          },
+        })}
+        loading={false}
+        error={null}
+        onRetry={retry}
+      />,
+    );
+    expect(
+      screen.getByText("No tracking history for these dates"),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+    expect(screen.queryByLabelText("Recorded route requests: 0")).toBeNull();
+  });
+  it("provides section Retry when the initial request fails", async () => {
+    const screen = await render(
+      <AnalyticsRoutePlanning
+        loading={false}
+        error={new Error("Offline")}
+        onRetry={retry}
+      />,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Unable to load route-planning activity.*retry/i,
+      }),
+    );
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 });

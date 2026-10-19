@@ -8,12 +8,38 @@ jest.mock("@/shared/api/apiClient.service", () => ({
 }));
 describe("route intent transport", () => {
   beforeEach(() => {
+    jest.spyOn(console, "debug").mockImplementation(() => {});
+    jest.spyOn(console, "warn").mockImplementation(() => {});
     jest
       .mocked(apiClient.post)
       .mockResolvedValue({ data: { success: true, data: {} } });
     jest
       .mocked(apiClient.get)
       .mockResolvedValue({ data: { success: true, data: {} } });
+  });
+  afterEach(() => jest.restoreAllMocks());
+  it("reports HTTP status while preserving the backend error envelope and omitting credentials", async () => {
+    const response = {
+      success: false,
+      message: "Forbidden",
+      code: "PERMISSION_DENIED",
+    };
+    jest.mocked(apiClient.post).mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 403, data: response },
+      config: { headers: { Authorization: "secret-token" } },
+    });
+    expect(await recordRoutePlanningIntent(21, "ROAD_ROUTE")).toEqual(response);
+    expect(console.warn).toHaveBeenCalledWith(
+      "[route-intent] HTTP request failed",
+      {
+        method: "ROAD_ROUTE",
+        status: 403,
+      },
+    );
+    expect(JSON.stringify(jest.mocked(console.warn).mock.calls)).not.toContain(
+      "secret-token",
+    );
   });
   it.each(["ROAD_ROUTE", "JEEPNEY"] as const)(
     "sends only %s, without client identity, location or time",
