@@ -116,7 +116,6 @@ export default function ProfileScreen() {
             <ProfileMenuItem
               title="My Pockets"
               icon="wallet-outline"
-              badge={5}
               onPress={() => router.push("/profile/my-pockets")}
             />
 
