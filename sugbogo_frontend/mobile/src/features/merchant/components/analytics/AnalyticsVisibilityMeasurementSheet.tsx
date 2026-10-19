@@ -228,9 +228,11 @@ export default function AnalyticsVisibilityMeasurementSheet({
               </AppText>
 
               <AppText className="text-sm leading-6 text-text-secondary">
-                Unique account totals cover the entire selected period. Adding
-                daily or weekly unique-account counts may count the same account
-                more than once.
+                The visitor-account total counts each account once across the
+                selected dates. Each chart point counts accounts within that day
+                or week. An account visiting in two weeks appears in both weekly
+                points but only once in the total, so chart values should not be
+                added together.
               </AppText>
             </View>
           </View>

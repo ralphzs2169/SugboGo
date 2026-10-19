@@ -19,6 +19,7 @@ import AnalyticsOverviewSection from "../components/analytics/AnalyticsOverviewS
 import AnalyticsSectionSkeleton from "../components/analytics/AnalyticsSectionSkeleton";
 import AnalyticsSpecialtySupport from "../components/analytics/AnalyticsSpecialtySupport";
 import AnalyticsUnansweredReviews from "../components/analytics/AnalyticsUnansweredReviews";
+import AnalyticsReviewSummaryPreview from "../components/analytics/AnalyticsReviewSummaryPreview";
 import AnalyticsMoreInsights from "../components/analytics/AnalyticsMoreInsights";
 import { AnalyticsVisibilityReport } from "../components/analytics/AnalyticsVisibilityTrends";
 import AnalyticsRoutePlanning from "../components/analytics/AnalyticsRoutePlanning";
@@ -43,12 +44,14 @@ type Section =
   | "pocket"
   | "reviews"
   | "timing"
-  | "insights";
+  | "insights"
+  | "summary";
 const SECTIONS: { value: Section; label: string }[] = [
   { value: "overview", label: "Business overview" },
   { value: "specialties", label: "Current specialties" },
   { value: "unanswered", label: "Needs reply" },
   { value: "visibility", label: "Visibility" },
+  { value: "summary", label: "Review summary" },
   { value: "routes", label: "Routes" },
   { value: "reports", label: "Report navigation" },
   { value: "discovery", label: "Visit sources" },
@@ -96,9 +99,12 @@ export default function MerchantAnalyticsPreviewScreen() {
   const choices = STATES.filter((item) => {
     if (section === "reports") return item.value === "populated";
     if (item.value === "insufficient")
-      return section === "reviews" || section === "insights";
+      return (
+        section === "reviews" || section === "insights" || section === "summary"
+      );
     if (item.value === "uninitialized") return section === "routes";
-    if (item.value === "outdated") return section === "insights";
+    if (item.value === "outdated")
+      return section === "insights" || section === "summary";
     if (item.value === "sparse")
       return ["visibility", "pocket", "reviews", "timing"].includes(section);
     if (item.value === "partial")
@@ -247,6 +253,15 @@ export default function MerchantAnalyticsPreviewScreen() {
                   error,
                   refetch: retry,
                 }}
+              />
+            )}
+            {section === "summary" && (
+              <AnalyticsReviewSummaryPreview
+                report={hidden ? undefined : reports.insights}
+                loading={loading}
+                error={error}
+                onRetry={retry}
+                onOpen={() => actions("Full review insights report")}
               />
             )}
             {section === "routes" && (

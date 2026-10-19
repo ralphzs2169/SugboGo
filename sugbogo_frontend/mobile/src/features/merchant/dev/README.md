@@ -2,7 +2,7 @@
 
 In a development build, open Merchant Analytics and tap **Open Analytics development preview** above Detailed reports.
 
-The gallery covers Business overview, current specialty support, unanswered reviews, visibility, route planning, report navigation, visit sources, Pocket trends, Review performance, visit timing, and Review insights. Existing Peer comparisons, Recommendations, and Specialty trends previews are linked below the selected preview.
+The gallery covers Business overview, current specialty support, unanswered reviews, the compact review summary, visibility, route planning, report navigation, visit sources, Pocket trends, Review performance, visit timing, and Review insights. Existing Peer comparisons, Recommendations, and Specialty trends previews are linked below the selected preview.
 
 Choose a section, then an applicable state. Preview period and interval controls change local fixtures only. Retry restores populated data. Review-navigation actions show a destination message instead of opening real reviews. Information sheets use the real components.
 

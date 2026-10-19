@@ -18,6 +18,8 @@ import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import AnalyticsActivityOverview from "../../components/analytics/AnalyticsActivityOverview";
 import AnalyticsHeaderControls from "../../components/analytics/AnalyticsHeaderControls";
 import AnalyticsMeasurementSheet from "../../components/analytics/AnalyitcsMeasurementSheet";
+import AnalyticsReviewSummaryPreview from "../../components/analytics/AnalyticsReviewSummaryPreview";
+import { useMerchantPlusStoredInsights } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
 import AnalyticsMoreInsights from "../../components/analytics/AnalyticsMoreInsights";
 import AnalyticsOverviewSection from "../../components/analytics/AnalyticsOverviewSection";
 import AnalyticsRoutePlanning from "../../components/analytics/AnalyticsRoutePlanning";
@@ -89,6 +91,7 @@ export default function MerchantAnalyticsScreen() {
 
   // Independent analytics
   const unanswered = useMerchantUnansweredReviews(focused);
+  const reviewInsights = useMerchantPlusStoredInsights(focused);
   const routePlanning = useMerchantRoutePlanning(routePlanningPeriod, focused);
 
   // Existing entitlement and comparison support
@@ -217,6 +220,13 @@ export default function MerchantAnalyticsScreen() {
     fallbackMessage: "Your Standard metrics remain available.",
   });
 
+  useQueryErrorNotification({
+    error: focused ? reviewInsights.error : null,
+    toastId: "merchant-review-summary-error",
+    title: "Unable to load review summary",
+    fallbackMessage: "Please retry this section.",
+  });
+
   // One sheet edits only the section that opened it.
   const selectedSheetPeriod = {
     overview: overviewPeriod,
@@ -266,7 +276,9 @@ export default function MerchantAnalyticsScreen() {
         await queryClient.refetchQueries({
           queryKey: merchantPlusReportScope(plusAccess.accountId),
           type: "active",
-          predicate: (query) => query.queryKey[7] === undefined,
+          predicate: (query) =>
+            query.queryKey[7] === undefined &&
+            query.queryKey[2] !== "review-insights",
         });
       }
     } finally {
@@ -288,6 +300,7 @@ export default function MerchantAnalyticsScreen() {
       }),
       refetchProfile(),
       unanswered.refetch(),
+      reviewInsights.refetch(),
       routePlanning.refetch(),
       refreshPlus(),
     ]);
@@ -333,6 +346,7 @@ export default function MerchantAnalyticsScreen() {
               isRefetching ||
               isRefreshingPlus ||
               unanswered.isRefetching ||
+              reviewInsights.isRefetching ||
               routePlanning.isRefetching
             }
             onRefresh={refresh}
@@ -415,6 +429,12 @@ export default function MerchantAnalyticsScreen() {
             }
           />
 
+          {/* Visibility trends */}
+          <AnalyticsVisibilityTrends
+            period={visibilityPeriod}
+            onOpenPeriod={() => openPeriodSheet("visibility")}
+          />
+
           {/* Current specialty support */}
           <AnalyticsOverviewSection
             title="Specialty vouches"
@@ -462,10 +482,12 @@ export default function MerchantAnalyticsScreen() {
             ) : null}
           </AnalyticsOverviewSection>
 
-          {/* Visibility trends */}
-          <AnalyticsVisibilityTrends
-            period={visibilityPeriod}
-            onOpenPeriod={() => openPeriodSheet("visibility")}
+          <AnalyticsReviewSummaryPreview
+            report={reviewInsights.data}
+            loading={reviewInsights.isPending}
+            error={reviewInsights.error}
+            onRetry={() => void reviewInsights.refetch()}
+            onOpen={() => openPlusDetail("review-insights")}
           />
 
           {/* Recorded route-planning activity */}
