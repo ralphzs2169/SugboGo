@@ -98,7 +98,7 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
                 className={`w-[31%] items-center ${onSpecialtyPress ? "cursor-pointer active:opacity-70" : ""}`}
               >
                 <View
-                  className="h-16 w-16 items-center justify-center rounded-full"
+                  className="h-16 w-16 items-center justify-center rounded-full border border-border-primary/60"
                   style={{ backgroundColor: `${accentColor}18` }}
                 >
                   <MaterialCommunityIcons

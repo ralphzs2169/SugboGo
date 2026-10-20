@@ -14,6 +14,7 @@ import { isStaleAuthSessionError } from "@/shared/api/authSessionGeneration.serv
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
+import InfoBanner from "@/shared/components/InfoBanner";
 import Skeleton from "@/shared/components/Skeleton";
 import FormInput from "@/shared/components/form/FormInput";
 import PasswordInput from "@/shared/components/form/PasswordInput";
@@ -174,22 +175,23 @@ export default function ChangeEmailScreen() {
               {/* Pending changes survive navigation and app restarts */}
               {status.data?.pending ? (
                 <View className="mb-6 gap-3">
-                  <AppText
-                    weight="semibold"
-                    className="text-base text-text-primary"
+                  <InfoBanner
+                    title="Awaiting verification"
+                    icon="email-outline"
                   >
-                    Awaiting verification
-                  </AppText>
-                  <AppText className="text-sm text-text-primary">
-                    {status.data.pending.new_email}
-                  </AppText>
-                  <AppText className="text-sm leading-5 text-text-secondary">
-                    Open the link in the new inbox and enter your current
-                    password to confirm. It expires{" "}
-                    {new Date(status.data.pending.expires_at).toLocaleString()}.
-                    To resend or replace it, enter the destination and password
-                    below; only the latest link will work.
-                  </AppText>
+                    <AppText className="text-sm text-text-primary">
+                      {status.data.pending.new_email}
+                    </AppText>
+                    <AppText className="text-sm leading-5 text-text-secondary">
+                      Open the link in the new inbox and enter your current
+                      password to confirm. It expires{" "}
+                      {new Date(
+                        status.data.pending.expires_at,
+                      ).toLocaleString()}
+                      . To resend or replace it, enter the destination and
+                      password below; only the latest link will work.
+                    </AppText>
+                  </InfoBanner>
                   <Button
                     title="Cancel pending change"
                     variant="outline"
@@ -205,10 +207,17 @@ export default function ChangeEmailScreen() {
               {/* Passwordless accounts reuse the existing password setup flow */}
               {user?.has_usable_password === false ? (
                 <>
-                  <AppText className="mb-5 text-sm leading-5 text-text-secondary">
-                    Set up a password through email recovery, sign in again,
-                    then return here to change your email.
-                  </AppText>
+                  <View className="mb-5">
+                    <InfoBanner
+                      title="Password setup required"
+                      icon="lock-outline"
+                    >
+                      <AppText className="text-sm leading-5 text-text-secondary">
+                        Set up a password through email recovery, sign in again,
+                        then return here to change your email.
+                      </AppText>
+                    </InfoBanner>
+                  </View>
                   <Button
                     title="Set up a password"
                     rounded="full"

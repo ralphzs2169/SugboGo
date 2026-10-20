@@ -17,6 +17,7 @@ import {
 } from "@/shared/api/authSessionGeneration.service";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
+import InfoBanner from "@/shared/components/InfoBanner";
 import PasswordInput from "@/shared/components/form/PasswordInput";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import type { ApiError } from "@/shared/types/apiResponse.types";
@@ -139,11 +140,28 @@ export default function ChangePasswordScreen() {
                 ? "Set up a password"
                 : "Change your password"}
             </AppText>
-            <AppText className="mt-2 text-sm leading-5 text-text-secondary">
-              {needsPasswordSetup
-                ? "You currently sign in with a linked account. To create a password, sign out and verify your email using password recovery."
-                : "Choose a password you don't use elsewhere. After saving, you'll be signed out on all devices and asked to sign in again."}
-            </AppText>
+            {!needsPasswordSetup && (
+              <AppText className="mt-2 text-sm leading-5 text-text-secondary">
+                Choose a password you don&apos;t use elsewhere.
+              </AppText>
+            )}
+          </View>
+
+          <View className="mb-6">
+            <InfoBanner
+              title={
+                needsPasswordSetup
+                  ? "Password setup required"
+                  : "You'll be signed out"
+              }
+              icon="lock-outline"
+            >
+              <AppText className="text-sm leading-5 text-text-secondary">
+                {needsPasswordSetup
+                  ? "You currently sign in with a linked account. To create a password, sign out and verify your email using password recovery."
+                  : "After saving, you'll be signed out on all devices and asked to sign in again."}
+              </AppText>
+            </InfoBanner>
           </View>
 
           {needsPasswordSetup ? (

@@ -1,6 +1,8 @@
 import { FlatList, RefreshControl, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LottieView from "lottie-react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { memo, useCallback } from "react";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -12,9 +14,15 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import { isStaleAuthSessionError } from "@/shared/api/authSessionGeneration.service";
 import useLoginHistory from "../hooks/useLoginHistory";
 import type { LoginEvent } from "../types/loginHistory.types";
+import {
+  activityDayKey,
+  activityDayLabel,
+} from "../utils/activityTimeline.utils";
+
+const END_MESSAGE_MIN_ITEMS = 5;
 
 const methodLabels: Record<LoginEvent["method"], string> = {
-  password: "Password",
+  password: "Email & password",
   admin: "Admin password",
   google: "Google",
   facebook: "Facebook",
@@ -26,36 +34,99 @@ const outcomeLabels: Record<LoginEvent["outcome"], string> = {
 };
 
 /** Displays a recent sign-in outcome with approximate client details. */
-function LoginHistoryRow({ event }: { event: LoginEvent }) {
+const LoginHistoryRow = memo(function LoginHistoryRow({
+  event,
+}: {
+  event: LoginEvent;
+}) {
+  const outcomeStyle =
+    event.outcome === "success"
+      ? "bg-green-100 text-green-700"
+      : event.outcome === "failed"
+        ? "bg-error/10 text-text-error"
+        : "bg-info text-text-info";
+
   return (
-    <View className="border-b border-border-primary py-4">
-      <AppText
-        weight="semibold"
-        className={
-          event.outcome === "failed"
-            ? "text-base text-text-error"
-            : "text-base text-text-primary"
-        }
-      >
-        {outcomeLabels[event.outcome]}
-      </AppText>
-      <AppText className="mt-1 text-sm text-text-primary">
-        {methodLabels[event.method]} · {event.platform} · {event.client}
-      </AppText>
-      <AppText className="mt-1 text-sm text-text-secondary">
-        {new Date(event.created_at).toLocaleString()}
-      </AppText>
-      <AppText className="mt-1 text-sm text-text-secondary">
-        Network address: {event.ip_address ?? "Unavailable"}
-      </AppText>
+    <View className="flex-row gap-3 py-4">
+      <View className="h-9 w-9 items-center justify-center rounded-full bg-surface-muted">
+        <MaterialCommunityIcons
+          name={
+            event.outcome === "failed"
+              ? "shield-alert-outline"
+              : "login-variant"
+          }
+          size={19}
+          color={
+            event.outcome === "failed"
+              ? theme.extends.colors.error
+              : theme.extends.colors.text.secondary
+          }
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      </View>
+      <View className="min-w-0 flex-1 gap-2">
+        <View className="flex-row flex-wrap items-center justify-between gap-2">
+          <AppText weight="semibold" className="text-sm text-text-primary">
+            {methodLabels[event.method]}
+          </AppText>
+          <AppText className="text-xs text-text-secondary">
+            {new Date(event.created_at).toLocaleTimeString(undefined, {
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </AppText>
+        </View>
+        <View className="self-start">
+          <AppText
+            weight="medium"
+            className={`rounded-full px-2.5 py-1 text-xs ${outcomeStyle}`}
+          >
+            {outcomeLabels[event.outcome]}
+          </AppText>
+        </View>
+        <View>
+          <AppText className="text-sm leading-5 text-text-secondary">
+            {event.platform} · {event.client}
+          </AppText>
+          <AppText className="mt-1 text-xs leading-4 text-text-tertiary">
+            Network address: {event.ip_address ?? "Unavailable"}
+          </AppText>
+        </View>
+      </View>
     </View>
   );
-}
+});
 
 /** Shows the account's recent login activity with refresh and paginated recovery. */
 export default function LoginHistoryScreen() {
   const history = useLoginHistory();
   const hasData = history.data !== undefined;
+  const renderEvent = useCallback(
+    ({ item, index }: { item: LoginEvent; index: number }) => {
+      const previous = history.events[index - 1];
+      const startsDay =
+        !previous ||
+        activityDayKey(previous.created_at) !== activityDayKey(item.created_at);
+      return (
+        <View>
+          {startsDay ? (
+            <AppText
+              accessibilityRole="header"
+              weight="semibold"
+              className="border-b border-border-primary pb-2 pt-4 text-xs text-text-secondary"
+            >
+              {activityDayLabel(item.created_at)}
+            </AppText>
+          ) : (
+            <View className="ml-12 h-px bg-border-primary/60" />
+          )}
+          <LoginHistoryRow event={item} />
+        </View>
+      );
+    },
+    [history.events],
+  );
   useQueryErrorNotification({
     error: isStaleAuthSessionError(history.error) ? null : history.error,
     toastId: "login-history",
@@ -72,10 +143,16 @@ export default function LoginHistoryScreen() {
       <FlatList
         data={history.events}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <LoginHistoryRow event={item} />}
+        renderItem={renderEvent}
         contentContainerClassName="grow px-4 pb-6"
         ListHeaderComponent={
           <View className="pt-4 pb-2">
+            <AppText
+              weight="semibold"
+              className="mb-1 text-base text-text-primary"
+            >
+              Recent sign-ins
+            </AppText>
             <AppText className="text-sm leading-5 text-text-secondary">
               Recent sign-in activity from the last 90 days. Device details are
               approximate; network addresses may be shared.
@@ -157,7 +234,10 @@ export default function LoginHistoryScreen() {
               primaryActionTitle="Retry"
               onPrimaryAction={() => void history.fetchNextPage()}
             />
-          ) : history.events.length > 0 && !history.hasNextPage ? (
+          ) : history.events.length >= END_MESSAGE_MIN_ITEMS &&
+            !history.hasNextPage &&
+            !history.isFetching &&
+            !history.isError ? (
             <EndOfListMessage description="You've reached the end of your recent sign-in activity." />
           ) : null
         }
