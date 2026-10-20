@@ -27,12 +27,15 @@ class DiscoveryScoreMigrationTests(TransactionTestCase):
         "0025_alter_discoveryscore_options_and_more",
     )
 
+    def setUp(self):
+        """Records the current graph so historical checks restore every dependent table."""
+        super().setUp()
+        self.latest_targets = MigrationExecutor(connection).loader.graph.leaf_nodes()
+
     def tearDown(self):
         """Restores the latest schema even when a migration assertion fails."""
 
-        self._migrate_to(
-            self.migrate_to,
-        )
+        MigrationExecutor(connection).migrate(self.latest_targets)
         super().tearDown()
 
     def _migrate_to(
@@ -94,6 +97,9 @@ class DiscoveryScoreMigrationTests(TransactionTestCase):
     def test_migration_keeps_one_deterministic_legacy_score_per_business(self):
         """Keeps newest current rows and otherwise keeps the newest score."""
 
+        # Current account creation provisions Favorites, which did not exist in 0024.
+        first_owner = self._create_owner(index=1)
+        second_owner = self._create_owner(index=2)
         old_apps = self._migrate_to(
             self.migrate_from,
         )
@@ -119,12 +125,6 @@ class DiscoveryScoreMigrationTests(TransactionTestCase):
             LOCT_ADDRESS="Migration Score Street",
             LOCT_CITY="Cebu City",
             LOCT_PROVINCE="Cebu",
-        )
-        first_owner = self._create_owner(
-            index=1,
-        )
-        second_owner = self._create_owner(
-            index=2,
         )
         first_business = self._create_business(
             owner=first_owner,
