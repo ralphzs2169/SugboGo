@@ -148,7 +148,7 @@ export default function AnalyticsUnansweredReviews({
               <View
                 accessible
                 accessibilityLabel="All caught up. No published reviews need your reply."
-                className="flex-row items-center gap-3 rounded-card border border-border-primary/60 bg-surface-muted p-4"
+                className="flex-row items-center gap-3 rounded-card bg-surface-muted p-4"
               >
                 <View className="h-10 w-10 shrink-0 items-center justify-center">
                   <MaterialCommunityIcons

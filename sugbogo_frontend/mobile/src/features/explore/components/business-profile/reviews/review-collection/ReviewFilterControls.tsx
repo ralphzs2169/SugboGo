@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import type { ReactNode } from "react";
 
 import FilterChip from "@/shared/components/FilterChip";
 import FilterSortControls from "@/shared/components/filters/FilterSortControls";
@@ -25,6 +26,8 @@ type Props = {
   onChange: (filters: BusinessReviewFilters) => void;
   onClear: () => void;
   onOpenFilter: () => void;
+  additionalFilters?: ReactNode;
+  additionalActiveFilterCount?: number;
 };
 
 /**
@@ -38,13 +41,16 @@ export default function ReviewFilterControls({
   onChange,
   onClear,
   onOpenFilter,
+  additionalFilters,
+  additionalActiveFilterCount = 0,
 }: Props) {
-  const activeFilterCount = [
-    filters.sentiment,
-    filters.topic,
-    filters.hasPhotos,
-    filters.merchantReplied,
-  ].filter(Boolean).length;
+  const activeFilterCount =
+    [
+      filters.sentiment,
+      filters.topic,
+      filters.hasPhotos,
+      filters.merchantReplied,
+    ].filter(Boolean).length + additionalActiveFilterCount;
 
   const toggleHasPhotos = () => {
     onChange({
@@ -75,6 +81,7 @@ export default function ReviewFilterControls({
         accessibilityLabel={`Filter reviews, ${activeFilterCount} active filters`}
       />
 
+      {additionalFilters}
       <FilterChip
         label="With photos"
         selected={filters.hasPhotos}

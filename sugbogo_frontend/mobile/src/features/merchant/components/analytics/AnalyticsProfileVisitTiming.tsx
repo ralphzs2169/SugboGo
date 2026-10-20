@@ -8,7 +8,6 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
-import { shadows } from "@/shared/styles/shadows";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { PlusProfileTimingReport } from "../../types/merchantAdvancedAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
@@ -67,10 +66,7 @@ export default function AnalyticsProfileVisitTiming({
             When explorers opened your profile
           </AppText>
         </View>
-        <View
-          className="min-w-0 rounded-card border border-border-primary/60 bg-surface p-4"
-          style={shadows.subtle}
-        >
+        <View className="min-w-0 rounded-card bg-surface-muted p-4">
           <View className="flex-row items-start justify-between gap-2">
             <AppText
               weight="medium"
@@ -85,7 +81,7 @@ export default function AnalyticsProfileVisitTiming({
               accessible={false}
             />
           </View>
-          <View className="mt-3 gap-1">
+          <View className="mt-2 gap-1">
             {pending ? (
               <Skeleton className="h-9 w-24 rounded" />
             ) : (

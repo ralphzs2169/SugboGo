@@ -232,7 +232,7 @@ export function AnalyticsRoutePlanningSkeleton() {
     <View
       accessibilityLabel="Loading route-planning activity"
       accessibilityState={{ busy: true }}
-      className="gap-4 rounded-card border border-border-primary/60 bg-surface p-4"
+      className="gap-4 rounded-card bg-surface-muted p-4"
     >
       <View className={stacked ? "gap-4" : "flex-row items-center gap-5"}>
         <AnalyticsDonutSkeleton />

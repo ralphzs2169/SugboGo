@@ -1,3 +1,6 @@
+import MerchantScreenHeader from "../../layout/MerchantScreenHeader";
+import Button from "@/shared/components/Button";
+import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import LottieView from "lottie-react-native";
@@ -52,8 +55,15 @@ const MASCOT_NO_HISTORY = require("@/shared/assets/mascot/mascot-no-history.webp
 export default function MerchantReviewsScreen() {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
-  const { filter, ordering, setFilter, setOrdering, reviewId, entry } =
-    useMerchantReviewSelection();
+  const {
+    filter,
+    ordering,
+    reviewId,
+    entry,
+    contentFilters,
+    setSelection,
+    clearFilters,
+  } = useMerchantReviewSelection();
   const unanswered = useMerchantUnansweredReviews(focused);
   useQueryErrorNotification({
     error: focused ? unanswered.error : null,
@@ -99,6 +109,7 @@ export default function MerchantReviewsScreen() {
     ordering,
     focused && !locatingReview,
     reviewId ? reviewFocus.data : undefined,
+    contentFilters,
   );
 
   const feedRef = useRef<FlatList<BusinessReview>>(null);
@@ -168,6 +179,11 @@ export default function MerchantReviewsScreen() {
   const isInitialLoading = isBusinessLoading;
   const sectionLoading = isReviewsInitialLoading || locatingReview;
   const needsReplyCount = unanswered.data?.total_unanswered;
+  const hasContentFilters = !!(
+    contentFilters.sentiment ||
+    contentFilters.topic ||
+    contentFilters.hasPhotos
+  );
 
   useQueryErrorNotification({
     error: focused ? reviewsError : null,
@@ -211,12 +227,24 @@ export default function MerchantReviewsScreen() {
     presentBottomSheet(replySheetRef);
   };
 
+  const screenHeader = (
+    <MerchantScreenHeader
+      title="Reviews"
+      subtitle={business?.business_name}
+      leadingIcon="storefront-outline"
+      coverPhotoUrl={business?.display_cover_photo_url}
+      compact
+      rightAccessory={<NotificationBellButton />}
+    />
+  );
+
   if (isInitialLoading) {
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
         className="flex-1 bg-background"
       >
+        {screenHeader}
         <MerchantReviewsSkeleton />
       </SafeAreaView>
     );
@@ -228,6 +256,7 @@ export default function MerchantReviewsScreen() {
         edges={["top", "left", "right"]}
         className="flex-1 bg-surface"
       >
+        {screenHeader}
         {/* Business-context error */}
         <ErrorState
           icon="store-alert-outline"
@@ -245,6 +274,7 @@ export default function MerchantReviewsScreen() {
       edges={["top", "left", "right"]}
       className="flex-1 bg-surface"
     >
+      {screenHeader}
       {/* Review feed */}
       <FlatList
         ref={feedRef}
@@ -295,6 +325,7 @@ export default function MerchantReviewsScreen() {
             review={item}
             onReply={openReplyComposer}
             highlighted={item.id === reviewId && finishedHighlight !== entry}
+            highlightedTopic={contentFilters.topic}
           />
         )}
         contentContainerStyle={{
@@ -314,7 +345,7 @@ export default function MerchantReviewsScreen() {
             {/* Review overview */}
             <MerchantReviewsOverview
               totalCount={totalCount}
-              filtered={filter !== "all"}
+              filtered={filter !== "all" || hasContentFilters}
               needsReplyCount={needsReplyCount}
             />
             {unanswered.error && (
@@ -345,11 +376,12 @@ export default function MerchantReviewsScreen() {
 
             {/* Review feed controls */}
             <MerchantReviewFilters
+              businessId={business.id}
+              contentFilters={contentFilters}
+              onSelectionChange={setSelection}
               needsReplyCount={needsReplyCount}
               filter={filter}
-              onFilterChange={setFilter}
               ordering={ordering}
-              onOrderingChange={setOrdering}
             />
 
             {!!reviewId && reviewFocus.error && (
@@ -472,7 +504,28 @@ export default function MerchantReviewsScreen() {
           ) : null
         }
         ListEmptyComponent={
-          reviewsError || sectionLoading ? null : (
+          reviewsError || sectionLoading ? null : hasContentFilters ? (
+            <View className="items-center bg-surface px-6 py-8">
+              <AppText
+                weight="bold"
+                className="text-center text-base text-text-primary"
+              >
+                No matching reviews
+              </AppText>
+              <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
+                Try removing a filter to see more reviews. Your reply-status
+                selection may also limit the results.
+              </AppText>
+              <Button
+                title="Clear filters"
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onPress={clearFilters}
+                accessibilityLabel="Clear filters to show all reviews"
+              />
+            </View>
+          ) : (
             <>
               {/* No reviews yet */}
               {filter === "all" && (

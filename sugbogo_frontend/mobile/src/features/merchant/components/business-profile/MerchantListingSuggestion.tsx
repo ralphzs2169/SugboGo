@@ -188,13 +188,11 @@ export default function MerchantListingSuggestion({
   onAddPhotos,
   onEditInformation,
   onAddLandmarks,
-  previewAll = false,
 }: {
   business: MerchantBusinessProfileResponse;
   onAddPhotos: () => void;
   onEditInformation: () => void;
   onAddLandmarks: () => void;
-  previewAll?: boolean;
 }) {
   const [selectedKind, setSelectedKind] = useState<SuggestionKind>("email");
   const { width, fontScale } = useWindowDimensions();
@@ -283,9 +281,8 @@ export default function MerchantListingSuggestion({
   }, [leaving, leave, clearLeaving]);
 
   const suggestions: SuggestionItem[] = [];
-  const showAllTips = __DEV__ && previewAll;
 
-  if (showAllTips || !business.business_email?.trim()) {
+  if (!business.business_email?.trim()) {
     suggestions.push({
       key: "email",
       title: "Give explorers another way to reach you",
@@ -296,7 +293,7 @@ export default function MerchantListingSuggestion({
     });
   }
 
-  if (showAllTips || !business.website?.trim()) {
+  if (!business.website?.trim()) {
     suggestions.push({
       key: "website",
       title: "Let explorers discover more about you",
@@ -311,7 +308,7 @@ export default function MerchantListingSuggestion({
     (photo) => photo.category === "products" && !!photo.url.trim(),
   );
 
-  if (showAllTips || !hasProductPhotos) {
+  if (!hasProductPhotos) {
     suggestions.push({
       key: "products",
       title: "Show explorers what to expect",
@@ -322,7 +319,7 @@ export default function MerchantListingSuggestion({
     });
   }
 
-  if (showAllTips || business.location.landmarks.length === 0) {
+  if (business.location.landmarks.length === 0) {
     suggestions.push({
       key: "landmarks",
       title: "Help explorers find your business",
@@ -361,7 +358,11 @@ export default function MerchantListingSuggestion({
   };
 
   return (
-    <MerchantContentSection title="Improve your listing">
+    <MerchantContentSection
+      title="Improve your listing"
+      icon="lightbulb-outline"
+      description="Optional tips to help explorers discover and reach your business."
+    >
       {/* Warm, fanned layers give the tip deck a clearer silhouette. */}
       <View className={suggestions.length > 1 ? "mx-3 mb-6 mt-3" : ""}>
         {suggestions.length > 2 ? (

@@ -19,10 +19,7 @@ export default function AnalyticsSectionSkeleton({ section }: Props) {
       className="gap-3"
     >
       {[0, 1].map((index) => (
-        <View
-          key={index}
-          className="gap-3 rounded-card border border-border-primary bg-surface p-4"
-        >
+        <View key={index} className="gap-3 rounded-card bg-surface-muted p-4">
           <Skeleton className="h-4 w-24 rounded" />
           <Skeleton className="h-8 w-16 rounded" />
           <Skeleton className="h-3 w-28 rounded" />

@@ -17,7 +17,7 @@ import { getMerchantDiscoverySources } from "../../../api/merchantDiscoverySourc
 import useMerchantDiscoverySources from "../../../hooks/analytics/useMerchantDiscoverySources";
 import { merchantDiscoverySourcesKey } from "../../../hooks/analytics/merchantAnalyticsQueryKeys";
 import MerchantDiscoverySourcesScreen from "../MerchantDiscoverySourcesScreen";
-import AnalyticsMoreInsights from "../../../components/analytics/AnalyticsMoreInsights";
+import { AnalyticsReportLinks } from "../../../components/analytics/AnalyticsMoreInsights";
 
 let mockFocused = true;
 jest.mock("@gorhom/bottom-sheet", () =>
@@ -370,7 +370,8 @@ describe("Standard discovery sources", () => {
     const open = jest.fn();
     const openPlus = jest.fn();
     const screen = await render(
-      <AnalyticsMoreInsights
+      <AnalyticsReportLinks
+        group="visibility"
         onOpen={openPlus}
         onOpenDiscoverySources={open}
         hasPlusAccess={false}

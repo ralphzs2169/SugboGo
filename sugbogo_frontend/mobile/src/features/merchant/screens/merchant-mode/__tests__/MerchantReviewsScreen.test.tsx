@@ -17,7 +17,7 @@ import {
 import MerchantReviewsScreen from "../MerchantReviewsScreen";
 import { getMerchantReviewLocation } from "../../../api/merchantReviewFocus.service";
 
-const mockRouter = { setParams: jest.fn() };
+const mockRouter = { setParams: jest.fn(), push: jest.fn() };
 let mockParams: Record<string, unknown> = {};
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams,
@@ -25,7 +25,11 @@ jest.mock("expo-router", () => ({
   useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
 }));
-jest.mock("@gorhom/bottom-sheet", () => ({}));
+jest.mock("@gorhom/bottom-sheet", () =>
+  jest
+    .requireActual("../../../__tests__/analyticsSheet.mock")
+    .analyticsSheetMock(),
+);
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("expo-image", () => ({
   Image: jest.requireActual("react-native").View,
@@ -45,6 +49,9 @@ jest.mock("react-native-toast-message", () => ({
 jest.mock("@/shared/components/Skeleton", () => ({
   __esModule: true,
   default: jest.requireActual("react-native").View,
+}));
+jest.mock("@/features/notifications/hooks/useNotifications", () => ({
+  useNotificationUnreadCount: () => ({ unreadCount: 0 }),
 }));
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
@@ -78,6 +85,13 @@ jest.mock("../../../components/review-management/MerchantReviewCard", () => ({
 }));
 jest.mock("@/features/explore/api/reviewBusiness.service", () => ({
   getAllBusinessReviews: jest.fn(),
+}));
+jest.mock("@/features/explore/api/exploreBusiness.service", () => ({
+  getExploreBusinessDetail: jest.fn().mockResolvedValue({
+    success: false,
+    code: "NETWORK_ERROR",
+    message: "Offline",
+  }),
 }));
 jest.mock("../../../api/merchantAnalytics.service", () => ({
   getMerchantUnansweredReviews: jest.fn(),
@@ -190,6 +204,40 @@ describe("merchant Reviews screen backlog integration", () => {
     );
   }
 
+  it("opens the notification inbox from the shared Reviews header", async () => {
+    const screen = await openScreen();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Notifications" }),
+    );
+    expect(mockRouter.push).toHaveBeenLastCalledWith("/notifications");
+    expect(screen.queryByRole("button", { name: "Search reviews" })).toBeNull();
+  });
+
+  it("stages photo filtering until Apply and does not claim a filtered empty feed is caught up", async () => {
+    const screen = await openScreen();
+    await screen.findByText("Review 1");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Filter reviews, 1 active filters" }),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "With photos" }));
+    expect(getReviews).toHaveBeenCalledTimes(1);
+    getReviews.mockResolvedValueOnce(response([]));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Apply review filters" }),
+    );
+    await screen.findByText("No matching reviews");
+    expect(screen.queryByText("All caught up")).toBeNull();
+    expect(getReviews).toHaveBeenLastCalledWith(
+      8,
+      expect.objectContaining({ hasPhotos: true, needsReply: true }),
+      1,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "With photos, selected" }),
+    );
+    await screen.findByText("Review 1");
+  });
+
   it("shows requested controls, loads filtered pages on demand and permits manual changes", async () => {
     getReviews.mockResolvedValueOnce(response([1], 1, true));
     const screen = await openScreen();
@@ -220,7 +268,9 @@ describe("merchant Reviews screen backlog integration", () => {
       expect.objectContaining({ needsReply: true, ordering: "oldest" }),
       2,
     );
-    await fireEvent.press(screen.getByRole("button", { name: "All" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Needs reply, 8" }),
+    );
     await fireEvent.press(
       screen.getByRole("button", { name: "Sort by Newest" }),
     );
@@ -238,7 +288,7 @@ describe("merchant Reviews screen backlog integration", () => {
     await screen.findByText("Review 1");
     expect(screen.getByText("Filter & sort")).toBeTruthy();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Clear review filters" }),
+      screen.getByRole("button", { name: "Needs reply, 8" }),
     );
     await waitFor(() =>
       expect(getReviews).toHaveBeenLastCalledWith(
@@ -257,7 +307,7 @@ describe("merchant Reviews screen backlog integration", () => {
     expect(
       screen.getByRole("button", { name: "Sort by Oldest, selected" }),
     ).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: "Replied" }));
+    await fireEvent.press(screen.getByRole("button", { name: "With reply" }));
     await waitFor(() =>
       expect(getReviews).toHaveBeenLastCalledWith(
         8,

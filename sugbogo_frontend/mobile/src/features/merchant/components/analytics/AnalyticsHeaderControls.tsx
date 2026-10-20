@@ -50,7 +50,7 @@ export default function AnalyticsHeaderControls({
         accessibilityRole="button"
         accessibilityLabel={informationLabel}
         accessibilityHint={informationHint}
-        className="h-11 w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
+        className="-mr-2.5 h-11 w-11 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
       >
         <MaterialCommunityIcons
           name="information-outline"

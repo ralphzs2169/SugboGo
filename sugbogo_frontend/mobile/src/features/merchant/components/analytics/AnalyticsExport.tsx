@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ActivityIndicator, Modal, View } from "react-native";
 import { theme } from "@/constants/theme";
 import Button from "@/shared/components/Button";
+import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import ErrorState from "@/shared/components/ErrorState";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
@@ -18,7 +19,7 @@ export default function AnalyticsExport({ enabled }: { enabled: boolean }) {
   const error = exportReport.error as { message?: string } | null;
   return (
     <>
-      {/* Export owns its selection because dashboard sections have independent periods. */}
+      {/* Export owns its selection because analytics sections have independent periods. */}
       <SafePressable
         accessibilityRole="button"
         accessibilityLabel={
@@ -31,7 +32,7 @@ export default function AnalyticsExport({ enabled }: { enabled: boolean }) {
         }}
         disabled={!enabled || exportReport.isPending}
         hitSlop={4}
-        className="h-12 w-12 cursor-pointer items-center justify-center rounded-full active:bg-background"
+        className="min-h-16 w-full cursor-pointer flex-row items-center gap-3 rounded-card bg-surface-muted px-4 py-3 active:opacity-70 disabled:opacity-50"
         onPress={() => sheet.current?.present()}
       >
         {exportReport.isPending ? (
@@ -42,11 +43,27 @@ export default function AnalyticsExport({ enabled }: { enabled: boolean }) {
         ) : (
           <MaterialCommunityIcons
             name="download-outline"
-            size={24}
+            size={18}
             color={theme.extends.colors.text.primary}
             accessible={false}
           />
         )}
+        <View className="min-w-0 flex-1 gap-1">
+          <AppText weight="semibold" className="text-sm text-text-primary">
+            {exportReport.isPending
+              ? "Preparing PDF…"
+              : "Export analytics report"}
+          </AppText>
+          <AppText className="text-xs leading-5 text-text-secondary">
+            Save or share your overview and reports as a PDF.
+          </AppText>
+        </View>
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={20}
+          color={theme.extends.colors.text.secondary}
+          accessible={false}
+        />
       </SafePressable>
       <Modal
         visible={!!error && enabled}
@@ -77,7 +94,7 @@ export default function AnalyticsExport({ enabled }: { enabled: boolean }) {
       <SelectionBottomSheet
         sheetRef={sheet}
         title="Export PDF"
-        description="Choose one period for all activity reports. Snapshots and stored review summaries keep their own dates."
+        description="Includes your business overview and analytics reports. Choose one period for activity reports; snapshots and stored review summaries keep their own dates."
         options={[
           { label: "Last 7 days", value: "7" },
           { label: "Last 30 days", value: "30" },

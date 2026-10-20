@@ -1,8 +1,10 @@
 import { businessReviewsKey } from "@/features/explore/hooks/reviewQueryKeys";
 import type {
+  MerchantReviewContentFilters,
   MerchantReviewFilter,
   MerchantReviewOrdering,
 } from "../../types/merchantReviews.types";
+import { DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS } from "../../types/merchantReviews.types";
 
 /** Retains business-review mutation invalidation while isolating accounts and list criteria. */
 export function merchantReviewFeedKey(
@@ -10,12 +12,13 @@ export function merchantReviewFeedKey(
   businessId: number,
   filter: MerchantReviewFilter,
   ordering: MerchantReviewOrdering,
+  contentFilters: MerchantReviewContentFilters = DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS,
 ) {
   return [
     ...businessReviewsKey(businessId),
     "merchant-feed",
     accountId,
-    { filter, ordering },
+    { filter, ordering, ...contentFilters },
   ] as const;
 }
 

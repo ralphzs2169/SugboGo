@@ -21,10 +21,24 @@ type ReportItem = {
 type Props = {
   hasPlusAccess?: boolean;
   onOpen: (kind: PlusDetailKind) => void;
-  onOpenDiscoverySources: () => void;
+  onOpenDiscoverySources?: () => void;
+  group?:
+    "visibility" | "reviews" | "review-insights" | "specialties" | "further";
 };
 
 const REPORTS: ReportItem[] = [
+  {
+    title: "Specialty trends",
+    description: "Explore specialty vouch activity over time",
+    icon: "heart-outline",
+    kind: "specialties",
+  },
+  {
+    title: "Review insights",
+    description: "Read the full summary and common review themes",
+    icon: "comment-text-multiple-outline",
+    kind: "review-insights",
+  },
   {
     title: "Where visits came from",
     description: "See where explorers opened your profile",
@@ -38,22 +52,10 @@ const REPORTS: ReportItem[] = [
     kind: "timing",
   },
   {
-    title: "Pocket trends",
-    description: "Track saves and accounts that saved your business",
-    icon: "bookmark-outline",
-    kind: "pocket",
-  },
-  {
     title: "Review performance",
     description: "Review activity, replies, and sentiment",
     icon: "comment-text-outline",
     kind: "reviews",
-  },
-  {
-    title: "Review insights",
-    description: "Discover common themes in customer feedback",
-    icon: "text-box-outline",
-    kind: "review-insights",
   },
   {
     title: "Peer comparisons",
@@ -69,72 +71,91 @@ const REPORTS: ReportItem[] = [
   },
 ];
 
-/** Shows every implemented report; endpoint authorization remains server-owned. */
-export default function AnalyticsMoreInsights({
+/** Places report destinations beside the measurements they explain. */
+export function AnalyticsReportLinks({
   onOpen,
   onOpenDiscoverySources,
+  group = "further",
 }: Props) {
   const handleOpenReport = (kind: ReportItem["kind"]) => {
     if (kind === "discovery-sources") {
-      onOpenDiscoverySources();
+      onOpenDiscoverySources?.();
       return;
     }
 
     onOpen(kind);
   };
 
+  const reports = REPORTS.filter((report) => {
+    if (group === "visibility") {
+      return report.kind === "discovery-sources" || report.kind === "timing";
+    }
+    if (group === "specialties" || group === "review-insights") {
+      return report.kind === group;
+    }
+    if (group === "reviews") {
+      return report.kind === "reviews";
+    }
+    return report.kind === "peers" || report.kind === "recommendations";
+  });
   return (
-    <AnalyticsOverviewSection
-      title="Detailed reports"
-      description="Explore your business activity in more detail."
-    >
-      {/* Available analytics report destinations */}
-      <View>
-        {REPORTS.map((report, index) => (
-          <SafePressable
-            key={report.kind}
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${report.title}`}
-            accessibilityHint={report.description}
-            onPress={() => handleOpenReport(report.kind)}
-            className={`min-h-16 flex-row cursor-pointer items-center gap-3 py-3.5 active:bg-surface-muted ${
-              index > 0 ? "border-t border-border-primary/60" : ""
-            }`}
-          >
-            {/* Neutral report icon */}
-            <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-muted">
-              <MaterialCommunityIcons
-                name={report.icon}
-                size={19}
-                color={theme.extends.colors.text.secondary}
-                accessible={false}
-              />
-            </View>
-
-            {/* Report title and supporting description */}
-            <View className="min-w-0 flex-1 gap-0.5">
-              <AppText
-                weight="semibold"
-                className="text-sm leading-5 text-text-primary"
-              >
-                {report.title}
-              </AppText>
-
-              <AppText className="text-xs leading-5 text-text-secondary">
-                {report.description}
-              </AppText>
-            </View>
-
-            {/* Navigation indicator */}
+    <View>
+      {reports.map((report, index) => (
+        <SafePressable
+          key={report.kind}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${report.title}`}
+          accessibilityHint={report.description}
+          onPress={() => handleOpenReport(report.kind)}
+          className={`min-h-16 flex-row cursor-pointer items-center gap-3 py-3.5 active:bg-surface-muted ${
+            index > 0 ? "border-t border-border-primary/60" : ""
+          }`}
+        >
+          {/* Neutral report icon */}
+          <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-muted">
             <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
+              name={report.icon}
+              size={19}
               color={theme.extends.colors.text.secondary}
               accessible={false}
             />
-          </SafePressable>
-        ))}
-      </View>
+          </View>
+
+          {/* Report title and supporting description */}
+          <View className="min-w-0 flex-1 gap-0.5">
+            <AppText
+              weight="semibold"
+              className="text-sm leading-5 text-text-primary"
+            >
+              {report.title}
+            </AppText>
+
+            <AppText className="text-xs leading-5 text-text-secondary">
+              {report.description}
+            </AppText>
+          </View>
+
+          {/* Navigation indicator */}
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={20}
+            color={theme.extends.colors.text.secondary}
+            accessible={false}
+          />
+        </SafePressable>
+      ))}
+    </View>
+  );
+}
+
+/** Groups broader comparison and recommendation tools. */
+export default function AnalyticsMoreInsights(props: Props) {
+  return (
+    <AnalyticsOverviewSection
+      title="Further insights"
+      description="Compare your business and explore suggested improvements."
+    >
+      <AnalyticsReportLinks {...props} group="further" />
     </AnalyticsOverviewSection>
   );
 }

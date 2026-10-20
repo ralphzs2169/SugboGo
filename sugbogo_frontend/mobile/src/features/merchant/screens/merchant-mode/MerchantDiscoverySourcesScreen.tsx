@@ -14,7 +14,6 @@ import ErrorState from "@/shared/components/ErrorState";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import Skeleton from "@/shared/components/Skeleton";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-import { shadows } from "@/shared/styles/shadows";
 import AnalyticsChartEmptyState from "../../components/analytics/AnalyticsChartEmptyState";
 import AnalyticsOverviewSection from "../../components/analytics/AnalyticsOverviewSection";
 import AnalyticsHeaderControls from "../../components/analytics/AnalyticsHeaderControls";
@@ -117,10 +116,7 @@ export function DiscoverySourcesReportView({
         >
           {/* The summary and breakdown headings remain mounted during period changes. */}
           <View className="gap-5">
-            <View
-              className="min-w-0 rounded-card border border-border-primary/60 bg-surface p-4"
-              style={shadows.subtle}
-            >
+            <View className="min-w-0 rounded-card bg-surface-muted p-4">
               <View className="flex-row items-start justify-between gap-2">
                 <AppText
                   weight="medium"
@@ -135,7 +131,7 @@ export function DiscoverySourcesReportView({
                   accessible={false}
                 />
               </View>
-              <View className="mt-3 gap-1">
+              <View className="mt-2 gap-1">
                 {loading ? (
                   <Skeleton className="h-9 w-24 rounded" />
                 ) : (

@@ -10,7 +10,6 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
-import { shadows } from "@/shared/styles/shadows";
 
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { PlusPocketReport } from "../../types/merchantPlusAnalytics.types";
@@ -59,10 +58,9 @@ function PocketMetricCard({
             ? "Unavailable"
             : formatAnalyticsCount(value)
       }. ${detail}`}
-      className={`min-w-0 rounded-card border border-border-primary/60 bg-surface p-4 ${
+      className={`min-w-0 rounded-card bg-surface-muted p-4 ${
         stacked ? "w-full" : "flex-1"
       }`}
-      style={shadows.subtle}
     >
       {/* Metric heading and supporting icon */}
       <View className="flex-row items-start justify-between gap-2">
@@ -82,7 +80,7 @@ function PocketMetricCard({
       </View>
 
       {/* Primary count and brief definition */}
-      <View className="mt-3 gap-1">
+      <View className="mt-2 gap-1">
         {loading ? (
           <Skeleton className="h-9 w-16 rounded" />
         ) : (
@@ -234,10 +232,12 @@ export function AnalyticsPocketHeader({
   period,
   onPeriodChange,
   report,
+  title = "Save activity",
 }: {
   period: MerchantAnalyticsPeriod;
   onPeriodChange: (period: MerchantAnalyticsPeriod) => void;
   report?: PlusPocketReport;
+  title?: string;
 }) {
   const periodSheetRef = useRef<BottomSheetModal>(null);
   const measurementSheetRef = useRef<BottomSheetModal>(null);
@@ -250,7 +250,7 @@ export function AnalyticsPocketHeader({
             accessibilityRole="header"
             className="min-w-0 flex-1 text-base text-text-primary"
           >
-            Save activity
+            {title}
           </AppText>
           <AnalyticsHeaderControls
             period={period}

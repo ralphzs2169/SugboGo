@@ -58,6 +58,9 @@ describe("merchant review entry intent and server pagination", () => {
       20,
       selection.filter,
       selection.ordering,
+      true,
+      undefined,
+      selection.contentFilters,
     );
     return { selection, feed };
   }
@@ -221,5 +224,80 @@ describe("merchant review entry intent and server pagination", () => {
     await waitFor(() => expect(getReviews).toHaveBeenCalledTimes(2));
     expect(result.current.reviews).toEqual([]);
     expect(result.current.totalCount).toBeUndefined();
+  });
+
+  it("combines content filters with reply status and starts each selection at page one", async () => {
+    const { result } = await renderHook(() => useFlow(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.feed.reviews).toHaveLength(1));
+    await act(async () => result.current.selection.setFilter("needs-reply"));
+    await act(async () => result.current.selection.setOrdering("oldest"));
+    await act(async () =>
+      result.current.selection.setContentFilters({
+        sentiment: "negative",
+        topic: "Service",
+        hasPhotos: true,
+      }),
+    );
+    await waitFor(() =>
+      expect(getReviews).toHaveBeenLastCalledWith(
+        20,
+        expect.objectContaining({
+          sentiment: "negative",
+          topic: "Service",
+          hasPhotos: true,
+          needsReply: true,
+          merchantReplied: false,
+          ordering: "oldest",
+        }),
+        1,
+      ),
+    );
+    await act(async () => result.current.selection.clearFilters());
+    expect(result.current.selection.ordering).toBe("oldest");
+    expect(result.current.selection.filter).toBe("all");
+    expect(result.current.selection.contentFilters).toEqual({
+      sentiment: null,
+      topic: null,
+      hasPhotos: false,
+    });
+  });
+
+  it("clears active content filters before requesting a notification-targeted review", async () => {
+    const { result, rerender } = await renderHook(() => useFlow(), {
+      wrapper: Wrapper,
+    });
+    await act(async () =>
+      result.current.selection.setContentFilters({
+        sentiment: "negative",
+        topic: "Service",
+        hasPhotos: true,
+      }),
+    );
+    mockParams = {
+      reviewId: "42",
+      filter: "all",
+      ordering: "newest",
+      reviewIntent: "new-entry",
+    };
+    await rerender({});
+    expect(result.current.selection.reviewId).toBe(42);
+    expect(result.current.selection.contentFilters).toEqual({
+      sentiment: null,
+      topic: null,
+      hasPhotos: false,
+    });
+    await waitFor(() =>
+      expect(getReviews).toHaveBeenLastCalledWith(
+        20,
+        expect.objectContaining({
+          sentiment: null,
+          topic: null,
+          hasPhotos: false,
+          needsReply: false,
+          ordering: "newest",
+        }),
+        1,
+      ),
+    );
   });
 });

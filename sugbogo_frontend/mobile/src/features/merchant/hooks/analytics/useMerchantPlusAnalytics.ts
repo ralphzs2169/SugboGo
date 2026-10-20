@@ -57,7 +57,7 @@ export function useMerchantPlusVisibility(
   );
 }
 
-/** Requests weekly saves only while their detail view is permitted and focused. */
+/** Requests weekly saves while the hosting analytics screen is focused. */
 export function useMerchantPlusPocket(
   selection: AnalyticsSelection,
   enabled: boolean,

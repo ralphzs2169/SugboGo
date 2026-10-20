@@ -1,4 +1,5 @@
-import { ScrollView, View } from "react-native";
+import MerchantMetricCard from "../MerchantMetricCard";
+import { ScrollView, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Skeleton from "@/shared/components/Skeleton";
@@ -10,6 +11,8 @@ import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
  */
 export default function MerchantProfileSkeleton() {
   const bottomSpacing = useTabBarSpacing();
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < 360 || fontScale >= 1.35;
 
   return (
     <View testID="merchant-profile-skeleton" className="flex-1 bg-background">
@@ -59,17 +62,21 @@ export default function MerchantProfileSkeleton() {
             >
               <Skeleton className="h-5 w-24 rounded-md" />
               <Skeleton className="mt-2 h-3 w-52 max-w-full rounded-md" />
-              <View className="mt-4 flex-row gap-2">
-                {[0, 1, 2].map((metric) => (
-                  <View
-                    key={metric}
-                    className="min-w-0 flex-1 rounded-xl border border-border-primary/70 bg-surface px-3 py-3"
-                  >
-                    <Skeleton className="h-10 w-10 rounded-lg" />
-                    <Skeleton className="mt-3 h-3 w-12 max-w-full rounded-md" />
-                    <Skeleton className="mt-2 h-4 w-16 max-w-full rounded-md" />
-                  </View>
-                ))}
+              <View className={stacked ? "mt-4 gap-3" : "mt-4 flex-row gap-3"}>
+                <MerchantMetricCard
+                  icon="image-multiple-outline"
+                  label="Photos"
+                  value=""
+                  stacked={stacked}
+                  loading
+                />
+                <MerchantMetricCard
+                  icon="map-marker-outline"
+                  label="Landmarks"
+                  value=""
+                  stacked={stacked}
+                  loading
+                />
               </View>
             </View>
           </View>

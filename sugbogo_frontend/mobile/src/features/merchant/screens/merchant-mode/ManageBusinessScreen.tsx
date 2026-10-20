@@ -263,10 +263,10 @@ export default function ManageBusinessScreen() {
                 </View>
 
                 {row.isPending ? (
-                  <View className="mr-2 rounded-full bg-text-info px-2.5 py-1">
+                  <View className="mr-2 rounded-full bg-info px-2.5 py-1">
                     <AppText
                       weight="semibold"
-                      className="text-[11px] text-white"
+                      className="text-[11px] text-text-info"
                     >
                       Pending
                     </AppText>

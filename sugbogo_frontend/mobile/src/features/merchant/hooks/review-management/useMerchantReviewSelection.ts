@@ -1,10 +1,14 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import type { MerchantReviewSelection } from "../../types/merchantReviews.types";
+import {
+  DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS,
+  type MerchantReviewSelection,
+} from "../../types/merchantReviews.types";
 
 const DEFAULT_SELECTION: MerchantReviewSelection = {
   filter: "all",
   ordering: "newest",
+  contentFilters: DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS,
 };
 
 /** Validates and consumes tab entry intent before any feed request can use old filters. */
@@ -35,7 +39,9 @@ export default function useMerchantReviewSelection() {
     params.filter === "needs-reply" ||
     params.filter === "replied";
   const validOrdering =
-    params.ordering === "newest" || params.ordering === "oldest";
+    params.ordering === "newest" ||
+    params.ordering === "oldest" ||
+    params.ordering === "most_liked";
   const valid = hasIntent && validFilter && validOrdering;
   const pending = valid && state.intentKey !== key;
   const parsedReviewId =
@@ -52,6 +58,7 @@ export default function useMerchantReviewSelection() {
   const entry = pending ? state.entry + 1 : state.entry;
   const effective: MerchantReviewSelection = pending
     ? {
+        ...DEFAULT_SELECTION,
         filter: requestedReviewId
           ? "all"
           : (params.filter as MerchantReviewSelection["filter"]),
@@ -59,10 +66,16 @@ export default function useMerchantReviewSelection() {
           ? "newest"
           : (params.ordering as MerchantReviewSelection["ordering"]),
       }
-    : state.selection;
+    : {
+        ...state.selection,
+        contentFilters:
+          state.selection.contentFilters ??
+          DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS,
+      };
 
   // Adjust this hook's state before children can request a feed with stale filters.
-  if (state.intentKey !== key) {
+  // Fast Refresh can preserve a selection created before content filters existed.
+  if (state.intentKey !== key || !state.selection.contentFilters) {
     setState({ selection: effective, intentKey: key, reviewId, entry });
   }
 
@@ -78,8 +91,28 @@ export default function useMerchantReviewSelection() {
 
   return {
     ...effective,
+    setSelection: (selection: MerchantReviewSelection) =>
+      setState((current) => ({ ...current, selection, reviewId: null })),
     reviewId,
     entry,
+    setContentFilters: (
+      contentFilters: MerchantReviewSelection["contentFilters"],
+    ) =>
+      setState((current) => ({
+        ...current,
+        selection: { ...current.selection, contentFilters },
+        reviewId: null,
+      })),
+    clearFilters: () =>
+      setState((current) => ({
+        ...current,
+        selection: {
+          ...current.selection,
+          filter: "all",
+          contentFilters: DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS,
+        },
+        reviewId: null,
+      })),
     setFilter: (filter: MerchantReviewSelection["filter"]) =>
       setState((current) => ({
         ...current,

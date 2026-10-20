@@ -23,6 +23,7 @@ type Props = {
   review: BusinessReview;
   onReply: (review: BusinessReview) => void;
   highlighted?: boolean;
+  highlightedTopic?: string | null;
 };
 
 /**
@@ -37,6 +38,7 @@ export default function MerchantReviewCard({
   review,
   onReply,
   highlighted = false,
+  highlightedTopic,
 }: Props) {
   const { mutateAsync: deleteReply, isPending: isDeletePending } =
     useDeleteReviewReply(businessId);
@@ -107,6 +109,7 @@ export default function MerchantReviewCard({
       {/* Shared review content */}
       <ReviewContent
         review={review}
+        highlightedTopic={highlightedTopic}
         onReply={() => onReply(review)}
         onLike={toggleLike}
         isLikePending={isLikePending}

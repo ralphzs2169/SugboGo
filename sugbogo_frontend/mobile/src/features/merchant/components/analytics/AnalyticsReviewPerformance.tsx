@@ -13,7 +13,6 @@ import Skeleton from "@/shared/components/Skeleton";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import ReviewFeedbackDistribution from "@/shared/components/reviews/ReviewFeedbackDistribution";
 import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
-import { shadows } from "@/shared/styles/shadows";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { PlusReviewPerformanceReport } from "../../types/merchantPlusAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
@@ -98,10 +97,7 @@ export default function AnalyticsReviewPerformance({
             New reviews and your responses
           </AppText>
         </View>
-        <View
-          className="min-w-0 rounded-card border border-border-primary/60 bg-surface p-4"
-          style={shadows.subtle}
-        >
+        <View className="min-w-0 rounded-card bg-surface-muted p-4">
           <View className="flex-row items-start justify-between gap-2">
             <AppText
               weight="medium"
@@ -116,7 +112,7 @@ export default function AnalyticsReviewPerformance({
               accessible={false}
             />
           </View>
-          <View className="mt-3 gap-1">
+          <View className="mt-2 gap-1">
             {pending ? (
               <Skeleton className="h-9 w-24 rounded" />
             ) : (
@@ -220,10 +216,7 @@ export default function AnalyticsReviewPerformance({
               <AppText weight="bold" className="text-base text-text-primary">
                 Your replies
               </AppText>
-              <View
-                className="gap-2 rounded-card border border-border-primary/60 bg-surface p-4"
-                style={shadows.subtle}
-              >
+              <View className="gap-2 rounded-card bg-surface-muted p-4">
                 <AppText
                   weight="medium"
                   className="text-sm text-text-secondary"
@@ -254,7 +247,7 @@ export default function AnalyticsReviewPerformance({
                     accessibilityRole="progressbar"
                     accessibilityLabel="Review reply rate"
                     accessibilityValue={{ min: 0, max: 100, now: validRate }}
-                    className="h-2 overflow-hidden rounded-full bg-surface-muted"
+                    className="h-2 overflow-hidden rounded-full bg-surface-muted-strong"
                   >
                     <View
                       testID="review-reply-progress"

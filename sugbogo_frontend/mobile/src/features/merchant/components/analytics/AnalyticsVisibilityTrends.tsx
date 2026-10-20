@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { AnalyticsChartSkeleton } from "./AnalyticsLoadingSkeletons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "expo-router";
@@ -47,9 +48,13 @@ const INTERVAL_OPTIONS = [
 export default function AnalyticsVisibilityTrends({
   period,
   onOpenPeriod,
+  children,
+  flushTop = false,
 }: {
   period: MerchantAnalyticsPeriod;
   onOpenPeriod: () => void;
+  children?: ReactNode;
+  flushTop?: boolean;
 }) {
   const focused = useIsFocused();
 
@@ -79,7 +84,10 @@ export default function AnalyticsVisibilityTrends({
         setIntervalSelections((current) => ({ ...current, [period]: selected }))
       }
       query={query}
-    />
+      flushTop={flushTop}
+    >
+      {children}
+    </AnalyticsVisibilityReport>
   );
 }
 
@@ -90,11 +98,15 @@ export function AnalyticsVisibilityReport({
   interval,
   onIntervalChange,
   query,
+  children,
+  flushTop = false,
 }: {
   period: MerchantAnalyticsPeriod;
   onOpenPeriod: () => void;
   interval: AnalyticsInterval;
   onIntervalChange: (value: AnalyticsInterval) => void;
+  children?: ReactNode;
+  flushTop?: boolean;
   query: Pick<
     ReturnType<typeof useMerchantPlusVisibility>,
     "data" | "isPending" | "error"
@@ -119,6 +131,7 @@ export function AnalyticsVisibilityReport({
     <>
       <AnalyticsOverviewSection
         title="Visibility trends"
+        flushTop={flushTop}
 
         description="See how explorers interact with your business over time."
         accessory={
@@ -221,6 +234,11 @@ export function AnalyticsVisibilityReport({
             )}
           </View>
         </View>
+        {children && (
+          <View className="mt-4 border-t border-border-primary/60">
+            {children}
+          </View>
+        )}
       </AnalyticsOverviewSection>
 
       {/* Shared Gorhom sheet pattern; mounted outside chart scrolling */}

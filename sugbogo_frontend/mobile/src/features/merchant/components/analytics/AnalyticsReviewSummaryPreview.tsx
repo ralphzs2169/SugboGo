@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import SafePressable from "@/shared/components/SafePressable";
+import AnalyticsSectionInformation from "./AnalyticsSectionInformation";
+import { AnalyticsReportLinks } from "./AnalyticsMoreInsights";
 import Skeleton from "@/shared/components/Skeleton";
 import ErrorState from "@/shared/components/ErrorState";
 import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
@@ -26,12 +28,14 @@ export default function AnalyticsReviewSummaryPreview({
   error,
   onRetry,
   onOpen,
+  children,
 }: {
   report?: PlusStoredInsightsReport;
   loading: boolean;
   error: unknown;
   onRetry: () => void;
   onOpen: () => void;
+  children?: ReactNode;
 }) {
   const summary = report?.stored_summary;
   const pending = loading && !report;
@@ -44,25 +48,7 @@ export default function AnalyticsReviewSummaryPreview({
     <AnalyticsOverviewSection
       title="Review summary"
       description="What customers mention in their reviews"
-      accessory={
-        <SafePressable
-          accessibilityRole="button"
-          accessibilityLabel="View review insights"
-          accessibilityHint="Opens the complete stored summary, common mentions, and measurement details"
-          onPress={onOpen}
-          className="min-h-12 flex-row cursor-pointer items-center justify-center gap-1 active:opacity-70"
-        >
-          <AppText weight="semibold" className="text-sm text-brand">
-            View insights
-          </AppText>
-          <MaterialCommunityIcons
-            name="chevron-right"
-            size={20}
-            color={theme.extends.colors.brand}
-            accessible={false}
-          />
-        </SafePressable>
-      }
+      accessory={<AnalyticsSectionInformation section="reviews" />}
     >
       <View className="gap-4">
         {Boolean(error) && (
@@ -179,6 +165,14 @@ export default function AnalyticsReviewSummaryPreview({
             }
           />
         ) : null}
+      </View>
+      <View className="mt-4 border-t border-border-primary/60">
+        {children}
+        <View
+          className={children ? "border-t border-border-primary/60" : undefined}
+        >
+          <AnalyticsReportLinks group="review-insights" onOpen={onOpen} />
+        </View>
       </View>
     </AnalyticsOverviewSection>
   );

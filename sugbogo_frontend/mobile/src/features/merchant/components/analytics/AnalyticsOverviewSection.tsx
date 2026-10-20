@@ -7,12 +7,14 @@ export default function AnalyticsOverviewSection({
   title,
   description,
   accessory,
+  flushTop = false,
   plus = false,
   children,
 }: {
   title: string;
   description?: string;
   accessory?: ReactNode;
+  flushTop?: boolean;
   plus?: boolean;
   children: ReactNode;
 }) {
@@ -20,6 +22,7 @@ export default function AnalyticsOverviewSection({
     <MerchantContentSection
       title={title}
       description={description}
+      flushTop={flushTop}
       accessory={
         accessory ??
         (plus ? (

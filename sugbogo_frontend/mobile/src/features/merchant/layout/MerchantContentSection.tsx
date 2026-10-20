@@ -1,12 +1,16 @@
-import type { ReactNode } from "react";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { ComponentProps, ReactNode } from "react";
 import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
+import { theme } from "@/constants/theme";
 
 type Props = {
   title: string;
   description?: string;
   accessory?: ReactNode;
+  icon?: ComponentProps<typeof MaterialCommunityIcons>["name"];
+  flushTop?: boolean;
   children: ReactNode;
 };
 
@@ -15,10 +19,12 @@ export default function MerchantContentSection({
   title,
   description,
   accessory,
+  icon,
+  flushTop = false,
   children,
 }: Props) {
   return (
-    <View className="mt-2 bg-surface px-5 pb-5 pt-4">
+    <View className={`${flushTop ? "" : "mt-2"} bg-surface px-5 pb-5 pt-4`}>
       {/* Consistent merchant section heading */}
       <View className="mb-4">
         <View className="flex-row items-center justify-between gap-3">
@@ -29,6 +35,14 @@ export default function MerchantContentSection({
           >
             {title}
           </AppText>
+          {icon && (
+            <MaterialCommunityIcons
+              name={icon}
+              size={21}
+              color={theme.extends.colors.text.secondary}
+              accessible={false}
+            />
+          )}
           {accessory}
         </View>
         {description && (

@@ -6,6 +6,8 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { merchantReviewFeedKey } from "./merchantReviewQueryKeys";
 import {
   MERCHANT_REVIEW_PAGE_SIZE,
+  DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS,
+  type MerchantReviewContentFilters,
   type MerchantReviewFilter,
   type MerchantReviewOrdering,
   type MerchantReviewLocation,
@@ -18,19 +20,33 @@ export default function useMerchantReviewFeed(
   ordering: MerchantReviewOrdering,
   enabled = true,
   location?: MerchantReviewLocation,
+  contentFilters: MerchantReviewContentFilters = DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS,
 ) {
   const accountId = useAuthStore((state) => state.user?.id);
   const query = useInfiniteQuery({
     queryKey: location
       ? [
-          ...merchantReviewFeedKey(accountId, businessId, filter, ordering),
+          ...merchantReviewFeedKey(
+            accountId,
+            businessId,
+            filter,
+            ordering,
+            contentFilters,
+          ),
           { reviewId: location.review_id, page: location.page },
         ]
-      : merchantReviewFeedKey(accountId, businessId, filter, ordering),
+      : merchantReviewFeedKey(
+          accountId,
+          businessId,
+          filter,
+          ordering,
+          contentFilters,
+        ),
     initialPageParam: location?.page ?? 1,
     queryFn: async ({ pageParam }) => {
       const filters = {
         ...DEFAULT_BUSINESS_REVIEW_FILTERS,
+        ...contentFilters,
         needsReply: filter === "needs-reply",
         merchantReplied: filter === "replied",
         ordering,

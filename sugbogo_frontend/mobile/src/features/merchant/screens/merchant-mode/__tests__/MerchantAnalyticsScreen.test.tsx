@@ -315,7 +315,7 @@ describe("MerchantAnalyticsScreen", () => {
   ) {
     await fireEvent.press(sectionPeriodControl(screen, title));
     await fireEvent.press(
-      screen.getByRole("button", { name: `Last ${days} days` }),
+      screen.getAllByRole("button", { name: `Last ${days} days` })[0],
     );
   }
 
@@ -424,6 +424,16 @@ describe("MerchantAnalyticsScreen", () => {
       screen.queryByRole("header", { name: "Reviews needing replies" }),
     ).toBeNull();
     expect(getMerchantUnansweredReviews).not.toHaveBeenCalled();
+    expect(screen.getByRole("header", { name: "Pocket trends" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Open Pocket trends" }),
+    ).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Open Review insights" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Open Review performance" }),
+    ).toBeTruthy();
   });
 
   it("changes visibility and route periods independently and refreshes their reports", async () => {
@@ -470,11 +480,30 @@ describe("MerchantAnalyticsScreen", () => {
       params: { period: "30" },
     });
     await fireEvent.press(
-      screen.getByRole("button", { name: "View specialty trends" }),
+      screen.getByRole("button", { name: "Open Specialty trends" }),
     );
     expect(mockNavigate).toHaveBeenLastCalledWith({
       pathname: "/(merchant)/analytics/[report]",
       params: { report: "specialties", period: "30" },
+    });
+  });
+
+  it("opens discovery reports with the visibility section's selected period", async () => {
+    const screen = await renderScreen();
+    await chooseSectionPeriod(screen, "Visibility trends", "7");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Where visits came from" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      pathname: "/(merchant)/analytics/discovery-sources",
+      params: { period: "7" },
+    });
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Profile visit timing" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      pathname: "/(merchant)/analytics/[report]",
+      params: { report: "timing", period: "7" },
     });
   });
 });

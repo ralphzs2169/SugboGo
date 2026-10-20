@@ -35,14 +35,6 @@ const METHOD_COLORS = {
   jeepney: "#698CAD",
 } as const;
 
-const PANEL_SHADOW = {
-  shadowColor: "#000",
-  shadowOpacity: 0.05,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 2 },
-  elevation: 1,
-} as const;
-
 const TABULAR_NUMBERS: TextStyle = {
   fontVariant: ["tabular-nums"],
 };
@@ -408,10 +400,7 @@ export default function AnalyticsRoutePlanning({
               />
             ) : data.total_requests === 0 ? (
               /* Known zero activity without a misleading donut */
-              <View
-                className="rounded-card border border-border-primary/60 bg-surface px-4 py-4"
-                style={PANEL_SHADOW}
-              >
+              <View className="rounded-card bg-surface-muted px-4 py-4">
                 <AppText className="text-sm text-text-secondary">
                   Recorded route requests
                 </AppText>
@@ -454,10 +443,7 @@ export default function AnalyticsRoutePlanning({
               </View>
             ) : (
               /* Main donut chart and its breakdown panel */
-              <View
-                className="rounded-card border border-border-primary/60 bg-surface"
-                style={PANEL_SHADOW}
-              >
+              <View className="rounded-card bg-surface-muted">
                 {canRenderDonut ? (
                   <View
                     className={`p-4 ${
