@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
+import { AccessibilityInfo, Animated } from "react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
@@ -104,6 +105,12 @@ jest.mock("@/shared/components/bottom-sheets/SelectionBottomSheet", () => ({
 const mockRefetchProfile = jest.fn();
 let mockProfileError: unknown = null;
 let mockProfileBusinessId = 8;
+let mockProfileStatus = "active";
+let mockProfileLoading = false;
+let mockProfilePhotos: { category: string; url: string }[] = [];
+let mockLandmarks: { id: number }[] = [{ id: 1 }];
+let mockBusinessEmail: string | null = "hello@example.com";
+let mockBusinessWebsite: string | null = "https://example.com";
 
 jest.mock("@/features/notifications/hooks/useNotifications", () => ({
   useNotificationUnreadCount: () => ({ unreadCount: 4 }),
@@ -114,6 +121,12 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   default: () => ({
     business: {
       id: mockProfileBusinessId,
+      business_name: "Cebu Coffee",
+      status: mockProfileStatus,
+      photos: mockProfilePhotos,
+      location: { landmarks: mockLandmarks },
+      business_email: mockBusinessEmail,
+      website: mockBusinessWebsite,
       display_cover_photo_url: "https://example.com/business-cover.jpg",
       specialty_tags: [
         { id: 2, name: "Friendly service", color: "green", icon: "heart" },
@@ -121,6 +134,7 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
       ],
     },
     error: mockProfileError,
+    isLoading: mockProfileLoading,
     refetch: mockRefetchProfile,
   }),
 }));
@@ -239,6 +253,9 @@ describe("MerchantDashboardScreen", () => {
   let client: QueryClient;
 
   beforeEach(() => {
+    jest
+      .spyOn(AccessibilityInfo, "isReduceMotionEnabled")
+      .mockResolvedValue(true);
     mockFocused = true;
     client = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
@@ -284,10 +301,17 @@ describe("MerchantDashboardScreen", () => {
     mockRefetchProfile.mockResolvedValue({});
     mockProfileError = null;
     mockProfileBusinessId = 8;
+    mockProfileStatus = "active";
+    mockProfileLoading = false;
+    mockProfilePhotos = [];
+    mockLandmarks = [{ id: 1 }];
+    mockBusinessEmail = "hello@example.com";
+    mockBusinessWebsite = "https://example.com";
   });
 
   afterEach(async () => {
     await cleanup();
+    jest.restoreAllMocks();
     client.clear();
     useAuthStore.setState({ user: null });
   });
@@ -299,6 +323,451 @@ describe("MerchantDashboardScreen", () => {
       </QueryClientProvider>,
     );
   }
+
+  it("offers optional photos and opens the existing photo editor", async () => {
+    const screen = await renderScreen();
+    await fireEvent.press(
+      await screen.findByRole("button", {
+        name: "Add photos",
+      }),
+    );
+    expect(mockNavigate).toHaveBeenCalledWith("/(merchant)/business-photos");
+  });
+
+  it("removes the suggestion when product photos are added", async () => {
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add photos" });
+    mockProfilePhotos = [
+      { category: "products", url: "https://example.com/product.jpg" },
+    ];
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantDashboardScreen />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.queryByRole("header", { name: "Improve your listing" }),
+    ).toBeNull();
+  });
+
+  it.each(["suspended", "loading", "error"])(
+    "hides optional suggestions when the profile is %s",
+    async (state) => {
+      mockProfileStatus = state === "suspended" ? "suspended" : "active";
+      mockProfileLoading = state === "loading";
+      mockProfileError = state === "error" ? new Error("Offline") : null;
+      const screen = await renderScreen();
+      await waitFor(() => expect(client.isFetching()).toBe(0));
+      expect(
+        screen.queryByRole("header", { name: "Improve your listing" }),
+      ).toBeNull();
+    },
+  );
+
+  it("updates email and website suggestions when profile fields are removed and restored", async () => {
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add photos" });
+    expect(
+      screen.queryByRole("button", { name: "Add business email" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add website" })).toBeNull();
+
+    mockBusinessEmail = "";
+    mockBusinessWebsite = null;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantDashboardScreen />
+      </QueryClientProvider>,
+    );
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Add business email" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith(
+      "/(merchant)/business-information",
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Add website" }));
+    expect(mockNavigate).toHaveBeenLastCalledWith(
+      "/(merchant)/business-information",
+    );
+
+    mockBusinessEmail = "hello@example.com";
+    mockBusinessWebsite = "https://example.com";
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantDashboardScreen />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Add business email" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add website" })).toBeNull();
+  });
+
+  it("hides the section when all supported optional details are present", async () => {
+    mockProfilePhotos = [
+      { category: "products", url: "https://example.com/product.jpg" },
+    ];
+    const screen = await renderScreen();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    expect(
+      screen.queryByRole("header", { name: "Improve your listing" }),
+    ).toBeNull();
+  });
+
+  it("cycles through applicable tips without dismissing them", async () => {
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add business email" });
+    expect(
+      screen.queryByRole("button", { name: /dismiss|not relevant/i }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add photos" })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Add business email" }),
+    ).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    expect(screen.getByRole("button", { name: "Add photos" })).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    expect(
+      screen.getByRole("button", { name: "Add business email" }),
+    ).toBeTruthy();
+  });
+
+  it("advances from a completed tip and removes cycling when only one remains", async () => {
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    mockProfilePhotos = [
+      { category: "products", url: "https://example.com/product.jpg" },
+    ];
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add business email" });
+    mockBusinessEmail = "hello@example.com";
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantDashboardScreen />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Next tip" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Add business email" }),
+    ).toBeNull();
+  });
+
+  it("resets the selected tip when the business changes", async () => {
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    const screen = await renderScreen();
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Next tip" }),
+    );
+    expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+    mockProfileBusinessId = 9;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantDashboardScreen />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Add business email" }),
+    ).toBeTruthy();
+  });
+
+  it("flips the outgoing card before advancing and prevents skipped tips", async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(false);
+    let finish: ((result: { finished: boolean }) => void) | undefined;
+    const timing = jest.spyOn(Animated, "timing").mockReturnValue({
+      start: jest.fn((callback?: (result: { finished: boolean }) => void) => {
+        finish = callback;
+      }),
+      stop: jest.fn(),
+      reset: jest.fn(),
+    });
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add business email" });
+    timing.mockClear();
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    expect(
+      screen.getByRole("button", { name: "Add business email" }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Add website" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Next tip" }).props.accessibilityState
+        .busy,
+    ).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    expect(timing).toHaveBeenCalledTimes(1);
+    expect(timing).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        toValue: 1,
+        duration: 340,
+        useNativeDriver: true,
+      }),
+    );
+    await act(async () => finish?.({ finished: true }));
+    expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+    expect(screen.getByLabelText("Tip 2 of 3")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Next tip" }).props.accessibilityState
+        .disabled,
+    ).toBe(false);
+  });
+
+  it("keeps Next tip usable through two complete animated cycles", async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(false);
+    let finish: ((result: { finished: boolean }) => void) | undefined;
+    const timing = jest.spyOn(Animated, "timing").mockReturnValue({
+      start: jest.fn((callback?: (result: { finished: boolean }) => void) => {
+        finish = callback;
+      }),
+      stop: jest.fn(),
+      reset: jest.fn(),
+    });
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    mockLandmarks = [];
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add business email" });
+    timing.mockClear();
+    const kinds = ["email", "website", "products", "landmarks"];
+    const nextButton = screen.getByRole("button", { name: "Next tip" });
+
+    for (let step = 1; step <= 8; step += 1) {
+      const outgoingImage = screen.getByTestId("listing-tip-illustration");
+      await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+      expect(timing).toHaveBeenCalledTimes(step);
+      await act(async () => finish?.({ finished: true }));
+      const index = step % kinds.length;
+      expect(screen.getByLabelText(`Tip ${index + 1} of 4`)).toBeTruthy();
+      const incomingImage = screen.getByTestId("listing-tip-illustration");
+      expect(incomingImage.props.recyclingKey).toBe(kinds[index]);
+      expect(incomingImage).not.toBe(outgoingImage);
+      expect(screen.getByRole("button", { name: "Next tip" })).toBe(nextButton);
+      expect(nextButton.props.accessibilityState).toEqual({
+        disabled: false,
+        busy: false,
+      });
+    }
+  });
+
+  it("advances the tip even when an outgoing flip is interrupted", async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(false);
+    let finish: ((result: { finished: boolean }) => void) | undefined;
+    jest.spyOn(Animated, "timing").mockReturnValue({
+      start: jest.fn((callback?: (result: { finished: boolean }) => void) => {
+        finish = callback;
+      }),
+      stop: jest.fn(),
+      reset: jest.fn(),
+    });
+    mockBusinessEmail = null;
+    const screen = await renderScreen();
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Next tip" }),
+    );
+    await act(async () => finish?.({ finished: false }));
+    expect(
+      screen.getByRole("button", { name: "Add photos" }).props
+        .accessibilityState.disabled,
+    ).toBe(false);
+    expect(
+      screen.getByRole("button", { name: "Next tip" }).props.accessibilityState
+        .busy,
+    ).toBe(false);
+    expect(screen.getByLabelText("Tip 2 of 2")).toBeTruthy();
+  });
+
+  it("unlocks and advances when the native completion callback never arrives", async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(false);
+    const callbacks: (((result: { finished: boolean }) => void) | undefined)[] =
+      [];
+    jest.spyOn(Animated, "timing").mockReturnValue({
+      start: jest.fn((callback?: (result: { finished: boolean }) => void) => {
+        callbacks.push(callback);
+      }),
+      stop: jest.fn(),
+      reset: jest.fn(),
+    });
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Next tip" });
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+      expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: "Next tip" }).props
+          .accessibilityState.disabled,
+      ).toBe(false);
+      await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+      // A late callback from the previous flip must not finish the new one.
+      await act(async () => callbacks[0]?.({ finished: true }));
+      expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: "Next tip" }).props
+          .accessibilityState.busy,
+      ).toBe(true);
+      await act(async () => callbacks[1]?.({ finished: true }));
+      expect(screen.getByRole("button", { name: "Add photos" })).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+  it("changes tips without animation when reduced motion is enabled", async () => {
+    const timing = jest.spyOn(Animated, "timing");
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add business email" });
+    timing.mockClear();
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+    expect(timing).not.toHaveBeenCalled();
+  });
+
+  it("updates the compact tip position as Next tip cycles", async () => {
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    const screen = await renderScreen();
+    await screen.findByLabelText("Tip 1 of 3");
+    expect(screen.queryByRole("button", { name: /View .* tip/ })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    expect(screen.getByLabelText("Tip 2 of 3")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+  });
+
+  it("updates the tip position and total when a field is completed", async () => {
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    const screen = await renderScreen();
+    await screen.findByLabelText("Tip 1 of 3");
+    mockBusinessEmail = "hello@example.com";
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantDashboardScreen />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByLabelText("Tip 1 of 2")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add website" })).toBeTruthy();
+  });
+
+  it("offers missing landmarks through the existing approval flow", async () => {
+    mockLandmarks = [];
+    mockProfilePhotos = [
+      { category: "products", url: "https://example.com/product.jpg" },
+    ];
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add nearby landmarks" });
+    expect(screen.getByText(/Changes require SugboGo approval/)).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Add nearby landmarks" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith(
+      "/(merchant)/location-change",
+    );
+    mockLandmarks = [{ id: 1 }];
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantDashboardScreen />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.queryByRole("header", { name: "Improve your listing" }),
+    ).toBeNull();
+  });
+
+  it("includes missing landmarks as the fourth applicable tip", async () => {
+    mockBusinessEmail = null;
+    mockBusinessWebsite = null;
+    mockLandmarks = [];
+    const screen = await renderScreen();
+    await screen.findByLabelText("Tip 1 of 4");
+    for (let index = 0; index < 3; index += 1) {
+      await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    }
+    expect(screen.getByLabelText("Tip 4 of 4")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Add nearby landmarks" }),
+    ).toBeTruthy();
+  });
+  it("previews all four illustrated tips without changing profile data", async () => {
+    mockProfilePhotos = [
+      { category: "products", url: "https://example.com/product.jpg" },
+    ];
+    const screen = await renderScreen();
+    expect(
+      screen.queryByRole("header", { name: "Improve your listing" }),
+    ).toBeNull();
+    await fireEvent(
+      screen.getByRole("switch", { name: "Preview all listing tips" }),
+      "valueChange",
+      true,
+    );
+    expect(screen.getByLabelText("Tip 1 of 4")).toBeTruthy();
+    for (const kind of ["email", "website", "products", "landmarks"]) {
+      expect(
+        screen.getByTestId("listing-tip-illustration").props.recyclingKey,
+      ).toBe(kind);
+      await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    }
+    expect(mockBusinessEmail).toBe("hello@example.com");
+    expect(mockBusinessWebsite).toBe("https://example.com");
+    expect(mockProfilePhotos).toHaveLength(1);
+    expect(mockLandmarks).toHaveLength(1);
+    await fireEvent(
+      screen.getByRole("switch", { name: "Preview all listing tips" }),
+      "valueChange",
+      false,
+    );
+    expect(
+      screen.queryByRole("header", { name: "Improve your listing" }),
+    ).toBeNull();
+  });
+
+  it("hides preview controls and ignores a preview selection outside development", async () => {
+    mockProfilePhotos = [
+      { category: "products", url: "https://example.com/product.jpg" },
+    ];
+    const screen = await renderScreen();
+    await fireEvent(
+      screen.getByRole("switch", { name: "Preview all listing tips" }),
+      "valueChange",
+      true,
+    );
+    expect(screen.getByLabelText("Tip 1 of 4")).toBeTruthy();
+    jest.replaceProperty(globalThis, "__DEV__", false);
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantDashboardScreen />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.queryByRole("switch", { name: "Preview all listing tips" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("header", { name: "Improve your listing" }),
+    ).toBeNull();
+  });
 
   function sectionPeriodControl(
     screen: Awaited<ReturnType<typeof renderScreen>>,
@@ -704,7 +1173,7 @@ describe("MerchantDashboardScreen", () => {
       screen.getByLabelText(/Review reply rate: 25%\. 1 of 4/),
     ).toBeTruthy();
     expect(screen.queryByText(/pp$/)).toBeNull();
-    expect(Toast.show).toHaveBeenCalled();
+    await waitFor(() => expect(Toast.show).toHaveBeenCalled());
   });
 
   it("offers persistent recovery after API errors and uses the page notification hook", async () => {
@@ -718,7 +1187,7 @@ describe("MerchantDashboardScreen", () => {
       name: /Unable to load analytics.*retry/i,
     });
 
-    expect(Toast.show).toHaveBeenCalled();
+    await waitFor(() => expect(Toast.show).toHaveBeenCalled());
     expect(screen.getByRole("button", { name: "Last 30 days" })).toBeTruthy();
     await fireEvent.press(retry);
     await screen.findByLabelText(/Profile visits: 24/);

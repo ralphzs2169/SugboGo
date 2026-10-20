@@ -2,13 +2,14 @@ import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsFocused, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { RefreshControl, ScrollView, Switch, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 
 import ErrorState from "@/shared/components/ErrorState";
+import AppText from "@/shared/components/AppText";
 
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
@@ -23,6 +24,7 @@ import AnalyticsSectionSkeleton from "../../components/analytics/AnalyticsSectio
 import AnalyticsSourceNotice from "../../components/analytics/AnalyticsSourceNotice";
 
 import AnalyticsUnansweredReviews from "../../components/analytics/AnalyticsUnansweredReviews";
+import MerchantListingSuggestion from "../../components/business-profile/MerchantListingSuggestion";
 
 import { merchantPlusReportScope } from "../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
@@ -65,6 +67,7 @@ export default function MerchantDashboardScreen() {
   const [overviewPeriod, setOverviewPeriod] =
     useState<MerchantAnalyticsPeriod>("30");
   const [isRefreshingPlus, setIsRefreshingPlus] = useState(false);
+  const [previewListingTips, setPreviewListingTips] = useState(false);
 
   // Standard Analytics
   const { report, isLoading, isRefetching, error, refetch } =
@@ -153,7 +156,12 @@ export default function MerchantDashboardScreen() {
   );
 
   // Business identity for the shared header
-  const { business, refetch: refetchProfile } = useMerchantBusinessProfile();
+  const {
+    business,
+    isLoading: isProfileLoading,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useMerchantBusinessProfile();
 
   // API error notifications
   useQueryErrorNotification({
@@ -363,6 +371,52 @@ export default function MerchantDashboardScreen() {
               })
             }
           />
+          {/* Optional improvement; required onboarding fields are excluded */}
+          {business &&
+          !isProfileLoading &&
+          !profileError &&
+          business.status === "active" ? (
+            <>
+              {/* Development preview changes presentation only, never saved profile data */}
+              {__DEV__ ? (
+                <View className="mt-2 flex-row items-center gap-3 bg-surface px-5 py-3">
+                  <View className="min-w-0 flex-1 gap-1">
+                    <AppText
+                      weight="semibold"
+                      className="text-sm text-text-primary"
+                    >
+                      Preview all listing tips
+                    </AppText>
+                    <AppText className="text-xs leading-5 text-text-secondary">
+                      Development only · show all four cards
+                    </AppText>
+                  </View>
+                  <Switch
+                    accessibilityRole="switch"
+                    accessibilityLabel="Preview all listing tips"
+                    value={previewListingTips}
+                    onValueChange={setPreviewListingTips}
+                    trackColor={{
+                      false: theme.extends.colors.surfaceMutedStrong,
+                      true: theme.extends.colors.brand,
+                    }}
+                  />
+                </View>
+              ) : null}
+              <MerchantListingSuggestion
+                key={business.id}
+                business={business}
+                previewAll={__DEV__ && previewListingTips}
+                onAddPhotos={() => router.push("/(merchant)/business-photos")}
+                onEditInformation={() =>
+                  router.push("/(merchant)/business-information")
+                }
+                onAddLandmarks={() =>
+                  router.push("/(merchant)/location-change")
+                }
+              />
+            </>
+          ) : null}
         </View>
       </ScrollView>
 

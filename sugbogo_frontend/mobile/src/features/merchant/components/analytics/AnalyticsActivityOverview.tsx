@@ -5,7 +5,6 @@ import { View, useWindowDimensions } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Skeleton from "@/shared/components/Skeleton";
-import { shadows } from "@/shared/styles/shadows";
 
 import type { MerchantStandardAnalytics } from "../../types/merchantAnalytics.types";
 import type {
@@ -88,10 +87,9 @@ function MetricCard({
       testID={fullWidth ? "analytics-reply-card" : undefined}
       accessibilityLabel={accessibilityDescription}
       accessibilityState={{ busy: loading }}
-      className={`min-w-0 rounded-card border border-border-primary/60 bg-surface p-4 ${
+      className={`min-w-0 rounded-card bg-surface-muted p-4 ${
         stacked ? "w-full" : "flex-1"
       }`}
-      style={shadows.subtle}
     >
       {/* Metric heading and right-aligned icon */}
       <View className="flex-row items-start justify-between gap-2">
@@ -140,7 +138,7 @@ function MetricCard({
         <View
           testID="analytics-reply-progress"
           accessible={false}
-          className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-muted"
+          className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-muted-strong"
         >
           <View
             testID="analytics-reply-progress-fill"
