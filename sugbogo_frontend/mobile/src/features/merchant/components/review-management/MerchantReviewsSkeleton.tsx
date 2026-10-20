@@ -1,13 +1,13 @@
 import { View } from "react-native";
 
+import MerchantReviewsOverview from "./MerchantReviewsOverview";
 import Skeleton from "@/shared/components/Skeleton";
 
 /** Mirrors the merchant review card hierarchy while the list is loading. */
 export default function MerchantReviewsSkeleton() {
   return (
     <View className="flex-1 bg-background px-4 pt-4">
-      <Skeleton className="h-7 w-32 rounded-md" />
-      <Skeleton className="mt-2 h-4 w-52 rounded-md" />
+      <MerchantReviewsOverview loading />
       <View className="mt-5 flex-row gap-2">
         <Skeleton className="h-10 w-20 rounded-full" />
         <Skeleton className="h-10 w-28 rounded-full" />

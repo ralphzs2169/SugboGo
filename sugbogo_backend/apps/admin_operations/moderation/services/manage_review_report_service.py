@@ -116,5 +116,10 @@ class ManageReviewReportService:
                 "review_status": review.REVW_STATUS,
             },
         )
-        NotificationEventService.review_report_resolved(report, review, previous_status)
+        NotificationEventService.review_report_resolved(
+            report,
+            review,
+            previous_status,
+            business_name=report.REVW_ID.BUSN_ID.BUSN_NAME,
+        )
         return ManageReviewReportService.get_report(report_id)

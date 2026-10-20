@@ -85,6 +85,9 @@ export function getAllBusinessReviews(
   if (filters?.merchantReplied) {
     params.merchant_replied = "true";
   }
+  if (filters?.needsReply) {
+    params.needs_reply = "true";
+  }
   if (filters?.ordering && filters.ordering !== "newest") {
     params.ordering = filters.ordering;
   }

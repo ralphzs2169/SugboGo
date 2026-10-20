@@ -1,10 +1,8 @@
-import { LinearGradient } from "expo-linear-gradient";
-import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { View } from "react-native";
+import type { ReactNode } from "react";
 
-import { theme } from "@/constants/theme";
-import AppText from "@/shared/components/AppText";
 import FilterChip from "@/shared/components/FilterChip";
+import FilterSortControls from "@/shared/components/filters/FilterSortControls";
 
 import type { BusinessReviewFilters } from "../../../../types/review.types";
 
@@ -28,6 +26,8 @@ type Props = {
   onChange: (filters: BusinessReviewFilters) => void;
   onClear: () => void;
   onOpenFilter: () => void;
+  additionalFilters?: ReactNode;
+  additionalActiveFilterCount?: number;
 };
 
 /**
@@ -41,22 +41,16 @@ export default function ReviewFilterControls({
   onChange,
   onClear,
   onOpenFilter,
+  additionalFilters,
+  additionalActiveFilterCount = 0,
 }: Props) {
-  const [optionsWidth, setOptionsWidth] = useState(0);
-  const [optionsContentWidth, setOptionsContentWidth] = useState(0);
-  const [optionsScrollX, setOptionsScrollX] = useState(0);
-
-  const activeFilterCount = [
-    filters.sentiment,
-    filters.topic,
-    filters.hasPhotos,
-    filters.merchantReplied,
-  ].filter(Boolean).length;
-
-  const optionsCanScroll = optionsContentWidth > optionsWidth + 1;
-  const showLeftFade = optionsCanScroll && optionsScrollX > 4;
-  const showRightFade =
-    optionsCanScroll && optionsScrollX < optionsContentWidth - optionsWidth - 4;
+  const activeFilterCount =
+    [
+      filters.sentiment,
+      filters.topic,
+      filters.hasPhotos,
+      filters.merchantReplied,
+    ].filter(Boolean).length + additionalActiveFilterCount;
 
   const toggleHasPhotos = () => {
     onChange({
@@ -73,143 +67,64 @@ export default function ReviewFilterControls({
   };
 
   return (
-    <View>
-      {/* Filter heading and reset action */}
-      <View className="mb-3 flex-row items-center justify-between">
-        <AppText weight="bold" className="text-sm text-text-primary">
-          Filter & sort
-        </AppText>
+    <FilterSortControls
+      activeFilterCount={activeFilterCount}
+      onClear={onClear}
+      testID="review-quick-controls"
+    >
+      <FilterChip
+        label="Filter"
+        icon="tune-variant"
+        count={activeFilterCount}
+        selected={false}
+        onPress={onOpenFilter}
+        accessibilityLabel={`Filter reviews, ${activeFilterCount} active filters`}
+      />
 
-        {activeFilterCount > 0 && (
-          <Pressable
-            onPress={onClear}
-            accessibilityRole="button"
-            accessibilityLabel="Clear review filters"
-            hitSlop={8}
-            className="cursor-pointer py-1 active:opacity-70"
-          >
-            <AppText weight="semibold" className="text-xs text-brand">
-              Clear filters
-            </AppText>
-          </Pressable>
-        )}
-      </View>
+      {additionalFilters}
+      <FilterChip
+        label="With photos"
+        selected={filters.hasPhotos}
+        onPress={toggleHasPhotos}
+        showSelectedCheck
+        accessibilityLabel={`With photos${
+          filters.hasPhotos ? ", selected" : ""
+        }`}
+      />
 
-      {/* Quick filtering and sorting controls */}
-      <View
-        className="relative"
-        onLayout={(event) => {
-          setOptionsWidth(event.nativeEvent.layout.width);
-        }}
-      >
-        <ScrollView
-          testID="review-quick-controls"
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onContentSizeChange={(width) => {
-            setOptionsContentWidth(width);
-          }}
-          onScroll={(event) => {
-            setOptionsScrollX(event.nativeEvent.contentOffset.x);
-          }}
-          contentContainerClassName="items-center gap-2 px-1 pr-3"
-        >
+      <FilterChip
+        label="With reply"
+        selected={filters.merchantReplied}
+        onPress={toggleMerchantReplied}
+        showSelectedCheck
+        accessibilityLabel={`With reply${
+          filters.merchantReplied ? ", selected" : ""
+        }`}
+      />
+
+      <View className="mx-1 h-6 w-px bg-border-primary" />
+
+      {SORT_OPTIONS.map((option) => {
+        const selected = filters.ordering === option.value;
+
+        return (
           <FilterChip
-            label="Filter"
-            icon="tune-variant"
-            count={activeFilterCount}
-            selected={false}
-            onPress={onOpenFilter}
-            accessibilityLabel={`Filter reviews, ${activeFilterCount} active filters`}
-          />
-
-          <FilterChip
-            label="With photos"
-            selected={filters.hasPhotos}
-            onPress={toggleHasPhotos}
+            key={option.value}
+            label={option.label}
+            selected={selected}
             showSelectedCheck
-            accessibilityLabel={`With photos${
-              filters.hasPhotos ? ", selected" : ""
+            onPress={() =>
+              onChange({
+                ...filters,
+                ordering: option.value,
+              })
+            }
+            accessibilityLabel={`Sort by ${option.label}${
+              selected ? ", selected" : ""
             }`}
           />
-
-          <FilterChip
-            label="With reply"
-            selected={filters.merchantReplied}
-            onPress={toggleMerchantReplied}
-            showSelectedCheck
-            accessibilityLabel={`With reply${
-              filters.merchantReplied ? ", selected" : ""
-            }`}
-          />
-
-          <View className="mx-1 h-6 w-px bg-border-primary" />
-
-          {SORT_OPTIONS.map((option) => {
-            const selected = filters.ordering === option.value;
-
-            return (
-              <FilterChip
-                key={option.value}
-                label={option.label}
-                selected={selected}
-                showSelectedCheck
-                onPress={() =>
-                  onChange({
-                    ...filters,
-                    ordering: option.value,
-                  })
-                }
-                accessibilityLabel={`Sort by ${option.label}${
-                  selected ? ", selected" : ""
-                }`}
-              />
-            );
-          })}
-        </ScrollView>
-
-        {/* Horizontal overflow indicators */}
-        {showLeftFade && (
-          <LinearGradient
-            pointerEvents="none"
-            colors={[
-              theme.extends.colors.background,
-              `${theme.extends.colors.background}00`,
-            ]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              left: 0,
-              width: 32,
-              zIndex: 10,
-            }}
-          />
-        )}
-
-        {showRightFade && (
-          <LinearGradient
-            pointerEvents="none"
-            colors={[
-              `${theme.extends.colors.background}00`,
-              theme.extends.colors.background,
-            ]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              right: 0,
-              width: 32,
-              zIndex: 10,
-            }}
-          />
-        )}
-      </View>
-    </View>
+        );
+      })}
+    </FilterSortControls>
   );
 }

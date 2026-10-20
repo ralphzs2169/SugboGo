@@ -11,7 +11,7 @@ from ..permissions import HasMerchantPlus
 from ..serializers.standard_analytics_serializers import StandardAnalyticsQuerySerializer
 from ..serializers.premium_analytics_serializers import (
     PremiumReviewInsightsSerializer, PremiumReviewPerformanceSerializer, PremiumSpecialtySerializer,
-    PremiumVisibilityQuerySerializer, PremiumVisibilitySerializer,
+    PremiumVisibilityQuerySerializer, PremiumVisibilitySerializer, PremiumSnapshotQuerySerializer,
 )
 from ..services.premium_review_insights_service import PremiumReviewInsightsService
 from ..services.premium_review_performance_service import PremiumReviewPerformanceService
@@ -49,6 +49,7 @@ class PremiumPocketView(PremiumAnalyticsView):
     """Serve weekly recorded saves and distinct savers, separate from Pocket holders."""
 
     response_serializer = PremiumVisibilitySerializer
+    query_serializer = PremiumSnapshotQuerySerializer
 
     def get_report(self, user, query):
         """Use fixed weekly SAVE buckets for the authenticated merchant's business."""
@@ -59,6 +60,7 @@ class PremiumSpecialtyView(PremiumAnalyticsView):
     """Serve weekly surviving valid endorsement cohorts for current active specialties."""
 
     response_serializer = PremiumSpecialtySerializer
+    query_serializer = PremiumSnapshotQuerySerializer
 
     def get_report(self, user, query):
         """Read retained endorsement timestamps without reconstructing deleted support."""
@@ -79,6 +81,7 @@ class PremiumReviewPerformanceView(PremiumAnalyticsView):
     """Serve weekly pooled review sentiment and retained reply performance."""
 
     response_serializer = PremiumReviewPerformanceSerializer
+    query_serializer = PremiumSnapshotQuerySerializer
 
     def get_report(self, user, query):
         """Use published creation cohorts and the single server-side reply cutoff."""

@@ -4,12 +4,9 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
 
 import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
-import {
-  OVERALL_REVIEW_VIBE_LABELS,
-  OVERALL_REVIEW_VIBE_STYLES,
-} from "../../../utils/reviewVibe.utils";
 
 type OverallVibe = NonNullable<BusinessReviewInsights["overall_vibe"]>;
 
@@ -29,14 +26,10 @@ export default function ReviewInsightsSummaryCard({
   overallVibe,
   footer,
 }: Props) {
-  const overallVibeStyle = overallVibe
-    ? OVERALL_REVIEW_VIBE_STYLES[overallVibe]
-    : null;
-
   return (
     <View className="rounded-xl bg-background px-4 py-3">
       {/* Summary heading, disclosure, and overall vibe */}
-      <View className="flex-row items-start justify-between gap-3">
+      <View className="flex-row flex-wrap items-start justify-between gap-3">
         <View className="min-w-0 flex-1 flex-row flex-wrap items-center gap-2">
           <AppText weight="semibold" className="text-sm text-text-primary">
             Summary
@@ -55,23 +48,10 @@ export default function ReviewInsightsSummaryCard({
           </View>
         </View>
 
-        {overallVibe && overallVibeStyle && (
-          <View
-            testID="summary-overall-review-vibe"
-            className={`shrink-0 flex-row items-center rounded-full px-2.5 py-1.5 ${overallVibeStyle.containerClassName}`}
-          >
-            <View
-              className={`mr-1.5 h-1.5 w-1.5 rounded-full ${overallVibeStyle.dotClassName}`}
-            />
-
-            <AppText
-              weight="semibold"
-              className={`text-[11px] ${overallVibeStyle.textClassName}`}
-            >
-              {OVERALL_REVIEW_VIBE_LABELS[overallVibe]}
-            </AppText>
-          </View>
-        )}
+        <ReviewVibeBadge
+          vibe={overallVibe}
+          testID="summary-overall-review-vibe"
+        />
       </View>
 
       {/* Generated narrative */}

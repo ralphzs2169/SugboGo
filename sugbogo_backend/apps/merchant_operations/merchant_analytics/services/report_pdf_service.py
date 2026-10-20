@@ -15,9 +15,13 @@ from reportlab.platypus import SimpleDocTemplate
 from reportlab.platypus.doctemplate import LayoutError
 from rest_framework.exceptions import APIException, ValidationError
 
-from ..serializers.peer_report_serializers import MerchantReportSerializer
+from ..serializers.report_export_serializers import MerchantExportReportSerializer
 from .merchant_report_service import MerchantReportService
 from .report_pdf_layout import MerchantReportLayout
+from .discovery_sources_service import DiscoverySourcesService
+from .route_planning_analytics_service import RoutePlanningAnalyticsService
+from .engagement_heatmap_service import EngagementHeatmapService
+from .aged_unanswered_reviews_service import AgedUnansweredReviewsService
 
 
 _RENDER_LOCK = Lock()
@@ -129,10 +133,50 @@ class ReportPDFService:
             yield prefix, value
 
     @classmethod
-    def get_pdf(cls, user, period, *, interval="daily"):
-        """Calculate once and serialize once before rendering the selected owned-business report."""
-        report = MerchantReportService.get_report(user, period, interval=interval)
-        sanitized = MerchantReportSerializer(report).data
+    def get_report(
+        cls,
+        user,
+        period,
+        *,
+        interval="daily",
+    ):
+        """Compose existing reports using one selected window and preserve snapshot clocks."""
+        report = MerchantReportService.get_report(
+            user,
+            period,
+            interval=interval,
+        )
+        report["export_sections"] = {
+            "discovery_sources": DiscoverySourcesService.get_report(
+                user,
+                period,
+            ),
+            "route_planning": RoutePlanningAnalyticsService.get_report(
+                user,
+                period,
+            ),
+            "profile_timing": EngagementHeatmapService.get_report(
+                user,
+                period,
+            ),
+            "unanswered_reviews": AgedUnansweredReviewsService.get_report(user),
+        }
+        return MerchantExportReportSerializer(report).data
+
+    @classmethod
+    def get_pdf(
+        cls,
+        user,
+        period,
+        *,
+        interval="daily",
+    ):
+        """Serialize authoritative evidence once before rendering a private attachment."""
+        sanitized = cls.get_report(
+            user,
+            period,
+            interval=interval,
+        )
         content = cls.render(sanitized)
         filename = f"sugbogo-merchant-report-{sanitized['business']['id']}-{period.start_date}-{period.end_date}.pdf"
         return content, filename
@@ -151,6 +195,8 @@ class ReportPDFService:
                 ("Changes and comparison limitations", report["changes"]),
                 ("Report metadata", report["meta"]),
             ))
+            if "export_sections" in report:
+                sections.append(("Additional reports", report["export_sections"]))
             if len(json.dumps(report, ensure_ascii=False)) > cls.MAX_TEXT_CHARACTERS:
                 raise ValidationError({"export": "This report is too large to export; select a shorter period."})
             metadata_refs = {}

@@ -1,0 +1,387 @@
+import type { PropsWithChildren } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  waitFor,
+} from "@testing-library/react-native";
+import Toast from "react-native-toast-message";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import DiscoverySourcesRoute from "@/app/(merchant)/analytics/discovery-sources";
+import { analyticsMerchant } from "../../../__tests__/merchantAnalytics.fixtures";
+import { discoverySourcesReport } from "../../../__tests__/discoverySources.fixtures";
+import { getMerchantDiscoverySources } from "../../../api/merchantDiscoverySources.service";
+import useMerchantDiscoverySources from "../../../hooks/analytics/useMerchantDiscoverySources";
+import { merchantDiscoverySourcesKey } from "../../../hooks/analytics/merchantAnalyticsQueryKeys";
+import MerchantDiscoverySourcesScreen from "../MerchantDiscoverySourcesScreen";
+import { AnalyticsReportLinks } from "../../../components/analytics/AnalyticsMoreInsights";
+
+let mockFocused = true;
+jest.mock("@gorhom/bottom-sheet", () =>
+  jest
+    .requireActual("../../../__tests__/analyticsSheet.mock")
+    .analyticsSheetMock(),
+);
+jest.mock("expo-router", () => ({
+  useIsFocused: () => mockFocused,
+  useNavigation: () => ({ isFocused: () => true }),
+  useLocalSearchParams: () => ({ period: "7" }),
+}));
+jest.mock("../../../api/merchantDiscoverySources.service", () => ({
+  getMerchantDiscoverySources: jest.fn(),
+}));
+jest.mock("../../../hooks/analytics/useMerchantPlusAccess", () => () => {
+  throw new Error("Standard sources must not check Plus");
+});
+jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
+jest.mock("react-native-toast-message", () => ({
+  __esModule: true,
+  default: { show: jest.fn() },
+}));
+jest.mock("react-native-safe-area-context", () => ({
+  SafeAreaView: jest.requireActual("react-native").View,
+  useSafeAreaInsets: () => ({ top: 0, bottom: 16, left: 0, right: 0 }),
+}));
+jest.mock("@/shared/components/Skeleton", () => ({
+  __esModule: true,
+  default: jest.requireActual("react-native").View,
+}));
+const mockPresent = jest.fn();
+jest.mock(
+  "../../../components/analytics/DiscoverySourcesMeasurementSheet",
+  () => ({
+    __esModule: true,
+    default: ({ sheetRef }: { sheetRef: { current: unknown } }) => {
+      jest
+        .requireActual("react")
+        .useImperativeHandle(sheetRef, () => ({ present: mockPresent }));
+      return null;
+    },
+  }),
+);
+
+const getReport = jest.mocked(getMerchantDiscoverySources);
+describe("Standard discovery sources", () => {
+  let client: QueryClient;
+  function Wrapper({ children }: PropsWithChildren) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  }
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFocused = true;
+    client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    useAuthStore.setState({ user: analyticsMerchant() });
+    getReport.mockReset().mockResolvedValue({
+      success: true,
+      message: "Report",
+      data: discoverySourcesReport(),
+    });
+  });
+  afterEach(async () => {
+    await cleanup();
+    client.clear();
+    useAuthStore.setState({ user: null });
+  });
+  it("loads the genuine Standard route and ranks exact counts without Plus", async () => {
+    const screen = await render(<DiscoverySourcesRoute />, {
+      wrapper: Wrapper,
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Recorded profile visits: 7")).toBeTruthy(),
+    );
+    expect(getReport).toHaveBeenCalledWith("7", expect.anything());
+    expect(
+      screen.getByTestId("discovery-source-bar-EXPLORE_DISCOVERY").props.style
+        .width,
+    ).toBe("100%");
+    expect(
+      screen.getByTestId("discovery-source-bar-MAP").props.style.width,
+    ).toBe("50%");
+    expect(
+      screen.getByLabelText("Source not recorded: 1 recorded profile visits"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Vouch history")).toBeNull();
+    expect(screen.queryByText("Your reviews")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "About visit sources" }),
+    );
+    expect(mockPresent).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Where visits came from")).toBeNull();
+    expect(screen.getByText("Source breakdown")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 7 days",
+      }),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Last 90 days" }));
+    await waitFor(() =>
+      expect(getReport).toHaveBeenCalledWith("90", expect.anything()),
+    );
+    const before = getReport.mock.calls.length;
+    await act(async () => {
+      await screen
+        .getByTestId("discovery-sources-scroll")
+        .props.refreshControl.props.onRefresh();
+    });
+    expect(getReport.mock.calls.length).toBeGreaterThan(before);
+  });
+  it("keeps initial loading independent and shows a genuine zero", async () => {
+    let resolve!: (
+      value: Awaited<ReturnType<typeof getMerchantDiscoverySources>>,
+    ) => void;
+    getReport.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    const screen = await render(<MerchantDiscoverySourcesScreen />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.getByLabelText("Loading visit sources")).toBeTruthy();
+    expect(screen.getByText("Visit sources")).toBeTruthy();
+    expect(screen.getByText("Source breakdown")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "About visit sources" }),
+    );
+    expect(mockPresent).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      resolve({
+        success: true,
+        message: "Report",
+        data: discoverySourcesReport({
+          profile_visits: 0,
+          sources: [],
+          attribution_complete: true,
+        }),
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Recorded profile visits: 0")).toBeTruthy(),
+    );
+    expect(screen.getByText("No recorded profile visits yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+  });
+  it("keeps the layout and controls visible while a different period loads", async () => {
+    const screen = await render(<MerchantDiscoverySourcesScreen />, {
+      wrapper: Wrapper,
+    });
+    await screen.findByLabelText("Recorded profile visits: 7");
+    let finish!: (
+      value: Awaited<ReturnType<typeof getMerchantDiscoverySources>>,
+    ) => void;
+    getReport.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 30 days",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Last 30 days" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    expect(screen.getByLabelText("Loading visit sources")).toBeTruthy();
+    expect(screen.getByText("Source breakdown")).toBeTruthy();
+    expect(screen.getByText("Recorded profile visits")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "About visit sources" }),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Recorded profile visits: 7")).toBeNull();
+    await act(async () =>
+      finish({
+        success: true,
+        message: "Report",
+        data: discoverySourcesReport(),
+      }),
+    );
+    await screen.findByLabelText("Recorded profile visits: 7");
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Change reporting period, currently 7 days",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Last 7 days" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Last 30 days" }));
+    expect(screen.queryByLabelText("Loading visit sources")).toBeNull();
+    expect(getReport.mock.calls.map(([period]) => period)).toEqual(["30", "7"]);
+  });
+
+  it("preserves unknown-source visits rather than hiding their counts", async () => {
+    getReport.mockResolvedValue({
+      success: true,
+      message: "Report",
+      data: discoverySourcesReport({
+        profile_visits: 2,
+        sources: [
+          { source: "UNKNOWN", label: "Source not recorded", count: 2 },
+        ],
+      }),
+    });
+    const screen = await render(<MerchantDiscoverySourcesScreen />, {
+      wrapper: Wrapper,
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Source not recorded: 2 recorded profile visits"),
+      ).toBeTruthy(),
+    );
+    expect(
+      screen.queryByText(/Some visits have no recorded source/),
+    ).toBeNull();
+    expect(
+      screen.getByTestId("discovery-source-bar-UNKNOWN").props.style.width,
+    ).toBe("100%");
+  });
+
+  it("keeps unknown attribution last even when it has the largest count", async () => {
+    getReport.mockResolvedValueOnce({
+      success: true,
+      message: "Report",
+      data: discoverySourcesReport({
+        profile_visits: 10,
+        sources: [
+          { source: "UNKNOWN", label: "Source not recorded", count: 6 },
+          { source: "MAP", label: "Map", count: 1 },
+          { source: "EXPLORE_DISCOVERY", label: "Explore", count: 3 },
+        ],
+      }),
+    });
+    const screen = await render(<MerchantDiscoverySourcesScreen />, {
+      wrapper: Wrapper,
+    });
+    await screen.findByLabelText("Recorded profile visits: 10");
+    expect(
+      screen
+        .getAllByLabelText(/: \d+ recorded profile visits$/)
+        .map((row) => row.props.accessibilityLabel),
+    ).toEqual([
+      "Explore: 3 recorded profile visits",
+      "Map: 1 recorded profile visits",
+      "Source not recorded: 6 recorded profile visits",
+    ]);
+    expect(
+      screen.getByTestId("discovery-source-bar-UNKNOWN").props.style.width,
+    ).toBe("100%");
+    expect(
+      screen.getByTestId("discovery-source-bar-EXPLORE_DISCOVERY").props.style
+        .width,
+    ).toBe("50%");
+  });
+  it("notifies request errors and offers persistent Retry without reloading other analytics", async () => {
+    getReport.mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
+    const screen = await render(<MerchantDiscoverySourcesScreen />, {
+      wrapper: Wrapper,
+    });
+    await waitFor(() =>
+      expect(screen.getByText("Unable to load visit sources")).toBeTruthy(),
+    );
+    expect(Toast.show).toHaveBeenCalled();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Unable to load visit sources.*retry/i,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Recorded profile visits: 7")).toBeTruthy(),
+    );
+  });
+  it("distinguishes unavailable HTTP 200 data and refetches only this report", async () => {
+    const data = discoverySourcesReport();
+    getReport.mockResolvedValueOnce({
+      success: true,
+      message: "Report",
+      data: {
+        ...data,
+        profile_visits: null,
+        sources: null,
+        attribution_complete: null,
+        meta: { ...data.meta, availability: "unavailable" },
+      },
+    });
+    const screen = await render(<MerchantDiscoverySourcesScreen />, {
+      wrapper: Wrapper,
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Recorded profile visits: Unavailable"),
+      ).toBeTruthy(),
+    );
+    expect(screen.queryByText("No recorded profile visits yet")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Visit-source data unavailable.*retry/i,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Recorded profile visits: 7")).toBeTruthy(),
+    );
+  });
+  it("retains cached reports after refresh failure and separates accounts and periods", async () => {
+    const { result, rerender } = await renderHook(
+      ({ period }: { period: "7" | "30" }) => ({
+        ...useMerchantDiscoverySources(period, mockFocused),
+      }),
+      { wrapper: Wrapper, initialProps: { period: "30" } },
+    );
+    await waitFor(() => expect(result.current.data?.profile_visits).toBe(7));
+    getReport.mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
+    await act(async () => {
+      await result.current.refetch();
+    });
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.data?.profile_visits).toBe(7);
+    mockFocused = false;
+    await rerender({ period: "7" });
+    expect(result.current.data).toBeUndefined();
+    expect(merchantDiscoverySourcesKey(42, "7")).not.toEqual(
+      merchantDiscoverySourcesKey(42, "30"),
+    );
+    await act(async () =>
+      useAuthStore.setState({ user: { ...analyticsMerchant(), id: 99 } }),
+    );
+    expect(result.current.data).toBeUndefined();
+    expect(
+      client.getQueryData(merchantDiscoverySourcesKey(99, "30")),
+    ).toBeUndefined();
+  });
+  it("does not fetch a report just because its reports-area entry is rendered", async () => {
+    const open = jest.fn();
+    const openPlus = jest.fn();
+    const screen = await render(
+      <AnalyticsReportLinks
+        group="visibility"
+        onOpen={openPlus}
+        onOpenDiscoverySources={open}
+        hasPlusAccess={false}
+      />,
+    );
+    expect(getReport).not.toHaveBeenCalled();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Where visits came from" }),
+    );
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(openPlus).not.toHaveBeenCalled();
+  });
+});

@@ -27,8 +27,10 @@ import ReviewComposerSheet from "../components/business-profile/ReviewComposerSh
 import RideProviderSheet from "../components/business-profile/RideProviderSheet";
 import SimilarPlacesSection from "../components/business-profile/SimilarPlacesSection";
 import useBusinessProfileVisit from "../hooks/useBusinessProfileVisit";
+import type { DiscoverySource } from "../constants/discoverySources";
 import { useBusinessReviewPreview } from "../hooks/useBusinessReviews";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
+import useRoutePlanningIntent from "../hooks/useRoutePlanningIntent";
 import { ReviewDerivedDataSyncProvider } from "../hooks/ReviewDerivedDataSyncProvider";
 import type { BusinessReview } from "../types/review.types";
 import {
@@ -41,6 +43,7 @@ type Props = {
   distance: number | null;
   distanceAccuracy: number | null;
   previewAsExplorer?: boolean;
+  profileSource?: DiscoverySource;
 };
 
 /**
@@ -55,13 +58,19 @@ function ExploreBusinessProfileScreenContent({
   distance,
   distanceAccuracy,
   previewAsExplorer = false,
+  profileSource = "UNKNOWN",
 }: Props) {
   const { business, error, refetch } = useExploreBusinessProfile(businessId);
+  const recordRouteIntent = useRoutePlanningIntent(
+    businessId,
+    business?.is_own_business ?? false,
+  );
 
   useBusinessProfileVisit(
     businessId,
     business?.id,
     business?.is_own_business ?? false,
+    profileSource,
   );
 
   const { totalCount: reviewCount } = useBusinessReviewPreview(businessId);
@@ -109,6 +118,7 @@ function ExploreBusinessProfileScreenContent({
   };
 
   const handleViewRoute = () => {
+    recordRouteIntent("ROAD_ROUTE");
     router.push({
       pathname: "/(explorer)/business/[businessId]/road-route",
       params: {
@@ -118,6 +128,7 @@ function ExploreBusinessProfileScreenContent({
   };
 
   const handleJeepneyGuide = () => {
+    recordRouteIntent("JEEPNEY");
     router.push({
       pathname: "/(explorer)/business/[businessId]/jeepney-guide",
       params: {

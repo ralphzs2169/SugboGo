@@ -134,6 +134,7 @@ export default function SimilarPlacesSection({ businessId }: Props) {
                     pathname: "/(explorer)/business/[businessId]",
                     params: {
                       businessId: String(business.id),
+                      profileSource: "SIMILAR_BUSINESSES",
                       distance: distance === null ? "" : String(distance),
                       distanceAccuracy:
                         userLocation?.coords.accuracy === null ||

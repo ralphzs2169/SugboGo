@@ -163,6 +163,8 @@ class BusinessNameChangeViewTests(TestCase):
             self.assertEqual(notification.NOTF_TYPE, f"business_name_change_{outcome}")
             self.assertEqual(notification.NOTF_TARGET_ID, request.pk)
             self.assertEqual(notification.NOTF_TARGET_TYPE, "business_name_change")
+            self.assertIn(request.BUSN_ID.BUSN_NAME, notification.NOTF_BODY)
+            self.assertIn("business name change", notification.NOTF_BODY)
             self.assertNotIn("Private rejection reason", notification.NOTF_BODY)
         self.assertEqual(Notification.objects.count(), 2)
 

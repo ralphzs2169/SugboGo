@@ -1,6 +1,7 @@
 """PDF content, fidelity, pagination, resource limits and safe report composition."""
 
 from io import BytesIO
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -8,17 +9,74 @@ from pypdf import PdfReader
 from rest_framework.exceptions import ValidationError
 
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
+from apps.business.services.tests.discovery_source_fixtures import DiscoverySourceCollection
+from apps.business.services.route_planning_event_service import RoutePlanningEventService
 from apps.reviews.services.business_review_insights_service import BusinessReviewInsightsService
 
-from ...serializers.peer_report_serializers import MerchantReportSerializer
 from ..merchant_report_service import MerchantReportService
 from ..report_pdf_service import ReportPDFService as PDF, ReportExportUnavailable, _BoundedDocument, _RENDER_LOCK
 from .peer_fixtures import PeerAnalyticsFixtures
 
 
 class ReportPDFServiceTests(PeerAnalyticsFixtures, TestCase):
+    def test_expanded_pdf_preserves_sources_timing_vouches_and_actionable_backlog(self):
+        """Keep new report observations scoped and their semantic limitations visible."""
+        self.event("PROFILE_VISIT", 1, self.period.start)
+        self.documents[-1]["discovery_source"] = "MAP"
+        self.event("PROFILE_VISIT", 2, self.period.start)
+        self.support(self.business_a, self.tags[0])
+        self.review(self.NOW - timedelta(days=8))
+        payload = self.report()
+        sections = payload["export_sections"]
+        self.assertEqual(sections["discovery_sources"]["profile_visits"], 2)
+        unknown = next(
+            row for row in sections["discovery_sources"]["sources"]
+            if row["source"] == "UNKNOWN"
+        )
+        self.assertEqual(unknown["count"], 1)
+        self.assertEqual(sections["profile_timing"]["total_profile_visits"], 2)
+        self.assertIsNone(sections["route_planning"]["total_requests"])
+        self.assertEqual(sections["unanswered_reviews"]["days_7_plus"], 1)
+        for name in ("discovery_sources", "route_planning", "profile_timing"):
+            self.assertEqual(sections[name]["meta"]["period"]["start"], self.period.start.isoformat())
+            self.assertEqual(sections[name]["meta"]["period"]["end_exclusive"], self.period.end.isoformat())
+        text = self.text(PDF.render(payload))
+        for expected in (
+            "Where profile visits came from",
+            "Route-planning activity",
+            "Recorded profile-visit timing",
+            "current age distribution",
+            "Vouches added - still valid today",
+            "+1 vs previous period",
+            "Source not recorded",
+            "not confirmed journeys or arrivals",
+            "not establish busiest hours",
+        ):
+            self.assertIn(expected, text)
+        self.assertNotIn("+1.00 %", text)
+
+    def setUp(self):
+        """Use read-only synthetic stores for the additional export report sources."""
+        super().setUp()
+        collection = DiscoverySourceCollection()
+        collection.documents = self.documents
+        source = patch.object(
+            VisibilityEventService,
+            "_get_collection",
+            return_value=collection,
+        )
+        source.start()
+        self.addCleanup(source.stop)
+        routes = patch.object(
+            RoutePlanningEventService,
+            "get_totals",
+            return_value=(None, None, "route_tracking_not_initialized"),
+        )
+        routes.start()
+        self.addCleanup(routes.stop)
+
     def report(self):
-        return MerchantReportSerializer(MerchantReportService.get_report(self.merchant_a, self.period)).data
+        return PDF.get_report(self.merchant_a, self.period)
 
     def text(self, content):
         return "\n".join(page.extract_text() for page in PdfReader(BytesIO(content)).pages)

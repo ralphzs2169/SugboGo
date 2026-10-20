@@ -1,3 +1,4 @@
+import MerchantMetricCard from "../../components/MerchantMetricCard";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMutation } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
@@ -7,6 +8,7 @@ import {
   Animated,
   RefreshControl,
   ScrollView,
+  useWindowDimensions,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -18,7 +20,6 @@ import { theme } from "@/constants/theme";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { getBusinessHoursSummary } from "@/features/explore/utils/businessHours.utils";
 import ProfileMenuItem from "@/features/profile/components/ProfileMenuItem";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
@@ -32,9 +33,6 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 import { formatRetryTime } from "@/shared/utils/date.utils";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
-import HoursCardIcon from "../../assets/icons/hours-card.svg";
-import LandmarksCardIcon from "../../assets/icons/landmarks-card.svg";
-import PhotosCardIcon from "../../assets/icons/photos-card.svg";
 import MerchantBusinessDetails from "../../components/business-profile/MerchantBusinessDetails";
 import { getMerchantVerificationDocumentAccess } from "../../api/merchantBusinessProfile.service";
 import MerchantBusinessStory from "../../components/business-profile/MerchantBusinessStory";
@@ -56,6 +54,8 @@ const STICKY_REVEAL_INSET = 64;
  * Preserves review shortcuts, cover editing, sticky identity, and Explorer mode.
  */
 export default function MerchantProfileScreen() {
+  const { width, fontScale } = useWindowDimensions();
+  const stackOverview = width < 360 || fontScale >= 1.35;
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
   const { logout } = useLogout();
   const merchantAvatarUrl = useAuthStore(
@@ -290,15 +290,6 @@ export default function MerchantProfileScreen() {
   const clusterIcon = clusters.find(
     (cluster) => cluster.id === business.cluster.id,
   )?.icon;
-  const hoursSummary = getBusinessHoursSummary(
-    business.operating_hours.map((hours, index) => ({ ...hours, id: index })),
-  );
-  const hoursStatus =
-    business.operating_hours.length === 0
-      ? "Unavailable"
-      : hoursSummary.isOpen
-        ? "Open now"
-        : "Closed now";
 
   function handlePendingChangesPress() {
     if (pendingCount === 1) {
@@ -507,66 +498,29 @@ export default function MerchantProfileScreen() {
             {/* Snapshot metrics for the live business */}
             <View className="px-5 pt-6">
               <AppText weight="bold" className="text-md text-text-primary">
-                Overview
+                Listing details
               </AppText>
 
               <AppText className="mt-1 text-xs text-text-secondary">
-                A quick snapshot of your business.
+                Photos and landmarks shown on your business profile.
               </AppText>
 
-              {/* Business overview cards */}
-              <View className="mt-4 flex-row gap-2">
-                {[
-                  {
-                    key: "photos",
-                    Icon: PhotosCardIcon,
-                    label: "Photos",
-                    value: String(business.photos.length),
-                  },
-                  {
-                    key: "landmarks",
-                    Icon: LandmarksCardIcon,
-                    label: "Landmarks",
-                    value: String(business.location.landmarks.length),
-                  },
-                  {
-                    key: "hours",
-                    Icon: HoursCardIcon,
-                    label: "Hours",
-                    value: hoursStatus,
-                  },
-                ].map((item) => (
-                  <View
-                    key={item.key}
-                    className="min-w-0 flex-1 rounded-xl border border-border-primary/70 bg-surface px-3 py-3"
-                  >
-                    {/* Illustrated metric icon */}
-                    <View className="h-10 w-10 items-center justify-center">
-                      <item.Icon width={40} height={40} />
-                    </View>
-
-                    {/* Metric label */}
-                    <AppText
-                      className="mt-3 text-xs text-text-secondary"
-                      numberOfLines={1}
-                    >
-                      {item.label}
-                    </AppText>
-
-                    {/* Metric value */}
-                    <AppText
-                      weight="semibold"
-                      className={`mt-0.5 text-sm ${
-                        item.key === "hours" && hoursSummary.isOpen
-                          ? "text-success"
-                          : "text-text-primary"
-                      }`}
-                      numberOfLines={2}
-                    >
-                      {item.value}
-                    </AppText>
-                  </View>
-                ))}
+              {/* Reuse the same metric hierarchy as Dashboard and Reviews. */}
+              <View
+                className={stackOverview ? "mt-4 gap-3" : "mt-4 flex-row gap-3"}
+              >
+                <MerchantMetricCard
+                  icon="image-multiple-outline"
+                  label="Photos"
+                  value={String(business.photos.length)}
+                  stacked={stackOverview}
+                />
+                <MerchantMetricCard
+                  icon="map-marker-outline"
+                  label="Landmarks"
+                  value={String(business.location.landmarks.length)}
+                  stacked={stackOverview}
+                />
               </View>
             </View>
           </View>

@@ -72,6 +72,8 @@ jest.mock("@/features/explore/api/exploreBusiness.service", () => ({
 }));
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("expo-image", () => ({ Image: () => null }));
+jest.mock("../../assets/businesses-vouched.svg", () => () => null);
+jest.mock("../../assets/specialty-vouches.svg", () => () => null);
 jest.mock("lottie-react-native", () => () => null);
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => ({

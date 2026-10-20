@@ -143,10 +143,16 @@ export function useNotificationNavigation({ markRead }: Options) {
   }
 
   function openDestination(destination: NotificationDestination) {
-    if (destination.requiredMode === "merchant" && activeMode !== "merchant") {
-      setActiveMode("merchant");
+    if (destination.requiredMode !== activeMode) {
+      setActiveMode(destination.requiredMode);
       router.replace(destination.href);
-      Toast.show({ type: "info", text1: "Switched to Merchant Mode" });
+      Toast.show({
+        type: "info",
+        text1:
+          destination.requiredMode === "merchant"
+            ? "Switched to Merchant Mode"
+            : "Switched to Explorer Mode",
+      });
       return;
     }
 
@@ -165,15 +171,20 @@ export function useNotificationNavigation({ markRead }: Options) {
     try {
       const resolution = resolveNotificationDestination(notification);
       const accessPromise =
-        resolution.kind === "destination"
+        resolution.kind === "destination" &&
+        resolution.destination.requiredMode === "merchant"
           ? canOpenMerchantDestination()
-          : Promise.resolve(false);
+          : Promise.resolve(!!user && useAuthStore.getState().isAuthenticated);
       const [canOpen, readResult] = await Promise.all([
         accessPromise,
         markUnreadNotification(notification),
       ]);
 
-      if (readResult === "session-ended") {
+      if (
+        readResult === "session-ended" ||
+        !useAuthStore.getState().isAuthenticated ||
+        useAuthStore.getState().user?.id !== user?.id
+      ) {
         return;
       }
 

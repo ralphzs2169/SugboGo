@@ -7,6 +7,7 @@ from apps.business.services.visibility_event_service import (
 )
 from apps.explorer_operations.explore_businesses.serializers.visibility_event_serializer import (
     ImpressionBatchSerializer,
+    ProfileVisitSerializer,
 )
 from apps.users.models import User
 from core.responses import success_response
@@ -59,10 +60,18 @@ class BusinessProfileVisitView(APIView):
         ),
     )
 
-    def post(self, request, business_id):
+    def post(
+        self,
+        request,
+        business_id,
+    ):
+        """Normalize optional attribution while preserving authenticated visit identity."""
+        serializer = ProfileVisitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         result = VisibilityEventService.record_profile_visit(
             explorer_id=request.user.USER_ID,
             business_id=business_id,
+            discovery_source=serializer.validated_data["discovery_source"],
         )
 
         return success_response(

@@ -4,6 +4,12 @@ import {
 } from "../notificationPresentation";
 
 describe("notification presentation", () => {
+  it("uses a vouch icon for new specialty endorsements", () => {
+    expect(getNotificationPresentation("business_vouch_received")).toEqual({
+      category: "vouch",
+      icon: "thumb-up-outline",
+    });
+  });
   it("maps every current backend family to a stable semantic icon", () => {
     expect(
       getNotificationPresentation("business_name_change_approved"),

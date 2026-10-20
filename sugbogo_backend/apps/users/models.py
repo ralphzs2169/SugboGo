@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, router, transaction
 from django.db.models.functions import Lower
 from django.utils import timezone
 
@@ -32,7 +32,14 @@ class UserManager(BaseUserManager):
         email = self.normalize_email(email)
         user = self.model(USER_EMAIL=email, **extra_fields)
         user.set_password(password)
-        user.save(using=self._db)
+        database = self._db or router.db_for_write(self.model)
+        with transaction.atomic(using=database):
+            user.save(using=database)
+            from apps.business.services.pocket_collection_service import (
+                PocketCollectionService,
+            )
+
+            PocketCollectionService.provision_favorites(user, using=database)
         return user
 
     def create_superuser(self, email=None, password=None, **extra_fields):

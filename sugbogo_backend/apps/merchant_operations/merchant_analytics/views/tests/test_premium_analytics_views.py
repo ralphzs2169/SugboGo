@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import override_settings
@@ -12,6 +13,36 @@ from ...services.tests.fixtures import MerchantAnalyticsFixtures
 
 class PremiumAnalyticsViewTests(MerchantAnalyticsFixtures, APIResponseAssertionsMixin, APITestCase):
     NAMES = ("visibility", "pocket", "specialties", "review-insights", "review-performance")
+
+    @override_settings(MERCHANT_PLUS_ENFORCED=False)
+    def test_individual_reports_accept_a_recent_standard_cutoff_and_reject_future_or_old_cutoffs(self):
+        cutoff = self.NOW - timedelta(seconds=2)
+        for name in ("visibility", "pocket", "review-performance", "specialties"):
+            response = self.client.get(
+                self.url(name),
+                {"as_of": cutoff.isoformat()},
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.data["data"]["meta"]["period"]["end_exclusive"],
+                cutoff.isoformat(),
+            )
+            invalid_cutoffs = (
+                self.NOW + timedelta(seconds=1),
+                self.NOW - timedelta(minutes=6),
+            )
+            for invalid in invalid_cutoffs:
+                response = self.client.get(
+                    self.url(name),
+                    {"as_of": invalid.isoformat()},
+                )
+                self.assertValidationError(response, "as_of")
+        response = self.client.get(self.url("review-performance"))
+        self.assertIn("published_review_count_change", response.data["data"])
+        response = self.client.get(self.url("specialties"))
+        self.assertEqual(response.data["data"]["vouches_added_and_still_valid"], 0)
+        self.assertEqual(response.data["data"]["previous_vouches_added_and_still_valid"], 0)
+        self.assertEqual(response.data["data"]["vouches_added_change"]["value"], 0)
 
     def setUp(self):
         super().setUp()

@@ -115,6 +115,7 @@ export default function ExploreScreen() {
       pathname: "/(explorer)/business/[businessId]",
       params: {
         businessId: String(businessId),
+        profileSource: "EXPLORE_DISCOVERY",
         distance: distance !== null ? String(distance) : "",
         distanceAccuracy:
           distanceAccuracy !== null ? String(distanceAccuracy) : "",

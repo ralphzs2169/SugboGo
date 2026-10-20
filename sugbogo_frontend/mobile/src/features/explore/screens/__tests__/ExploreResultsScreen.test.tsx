@@ -1,5 +1,6 @@
 import React from "react";
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
+import { router } from "expo-router";
 
 import ExploreResultsScreen from "../SearchFilterResultScreen";
 import useDiscoveryResults from "../../hooks/useDiscoveryResults";
@@ -8,6 +9,7 @@ const mockOnViewableItemsChanged = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn(), push: jest.fn() },
+  useNavigation: () => ({ isFocused: () => true }),
   useLocalSearchParams: () => ({ specialtyTagId: "12" }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -35,8 +37,16 @@ jest.mock("@/shared/hooks/useUserLocation", () => () => ({
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
 }));
-jest.mock("../../components/results/ExploreFiltersSheet", () => () => null);
-jest.mock("../../components/new-businesses/BusinessCard", () => () => null);
+jest.mock(
+  "../../components/search-filter-results/SearchFilterBottomSheet",
+  () => () => null,
+);
+jest.mock("../../components/new-businesses/BusinessCard", () => {
+  const { Text } = jest.requireActual("react-native");
+  return function MockBusinessCard({ onPress }: { onPress: () => void }) {
+    return <Text onPress={onPress}>Open search result</Text>;
+  };
+});
 jest.mock("../../hooks/useDiscoveryResults");
 jest.mock("../../hooks/useExploreFilterOptions", () => () => ({
   options: {
@@ -75,13 +85,33 @@ it("keeps the result list viewability callback mounted while loading changes", a
   const screen = await render(<ExploreResultsScreen />);
 
   expect(
-    screen.getByTestId("explore-results-list").props.onViewableItemsChanged,
+    screen.getByTestId("search-filter-results-list").props
+      .onViewableItemsChanged,
   ).toBe(mockOnViewableItemsChanged);
 
   (useDiscoveryResults as jest.Mock).mockReturnValue(resultState(false));
   await screen.rerender(<ExploreResultsScreen />);
 
   expect(
-    screen.getByTestId("explore-results-list").props.onViewableItemsChanged,
+    screen.getByTestId("search-filter-results-list").props
+      .onViewableItemsChanged,
   ).toBe(mockOnViewableItemsChanged);
+});
+
+it("attributes a filtered-result opening to SEARCH_RESULTS while preserving business parameters", async () => {
+  (useDiscoveryResults as jest.Mock).mockReturnValue({
+    ...resultState(false),
+    businesses: [{ id: 42 }],
+  });
+  const screen = await render(<ExploreResultsScreen />);
+  await fireEvent.press(screen.getByText("Open search result"));
+  expect(router.push).toHaveBeenCalledWith({
+    pathname: "/(explorer)/business/[businessId]",
+    params: {
+      businessId: "42",
+      distance: "",
+      distanceAccuracy: "",
+      profileSource: "SEARCH_RESULTS",
+    },
+  });
 });

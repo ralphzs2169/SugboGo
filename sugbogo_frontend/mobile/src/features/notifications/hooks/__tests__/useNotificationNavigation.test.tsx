@@ -93,6 +93,46 @@ describe("useNotificationNavigation", () => {
     useAppModeStore.setState({ activeMode: "explorer" });
   });
 
+  it.each(["explorer", "merchant"] as const)(
+    "opens an application summary from %s mode without requiring Merchant access",
+    async (activeMode) => {
+      useAppModeStore.setState({ activeMode });
+      if (activeMode === "explorer") {
+        useAuthStore.setState((state) => ({
+          user: state.user ? { ...state.user, role: "explorer" } : null,
+        }));
+      }
+      const markRead = jest.fn().mockResolvedValue(undefined);
+      const { client, Wrapper } = setupClient();
+      const { result, unmount } = await renderHook(
+        () => useNotificationNavigation({ markRead }),
+        { wrapper: Wrapper },
+      );
+
+      await act(async () => {
+        await result.current.handleNotificationPress(
+          notification({
+            type: "merchant_application_rejected",
+            target_type: "merchant_application",
+            target_id: 42,
+          }),
+        );
+      });
+
+      expect(markRead).toHaveBeenCalledWith(9);
+      expect(getApplicationStatus).not.toHaveBeenCalled();
+      expect(useAppModeStore.getState().activeMode).toBe("explorer");
+      const navigate =
+        activeMode === "merchant" ? mockRouter.replace : mockRouter.push;
+      expect(navigate).toHaveBeenCalledWith(
+        "/(explorer)/merchant-registration/submitted-application",
+      );
+
+      unmount();
+      client.clear();
+    },
+  );
+
   it("marks unread and replaces Explorer with the eligible Merchant detail", async () => {
     const markRead = jest.fn().mockResolvedValue(undefined);
     const { client, Wrapper } = setupClient();
@@ -140,6 +180,39 @@ describe("useNotificationNavigation", () => {
       params: { requestId: "31" },
     });
 
+    unmount();
+    client.clear();
+  });
+
+  it("marks a specialty vouch read without navigating or switching mode", async () => {
+    const markRead = jest.fn().mockResolvedValue(undefined);
+    const { client, Wrapper } = setupClient();
+    const { result, unmount } = await renderHook(
+      () => useNotificationNavigation({ markRead }),
+      { wrapper: Wrapper },
+    );
+    const item = notification({
+      type: "business_vouch_received",
+      title: "New specialty vouch",
+      body: "An explorer vouched for your Handmade Crafts specialty.",
+      target_type: "",
+      target_id: null,
+    });
+    await act(async () => {
+      await result.current.handleNotificationPress(item);
+    });
+    expect(markRead).toHaveBeenCalledTimes(1);
+    expect(markRead).toHaveBeenCalledWith(item.id);
+    expect(getApplicationStatus).not.toHaveBeenCalled();
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(useAppModeStore.getState().activeMode).toBe("explorer");
+    expect(result.current.isHandlingNotification).toBe(false);
+
+    await act(async () => {
+      await result.current.handleNotificationPress({ ...item, is_read: true });
+    });
+    expect(markRead).toHaveBeenCalledTimes(1);
     unmount();
     client.clear();
   });

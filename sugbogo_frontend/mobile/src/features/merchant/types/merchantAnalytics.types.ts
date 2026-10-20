@@ -1,6 +1,16 @@
 /** Supported Standard selections; custom dates are deferred in the mobile MVP. */
 export type MerchantAnalyticsPeriod = "7" | "30" | "90";
 
+/** Current actionable backlog; age counts are server-computed elapsed-time groups. */
+export type MerchantUnansweredReviewsSummary = {
+  business: { id: number; name: string; status: string };
+  total_unanswered: number;
+  under_3_days: number;
+  days_3_to_6: number;
+  days_7_plus: number;
+  snapshot_as_of: string;
+};
+
 export type AnalyticsAvailability = "available" | "partial" | "unavailable";
 
 /** Mirrors the Standard serializer without inventing previous-period fields. */
@@ -39,6 +49,10 @@ export type MerchantStandardAnalytics = {
   distinct_profile_visitors: number | null;
   saves_in_period: number | null;
   current_pocket_holders: number;
+  /** Current eligible vouch records; optional while older API responses remain cached. */
+  current_valid_vouches?: number | null;
+  /** Retained valid additions in the selection; absent on older cached responses. */
+  vouches_added_and_still_valid?: number | null;
   specialty_support: AnalyticsSpecialtySupport[];
   reviews: {
     new_published_in_period: number;
