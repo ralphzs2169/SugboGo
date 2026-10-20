@@ -12,6 +12,7 @@ import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import AppVersion from "../components/AppVersion";
 import MerchantPortalCard from "../components/MerchantPortalCard";
 import ProfileHeader from "../components/ProfileHeader";
+import ProfileActivitySummary from "../components/ProfileActivitySummary";
 import ProfileMenuItem from "../components/ProfileMenuItem";
 import ProfileMenuSection from "../components/ProfileMenuSection";
 import ProfileScrollView from "../components/ProfileScrollView";
@@ -92,6 +93,21 @@ export default function ProfileScreen() {
             onEditProfile={() => router.push("/profile/edit-profile")}
           />
 
+          {/* Explorer activity */}
+          <ProfileActivitySummary />
+          <ProfileMenuSection>
+            <ProfileMenuItem
+              title="Activity Timeline"
+              icon="history"
+              onPress={() => router.push("/profile/activity-timeline")}
+            />
+            <ProfileMenuItem
+              title="My Interests"
+              icon="tune-variant"
+              onPress={() => router.push("/profile/your-interests")}
+            />
+          </ProfileMenuSection>
+
           {/* Merchant mode */}
           {!isLoadingApplicationStatus &&
             canAccessMerchantMode &&
@@ -110,46 +126,6 @@ export default function ProfileScreen() {
                 />
               </ProfileMenuSection>
             )}
-
-          {/* Explorer activity */}
-          <ProfileMenuSection title="Your Activity">
-            <ProfileMenuItem
-              title="My Pockets"
-              icon="wallet-outline"
-              badge={5}
-              onPress={() => router.push("/profile/my-pockets")}
-            />
-
-            <ProfileMenuItem
-              title="My Vouches"
-              icon="heart-outline"
-              onPress={() => router.push("/profile/vouch-history")}
-            />
-
-            <ProfileMenuItem
-              title="My Reviews"
-              icon="comment-outline"
-              onPress={() => router.push("/profile/reviews-submitted")}
-            />
-
-            <ProfileMenuItem
-              title="Activity Timeline"
-              icon="history"
-              onPress={() => {}}
-            />
-
-            <ProfileMenuItem
-              title="My Impact"
-              icon="hand-heart-outline"
-              onPress={() => {}}
-            />
-
-            <ProfileMenuItem
-              title="My Interests"
-              icon="tune-variant"
-              onPress={() => router.push("/profile/your-interests")}
-            />
-          </ProfileMenuSection>
 
           {/* Merchant onboarding */}
           {!isLoadingApplicationStatus &&
@@ -205,8 +181,6 @@ export default function ProfileScreen() {
               icon="database-outline"
               onPress={() => router.push("/offline-routes")}
             />
-
-            <ProfileMenuItem title="Sync Now" icon="sync" onPress={() => {}} />
           </ProfileMenuSection>
 
           {/* Session action */}

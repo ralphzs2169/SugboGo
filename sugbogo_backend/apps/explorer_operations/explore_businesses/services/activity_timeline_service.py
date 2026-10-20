@@ -3,12 +3,15 @@ from django.db.models import (
     DateTimeField,
     F,
     IntegerField,
+    OuterRef,
+    Subquery,
     TextField,
     Value,
 )
 from django.db.models.functions import Cast, Substr
 
 from apps.business.models import Business, BusinessPocket
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.reviews.models import Review
 
 from .vouch_history_service import VouchHistoryService
@@ -24,8 +27,11 @@ class ActivityTimelineService:
         "business_id",
         "business_name",
         "business_status",
+        "business_cover_photo_url",
         "specialty_id",
         "specialty_name",
+        "specialty_color",
+        "specialty_icon",
         "review_excerpt",
         "review_status",
         "review_edited_at",
@@ -40,6 +46,12 @@ class ActivityTimelineService:
         **details,
     ):
         """Projects identical typed columns for database UNION across activity models."""
+        display_business = (
+            Business.objects
+            .filter(BUSN_ID=OuterRef("BUSN_ID_id"))
+            .annotate(display_cover_photo_url=display_cover_photo_expression())
+            .values("display_cover_photo_url")[:1]
+        )
         annotations = {
             "activity_type": Value(activity_type, output_field=CharField()),
             "source_id": F(id_field),
@@ -47,8 +59,11 @@ class ActivityTimelineService:
             "business_id": F("BUSN_ID_id"),
             "business_name": F("BUSN_ID__BUSN_NAME"),
             "business_status": F("BUSN_ID__BUSN_STATUS"),
+            "business_cover_photo_url": Subquery(display_business),
             "specialty_id": Cast(Value(None), output_field=IntegerField()),
             "specialty_name": Value(None, output_field=CharField()),
+            "specialty_color": Value(None, output_field=CharField()),
+            "specialty_icon": Value(None, output_field=CharField()),
             "review_excerpt": Value(None, output_field=TextField()),
             "review_status": Value(None, output_field=CharField()),
             # PostgreSQL must not resolve the first two NULL branches as text.
@@ -90,6 +105,8 @@ class ActivityTimelineService:
                     "VOUCH_CREATED_AT",
                     specialty_id=F("TAG_ID_id"),
                     specialty_name=F("TAG_ID__TAG_NAME"),
+                    specialty_color=F("TAG_ID__TAG_COLOR"),
+                    specialty_icon=F("TAG_ID__TAG_ICON"),
                 ),
             )
         if activity_type in ("all", "reviews"):

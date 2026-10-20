@@ -85,7 +85,7 @@ export default function SegmentedControl<T extends string>({
               left: trackPadding,
               width: segmentWidth,
               borderRadius: 999,
-              backgroundColor: theme.extends.colors.surface,
+              backgroundColor: theme.extends.colors.brand,
               transform: [{ translateX: thumbX }],
             },
           ]}
@@ -114,8 +114,11 @@ export default function SegmentedControl<T extends string>({
               <MaterialCommunityIcons
                 name={option.icon}
                 size={isSmall ? 14 : 16}
-                color={theme.extends.colors.brand}
-                style={{ opacity: selected ? 1 : 0.45 }}
+                color={
+                  selected
+                    ? theme.extends.colors.surface
+                    : theme.extends.colors.text.secondary
+                }
                 accessibilityElementsHidden
                 importantForAccessibility="no"
               />
@@ -124,7 +127,7 @@ export default function SegmentedControl<T extends string>({
             <AppText
               weight={selected ? "semibold" : "medium"}
               className={`${isSmall ? "text-xs" : "text-small"} ${
-                selected ? "text-text-primary" : "text-text-secondary"
+                selected ? "text-white" : "text-text-secondary"
               }`}
               numberOfLines={1}
             >

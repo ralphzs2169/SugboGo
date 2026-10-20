@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from apps.business.models import (
     Business,
     BusinessPocket,
+    BusinessPhoto,
     BusinessSpecialtyTag,
     BusinessVouch,
     PocketCollection,
@@ -268,7 +269,12 @@ class ActivityTimelineViewTests(
         endorsement = next(item for item in items if item["type"] == "vouch")
         self.assertEqual(
             endorsement["specialty"],
-            {"id": self.tag.pk, "name": self.tag.TAG_NAME},
+            {
+                "id": self.tag.pk,
+                "name": self.tag.TAG_NAME,
+                "color": self.tag.TAG_COLOR,
+                "icon": self.tag.TAG_ICON,
+            },
         )
         self.assertIsNone(endorsement["review"])
 
@@ -278,3 +284,34 @@ class ActivityTimelineViewTests(
         self.assertEqual(response.data["data"]["items"], [])
         self.assertEqual(response.data["data"]["pagination"]["total_items"], 0)
         self.assertEqual(self.client.get(self.url, {"page": 2}).status_code, 404)
+
+    def test_cover_prefers_dedicated_photo_then_uses_business_storefront(self):
+        self.make_activity()
+        Business.objects.filter(pk=self.business.pk).update(
+            BUSN_COVER_PHOTO_URL="https://example.com/dedicated.jpg",
+        )
+        BusinessPhoto.objects.create(
+            BUSN_ID=self.business,
+            BPHO_CATEGORY=BusinessPhoto.PhotoCategory.STOREFRONT,
+            BPHO_PHOTO_URL="https://example.com/storefront.jpg",
+            BPHO_PHOTO_PUBLIC_ID="timeline-storefront",
+        )
+        for activity in self.client.get(self.url).data["data"]["items"]:
+            self.assertEqual(
+                activity["business"]["display_cover_photo_url"],
+                "https://example.com/dedicated.jpg",
+            )
+        Business.objects.filter(pk=self.business.pk).update(BUSN_COVER_PHOTO_URL="")
+        BusinessPocket.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.other_business,
+        )
+        response = self.client.get(self.url)
+        for activity in response.data["data"]["items"]:
+            if activity["business"]["id"] == self.business.pk:
+                self.assertEqual(
+                    activity["business"]["display_cover_photo_url"],
+                    "https://example.com/storefront.jpg",
+                )
+            else:
+                self.assertIsNone(activity["business"]["display_cover_photo_url"])

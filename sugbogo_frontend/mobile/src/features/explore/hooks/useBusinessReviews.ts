@@ -12,6 +12,7 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
+import { ACTIVITY_TIMELINE_QUERY_KEY } from "@/features/profile/hooks/activityTimelineQueryKeys";
 import type { MyReviewPage } from "@/features/profile/types/myReview.types";
 
 import * as reviewService from "../api/reviewBusiness.service";
@@ -152,6 +153,13 @@ function useReviewMutation<TVariables, TResult>(
       }
 
       await Promise.all([
+        ...(sync
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: ACTIVITY_TIMELINE_QUERY_KEY,
+              }),
+            ]
+          : []),
         ...((sync === "update" || sync === "delete") &&
         context.authorUserId !== null
           ? [

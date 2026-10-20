@@ -3,6 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { ACTIVITY_TIMELINE_QUERY_KEY } from "@/features/profile/hooks/activityTimelineQueryKeys";
 
 import {
   pocketBusiness,
@@ -277,6 +278,9 @@ export default function useBusinessPocket({ businessId }: Props) {
 
     onSettled: async () => {
       await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ACTIVITY_TIMELINE_QUERY_KEY,
+        }),
         queryClient.invalidateQueries({
           queryKey: ["explore-business-detail", businessId],
         }),

@@ -27,11 +27,14 @@ metadata. Invalid activity filters return 400; invalid pages return 404.
   "business": {
     "id": 7,
     "business_name": "Example Cafe",
-    "status": "active"
+    "status": "active",
+    "display_cover_photo_url": "https://example.com/cover.jpg"
   },
   "specialty": {
     "id": 3,
-    "name": "Coffee"
+    "name": "Coffee",
+    "color": "teal",
+    "icon": "coffee"
   },
   "review": null
 }
@@ -42,6 +45,10 @@ type so IDs from different source tables do not collide. `specialty` is populate
 only for vouches. `review` is populated only for reviews and contains `id`,
 `excerpt` (up to 180 characters), `status`, and nullable `edited_at`. No internal
 moderation diagnostics are exposed.
+
+Business covers use the dedicated cover photo, falling back to the first usable
+storefront photo, or `null` if neither exists. Specialty color and icon values
+reuse the existing specialty chip contract.
 
 ## Current-activity semantics
 

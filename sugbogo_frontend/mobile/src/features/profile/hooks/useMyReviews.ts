@@ -6,17 +6,24 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import { getMyReviews } from "../api/myReviews.service";
 import { myReviewsKey } from "./myReviewQueryKeys";
+import type { MyReviewFilter, MyReviewOrdering } from "../types/myReview.types";
 
 export { MY_REVIEWS_QUERY_KEY, myReviewsKey } from "./myReviewQueryKeys";
 
 /** Loads private review pages without sharing history between accounts. */
-export function useMyReviews() {
+export function useMyReviews(
+  status: MyReviewFilter = "all",
+  ordering: MyReviewOrdering = "newest",
+) {
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isAuthLoading = useAuthStore((state) => state.isLoading);
   const isEnabled = isAuthenticated && userId !== null && !isAuthLoading;
   const query = useInfiniteQuery({
-    queryKey: myReviewsKey(isEnabled ? userId : null),
+    queryKey:
+      status === "all" && ordering === "newest"
+        ? myReviewsKey(isEnabled ? userId : null)
+        : [...myReviewsKey(isEnabled ? userId : null), status, ordering],
     enabled: isEnabled,
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
@@ -24,7 +31,7 @@ export function useMyReviews() {
       if (!isEnabled) {
         throw new Error("Sign in to view your reviews.");
       }
-      return throwOnApiError(await getMyReviews(pageParam));
+      return throwOnApiError(await getMyReviews(pageParam, status, ordering));
     },
     getNextPageParam: (lastPage) =>
       lastPage.pagination.has_next ? lastPage.pagination.page + 1 : undefined,
@@ -47,6 +54,7 @@ export function useMyReviews() {
     userId,
     isEnabled,
     isAuthLoading,
+    summary: isEnabled ? query.data?.pages[0]?.summary : undefined,
     totalCount: isEnabled
       ? (query.data?.pages[0]?.pagination.total_items ?? 0)
       : 0,

@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 
 from apps.reviews.serializers.my_review_serializers import (
+    MyReviewQuerySerializer,
     MyReviewResponseSerializer,
 )
 from apps.reviews.services.my_review_service import MyReviewService
@@ -22,6 +23,14 @@ class MyReviewListView(APIView):
         reviews = MyReviewService.list_reviews_queryset(
             user=request.user,
         )
+        query = MyReviewQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        summary = MyReviewService.summarize_reviews(reviews)
+        reviews = MyReviewService.filter_and_sort_reviews(
+            queryset=reviews,
+            status=query.validated_data["status"],
+            ordering=query.validated_data["ordering"],
+        )
         paginator = StandardPagination()
         page = paginator.paginate_queryset(
             reviews,
@@ -29,9 +38,11 @@ class MyReviewListView(APIView):
         )
         page = ReviewService._attach_vouched_specialties(page)
 
-        return paginator.get_paginated_response(
+        response = paginator.get_paginated_response(
             MyReviewResponseSerializer(
                 page,
                 many=True,
             ).data,
         )
+        response.data["data"]["summary"] = summary
+        return response

@@ -16,6 +16,10 @@ class ActivityTimelineBusinessSerializer(serializers.Serializer):
     id = serializers.IntegerField(source="business_id")
     business_name = serializers.CharField()
     status = serializers.CharField(source="business_status")
+    display_cover_photo_url = serializers.URLField(
+        source="business_cover_photo_url",
+        allow_null=True,
+    )
 
 
 class ActivityTimelineSerializer(serializers.Serializer):
@@ -46,6 +50,8 @@ class ActivityTimelineSerializer(serializers.Serializer):
         return {
             "id": activity["specialty_id"],
             "name": activity["specialty_name"],
+            "color": activity["specialty_color"],
+            "icon": activity["specialty_icon"],
         }
 
     def get_review(
