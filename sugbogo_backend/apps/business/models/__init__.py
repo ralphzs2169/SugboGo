@@ -13,6 +13,7 @@ from .business_media_models import (
     BusinessPhoto,
 )
 from .business_pocket_models import BusinessPocket
+from .pocket_collection_models import PocketCollection, PocketMembership
 from .business_taxonomy_models import (
     Category,
     Cluster,
@@ -30,6 +31,8 @@ __all__ = (
     "BusinessOperatingHours",
     "BusinessPhoto",
     "BusinessPocket",
+    "PocketCollection",
+    "PocketMembership",
     "BusinessSpecialtyTag",
     "BusinessVouch",
     "Category",
