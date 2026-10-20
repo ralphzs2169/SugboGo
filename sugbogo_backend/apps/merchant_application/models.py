@@ -134,6 +134,7 @@ class MerchantApplicationReview(models.Model):
         null=True,
         blank=True,
     )
+    MAREV_SECTION_FINGERPRINTS = models.JSONField(default=dict, blank=True)
 
     MAPP_ID = models.ForeignKey(
         MerchantApplication,
