@@ -74,6 +74,14 @@ export default function ProfileLayout() {
             title: "Deactivate Account",
           }}
         />
+        <Stack.Screen
+          name="change-email"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Change Email",
+          }}
+        />
       </Stack>
     </>
   );

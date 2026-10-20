@@ -155,6 +155,7 @@ PASSWORD_RESET_URL = os.getenv(
 
 # Email verification / password reset token lifetime (24 hours)
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
+EMAIL_CHANGE_TIMEOUT_SECONDS = 30 * 60
 
 # Cloudinary Configuration
 cloudinary.config(
@@ -279,6 +280,8 @@ REST_FRAMEWORK = {
         "oauth_login": "5/min",
         "resend_verification": "10/hour",
         "forgot_password": "10/hour",
+        "email_change": "5/hour",
+        "email_change_confirm": "5/min",
 
         "register": "5/hour",
 

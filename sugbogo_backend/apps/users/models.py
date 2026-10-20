@@ -4,6 +4,7 @@ from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, router, transaction
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 
@@ -176,6 +177,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         constraints = [  # noqa: RUF012
+            models.UniqueConstraint(
+                Lower("USER_EMAIL"),
+                name="user_email_case_insensitive_unique",
+            ),
             models.CheckConstraint(
                 condition=(
                     models.Q(

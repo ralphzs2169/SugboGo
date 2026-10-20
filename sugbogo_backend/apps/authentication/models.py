@@ -1,7 +1,29 @@
 
 from django.db import models
+import uuid
 
 from apps.users.models import User
+
+
+class EmailChangeRequest(models.Model):
+    """Stores one expiring, replaceable email-change proof for an account."""
+
+    ECHG_ID = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    USER_ID = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        db_column="USER_ID",
+        related_name="email_change_request",
+    )
+    ECHG_NEW_EMAIL = models.EmailField(max_length=100)
+    ECHG_TOKEN_HASH = models.CharField(max_length=64)
+    ECHG_AUTH_STATE = models.CharField(max_length=64)
+    ECHG_EXPIRES_AT = models.DateTimeField()
+    ECHG_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    ECHG_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "EMAIL_CHANGE_REQUEST"
 
 
 class OAuthAccount(models.Model):
@@ -53,6 +75,3 @@ class OAuthAccount(models.Model):
             name="unique_user_provider",
         ),
     ]
-        
-
-    

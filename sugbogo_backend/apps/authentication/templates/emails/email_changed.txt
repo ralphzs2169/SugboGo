@@ -1,0 +1,8 @@
+Hi {{ user.USER_FNAME }},
+
+Your SugboGo sign-in email was changed to {{ user.USER_EMAIL }} after verification.
+Existing sessions have been revoked. Sign in again with your new address.
+
+If you did not make this change, contact SugboGo support and secure your account.
+
+The SugboGo Team
