@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
@@ -9,8 +9,7 @@ import NotificationBellButton from "@/features/notifications/components/Notifica
 import AppText from "@/shared/components/AppText";
 import Avatar from "@/shared/components/Avatar";
 import SafePressable from "@/shared/components/SafePressable";
-import Skeleton from "@/shared/components/Skeleton";
-import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
+import ExploreClusterFilters from "./ExploreClusterFilters";
 
 type ClusterOption = { id: number; name: string; icon: string };
 
@@ -135,56 +134,12 @@ export default function ExploreTopBar({
         </SafePressable>
       </View>
       {/* Quick discovery clusters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="flex-none"
-        contentContainerClassName="gap-2"
-      >
-        {isLoadingClusters ? (
-          <>
-            <Skeleton className="h-9 w-14 rounded-full" />
-            <Skeleton className="h-9 w-24 rounded-full" />
-            <Skeleton className="h-9 w-20 rounded-full" />
-            <Skeleton className="h-9 w-28 rounded-full" />
-            <Skeleton className="h-9 w-20 rounded-full" />
-          </>
-        ) : (
-          [{ id: null, name: "All", icon: null }, ...clusters].map(
-            (cluster) => {
-              const isActive = cluster.id === selectedClusterId;
-              return (
-                <SafePressable
-                  key={cluster.id ?? "all"}
-                  onPress={() => onSelectCluster(cluster.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isActive }}
-                  className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${isActive ? "bg-brand" : "bg-background"}`}
-                >
-                  {cluster.icon && (
-                    <MaterialCommunityIcons
-                      name={CLUSTER_ICONS[cluster.icon] ?? "store"}
-                      size={14}
-                      color={
-                        isActive
-                          ? "#FFFFFF"
-                          : theme.extends.colors.text.secondary
-                      }
-                      style={{ marginRight: 5 }}
-                    />
-                  )}
-                  <AppText
-                    weight="medium"
-                    className={`text-sm ${isActive ? "text-white" : "text-text-secondary"}`}
-                  >
-                    {cluster.name}
-                  </AppText>
-                </SafePressable>
-              );
-            },
-          )
-        )}
-      </ScrollView>
+      <ExploreClusterFilters
+        clusters={clusters}
+        selectedClusterId={selectedClusterId}
+        onSelectCluster={onSelectCluster}
+        isLoading={isLoadingClusters}
+      />
     </View>
   );
 }

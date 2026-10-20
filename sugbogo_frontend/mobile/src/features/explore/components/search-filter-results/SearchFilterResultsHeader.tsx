@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 import Skeleton from "@/shared/components/Skeleton";
@@ -9,6 +9,7 @@ import type {
   ExploreFilterSpecialty,
 } from "../../types/exploreBusiness.types";
 import AppliedFilterChip from "../AppliedFilterChip";
+import ExploreClusterFilters from "../ExploreClusterFilters";
 
 type Props = {
   clusters: ExploreFilterCluster[];
@@ -42,34 +43,12 @@ export default function SearchFilterResultsHeader({
   return (
     <View>
       {/* Cluster quick filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
+      <ExploreClusterFilters
+        clusters={clusters}
+        selectedClusterId={selectedClusterId}
+        onSelectCluster={onSelectCluster}
         contentContainerClassName="gap-2 px-4 py-3"
-      >
-        {[{ id: null, name: "All" }, ...clusters].map((cluster) => {
-          const isSelected = cluster.id === selectedClusterId;
-
-          return (
-            <Pressable
-              key={cluster.id ?? "all"}
-              onPress={() => onSelectCluster(cluster.id)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isSelected }}
-              className={`min-h-11 cursor-pointer justify-center rounded-full px-4 active:opacity-70 ${
-                isSelected ? "bg-brand" : "bg-background"
-              }`}
-            >
-              <AppText
-                weight="semibold"
-                className={isSelected ? "text-white" : "text-text-secondary"}
-              >
-                {cluster.name}
-              </AppText>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      />
 
       {/* Applied taxonomy filters */}
       {(selectedCategories.length > 0 || selectedSpecialty) && (
