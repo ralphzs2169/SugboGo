@@ -4,9 +4,15 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { KnownNotificationType } from "../types/notification.types";
 
 export type NotificationCategory =
-  "business" | "review" | "review-moderation" | "review-dispute" | "general";
+  | "business"
+  | "vouch"
+  | "review"
+  | "review-moderation"
+  | "review-dispute"
+  | "general";
 
 const CATEGORY_BY_TYPE: Record<KnownNotificationType, NotificationCategory> = {
+  business_vouch_received: "vouch",
   business_review_received: "review",
   business_name_change_approved: "business",
   business_name_change_rejected: "business",
@@ -26,6 +32,7 @@ const ICON_BY_CATEGORY: Record<
   ComponentProps<typeof MaterialCommunityIcons>["name"]
 > = {
   business: "storefront-outline",
+  vouch: "thumb-up-outline",
   review: "message-text-outline",
   "review-moderation": "message-text-outline",
   "review-dispute": "shield-check-outline",

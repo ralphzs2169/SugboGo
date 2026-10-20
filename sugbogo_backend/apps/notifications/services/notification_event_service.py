@@ -1,11 +1,19 @@
 from apps.merchant_application.models import MerchantApplicationReview
 from apps.notifications.services.notification_service import NotificationService
+from apps.notifications.services.vouch_notification_service import (
+    VouchNotificationService,
+)
 from apps.reviews.models import Review
 from apps.users.models import User
 
 
 class NotificationEventService:
     """Create private recipient notices inside the owning transaction."""
+
+    @staticmethod
+    def business_vouch_received(vouch):
+        """Combine a new vouch with the sender's recent unread specialty notice."""
+        VouchNotificationService.record(vouch)
 
     @staticmethod
     def business_review_received(review):

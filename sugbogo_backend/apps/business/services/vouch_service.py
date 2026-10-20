@@ -7,6 +7,9 @@ from apps.business.models import (
     BusinessVouch,
     SpecialtyTag,
 )
+from apps.notifications.services.notification_event_service import (
+    NotificationEventService,
+)
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
 
@@ -64,6 +67,7 @@ class VouchService:
         tag_id: int,
         installation_id: str | None = None,
     ) -> BusinessVouch:
+        """Create a validated specialty vouch and notify its owner atomically."""
         try:
             locked_user = (
                 User.objects
@@ -160,6 +164,8 @@ class VouchService:
             business_id=business.BUSN_ID,
             specialty_tag_id=tag.TAG_ID,
         )
+
+        NotificationEventService.business_vouch_received(vouch)
 
         return vouch
 
