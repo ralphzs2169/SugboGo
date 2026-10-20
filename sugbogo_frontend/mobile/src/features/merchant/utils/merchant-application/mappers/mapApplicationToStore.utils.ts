@@ -39,6 +39,10 @@ export function mapApplicationToStore(
     selectedLocation: {
       latitude: application.location.latitude ?? 0,
       longitude: application.location.longitude ?? 0,
+      // Saved coordinates passed backend boundary validation; incomplete points must be reselected.
+      isWithinServiceArea:
+        Number.isFinite(application.location.latitude) &&
+        Number.isFinite(application.location.longitude),
 
       province: application.location.province,
       city: application.location.city,

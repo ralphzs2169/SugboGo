@@ -4,7 +4,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react-native";
+import { act, cleanup, renderHook } from "@testing-library/react-native";
 
 import useBusinessPocket from "../useBusinessPocket";
 import useBusinessVouch from "../useBusinessVouch";
@@ -50,6 +50,7 @@ function createBusiness(): ExploreBusiness {
         id: 5,
         name: "Coffee",
         color: "blue",
+        icon: null,
         vouch_count: 2,
         is_vouched: false,
       },
@@ -89,6 +90,7 @@ describe("Similar Places interaction cache", () => {
   beforeEach(() => {
     client = new QueryClient({
       defaultOptions: {
+        mutations: { gcTime: Infinity },
         queries: {
           retry: false,
           gcTime: Infinity,
@@ -103,7 +105,8 @@ describe("Similar Places interaction cache", () => {
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await cleanup();
     client.clear();
   });
 

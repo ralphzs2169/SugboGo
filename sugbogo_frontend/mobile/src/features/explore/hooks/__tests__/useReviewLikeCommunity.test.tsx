@@ -49,7 +49,7 @@ const otherReview = {
 const businessReview: BusinessReview = {
   ...review,
   status: "published",
-  report_count: 0,
+  has_reported: false,
   sentiment_label: null,
   sentiment_score: null,
   active_dispute_id: null,
