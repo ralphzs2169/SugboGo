@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsFocused, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -15,33 +15,26 @@ import SafePressable from "@/shared/components/SafePressable";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
-import AnalyticsActivityOverview from "../../components/analytics/AnalyticsActivityOverview";
 // Temporarily disconnected until PDF export's native dependencies are installed.
 // import AnalyticsExport from "../../components/analytics/AnalyticsExport";
-import AnalyticsHeaderControls from "../../components/analytics/AnalyticsHeaderControls";
-import AnalyticsMeasurementSheet from "../../components/analytics/AnalyitcsMeasurementSheet";
+
 import AnalyticsReviewSummaryPreview from "../../components/analytics/AnalyticsReviewSummaryPreview";
 import { useMerchantPlusStoredInsights } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
 import AnalyticsMoreInsights from "../../components/analytics/AnalyticsMoreInsights";
 import AnalyticsOverviewSection from "../../components/analytics/AnalyticsOverviewSection";
 import AnalyticsRoutePlanning from "../../components/analytics/AnalyticsRoutePlanning";
 import AnalyticsSectionSkeleton from "../../components/analytics/AnalyticsSectionSkeleton";
-import AnalyticsSourceNotice from "../../components/analytics/AnalyticsSourceNotice";
+
 import AnalyticsSpecialtySupport from "../../components/analytics/AnalyticsSpecialtySupport";
-import AnalyticsUnansweredReviews from "../../components/analytics/AnalyticsUnansweredReviews";
+
 import AnalyticsVisibilityTrends from "../../components/analytics/AnalyticsVisibilityTrends";
 
 import { merchantPlusReportScope } from "../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
-import {
-  useMerchantPlusPocket,
-  useMerchantPlusReviews,
-  useMerchantPlusSpecialties,
-  useMerchantPlusVisibility,
-} from "../../hooks/analytics/useMerchantPlusAnalytics";
+
 import useMerchantRoutePlanning from "../../hooks/analytics/useMerchantRoutePlanning";
 import useMerchantStandardAnalytics from "../../hooks/analytics/useMerchantStandardAnalytics";
-import useMerchantUnansweredReviews from "../../hooks/analytics/useMerchantUnansweredReviews";
+
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 
 import MerchantScreenHeader from "../../layout/MerchantScreenHeader";
@@ -57,15 +50,9 @@ const PERIOD_OPTIONS = [
   { label: "Last 90 days", value: "90" },
 ];
 
-type PeriodSection = "overview" | "visibility" | "routePlanning";
+type PeriodSection = "visibility" | "routePlanning";
 
-/**
- * Displays merchant analytics with compact reporting-period
- * selection and independent recovery for each report section.
- *
- * Preserves backend-aligned comparisons, current-state metrics,
- * refresh behavior, and detailed measurement explanations.
- */
+/** Displays detailed business reports with independent period controls and recovery. */
 export default function MerchantAnalyticsScreen() {
   const router = useRouter();
   const focused = useIsFocused();
@@ -74,104 +61,28 @@ export default function MerchantAnalyticsScreen() {
   const bottomSpacing = useTabBarSpacing(24);
 
   // Bottom sheets
-  const measurementSheetRef = useRef<BottomSheetModal>(null);
   const periodSheetRef = useRef<BottomSheetModal>(null);
 
   // Reporting state
-  const [overviewPeriod, setOverviewPeriod] =
-    useState<MerchantAnalyticsPeriod>("30");
+  const reportPeriod: MerchantAnalyticsPeriod = "30";
   const [visibilityPeriod, setVisibilityPeriod] =
     useState<MerchantAnalyticsPeriod>("30");
   const [routePlanningPeriod, setRoutePlanningPeriod] =
     useState<MerchantAnalyticsPeriod>("30");
   const [activePeriodSection, setActivePeriodSection] =
-    useState<PeriodSection>("overview");
+    useState<PeriodSection>("visibility");
   const [isRefreshingPlus, setIsRefreshingPlus] = useState(false);
 
   // Standard Analytics
   const { report, isLoading, isRefetching, error, refetch } =
-    useMerchantStandardAnalytics(overviewPeriod);
+    useMerchantStandardAnalytics(reportPeriod);
 
   // Independent analytics
-  const unanswered = useMerchantUnansweredReviews(focused);
   const reviewInsights = useMerchantPlusStoredInsights(focused);
   const routePlanning = useMerchantRoutePlanning(routePlanningPeriod, focused);
 
   // Existing entitlement and comparison support
   const plusAccess = useMerchantPlusAccess();
-
-  const [validatedSnapshot, setValidatedSnapshot] = useState<string | null>(
-    null,
-  );
-
-  const snapshotKey = `${plusAccess.accountId}:${overviewPeriod}:${report?.meta.generated_at}`;
-
-  // Revalidate the reporting cutoff when the screen regains focus.
-  useEffect(() => {
-    if (!focused || !plusAccess.accountId) return;
-
-    let active = true;
-
-    void refetch({ cancelRefetch: false }).then((result) => {
-      if (active && !result.error && result.data) {
-        setValidatedSnapshot(
-          `${plusAccess.accountId}:${overviewPeriod}:${result.data.meta.generated_at}`,
-        );
-      }
-    });
-
-    return () => {
-      active = false;
-      setValidatedSnapshot(null);
-    };
-  }, [focused, overviewPeriod, plusAccess.accountId, refetch]);
-
-  // Backend-aligned comparisons
-  const comparisonSelection = {
-    period: overviewPeriod,
-    as_of: report?.meta.generated_at,
-  };
-
-  const canReadComparisons =
-    focused &&
-    plusAccess.allowed &&
-    !isLoading &&
-    !isRefetching &&
-    !error &&
-    !!report &&
-    validatedSnapshot === snapshotKey;
-
-  const visibilityInterval = overviewPeriod === "90" ? "weekly" : "daily";
-
-  const observedVisibility = useMerchantPlusVisibility(
-    { period: overviewPeriod },
-    visibilityInterval,
-    false,
-  );
-
-  const visibilityComparison = useMerchantPlusVisibility(
-    comparisonSelection,
-    visibilityInterval,
-    canReadComparisons &&
-      observedVisibility.data?.metrics.profile_visits.comparison_eligibility
-        ?.eligible === true,
-  );
-
-  const pocketComparison = useMerchantPlusPocket(
-    comparisonSelection,
-    canReadComparisons &&
-      report?.sources.visibility.availability !== "unavailable",
-  );
-
-  const replyComparison = useMerchantPlusReviews(
-    comparisonSelection,
-    canReadComparisons && report?.sources.domain.availability !== "unavailable",
-  );
-
-  const vouchComparison = useMerchantPlusSpecialties(
-    comparisonSelection,
-    canReadComparisons && report?.sources.domain.availability !== "unavailable",
-  );
 
   // Merchant business profile and specialty styling
   const {
@@ -194,14 +105,7 @@ export default function MerchantAnalyticsScreen() {
   });
 
   useQueryErrorNotification({
-    error: focused ? unanswered.error : null,
-    toastId: "merchant-unanswered-reviews-error",
-    title: "Unable to load reviews needing replies",
-    fallbackMessage: "Please try again.",
-  });
-
-  useQueryErrorNotification({
-    error,
+    error: focused ? error : null,
     toastId: "merchant-standard-analytics-error",
     title: "Unable to load analytics",
     fallbackMessage: "Please try again.",
@@ -215,36 +119,14 @@ export default function MerchantAnalyticsScreen() {
   });
 
   useQueryErrorNotification({
-    error: canReadComparisons ? replyComparison.error : null,
-    toastId: "merchant-reply-comparison-error",
-    title: "Unable to load reply comparison",
-    fallbackMessage: "Your Standard review counts remain available.",
-  });
-
-  useQueryErrorNotification({
-    error: canReadComparisons ? pocketComparison.error : null,
-    toastId: "merchant-save-comparison-error",
-    title: "Unable to load save comparison",
-    fallbackMessage: "Your Standard metrics remain available.",
-  });
-
-  useQueryErrorNotification({
     error: focused ? reviewInsights.error : null,
     toastId: "merchant-review-summary-error",
     title: "Unable to load review summary",
     fallbackMessage: "Please retry this section.",
   });
 
-  useQueryErrorNotification({
-    error: canReadComparisons ? vouchComparison.error : null,
-    toastId: "merchant-vouch-comparison-error",
-    title: "Unable to load vouch comparison",
-    fallbackMessage: "Your selected-period vouch count remains available.",
-  });
-
   // One sheet edits only the section that opened it.
   const selectedSheetPeriod = {
-    overview: overviewPeriod,
     visibility: visibilityPeriod,
     routePlanning: routePlanningPeriod,
   }[activePeriodSection];
@@ -258,29 +140,18 @@ export default function MerchantAnalyticsScreen() {
     if (value !== "7" && value !== "30" && value !== "90") return;
 
     // SelectionBottomSheet dismisses itself; never dismiss unopened info modals.
-    if (activePeriodSection === "overview") {
-      if (value === overviewPeriod) return;
-      setValidatedSnapshot(null);
-      setOverviewPeriod(value);
-    } else if (activePeriodSection === "visibility") {
+    if (activePeriodSection === "visibility") {
       setVisibilityPeriod(value);
     } else {
       setRoutePlanningPeriod(value);
     }
   };
 
-  // Retry the Standard report and validate its comparison cutoff.
   const retry = () => {
-    void refetch().then((result) => {
-      if (!result.error && result.data) {
-        setValidatedSnapshot(
-          `${plusAccess.accountId}:${overviewPeriod}:${result.data.meta.generated_at}`,
-        );
-      }
-    });
+    void refetch();
   };
 
-  // Refresh existing comparison queries.
+  // Refresh active detailed reports.
   const refreshPlus = async () => {
     setIsRefreshingPlus(true);
 
@@ -303,18 +174,9 @@ export default function MerchantAnalyticsScreen() {
 
   // Refresh analytics without reloading the entire screen.
   const refresh = () => {
-    setValidatedSnapshot(null);
-
     void Promise.all([
-      refetch().then((result) => {
-        if (!result.error && result.data) {
-          setValidatedSnapshot(
-            `${plusAccess.accountId}:${overviewPeriod}:${result.data.meta.generated_at}`,
-          );
-        }
-      }),
+      refetch(),
       refetchProfile(),
-      unanswered.refetch(),
       reviewInsights.refetch(),
       routePlanning.refetch(),
       refreshPlus(),
@@ -325,7 +187,7 @@ export default function MerchantAnalyticsScreen() {
   const openPlusDetail = (kind: PlusDetailKind) => {
     router.push({
       pathname: "/(merchant)/analytics/[report]",
-      params: { report: kind, period: overviewPeriod },
+      params: { report: kind, period: reportPeriod },
     });
   };
 
@@ -366,7 +228,6 @@ export default function MerchantAnalyticsScreen() {
             refreshing={
               isRefetching ||
               isRefreshingPlus ||
-              unanswered.isRefetching ||
               reviewInsights.isRefetching ||
               routePlanning.isRefetching
             }
@@ -397,63 +258,6 @@ export default function MerchantAnalyticsScreen() {
               />
             </View>
           ) : null}
-
-          {/* Business overview */}
-          <AnalyticsOverviewSection
-            title="Business overview"
-            description="Your business activity at a glance."
-            accessory={
-              <AnalyticsHeaderControls
-                period={overviewPeriod}
-                onOpenPeriod={() => openPeriodSheet("overview")}
-                onOpenInformation={() => measurementSheetRef.current?.present()}
-                informationLabel="How analytics are measured"
-                informationHint="Opens explanations about your business analytics"
-              />
-            }
-          >
-            {showPeriodLoading ? (
-              <AnalyticsSectionSkeleton section="activity" />
-            ) : report ? (
-              <View className="gap-4">
-                <AnalyticsActivityOverview
-                  report={report}
-                  plusReviews={plusAccess.allowed ? replyComparison.data : null}
-                  plusVisibility={
-                    plusAccess.allowed ? visibilityComparison.data : null
-                  }
-                  plusPocket={plusAccess.allowed ? pocketComparison.data : null}
-                  plusSpecialties={
-                    canReadComparisons && !vouchComparison.error
-                      ? vouchComparison.data
-                      : null
-                  }
-                />
-
-                <AnalyticsSourceNotice report={report} onRetry={retry} />
-              </View>
-            ) : null}
-          </AnalyticsOverviewSection>
-
-          {/* Current actionable review backlog */}
-          <AnalyticsUnansweredReviews
-            data={unanswered.data}
-            loading={unanswered.isPending}
-            error={unanswered.error}
-            onRetry={() => {
-              void unanswered.refetch();
-            }}
-            onReview={() =>
-              router.navigate({
-                pathname: "/(merchant)/(tabs)/reviews",
-                params: {
-                  filter: "needs-reply",
-                  ordering: "oldest",
-                  reviewIntent: String(Date.now()),
-                },
-              })
-            }
-          />
 
           {/* Visibility trends */}
           <AnalyticsVisibilityTrends
@@ -550,7 +354,7 @@ export default function MerchantAnalyticsScreen() {
             onOpenDiscoverySources={() =>
               router.push({
                 pathname: "/(merchant)/analytics/discovery-sources",
-                params: { period: overviewPeriod },
+                params: { period: reportPeriod },
               })
             }
           />
@@ -566,12 +370,6 @@ export default function MerchantAnalyticsScreen() {
         selectedValue={selectedSheetPeriod}
         onSelect={handlePeriodSelect}
         snapPoints={["50%"]}
-      />
-
-      {/* Business overview measurement information */}
-      <AnalyticsMeasurementSheet
-        sheetRef={measurementSheetRef}
-        report={showPeriodLoading ? null : report}
       />
     </SafeAreaView>
   );
