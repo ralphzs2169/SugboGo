@@ -75,6 +75,8 @@ class ClusterListView(APIView):
 class ClusterDetailView(APIView):
     """Handle retrieval, updating, and deletion of a cluster."""
 
+    permission_classes = (IsAuthenticated, HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),)
+
     def get(self, request, cluster_id):
         """Retrieve a specific cluster."""
 
