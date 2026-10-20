@@ -22,6 +22,7 @@ type Props = {
   businessId: number;
   review: BusinessReview;
   onReply: (review: BusinessReview) => void;
+  highlighted?: boolean;
 };
 
 /**
@@ -35,6 +36,7 @@ export default function MerchantReviewCard({
   businessId,
   review,
   onReply,
+  highlighted = false,
 }: Props) {
   const { mutateAsync: deleteReply, isPending: isDeletePending } =
     useDeleteReviewReply(businessId);
@@ -95,7 +97,13 @@ export default function MerchantReviewCard({
   };
 
   return (
-    <View className="rounded-card border border-border-primary bg-surface p-4">
+    <View
+      className={`rounded-card border p-4 ${
+        highlighted
+          ? "border-brand bg-brand/5"
+          : "border-border-primary bg-surface"
+      }`}
+    >
       {/* Shared review content */}
       <ReviewContent
         review={review}

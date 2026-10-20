@@ -8,6 +8,24 @@ class NotificationEventService:
     """Create private recipient notices inside the owning transaction."""
 
     @staticmethod
+    def business_review_received(review):
+        """Notify the business owner once when a review becomes public."""
+        if review.REVW_STATUS != Review.ReviewStatus.PUBLISHED:
+            return
+
+        author_name = review.USER_ID.full_name.strip()
+        author = author_name or "An explorer"
+        NotificationService.create(
+            recipient=review.BUSN_ID.USER_ID,
+            event_type="business_review_received",
+            title="New review received",
+            body=f"{author} left a review. See what they shared and reply.",
+            dedup_key=f"business-review:{review.pk}:published",
+            target_type="business_review",
+            target_id=review.pk,
+        )
+
+    @staticmethod
     def under_review_resolved(review):
         """Notify the author of an Admin decision on a held review."""
         business_name = review.BUSN_ID.BUSN_NAME

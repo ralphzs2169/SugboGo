@@ -1,4 +1,5 @@
 export const KNOWN_NOTIFICATION_TYPES = [
+  "business_review_received",
   "business_name_change_approved",
   "business_name_change_rejected",
   "business_classification_change_approved",

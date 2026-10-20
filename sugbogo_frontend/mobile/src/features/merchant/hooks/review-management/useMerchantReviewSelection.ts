@@ -14,13 +14,21 @@ export default function useMerchantReviewSelection() {
   const [state, setState] = useState({
     selection: DEFAULT_SELECTION,
     intentKey: null as string | null,
+    reviewId: null as number | null,
+    entry: 0,
   });
   const hasIntent =
     params.filter !== undefined ||
     params.ordering !== undefined ||
-    params.reviewIntent !== undefined;
+    params.reviewIntent !== undefined ||
+    params.reviewId !== undefined;
   const key = hasIntent
-    ? JSON.stringify([params.filter, params.ordering, params.reviewIntent])
+    ? JSON.stringify([
+        params.filter,
+        params.ordering,
+        params.reviewIntent,
+        params.reviewId,
+      ])
     : null;
   const validFilter =
     params.filter === "all" ||
@@ -30,16 +38,32 @@ export default function useMerchantReviewSelection() {
     params.ordering === "newest" || params.ordering === "oldest";
   const valid = hasIntent && validFilter && validOrdering;
   const pending = valid && state.intentKey !== key;
+  const parsedReviewId =
+    typeof params.reviewId === "string" && /^\d+$/.test(params.reviewId)
+      ? Number(params.reviewId)
+      : null;
+  const requestedReviewId =
+    parsedReviewId !== null &&
+    Number.isSafeInteger(parsedReviewId) &&
+    parsedReviewId > 0
+      ? parsedReviewId
+      : null;
+  const reviewId = pending ? requestedReviewId : state.reviewId;
+  const entry = pending ? state.entry + 1 : state.entry;
   const effective: MerchantReviewSelection = pending
     ? {
-        filter: params.filter as MerchantReviewSelection["filter"],
-        ordering: params.ordering as MerchantReviewSelection["ordering"],
+        filter: requestedReviewId
+          ? "all"
+          : (params.filter as MerchantReviewSelection["filter"]),
+        ordering: requestedReviewId
+          ? "newest"
+          : (params.ordering as MerchantReviewSelection["ordering"]),
       }
     : state.selection;
 
   // Adjust this hook's state before children can request a feed with stale filters.
   if (state.intentKey !== key) {
-    setState({ selection: effective, intentKey: key });
+    setState({ selection: effective, intentKey: key, reviewId, entry });
   }
 
   useEffect(() => {
@@ -48,20 +72,25 @@ export default function useMerchantReviewSelection() {
       filter: undefined,
       ordering: undefined,
       reviewIntent: undefined,
+      ...(params.reviewId !== undefined ? { reviewId: undefined } : {}),
     });
-  }, [hasIntent, key, router]);
+  }, [hasIntent, key, params.reviewId, router]);
 
   return {
     ...effective,
+    reviewId,
+    entry,
     setFilter: (filter: MerchantReviewSelection["filter"]) =>
       setState((current) => ({
         ...current,
         selection: { ...current.selection, filter },
+        reviewId: null,
       })),
     setOrdering: (ordering: MerchantReviewSelection["ordering"]) =>
       setState((current) => ({
         ...current,
         selection: { ...current.selection, ordering },
+        reviewId: null,
       })),
   };
 }

@@ -18,3 +18,19 @@ export function merchantReviewFeedKey(
     { filter, ordering },
   ] as const;
 }
+
+/** Keeps notification lookup stable while review mutations refresh the visible feed. */
+export function merchantReviewFocusKey(
+  accountId: number | undefined,
+  businessId: number,
+  reviewId: number | null,
+  entry: number,
+) {
+  return [
+    "merchant-review-focus",
+    accountId,
+    businessId,
+    reviewId,
+    entry,
+  ] as const;
+}

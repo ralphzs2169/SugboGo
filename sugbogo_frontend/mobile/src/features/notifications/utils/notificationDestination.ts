@@ -3,6 +3,7 @@ import type { Href } from "expo-router";
 import type { NotificationItem } from "../types/notification.types";
 
 export const SUPPORTED_NOTIFICATION_TARGET_TYPES = [
+  "business_review",
   "merchant_application",
   "review_dispute",
   "business_name_change",
@@ -31,6 +32,19 @@ const destinationFactories: Record<
   SupportedNotificationTargetType,
   DestinationFactory
 > = {
+  business_review: (targetId) => ({
+    href: {
+      pathname: "/(merchant)/(tabs)/reviews",
+      params: {
+        reviewId: String(targetId),
+        filter: "all",
+        ordering: "newest",
+      },
+    } as unknown as Href,
+    label: "review",
+    requiredMode: "merchant",
+    targetType: "business_review",
+  }),
   // ApplicationSummaryScreen loads the signed-in user's single application.
   merchant_application: () => ({
     href: "/(explorer)/merchant-registration/submitted-application",

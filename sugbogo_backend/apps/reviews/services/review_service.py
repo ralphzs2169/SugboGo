@@ -178,7 +178,8 @@ class ReviewService:
 
     @staticmethod
     def _apply_published_effects(review: Review) -> None:
-        """Apply the count, reputation, and sentiment effects of publication."""
+        """Apply owner notification, count, reputation, and sentiment publication effects."""
+        NotificationEventService.business_review_received(review)
         Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
             BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
         )

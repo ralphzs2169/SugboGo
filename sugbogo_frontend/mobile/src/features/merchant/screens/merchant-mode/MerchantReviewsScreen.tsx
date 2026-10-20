@@ -1,7 +1,7 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import LottieView from "lottie-react-native";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import { useIsFocused } from "expo-router";
 import {
@@ -12,6 +12,8 @@ import {
 import { theme } from "@/constants/theme";
 import useMerchantReviewFeed from "../../hooks/review-management/useMerchantReviewFeed";
 import useMerchantReviewSelection from "../../hooks/review-management/useMerchantReviewSelection";
+import useMerchantReviewFocus from "../../hooks/review-management/useMerchantReviewFocus";
+import SafePressable from "@/shared/components/SafePressable";
 import useMerchantUnansweredReviews from "../../hooks/analytics/useMerchantUnansweredReviews";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
@@ -50,7 +52,7 @@ const MASCOT_NO_HISTORY = require("@/shared/assets/mascot/mascot-no-history.webp
 export default function MerchantReviewsScreen() {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
-  const { filter, ordering, setFilter, setOrdering } =
+  const { filter, ordering, setFilter, setOrdering, reviewId, entry } =
     useMerchantReviewSelection();
   const unanswered = useMerchantUnansweredReviews(focused);
   useQueryErrorNotification({
@@ -68,6 +70,13 @@ export default function MerchantReviewsScreen() {
   } = useMerchantBusinessProfile();
 
   const businessId = business?.id ?? 0;
+  const reviewFocus = useMerchantReviewFocus(
+    businessId,
+    reviewId,
+    entry,
+    focused,
+  );
+  const locatingReview = !!reviewId && reviewFocus.isPending;
 
   const {
     reviews,
@@ -80,7 +89,64 @@ export default function MerchantReviewsScreen() {
     fetchNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
-  } = useMerchantReviewFeed(businessId, filter, ordering, focused);
+    hasPreviousPage,
+    fetchPreviousPage,
+    isFetchingPreviousPage,
+    isFetchPreviousPageError,
+  } = useMerchantReviewFeed(
+    businessId,
+    filter,
+    ordering,
+    focused && !locatingReview,
+    reviewId ? reviewFocus.data : undefined,
+  );
+
+  const feedRef = useRef<FlatList<BusinessReview>>(null);
+  const handledEntry = useRef<number | null>(null);
+  const retryScroll = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollAttempts = useRef({ entry: -1, count: 0 });
+  const [finishedHighlight, setFinishedHighlight] = useState<number | null>(
+    null,
+  );
+  const targetIndex = reviewId
+    ? reviews.findIndex((review) => review.id === reviewId)
+    : -1;
+  const targetFound = targetIndex >= 0 && !!reviewFocus.data && !locatingReview;
+
+  useEffect(() => {
+    if (!focused || !targetFound || handledEntry.current === entry) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      feedRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: false,
+        viewPosition: 0.15,
+      });
+      handledEntry.current = entry;
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [entry, focused, targetFound, targetIndex]);
+
+  useEffect(() => {
+    if (!focused || !targetFound) {
+      return;
+    }
+    const highlightTimer = setTimeout(() => setFinishedHighlight(entry), 4000);
+    return () => {
+      clearTimeout(highlightTimer);
+    };
+  }, [entry, focused, targetFound]);
+
+  useEffect(() => {
+    return () => {
+      if (retryScroll.current !== null) {
+        clearTimeout(retryScroll.current);
+      }
+    };
+  }, [entry, reviewId, focused]);
 
   const { disputes, isLoading: isDisputesLoading } = useReviewDisputes();
 
@@ -100,7 +166,7 @@ export default function MerchantReviewsScreen() {
   );
 
   const isInitialLoading = isBusinessLoading;
-  const sectionLoading = isReviewsInitialLoading;
+  const sectionLoading = isReviewsInitialLoading || locatingReview;
   const needsReplyCount = unanswered.data?.total_unanswered;
 
   useQueryErrorNotification({
@@ -131,6 +197,13 @@ export default function MerchantReviewsScreen() {
 
   const retryBusiness = () => {
     void refetchBusiness();
+  };
+
+  const retryReviewLocation = async () => {
+    const result = await reviewFocus.refetch();
+    if (result.data?.page === reviewFocus.data?.page) {
+      await refetchReviews();
+    }
   };
 
   const openReplyComposer = (review: BusinessReview) => {
@@ -174,6 +247,7 @@ export default function MerchantReviewsScreen() {
     >
       {/* Review feed */}
       <FlatList
+        ref={feedRef}
         testID="merchant-reviews-feed"
         data={reviews}
         onEndReached={() => {
@@ -182,17 +256,45 @@ export default function MerchantReviewsScreen() {
             hasNextPage &&
             !isRefetching &&
             !isFetchingNextPage &&
+            !isFetchingPreviousPage &&
             !isFetchNextPageError
           )
             void fetchNextPage();
         }}
         onEndReachedThreshold={0.35}
         keyExtractor={(review) => String(review.id)}
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
+          if (!focused || !reviewId || index >= reviews.length) {
+            return;
+          }
+          if (scrollAttempts.current.entry !== entry) {
+            scrollAttempts.current = { entry, count: 0 };
+          }
+          if (scrollAttempts.current.count >= 3) {
+            return;
+          }
+          scrollAttempts.current.count += 1;
+          feedRef.current?.scrollToOffset({
+            offset: averageItemLength * index,
+            animated: false,
+          });
+          if (retryScroll.current !== null) {
+            clearTimeout(retryScroll.current);
+          }
+          retryScroll.current = setTimeout(() => {
+            feedRef.current?.scrollToIndex({
+              index,
+              animated: false,
+              viewPosition: 0.15,
+            });
+          }, 150);
+        }}
         renderItem={({ item }) => (
           <MerchantReviewCard
             businessId={business.id}
             review={item}
             onReply={openReplyComposer}
+            highlighted={item.id === reviewId && finishedHighlight !== entry}
           />
         )}
         contentContainerStyle={{
@@ -250,6 +352,57 @@ export default function MerchantReviewsScreen() {
               onOrderingChange={setOrdering}
             />
 
+            {!!reviewId && reviewFocus.error && (
+              <ErrorState
+                size="section"
+                title="Unable to open this review"
+                description="It may no longer be available. You can still browse your reviews below."
+                primaryActionTitle="Try again"
+                onPrimaryAction={() => void retryReviewLocation()}
+              />
+            )}
+
+            {!!reviewId &&
+              reviewFocus.data &&
+              !sectionLoading &&
+              !reviewsError &&
+              targetIndex < 0 && (
+                <ErrorState
+                  size="section"
+                  title="Review no longer on this page"
+                  description="The review list may have changed. Locate it again to continue."
+                  primaryActionTitle="Locate review"
+                  onPrimaryAction={() => void retryReviewLocation()}
+                />
+              )}
+
+            {hasPreviousPage && (
+              <SafePressable
+                accessibilityRole="button"
+                accessibilityLabel="Load newer reviews"
+                accessibilityState={{
+                  disabled:
+                    isFetchingPreviousPage ||
+                    isRefetching ||
+                    isFetchingNextPage,
+                  busy: isFetchingPreviousPage,
+                }}
+                disabled={
+                  isFetchingPreviousPage || isRefetching || isFetchingNextPage
+                }
+                onPress={() => void fetchPreviousPage()}
+                className="mt-3 min-h-12 items-center justify-center rounded-btn border border-border-primary px-4 py-3 active:opacity-70"
+              >
+                <AppText weight="semibold" className="text-sm text-brand">
+                  {isFetchingPreviousPage
+                    ? "Loading newer reviews…"
+                    : isFetchPreviousPageError
+                      ? "Retry loading newer reviews"
+                      : "Load newer reviews"}
+                </AppText>
+              </SafePressable>
+            )}
+
             {/* Review retry loading */}
             {sectionLoading && (
               <View className="-mx-4 mt-6 border-t border-border-primary bg-surface px-4 pb-4 pt-6">
@@ -274,7 +427,13 @@ export default function MerchantReviewsScreen() {
                       : "We couldn't load your reviews right now."
                   }
                   primaryActionTitle="Retry"
-                  onPrimaryAction={() => void refetchReviews()}
+                  onPrimaryAction={() => {
+                    if (reviewId && reviewFocus.data) {
+                      void retryReviewLocation();
+                    } else {
+                      void refetchReviews();
+                    }
+                  }}
                 />
               </View>
             )}

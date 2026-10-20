@@ -15,6 +15,7 @@ import {
   unansweredReviewsSummary,
 } from "../../../__tests__/merchantAnalytics.fixtures";
 import MerchantReviewsScreen from "../MerchantReviewsScreen";
+import { getMerchantReviewLocation } from "../../../api/merchantReviewFocus.service";
 
 const mockRouter = { setParams: jest.fn() };
 let mockParams: Record<string, unknown> = {};
@@ -81,6 +82,9 @@ jest.mock("@/features/explore/api/reviewBusiness.service", () => ({
 jest.mock("../../../api/merchantAnalytics.service", () => ({
   getMerchantUnansweredReviews: jest.fn(),
 }));
+jest.mock("../../../api/merchantReviewFocus.service", () => ({
+  getMerchantReviewLocation: jest.fn(),
+}));
 const getReviews = jest.mocked(getAllBusinessReviews);
 
 function response(ids: number[], page = 1, hasNext = false) {
@@ -117,6 +121,7 @@ describe("merchant Reviews screen backlog integration", () => {
     };
     mockRouter.setParams.mockClear();
     getReviews.mockReset().mockResolvedValue(response([1]));
+    jest.mocked(getMerchantReviewLocation).mockReset();
     jest.mocked(getMerchantUnansweredReviews).mockReset().mockResolvedValue({
       success: true,
       message: "Success",
@@ -127,6 +132,55 @@ describe("merchant Reviews screen backlog integration", () => {
     await cleanup();
     client.clear();
     useAuthStore.setState({ user: null });
+  });
+
+  it("opens an older notification review directly and permits loading newer reviews", async () => {
+    mockParams = { reviewId: "82", filter: "all", ordering: "newest" };
+    jest.mocked(getMerchantReviewLocation).mockResolvedValue({
+      success: true,
+      message: "Success",
+      data: { review_id: 82, page: 9, page_size: 10 },
+    });
+    getReviews.mockImplementation(async (_business, _filters, page) =>
+      response(page === 9 ? [82] : [90], page, true),
+    );
+    const screen = await render(
+      <QueryClientProvider client={client}>
+        <MerchantReviewsScreen />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Review 82");
+    expect(getMerchantReviewLocation).toHaveBeenCalledWith(8, 82);
+    expect(getReviews).toHaveBeenCalledWith(
+      8,
+      expect.objectContaining({ needsReply: false, ordering: "newest" }),
+      9,
+      10,
+    );
+    expect(getReviews.mock.calls.some((call) => call[2] === 1)).toBe(false);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Load newer reviews" }),
+    );
+    await screen.findByText("Review 90");
+    expect(screen.getByText("Review 82")).toBeTruthy();
+    expect(getReviews).toHaveBeenLastCalledWith(8, expect.anything(), 8, 10);
+  });
+
+  it("keeps Reviews usable when the notification review is unavailable", async () => {
+    mockParams = { reviewId: "82", filter: "all", ordering: "newest" };
+    jest.mocked(getMerchantReviewLocation).mockResolvedValue({
+      success: false,
+      message: "This review is no longer available.",
+      code: "NOT_FOUND",
+    });
+    const screen = await render(
+      <QueryClientProvider client={client}>
+        <MerchantReviewsScreen />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Unable to open this review");
+    await screen.findByText("Review 1");
+    expect(getReviews).toHaveBeenCalledWith(8, expect.anything(), 1);
   });
   async function openScreen() {
     return render(

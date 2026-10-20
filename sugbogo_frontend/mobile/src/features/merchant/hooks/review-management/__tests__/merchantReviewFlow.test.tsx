@@ -68,18 +68,37 @@ describe("merchant review entry intent and server pagination", () => {
     useAuthStore.setState({ user: analyticsMerchant() });
     mockParams = {};
     mockRouter.setParams.mockClear();
-    getReviews
-      .mockReset()
-      .mockResolvedValue({
-        success: true,
-        message: "Success",
-        data: page([1]),
-      });
+    getReviews.mockReset().mockResolvedValue({
+      success: true,
+      message: "Success",
+      data: page([1]),
+    });
   });
   afterEach(async () => {
     await cleanup();
     client.clear();
     useAuthStore.setState({ user: null });
+  });
+
+  it("resets filters for a notification and consumes its target without losing it", async () => {
+    mockParams = { reviewId: "42", filter: "replied", ordering: "oldest" };
+    const { result, rerender } = await renderHook(
+      () => useMerchantReviewSelection(),
+      { wrapper: Wrapper },
+    );
+    expect(result.current.reviewId).toBe(42);
+    expect(result.current.filter).toBe("all");
+    expect(result.current.ordering).toBe("newest");
+    const firstEntry = result.current.entry;
+    mockParams = {};
+    await rerender({});
+    expect(result.current.reviewId).toBe(42);
+    await act(async () => result.current.setFilter("needs-reply"));
+    expect(result.current.reviewId).toBeNull();
+    mockParams = { reviewId: "42", filter: "all", ordering: "newest" };
+    await rerender({});
+    expect(result.current.reviewId).toBe(42);
+    expect(result.current.entry).toBeGreaterThan(firstEntry);
   });
 
   it("applies the route intent before the first request and permits manual changes and repeated entry", async () => {
