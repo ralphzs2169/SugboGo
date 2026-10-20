@@ -25,6 +25,8 @@ import {
   getMerchantUnansweredReviews,
 } from "../../../api/merchantAnalytics.service";
 import { merchantPlusReportKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
+import { getMerchantRecentActivity } from "../../../api/merchantRecentActivity.service";
+import { recentActivitySnapshot } from "../../../__tests__/merchantRecentActivity.fixtures";
 import MerchantDashboardScreen from "../MerchantDashboardScreen";
 import { getMerchantRoutePlanning } from "../../../api/merchantRoutePlanning.service";
 import { routePlanningReport } from "../../../__tests__/routePlanningAnalytics.fixtures";
@@ -148,6 +150,13 @@ jest.mock("../../../api/merchantAnalytics.service", () => ({
   getMerchantStandardAnalytics: jest.fn(),
   getMerchantUnansweredReviews: jest.fn(),
 }));
+jest.mock("../../../api/merchantRecentActivity.service", () => ({
+  getMerchantRecentActivity: jest.fn(),
+}));
+jest.mock("@/shared/components/DottedTimelineConnector", () => ({
+  __esModule: true,
+  default: jest.requireActual("react-native").View,
+}));
 jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
   getMerchantPlusStatus: jest.fn(),
   getMerchantPlusVisibility: jest.fn(),
@@ -263,6 +272,14 @@ describe("MerchantDashboardScreen", () => {
     useAuthStore.setState({ user: analyticsMerchant() });
     getAnalytics.mockReset();
     getAnalytics.mockResolvedValue(analyticsSuccess());
+    jest
+      .mocked(getMerchantRecentActivity)
+      .mockReset()
+      .mockResolvedValue({
+        success: true,
+        message: "Success",
+        data: recentActivitySnapshot({ items: [] }),
+      });
     jest.mocked(getMerchantRoutePlanning).mockReset().mockResolvedValue({
       success: true,
       message: "Success",
@@ -323,6 +340,53 @@ describe("MerchantDashboardScreen", () => {
       </QueryClientProvider>,
     );
   }
+
+  it("opens an activity review through the specific-review route without marking notifications read", async () => {
+    jest.mocked(getMerchantRecentActivity).mockResolvedValue({
+      success: true,
+      message: "Success",
+      data: recentActivitySnapshot(),
+    });
+    const screen = await renderScreen();
+    await fireEvent.press(
+      await screen.findByRole("button", { name: /Angela Cruz left a review/ }),
+    );
+    expect(mockNavigate).toHaveBeenCalledWith({
+      pathname: "/(merchant)/(tabs)/reviews",
+      params: {
+        reviewId: "123",
+        filter: "all",
+        ordering: "newest",
+        reviewIntent: expect.any(String),
+      },
+    });
+    expect(
+      screen.queryByRole("button", { name: /Miguel Santos vouched/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /explorers saved/ }),
+    ).toBeNull();
+  });
+
+  it("keeps the activity query independent of the overview period and includes it in pull-to-refresh", async () => {
+    const screen = await renderScreen();
+    await screen.findByText("No recent activity yet");
+    const activityCalls = jest.mocked(getMerchantRecentActivity).mock.calls
+      .length;
+    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
+    await waitFor(() => expect(getAnalytics).toHaveBeenCalledWith("7"));
+    expect(getMerchantRecentActivity).toHaveBeenCalledTimes(activityCalls);
+    await act(async () => {
+      screen
+        .getByTestId("merchant-dashboard-scroll")
+        .props.refreshControl.props.onRefresh();
+    });
+    await waitFor(() =>
+      expect(getMerchantRecentActivity).toHaveBeenCalledTimes(
+        activityCalls + 1,
+      ),
+    );
+  });
 
   it("offers optional photos and opens the existing photo editor", async () => {
     const screen = await renderScreen();

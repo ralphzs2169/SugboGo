@@ -25,6 +25,8 @@ import AnalyticsSourceNotice from "../../components/analytics/AnalyticsSourceNot
 
 import AnalyticsUnansweredReviews from "../../components/analytics/AnalyticsUnansweredReviews";
 import MerchantListingSuggestion from "../../components/business-profile/MerchantListingSuggestion";
+import MerchantRecentActivity from "../../components/dashboard/MerchantRecentActivity";
+import useMerchantRecentActivity from "../../hooks/dashboard/useMerchantRecentActivity";
 
 import { merchantPlusReportScope } from "../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
@@ -51,7 +53,7 @@ const PERIOD_OPTIONS = [
   { label: "Last 90 days", value: "90" },
 ];
 
-/** Displays current review tasks and the business overview with aligned comparisons. */
+/** Combines the business overview, review tasks, recent explorer activity, and listing tips. */
 export default function MerchantDashboardScreen() {
   const router = useRouter();
   const focused = useIsFocused();
@@ -73,8 +75,9 @@ export default function MerchantDashboardScreen() {
   const { report, isLoading, isRefetching, error, refetch } =
     useMerchantStandardAnalytics(overviewPeriod);
 
-  // Independent analytics
+  // Current dashboard snapshots
   const unanswered = useMerchantUnansweredReviews(focused);
+  const recentActivity = useMerchantRecentActivity(focused);
 
   // Existing entitlement and comparison support
   const plusAccess = useMerchantPlusAccess();
@@ -165,6 +168,13 @@ export default function MerchantDashboardScreen() {
 
   // API error notifications
   useQueryErrorNotification({
+    error: focused ? recentActivity.error : null,
+    toastId: "merchant-recent-activity-error",
+    title: "Unable to load recent activity",
+    fallbackMessage: "Your other dashboard sections are still available.",
+  });
+
+  useQueryErrorNotification({
     error: focused ? unanswered.error : null,
     toastId: "merchant-unanswered-reviews-error",
     title: "Unable to load reviews needing replies",
@@ -238,7 +248,7 @@ export default function MerchantDashboardScreen() {
     }
   };
 
-  // Refresh the overview and current backlog independently.
+  // Refresh each dashboard source independently.
   const refresh = () => {
     setValidatedSnapshot(null);
 
@@ -252,6 +262,7 @@ export default function MerchantDashboardScreen() {
       }),
       refetchProfile(),
       unanswered.refetch(),
+      recentActivity.refetch(),
       refreshPlus(),
     ]);
   };
@@ -285,7 +296,10 @@ export default function MerchantDashboardScreen() {
         refreshControl={
           <RefreshControl
             refreshing={
-              isRefetching || isRefreshingPlus || unanswered.isRefetching
+              isRefetching ||
+              isRefreshingPlus ||
+              unanswered.isRefetching ||
+              recentActivity.isRefetching
             }
             onRefresh={refresh}
             tintColor={theme.extends.colors.brand}
@@ -371,6 +385,33 @@ export default function MerchantDashboardScreen() {
               })
             }
           />
+          {/* Current timeline stays independent of reporting periods and inbox read state. */}
+          <MerchantRecentActivity
+            data={recentActivity.data}
+            specialtyTags={
+              business?.id === recentActivity.data?.business.id
+                ? business?.specialty_tags
+                : undefined
+            }
+            loading={recentActivity.isPending}
+            refreshing={recentActivity.isFetching}
+            error={recentActivity.error}
+            onRetry={() => {
+              void recentActivity.refetch();
+            }}
+            onReview={(reviewId) =>
+              router.navigate({
+                pathname: "/(merchant)/(tabs)/reviews",
+                params: {
+                  reviewId: String(reviewId),
+                  filter: "all",
+                  ordering: "newest",
+                  reviewIntent: String(Date.now()),
+                },
+              })
+            }
+          />
+
           {/* Optional improvement; required onboarding fields are excluded */}
           {business &&
           !isProfileLoading &&
