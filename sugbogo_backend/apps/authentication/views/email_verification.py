@@ -58,7 +58,7 @@ def resend_verification_view(request):
     email = serializer.validated_data["email"]
 
     try:
-        user = User.objects.get(USER_EMAIL=email)
+        user = User.objects.get(USER_EMAIL__iexact=email)
     except User.DoesNotExist:
         return error_response(
             message="No account found with this email.",
