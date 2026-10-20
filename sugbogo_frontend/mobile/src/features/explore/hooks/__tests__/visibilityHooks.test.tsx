@@ -224,7 +224,7 @@ describe("displayed profile lifecycle", () => {
     expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
     await rerender({ id: 2, owned: false });
     await waitFor(() =>
-      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2),
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2, "UNKNOWN"),
     );
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1);
   });
@@ -239,7 +239,7 @@ describe("displayed profile lifecycle", () => {
     expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
     await rerender({ id: 1, displayed: 1 });
     await waitFor(() =>
-      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(1),
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(1, "UNKNOWN"),
     );
     await rerender({ id: 1, displayed: 1 });
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1);
@@ -254,7 +254,7 @@ describe("displayed profile lifecycle", () => {
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(2);
     await rerender({ id: 2, displayed: 2 });
     await waitFor(() =>
-      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2),
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2, "UNKNOWN"),
     );
   });
 

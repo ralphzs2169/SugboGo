@@ -102,6 +102,39 @@ export default function MerchantReviewManagement({
           </View>
         </SafePressable>
       </View>
+      {/* Analysis belongs with management tools, outside feed filters. */}
+      <SafePressable
+        accessibilityRole="button"
+        accessibilityLabel="Open review insights report"
+        onPress={() =>
+          router.push({
+            pathname: "/(merchant)/analytics/[report]",
+            params: { report: "review-insights", period: "30" },
+          })
+        }
+        className="mt-3 min-h-16 cursor-pointer flex-row items-center gap-3 rounded-card bg-surface-muted px-4 py-3 active:opacity-70"
+      >
+        <MaterialCommunityIcons
+          name="comment-text-multiple-outline"
+          size={22}
+          color={theme.extends.colors.text.secondary}
+          accessible={false}
+        />
+        <View className="min-w-0 flex-1 gap-1">
+          <AppText weight="semibold" className="text-sm text-text-primary">
+            Review insights
+          </AppText>
+          <AppText className="text-xs leading-5 text-text-secondary">
+            Explore the review summary and common feedback themes.
+          </AppText>
+        </View>
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={20}
+          color={theme.extends.colors.text.secondary}
+          accessible={false}
+        />
+      </SafePressable>
     </View>
   );
 }

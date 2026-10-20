@@ -9,6 +9,8 @@ from pypdf import PdfReader
 from rest_framework.test import APITestCase
 
 from apps.business.services.visibility_event_service import VisibilityEventService
+from apps.business.services.route_planning_event_service import RoutePlanningEventService
+from apps.business.services.tests.discovery_source_fixtures import DiscoverySourceCollection
 from apps.users.models import User
 from core.tests.assertions import APIResponseAssertionsMixin
 
@@ -19,6 +21,22 @@ from ...services.tests.peer_fixtures import PeerAnalyticsFixtures
 class ReportExportViewTests(PeerAnalyticsFixtures, APIResponseAssertionsMixin, APITestCase):
     def setUp(self):
         super().setUp()
+        collection = DiscoverySourceCollection()
+        collection.documents = self.documents
+        source = patch.object(
+            VisibilityEventService,
+            "_get_collection",
+            return_value=collection,
+        )
+        source.start()
+        self.addCleanup(source.stop)
+        routes = patch.object(
+            RoutePlanningEventService,
+            "get_totals",
+            return_value=(None, None, "route_tracking_not_initialized"),
+        )
+        routes.start()
+        self.addCleanup(routes.stop)
         self.url = reverse("merchant-analytics-premium-report-export")
         self.client.force_authenticate(user=self.merchant_a)
         clock = patch("apps.shared.analytics.date_ranges.timezone.now", return_value=self.NOW)

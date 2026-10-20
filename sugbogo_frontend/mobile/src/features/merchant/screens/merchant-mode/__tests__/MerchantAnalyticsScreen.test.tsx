@@ -4,6 +4,7 @@ import {
   cleanup,
   fireEvent,
   render,
+  within,
   waitFor,
 } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
@@ -14,23 +15,105 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import {
   analyticsMerchant,
   analyticsSuccess,
-  deferredAnalytics,
-  standardAnalyticsMeta,
   standardAnalyticsReport,
+  unansweredReviewsSummary,
 } from "../../../__tests__/merchantAnalytics.fixtures";
-import { getMerchantStandardAnalytics } from "../../../api/merchantAnalytics.service";
+import {
+  getMerchantStandardAnalytics,
+  getMerchantUnansweredReviews,
+} from "../../../api/merchantAnalytics.service";
+import { merchantPlusStatusKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
+import { getMerchantRoutePlanning } from "../../../api/merchantRoutePlanning.service";
+import { routePlanningReport } from "../../../__tests__/routePlanningAnalytics.fixtures";
+import * as plusService from "../../../api/merchantPlusAnalytics.service";
+import {
+  pocketReport,
+  plusStatus,
+  plusSuccess,
+  reviewReport,
+  specialtyReport,
+  visibilityReport,
+} from "../../../__tests__/merchantPlusAnalytics.fixtures";
+jest.mock("../../../components/analytics/AnalyticsExport", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+jest.mock("@gorhom/bottom-sheet", () =>
+  jest
+    .requireActual("../../../__tests__/analyticsSheet.mock")
+    .analyticsSheetMock(),
+);
 
 const mockNavigate = jest.fn();
+const mockPresentInformation = jest.fn();
+const mockDismissInformation = jest.fn();
+const mockPresentPeriod = jest.fn();
+let mockFocused = true;
+jest.mock("../../../api/merchantRoutePlanning.service", () => ({
+  getMerchantRoutePlanning: jest.fn(),
+}));
+jest.mock("../../../components/analytics/AnalyticsRoutePlanningSheet", () => ({
+  __esModule: true,
+  default: function MockRouteSheet({
+    sheetRef,
+  }: {
+    sheetRef: { current: unknown };
+  }) {
+    const { useImperativeHandle } = jest.requireActual("react");
+    useImperativeHandle(sheetRef, () => ({
+      present: () => mockPresentInformation("route"),
+      dismiss: jest.fn(),
+    }));
+    return null;
+  },
+}));
+jest.mock("@/shared/components/bottom-sheets/SelectionBottomSheet", () => ({
+  __esModule: true,
+  default: function MockPeriodSheet({
+    sheetRef,
+    options,
+    onSelect,
+    selectedValue,
+  }: {
+    sheetRef: { current: unknown };
+    options: { label: string; value: string }[];
+    onSelect: (value: string) => void;
+    selectedValue: string;
+  }) {
+    const { useImperativeHandle } = jest.requireActual("react");
+    const { Pressable, Text } = jest.requireActual("react-native");
+    useImperativeHandle(sheetRef, () => ({
+      present: mockPresentPeriod,
+      dismiss: jest.fn(),
+    }));
+    return options.map((option) => (
+      <Pressable
+        key={option.value}
+        accessibilityRole="button"
+        accessibilityLabel={option.label}
+        accessibilityState={{ selected: selectedValue === option.value }}
+        onPress={() => onSelect(option.value)}
+      >
+        <Text>{option.label}</Text>
+      </Pressable>
+    ));
+  },
+}));
 const mockRefetchProfile = jest.fn();
 let mockProfileError: unknown = null;
 let mockProfileBusinessId = 8;
+
+jest.mock("@/features/notifications/hooks/useNotifications", () => ({
+  useNotificationUnreadCount: () => ({ unreadCount: 4 }),
+}));
 
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => ({
     business: {
       id: mockProfileBusinessId,
+      display_cover_photo_url: "https://example.com/business-cover.jpg",
       specialty_tags: [
         { id: 2, name: "Friendly service", color: "green", icon: "heart" },
         { id: 1, name: "Coffee", color: "purple", icon: "coffee" },
@@ -42,11 +125,20 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
 }));
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ navigate: mockNavigate }),
+  useRouter: () => ({ navigate: mockNavigate, push: mockNavigate }),
+  useIsFocused: () => mockFocused,
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("../../../api/merchantAnalytics.service", () => ({
   getMerchantStandardAnalytics: jest.fn(),
+  getMerchantUnansweredReviews: jest.fn(),
+}));
+jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
+  getMerchantPlusStatus: jest.fn(),
+  getMerchantPlusVisibility: jest.fn(),
+  getMerchantPlusPocket: jest.fn(),
+  getMerchantPlusSpecialties: jest.fn(),
+  getMerchantPlusReviewPerformance: jest.fn(),
 }));
 jest.mock("react-native-toast-message", () => ({
   __esModule: true,
@@ -55,6 +147,10 @@ jest.mock("react-native-toast-message", () => ({
 jest.mock("@expo/vector-icons", () => ({
   MaterialCommunityIcons: jest.fn(() => null),
 }));
+jest.mock("expo-image", () => {
+  const { View } = jest.requireActual("react-native");
+  return { Image: (props: Record<string, unknown>) => <View {...props} /> };
+});
 jest.mock("react-native-safe-area-context", () => {
   const { View } =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -68,6 +164,71 @@ jest.mock("@/shared/components/Skeleton", () => {
     jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: View };
 });
+jest.mock(
+  "../../../components/analytics/AnalyticsVisibilityMeasurementSheet",
+  () => ({
+    __esModule: true,
+    default: function MockVisibilitySheet({
+      sheetRef,
+    }: {
+      sheetRef: { current: unknown };
+    }) {
+      const { useImperativeHandle } = jest.requireActual("react");
+      useImperativeHandle(sheetRef, () => ({
+        present: () => mockPresentInformation("visibility"),
+        dismiss: () => mockDismissInformation("visibility"),
+      }));
+      return null;
+    },
+  }),
+);
+jest.mock("../../../components/analytics/AnalyitcsMeasurementSheet", () => ({
+  __esModule: true,
+  default: function MockBusinessSheet({
+    sheetRef,
+  }: {
+    sheetRef: { current: unknown };
+  }) {
+    const { useImperativeHandle } = jest.requireActual("react");
+    useImperativeHandle(sheetRef, () => ({
+      present: () => mockPresentInformation("business"),
+      dismiss: () => mockDismissInformation("business"),
+    }));
+    return null;
+  },
+}));
+jest.mock(
+  "../../../components/analytics/AnalyticsVisibilityMetricTabs",
+  () => ({
+    __esModule: true,
+    default: ({
+      options,
+      value,
+      onChange,
+    }: {
+      options: readonly { value: string; label: string }[];
+      value: string;
+      onChange: (value: string) => void;
+    }) => {
+      const { View, Pressable, Text } = jest.requireActual("react-native");
+      return (
+        <View>
+          {options.map((option) => (
+            <Pressable
+              key={option.value}
+              accessibilityRole="tab"
+              accessibilityLabel={option.label}
+              accessibilityState={{ selected: value === option.value }}
+              onPress={() => onChange(option.value)}
+            >
+              <Text>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      );
+    },
+  }),
+);
 
 const getAnalytics = jest.mocked(getMerchantStandardAnalytics);
 
@@ -77,13 +238,47 @@ describe("MerchantAnalyticsScreen", () => {
   let client: QueryClient;
 
   beforeEach(() => {
+    mockFocused = true;
     client = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
     useAuthStore.setState({ user: analyticsMerchant() });
     getAnalytics.mockReset();
     getAnalytics.mockResolvedValue(analyticsSuccess());
+    jest.mocked(getMerchantRoutePlanning).mockReset().mockResolvedValue({
+      success: true,
+      message: "Success",
+      data: routePlanningReport(),
+    });
+    jest.mocked(getMerchantUnansweredReviews).mockReset().mockResolvedValue({
+      success: true,
+      message: "Success",
+      data: unansweredReviewsSummary(),
+    });
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(plusStatus(false)));
+    jest
+      .mocked(plusService.getMerchantPlusVisibility)
+      .mockReset()
+      .mockImplementation(async (_, interval) =>
+        plusSuccess(visibilityReport(interval)),
+      );
+    jest
+      .mocked(plusService.getMerchantPlusReviewPerformance)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(reviewReport()));
+    jest
+      .mocked(plusService.getMerchantPlusPocket)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(pocketReport()));
+    jest
+      .mocked(plusService.getMerchantPlusSpecialties)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(specialtyReport()));
     mockNavigate.mockClear();
+    jest.mocked(Toast.show).mockClear();
     mockRefetchProfile.mockReset();
     mockRefetchProfile.mockResolvedValue({});
     mockProfileError = null;
@@ -104,244 +299,41 @@ describe("MerchantAnalyticsScreen", () => {
     );
   }
 
-  it("keeps the header and selected 30-day filter visible during section loading", async () => {
-    const pending = deferredAnalytics();
-    getAnalytics.mockReturnValueOnce(pending.promise);
-    const screen = await renderScreen();
+  function sectionPeriodControl(
+    screen: Awaited<ReturnType<typeof renderScreen>>,
+    title: string,
+  ) {
+    return within(
+      screen.getByRole("header", { name: title }).parent!,
+    ).getByRole("button", { name: /Change reporting period/ });
+  }
 
-    expect(screen.getByText("Analytics")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Last 30 days" }).props
-        .accessibilityState.selected,
-    ).toBe(true);
-    expect(screen.getByLabelText("Loading activity")).toBeTruthy();
-    expect(screen.getByLabelText("Loading snapshot")).toBeTruthy();
-    expect(screen.getByLabelText("Loading specialties")).toBeTruthy();
-    expect(getAnalytics).toHaveBeenCalledWith("30");
-
-    await act(async () => pending.resolve(analyticsSuccess()));
-    await waitFor(() =>
-      expect(screen.queryByLabelText("Loading activity")).toBeNull(),
+  async function chooseSectionPeriod(
+    screen: Awaited<ReturnType<typeof renderScreen>>,
+    title: string,
+    days: "7" | "30" | "90",
+  ) {
+    await fireEvent.press(sectionPeriodControl(screen, title));
+    await fireEvent.press(
+      screen.getAllByRole("button", { name: `Last ${days} days` })[0],
     );
-  });
+  }
 
-  it("changes periods without relabeling old KPI data or filtering current snapshots", async () => {
+  function allowCachedPlusAccess() {
+    const status = plusStatus();
+    client.setQueryData(merchantPlusStatusKey(42), status);
+    jest
+      .mocked(plusService.getMerchantPlusStatus)
+      .mockResolvedValue(plusSuccess(status));
+  }
+
+  it("opens the shared notification inbox from the Analytics header", async () => {
     const screen = await renderScreen();
-    await screen.findByLabelText(/Recorded profile visits: 24/);
-    const pending = deferredAnalytics();
-    getAnalytics.mockReturnValueOnce(pending.promise);
-
-    await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
-
-    expect(getAnalytics).toHaveBeenLastCalledWith("7");
-    expect(screen.queryByLabelText(/Recorded profile visits: 24/)).toBeNull();
-    expect(screen.getByLabelText("Loading activity")).toBeTruthy();
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
-    expect(screen.getByLabelText("Published reviews: 10")).toBeTruthy();
-
-    await act(async () =>
-      pending.resolve(
-        analyticsSuccess(standardAnalyticsReport({ profile_visits: 2 })),
-      ),
-    );
-    await screen.findByLabelText(/Recorded profile visits: 2\./);
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
-    expect(screen.getByLabelText("Published reviews: 10")).toBeTruthy();
-
-    await fireEvent.press(screen.getByRole("button", { name: "Last 90 days" }));
-    await waitFor(() => expect(getAnalytics).toHaveBeenLastCalledWith("90"));
-  });
-
-  it("distinguishes null tracking from zero and displays the backend reply rate", async () => {
-    const report = standardAnalyticsReport({
-      profile_visits: null,
-      distinct_profile_visitors: 0,
-      saves_in_period: 0,
-    });
-    report.reviews.reply_rate = 25.4;
-    getAnalytics.mockResolvedValueOnce(analyticsSuccess(report));
-    const screen = await renderScreen();
-
-    expect(
-      await screen.findByLabelText(/Recorded profile visits: Unavailable/),
-    ).toBeTruthy();
-    expect(screen.getByLabelText(/Recorded saves: 0\./)).toBeTruthy();
-    expect(screen.getByLabelText(/Reply rate: 25.4%.*1 of 4/)).toBeTruthy();
-    expect(
-      screen.getByRole("button", {
-        name: /Some activity is unavailable.*retry/i,
-      }),
-    ).toBeTruthy();
-    expect(screen.getByText(/coverage is unverified/)).toBeTruthy();
-  });
-
-  it("does not manufacture a rate or review action for an empty review cohort", async () => {
-    const report = standardAnalyticsReport({
-      profile_visits: 0,
-      saves_in_period: 0,
-      distinct_profile_visitors: 0,
-    });
-    report.reviews = {
-      ...report.reviews,
-      new_published_in_period: 0,
-      period_eligible_published: 0,
-      period_replied_published: 0,
-      reply_rate: null,
-      current_unanswered_published: 0,
-    };
-    getAnalytics.mockResolvedValueOnce(analyticsSuccess(report));
-    const screen = await renderScreen();
-
-    expect(
-      await screen.findByLabelText(/Recorded profile visits: 0\./),
-    ).toBeTruthy();
-    expect(
-      screen.getByLabelText(/Reply rate: Unavailable.*No eligible reviews/),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "View merchant reviews" }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: /activity is unavailable.*retry/i }),
-    ).toBeNull();
-  });
-
-  it("preserves SQL results during a visibility outage and retries the same query", async () => {
-    const report = standardAnalyticsReport({
-      profile_visits: null,
-      saves_in_period: null,
-      distinct_profile_visitors: null,
-    });
-    report.sources.visibility = {
-      ...standardAnalyticsMeta(),
-      availability: "unavailable",
-      partial_reasons: ["source_unavailable"],
-    };
-    getAnalytics.mockResolvedValueOnce(analyticsSuccess(report));
-    const screen = await renderScreen();
-    const retry = await screen.findByRole("button", {
-      name: /Recorded activity unavailable.*retry/i,
-    });
-
-    expect(screen.getByLabelText(/New reviews: 4\./)).toBeTruthy();
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
-    await fireEvent.press(retry);
-    await screen.findByLabelText(/Recorded profile visits: 24/);
-    expect(getAnalytics).toHaveBeenCalledTimes(2);
-  });
-
-  it("renders a missing visibility collection as unavailable and preserves current snapshots", async () => {
-    const report = standardAnalyticsReport({
-      profile_visits: null,
-      distinct_profile_visitors: null,
-      saves_in_period: null,
-    });
-    report.sources.visibility = {
-      ...standardAnalyticsMeta(),
-      availability: "unavailable",
-      partial_reason: "event_totals_unavailable",
-      partial_reasons: [
-        "event_totals_unavailable",
-        "visibility_collection_missing",
-        "distinct_visitors_unavailable",
-        "source_unavailable",
-      ],
-    };
-    getAnalytics.mockResolvedValueOnce(analyticsSuccess(report));
-    const screen = await renderScreen();
-
-    const retry = await screen.findByRole("button", {
-      name: /Recorded activity unavailable.*retry/i,
-    });
-    expect(screen.getByLabelText(/Recorded profile visits: Unavailable/)).toBeTruthy();
-    expect(screen.getByLabelText(/Recorded saves: Unavailable/)).toBeTruthy();
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
-    expect(screen.getByLabelText("Published reviews: 10")).toBeTruthy();
-    expect(screen.getByLabelText(/New reviews: 4\./)).toBeTruthy();
-    expect(screen.getByLabelText(/Reply rate: 25%/)).toBeTruthy();
-    await fireEvent.press(retry);
-    await screen.findByLabelText(/Recorded profile visits: 24/);
-  });
-
-  it("offers persistent recovery after API errors and uses the page notification hook", async () => {
-    getAnalytics.mockResolvedValueOnce({
-      success: false,
-      code: "NETWORK_ERROR",
-      message: "Offline",
-    });
-    const screen = await renderScreen();
-    const retry = await screen.findByRole("button", {
-      name: /Unable to load analytics.*retry/i,
-    });
-
-    expect(Toast.show).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Last 30 days" })).toBeTruthy();
-    await fireEvent.press(retry);
-    await screen.findByLabelText(/Recorded profile visits: 24/);
-    expect(
-      screen.queryByRole("button", {
-        name: /Unable to load analytics.*retry/i,
-      }),
-    ).toBeNull();
-  });
-
-  it("keeps cached content during pull-to-refresh and after a failed refresh", async () => {
-    const screen = await renderScreen();
-    await screen.findByLabelText(/Recorded profile visits: 24/);
-    const pending = deferredAnalytics();
-    getAnalytics.mockReturnValueOnce(pending.promise);
-
-    await act(async () => {
-      screen
-        .getByTestId("merchant-analytics-scroll")
-        .props.refreshControl.props.onRefresh();
-    });
-
-    expect(screen.getByLabelText(/Recorded profile visits: 24/)).toBeTruthy();
-    expect(screen.queryByLabelText("Loading activity")).toBeNull();
-    await waitFor(() =>
-      expect(
-        screen.getByTestId("merchant-analytics-scroll").props.refreshControl
-          .props.refreshing,
-      ).toBe(true),
-    );
-    await act(async () =>
-      pending.resolve({
-        success: false,
-        code: "NETWORK_ERROR",
-        message: "Offline",
-      }),
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Notifications, 4 unread" }),
     );
 
-    await screen.findByRole("button", {
-      name: /Unable to refresh analytics.*retry/i,
-    });
-    expect(screen.getByLabelText("Current Pocket holders: 18")).toBeTruthy();
-    expect(screen.getByLabelText(/Recorded profile visits: 24/)).toBeTruthy();
-  });
-
-  it("navigates only to the existing Reviews screen and keeps Plus previews informational", async () => {
-    const screen = await renderScreen();
-    const reviews = await screen.findByRole("button", {
-      name: "View merchant reviews",
-    });
-
-    await fireEvent.press(reviews);
-
-    expect(mockNavigate).toHaveBeenCalledWith("/(merchant)/(tabs)/reviews");
-    for (const title of [
-      "Visibility Trends",
-      "Review Performance",
-      "Peer Comparisons",
-      "Customer Activity Times",
-      "Business Recommendations",
-    ]) {
-      expect(screen.getByText(title)).toBeTruthy();
-      expect(
-        screen.queryByRole("button", { name: new RegExp(title) }),
-      ).toBeNull();
-    }
-    expect(getAnalytics).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith("/notifications");
   });
 
   it("ranks specialty support without losing zero-support specialties or modifying the cache", async () => {
@@ -360,7 +352,7 @@ describe("MerchantAnalyticsScreen", () => {
     ).toBeTruthy();
     expect(
       screen.getByLabelText(
-        /^3\. Local produce: 0 valid vouches, 0 distinct supporters/,
+        /^3\. Local produce: 0 valid vouches, 0 supporting accounts/,
       ),
     ).toBeTruthy();
     expect(report.specialty_support[0].specialty_name).toBe("Coffee");
@@ -393,13 +385,13 @@ describe("MerchantAnalyticsScreen", () => {
       undefined,
     );
     expect(screen.getByTestId("specialty-support-bar-1")).toBeTruthy();
-    expect(screen.getByText(/highest count filling the scale/)).toBeTruthy();
   });
 
   it("does not use specialty identities from a different business", async () => {
     mockProfileBusinessId = 999;
     const screen = await renderScreen();
     await screen.findByLabelText(/^1\. Friendly service/);
+    expect(screen.queryByLabelText("Cebu Coffee cover photo")).toBeNull();
 
     expect(MaterialCommunityIcons).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: "coffee-outline" }),
@@ -411,13 +403,107 @@ describe("MerchantAnalyticsScreen", () => {
   it("retains specialty counts when profile metadata fails and retries only that source", async () => {
     mockProfileError = { code: "NETWORK_ERROR" };
     const screen = await renderScreen();
-    await screen.findByText("Specialty styling unavailable");
+    await screen.findByText("Specialty icons and colors unavailable");
 
     expect(
       screen.getByLabelText(/^1\. Friendly service: 6 valid vouches/),
     ).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: "Retry" }));
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Specialty icons and colors unavailable.*retry/i,
+      }),
+    );
     expect(mockRefetchProfile).toHaveBeenCalledTimes(1);
     expect(getAnalytics).toHaveBeenCalledTimes(1);
+  });
+  it("keeps detailed reports without the dashboard overview or backlog", async () => {
+    const screen = await renderScreen();
+    await screen.findByLabelText(/^1\. Friendly service/);
+    expect(screen.queryByTestId("business-overview-grid")).toBeNull();
+    expect(
+      screen.queryByRole("header", { name: "Reviews needing replies" }),
+    ).toBeNull();
+    expect(getMerchantUnansweredReviews).not.toHaveBeenCalled();
+    expect(screen.getByRole("header", { name: "Pocket trends" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Open Pocket trends" }),
+    ).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Open Review insights" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Open Review performance" }),
+    ).toBeTruthy();
+  });
+
+  it("changes visibility and route periods independently and refreshes their reports", async () => {
+    allowCachedPlusAccess();
+    const screen = await renderScreen();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    await chooseSectionPeriod(screen, "Visibility trends", "7");
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenLastCalledWith(
+        { period: "7" },
+        "daily",
+        expect.anything(),
+      ),
+    );
+    await chooseSectionPeriod(screen, "Route-planning activity", "90");
+    await waitFor(() =>
+      expect(getMerchantRoutePlanning).toHaveBeenLastCalledWith(
+        "90",
+        expect.anything(),
+      ),
+    );
+    expect(getAnalytics).toHaveBeenLastCalledWith("30");
+    expect(getMerchantUnansweredReviews).not.toHaveBeenCalled();
+    const routeRequests = jest.mocked(getMerchantRoutePlanning).mock.calls
+      .length;
+    await act(async () =>
+      screen
+        .getByTestId("merchant-analytics-scroll")
+        .props.refreshControl.props.onRefresh(),
+    );
+    await waitFor(() =>
+      expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(routeRequests + 1),
+    );
+  });
+
+  it("opens detailed reports using the default report period", async () => {
+    const screen = await renderScreen();
+    await screen.findByLabelText(/^1\. Friendly service/);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Where visits came from" }),
+    );
+    expect(mockNavigate).toHaveBeenCalledWith({
+      pathname: "/(merchant)/analytics/discovery-sources",
+      params: { period: "30" },
+    });
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Specialty trends" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      pathname: "/(merchant)/analytics/[report]",
+      params: { report: "specialties", period: "30" },
+    });
+  });
+
+  it("opens discovery reports with the visibility section's selected period", async () => {
+    const screen = await renderScreen();
+    await chooseSectionPeriod(screen, "Visibility trends", "7");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Where visits came from" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      pathname: "/(merchant)/analytics/discovery-sources",
+      params: { period: "7" },
+    });
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Profile visit timing" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      pathname: "/(merchant)/analytics/[report]",
+      params: { report: "timing", period: "7" },
+    });
   });
 });

@@ -140,6 +140,7 @@ class ReviewListQuerySerializer(serializers.Serializer):
     )
     has_photos = serializers.BooleanField(required=False)
     merchant_replied = serializers.BooleanField(required=False)
+    needs_reply = serializers.BooleanField(required=False)
     topic = serializers.CharField(required=False, trim_whitespace=True)
     ordering = serializers.ChoiceField(
         choices=("newest", "oldest", "most_liked"),

@@ -18,6 +18,35 @@ function notification(isRead: boolean): NotificationItem {
 }
 
 describe("NotificationRow", () => {
+  it("shows a vouch as informational with no destination chevron", async () => {
+    const onPress = jest.fn();
+    const item = {
+      ...notification(false),
+      type: "business_vouch_received",
+      title: "New specialty vouch",
+      body: "An explorer vouched for your Handmade Crafts specialty.",
+      target_type: "",
+      target_id: null,
+    };
+    const screen = await render(
+      <NotificationRow notification={item} onPress={onPress} />,
+    );
+    expect(
+      screen.queryByTestId("notification-destination-indicator", {
+        includeHiddenElements: true,
+      }),
+    ).toBeNull();
+    await fireEvent.press(screen.getByRole("button"));
+    expect(onPress).toHaveBeenCalledWith(item);
+    await screen.rerender(
+      <NotificationRow
+        notification={{ ...item, is_read: true }}
+        onPress={onPress}
+      />,
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("keeps a read destination interactive with a restrained affordance", async () => {
     const onPress = jest.fn();
     const item = notification(true);

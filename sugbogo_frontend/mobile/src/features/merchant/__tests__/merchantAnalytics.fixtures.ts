@@ -4,7 +4,22 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type {
   MerchantStandardAnalytics,
   StandardAnalyticsMeta,
+  MerchantUnansweredReviewsSummary,
 } from "../types/merchantAnalytics.types";
+
+export function unansweredReviewsSummary(
+  overrides: Partial<MerchantUnansweredReviewsSummary> = {},
+): MerchantUnansweredReviewsSummary {
+  return {
+    business: { id: 8, name: "Cebu Coffee", status: "active" },
+    total_unanswered: 8,
+    under_3_days: 2,
+    days_3_to_6: 3,
+    days_7_plus: 3,
+    snapshot_as_of: "2026-10-17T04:00:00+00:00",
+    ...overrides,
+  };
+}
 
 export function analyticsMerchant(id = 42): User {
   return {
@@ -61,6 +76,8 @@ export function standardAnalyticsReport(
     distinct_profile_visitors: 12,
     saves_in_period: 5,
     current_pocket_holders: 18,
+    current_valid_vouches: 8,
+    vouches_added_and_still_valid: 3,
     specialty_support: [
       {
         specialty_id: 1,

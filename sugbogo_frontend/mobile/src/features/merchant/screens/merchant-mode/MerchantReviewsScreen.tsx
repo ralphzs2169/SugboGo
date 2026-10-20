@@ -1,28 +1,35 @@
+import MerchantScreenHeader from "../../layout/MerchantScreenHeader";
+import Button from "@/shared/components/Button";
+import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
+import LottieView from "lottie-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
+import { useIsFocused } from "expo-router";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
-import { useMerchantBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
+import useMerchantReviewFeed from "../../hooks/review-management/useMerchantReviewFeed";
+import useMerchantReviewSelection from "../../hooks/review-management/useMerchantReviewSelection";
+import useMerchantReviewFocus from "../../hooks/review-management/useMerchantReviewFocus";
+import SafePressable from "@/shared/components/SafePressable";
+import useMerchantUnansweredReviews from "../../hooks/analytics/useMerchantUnansweredReviews";
+import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import EndOfListMessage from "@/shared/components/EndOfListMessage";
+import loadingAnimation from "@/shared/assets/animations/loading.json";
 import { useReplyTemplates } from "../../hooks/reply-templates/useReplyTemplates";
 
 import type { BusinessReview } from "@/features/explore/types/review.types";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import { handleSystemError } from "@/shared/utils/apiErrors";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import { useReviewDisputes } from "../../hooks/review-disputes/useReviewDisputes";
 import MerchantReviewCard from "../../components/review-management/MerchantReviewCard";
-import MerchantReviewFilters, {
-  type ReviewFilter,
-} from "../../components/review-management/MerchantReviewFilters";
+import MerchantReviewFilters from "../../components/review-management/MerchantReviewFilters";
 import MerchantReviewManagement from "../../components/review-management/MerchantReviewManagement";
 import MerchantReviewReplyComposerSheet from "../../components/review-management/MerchantReviewReplyComposerSheet";
 import MerchantReviewsOverview from "../../components/review-management/MerchantReviewsOverview";
@@ -47,6 +54,23 @@ const MASCOT_NO_HISTORY = require("@/shared/assets/mascot/mascot-no-history.webp
  */
 export default function MerchantReviewsScreen() {
   const insets = useSafeAreaInsets();
+  const focused = useIsFocused();
+  const {
+    filter,
+    ordering,
+    reviewId,
+    entry,
+    contentFilters,
+    setSelection,
+    clearFilters,
+  } = useMerchantReviewSelection();
+  const unanswered = useMerchantUnansweredReviews(focused);
+  useQueryErrorNotification({
+    error: focused ? unanswered.error : null,
+    toastId: "merchant-review-backlog-error",
+    title: "Unable to refresh reviews needing replies",
+    fallbackMessage: "Your review list is still available.",
+  });
 
   const {
     business,
@@ -56,6 +80,13 @@ export default function MerchantReviewsScreen() {
   } = useMerchantBusinessProfile();
 
   const businessId = business?.id ?? 0;
+  const reviewFocus = useMerchantReviewFocus(
+    businessId,
+    reviewId,
+    entry,
+    focused,
+  );
+  const locatingReview = !!reviewId && reviewFocus.isPending;
 
   const {
     reviews,
@@ -64,7 +95,69 @@ export default function MerchantReviewsScreen() {
     isRefetching,
     error: reviewsError,
     refetch: refetchReviews,
-  } = useMerchantBusinessReviews(businessId);
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    hasPreviousPage,
+    fetchPreviousPage,
+    isFetchingPreviousPage,
+    isFetchPreviousPageError,
+  } = useMerchantReviewFeed(
+    businessId,
+    filter,
+    ordering,
+    focused && !locatingReview,
+    reviewId ? reviewFocus.data : undefined,
+    contentFilters,
+  );
+
+  const feedRef = useRef<FlatList<BusinessReview>>(null);
+  const handledEntry = useRef<number | null>(null);
+  const retryScroll = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollAttempts = useRef({ entry: -1, count: 0 });
+  const [finishedHighlight, setFinishedHighlight] = useState<number | null>(
+    null,
+  );
+  const targetIndex = reviewId
+    ? reviews.findIndex((review) => review.id === reviewId)
+    : -1;
+  const targetFound = targetIndex >= 0 && !!reviewFocus.data && !locatingReview;
+
+  useEffect(() => {
+    if (!focused || !targetFound || handledEntry.current === entry) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      feedRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: false,
+        viewPosition: 0.15,
+      });
+      handledEntry.current = entry;
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [entry, focused, targetFound, targetIndex]);
+
+  useEffect(() => {
+    if (!focused || !targetFound) {
+      return;
+    }
+    const highlightTimer = setTimeout(() => setFinishedHighlight(entry), 4000);
+    return () => {
+      clearTimeout(highlightTimer);
+    };
+  }, [entry, focused, targetFound]);
+
+  useEffect(() => {
+    return () => {
+      if (retryScroll.current !== null) {
+        clearTimeout(retryScroll.current);
+      }
+    };
+  }, [entry, reviewId, focused]);
 
   const { disputes, isLoading: isDisputesLoading } = useReviewDisputes();
 
@@ -82,52 +175,36 @@ export default function MerchantReviewsScreen() {
   const [selectedReview, setSelectedReview] = useState<BusinessReview | null>(
     null,
   );
-  const [filter, setFilter] = useState<ReviewFilter>("all");
-  const [isRetryingReviews, setIsRetryingReviews] = useState(false);
 
-  const isInitialLoading =
-    isBusinessLoading || (Boolean(business) && isReviewsInitialLoading);
-
-  const filteredReviews = useMemo(() => {
-    if (filter === "needs-reply") {
-      return reviews.filter((review) => !review.reply);
-    }
-
-    if (filter === "replied") {
-      return reviews.filter((review) => Boolean(review.reply));
-    }
-
-    return reviews;
-  }, [filter, reviews]);
-
-  const needsReplyCount = useMemo(
-    () => reviews.filter((review) => !review.reply).length,
-    [reviews],
+  const isInitialLoading = isBusinessLoading;
+  const sectionLoading = isReviewsInitialLoading || locatingReview;
+  const needsReplyCount = unanswered.data?.total_unanswered;
+  const hasContentFilters = !!(
+    contentFilters.sentiment ||
+    contentFilters.topic ||
+    contentFilters.hasPhotos
   );
 
-  useEffect(() => {
-    const error = businessError || reviewsError;
-
-    if (!error) {
-      return;
-    }
-
-    const response = error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: reviewsError
-          ? "Unable to load reviews"
-          : "Unable to load business",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [businessError, reviewsError]);
+  useQueryErrorNotification({
+    error: focused ? reviewsError : null,
+    toastId: "merchant-reviews-feed-error",
+    title: "Unable to load reviews",
+    fallbackMessage: "Please try again.",
+  });
+  useQueryErrorNotification({
+    error: focused ? businessError : null,
+    toastId: "merchant-reviews-business-error",
+    title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
 
   const refresh = async () => {
     if (business) {
-      await Promise.all([refetchBusiness(), refetchReviews()]);
+      await Promise.all([
+        refetchBusiness(),
+        refetchReviews(),
+        unanswered.refetch(),
+      ]);
       return;
     }
 
@@ -138,13 +215,10 @@ export default function MerchantReviewsScreen() {
     void refetchBusiness();
   };
 
-  const retryReviews = async () => {
-    setIsRetryingReviews(true);
-
-    try {
+  const retryReviewLocation = async () => {
+    const result = await reviewFocus.refetch();
+    if (result.data?.page === reviewFocus.data?.page) {
       await refetchReviews();
-    } finally {
-      setIsRetryingReviews(false);
     }
   };
 
@@ -153,12 +227,24 @@ export default function MerchantReviewsScreen() {
     presentBottomSheet(replySheetRef);
   };
 
+  const screenHeader = (
+    <MerchantScreenHeader
+      title="Reviews"
+      subtitle={business?.business_name}
+      leadingIcon="storefront-outline"
+      coverPhotoUrl={business?.display_cover_photo_url}
+      compact
+      rightAccessory={<NotificationBellButton />}
+    />
+  );
+
   if (isInitialLoading) {
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
         className="flex-1 bg-background"
       >
+        {screenHeader}
         <MerchantReviewsSkeleton />
       </SafeAreaView>
     );
@@ -170,6 +256,7 @@ export default function MerchantReviewsScreen() {
         edges={["top", "left", "right"]}
         className="flex-1 bg-surface"
       >
+        {screenHeader}
         {/* Business-context error */}
         <ErrorState
           icon="store-alert-outline"
@@ -187,15 +274,58 @@ export default function MerchantReviewsScreen() {
       edges={["top", "left", "right"]}
       className="flex-1 bg-surface"
     >
+      {screenHeader}
       {/* Review feed */}
       <FlatList
-        data={reviewsError || isRetryingReviews ? [] : filteredReviews}
+        ref={feedRef}
+        testID="merchant-reviews-feed"
+        data={reviews}
+        onEndReached={() => {
+          if (
+            focused &&
+            hasNextPage &&
+            !isRefetching &&
+            !isFetchingNextPage &&
+            !isFetchingPreviousPage &&
+            !isFetchNextPageError
+          )
+            void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.35}
         keyExtractor={(review) => String(review.id)}
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
+          if (!focused || !reviewId || index >= reviews.length) {
+            return;
+          }
+          if (scrollAttempts.current.entry !== entry) {
+            scrollAttempts.current = { entry, count: 0 };
+          }
+          if (scrollAttempts.current.count >= 3) {
+            return;
+          }
+          scrollAttempts.current.count += 1;
+          feedRef.current?.scrollToOffset({
+            offset: averageItemLength * index,
+            animated: false,
+          });
+          if (retryScroll.current !== null) {
+            clearTimeout(retryScroll.current);
+          }
+          retryScroll.current = setTimeout(() => {
+            feedRef.current?.scrollToIndex({
+              index,
+              animated: false,
+              viewPosition: 0.15,
+            });
+          }, 150);
+        }}
         renderItem={({ item }) => (
           <MerchantReviewCard
             businessId={business.id}
             review={item}
             onReply={openReplyComposer}
+            highlighted={item.id === reviewId && finishedHighlight !== entry}
+            highlightedTopic={contentFilters.topic}
           />
         )}
         contentContainerStyle={{
@@ -205,7 +335,7 @@ export default function MerchantReviewsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
+            refreshing={isRefetching || unanswered.isRefetching}
             onRefresh={refresh}
             tintColor={theme.extends.colors.brand}
           />
@@ -214,13 +344,25 @@ export default function MerchantReviewsScreen() {
           <View>
             {/* Review overview */}
             <MerchantReviewsOverview
-              totalCount={
-                reviewsError || isRetryingReviews ? undefined : totalCount
-              }
-              needsReplyCount={
-                reviewsError || isRetryingReviews ? undefined : needsReplyCount
-              }
+              totalCount={totalCount}
+              filtered={filter !== "all" || hasContentFilters}
+              needsReplyCount={needsReplyCount}
             />
+            {unanswered.error && (
+              <ErrorState
+                size="section"
+                title="Reply count unavailable"
+                description={
+                  unanswered.data
+                    ? "Previously loaded reply counts are shown."
+                    : "Your reviews can still be managed below."
+                }
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => {
+                  void unanswered.refetch();
+                }}
+              />
+            )}
 
             {/* Review management */}
             <MerchantReviewManagement
@@ -233,59 +375,157 @@ export default function MerchantReviewsScreen() {
             />
 
             {/* Review feed controls */}
-            {!reviewsError && !isRetryingReviews && (
-              <MerchantReviewFilters
-                needsReplyCount={needsReplyCount}
-                filter={filter}
-                onFilterChange={setFilter}
+            <MerchantReviewFilters
+              businessId={business.id}
+              contentFilters={contentFilters}
+              onSelectionChange={setSelection}
+              needsReplyCount={needsReplyCount}
+              filter={filter}
+              ordering={ordering}
+            />
+
+            {!!reviewId && reviewFocus.error && (
+              <ErrorState
+                size="section"
+                title="Unable to open this review"
+                description="It may no longer be available. You can still browse your reviews below."
+                primaryActionTitle="Try again"
+                onPrimaryAction={() => void retryReviewLocation()}
               />
             )}
 
+            {!!reviewId &&
+              reviewFocus.data &&
+              !sectionLoading &&
+              !reviewsError &&
+              targetIndex < 0 && (
+                <ErrorState
+                  size="section"
+                  title="Review no longer on this page"
+                  description="The review list may have changed. Locate it again to continue."
+                  primaryActionTitle="Locate review"
+                  onPrimaryAction={() => void retryReviewLocation()}
+                />
+              )}
+
+            {hasPreviousPage && (
+              <SafePressable
+                accessibilityRole="button"
+                accessibilityLabel="Load newer reviews"
+                accessibilityState={{
+                  disabled:
+                    isFetchingPreviousPage ||
+                    isRefetching ||
+                    isFetchingNextPage,
+                  busy: isFetchingPreviousPage,
+                }}
+                disabled={
+                  isFetchingPreviousPage || isRefetching || isFetchingNextPage
+                }
+                onPress={() => void fetchPreviousPage()}
+                className="mt-3 min-h-12 items-center justify-center rounded-btn border border-border-primary px-4 py-3 active:opacity-70"
+              >
+                <AppText weight="semibold" className="text-sm text-brand">
+                  {isFetchingPreviousPage
+                    ? "Loading newer reviews…"
+                    : isFetchPreviousPageError
+                      ? "Retry loading newer reviews"
+                      : "Load newer reviews"}
+                </AppText>
+              </SafePressable>
+            )}
+
             {/* Review retry loading */}
-            {isRetryingReviews && (
+            {sectionLoading && (
               <View className="-mx-4 mt-6 border-t border-border-primary bg-surface px-4 pb-4 pt-6">
-                <View className="mb-4">
-                  <AppText weight="bold" className="text-lg text-text-primary">
-                    Reviews
-                  </AppText>
-
-                  <AppText className="mt-0.5 text-xs text-text-secondary">
-                    Feedback shared by explorers
-                  </AppText>
-                </View>
-
                 <MerchantReviewsSectionSkeleton />
               </View>
             )}
 
             {/* Review feed error */}
-            {reviewsError && !isRetryingReviews && (
+            {reviewsError && !isFetchNextPageError && (
               <View className="-mx-4 mt-6 border-t border-border-primary bg-surface px-4 pb-4 pt-6">
-                <View className="mb-4">
-                  <AppText weight="bold" className="text-lg text-text-primary">
-                    Reviews
-                  </AppText>
-
-                  <AppText className="mt-0.5 text-xs text-text-secondary">
-                    Feedback shared by explorers
-                  </AppText>
-                </View>
-
                 <ErrorState
                   size="section"
                   icon="comment-off-outline"
-                  title="Unable to load reviews"
-                  description="We couldn't load your reviews right now."
+                  title={
+                    reviews.length
+                      ? "Unable to refresh reviews"
+                      : "Unable to load reviews"
+                  }
+                  description={
+                    reviews.length
+                      ? "Previously loaded reviews are still shown."
+                      : "We couldn't load your reviews right now."
+                  }
                   primaryActionTitle="Retry"
-                  onPrimaryAction={() => void retryReviews()}
+                  onPrimaryAction={() => {
+                    if (reviewId && reviewFocus.data) {
+                      void retryReviewLocation();
+                    } else {
+                      void refetchReviews();
+                    }
+                  }}
                 />
               </View>
             )}
           </View>
         }
         ItemSeparatorComponent={() => <View className="h-3" />}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <View
+              className="items-center py-5"
+              accessibilityLabel="Loading more reviews"
+              accessibilityState={{ busy: true }}
+            >
+              <LottieView
+                source={loadingAnimation}
+                autoPlay
+                loop
+                style={{ width: 50, height: 50 }}
+              />
+            </View>
+          ) : isFetchNextPageError ? (
+            <ErrorState
+              size="section"
+              title="Unable to load more reviews"
+              description="Loaded reviews are still available."
+              primaryActionTitle="Retry"
+              onPrimaryAction={() => {
+                void fetchNextPage();
+              }}
+            />
+          ) : !hasNextPage && reviews.length > 0 ? (
+            <EndOfListMessage
+              title="End of reviews"
+              description="You've reached the end of this list."
+            />
+          ) : null
+        }
         ListEmptyComponent={
-          reviewsError || isRetryingReviews ? null : (
+          reviewsError || sectionLoading ? null : hasContentFilters ? (
+            <View className="items-center bg-surface px-6 py-8">
+              <AppText
+                weight="bold"
+                className="text-center text-base text-text-primary"
+              >
+                No matching reviews
+              </AppText>
+              <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
+                Try removing a filter to see more reviews. Your reply-status
+                selection may also limit the results.
+              </AppText>
+              <Button
+                title="Clear filters"
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onPress={clearFilters}
+                accessibilityLabel="Clear filters to show all reviews"
+              />
+            </View>
+          ) : (
             <>
               {/* No reviews yet */}
               {filter === "all" && (

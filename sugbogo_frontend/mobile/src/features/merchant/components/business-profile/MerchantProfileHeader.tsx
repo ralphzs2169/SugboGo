@@ -1,3 +1,4 @@
+import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useState } from "react";
@@ -181,6 +182,10 @@ export default function MerchantProfileHeader({
           </View>
         ) : null}
 
+        <View className="absolute left-4 top-4 rounded-full bg-surface">
+          <NotificationBellButton />
+        </View>
+
         {canEditCover ? (
           <View className="absolute right-4 top-4 flex-row items-center gap-2">
             {/* Gallery cover selection */}
@@ -190,7 +195,7 @@ export default function MerchantProfileHeader({
               accessibilityRole="button"
               accessibilityLabel="Choose business cover photo from gallery"
               accessibilityState={{ disabled: isCoverActionDisabled }}
-              className="h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/65 active:opacity-80 disabled:opacity-60"
+              className="h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-black/65 active:opacity-80 disabled:opacity-60"
             >
               {isCheckingAllowance ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -210,7 +215,7 @@ export default function MerchantProfileHeader({
               accessibilityRole="button"
               accessibilityLabel="Take business cover photo"
               accessibilityState={{ disabled: isCoverActionDisabled }}
-              className="h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/65 active:opacity-80 disabled:opacity-60"
+              className="h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-black/65 active:opacity-80 disabled:opacity-60"
             >
               <MaterialCommunityIcons
                 name="camera-outline"
@@ -253,16 +258,23 @@ export default function MerchantProfileHeader({
           {/* Business status badge */}
           <View
             className={`mt-1 shrink-0 flex-row items-center gap-1.5 rounded-full px-3 py-1.5 ${
-              status === "active" ? "bg-success" : "bg-text-error"
+              status === "active" ? "bg-success/10" : "bg-error"
             }`}
           >
             <MaterialCommunityIcons
               name={status === "active" ? "check-circle" : "alert-circle"}
               size={14}
-              color="#FFFFFF"
+              color={
+                status === "active"
+                  ? theme.extends.colors.border.success
+                  : theme.extends.colors.error
+              }
             />
 
-            <AppText weight="semibold" className="text-xs text-white">
+            <AppText
+              weight="semibold"
+              className={`text-xs ${status === "active" ? "text-green-700" : "text-text-error"}`}
+            >
               {status === "active" ? "Active" : "Suspended"}
             </AppText>
           </View>

@@ -1,12 +1,13 @@
 """Owned-business Standard aggregates without comparisons or Premium analysis."""
 
-from django.db.models import Count, Exists, F, OuterRef, Q
+from django.db.models import Count, F, Q
 
 from apps.business.services.pocket_service import PocketService
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
 from apps.business.services.vouch_service import VouchService
 from apps.merchant_operations.business_profile.services.business_profile_service import BusinessProfileService
-from apps.reviews.models import Review, ReviewReply
+from apps.reviews.models import ReviewReply
+from apps.reviews.services.review_reply_eligibility import published_reviews_at_cutoff
 from apps.shared.analytics.metadata import build_meta
 
 
@@ -48,17 +49,27 @@ class StandardAnalyticsService:
         return values, standard_meta(period, availability=availability, partial_reasons=reasons)
 
     @staticmethod
-    def review_counts(business_id, period):
+    def published_reviews_at_cutoff(
+        business_id,
+        cutoff,
+    ):
+        """Share current published eligibility and the existing qualifying-reply cutoff."""
+        return published_reviews_at_cutoff(
+            business_id,
+            cutoff,
+        )
+
+    @staticmethod
+    def review_counts(
+        business_id,
+        period,
+    ):
         """Count current published reviews and period-cohort replies by generated_at cutoff."""
         cutoff = period.generated_at
-        eligible_reply = ReviewReply.objects.filter(
-            REVW_ID=OuterRef("pk"), RPLY_CREATED_AT__lte=cutoff,
-            RPLY_CREATED_AT__gte=OuterRef("REVW_CREATED_AT"),
+        published = StandardAnalyticsService.published_reviews_at_cutoff(
+            business_id,
+            cutoff,
         )
-        published = Review.objects.filter(
-            BUSN_ID=business_id, REVW_STATUS=Review.ReviewStatus.PUBLISHED,
-            REVW_CREATED_AT__lte=cutoff,
-        ).annotate(has_eligible_reply=Exists(eligible_reply))
         current = published.aggregate(
             total=Count("pk"), unanswered=Count("pk", filter=Q(has_eligible_reply=False)),
         )
@@ -85,7 +96,28 @@ class StandardAnalyticsService:
         business = BusinessProfileService.get_business_for_merchant(user)
         visibility, visibility_meta = cls.visibility(business.pk, period)
         reviews = cls.review_counts(business.pk, period)
-        reasons = ["current_state_reporting"]
+        specialty_support = VouchService.get_current_specialty_support(
+            business.pk,
+            as_of=period.generated_at,
+        )
+        # Each VOUCH_ID belongs to one TAG_ID and each business/tag link is unique.
+        # These disjoint evidence counts include multiple specialties per supporter.
+        current_valid_vouches = sum(
+            specialty["valid_vouches"]
+            for specialty in specialty_support
+        )
+        vouches_added_and_still_valid = VouchService.get_retained_vouches(
+            business.pk,
+            as_of=period.generated_at,
+        ).filter(
+            VOUCH_CREATED_AT__gte=period.start,
+            VOUCH_CREATED_AT__lt=period.end,
+        ).count()
+        reasons = [
+            "current_state_reporting",
+            "retained_valid_vouches_only",
+            "vouch_removal_history_unavailable",
+        ]
         if reviews["excluded_reply_timestamp_count"]:
             reasons.append("reply_timestamp_anomalies")
         if any(value is None for value in visibility.values()):
@@ -94,7 +126,9 @@ class StandardAnalyticsService:
             "business": {"id": business.pk, "name": business.BUSN_NAME, "status": business.BUSN_STATUS},
             **visibility,
             "current_pocket_holders": PocketService.get_current_holder_count(business.pk, as_of=period.generated_at),
-            "specialty_support": VouchService.get_current_specialty_support(business.pk, as_of=period.generated_at),
+            "specialty_support": specialty_support,
+            "current_valid_vouches": current_valid_vouches,
+            "vouches_added_and_still_valid": vouches_added_and_still_valid,
             "reviews": reviews,
             "snapshot_as_of": period.generated_at.isoformat(),
             "meta": standard_meta(period, availability="partial", partial_reasons=reasons),

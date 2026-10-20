@@ -99,6 +99,7 @@ describe("getAllBusinessReviews", () => {
     [filters({ topic: "Friendly service" }), { topic: "Friendly service" }],
     [filters({ hasPhotos: true }), { has_photos: "true" }],
     [filters({ merchantReplied: true }), { merchant_replied: "true" }],
+    [filters({ needsReply: true }), { needs_reply: "true" }],
     [filters({ ordering: "oldest" }), { ordering: "oldest" }],
     [filters({ ordering: "most_liked" }), { ordering: "most_liked" }],
   ])("sends only the active criterion", async (criteria, params) => {

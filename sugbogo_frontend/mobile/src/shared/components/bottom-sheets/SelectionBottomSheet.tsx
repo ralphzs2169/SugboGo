@@ -1,14 +1,17 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
-  BottomSheetView,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
 } from "@gorhom/bottom-sheet";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useCallback, type RefObject } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AppText from "@/shared/components/AppText";
 
 import { theme } from "@/constants/theme";
+import AppText from "@/shared/components/AppText";
+import useBottomSheetBackHandler from "@/shared/hooks/useBottomSheetBackHandler";
 
 export type SelectionOption = {
   label: string;
@@ -18,19 +21,20 @@ export type SelectionOption = {
 };
 
 type Props = {
-  sheetRef: React.RefObject<BottomSheetModal | null>;
+  sheetRef: RefObject<BottomSheetModal | null>;
   title?: string;
   description?: string;
   options: SelectionOption[];
   selectedValue?: string;
   onSelect: (value: string) => void;
+  snapPoints?: (string | number)[];
 };
 
 /**
  * Provides a reusable bottom-sheet selection interface.
  *
- * Supports optional titles, descriptions, icons, and colors for individual
- * options while respecting bottom safe-area spacing.
+ * Supports configurable height, optional descriptions and icons,
+ * a visible selected state, and scrollable content.
  */
 export default function SelectionBottomSheet({
   sheetRef,
@@ -39,123 +43,151 @@ export default function SelectionBottomSheet({
   options,
   selectedValue,
   onSelect,
+  snapPoints = ["55%"],
 }: Props) {
   const insets = useSafeAreaInsets();
+  const backHandler = useBottomSheetBackHandler(sheetRef);
 
-  function handleSelect(value: string) {
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0.5}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
+
+  const handleSelect = (value: string) => {
     sheetRef.current?.dismiss();
     onSelect(value);
-  }
+  };
 
-  function handleClose() {
+  const handleClose = () => {
     sheetRef.current?.dismiss();
-  }
+  };
 
   return (
     <BottomSheetModal
       ref={sheetRef}
-      snapPoints={["55%"]}
+      onChange={backHandler.onChange}
+      onDismiss={backHandler.onDismiss}
+      snapPoints={snapPoints}
+      topInset={insets.top}
+      enableDynamicSizing={false}
       enablePanDownToClose
+      backdropComponent={renderBackdrop}
       backgroundStyle={{
-        backgroundColor: "white",
+        backgroundColor: theme.extends.colors.surface,
         borderRadius: 24,
       }}
       handleIndicatorStyle={{
-        backgroundColor: "#D1D5DB",
+        backgroundColor: theme.extends.colors.text.disabled,
         width: 40,
       }}
-      backdropComponent={(props) => (
-        <BottomSheetBackdrop
-          {...props}
-          appearsOnIndex={0}
-          disappearsOnIndex={-1}
-          opacity={0.5}
-        />
-      )}
     >
-      <BottomSheetView
-        className="px-6"
-        style={{
+      <BottomSheetScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName="px-6 pt-2"
+        contentContainerStyle={{
           paddingBottom: Math.max(insets.bottom, 32),
         }}
       >
-        {/* Header */}
+        {/* Sheet heading and close action */}
         {(title || description) && (
-          <View className="border-b border-gray-100 pb-4">
-            <View className="flex-row items-center justify-between">
-              {title && (
+          <View className="border-b border-border-primary/60 pb-4">
+            <View className="flex-row items-center justify-between gap-3">
+              {title ? (
                 <AppText
                   weight="bold"
-                  className="flex-1 pr-4 text-lg text-text-primary"
+                  accessibilityRole="header"
+                  className="min-w-0 flex-1 text-lg text-text-primary"
                 >
                   {title}
                 </AppText>
+              ) : (
+                <View className="flex-1" />
               )}
 
               <Pressable
                 onPress={handleClose}
                 accessibilityRole="button"
                 accessibilityLabel="Close selection sheet"
-                className="cursor-pointer rounded-full p-1 active:bg-gray-100"
+                className="h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
               >
                 <MaterialCommunityIcons
                   name="close"
-                  size={24}
+                  size={23}
                   color={theme.extends.colors.text.secondary}
+                  accessible={false}
                 />
               </Pressable>
             </View>
 
-            {description && (
-              <AppText className="mt-1.5 pr-10 text-sm leading-5 text-text-secondary">
+            {description ? (
+              <AppText className="mt-1 text-sm leading-5 text-text-secondary">
                 {description}
               </AppText>
-            )}
+            ) : null}
           </View>
         )}
 
-        {/* Options */}
+        {/* Selectable options */}
         <View className="pt-1">
-          {options.map((option) => (
-            <Pressable
-              key={option.value}
-              onPress={() => handleSelect(option.value)}
-              accessibilityRole="button"
-              accessibilityState={{
-                selected: selectedValue === option.value,
-              }}
-              className="cursor-pointer flex-row items-center py-4"
-            >
-              {option.icon && (
-                <MaterialCommunityIcons
-                  name={
-                    option.icon as keyof typeof MaterialCommunityIcons.glyphMap
-                  }
-                  size={24}
-                  color={theme.extends.colors.text.secondary}
-                />
-              )}
+          {options.map((option, index) => {
+            const selected = selectedValue === option.value;
 
-              <AppText
-                className={`flex-1 text-base ${option.icon ? "ml-4" : ""}`}
-                style={{
-                  color: option.color ?? "#1F2937",
-                }}
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => handleSelect(option.value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                className={`min-h-14 flex-row cursor-pointer items-center gap-3 py-3 active:opacity-70 ${
+                  index > 0 ? "border-t border-border-primary/60" : ""
+                }`}
               >
-                {option.label}
-              </AppText>
+                {option.icon ? (
+                  <MaterialCommunityIcons
+                    name={
+                      option.icon as keyof typeof MaterialCommunityIcons.glyphMap
+                    }
+                    size={22}
+                    color={theme.extends.colors.text.secondary}
+                    accessible={false}
+                  />
+                ) : null}
 
-              {selectedValue === option.value && (
-                <MaterialCommunityIcons
-                  name="check"
-                  size={22}
-                  color={option.color ?? "#1B4D3E"}
-                />
-              )}
-            </Pressable>
-          ))}
+                <AppText
+                  weight={selected ? "semibold" : "medium"}
+                  className="min-w-0 flex-1 text-base"
+                  style={{
+                    color:
+                      option.color ??
+                      (selected
+                        ? theme.extends.colors.brand
+                        : theme.extends.colors.text.primary),
+                  }}
+                >
+                  {option.label}
+                </AppText>
+
+                {selected ? (
+                  <MaterialCommunityIcons
+                    name="check"
+                    size={22}
+                    color={option.color ?? theme.extends.colors.brand}
+                    accessible={false}
+                  />
+                ) : null}
+              </Pressable>
+            );
+          })}
         </View>
-      </BottomSheetView>
+      </BottomSheetScrollView>
     </BottomSheetModal>
   );
 }

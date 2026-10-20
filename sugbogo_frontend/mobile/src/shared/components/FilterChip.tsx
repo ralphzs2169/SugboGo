@@ -13,6 +13,9 @@ type Props = {
   icon?: ComponentProps<typeof MaterialCommunityIcons>["name"];
   showSelectedCheck?: boolean;
   accessibilityLabel?: string;
+  /** Optional series identity; keeps labels and surfaces neutral. */
+  accentColor?: string;
+  compact?: boolean;
 };
 
 /**
@@ -29,6 +32,8 @@ export default function FilterChip({
   icon,
   showSelectedCheck = false,
   accessibilityLabel,
+  accentColor,
+  compact = false,
 }: Props) {
   const showCount = count !== undefined && count > 0;
 
@@ -39,8 +44,20 @@ export default function FilterChip({
       accessibilityState={{ selected }}
       accessibilityLabel={accessibilityLabel ?? label}
       hitSlop={{ top: 6, bottom: 6 }}
-      className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${
-        selected ? "bg-surface-muted-strong" : "bg-surface-muted"
+      style={
+        accentColor
+          ? {
+              borderWidth: 1,
+              borderColor: selected ? `${accentColor}40` : "transparent",
+              minHeight: compact ? 32 : 44,
+              maxWidth: "100%",
+            }
+          : undefined
+      }
+      className={`cursor-pointer flex-row items-center rounded-full ${compact ? "px-2.5 py-1.5" : "px-4 py-2"} ${
+        selected && !accentColor
+          ? "bg-surface-muted-strong"
+          : "bg-surface-muted"
       }`}
     >
       {/* Selected-state indicator */}
@@ -48,7 +65,11 @@ export default function FilterChip({
         <MaterialCommunityIcons
           name="check"
           size={15}
-          color={theme.extends.colors.text.primary}
+          color={
+            accentColor && selected
+              ? accentColor
+              : theme.extends.colors.text.primary
+          }
           style={{ marginRight: 5 }}
         />
       )}
@@ -58,7 +79,11 @@ export default function FilterChip({
         <MaterialCommunityIcons
           name={icon}
           size={14}
-          color={theme.extends.colors.text.primary}
+          color={
+            accentColor && selected
+              ? accentColor
+              : theme.extends.colors.text.primary
+          }
           style={{ marginRight: 5 }}
         />
       )}
@@ -66,7 +91,7 @@ export default function FilterChip({
       {/* Filter label and optional count */}
       <AppText
         weight="medium"
-        className={`text-sm ${
+        className={`min-w-0 shrink ${compact ? "text-xs" : "text-sm"} ${
           selected ? "text-text-primary" : "text-text-secondary"
         }`}
       >

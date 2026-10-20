@@ -1,8 +1,7 @@
 import { useEffect } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 
-import AppText from "@/shared/components/AppText";
-import FilterChip from "@/shared/components/FilterChip";
+import ReviewMentionedAspects from "@/shared/components/reviews/ReviewMentionedAspects";
 
 import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
 import type {
@@ -74,13 +73,6 @@ export default function ReviewFiltersSection({
     });
   };
 
-  const toggleTopic = (topic: string) => {
-    onChange({
-      ...filters,
-      topic: filters.topic === topic ? null : topic,
-    });
-  };
-
   return (
     <View className="gap-5 pt-5">
       {/* Recent insights and evidence-backed topic filters */}
@@ -92,35 +84,11 @@ export default function ReviewFiltersSection({
         selectedSentiment={filters.sentiment}
         onSentimentPress={toggleSentiment}
       >
-        {insights && insights.frequent_mentions.length > 0 && (
-          <View>
-            <AppText weight="bold" className="mb-3 text-sm text-text-primary">
-              Frequently mentioned
-            </AppText>
-
-            <ScrollView
-              testID="review-topic-filters"
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerClassName="items-center gap-2 px-1 pr-3"
-            >
-              {insights.frequent_mentions.map((mention) => (
-                <FilterChip
-                  key={mention.label}
-                  label={mention.label}
-                  count={mention.count}
-                  selected={filters.topic === mention.label}
-                  onPress={() => toggleTopic(mention.label)}
-                  accessibilityLabel={`${mention.label}, mentioned in ${
-                    mention.count
-                  } ${mention.count === 1 ? "review" : "reviews"}${
-                    filters.topic === mention.label ? ", selected" : ""
-                  }`}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
+        <ReviewMentionedAspects
+          mentions={insights?.frequent_mentions ?? []}
+          selected={filters.topic}
+          onChange={(topic) => onChange({ ...filters, topic })}
+        />
       </RecentReviewInsightsSection>
 
       {/* Inline review filtering and sorting */}

@@ -12,6 +12,29 @@ from .fixtures import MerchantAnalyticsFixtures
 
 
 class PremiumReviewServicesTests(MerchantAnalyticsFixtures, TestCase):
+    def test_review_count_change_uses_eligible_creation_cohorts_and_zero_baselines(self):
+        current = self.review(self.period.start)
+        self.review(self.period.start, Review.ReviewStatus.REJECTED)
+        self.review(self.period.end)
+        report = PremiumReviewPerformanceService.get_report(
+            self.merchant_a,
+            self.period,
+        )
+        self.assertEqual(report["published_review_count_change"]["value"], 1)
+        self.assertEqual(report["published_review_count_change"]["unit"], "count")
+        self.review(self.period.previous_start)
+        report = PremiumReviewPerformanceService.get_report(
+            self.merchant_a,
+            self.period,
+        )
+        self.assertEqual(report["published_review_count_change"]["value"], 0)
+        current.delete()
+        report = PremiumReviewPerformanceService.get_report(
+            self.merchant_a,
+            self.period,
+        )
+        self.assertEqual(report["published_review_count_change"]["value"], -1)
+
     def summary(self, state="ready", narrative="Stored review narrative."):
         return BusinessReviewSummary.objects.create(
             BUSN_ID=self.business_a, BRSU_GENERATION_STATE=state, BRSU_NARRATIVE=narrative,

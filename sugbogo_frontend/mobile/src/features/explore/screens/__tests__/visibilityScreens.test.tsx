@@ -35,8 +35,11 @@ jest.mock("../../api/exploreBusiness.service", () => ({
 }));
 jest.mock("../../hooks/useExploreBusinessProfile");
 jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
-  ReviewDerivedDataSyncProvider: ({ children }: { children: React.ReactNode }) =>
+  ReviewDerivedDataSyncProvider: ({
     children,
+  }: {
+    children: React.ReactNode;
+  }) => children,
 }));
 jest.mock("../../hooks/useDiscoveryFeed", () => ({
   __esModule: true,
@@ -324,7 +327,12 @@ it("keeps nested Explore scrolling, refresh, and card navigation functional afte
   await fireEvent.press(screen.getByText("Real business"));
   expect(router.push).toHaveBeenCalledWith({
     pathname: "/(explorer)/business/[businessId]",
-    params: { businessId: "42", distance: "", distanceAccuracy: "" },
+    params: {
+      businessId: "42",
+      distance: "",
+      distanceAccuracy: "",
+      profileSource: "EXPLORE_DISCOVERY",
+    },
   });
   await act(async () => {
     await outerScroll.props.refreshControl.props.onRefresh();
@@ -443,7 +451,7 @@ it("records only displayed profile content and keeps it visible when tracking fa
     />,
   );
   await waitFor(() =>
-    expect(recordBusinessProfileVisit).toHaveBeenCalledWith(42),
+    expect(recordBusinessProfileVisit).toHaveBeenCalledWith(42, "UNKNOWN"),
   );
   expect(screen.getByText("Displayed profile")).toBeTruthy();
   await screen.rerender(

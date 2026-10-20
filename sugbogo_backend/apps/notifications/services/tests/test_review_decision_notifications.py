@@ -43,6 +43,7 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
              (self.second_user.pk, "review_rejected")},
         )
         for notification in Notification.objects.all():
+            self.assertIn(self.business.BUSN_NAME, notification.NOTF_BODY)
             self.assertEqual(notification.NOTF_TARGET_TYPE, "")
             self.assertIsNone(notification.NOTF_TARGET_ID)
             for private in (self.review.REVW_TEXT, self.user.USER_EMAIL,
@@ -59,6 +60,7 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         notification = Notification.objects.get()
         self.assertEqual(notification.USER_ID_id, self.user.pk)
         self.assertEqual(notification.NOTF_TYPE, "review_report_rejected")
+        self.assertIn(self.business.BUSN_NAME, notification.NOTF_BODY)
         self.assertNotIn("cleared", notification.NOTF_BODY)
         self.review.refresh_from_db()
         self.assertFalse(self.review.REVW_IS_REPORT_FLAGGED)
@@ -111,6 +113,7 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         self.assertEqual(notification.NOTF_TARGET_TYPE, "review_dispute")
         self.assertEqual(notification.NOTF_TARGET_ID, dispute.pk)
         self.assertNotIn(dispute.MRDSP_DESCRIPTION, notification.NOTF_BODY)
+        self.assertIn(self.business.BUSN_NAME, notification.NOTF_BODY)
         self.assertNotIn("cleared", notification.NOTF_BODY)
 
     def test_upheld_dispute_notifies_merchant_and_author(self):
@@ -123,6 +126,9 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
             {(dispute.USER_ID_id, "review_dispute_upheld"),
              (self.second_user.pk, "review_rejected")},
         )
+
+        for notification in Notification.objects.all():
+            self.assertIn(self.business.BUSN_NAME, notification.NOTF_BODY)
 
     def test_second_notification_failure_rolls_back_report_and_first_notice(self):
         original = NotificationService.create

@@ -1,6 +1,7 @@
 """Premium trends over recorded visibility events without certifying tracking coverage."""
 
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
+from apps.business.services.visibility_coverage_service import VisibilityCoverageService
 from apps.merchant_operations.business_profile.services.business_profile_service import BusinessProfileService
 from apps.shared.analytics.comparisons import compare_values
 from apps.shared.analytics.metadata import build_meta
@@ -12,7 +13,16 @@ class PremiumVisibilityService:
     """Read independent event metrics for the authenticated merchant's owned business."""
 
     @staticmethod
-    def read_metric(business_id, period, event_type, interval, *, distinct=False, include_series=True):
+    def read_metric(
+        business_id,
+        period,
+        event_type,
+        interval,
+        *,
+        distinct=False,
+        include_series=True,
+        coverage_verified=False,
+    ):
         """Retain successful totals or series when a separate MongoDB read fails."""
         query = {"business_ids": [business_id], "start_time": period.start, "end_time": period.end}
         value = None
@@ -42,24 +52,58 @@ class PremiumVisibilityService:
         return {
             "value": value, "series": series,
             "meta": build_meta(period, availability="unavailable" if unavailable else "partial" if reasons else "available",
-                               partial_reasons=reasons),
+                               partial_reasons=reasons, coverage_verified=coverage_verified,
+                               data_through=period.end if coverage_verified else None),
         }
 
     @classmethod
-    def metric(cls, business_id, period, event_type, interval, *, distinct=False):
-        """Return observed period totals with an explicitly unavailable growth comparison."""
-        current = cls.read_metric(business_id, period, event_type, interval, distinct=distinct)
-        previous = cls.read_metric(business_id, previous_period(period), event_type, interval,
-                                   distinct=distinct, include_series=False)
-        change = compare_values(current=current["value"], previous=previous["value"],
-                                current_sample_size=current["value"], previous_sample_size=previous["value"],
-                                data_available=False)
-        if current["value"] is not None and previous["value"] is not None:
-            change["reason"] = "coverage_unverified"
+    def metric(
+        cls,
+        business_id,
+        period,
+        event_type,
+        interval,
+        *,
+        distinct=False,
+    ):
+        """Calculate changes only after the coverage gate approves both reporting windows."""
+        eligibility = VisibilityCoverageService.assess(
+            business_id=business_id,
+            event_type=event_type,
+            period=period,
+        )
+        current = cls.read_metric(
+            business_id,
+            period,
+            event_type,
+            interval,
+            distinct=distinct,
+            coverage_verified=eligibility["eligible"],
+        )
+        previous = cls.read_metric(
+            business_id,
+            previous_period(period),
+            event_type,
+            interval,
+            distinct=distinct,
+            include_series=False,
+            coverage_verified=eligibility["eligible"],
+        )
+        change = compare_values(
+            current=current["value"],
+            previous=previous["value"],
+            current_sample_size=current["value"],
+            previous_sample_size=previous["value"],
+            minimum_sample_size=0,
+            data_available=eligibility["eligible"],
+        )
+        if not eligibility["eligible"]:
+            change["reason"] = eligibility["reason"]
         return {
             "value": current["value"], "previous_value": previous["value"], "change": change,
             "series": current["series"], "series_is_sparse": True,
             "sources": {"current": current["meta"], "previous": previous["meta"]},
+            "comparison_eligibility": eligibility,
         }
 
     @classmethod

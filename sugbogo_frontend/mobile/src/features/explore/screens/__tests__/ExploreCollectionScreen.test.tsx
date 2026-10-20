@@ -207,7 +207,10 @@ describe("ExploreCollectionScreen", () => {
     expect(mockPush).toHaveBeenCalledWith(
       expect.objectContaining({
         pathname: "/(explorer)/business/[businessId]",
-        params: expect.objectContaining({ businessId: "42" }),
+        params: expect.objectContaining({
+          businessId: "42",
+          profileSource: "COLLECTION",
+        }),
       }),
     );
     expect(

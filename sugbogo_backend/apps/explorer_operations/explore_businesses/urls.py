@@ -58,6 +58,7 @@ from apps.explorer_operations.explore_businesses.views.vouch_history_views impor
     VouchHistoryView,
 )
 from django.urls import path
+from .views.route_intent_views import RouteIntentView
 from .views.pocket_collection_views import (
     PocketCollectionBusinessesView,
     PocketCollectionDetailView,
@@ -69,6 +70,11 @@ from .views.business_pocket_membership_views import (
 )
 
 urlpatterns = [
+    path(
+        "businesses/<int:business_id>/route-intent/",
+        RouteIntentView.as_view(),
+        name="business-route-intent",
+    ),
 
     path("pockets/", PocketCollectionListView.as_view(), name="pocket-collections"),
     path(

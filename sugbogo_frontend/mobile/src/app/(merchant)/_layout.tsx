@@ -13,6 +13,61 @@ export default function MerchantLayout() {
       <Stack.Screen name="(tabs)" />
 
       <Stack.Screen name="business-location-map" />
+      <Stack.Screen
+        name="analytics/development-preview"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Analytics development preview",
+        }}
+      />
+      <Stack.Screen
+        name="analytics/specialties-preview"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Specialty trends preview",
+        }}
+      />
+      <Stack.Screen
+        name="analytics/recommendations-preview"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Recommendations preview",
+        }}
+      />
+      <Stack.Screen
+        name="analytics/peer-preview"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Peer comparisons preview",
+        }}
+      />
+      <Stack.Screen
+        name="analytics/discovery-sources"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Where visits came from",
+        }}
+      />
+
+      <Stack.Screen
+        name="analytics/[report]"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Analytics",
+        }}
+      />
 
       <Stack.Screen
         name="manage-business"

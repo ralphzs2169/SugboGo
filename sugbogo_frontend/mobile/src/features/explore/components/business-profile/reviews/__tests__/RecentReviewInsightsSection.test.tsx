@@ -31,8 +31,12 @@ const insights: BusinessReviewInsights = {
 
 describe("RecentReviewInsightsSection", () => {
   it("distinguishes an unprocessed summary from zero eligible reviews", async () => {
-    const screen = await render(<RecentReviewInsightsSection insights={null} />);
-    expect(screen.getByText("Recent insights are not available yet")).toBeTruthy();
+    const screen = await render(
+      <RecentReviewInsightsSection insights={null} />,
+    );
+    expect(
+      screen.getByText("Recent insights are not available yet"),
+    ).toBeTruthy();
     expect(screen.queryByText("No recent insights yet")).toBeNull();
   });
 
@@ -41,9 +45,7 @@ describe("RecentReviewInsightsSection", () => {
       <RecentReviewInsightsSection insights={insights} />,
     );
     expect(
-      screen.getByText(
-        "Based on 5 eligible reviews from the past 30 days.",
-      ),
+      screen.getByText("Based on 5 eligible reviews from the past 30 days."),
     ).toBeTruthy();
     expect(screen.getByText("Visitors praise friendly service.")).toBeTruthy();
     expect(screen.getByText("Mostly positive")).toBeTruthy();
@@ -88,9 +90,7 @@ describe("RecentReviewInsightsSection", () => {
     );
     expect(screen.getByText("Not enough recent reviews yet")).toBeTruthy();
     expect(
-      screen.getByText(
-        "Based on 4 eligible reviews from the past 30 days.",
-      ),
+      screen.getByText("Based on 4 eligible reviews from the past 30 days."),
     ).toBeTruthy();
     expect(screen.getByText("Mostly positive")).toBeTruthy();
     expect(screen.queryByText("Vibe Summary")).toBeNull();
@@ -106,7 +106,8 @@ describe("RecentReviewInsightsSection", () => {
         }}
       />,
     );
-    expect(screen.getByText("Vibe Summary")).toBeTruthy();
+    expect(screen.getByText("Visitors praise friendly service.")).toBeTruthy();
+    expect(screen.queryByText("Mostly positive")).toBeNull();
     expect(screen.queryByText("Positive")).toBeNull();
   });
 

@@ -1,0 +1,1 @@
+"""Authenticated merchant dashboard endpoints."""

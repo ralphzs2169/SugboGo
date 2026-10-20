@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
 from django.core.validators import MaxLengthValidator
 from django.db import models
 
@@ -22,6 +23,8 @@ class Notification(models.Model):
     NOTF_TARGET_TYPE = models.CharField(max_length=64, blank=True, default="")
     NOTF_TARGET_ID = models.PositiveBigIntegerField(null=True, blank=True)
     NOTF_DEDUP_KEY = models.CharField(max_length=160)
+    # Internal grouping snapshots are excluded from recipient-facing serializers.
+    NOTF_METADATA = models.JSONField(default=dict, blank=True)
     NOTF_READ_AT = models.DateTimeField(null=True, blank=True)
     NOTF_CREATED_AT = models.DateTimeField(auto_now_add=True)
     NOTF_UPDATED_AT = models.DateTimeField(auto_now=True)
@@ -47,6 +50,10 @@ class Notification(models.Model):
             ),
         ]
         indexes = [
+            GinIndex(
+                fields=["NOTF_METADATA"],
+                name="notification_metadata_gin",
+            ),
             models.Index(
                 fields=["USER_ID", "-NOTF_CREATED_AT", "-NOTF_ID"],
                 name="notification_recipient_time",

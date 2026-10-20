@@ -12,6 +12,32 @@ from .fixtures import MerchantAnalyticsFixtures
 
 
 class PremiumVisibilityServiceTests(MerchantAnalyticsFixtures, TestCase):
+    def test_growth_requires_an_explicit_coverage_approval_and_keeps_a_zero_current(self):
+        self.event("PROFILE_VISIT", 1, self.period.previous_start)
+        with patch(
+            "apps.business.services.visibility_coverage_service.VisibilityCoverageService.assess",
+            return_value={
+                "eligible": True,
+                "reason": None,
+                "reasons": [],
+                "definition_version": "test-proof",
+            },
+        ):
+            report = PremiumVisibilityService.get_report(
+                self.merchant_a,
+                self.period,
+            )
+            metric = report["metrics"]["profile_visits"]
+        self.assertEqual(metric["change"]["value"], -100)
+        self.assertTrue(metric["sources"]["current"]["coverage_verified"])
+        report = PremiumVisibilityService.get_report(
+            self.merchant_a,
+            self.period,
+        )
+        metric = report["metrics"]["profile_visits"]
+        self.assertIsNone(metric["change"]["value"])
+        self.assertFalse(metric["comparison_eligibility"]["eligible"])
+
     def test_profile_uniques_ignore_other_events_and_never_sum_daily_uniques(self):
         self.event("PROFILE_VISIT", 1, self.period.start)
         self.event("PROFILE_VISIT", 1, self.period.start + timedelta(days=1))

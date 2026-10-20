@@ -1,6 +1,7 @@
 """Explicitly opted-in live driver checks; never targets the application Mongo database."""
 
 from datetime import UTC, datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 import os
 import re
@@ -305,3 +306,49 @@ class VisibilityLiveMongoTests(TestCase):
             self.assertTrue(PocketService.has_pocketed(self.explorers[0], self.businesses[0].pk))
             with self.assertRaises(VisibilityTrackingUnavailable):
                 VisibilityEventService.get_analytics_totals(**self.query)
+
+    def test_concurrent_sources_and_legacy_unknowns_preserve_real_driver_totals(self):
+        """Verify winning-source insertion and normalization only in the owned test database."""
+        business = self.businesses[0]
+        explorer = self.explorers[0]
+        self.live(VisibilityEventService.ensure_indexes)
+
+        def record(source):
+            return self.live(
+                lambda: VisibilityEventService.record_profile_visit(
+                    explorer_id=explorer.pk,
+                    business_id=business.pk,
+                    discovery_source=source,
+                ),
+            )
+
+        with (
+            patch.object(
+                VisibilityEventService,
+                "_validate_active_business",
+                return_value=business,
+            ),
+            patch.object(
+                VisibilityEventService,
+                "_get_current_time",
+                return_value=self.START,
+            ),
+        ):
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                results = list(executor.map(record, ["MAP", "COMMUNITY"] * 8))
+        self.assertEqual(sum(result.recorded_count for result in results), 1)
+        winner = self.live(lambda: self.collection.find_one({"event_type": "PROFILE_VISIT"}))
+        self.assertIn(winner["discovery_source"], {"MAP", "COMMUNITY"})
+        self.live(lambda: self.collection.insert_one({
+            "event_type": "PROFILE_VISIT",
+            "business_id": business.pk,
+            "explorer_id": self.explorers[1].pk,
+            "occurred_at": self.START,
+            "dedupe_key": f"PROFILE_VISIT:{self.explorers[1].pk}:{business.pk}:2026-10-04",
+        }))
+        rows = self.live(lambda: VisibilityEventService.get_profile_visit_sources(
+            business_ids=[business.pk],
+            **self.query,
+        ))
+        self.assertEqual(sum(row["count"] for row in rows), 2)
+        self.assertEqual(next(row["count"] for row in rows if row["source"] == "UNKNOWN"), 1)

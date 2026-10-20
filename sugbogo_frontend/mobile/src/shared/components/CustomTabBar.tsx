@@ -1,8 +1,8 @@
 // src/shared/components/CustomTabBar.tsx
 import { theme } from "@/constants/theme";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { ComponentProps, useEffect, useRef } from "react";
+import { ComponentProps, useEffect, useState } from "react";
 import { Animated, Pressable, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,6 +12,7 @@ type TabBarPropsArg = Parameters<TabBarProps>[0];
 export type TabBarConfig = {
   [routeName: string]: {
     icon: keyof typeof Feather.glyphMap;
+    materialIcon?: keyof typeof MaterialCommunityIcons.glyphMap;
     label: string;
   };
 };
@@ -27,7 +28,7 @@ function TabItem({
   onPress: () => void;
   config: TabBarConfig;
 }) {
-  const progress = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+  const [progress] = useState(() => new Animated.Value(isFocused ? 1 : 0));
 
   useEffect(() => {
     Animated.spring(progress, {
@@ -49,6 +50,7 @@ function TabItem({
   });
 
   const iconName = config[routeName]?.icon ?? "circle";
+  const materialIcon = config[routeName]?.materialIcon;
   const label = config[routeName]?.label ?? routeName;
 
   const activeColor = isFocused
@@ -71,7 +73,15 @@ function TabItem({
         }}
       >
         {/* Icon */}
-        <Feather name={iconName} size={21} color={activeColor} />
+        {materialIcon ? (
+          <MaterialCommunityIcons
+            name={materialIcon}
+            size={22}
+            color={activeColor}
+          />
+        ) : (
+          <Feather name={iconName} size={21} color={activeColor} />
+        )}
 
         {/* Label */}
         <Animated.Text
@@ -105,7 +115,7 @@ export default function CustomTabBar({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  const indicatorPosition = useRef(new Animated.Value(state.index)).current;
+  const [indicatorPosition] = useState(() => new Animated.Value(state.index));
 
   const tabWidth = width / state.routes.length;
 

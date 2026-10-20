@@ -24,6 +24,7 @@ class StandardAnalyticsServiceTests(MerchantAnalyticsFixtures, TestCase):
         self.assertEqual(report["distinct_profile_visitors"], 0)
         self.assertEqual(report["saves_in_period"], 0)
         self.assertEqual(report["current_pocket_holders"], 0)
+        self.assertEqual(report["current_valid_vouches"], 0)
         self.assertIsNone(report["reviews"]["reply_rate"])
         self.assertEqual(report["reviews"]["current_published_total"], 0)
         self.assertEqual(len(report["specialty_support"]), 2)
@@ -72,6 +73,31 @@ class StandardAnalyticsServiceTests(MerchantAnalyticsFixtures, TestCase):
         report = self.report()
         self.assertEqual([(row["valid_vouches"], row["distinct_supporters"]) for row in report["specialty_support"]], [(1, 1), (1, 1)])
         self.assertEqual({row["specialty_id"] for row in report["specialty_support"]}, {tag.pk for tag in self.tags[:2]})
+        # The same supporter has two eligible vouches, not one unique-account total.
+        self.assertEqual(report["current_valid_vouches"], 2)
+
+    def test_vouch_snapshot_is_period_independent_and_excludes_future_and_foreign_records(self):
+        for business, tag, timestamp in (
+            (self.business_a, self.tags[0], self.NOW - timedelta(days=9)),
+            (self.business_a, self.tags[1], self.NOW + timedelta(days=1)),
+            (self.business_b, self.tags[0], self.NOW - timedelta(days=1)),
+        ):
+            vouch = BusinessVouch.objects.create(
+                BUSN_ID=business,
+                TAG_ID=tag,
+                USER_ID=self.supporter_a,
+                VOUCH_REPUTATION_SNAPSHOT=self.supporter_a.USER_REPUTATION,
+            )
+            BusinessVouch.objects.filter(pk=vouch.pk).update(
+                VOUCH_CREATED_AT=timestamp,
+            )
+        for preset in ("7", "30", "90"):
+            period = resolve_period(
+                preset=preset,
+                now=self.NOW,
+            )
+            with self.subTest(period=preset):
+                self.assertEqual(self.report(period)["current_valid_vouches"], 1)
 
     def test_published_cohort_and_whole_unanswered_backlog_use_declared_reply_cutoff(self):
         answered = self.review(self.NOW - timedelta(days=2))

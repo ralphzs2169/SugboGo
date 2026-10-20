@@ -218,6 +218,7 @@ export default function SearchFilterResultsScreen() {
         pathname: "/(explorer)/business/[businessId]",
         params: {
           businessId: String(business.id),
+          profileSource: "SEARCH_RESULTS",
           distance: distance === null ? "" : String(distance),
           distanceAccuracy:
             userLocation?.coords.accuracy === null ||
