@@ -67,3 +67,41 @@ export function replaceBusinessPocketMemberships(
     }),
   );
 }
+
+/** Creates an empty custom Pocket; the server normalizes and validates its name. */
+export function createPocketCollection(
+  name: string,
+): Promise<ApiResponse<PocketCollection>> {
+  return request(apiClient.post("/explorer/explore/pockets/", { name }));
+}
+
+/** Renames an owned custom Pocket without changing its memberships. */
+export function renamePocketCollection(
+  collectionId: number,
+  name: string,
+): Promise<ApiResponse<PocketCollection>> {
+  return request(
+    apiClient.patch(`/explorer/explore/pockets/${collectionId}/`, { name }),
+  );
+}
+
+/** Deletes one custom collection; the backend retains businesses saved elsewhere. */
+export function deletePocketCollection(
+  collectionId: number,
+): Promise<ApiResponse<{ id: number }>> {
+  return request(
+    apiClient.delete(`/explorer/explore/pockets/${collectionId}/`),
+  );
+}
+
+/** Removes only this membership and returns the authoritative remaining selection. */
+export function removePocketCollectionBusiness(
+  collectionId: number,
+  businessId: number,
+): Promise<ApiResponse<BusinessPocketMemberships>> {
+  return request(
+    apiClient.delete(
+      `/explorer/explore/pockets/${collectionId}/businesses/${businessId}/`,
+    ),
+  );
+}

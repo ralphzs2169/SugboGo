@@ -16,15 +16,20 @@ import {
   beginAuthSession,
   getAuthSessionGeneration,
 } from "@/shared/api/authSessionGeneration.service";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import type {
+  ApiResponse,
+  ApiSuccessWithData,
+} from "@/shared/types/apiResponse.types";
 import {
   getBusinessPocketMemberships,
+  createPocketCollection,
   getPocketCollections,
   replaceBusinessPocketMemberships,
 } from "../../api/pockets.service";
 import { businessPocketMembershipsQueryKey } from "../../hooks/pocketQueryKeys";
 import type {
   BusinessPocketMemberships,
+  PocketCollection,
   PocketCollectionListResponse,
 } from "../../types/pockets.types";
 import PocketPickerSheet from "../PocketPickerSheet";
@@ -33,6 +38,7 @@ jest.mock("../../api/pockets.service", () => ({
   getBusinessPocketMemberships: jest.fn(),
   getPocketCollections: jest.fn(),
   replaceBusinessPocketMemberships: jest.fn(),
+  createPocketCollection: jest.fn(),
 }));
 jest.mock("@/shared/components/Skeleton", () => () => null);
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
@@ -51,7 +57,7 @@ jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
 }));
 jest.mock("@gorhom/bottom-sheet", () => {
   const React = jest.requireActual<typeof import("react")>("react");
-  const { View, FlatList } =
+  const { View, FlatList, ScrollView, TextInput } =
     jest.requireActual<typeof import("react-native")>("react-native");
   return {
     BottomSheetModal: React.forwardRef(function MockBottomSheetModal(
@@ -83,6 +89,8 @@ jest.mock("@gorhom/bottom-sheet", () => {
       );
     }),
     BottomSheetFlatList: FlatList,
+    BottomSheetScrollView: ScrollView,
+    BottomSheetTextInput: TextInput,
     BottomSheetBackdrop: () => null,
   };
 });
@@ -114,7 +122,7 @@ function page(
   ids = [20],
   number = 1,
   hasNext = false,
-): ApiResponse<PocketCollectionListResponse> {
+): ApiSuccessWithData<PocketCollectionListResponse> {
   return {
     success: true,
     message: "Success.",
@@ -154,6 +162,14 @@ describe("PocketPickerSheet", () => {
     beginAuthSession();
     useAuthStore.setState({ user, isAuthenticated: true, isLoading: false });
     serverIds = [20, 999];
+    jest
+      .mocked(createPocketCollection)
+      .mockReset()
+      .mockResolvedValue({
+        success: true,
+        message: "Created.",
+        data: { ...page([55]).data!.items[0], name: "Coffee spots" },
+      });
     jest
       .mocked(getPocketCollections)
       .mockReset()
@@ -416,7 +432,7 @@ describe("PocketPickerSheet", () => {
     );
   });
 
-  it("handles an empty collection response without inventing Favorites or creation controls", async () => {
+  it("handles an empty response without inventing Favorites and permits creation", async () => {
     serverIds = [];
     jest.mocked(getPocketCollections).mockResolvedValue(page([]));
     const screen = await render(
@@ -432,6 +448,131 @@ describe("PocketPickerSheet", () => {
       expect(screen.getByText("No Pockets available yet.")).toBeTruthy(),
     );
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
-    expect(screen.queryByRole("button", { name: /create/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "Create Pocket" })).toBeTruthy();
+  });
+
+  async function openCreation() {
+    const screen = await sheet();
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("Pocket name"),
+      "Coffee spots",
+    );
+    return screen;
+  }
+
+  it("checks a new off-page Pocket while preserving the full draft until Done", async () => {
+    const screen = await openCreation();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Coffee spots" }),
+      ).toBeTruthy(),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Coffee spots" }).props
+        .accessibilityState.checked,
+    ).toBe(true);
+    expect(
+      screen.getByRole("checkbox", { name: "Favorites" }).props
+        .accessibilityState.checked,
+    ).toBe(false);
+    expect(createPocketCollection).toHaveBeenCalledWith("Coffee spots");
+    expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(
+        42,
+        [55, 999],
+      ),
+    );
+  });
+
+  it("keeps the newly created collection when the picker draft is canceled", async () => {
+    const screen = await openCreation();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Coffee spots" }),
+      ).toBeTruthy(),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+    expect(createPocketCollection).toHaveBeenCalledTimes(1);
+    expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+    expect(dismissed).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains input and the selection after creation errors or form cancellation", async () => {
+    jest.mocked(createPocketCollection).mockResolvedValueOnce({
+      ...failure,
+      errors: { name: ["A Pocket with this name already exists."] },
+    });
+    const screen = await openCreation();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText("A Pocket with this name already exists."),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByLabelText("Pocket name").props.value).toBe(
+      "Coffee spots",
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.getByRole("checkbox", { name: "Favorites" }).props
+        .accessibilityState.checked,
+    ).toBe(false);
+    expect(dismissed).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(42, [999]),
+    );
+  });
+
+  it("blocks duplicate creation and dismissal while its POST is pending", async () => {
+    const pending = deferred<ApiResponse<PocketCollection>>();
+    jest.mocked(createPocketCollection).mockReturnValueOnce(pending.promise);
+    const back = jest.spyOn(BackHandler, "addEventListener");
+    const screen = await openCreation();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      back.mock.calls.at(-1)?.[1]({
+        type: "hardwareBackPress",
+        timeStamp: Date.now(),
+      });
+    });
+    expect(
+      screen.getByTestId("picker-modal").props.accessibilityState.busy,
+    ).toBe(true);
+    expect(createPocketCollection).toHaveBeenCalledTimes(1);
+    expect(dismissed).not.toHaveBeenCalled();
+    await act(async () =>
+      pending.resolve({
+        success: true,
+        message: "Created.",
+        data: { ...page([55]).data!.items[0], name: "Coffee spots" },
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Coffee spots" }),
+      ).toBeTruthy(),
+    );
+    expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
   });
 });

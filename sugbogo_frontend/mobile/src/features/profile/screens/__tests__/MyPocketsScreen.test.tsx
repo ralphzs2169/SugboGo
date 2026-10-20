@@ -10,7 +10,10 @@ import { router } from "expo-router";
 import type { PropsWithChildren } from "react";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { getPocketCollections } from "@/features/pockets/api/pockets.service";
+import {
+  getPocketCollections,
+  createPocketCollection,
+} from "@/features/pockets/api/pockets.service";
 import { pocketCollectionsQueryKey } from "@/features/pockets/hooks/pocketQueryKeys";
 import type {
   PocketCollection,
@@ -28,6 +31,7 @@ import MyPocketsScreen from "../MyPocketsScreen";
 
 jest.mock("@/features/pockets/api/pockets.service", () => ({
   getPocketCollections: jest.fn(),
+  createPocketCollection: jest.fn(),
 }));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("@/shared/components/Skeleton", () => () => null);
@@ -126,13 +130,17 @@ describe("MyPocketsScreen", () => {
 
   beforeEach(() => {
     jest.mocked(getPocketCollections).mockReset().mockResolvedValue(page());
+    jest.mocked(createPocketCollection).mockReset();
     useAuthStore.setState({
       user: user(1),
       isAuthenticated: true,
       isLoading: false,
     });
     client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { gcTime: Infinity },
+      },
     });
   });
 
@@ -199,7 +207,9 @@ describe("MyPocketsScreen", () => {
     ).toEqual(["Favorites", "Coffee spots", "Weekend food trips"]);
     expect(screen.queryByPlaceholderText("Search saved MSMEs...")).toBeNull();
     expect(screen.queryByText(/^(Edit|Done|Delete|All)$/)).toBeNull();
-    expect(screen.getAllByRole("button")).toHaveLength(3);
+    expect(
+      screen.getAllByRole("button", { name: /^Open .* Pocket$/ }),
+    ).toHaveLength(3);
     await fireEvent.press(
       screen.getByRole("button", { name: "Open Favorites Pocket" }),
     );
@@ -265,10 +275,12 @@ describe("MyPocketsScreen", () => {
     await waitFor(() => expect(getPocketCollections).toHaveBeenCalledTimes(2));
     expect(screen.getByText("Favorites")).toBeTruthy();
     expect(screen.queryByTestId("pocket-collections-skeleton")).toBeNull();
-    expect(
-      screen.getByTestId("my-pockets-list").props.refreshControl.props
-        .refreshing,
-    ).toBe(true);
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("my-pockets-list").props.refreshControl.props
+          .refreshing,
+      ).toBe(true),
+    );
     expect(screen.queryByTestId("my-pockets-page-loader")).toBeNull();
     await act(async () => {
       response.resolve(page([{ ...favorites, business_count: 1 }, weekend]));
@@ -492,5 +504,48 @@ describe("MyPocketsScreen", () => {
     await waitFor(() => expect(screen.getByText("Coffee spots")).toBeTruthy());
     expect(getPocketCollections).toHaveBeenCalledTimes(3);
     expect(getPocketCollections).toHaveBeenLastCalledWith(2);
+  });
+  it("creates a custom Pocket and reloads the overview without changing navigation", async () => {
+    const created = collection(60, "New Pocket", 0);
+    jest
+      .mocked(getPocketCollections)
+      .mockResolvedValueOnce(page())
+      .mockResolvedValue(page([favorites, weekend, created]));
+    jest
+      .mocked(createPocketCollection)
+      .mockResolvedValue({ success: true, message: "Created.", data: created });
+    const screen = await loadedOverview();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("Pocket name"),
+      "New Pocket",
+    );
+    await fireEvent.press(
+      screen.getAllByRole("button", { name: "Create Pocket" }).at(-1)!,
+    );
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Pocket name")).toBeNull(),
+    );
+    expect(screen.getByText("New Pocket")).toBeTruthy();
+    expect(screen.getByText("Favorites")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open New Pocket Pocket" }),
+    );
+    expect(router.push).toHaveBeenCalledWith("/(explorer)/profile/pockets/60");
+  });
+  it("drops the creation form when the authenticated owner changes", async () => {
+    const screen = await loadedOverview();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("Pocket name"),
+      "Private draft",
+    );
+    await act(async () => useAuthStore.getState().setUser(user(2)));
+    expect(screen.queryByLabelText("Pocket name")).toBeNull();
+    expect(createPocketCollection).not.toHaveBeenCalled();
   });
 });

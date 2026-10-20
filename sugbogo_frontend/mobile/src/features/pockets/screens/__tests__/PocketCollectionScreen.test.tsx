@@ -24,6 +24,8 @@ import type {
 import {
   getPocketCollection,
   getPocketCollectionBusinesses,
+  deletePocketCollection,
+  removePocketCollectionBusiness,
 } from "../../api/pockets.service";
 import type { PocketCollection } from "../../types/pockets.types";
 import PocketCollectionScreen from "../PocketCollectionScreen";
@@ -31,7 +33,51 @@ import PocketCollectionScreen from "../PocketCollectionScreen";
 jest.mock("../../api/pockets.service", () => ({
   getPocketCollection: jest.fn(),
   getPocketCollectionBusinesses: jest.fn(),
+  deletePocketCollection: jest.fn(),
+  removePocketCollectionBusiness: jest.fn(),
 }));
+jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
+jest.mock("@/shared/components/modals/ConfirmModal", () => {
+  const { View, Text, Pressable } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return function Confirmation(
+    props: Parameters<
+      typeof import("@/shared/components/modals/ConfirmModal").default
+    >[0],
+  ) {
+    if (!props.visible) return null;
+    return (
+      <View>
+        <Text>{props.title}</Text>
+        {props.message}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            props.confirmText === "Remove business"
+              ? "Confirm removal"
+              : "Confirm deletion"
+          }
+          disabled={props.isLoading}
+          onPress={props.onConfirm}
+        >
+          <Text>{props.confirmText}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            props.confirmText === "Remove business"
+              ? "Cancel removal"
+              : "Cancel deletion"
+          }
+          disabled={props.isLoading}
+          onPress={props.onCancel}
+        >
+          <Text>Cancel</Text>
+        </Pressable>
+      </View>
+    );
+  };
+});
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("@/shared/components/Skeleton", () => () => null);
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
@@ -156,13 +202,32 @@ describe("PocketCollectionScreen", () => {
       .mockReset()
       .mockResolvedValue(page());
     jest.mocked(router.canGoBack).mockReturnValue(true);
+    jest
+      .mocked(deletePocketCollection)
+      .mockReset()
+      .mockResolvedValue({
+        success: true,
+        message: "Deleted.",
+        data: { id: 30 },
+      });
+    jest
+      .mocked(removePocketCollectionBusiness)
+      .mockReset()
+      .mockResolvedValue({
+        success: true,
+        message: "Removed.",
+        data: { business_id: 81, pocket_ids: [30], is_pocketed: true },
+      });
     useAuthStore.setState({
       user: user(1),
       isAuthenticated: true,
       isLoading: false,
     });
     client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { gcTime: Infinity },
+      },
     });
   });
   afterEach(async () => {
@@ -236,7 +301,7 @@ describe("PocketCollectionScreen", () => {
     expect(screen.queryByPlaceholderText(/search/i)).toBeNull();
     expect(
       screen.queryByRole("button", {
-        name: /^(create|rename|delete|remove|filter|sort)/i,
+        name: /^(create|rename|delete|filter|sort)/i,
       }),
     ).toBeNull();
   });
@@ -560,5 +625,84 @@ describe("PocketCollectionScreen", () => {
     expect(getPocketCollectionBusinesses).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByRole("button", { name: "Go back" }));
     expect(router.back).toHaveBeenCalled();
+  });
+
+  it("returns to the overview after deleting the currently open custom Pocket", async () => {
+    jest.mocked(getPocketCollection).mockResolvedValue(metadata(30));
+    const screen = await render(<PocketCollectionScreen collectionId={30} />, {
+      wrapper: Wrapper,
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Delete Pocket" }),
+      ).toBeTruthy(),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Delete Pocket" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Confirm deletion" }),
+    );
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith(
+        "/(explorer)/profile/my-pockets",
+      ),
+    );
+    expect(deletePocketCollection).toHaveBeenCalledWith(30);
+    expect(getPocketCollection).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes one business from Favorites and refreshes its server count and contents", async () => {
+    jest
+      .mocked(removePocketCollectionBusiness)
+      .mockImplementationOnce(async () => {
+        jest.mocked(getPocketCollection).mockResolvedValue(metadata(20, 1));
+        jest.mocked(getPocketCollectionBusinesses).mockResolvedValue(page([7]));
+        return {
+          success: true,
+          message: "Removed.",
+          data: { business_id: 81, pocket_ids: [30], is_pocketed: true },
+        };
+      });
+    const screen = await loaded();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Remove Business 81 from Favorites" }),
+    );
+    expect(screen.getByText("Business 81")).toBeTruthy();
+    expect(removePocketCollectionBusiness).not.toHaveBeenCalled();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Confirm removal" }),
+    );
+    await waitFor(() => expect(screen.queryByText("Business 81")).toBeNull());
+    expect(screen.getByText("Business 7")).toBeTruthy();
+    expect(screen.getByText("1 business")).toBeTruthy();
+    expect(removePocketCollectionBusiness).toHaveBeenCalledWith(20, 81);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Business 7 business profile" }),
+    );
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/(explorer)/business/[businessId]",
+      params: { businessId: "7" },
+    });
+  });
+
+  it("keeps a failed individual removal visible without changing loaded cards", async () => {
+    jest.mocked(removePocketCollectionBusiness).mockResolvedValueOnce(apiError);
+    const screen = await loaded();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Remove Business 81 from Favorites" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Confirm removal" }),
+    );
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByText("Business 81")).toBeTruthy();
+    expect(screen.getByText("Business 7")).toBeTruthy();
+    expect(screen.getByText("2 businesses")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Cancel removal" }),
+    );
+    expect(screen.queryByText("Remove this business?")).toBeNull();
+    expect(removePocketCollectionBusiness).toHaveBeenCalledTimes(1);
   });
 });

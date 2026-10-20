@@ -55,6 +55,13 @@ export function invalidatePocketBusinessCaches(client: QueryClient) {
   );
 }
 
+/** Collection deletion returns no business flags, so reload active business displays. */
+export function refreshPocketBusinessCaches(client: QueryClient) {
+  return Promise.all(
+    prefixes.map((queryKey) => client.invalidateQueries({ queryKey })),
+  );
+}
+
 /** Patches only existing saved flags; never inserts, removes, ranks, or changes counts. */
 export function updatePocketBusinessCaches(
   client: QueryClient,

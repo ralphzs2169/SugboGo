@@ -1,6 +1,6 @@
 import { type Href, router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import {
   SafeAreaView,
@@ -10,7 +10,9 @@ import {
 import { theme } from "@/constants/theme";
 import PocketCollectionCard from "@/features/pockets/components/PocketCollectionCard";
 import PocketCollectionsSkeleton from "@/features/pockets/components/PocketCollectionsSkeleton";
+import PocketNameDialog from "@/features/pockets/components/PocketNameDialog";
 import usePocketCollections from "@/features/pockets/hooks/usePocketCollections";
+import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
@@ -32,6 +34,14 @@ export default function MyPocketsScreen() {
   const pockets = usePocketCollections();
   const insets = useSafeAreaInsets();
   const requests = useRef({ armed: false, paging: false, refreshing: false });
+  const [creatingFor, setCreatingFor] = useState<{
+    ownerId: number;
+    generation: number;
+  } | null>(null);
+  const showCreation =
+    pockets.isEnabled &&
+    creatingFor?.ownerId === pockets.userId &&
+    creatingFor?.generation === getAuthSessionGeneration();
 
   useEffect(() => {
     // Old requests keep their own guard object when the account changes.
@@ -119,6 +129,23 @@ export default function MyPocketsScreen() {
           paddingBottom: insets.bottom + 24,
           flexGrow: 1,
         }}
+        ListHeaderComponent={
+          pockets.isEnabled ? (
+            <View className="mb-4">
+              <Button
+                title="Create Pocket"
+                variant="outline"
+                onPress={() => {
+                  if (pockets.userId !== null)
+                    setCreatingFor({
+                      ownerId: pockets.userId,
+                      generation: getAuthSessionGeneration(),
+                    });
+                }}
+              />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           initialLoading ? (
             <PocketCollectionsSkeleton />
@@ -215,6 +242,13 @@ export default function MyPocketsScreen() {
           />
         }
       />
+      {showCreation && (
+        <PocketNameDialog
+          key={`${creatingFor.ownerId}:${creatingFor.generation}`}
+          onCancel={() => setCreatingFor(null)}
+          onSuccess={() => setCreatingFor(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }

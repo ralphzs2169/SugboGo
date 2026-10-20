@@ -1,6 +1,6 @@
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import {
   SafeAreaView,
@@ -9,6 +9,7 @@ import {
 
 import { theme } from "@/constants/theme";
 import CompactBusinessListSkeleton from "@/features/explore/components/CompactBusinessListSkeleton";
+import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import BusinessCard from "../components/PocketBusinessCard";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
@@ -18,6 +19,8 @@ import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
 import PocketCollectionCard from "../components/PocketCollectionCard";
+import PocketCollectionActions from "../components/PocketCollectionActions";
+import PocketBusinessRemovalConfirmation from "../components/PocketBusinessRemovalConfirmation";
 import usePocketCollection from "../hooks/usePocketCollection";
 import usePocketCollectionBusinesses from "../hooks/usePocketCollectionBusinesses";
 
@@ -25,13 +28,19 @@ type Props = { collectionId: number | null };
 
 /**
  * Displays private Pocket metadata and available saved businesses in backend order.
- * Keeps loaded content during refresh and pagination failures without membership actions.
+ * Keeps loaded content during refresh and pagination failures.
  */
 export default function PocketCollectionScreen({ collectionId }: Props) {
   const metadata = usePocketCollection(collectionId);
   const contents = usePocketCollectionBusinesses(collectionId);
   const insets = useSafeAreaInsets();
   const requests = useRef({ armed: false, paging: false, refreshing: false });
+  const [removing, setRemoving] = useState<{
+    collectionId: number;
+    business: { id: number; business_name: string };
+    ownerId: number;
+    generation: number;
+  } | null>(null);
   const isValidId =
     typeof collectionId === "number" &&
     Number.isSafeInteger(collectionId) &&
@@ -211,6 +220,13 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
           canShowContents && metadata.collection ? (
             <View className="mb-4">
               <PocketCollectionCard collection={metadata.collection} />
+              <PocketCollectionActions
+                key={`${metadata.userId}:${metadata.collection.id}`}
+                collection={metadata.collection}
+                onDeleted={() =>
+                  router.replace("/(explorer)/profile/my-pockets")
+                }
+              />
               {metadata.error && (
                 <View className="-mx-4 mt-3">
                   <ErrorState
@@ -238,6 +254,22 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                   params: { businessId: String(item.id) },
                 })
               }
+            />
+            <Button
+              title="Remove from Pocket"
+              accessibilityLabel={`Remove ${item.business_name} from ${metadata.collection?.name}`}
+              variant="outline"
+              className="mt-2 min-h-12"
+              onPress={() => {
+                if (!canShowContents || metadata.userId === null || !isValidId)
+                  return;
+                setRemoving({
+                  collectionId,
+                  business: item,
+                  ownerId: metadata.userId,
+                  generation: getAuthSessionGeneration(),
+                });
+              }}
             />
           </View>
         )}
@@ -298,6 +330,17 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
           />
         }
       />
+      {canShowContents &&
+        removing &&
+        removing.collectionId === collectionId &&
+        removing.ownerId === metadata.userId &&
+        removing.generation === getAuthSessionGeneration() && (
+          <PocketBusinessRemovalConfirmation
+            key={`${removing.ownerId}:${removing.generation}:${removing.collectionId}:${removing.business.id}`}
+            {...removing}
+            onClose={() => setRemoving(null)}
+          />
+        )}
     </SafeAreaView>
   );
 }

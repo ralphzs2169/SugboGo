@@ -19,11 +19,21 @@ import {
   getPocketCollectionBusinesses,
   getPocketCollections,
   replaceBusinessPocketMemberships,
+  createPocketCollection,
+  renamePocketCollection,
+  deletePocketCollection,
+  removePocketCollectionBusiness,
 } from "../pockets.service";
 
 jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,
-  default: { get: jest.fn(), put: jest.fn() },
+  default: {
+    get: jest.fn(),
+    put: jest.fn(),
+    post: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+  },
 }));
 
 const emptyResponse: ApiSuccessWithData<PocketCollectionListResponse> = {
@@ -41,6 +51,90 @@ const emptyResponse: ApiSuccessWithData<PocketCollectionListResponse> = {
     },
   },
 };
+
+describe("Pocket collection management transport", () => {
+  const collection: PocketCollection = {
+    id: 30,
+    name: "Coffee",
+    is_default: false,
+    business_count: 0,
+    created_at: "2026-10-20T00:00:00Z",
+    updated_at: "2026-10-20T00:00:00Z",
+  };
+  const calls = [
+    {
+      method: "post" as const,
+      path: "/explorer/explore/pockets/",
+      args: [{ name: " Coffee " }],
+      run: () => createPocketCollection(" Coffee "),
+      data: collection,
+    },
+    {
+      method: "patch" as const,
+      path: "/explorer/explore/pockets/30/",
+      args: [{ name: "Coffee" }],
+      run: () => renamePocketCollection(30, "Coffee"),
+      data: collection,
+    },
+    {
+      method: "delete" as const,
+      path: "/explorer/explore/pockets/30/",
+      args: [],
+      run: () => deletePocketCollection(30),
+      data: { id: 30 },
+    },
+    {
+      method: "delete" as const,
+      path: "/explorer/explore/pockets/30/businesses/42/",
+      args: [],
+      run: () => removePocketCollectionBusiness(30, 42),
+      data: { business_id: 42, pocket_ids: [20], is_pocketed: true },
+    },
+  ];
+  beforeEach(() => {
+    jest.mocked(apiClient.post).mockReset();
+    jest.mocked(apiClient.patch).mockReset();
+    jest.mocked(apiClient.delete).mockReset();
+  });
+  it.each(calls)(
+    "uses $method $path and preserves the response",
+    async ({ method, path, args, run, data }) => {
+      const response = { success: true, message: "Success.", data };
+      jest.mocked(apiClient[method]).mockResolvedValue({ data: response });
+      await expect(run()).resolves.toEqual(response);
+      expect(apiClient[method]).toHaveBeenCalledWith(path, ...args);
+    },
+  );
+  it.each([400, 401, 403, 404, 429])(
+    "preserves structured HTTP %s errors for every management action",
+    async (status) => {
+      const response = {
+        success: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid Pocket.",
+        errors: { name: ["You already have a Pocket with this name."] },
+      };
+      for (const { method, run } of calls) {
+        jest.mocked(apiClient[method]).mockRejectedValue({
+          isAxiosError: true,
+          response: { status, data: response },
+        });
+        await expect(run()).resolves.toEqual(response);
+      }
+    },
+  );
+  it("normalizes transport failures without adding fallback metadata", async () => {
+    const error = new Error("Offline");
+    error.name = API_ERROR_CODE.NETWORK_ERROR;
+    for (const { method, run } of calls) {
+      jest.mocked(apiClient[method]).mockRejectedValue(error);
+      await expect(run()).resolves.toMatchObject({
+        success: false,
+        code: API_ERROR_CODE.NETWORK_ERROR,
+      });
+    }
+  });
+});
 
 describe("Pocket collection list transport", () => {
   beforeEach(() => {
