@@ -156,6 +156,7 @@ PASSWORD_RESET_URL = os.getenv(
 # Email verification / password reset token lifetime (24 hours)
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
 EMAIL_CHANGE_TIMEOUT_SECONDS = 30 * 60
+LOGIN_HISTORY_RETENTION_DAYS = 90
 
 # Cloudinary Configuration
 cloudinary.config(
@@ -405,6 +406,10 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
+    "daily-login-history-pruning": {
+        "task": "apps.authentication.tasks.prune_login_history",
+        "schedule": crontab(minute=0, hour=4),
+    },
     "recover-review-media-cleanup": {
         "task": "apps.reviews.tasks.recover_review_media_cleanup",
         "schedule": crontab(minute="*/5"),
