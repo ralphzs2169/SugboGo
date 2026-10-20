@@ -685,6 +685,64 @@ class VisibilityEventService:
         return rows
 
     @classmethod
+    def get_recent_save_days(
+        cls,
+        *,
+        business_id,
+        as_of,
+        limit,
+    ):
+        """Return anonymous daily distinct-saver counts from recorded events only."""
+        if (
+            type(limit) is not int
+            or limit < 1
+            or limit > 5
+            or not isinstance(as_of, datetime)
+            or timezone.is_naive(as_of)
+        ):
+            raise ValidationError("Use an aware cutoff and a limit from one to five.")
+        match = cls._analytics_match([business_id], VisibilityEventType.SAVE)
+        match["occurred_at"] = {"$lte": as_of.astimezone(UTC)}
+        match["explorer_id"] = {"$type": "number", "$gt": 0}
+        day = {
+            "$dateToString": {
+                "date": "$occurred_at",
+                "format": "%Y-%m-%d",
+                "timezone": "Asia/Manila",
+            },
+        }
+        rows = cls._read_analytics([
+            {"$match": match},
+            {
+                "$group": {
+                    "_id": {"date": day, "explorer": "$explorer_id"},
+                    "occurred_at": {"$max": "$occurred_at"},
+                },
+            },
+            {
+                "$group": {
+                    "_id": "$_id.date",
+                    "count": {"$sum": 1},
+                    "occurred_at": {"$max": "$occurred_at"},
+                },
+            },
+            {"$sort": {"occurred_at": -1, "_id": -1}},
+            {"$limit": limit},
+        ])
+        result = []
+        for row in rows:
+            occurred_at = row["occurred_at"]
+            # PyMongo may decode UTC storage as a naive datetime.
+            if timezone.is_naive(occurred_at):
+                occurred_at = occurred_at.replace(tzinfo=UTC)
+            result.append({
+                "date": row["_id"],
+                "count": row["count"],
+                "occurred_at": occurred_at,
+            })
+        return result
+
+    @classmethod
     def get_profile_visit_timing(cls, *, business_ids, start_time, end_time):
         """Count scoped recorded profile visits by ISO weekday and hour in Manila time."""
         if business_ids is None:

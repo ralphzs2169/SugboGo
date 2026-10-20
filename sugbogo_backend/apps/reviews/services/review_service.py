@@ -179,6 +179,9 @@ class ReviewService:
     @staticmethod
     def _apply_published_effects(review: Review) -> None:
         """Apply owner notification, count, reputation, and sentiment publication effects."""
+        if review.REVW_PUBLISHED_AT is None:
+            review.REVW_PUBLISHED_AT = timezone.now()
+            review.save(update_fields=["REVW_PUBLISHED_AT"])
         NotificationEventService.business_review_received(review)
         Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
             BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,

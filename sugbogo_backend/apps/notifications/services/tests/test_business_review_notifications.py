@@ -86,6 +86,7 @@ class BusinessReviewNotificationTests(BusinessReviewNotificationFixtures, TestCa
                 text="Friendly staff and a welcoming place to visit.",
             )
         notification = Notification.objects.get()
+        self.assertIsNotNone(review.REVW_PUBLISHED_AT)
         self.assertEqual(notification.USER_ID_id, self.other.pk)
         self.assertEqual(notification.NOTF_TYPE, "business_review_received")
         self.assertEqual(notification.NOTF_TITLE, "New review received")
@@ -104,10 +105,14 @@ class BusinessReviewNotificationTests(BusinessReviewNotificationFixtures, TestCa
         self.assertFalse(Notification.objects.exists())
         ReviewService.publish_under_review(review.pk)
         review.refresh_from_db()
+        self.assertIsNotNone(review.REVW_PUBLISHED_AT)
+        published_at = review.REVW_PUBLISHED_AT
         NotificationEventService.business_review_received(review)
         self.assertEqual(Notification.objects.count(), 1)
         with self.assertRaises(ValidationError):
             ReviewService.publish_under_review(review.pk)
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_PUBLISHED_AT, published_at)
         self.assertEqual(Notification.objects.count(), 1)
 
     def test_rejected_review_does_not_notify_owner(self):

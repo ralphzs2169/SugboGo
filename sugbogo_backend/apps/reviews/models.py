@@ -181,6 +181,11 @@ class Review(models.Model):
         auto_now_add=True,
     )
 
+    REVW_PUBLISHED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     REVW_UPDATED_AT = models.DateTimeField(
         auto_now=True,
     )
