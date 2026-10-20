@@ -16,6 +16,8 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
 import AnalyticsActivityOverview from "../../components/analytics/AnalyticsActivityOverview";
+// Temporarily disconnected until PDF export's native dependencies are installed.
+// import AnalyticsExport from "../../components/analytics/AnalyticsExport";
 import AnalyticsHeaderControls from "../../components/analytics/AnalyticsHeaderControls";
 import AnalyticsMeasurementSheet from "../../components/analytics/AnalyitcsMeasurementSheet";
 import AnalyticsReviewSummaryPreview from "../../components/analytics/AnalyticsReviewSummaryPreview";
@@ -345,7 +347,13 @@ export default function MerchantAnalyticsScreen() {
             : null
         }
         compact
-        rightAccessory={<NotificationBellButton />}
+        rightAccessory={
+          <View className="flex-row items-center">
+            {/* Re-enable alongside the import after installing native export dependencies. */}
+            {/* <AnalyticsExport enabled={focused} /> */}
+            <NotificationBellButton />
+          </View>
+        }
       />
 
       {/* Scrollable analytics content */}

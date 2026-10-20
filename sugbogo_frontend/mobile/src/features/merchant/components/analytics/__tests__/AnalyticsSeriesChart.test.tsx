@@ -11,7 +11,7 @@ const point = (date: string, value: number, days = 1) => ({
 
 describe("AnalyticsSeriesChart calendar columns", () => {
   it.each([1, 2])(
-    "shows %i observations directly without an empty-state canvas",
+    "preserves %i exact observations below the insufficient-data card",
     async (count) => {
       const screen = await render(
         <AnalyticsSeriesChart
@@ -28,7 +28,7 @@ describe("AnalyticsSeriesChart calendar columns", () => {
         expect(screen.getByLabelText("Visits, Oct 3: 7")).toBeTruthy();
       }
       expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
-      expect(screen.queryByTestId("analytics-chart-empty-state")).toBeNull();
+      expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
       expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
     },
   );
@@ -282,41 +282,44 @@ describe("AnalyticsSeriesChart calendar columns", () => {
     ).toBeTruthy();
   });
 
-  it("keeps sparse and zero states when the line presentation is requested", async () => {
-    const screen = await render(
-      <AnalyticsSeriesChart
-        points={[point("2026-10-01", 2)]}
-        interval="daily"
-        label="Saves"
-        variant="line"
-        total={2}
-      />,
-    );
-    expect(screen.getByLabelText("Saves, Oct 1: 2")).toBeTruthy();
-    expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
-    expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
-    await screen.rerender(
-      <AnalyticsSeriesChart
-        points={[]}
-        interval="daily"
-        label="Saves"
-        variant="line"
-        total={0}
-      />,
-    );
-    expect(
-      screen.getByText("No recorded activity in this period"),
-    ).toBeTruthy();
-    await screen.rerender(
-      <AnalyticsSeriesChart
-        points={[]}
-        interval="daily"
-        label="Saves"
-        variant="line"
-        total={null}
-      />,
-    );
-    expect(screen.getByText("Dated counts are unavailable")).toBeTruthy();
-  });
+  it.each(["bar", "line"] as const)(
+    "keeps sparse and zero states for %s charts",
+    async (variant) => {
+      const screen = await render(
+        <AnalyticsSeriesChart
+          points={[point("2026-10-01", 2)]}
+          interval="daily"
+          label="Saves"
+          variant={variant}
+          total={2}
+        />,
+      );
+      expect(screen.getByLabelText("Saves, Oct 1: 2")).toBeTruthy();
+      expect(screen.getByText("Not enough data for a trend yet")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+      expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
+      await screen.rerender(
+        <AnalyticsSeriesChart
+          points={[]}
+          interval="daily"
+          label="Saves"
+          variant={variant}
+          total={0}
+        />,
+      );
+      expect(
+        screen.getByText("No recorded activity in this period"),
+      ).toBeTruthy();
+      await screen.rerender(
+        <AnalyticsSeriesChart
+          points={[]}
+          interval="daily"
+          label="Saves"
+          variant={variant}
+          total={null}
+        />,
+      );
+      expect(screen.getByText("Dated counts are unavailable")).toBeTruthy();
+    },
+  );
 });

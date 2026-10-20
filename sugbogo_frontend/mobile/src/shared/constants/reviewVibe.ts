@@ -4,10 +4,10 @@ import colors from "tailwindcss/colors";
 /** Explicit native colors keep semantic badge colors reliable through text wrappers. */
 export const REVIEW_VIBE_COLORS = {
   mostly_positive: {
-    background: colors.green[50],
-    foreground: colors.green[800],
+    background: "#16A34A1A",
+    foreground: colors.green[700],
     dot: colors.green[700],
-    border: colors.green[300],
+    border: "#16A34A40",
   },
   mostly_neutral: {
     background: colors.slate[100],
@@ -44,7 +44,7 @@ export const OVERALL_REVIEW_VIBE_STYLES = {
   mostly_positive: {
     containerClassName: "bg-success/10",
     dotClassName: "bg-green-700",
-    textClassName: "text-green-800",
+    textClassName: "text-green-700",
   },
   mostly_neutral: {
     containerClassName: "bg-slate-100",

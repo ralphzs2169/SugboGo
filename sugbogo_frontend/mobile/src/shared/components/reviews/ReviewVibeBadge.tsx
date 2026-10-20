@@ -32,13 +32,13 @@ export default function ReviewVibeBadge({
     >
       <View
         accessible={false}
-        className="mr-2 shrink-0 rounded-full"
-        style={{ width: 7, height: 7, backgroundColor: colors.dot }}
+        className="mr-1.5 shrink-0 rounded-full"
+        style={{ width: 6, height: 6, backgroundColor: colors.dot }}
       />
       <AppText
-        weight="semibold"
-        className={`min-w-0 shrink text-xs ${style.textClassName}`}
-        style={{ color: colors.foreground }}
+        weight="medium"
+        className={`min-w-0 shrink text-xs leading-4 ${style.textClassName}`}
+        style={{ color: colors.foreground, includeFontPadding: false }}
       >
         {OVERALL_REVIEW_VIBE_LABELS[vibe]}
       </AppText>

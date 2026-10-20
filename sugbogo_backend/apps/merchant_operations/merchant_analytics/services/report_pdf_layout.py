@@ -115,6 +115,10 @@ class MerchantReportLayout:
         """Render authoritative comparisons without deriving missing growth from totals."""
         if value["value"] is None:
             return self.reason(value.get("reason"))
+        if value["unit"] == "count":
+            if value["value"] == 0:
+                return "No change"
+            return f"{value['value']:+d} vs previous period"
         unit = "percentage points" if value["unit"] == "percentage_points" else "%"
         return f"{value['value']:+.2f} {unit} ({str(value.get('direction') or '').replace('_', ' ')})"
 
@@ -136,6 +140,7 @@ class MerchantReportLayout:
             ("Unique profile visitors", self.number(standard["distinct_profile_visitors"])),
             ("Pocket save events", self.number(standard["saves_in_period"])),
             ("New published reviews", self.number(standard["reviews"]["new_published_in_period"])),
+            ("Vouches added - still valid today", self.number(standard.get("vouches_added_and_still_valid"))),
         ], [330, 177])
         self.table(["At the time this report was prepared", "Current total"], [
             ("People keeping your business in their Pocket", self.number(standard["current_pocket_holders"])),
@@ -144,6 +149,15 @@ class MerchantReportLayout:
         ], [330, 177])
         self.story.append(self.p("These are recorded observations. Tracking may be incomplete. A zero means no recorded activity; 'Not available' means the result could not be provided.", self.small))
         self.story.append(self.p(self.source(standard["meta"]), self.small))
+        specialties = report["results"]["premium"]["specialties"]
+        if "vouches_added_change" in specialties:
+            self.story.append(self.p(
+                "Retained vouch additions: "
+                + self.change(specialties["vouches_added_change"])
+                + ". Both periods count surviving valid vouches on currently active specialties. "
+                "Removal or invalidation can revise these counts; this is not net growth.",
+                self.small,
+            ))
         self.section("What needs your attention")
         actions = report["recommended_actions"]
         for index, item in enumerate(actions, 1):
@@ -279,6 +293,116 @@ class MerchantReportLayout:
             if metric["reason"]:
                 self.story.append(self.p(f"{self.LABELS.get(key, metric['label'])}: {self.reason(metric['reason'])}", self.small))
 
+    def additional_activity(
+        self,
+        sections,
+    ):
+        """Present source, route and timing observations without inferring visits or growth."""
+        sources = sections["discovery_sources"]
+        self.section("Where profile visits came from", new_page=True)
+        self.story.append(self.p(self.source(sources["meta"]), self.small))
+        self.story.append(self.p(
+            "App-reported first successfully recorded source per account, business and UTC day. "
+            "Unknown attribution is retained. These are online openings, not purchases or physical visits.",
+            self.small,
+        ))
+        if sources["sources"] is None:
+            self.story.append(self.p("Visit-source data is not available; missing counts are not zero."))
+        else:
+            self.table(
+                ["Profile-opening source", "Recorded visits"],
+                [
+                    (row["label"], self.number(row["count"]))
+                    for row in sources["sources"]
+                ],
+            )
+
+        routes = sections["route_planning"]
+        self.section("Route-planning activity")
+        self.story.append(self.p(self.source(routes["meta"]), self.small))
+        self.table(
+            ["Measure", "Recorded result"],
+            [
+                ("Direction requests", self.number(routes["total_requests"])),
+                ("Distinct explorer accounts", self.number(routes["distinct_explorer_accounts"])),
+                ("Road Route requests", self.number(routes["road_route_requests"])),
+                ("Jeepney guidance requests", self.number(routes["jeepney_requests"])),
+            ],
+        )
+        self.story.append(self.p(
+            "Requests indicate interest in directions, not confirmed journeys or arrivals. "
+            "Each account can contribute once per business, method and UTC day. "
+            "Delivery is best effort; activity before tracking began is unavailable. "
+            f"Tracking started: {self.date(routes['tracking_started_at'], True)}.",
+            self.small,
+        ))
+
+        self.reply_backlog(sections["unanswered_reviews"])
+        timing = sections["profile_timing"]
+        self.section("Recorded profile-visit timing", new_page=True)
+        self.story.append(self.p(self.source(timing["sources"]["visibility"]), self.small))
+        self.story.append(self.p(timing["measurement_note"], self.small))
+        self.story.append(self.p(
+            "Manila time. Values pool the same weekday/hour across selected dates. "
+            "Brackets show selected calendar occurrences, not verified coverage; "
+            "* marks an included partial hour. Counts are not adjusted for unequal exposure. "
+            "Outside means the slot is outside the selected period. "
+            "These records do not establish busiest hours or recommended opening hours.",
+            self.small,
+        ))
+        cells = {
+            (cell["weekday"], cell["hour"]): cell
+            for cell in timing["cells"]
+        }
+        rows = []
+        for hour in timing["hours"]:
+            row = [f"{hour:02d}:00"]
+            for weekday in timing["weekdays"]:
+                cell = cells[(weekday["weekday"], hour)]
+                if cell["state"] == "outside_period":
+                    label = "Outside"
+                else:
+                    label = (
+                        f"{self.number(cell['profile_visits'])} "
+                        f"[{cell['period_occurrences']}]"
+                    )
+                if cell["includes_partial_hour"]:
+                    label += "*"
+                row.append(label)
+            rows.append(row)
+        self.table(
+            ["Hour"] + [day["label"][:3] for day in timing["weekdays"]],
+            rows,
+            [52] + [65] * 7,
+        )
+
+    def reply_backlog(
+        self,
+        backlog,
+    ):
+        """Keep actionable review ages separate from period cohorts and timestamp anomalies."""
+        self.section("Reviews needing replies - current age distribution")
+        self.story.append(self.p(
+            "Current actionable published-review backlog, independent of selected dates. "
+            f"Snapshot: {self.date(backlog['snapshot_as_of'], True)}.",
+            self.small,
+        ))
+        self.table(
+            ["Waiting since review creation", "Reviews"],
+            [
+                ("Under 72 hours", self.number(backlog["under_3_days"])),
+                ("72 hours to under 7 days", self.number(backlog["days_3_to_6"])),
+                ("7 days or longer", self.number(backlog["days_7_plus"])),
+                ("Total actionable unanswered", self.number(backlog["total_unanswered"])),
+            ],
+        )
+        self.story.append(self.p(
+            "Reviews with any retained reply are excluded from this actionable backlog, "
+            "including replies with unusable timestamps. This can differ from the "
+            "qualifying-reply backlog in Review performance.",
+            self.small,
+        ))
+
     def notes(self, report, metadata_refs):
         """Keep evidence caveats and deduplicated source windows behind the merchant results."""
         self.section("How to read this report", new_page=True)
@@ -324,5 +448,7 @@ class MerchantReportLayout:
         self.activity(report["results"]["premium"])
         self.reviews(report["results"]["premium"])
         self.support_and_peers(report)
+        if "export_sections" in report:
+            self.additional_activity(report["export_sections"])
         self.notes(report, metadata_refs)
         return self.story

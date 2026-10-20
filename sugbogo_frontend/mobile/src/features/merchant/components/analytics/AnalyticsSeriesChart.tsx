@@ -236,16 +236,10 @@ export default function AnalyticsSeriesChart({
   if (compact) {
     return (
       <View className="gap-2">
-        {variant === "line" ? (
-          <AnalyticsChartEmptyState
-            title="Not enough data for a trend yet"
-            description="More recorded dates are needed."
-          />
-        ) : (
-          <AppText weight="semibold" className="text-sm text-text-primary">
-            Recorded counts
-          </AppText>
-        )}
+        <AnalyticsChartEmptyState
+          title="Not enough data for a trend yet"
+          description="Available counts are shown below. More recorded dates are needed to show a trend."
+        />
 
         {observed.map(renderValue)}
 

@@ -40,6 +40,7 @@ type MetricCardProps = {
   label: string;
   value: string;
   detail?: string;
+  accessibilityDetail?: string;
   unavailable?: boolean;
   stacked: boolean;
   trend?: KpiTrend;
@@ -58,6 +59,7 @@ function MetricCard({
   label,
   value,
   detail,
+  accessibilityDetail,
   unavailable,
   stacked,
   trend,
@@ -74,7 +76,7 @@ function MetricCard({
 
   const accessibilityDescription = [
     `${label}: ${loading ? "Loading" : unavailable ? "Unavailable" : value}`,
-    detail,
+    accessibilityDetail ?? detail,
     trend ? describeKpiTrend(trend) : null,
   ]
     .filter(Boolean)
@@ -254,7 +256,7 @@ export default function AnalyticsActivityOverview({
             label="Vouches added"
             value={formatAnalyticsCount(vouches)}
             unavailable={vouches === null}
-            detail="Still valid today"
+            accessibilityDetail="Still valid today"
             trend={vouchCountTrend(report, plusSpecialties)}
           />
         </View>
@@ -317,7 +319,7 @@ export function AnalyticsActivitySkeleton() {
             icon="thumb-up-outline"
             label="Vouches added"
             value=""
-            detail="Still valid today"
+            accessibilityDetail="Still valid today"
             stacked={stacked}
             loading
           />

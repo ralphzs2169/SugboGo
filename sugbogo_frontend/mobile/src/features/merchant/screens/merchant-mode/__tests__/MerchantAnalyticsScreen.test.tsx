@@ -29,6 +29,10 @@ import {
   merchantPlusStatusKey,
 } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
+jest.mock("../../../components/analytics/AnalyticsExport", () => ({
+  __esModule: true,
+  default: () => null,
+}));
 jest.mock("@gorhom/bottom-sheet", () =>
   jest.requireActual("../../../__tests__/analyticsSheet.mock").analyticsSheetMock(),
 );

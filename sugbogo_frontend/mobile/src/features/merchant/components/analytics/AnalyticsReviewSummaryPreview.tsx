@@ -44,6 +44,25 @@ export default function AnalyticsReviewSummaryPreview({
     <AnalyticsOverviewSection
       title="Review summary"
       description="What customers mention in their reviews"
+      accessory={
+        <SafePressable
+          accessibilityRole="button"
+          accessibilityLabel="View review insights"
+          accessibilityHint="Opens the complete stored summary, common mentions, and measurement details"
+          onPress={onOpen}
+          className="min-h-12 flex-row cursor-pointer items-center justify-center gap-1 active:opacity-70"
+        >
+          <AppText weight="semibold" className="text-sm text-brand">
+            View insights
+          </AppText>
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={20}
+            color={theme.extends.colors.brand}
+            accessible={false}
+          />
+        </SafePressable>
+      }
     >
       <View className="gap-4">
         {Boolean(error) && (
@@ -160,23 +179,6 @@ export default function AnalyticsReviewSummaryPreview({
             }
           />
         ) : null}
-        <SafePressable
-          accessibilityRole="button"
-          accessibilityLabel="Read review insights"
-          accessibilityHint="Opens the complete stored summary, common mentions, and measurement details"
-          onPress={onOpen}
-          className="min-h-11 cursor-pointer flex-row items-center gap-1 self-start active:opacity-70"
-        >
-          <AppText weight="semibold" className="text-sm text-brand">
-            Read review insights
-          </AppText>
-          <MaterialCommunityIcons
-            name="chevron-right"
-            size={20}
-            color={theme.extends.colors.brand}
-            accessible={false}
-          />
-        </SafePressable>
       </View>
     </AnalyticsOverviewSection>
   );
