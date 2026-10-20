@@ -16,7 +16,7 @@ function getUnavailableMessage(currentUser, user) {
     return "You cannot change the status of your own account.";
   }
 
-  if (!["active", "suspended"].includes(user.status)) {
+  if (!["active", "suspended", "disabled"].includes(user.status)) {
     return "This account state cannot be changed through the suspension workflow.";
   }
 
@@ -90,7 +90,7 @@ export default function UserAccountActions({ user }) {
               Suspend User
             </Button>
           </div>
-        ) : canManage && user.status === "suspended" ? (
+        ) : canManage && ["suspended", "disabled"].includes(user.status) ? (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-sm font-semibold text-text-primary">

@@ -1,4 +1,5 @@
 from django.test import TestCase
+from rest_framework.exceptions import PermissionDenied
 
 from apps.authentication.utils.jwt import issue_tokens
 from apps.users.models import User
@@ -17,6 +18,7 @@ class TokenServiceTests(TestCase):
             USER_LNAME="Doe",
             USER_ROLE=User.UserRole.EXPLORER,
             USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
         )
 
 
@@ -51,3 +53,22 @@ class TokenServiceTests(TestCase):
             refresh["user_id"],
             str(self.user.USER_ID),
         )
+
+    def test_token_issuance_rechecks_authoritative_account_eligibility(self):
+        for account_status, verified in [
+            (User.UserStatus.ACTIVE, False),
+            (User.UserStatus.DISABLED, True),
+            (User.UserStatus.SUSPENDED, True),
+        ]:
+            with self.subTest(status=account_status, verified=verified):
+                User.objects.filter(pk=self.user.pk).update(
+                    USER_STATUS=account_status,
+                    EMAIL_VERIFIED=verified,
+                )
+                with self.assertRaises(PermissionDenied):
+                    issue_tokens(self.user, False)
+
+    def test_token_issuance_rejects_a_deleted_account(self):
+        User.objects.filter(pk=self.user.pk).delete()
+        with self.assertRaises(PermissionDenied):
+            issue_tokens(self.user, False)

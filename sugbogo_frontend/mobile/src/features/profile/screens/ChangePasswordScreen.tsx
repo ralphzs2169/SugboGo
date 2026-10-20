@@ -118,7 +118,7 @@ export default function ChangePasswordScreen() {
   return (
     <SafeAreaView
       edges={["bottom", "left", "right"]}
-      className="flex-1 bg-background"
+      className="flex-1 bg-surface"
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}

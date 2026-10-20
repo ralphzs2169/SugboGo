@@ -66,6 +66,14 @@ export default function ProfileLayout() {
             title: "Password",
           }}
         />
+        <Stack.Screen
+          name="deactivate-account"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Deactivate Account",
+          }}
+        />
       </Stack>
     </>
   );
