@@ -30,6 +30,37 @@ import {
 import type { PocketCollection } from "../../types/pockets.types";
 import PocketCollectionScreen from "../PocketCollectionScreen";
 
+jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
+  presentBottomSheet: jest.fn(),
+}));
+jest.mock("@/shared/components/bottom-sheets/ActionBottomSheet", () => {
+  const { View, Text, Pressable } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return function Menu(
+    props: Parameters<
+      typeof import("@/shared/components/bottom-sheets/ActionBottomSheet").default
+    >[0],
+  ) {
+    return (
+      <View>
+        {props.options.map((option) => (
+          <Pressable
+            key={option.value}
+            accessibilityRole="button"
+            accessibilityLabel={option.label}
+            onPress={() => {
+              props.onSelect(option.value);
+              props.onDismiss?.();
+            }}
+          >
+            <Text>{option.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  };
+});
+
 jest.mock("../../api/pockets.service", () => ({
   getPocketCollection: jest.fn(),
   getPocketCollectionBusinesses: jest.fn(),
@@ -634,8 +665,11 @@ describe("PocketCollectionScreen", () => {
     });
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "Delete Pocket" }),
+        screen.getByRole("button", { name: "Manage Pocket 30 Pocket" }),
       ).toBeTruthy(),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Manage Pocket 30 Pocket" }),
     );
     await fireEvent.press(
       screen.getByRole("button", { name: "Delete Pocket" }),

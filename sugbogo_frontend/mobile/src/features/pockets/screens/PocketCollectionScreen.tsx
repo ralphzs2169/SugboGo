@@ -8,6 +8,7 @@ import {
 } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import CompactBusinessListSkeleton from "@/features/explore/components/CompactBusinessListSkeleton";
 import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import BusinessCard from "../components/PocketBusinessCard";
@@ -23,6 +24,7 @@ import PocketCollectionActions from "../components/PocketCollectionActions";
 import PocketBusinessRemovalConfirmation from "../components/PocketBusinessRemovalConfirmation";
 import usePocketCollection from "../hooks/usePocketCollection";
 import usePocketCollectionBusinesses from "../hooks/usePocketCollectionBusinesses";
+import type { PocketCollection } from "../types/pockets.types";
 
 type Props = { collectionId: number | null };
 
@@ -35,6 +37,11 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
   const contents = usePocketCollectionBusinesses(collectionId);
   const insets = useSafeAreaInsets();
   const requests = useRef({ armed: false, paging: false, refreshing: false });
+  const [managing, setManaging] = useState<{
+    collection: PocketCollection;
+    ownerId: number;
+    generation: number;
+  } | null>(null);
   const [removing, setRemoving] = useState<{
     collectionId: number;
     business: { id: number; business_name: string };
@@ -219,12 +226,24 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
         ListHeaderComponent={
           canShowContents && metadata.collection ? (
             <View className="mb-4">
-              <PocketCollectionCard collection={metadata.collection} />
-              <PocketCollectionActions
-                key={`${metadata.userId}:${metadata.collection.id}`}
+              <PocketCollectionCard
                 collection={metadata.collection}
-                onDeleted={() =>
-                  router.replace("/(explorer)/profile/my-pockets")
+                onManage={
+                  metadata.collection.is_default
+                    ? undefined
+                    : () => {
+                        if (
+                          !metadata.collection ||
+                          metadata.userId === null ||
+                          useAuthStore.getState().user?.id !== metadata.userId
+                        )
+                          return;
+                        setManaging({
+                          collection: metadata.collection,
+                          ownerId: metadata.userId,
+                          generation: getAuthSessionGeneration(),
+                        });
+                      }
                 }
               />
               {metadata.error && (
@@ -330,6 +349,18 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
           />
         }
       />
+      {canShowContents &&
+        managing &&
+        managing.ownerId === metadata.userId &&
+        managing.collection.id === collectionId &&
+        managing.generation === getAuthSessionGeneration() && (
+          <PocketCollectionActions
+            key={`${managing.ownerId}:${managing.generation}:${managing.collection.id}`}
+            collection={managing.collection}
+            onClose={() => setManaging(null)}
+            onDeleted={() => router.replace("/(explorer)/profile/my-pockets")}
+          />
+        )}
       {canShowContents &&
         removing &&
         removing.collectionId === collectionId &&

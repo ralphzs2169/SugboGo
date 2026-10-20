@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import type { PropsWithChildren } from "react";
+import { BackHandler } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -19,6 +20,38 @@ import {
 import { pocketCollectionQueryKey } from "../../hooks/pocketQueryKeys";
 import type { PocketCollection } from "../../types/pockets.types";
 import PocketCollectionActions from "../PocketCollectionActions";
+
+let mockMenuDismiss: (() => void) | undefined;
+jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
+  presentBottomSheet: (ref: { current: { dismiss: () => void } | null }) => {
+    ref.current = { dismiss: () => mockMenuDismiss?.() };
+  },
+}));
+jest.mock("@/shared/components/bottom-sheets/ActionBottomSheet", () => {
+  const { View, Text, Pressable } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return function Menu(
+    props: Parameters<
+      typeof import("@/shared/components/bottom-sheets/ActionBottomSheet").default
+    >[0],
+  ) {
+    mockMenuDismiss = props.onDismiss;
+    return (
+      <View>
+        {props.options.map((option) => (
+          <Pressable
+            key={option.value}
+            accessibilityRole="button"
+            accessibilityLabel={option.label}
+            onPress={() => props.onSelect(option.value)}
+          >
+            <Text>{option.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  };
+});
 
 jest.mock("../../api/pockets.service", () => ({
   deletePocketCollection: jest.fn(),
@@ -97,6 +130,7 @@ const failure = {
 describe("Pocket collection actions", () => {
   let client: QueryClient;
   const onDeleted = jest.fn();
+  const onClose = jest.fn();
   beforeEach(() => {
     beginAuthSession();
     useAuthStore.setState({ user, isAuthenticated: true, isLoading: false });
@@ -120,6 +154,7 @@ describe("Pocket collection actions", () => {
     await cleanup();
     client.clear();
     useAuthStore.setState(initialAuth);
+    jest.restoreAllMocks();
   });
   function Wrapper({ children }: PropsWithChildren) {
     return (
@@ -128,7 +163,11 @@ describe("Pocket collection actions", () => {
   }
   const actions = (value = collection) =>
     render(
-      <PocketCollectionActions collection={value} onDeleted={onDeleted} />,
+      <PocketCollectionActions
+        collection={value}
+        onDeleted={onDeleted}
+        onClose={onClose}
+      />,
       { wrapper: Wrapper },
     );
   it("offers no rename or delete controls for Favorites", async () => {
@@ -150,6 +189,12 @@ describe("Pocket collection actions", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Rename Pocket" }),
     );
+    expect(screen.queryByLabelText("Pocket name")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Delete Pocket" }),
+    );
+    await act(async () => mockMenuDismiss?.());
+    expect(screen.queryByText("Delete this Pocket?")).toBeNull();
     await fireEvent.changeText(
       screen.getByLabelText("Pocket name"),
       "New coffee",
@@ -175,6 +220,8 @@ describe("Pocket collection actions", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Delete Pocket" }),
     );
+    expect(screen.queryByText("Delete this Pocket?")).toBeNull();
+    await act(async () => mockMenuDismiss?.());
     expect(screen.getByText("Delete this Pocket?")).toBeTruthy();
     expect(deletePocketCollection).not.toHaveBeenCalled();
     await fireEvent.press(
@@ -189,6 +236,7 @@ describe("Pocket collection actions", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Delete Pocket" }),
     );
+    await act(async () => mockMenuDismiss?.());
     await fireEvent.press(
       screen.getByRole("button", { name: "Confirm deletion" }),
     );
@@ -212,6 +260,7 @@ describe("Pocket collection actions", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Delete Pocket" }),
     );
+    await act(async () => mockMenuDismiss?.());
     await fireEvent.press(
       screen.getByRole("button", { name: "Confirm deletion" }),
     );
@@ -237,6 +286,7 @@ describe("Pocket collection actions", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Delete Pocket" }),
     );
+    await act(async () => mockMenuDismiss?.());
     await fireEvent.press(
       screen.getByRole("button", { name: "Confirm deletion" }),
     );
@@ -250,5 +300,35 @@ describe("Pocket collection actions", () => {
     );
     expect(onDeleted).not.toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalled();
+  });
+  it("closes the menu on Android Back without writing or opening another overlay", async () => {
+    const back = jest.spyOn(BackHandler, "addEventListener");
+    const screen = await actions();
+    await act(async () => {
+      expect(
+        back.mock.calls.at(-1)?.[1]({
+          type: "hardwareBackPress",
+          timeStamp: Date.now(),
+        }),
+      ).toBe(true);
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(deletePocketCollection).not.toHaveBeenCalled();
+    expect(renamePocketCollection).not.toHaveBeenCalled();
+  });
+  it("does not open a queued edit after the opening account changes", async () => {
+    const screen = await actions();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Rename Pocket" }),
+    );
+    await act(async () => {
+      beginAuthSession();
+      useAuthStore.setState({ user: { ...user, id: 2 } });
+      mockMenuDismiss?.();
+    });
+    expect(screen.queryByLabelText("Pocket name")).toBeNull();
+    expect(renamePocketCollection).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

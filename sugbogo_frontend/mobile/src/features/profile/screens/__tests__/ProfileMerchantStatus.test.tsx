@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from "react";
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
+import { router } from "expo-router";
 
 import ErrorState from "@/shared/components/ErrorState";
 import MerchantPortalCard from "../../components/MerchantPortalCard";
@@ -91,6 +92,11 @@ describe("ProfileScreen merchant status", () => {
       hasResolvedStatus: true,
       refetch: mockRefetchApplicationStatus,
     };
+  });
+  it("opens the existing My Pockets profile route", async () => {
+    const screen = await render(<ProfileScreen />);
+    await fireEvent.press(screen.getByText("My Pockets"));
+    expect(router.push).toHaveBeenCalledWith("/profile/my-pockets");
   });
 
   it("shows merchant onboarding after a successful empty status", async () => {

@@ -254,10 +254,10 @@ export default function PocketPickerSheet({
             {/* Selection identity */}
             <View className="px-5 pb-3">
               <AppText weight="bold" className="text-lg text-text-primary">
-                Save to Pockets
+                Save to My Pockets
               </AppText>
               <AppText className="mt-1 text-body text-text-secondary">
-                Choose where to save this business.
+                Choose one or more collections for this business.
               </AppText>
             </View>
             {/* Paginated collection choices; the draft retains off-page memberships */}
@@ -272,10 +272,11 @@ export default function PocketPickerSheet({
               }}
               ListHeaderComponent={
                 <View>
-                  <Button
-                    title="Create Pocket"
-                    variant="outline"
-                    className="mb-3"
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Create Pocket"
+                    accessibilityState={{ disabled: !canSave }}
+                    className="mb-4 min-h-16 cursor-pointer flex-row items-center gap-3 rounded-card border border-dashed border-border-primary bg-surface p-4 active:opacity-80"
                     disabled={!canSave}
                     onPress={() => {
                       if (!canSave || submitting.current || !currentSession())
@@ -283,7 +284,30 @@ export default function PocketPickerSheet({
                       setDraftEdits(draft);
                       setCreating(true);
                     }}
-                  />
+                  >
+                    <View
+                      className="h-10 w-10 items-center justify-center rounded-card bg-brand/10"
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants"
+                    >
+                      <MaterialCommunityIcons
+                        name="plus"
+                        size={24}
+                        color={theme.extends.colors.brand}
+                      />
+                    </View>
+                    <View className="min-w-0 flex-1">
+                      <AppText
+                        weight="semibold"
+                        className="text-body text-text-primary"
+                      >
+                        Create Pocket
+                      </AppText>
+                      <AppText className="mt-1 text-small text-text-secondary">
+                        Start a new collection
+                      </AppText>
+                    </View>
+                  </Pressable>
                   {memberships.error && draft !== null ? (
                     <ErrorState
                       size="section"
@@ -301,21 +325,56 @@ export default function PocketPickerSheet({
                 <Pressable
                   accessibilityRole="checkbox"
                   accessibilityLabel={item.name}
+                  accessibilityValue={{
+                    text: `${item.business_count} available ${item.business_count === 1 ? "business" : "businesses"}`,
+                  }}
                   accessibilityState={{
                     checked: draft?.includes(item.id) ?? false,
                     disabled: mutation.isPending,
                   }}
                   disabled={mutation.isPending}
-                  className="mb-2 min-h-12 cursor-pointer flex-row items-center gap-3 rounded-card border border-border-primary bg-surface px-4 py-3 active:opacity-80"
+                  className={`mb-2 min-h-16 cursor-pointer flex-row items-center gap-3 rounded-card border bg-surface p-4 active:opacity-80 ${draft?.includes(item.id) ? "border-brand" : "border-border-primary"}`}
                   onPress={() => toggle(item.id)}
                 >
+                  <View
+                    className="h-10 w-10 items-center justify-center rounded-card bg-brand/10"
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
+                    <MaterialCommunityIcons
+                      name={
+                        item.is_default ? "heart-outline" : "folder-outline"
+                      }
+                      size={22}
+                      color={theme.extends.colors.brand}
+                    />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <AppText
+                      weight="semibold"
+                      className="text-body text-text-primary"
+                    >
+                      {item.name}
+                    </AppText>
+                    <View className="mt-1 flex-row flex-wrap gap-2">
+                      <AppText className="text-small text-text-secondary">
+                        {item.business_count}{" "}
+                        {item.business_count === 1 ? "business" : "businesses"}
+                      </AppText>
+                      {item.is_default && (
+                        <AppText className="text-small text-text-secondary">
+                          · Default
+                        </AppText>
+                      )}
+                    </View>
+                  </View>
                   <MaterialCommunityIcons
                     name={
                       draft?.includes(item.id)
                         ? "checkbox-marked"
                         : "checkbox-blank-outline"
                     }
-                    size={24}
+                    size={26}
                     color={
                       draft?.includes(item.id)
                         ? theme.extends.colors.brand
@@ -324,19 +383,6 @@ export default function PocketPickerSheet({
                     accessibilityElementsHidden
                     importantForAccessibility="no"
                   />
-                  <View className="min-w-0 flex-1">
-                    <AppText
-                      weight="semibold"
-                      className="text-body text-text-primary"
-                    >
-                      {item.name}
-                    </AppText>
-                    {item.is_default && (
-                      <AppText className="mt-1 text-small text-text-secondary">
-                        Default
-                      </AppText>
-                    )}
-                  </View>
                 </Pressable>
               )}
               ListEmptyComponent={
@@ -418,13 +464,16 @@ export default function PocketPickerSheet({
               {saveError && (
                 <AppText
                   accessibilityRole="alert"
-                  className="mb-3 text-body text-error"
+                  className="mb-3 text-body text-text-error"
                 >
                   {saveError}
                 </AppText>
               )}
               {draft !== null && (
-                <AppText className="mb-3 text-small text-text-secondary">
+                <AppText
+                  accessibilityLiveRegion="polite"
+                  className="mb-3 text-small text-text-secondary"
+                >
                   {draft.length === 0 && memberships.memberships?.is_pocketed
                     ? "Done will remove this business from all your Pockets."
                     : `${draft.length} selected`}

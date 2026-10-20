@@ -94,7 +94,7 @@ export default function PocketBusinessRemovalConfirmation({
           {error && (
             <AppText
               accessibilityRole="alert"
-              className="mt-3 text-body text-error"
+              className="mt-3 text-body text-text-error"
             >
               {error}
             </AppText>

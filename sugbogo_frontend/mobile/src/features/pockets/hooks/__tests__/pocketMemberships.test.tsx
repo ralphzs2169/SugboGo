@@ -613,4 +613,50 @@ describe("Pocket membership queries and replacements", () => {
       client.getQueryData(businessPocketMembershipsQueryKey(1, 42)),
     ).toBeUndefined();
   });
+
+  it.each(["success", "failure"])(
+    "does not cancel fresh same-account reads after a previous session's late %s",
+    async (outcome) => {
+      const pending = deferred();
+      jest
+        .mocked(replaceBusinessPocketMemberships)
+        .mockReturnValueOnce(pending.promise);
+      const { result } = await renderHook(
+        () => useReplacePocketMemberships(42),
+        { wrapper: Wrapper },
+      );
+      let saving!: Promise<unknown>;
+      await act(async () => {
+        saving = result.current
+          .replaceMemberships([20])
+          .catch((error: unknown) => error);
+      });
+      await waitFor(() =>
+        expect(replaceBusinessPocketMemberships).toHaveBeenCalledTimes(1),
+      );
+      beginAuthSession();
+      client.clear();
+      const fresh = deferred<{ items: number[] }>();
+      const read = jest.fn().mockReturnValue(fresh.promise);
+      const keys = [
+        pocketCollectionsQueryKey(1),
+        businessPocketMembershipsQueryKey(1, 42),
+      ];
+      const observers = keys.map((queryKey) => {
+        const observer = new QueryObserver(client, { queryKey, queryFn: read });
+        unsubscribeReads.push(observer.subscribe(() => {}));
+        return observer;
+      });
+      await act(async () => {
+        pending.resolve(outcome === "success" ? response([20]) : apiError);
+        await saving;
+      });
+      for (const observer of observers)
+        expect(observer.getCurrentResult().fetchStatus).toBe("fetching");
+      await act(async () => fresh.resolve({ items: [7] }));
+      for (const observer of observers)
+        expect(observer.getCurrentResult().data).toEqual({ items: [7] });
+      expect(read).toHaveBeenCalledTimes(2);
+    },
+  );
 });

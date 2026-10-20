@@ -1,4 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import {
   act,
   cleanup,
@@ -11,6 +15,7 @@ import { BackHandler } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import BusinessPocketButton from "@/features/explore/components/business-profile/BusinessPocketButton";
 import type { User } from "@/features/users/types/user.types";
 import {
   beginAuthSession,
@@ -33,6 +38,7 @@ import type {
   PocketCollectionListResponse,
 } from "../../types/pockets.types";
 import PocketPickerSheet from "../PocketPickerSheet";
+import PocketPickerProvider from "../../providers/PocketPickerProvider";
 
 jest.mock("../../api/pockets.service", () => ({
   getBusinessPocketMemberships: jest.fn(),
@@ -152,6 +158,20 @@ function deferred<T>() {
     resolve = done;
   });
   return { promise, resolve };
+}
+
+function BusinessBookmark() {
+  const { data } = useQuery({
+    queryKey: ["explore-business-detail", 42],
+    queryFn: async () => ({ id: 42, is_pocketed: true }),
+    enabled: false,
+  });
+  return (
+    <BusinessPocketButton
+      businessId={42}
+      isPocketed={data?.is_pocketed ?? false}
+    />
+  );
 }
 
 describe("PocketPickerSheet", () => {
@@ -574,5 +594,68 @@ describe("PocketPickerSheet", () => {
       ).toBeTruthy(),
     );
     expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+  });
+  it("reopens with the authoritative saved selection and exposes available counts", async () => {
+    const first = await sheet();
+    expect(
+      first.getByRole("checkbox", { name: "Favorites" }).props
+        .accessibilityValue.text,
+    ).toBe("0 available businesses");
+    await fireEvent.press(first.getByRole("checkbox", { name: "Favorites" }));
+    await fireEvent.press(first.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(dismissed).toHaveBeenCalledTimes(1));
+    await first.unmount();
+    const reopened = await sheet();
+    expect(
+      reopened.getByRole("checkbox", { name: "Favorites" }).props
+        .accessibilityState.checked,
+    ).toBe(false);
+    expect(reopened.getByText("1 selected")).toBeTruthy();
+    await fireEvent.press(reopened.getByRole("button", { name: "Cancel" }));
+    expect(replaceBusinessPocketMemberships).toHaveBeenCalledTimes(1);
+    expect(
+      jest.mocked(getBusinessPocketMemberships).mock.calls.length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+  it("integrates bookmark, one global picker, Done, saved-state update, and reopening", async () => {
+    serverIds = [20];
+    client.setQueryData(["explore-business-detail", 42], {
+      id: 42,
+      is_pocketed: true,
+    });
+    const screen = await render(
+      <PocketPickerProvider>
+        <BusinessBookmark />
+      </PocketPickerProvider>,
+      { wrapper: Wrapper },
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Edit Pocket collections" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Edit Pocket collections" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Favorites" })).toBeTruthy(),
+    );
+    expect(screen.getAllByTestId("pocket-picker-list")).toHaveLength(1);
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(screen.queryByTestId("pocket-picker-list")).toBeNull(),
+    );
+    expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(42, []);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Save business to Pockets" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Favorites" }).props
+          .accessibilityState.checked,
+      ).toBe(false),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+    expect(replaceBusinessPocketMemberships).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("pocket-picker-list")).toBeNull();
   });
 });

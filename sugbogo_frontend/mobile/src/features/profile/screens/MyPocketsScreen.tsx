@@ -8,17 +8,19 @@ import {
 } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import PocketCollectionActions from "@/features/pockets/components/PocketCollectionActions";
 import PocketCollectionCard from "@/features/pockets/components/PocketCollectionCard";
 import PocketCollectionsSkeleton from "@/features/pockets/components/PocketCollectionsSkeleton";
 import PocketNameDialog from "@/features/pockets/components/PocketNameDialog";
 import usePocketCollections from "@/features/pockets/hooks/usePocketCollections";
+import type { PocketCollection } from "@/features/pockets/types/pockets.types";
 import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
-import SafePressable from "@/shared/components/SafePressable";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
 /** Separates collection cards using the existing list spacing. */
@@ -35,6 +37,11 @@ export default function MyPocketsScreen() {
   const insets = useSafeAreaInsets();
   const requests = useRef({ armed: false, paging: false, refreshing: false });
   const [creatingFor, setCreatingFor] = useState<{
+    ownerId: number;
+    generation: number;
+  } | null>(null);
+  const [managing, setManaging] = useState<{
+    collection: PocketCollection;
     ownerId: number;
     generation: number;
   } | null>(null);
@@ -110,18 +117,41 @@ export default function MyPocketsScreen() {
         testID="my-pockets-list"
         data={collections}
         keyExtractor={(collection) => String(collection.id)}
-        renderItem={({ item }) => (
-          <SafePressable
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${item.name} Pocket`}
-            accessibilityHint="View saved businesses"
-            className="cursor-pointer active:opacity-80"
-            onPress={() =>
-              router.push(`/(explorer)/profile/pockets/${item.id}` as Href)
-            }
-          >
-            <PocketCollectionCard collection={item} />
-          </SafePressable>
+        renderItem={({ item, index }) => (
+          <View>
+            {(index === 0 ||
+              collections[index - 1].is_default !== item.is_default) && (
+              <AppText
+                accessibilityRole="header"
+                weight="bold"
+                className={`${index > 0 ? "mt-5" : ""} mb-3 text-small tracking-widest text-text-secondary`}
+              >
+                {item.is_default ? "DEFAULT" : "YOUR POCKETS"}
+              </AppText>
+            )}
+            <PocketCollectionCard
+              collection={item}
+              onPress={() =>
+                router.push(`/(explorer)/profile/pockets/${item.id}` as Href)
+              }
+              onManage={
+                item.is_default
+                  ? undefined
+                  : () => {
+                      if (
+                        pockets.userId === null ||
+                        useAuthStore.getState().user?.id !== pockets.userId
+                      )
+                        return;
+                      setManaging({
+                        collection: item,
+                        ownerId: pockets.userId,
+                        generation: getAuthSessionGeneration(),
+                      });
+                    }
+              }
+            />
+          </View>
         )}
         ItemSeparatorComponent={CollectionSeparator}
         contentContainerClassName="px-4 pt-4"
@@ -131,10 +161,13 @@ export default function MyPocketsScreen() {
         }}
         ListHeaderComponent={
           pockets.isEnabled ? (
-            <View className="mb-4">
+            <View className="mb-6">
+              <AppText className="mb-4 text-body text-text-secondary">
+                Keep your favorite places together, ready for your next visit.
+              </AppText>
               <Button
                 title="Create Pocket"
-                variant="outline"
+                variant="primary"
                 onPress={() => {
                   if (pockets.userId !== null)
                     setCreatingFor({
@@ -242,6 +275,16 @@ export default function MyPocketsScreen() {
           />
         }
       />
+      {pockets.isEnabled &&
+        managing &&
+        managing.ownerId === pockets.userId &&
+        managing.generation === getAuthSessionGeneration() && (
+          <PocketCollectionActions
+            key={`${managing.ownerId}:${managing.generation}:${managing.collection.id}`}
+            collection={managing.collection}
+            onClose={() => setManaging(null)}
+          />
+        )}
       {showCreation && (
         <PocketNameDialog
           key={`${creatingFor.ownerId}:${creatingFor.generation}`}

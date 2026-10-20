@@ -13,6 +13,8 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import {
   getPocketCollections,
   createPocketCollection,
+  renamePocketCollection,
+  deletePocketCollection,
 } from "@/features/pockets/api/pockets.service";
 import { pocketCollectionsQueryKey } from "@/features/pockets/hooks/pocketQueryKeys";
 import type {
@@ -32,7 +34,65 @@ import MyPocketsScreen from "../MyPocketsScreen";
 jest.mock("@/features/pockets/api/pockets.service", () => ({
   getPocketCollections: jest.fn(),
   createPocketCollection: jest.fn(),
+  renamePocketCollection: jest.fn(),
+  deletePocketCollection: jest.fn(),
 }));
+jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
+jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
+  presentBottomSheet: jest.fn(),
+}));
+jest.mock("@/shared/components/bottom-sheets/ActionBottomSheet", () => {
+  const { View, Text, Pressable } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return function Menu(
+    props: Parameters<
+      typeof import("@/shared/components/bottom-sheets/ActionBottomSheet").default
+    >[0],
+  ) {
+    return (
+      <View>
+        {props.options.map((option) => (
+          <Pressable
+            key={option.value}
+            accessibilityRole="button"
+            accessibilityLabel={option.label}
+            onPress={() => {
+              props.onSelect(option.value);
+              props.onDismiss?.();
+            }}
+          >
+            <Text>{option.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  };
+});
+jest.mock("@/shared/components/modals/ConfirmModal", () => {
+  const { View, Text, Pressable } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return function Confirmation(
+    props: Parameters<
+      typeof import("@/shared/components/modals/ConfirmModal").default
+    >[0],
+  ) {
+    if (!props.visible) return null;
+    return (
+      <View>
+        <Text>{props.title}</Text>
+        {props.message}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Confirm deletion"
+          disabled={props.isLoading}
+          onPress={props.onConfirm}
+        >
+          <Text>{props.confirmText}</Text>
+        </Pressable>
+      </View>
+    );
+  };
+});
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("@/shared/components/Skeleton", () => () => null);
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
@@ -131,6 +191,8 @@ describe("MyPocketsScreen", () => {
   beforeEach(() => {
     jest.mocked(getPocketCollections).mockReset().mockResolvedValue(page());
     jest.mocked(createPocketCollection).mockReset();
+    jest.mocked(renamePocketCollection).mockReset();
+    jest.mocked(deletePocketCollection).mockReset();
     useAuthStore.setState({
       user: user(1),
       isAuthenticated: true,
@@ -547,5 +609,63 @@ describe("MyPocketsScreen", () => {
     await act(async () => useAuthStore.getState().setUser(user(2)));
     expect(screen.queryByLabelText("Pocket name")).toBeNull();
     expect(createPocketCollection).not.toHaveBeenCalled();
+  });
+  it("offers custom management separately from navigation and refreshes a renamed Pocket", async () => {
+    const renamed = { ...weekend, name: "Weekend favorites" };
+    jest.mocked(renamePocketCollection).mockImplementationOnce(async () => {
+      jest
+        .mocked(getPocketCollections)
+        .mockResolvedValue(page([favorites, renamed]));
+      return { success: true, message: "Renamed.", data: renamed };
+    });
+    const screen = await loadedOverview();
+    expect(screen.getByRole("header", { name: "DEFAULT" })).toBeTruthy();
+    expect(screen.getByRole("header", { name: "YOUR POCKETS" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Manage Favorites Pocket" }),
+    ).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Manage Weekend food trips Pocket" }),
+    );
+    expect(router.push).not.toHaveBeenCalled();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Rename Pocket" }),
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("Pocket name"),
+      renamed.name,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Save name" }));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Pocket name")).toBeNull(),
+    );
+    expect(screen.getByText(renamed.name)).toBeTruthy();
+    expect(renamePocketCollection).toHaveBeenCalledWith(
+      weekend.id,
+      renamed.name,
+    );
+  });
+  it("finishes deletion after the refreshed list removes its selected row", async () => {
+    jest.mocked(deletePocketCollection).mockImplementationOnce(async () => {
+      jest.mocked(getPocketCollections).mockResolvedValue(page([favorites]));
+      return { success: true, message: "Deleted.", data: { id: weekend.id } };
+    });
+    const screen = await loadedOverview();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Manage Weekend food trips Pocket" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Delete Pocket" }),
+    );
+    expect(deletePocketCollection).not.toHaveBeenCalled();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Confirm deletion" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Delete this Pocket?")).toBeNull(),
+    );
+    expect(screen.queryByText(weekend.name)).toBeNull();
+    expect(screen.getByText("Favorites")).toBeTruthy();
+    expect(deletePocketCollection).toHaveBeenCalledWith(weekend.id);
   });
 });

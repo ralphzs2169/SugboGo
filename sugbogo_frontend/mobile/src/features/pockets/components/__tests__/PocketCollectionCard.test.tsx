@@ -1,9 +1,12 @@
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 
 import type { PocketCollection } from "../../types/pockets.types";
 import PocketCollectionCard from "../PocketCollectionCard";
 
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
+jest.mock("expo-router", () => ({
+  useNavigation: () => ({ isFocused: () => true }),
+}));
 
 const collection = {
   id: 1,
@@ -72,5 +75,31 @@ describe("PocketCollectionCard", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryAllByRole("link")).toHaveLength(0);
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+  });
+  it("keeps collection navigation separate from the custom management action", async () => {
+    const open = jest.fn();
+    const manage = jest.fn();
+    const screen = await render(
+      <PocketCollectionCard
+        collection={{ ...collection, name: "Coffee", is_default: false }}
+        onPress={open}
+        onManage={manage}
+      />,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Manage Coffee Pocket" }),
+    );
+    expect(manage).toHaveBeenCalledTimes(1);
+    expect(open).not.toHaveBeenCalled();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Coffee Pocket" }),
+    );
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+  it("never offers management for Favorites even when a callback is supplied", async () => {
+    const screen = await render(
+      <PocketCollectionCard collection={collection} onManage={jest.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: /manage/i })).toBeNull();
   });
 });

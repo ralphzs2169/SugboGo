@@ -85,17 +85,19 @@ export default function useReplacePocketMemberships(businessId: number | null) {
       );
     },
     onSettled: async (_data, _error, submission) => {
-      await Promise.all([
-        client.cancelQueries({
-          queryKey: pocketCollectionsQueryKey(submission.ownerId),
-        }),
-        client.cancelQueries({
-          queryKey: businessPocketMembershipsQueryKey(
-            submission.ownerId,
-            submission.businessId,
-          ),
-        }),
-      ]);
+      // An older session must not cancel fresh reads after the same account signs in again.
+      if (ownsSubmission(submission))
+        await Promise.all([
+          client.cancelQueries({
+            queryKey: pocketCollectionsQueryKey(submission.ownerId),
+          }),
+          client.cancelQueries({
+            queryKey: businessPocketMembershipsQueryKey(
+              submission.ownerId,
+              submission.businessId,
+            ),
+          }),
+        ]);
       const current = ownsSubmission(submission);
       await Promise.all([
         ...(current ? [invalidatePocketBusinessCaches(client)] : []),
