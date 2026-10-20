@@ -1,5 +1,5 @@
-import { setTokens, clearTokens } from "@/shared/api/storage";
-import { getCurrentUser } from "@/features/auth/api/auth.service";
+import { setTokens, clearTokens, getRefreshToken } from "@/shared/api/storage";
+import { getCurrentUser, revokeRefreshToken } from "@/features/auth/api/auth.service";
 import { useAuthStore } from "../storage/auth.store";
 
 /**
@@ -26,7 +26,12 @@ export async function establishSession(authData) {
   }
 }
 
+/** Clears local authentication immediately and attempts server revocation in the background. */
 export function logout() {
+  const refresh = getRefreshToken();
   clearTokens();
   useAuthStore.getState().clearUser();
+  if (refresh) {
+    void revokeRefreshToken(refresh).catch(() => undefined);
+  }
 }

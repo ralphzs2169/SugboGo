@@ -1,5 +1,6 @@
 import { beginAuthSession } from "../authSessionGeneration.service";
 import MockAdapter from "axios-mock-adapter";
+import { AxiosError } from "axios";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
@@ -59,6 +60,24 @@ describe("refresh failure classification", () => {
     expect(clearSessionTokens).toHaveBeenCalled();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
+
+  it.each([429, 500, 503])(
+    "preserves the session on transient refresh HTTP %i",
+    async (status) => {
+      const error = new AxiosError("Unavailable");
+      error.response = {
+        status,
+        data: {},
+        headers: {},
+        statusText: "Unavailable",
+        config: {} as never,
+      };
+      (refreshSession as jest.Mock).mockRejectedValue(error);
+      await expect(apiClient.get("/users/me/")).rejects.toBe(error);
+      expect(clearSessionTokens).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    },
+  );
 
   it("still clears runtime authentication if secure token deletion fails", async () => {
     (refreshSession as jest.Mock).mockRejectedValue(

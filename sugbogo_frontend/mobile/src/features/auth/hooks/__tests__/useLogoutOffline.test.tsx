@@ -8,7 +8,11 @@ import { clearOfflineAccess } from "@/features/offline-routes/services/offlineAc
 import { clearSavedJourneys } from "@/features/offline-routes/services/savedJourneys.service";
 import { useLogout } from "../useLogout";
 
-jest.mock("@/shared/api/storage.service", () => ({ clearSessionTokens: jest.fn() }));
+jest.mock("@/shared/api/storage.service", () => ({
+  clearSessionTokens: jest.fn(),
+  getRefreshToken: jest.fn().mockResolvedValue(null),
+}));
+jest.mock("../../api/token.service", () => ({ revokeRefreshToken: jest.fn() }));
 jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
   clearOfflineAccess: jest.fn(),
 }));

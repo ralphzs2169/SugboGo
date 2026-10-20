@@ -1,7 +1,7 @@
 import axios from "axios";
 
-import { refreshSession } from "./refresh";
-import { getAccessToken, clearTokens, setSessionExpired } from "./storage";
+import { refreshSession, staleSessionError } from "./refresh";
+import { getAccessToken, getSessionGeneration, clearTokens, setSessionExpired } from "./storage";
 import { attachSyntheticResponse } from "./apiErrors";
 import { API_ERROR_CODE } from "./errorCodes";
 
@@ -24,6 +24,8 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
+    config._sessionGeneration = getSessionGeneration();
+    config._sessionAccessToken = token;
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -69,9 +71,21 @@ apiClient.interceptors.response.use(
       !originalRequest._retry
     ) {
       originalRequest._retry = true;
+      if (originalRequest._sessionGeneration !== getSessionGeneration()) {
+        return Promise.reject(staleSessionError());
+      }
+      const currentAccess = getAccessToken();
+      if (currentAccess && originalRequest._sessionAccessToken !== currentAccess) {
+        originalRequest.headers = {
+          ...originalRequest.headers,
+          Authorization: `Bearer ${currentAccess}`,
+        };
+        return apiClient(originalRequest);
+      }
 
       try {
         const newAccessToken = await refreshSession();
+        if (getAccessToken() !== newAccessToken) throw staleSessionError();
 
         originalRequest.headers = {
           ...originalRequest.headers,
@@ -80,6 +94,16 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch (refreshError) {
+        const status = refreshError.response?.status;
+        const code = refreshError.response?.data?.code;
+        if (
+          refreshError.name === "STALE_AUTH_SESSION" ||
+          status === 429 || status >= 500 ||
+          code === API_ERROR_CODE.NETWORK_ERROR ||
+          code === API_ERROR_CODE.REQUEST_TIMEOUT
+        ) {
+          return Promise.reject(refreshError);
+        }
         clearTokens();
 
         setSessionExpired();
