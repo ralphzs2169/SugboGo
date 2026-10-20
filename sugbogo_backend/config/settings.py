@@ -367,6 +367,9 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
+        'NAME': 'apps.authentication.password_validators.NonBlankPasswordValidator',
+    },
+    {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
         'OPTIONS': {
             'user_attributes': (

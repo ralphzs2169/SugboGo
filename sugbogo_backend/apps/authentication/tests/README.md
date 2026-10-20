@@ -2,6 +2,15 @@
 
 This directory contains automated tests for the authentication module.
 
+## Core-flow verification
+
+`test_core_flows.py` connects registration/verification, password and email
+changes, lockout recovery, session rotation/revocation, manual reactivation, and
+live permissions through real API endpoints. External delivery is mocked.
+Run it with `python manage.py test apps.authentication.tests.test_core_flows`.
+See `docs/iam-core-flow-verification.md` in the backend for the coverage matrix,
+migration instructions, recorded results, policy limits, and pending live QA.
+
 ## Run all authentication tests
 
 ```bash
