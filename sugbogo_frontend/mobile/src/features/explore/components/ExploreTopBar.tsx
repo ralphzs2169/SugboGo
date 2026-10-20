@@ -1,49 +1,48 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { router } from "expo-router";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import AppText from "@/shared/components/AppText";
+import Avatar from "@/shared/components/Avatar";
 import SafePressable from "@/shared/components/SafePressable";
 import Skeleton from "@/shared/components/Skeleton";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
-const MASCOT_GREETING = require("@/shared/assets/mascot/mascot-greeting.webp");
-
-type ClusterOption = {
-  id: number;
-  name: string;
-  icon: string;
-};
+type ClusterOption = { id: number; name: string; icon: string };
 
 type Props = {
   clusters: ClusterOption[];
   selectedClusterId: number | null;
   onSelectCluster: (clusterId: number | null) => void;
+  isLoadingClusters?: boolean;
   onPressSearch: () => void;
   onPressFilters: () => void;
   activeFilterCount?: number;
-  isLoadingClusters?: boolean;
 };
 
 /**
  * Displays the Explore homepage's primary discovery controls.
  *
  * Search acts as an entry point into the dedicated results experience, while
- * filters and Cluster shortcuts provide direct ways to refine discovery.
+ * filters provide direct ways to refine discovery.
  */
 export default function ExploreTopBar({
-  clusters,
+  clusters = [],
   selectedClusterId,
   onSelectCluster,
+  isLoadingClusters = false,
   onPressSearch,
   onPressFilters,
   activeFilterCount = 0,
-  isLoadingClusters = false,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const hasSession = isAuthenticated && Boolean(user);
 
   return (
     <View
@@ -59,34 +58,35 @@ export default function ExploreTopBar({
               Cebu
             </AppText>
           </AppText>
-
-          <View className="mt-1 flex-row items-center">
-            <MaterialCommunityIcons
-              name="map-marker-outline"
-              size={15}
-              color={theme.extends.colors.text.secondary}
-            />
-
-            <AppText
-              weight="medium"
-              className="ml-1 text-sm text-text-secondary"
-            >
-              Cebu City, Cebu
-            </AppText>
-          </View>
         </View>
 
         {/* Header actions */}
         <View className="ml-2 flex-row items-center">
-          <View className="h-11 w-11 items-center justify-center">
-            <Image
-              source={MASCOT_GREETING}
-              style={{ width: 44, height: 44 }}
-              contentFit="contain"
-            />
-          </View>
-
           <NotificationBellButton />
+          <SafePressable
+            accessibilityRole="button"
+            accessibilityLabel={hasSession ? "Open your profile" : "Sign in"}
+            onPress={() =>
+              router.navigate(
+                hasSession ? "/(explorer)/(tabs)/profile" : "/(auth)/login",
+              )
+            }
+            className="h-12 w-12 cursor-pointer items-center justify-center rounded-full active:opacity-75"
+          >
+            {hasSession ? (
+              <Avatar
+                imageUrl={user?.avatar_url}
+                avatarKey={user?.avatar_key}
+                size={36}
+              />
+            ) : (
+              <MaterialCommunityIcons
+                name="account-circle-outline"
+                size={36}
+                color={theme.extends.colors.text.secondary}
+              />
+            )}
+          </SafePressable>
         </View>
       </View>
 
@@ -134,7 +134,6 @@ export default function ExploreTopBar({
           )}
         </SafePressable>
       </View>
-
       {/* Quick discovery clusters */}
       <ScrollView
         horizontal
@@ -154,16 +153,13 @@ export default function ExploreTopBar({
           [{ id: null, name: "All", icon: null }, ...clusters].map(
             (cluster) => {
               const isActive = cluster.id === selectedClusterId;
-
               return (
                 <SafePressable
                   key={cluster.id ?? "all"}
                   onPress={() => onSelectCluster(cluster.id)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isActive }}
-                  className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${
-                    isActive ? "bg-brand" : "bg-background"
-                  }`}
+                  className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 ${isActive ? "bg-brand" : "bg-background"}`}
                 >
                   {cluster.icon && (
                     <MaterialCommunityIcons
@@ -177,12 +173,9 @@ export default function ExploreTopBar({
                       style={{ marginRight: 5 }}
                     />
                   )}
-
                   <AppText
                     weight="medium"
-                    className={`text-sm ${
-                      isActive ? "text-white" : "text-text-secondary"
-                    }`}
+                    className={`text-sm ${isActive ? "text-white" : "text-text-secondary"}`}
                   >
                     {cluster.name}
                   </AppText>

@@ -1,15 +1,16 @@
 import type { LocationObject } from "expo-location";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 
 import ErrorState from "@/shared/components/ErrorState";
+import Skeleton from "@/shared/components/Skeleton";
 
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
-import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
 import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 import ExploreSectionHeader from "../ExploreSectionHeader";
+import HiddenGemSpotlight from "./HiddenGemSpotlight";
 
 type Props = {
   businesses: ExploreBusiness[];
@@ -17,13 +18,13 @@ type Props = {
   error: unknown;
   refetch: () => Promise<unknown>;
   impressions: BusinessImpressionObservation;
+  spotlightImpressions: BusinessImpressionObservation;
   userLocation: LocationObject | null;
   onBusinessPress: (
     businessId: number,
     distance: number | null,
     distanceAccuracy: number | null,
   ) => void;
-  onSeeAll?: () => void;
 };
 
 /**
@@ -33,16 +34,21 @@ type Props = {
  * successful carousel presentation and impression tracking to shared UI.
  */
 export default function HiddenGemsSection({
-  businesses,
+  businesses: rankedBusinesses,
   isLoading,
   error,
   refetch,
   impressions,
+  spotlightImpressions,
   userLocation,
   onBusinessPress,
-  onSeeAll,
 }: Props) {
   const [isRetrying, setIsRetrying] = useState(false);
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  const businesses = useMemo(
+    () => rankedBusinesses.slice(0, 10),
+    [rankedBusinesses],
+  );
 
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -60,11 +66,12 @@ export default function HiddenGemsSection({
         <ExploreSectionHeader
           title="Hidden Gems"
           subtitle="Great local places that deserve more discovery."
-          titleIcon="diamond-stone"
         />
 
-        {/* Featured business placeholders */}
-        <ExploreBusinessCarouselSkeleton variant="featured" />
+        {/* Full-width spotlight placeholder */}
+        <View className="px-4">
+          <Skeleton className="h-72 w-full rounded-card" />
+        </View>
       </View>
     );
   }
@@ -76,7 +83,6 @@ export default function HiddenGemsSection({
         <ExploreSectionHeader
           title="Hidden Gems"
           subtitle="Great local places that deserve more discovery."
-          titleIcon="diamond-stone"
         />
 
         {/* Section recovery */}
@@ -99,7 +105,6 @@ export default function HiddenGemsSection({
         <ExploreSectionHeader
           title="Hidden Gems"
           subtitle="Great local places that deserve more discovery."
-          titleIcon="diamond-stone"
         />
 
         {/* Empty discovery state */}
@@ -112,22 +117,43 @@ export default function HiddenGemsSection({
     );
   }
 
+  const firstBusiness = businesses[0];
+  const spotlight =
+    firstBusiness.display_cover_photo_url &&
+    firstBusiness.display_cover_photo_url !== failedCover
+      ? firstBusiness
+      : null;
+  const remainingBusinesses = spotlight ? businesses.slice(1) : businesses;
+
   return (
-    /* Ranked discovery carousel */
-    <ExploreBusinessCarousel
-      title="Hidden Gems"
-      subtitle="Great local places that deserve more discovery."
-      titleIcon="diamond-stone"
-      businesses={businesses}
-      impressions={impressions}
-      userLocation={userLocation}
-      cardVariant="featured"
-      sectionTestID="hidden-gems-section"
-      scrollTestID="hidden-gems-scroll"
-      impressionTestIDPrefix="discovery-impression"
-      onBusinessPress={onBusinessPress}
-      onSeeAll={onSeeAll}
-      seeAllAccessibilityLabel="See all Hidden Gems"
-    />
+    <>
+      {spotlight && (
+        <HiddenGemSpotlight
+          business={spotlight}
+          impressions={spotlightImpressions}
+          userLocation={userLocation}
+          onCoverError={() => setFailedCover(spotlight.display_cover_photo_url)}
+          onPress={onBusinessPress}
+        />
+      )}
+      {remainingBusinesses.length > 0 && (
+        /* Ranked discovery carousel */
+        <ExploreBusinessCarousel
+          title={spotlight ? "More Hidden Gems" : "Hidden Gems"}
+          compactHeading={Boolean(spotlight)}
+          subtitle={
+            spotlight ? "" : "Great local places that deserve more discovery."
+          }
+          businesses={remainingBusinesses}
+          impressions={impressions}
+          userLocation={userLocation}
+          cardVariant={spotlight ? "default" : "featured"}
+          sectionTestID="hidden-gems-section"
+          scrollTestID="hidden-gems-scroll"
+          impressionTestIDPrefix="discovery-impression"
+          onBusinessPress={onBusinessPress}
+        />
+      )}
+    </>
   );
 }
