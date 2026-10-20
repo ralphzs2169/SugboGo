@@ -22,7 +22,7 @@ export default function EndOfListMessage({
   icon = "check-circle-outline",
 }: Props) {
   return (
-    <View className="items-center px-6 py-6">
+    <View className="items-center px-6 py-6 bg-background">
       {/* Completion icon
       <MaterialCommunityIcons
         name={icon}

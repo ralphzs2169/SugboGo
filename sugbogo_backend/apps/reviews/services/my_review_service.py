@@ -1,4 +1,4 @@
-from django.db.models import OuterRef, Subquery
+from django.db.models import Count, OuterRef, Q, Subquery
 
 from apps.business.models import Business
 from apps.business.services.display_cover_photo import (
@@ -10,6 +10,49 @@ from apps.users.models import User
 
 class MyReviewService:
     """Builds the authenticated author's retained cross-business review history."""
+
+    @staticmethod
+    def summarize_reviews(queryset):
+        """Counts every retained submission before filtering or pagination."""
+        return queryset.aggregate(
+            total=Count("REVW_ID"),
+            published=Count(
+                "REVW_ID",
+                filter=Q(REVW_STATUS="published"),
+            ),
+            under_review=Count(
+                "REVW_ID",
+                filter=Q(REVW_STATUS="under_review"),
+            ),
+            not_published=Count(
+                "REVW_ID",
+                filter=Q(REVW_STATUS__in=["flagged", "rejected"]),
+            ),
+        )
+
+    @staticmethod
+    def filter_and_sort_reviews(
+        queryset,
+        status,
+        ordering,
+    ):
+        """Applies author-selected status and deterministic ordering before pagination."""
+        if status == "not_published":
+            queryset = queryset.filter(
+                REVW_STATUS__in=["flagged", "rejected"],
+            )
+        elif status != "all":
+            queryset = queryset.filter(REVW_STATUS=status)
+
+        if ordering == "oldest":
+            return queryset.order_by(
+                "REVW_CREATED_AT",
+                "REVW_ID",
+            )
+        return queryset.order_by(
+            "-REVW_CREATED_AT",
+            "-REVW_ID",
+        )
 
     @staticmethod
     def list_reviews_queryset(

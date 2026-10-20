@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
-import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
+import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 import { getSpecialtyTagIcon } from "@/shared/constants/specialtyTagIcons";
@@ -62,10 +62,7 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
   return (
     <View className="py-6">
       {/* Section heading */}
-      <ExploreSectionHeader
-        title="Explore by Specialty"
-        subtitle="Browse places by what they're known for."
-      />
+      <ExploreSectionHeader title="Explore by Specialty" />
 
       {/* Loading state */}
       {(isLoading || isRetrying) && <ExploreBySpecialtySkeleton />}
@@ -83,13 +80,12 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
       )}
 
       {/* Specialty shortcut grid */}
-      {!isLoading && !error && (
+      {!isLoading && !isRetrying && !error && (
         <View className="flex-row flex-wrap justify-between gap-y-5 px-4">
           {specialties.map((specialty) => {
-            const colorStyles = getSpecialtyTagColor(specialty.color);
-            const iconName = getSpecialtyTagIcon(specialty.icon);
-            const accentColor = colorStyles.borderColor;
-
+            const accentColor = getSpecialtyTagColor(
+              specialty.color,
+            ).borderColor;
             return (
               <SafePressable
                 key={specialty.id}
@@ -99,25 +95,18 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
                 accessibilityLabel={
                   onSpecialtyPress ? `Explore ${specialty.name}` : undefined
                 }
-                className={`w-[31%] items-center ${
-                  onSpecialtyPress ? "cursor-pointer active:opacity-70" : ""
-                }`}
+                className={`w-[31%] items-center ${onSpecialtyPress ? "cursor-pointer active:opacity-70" : ""}`}
               >
-                {/* Specialty icon */}
                 <View
-                  className="h-16 w-16 items-center justify-center rounded-full"
-                  style={{
-                    backgroundColor: `${accentColor}18`,
-                  }}
+                  className="h-16 w-16 items-center justify-center rounded-full border border-border-primary/60"
+                  style={{ backgroundColor: `${accentColor}18` }}
                 >
                   <MaterialCommunityIcons
-                    name={iconName}
+                    name={getSpecialtyTagIcon(specialty.icon)}
                     size={27}
                     color={accentColor}
                   />
                 </View>
-
-                {/* Specialty label */}
                 <AppText
                   weight="semibold"
                   className="mt-2.5 text-center text-xs leading-4 text-text-primary"

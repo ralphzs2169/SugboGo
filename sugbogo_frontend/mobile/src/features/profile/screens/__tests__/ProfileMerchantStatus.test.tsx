@@ -68,6 +68,22 @@ jest.mock("@/shared/components/ErrorState", () => ({
   default: jest.fn(() => null),
 }));
 
+jest.mock("../../hooks/useMyReviews", () => ({
+  useMyReviews: () => ({
+    data: {},
+    totalCount: 8,
+    isLoading: false,
+    error: null,
+  }),
+}));
+jest.mock("../../hooks/useVouchHistory", () => ({
+  __esModule: true,
+  default: () => ({
+    summary: { total_specialty_vouches: 12 },
+    isLoading: false,
+    error: null,
+  }),
+}));
 jest.mock("../../components/ProfileHeader", () => () => null);
 jest.mock("../../components/AppVersion", () => () => null);
 jest.mock("@/shared/components/modals/ConfirmModal", () => () => null);

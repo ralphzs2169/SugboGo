@@ -21,6 +21,7 @@ type MetricCardProps = {
   fullWidth?: boolean;
   loading?: boolean;
   loadingDetail?: boolean;
+  testID?: string;
 };
 
 /**
@@ -40,6 +41,7 @@ export default function MerchantMetricCard({
   fullWidth = false,
   loading = false,
   loadingDetail = false,
+  testID,
 }: MetricCardProps) {
   const showProgress =
     typeof progress === "number" &&
@@ -92,6 +94,7 @@ export default function MerchantMetricCard({
             className={`${
               value.length > 7 && !stacked ? "text-2xl" : "text-3xl"
             } ${unavailable ? "text-text-secondary" : "text-text-primary"}`}
+            testID={testID}
           >
             {value}
           </AppText>

@@ -15,14 +15,14 @@ export default function AccountSettingsScreen() {
   return (
     <SafeAreaView
       edges={["bottom", "left", "right"]}
-      className="flex-1 bg-surface"
+      className="flex-1 bg-background"
     >
       <ScrollView
-        contentContainerClassName="p-4"
+        contentContainerClassName="pb-6"
         showsVerticalScrollIndicator={false}
       >
         {/* Signed-in account identity */}
-        <View className="mb-5">
+        <View className="bg-surface px-5 py-5">
           <AppText weight="semibold" className="text-sm text-text-secondary">
             Signed in as
           </AppText>
@@ -34,38 +34,37 @@ export default function AccountSettingsScreen() {
         {/* Password management */}
         <ProfileMenuSection title="Security">
           <ProfileMenuItem
-            title="Login history"
+            title="Login History"
             icon="history"
             onPress={() => router.push("/profile/login-history" as Href)}
           />
           <ProfileMenuItem
-            title="Change email"
+            title="Change Email"
             icon="email-outline"
             onPress={() => router.push("/profile/change-email" as Href)}
           />
           <ProfileMenuItem
-            title={needsPasswordSetup ? "Set up a password" : "Change password"}
+            title={needsPasswordSetup ? "Set Up a Password" : "Change Password"}
             icon="lock-outline"
             onPress={() => router.push("/profile/change-password" as Href)}
           />
+          {needsPasswordSetup && (
+            <AppText className="px-5 pb-2 text-sm leading-5 text-text-secondary">
+              You sign in with a linked account. Use email recovery to create a
+              password.
+            </AppText>
+          )}
         </ProfileMenuSection>
-        <AppText className="mt-3 px-1 text-sm leading-5 text-text-secondary">
-          {needsPasswordSetup
-            ? "You sign in with a linked account. Use email recovery to create a password."
-            : "Keep your account secure with a password you don't use elsewhere."}
-        </AppText>
 
         {/* Account access and retention */}
-        <View className="mt-6">
-          <ProfileMenuSection title="Account access">
-            <ProfileMenuItem
-              title="Deactivate account"
-              icon="account-cancel-outline"
-              variant="danger"
-              onPress={() => router.push("/profile/deactivate-account" as Href)}
-            />
-          </ProfileMenuSection>
-        </View>
+        <ProfileMenuSection title="Account Access">
+          <ProfileMenuItem
+            title="Deactivate Account"
+            icon="account-cancel-outline"
+            variant="danger"
+            onPress={() => router.push("/profile/deactivate-account" as Href)}
+          />
+        </ProfileMenuSection>
       </ScrollView>
     </SafeAreaView>
   );

@@ -9,7 +9,6 @@ import Toast from "react-native-toast-message";
 import { theme } from "@/constants/theme";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import ErrorState from "@/shared/components/ErrorState";
-import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -17,6 +16,7 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import BusinessCard from "../components/new-businesses/BusinessCard";
+import ExploreClusterFilters from "../components/ExploreClusterFilters";
 import ExploreCollectionEmptyState from "../components/explore-collection/ExploreCollectionEmptyState";
 import ExploreCollectionResultsHeader, {
   type ExploreAppliedFilter,
@@ -74,7 +74,6 @@ export default function ExploreCollectionScreen() {
   }>();
 
   const insets = useSafeAreaInsets();
-  const bottomSpacing = useTabBarSpacing();
 
   const filterSheetRef = useRef<BottomSheetModal | null>(null);
   const isEndReachedRef = useRef(false);
@@ -262,11 +261,6 @@ export default function ExploreCollectionScreen() {
           distanceAccuracy={userLocation?.coords.accuracy ?? null}
           onPress={() => openBusiness(item, distance)}
           variant="compact"
-          recommendationReason={
-            isRecommendationCollection
-              ? (item.recommendation_reason ?? null)
-              : null
-          }
         />
       </View>
     );
@@ -316,11 +310,30 @@ export default function ExploreCollectionScreen() {
         renderItem={renderBusiness}
         ListHeaderComponent={
           collection.error ? null : (
-            <ExploreCollectionResultsHeader
-              filters={appliedFilters}
-              isLoading={collection.isLoading}
-              totalItems={collection.totalItems}
-            />
+            <>
+              <ExploreClusterFilters
+                clusters={taxonomy.options.clusters}
+                selectedClusterId={appliedCriteria.clusterId}
+                isLoading={taxonomy.isLoading}
+                onSelectCluster={(clusterId) =>
+                  setAppliedCriteria((current) =>
+                    applyClusterSelection(
+                      current,
+                      clusterId,
+                      taxonomy.options.categories,
+                    ),
+                  )
+                }
+                contentContainerClassName="gap-2 px-4 py-3"
+              />
+              <ExploreCollectionResultsHeader
+                filters={appliedFilters.filter(
+                  (filter) => !filter.id.startsWith("cluster-"),
+                )}
+                isLoading={collection.isLoading}
+                totalItems={collection.totalItems}
+              />
+            </>
           )
         }
         ListEmptyComponent={
@@ -351,7 +364,7 @@ export default function ExploreCollectionScreen() {
           ) : null
         }
         contentContainerStyle={{
-          paddingBottom: Math.max(bottomSpacing, insets.bottom + 24),
+          paddingBottom: insets.bottom,
         }}
         onEndReached={loadNextPage}
         onEndReachedThreshold={0.35}

@@ -8,6 +8,7 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { isStaleAuthSessionError } from "@/shared/api/authSessionGeneration.service";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
+import InfoBanner from "@/shared/components/InfoBanner";
 import PasswordInput from "@/shared/components/form/PasswordInput";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import type { ApiError } from "@/shared/types/apiResponse.types";
@@ -89,16 +90,21 @@ export default function DeactivateAccountScreen() {
             <AppText weight="bold" className="text-xl text-text-primary">
               Take a break from SugboGo
             </AppText>
-            <AppText className="text-sm leading-5 text-text-secondary">
+            <AppText
+              weight="medium"
+              className="text-sm leading-5 text-text-primary"
+            >
               Deactivating signs you out on all devices and blocks sign-in.
               Contact support to request reactivation; signing in or resetting
               your password will not reactivate your account.
             </AppText>
-            <AppText className="text-sm leading-5 text-text-secondary">
-              Your profile, reviews, vouches, and saved content stay stored.
-              Existing public contributions remain visible. This does not delete
-              your data.
-            </AppText>
+            <InfoBanner title="Your data stays stored" icon="database-outline">
+              <AppText className="text-sm leading-5 text-text-secondary">
+                Your profile, reviews, vouches, and saved content stay stored.
+                Existing public contributions remain visible. This does not
+                delete your data.
+              </AppText>
+            </InfoBanner>
             <AppText className="text-sm leading-5 text-text-secondary">
               If you own a business, its listing and merchant application stay
               unchanged. Deactivation does not close or hide the listing, and
@@ -109,10 +115,15 @@ export default function DeactivateAccountScreen() {
           {/* Password ownership proof or the existing setup flow */}
           {needsPasswordSetup ? (
             <>
-              <AppText className="mb-5 text-sm leading-5 text-text-secondary">
-                You sign in with a linked account. Set up a password through
-                email recovery, sign in again, then return here to deactivate.
-              </AppText>
+              <View className="mb-5">
+                <InfoBanner title="Password setup required" icon="lock-outline">
+                  <AppText className="text-sm leading-5 text-text-secondary">
+                    You sign in with a linked account. Set up a password through
+                    email recovery, sign in again, then return here to
+                    deactivate.
+                  </AppText>
+                </InfoBanner>
+              </View>
               <Button
                 title="Set up a password"
                 rounded="full"

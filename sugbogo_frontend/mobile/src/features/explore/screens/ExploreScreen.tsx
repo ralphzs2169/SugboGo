@@ -49,6 +49,7 @@ export default function ExploreScreen() {
   const bottomSpacing = useTabBarSpacing();
 
   const discoveryImpressions = useBusinessImpressions(bottomSpacing);
+  const spotlightImpressions = useBusinessImpressions(bottomSpacing);
   const newBusinessImpressions = useBusinessImpressions(bottomSpacing);
   const recommendationImpressions = useBusinessImpressions(bottomSpacing);
 
@@ -94,6 +95,7 @@ export default function ExploreScreen() {
 
   const handleViewportLayout = (event: LayoutChangeEvent) => {
     discoveryImpressions.onViewportLayout(event);
+    spotlightImpressions.onViewportLayout(event);
     newBusinessImpressions.onViewportLayout(event);
     recommendationImpressions.onViewportLayout(event);
   };
@@ -102,6 +104,7 @@ export default function ExploreScreen() {
     event: NativeSyntheticEvent<NativeScrollEvent>,
   ) => {
     discoveryImpressions.onVerticalScroll(event);
+    spotlightImpressions.onVerticalScroll(event);
     newBusinessImpressions.onVerticalScroll(event);
     recommendationImpressions.onVerticalScroll(event);
   };
@@ -142,14 +145,14 @@ export default function ExploreScreen() {
       <ExploreTopBar
         clusters={filterOptions.options.clusters}
         selectedClusterId={null}
-        onPressSearch={() => navigateToExploreResults({}, false, true)}
+        isLoadingClusters={filterOptions.isLoading}
         onSelectCluster={(clusterId) => {
           if (clusterId !== null) {
             navigateToExploreResults({ clusterId });
           }
         }}
+        onPressSearch={() => navigateToExploreResults({}, false, true)}
         onPressFilters={() => navigateToExploreResults({}, true)}
-        isLoadingClusters={filterOptions.isLoading}
       />
 
       {/* Discovery content */}
@@ -174,9 +177,9 @@ export default function ExploreScreen() {
           error={discoveryFeed.error}
           refetch={discoveryFeed.refetch}
           impressions={discoveryImpressions}
+          spotlightImpressions={spotlightImpressions}
           userLocation={userLocation}
           onBusinessPress={handleBusinessPress}
-          onSeeAll={() => openCollection("hidden-gems")}
         />
 
         {/* Specialty discovery preview */}

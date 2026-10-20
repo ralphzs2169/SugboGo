@@ -63,6 +63,9 @@ describe("useBusinessVouch Community synchronization", () => {
         queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
       });
       expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["activity-timeline"],
+      });
+      expect(invalidate).toHaveBeenCalledWith({
         queryKey: ["explore-business-detail", 20],
       });
       if (isVouched) {

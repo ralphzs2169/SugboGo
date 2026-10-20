@@ -1,6 +1,5 @@
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
-import type { ComponentType } from "react";
 import { useCallback, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import {
@@ -12,8 +11,8 @@ import Toast from "react-native-toast-message";
 import { theme } from "@/constants/theme";
 import useBusinessVouch from "@/features/explore/hooks/useBusinessVouch";
 import type { ExploreBusinessSpecialtyTag } from "@/features/explore/types/exploreBusiness.types";
+import MerchantMetricCard from "@/features/merchant/components/MerchantMetricCard";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
-import AppText from "@/shared/components/AppText";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import SegmentedControl, {
@@ -25,12 +24,9 @@ import {
   defaultStackScreenOptions,
   slideFromRight,
 } from "@/shared/navigation/stackOptions";
-import { shadows } from "@/shared/styles/shadows";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
-import BusinessesVouchedIllustration from "../assets/businesses-vouched.svg";
-import SpecialtyVouchesIllustration from "../assets/specialty-vouches.svg";
 import ManageVouchBottomSheet from "../components/vouch-history/ManageVouchBottomSheet";
 import VouchHistoryEmptyState from "../components/vouch-history/VouchHistoryEmptyState";
 import VouchHistoryItem from "../components/vouch-history/VouchHistoryItem";
@@ -63,45 +59,6 @@ const keyExtractor = (business: VouchHistoryBusiness) => String(business.id);
 
 function VouchSeparator() {
   return <View className="mx-4 h-px bg-border-primary" />;
-}
-
-type SummaryCardProps = {
-  Icon: ComponentType<{ width?: number; height?: number }>;
-  label: string;
-  value: number;
-  testID: string;
-};
-
-/** Illustrated metric card used for the full-history totals. */
-function SummaryCard({ Icon, label, value, testID }: SummaryCardProps) {
-  return (
-    <View
-      accessible
-      accessibilityLabel={`${label}: ${value}`}
-      className="min-w-0 flex-1 rounded-2xl border border-border-primary/60 bg-surface p-4"
-      style={shadows.subtle}
-    >
-      {/* Metric illustration */}
-      <View className="h-12 w-12 items-center justify-center">
-        <Icon width={48} height={48} />
-      </View>
-
-      {/* Metric value */}
-      <AppText
-        weight="semibold"
-        className="mt-4 text-text-primary"
-        style={{ fontSize: 28, lineHeight: 34 }}
-        testID={testID}
-      >
-        {value.toLocaleString()}
-      </AppText>
-
-      {/* Metric label */}
-      <AppText className="mt-1 text-xs text-text-secondary" numberOfLines={2}>
-        {label}
-      </AppText>
-    </View>
-  );
 }
 
 /**
@@ -137,7 +94,7 @@ export default function VouchHistoryScreen() {
   useQueryErrorNotification({
     error: history.error,
     toastId: "vouch-history-error",
-    title: "Unable to load vouch history",
+    title: "Unable to load your vouches",
     fallbackMessage: "Please try again.",
   });
 
@@ -245,7 +202,7 @@ export default function VouchHistoryScreen() {
         options={{
           ...defaultStackScreenOptions,
           ...slideFromRight,
-          title: "Vouch History",
+          title: "My Vouches",
         }}
       />
 
@@ -253,17 +210,19 @@ export default function VouchHistoryScreen() {
       <View className="px-4 pb-4 pt-4">
         {history.summary ? (
           <View className="flex-row gap-3">
-            <SummaryCard
-              Icon={BusinessesVouchedIllustration}
+            <MerchantMetricCard
+              icon="storefront-outline"
               label="Businesses vouched"
-              value={history.summary.total_businesses}
+              value={history.summary.total_businesses.toLocaleString()}
+              stacked={false}
               testID="history-business-total"
             />
 
-            <SummaryCard
-              Icon={SpecialtyVouchesIllustration}
+            <MerchantMetricCard
+              icon="heart-outline"
               label="Specialty vouches"
-              value={history.summary.total_specialty_vouches}
+              value={history.summary.total_specialty_vouches.toLocaleString()}
+              stacked={false}
               testID="history-specialty-total"
             />
           </View>
@@ -273,6 +232,7 @@ export default function VouchHistoryScreen() {
 
         <SegmentedControl
           options={SORT_OPTIONS}
+          variant="sm"
           value={ordering}
           onChange={changeOrdering}
           className="mt-4"
@@ -306,7 +266,7 @@ export default function VouchHistoryScreen() {
           ) : initialError ? (
             <View className="min-h-[360px]">
               <ErrorState
-                title="Unable to load vouch history"
+                title="Unable to load your vouches"
                 description="Please try again to load your endorsements."
                 primaryActionTitle="Retry"
                 onPrimaryAction={() => void history.refetch()}

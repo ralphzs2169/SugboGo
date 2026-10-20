@@ -19,9 +19,6 @@ import {
 import type { VouchHistoryBusiness } from "../../types/vouchHistory.types";
 import VouchHistoryScreen from "../VouchHistoryScreen";
 
-jest.mock("../../assets/businesses-vouched.svg", () => () => null);
-jest.mock("../../assets/specialty-vouches.svg", () => () => null);
-
 jest.mock("react-native/Libraries/Lists/FlatList", () => {
   const React = jest.requireActual("react");
   return {
@@ -75,8 +72,6 @@ jest.mock("@/features/explore/api/exploreBusiness.service", () => ({
 }));
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("expo-image", () => ({ Image: () => null }));
-jest.mock("../../assets/businesses-vouched.svg", () => () => null);
-jest.mock("../../assets/specialty-vouches.svg", () => () => null);
 jest.mock("lottie-react-native", () => () => null);
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => ({

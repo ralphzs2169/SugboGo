@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -34,15 +34,11 @@ const FEATURED_CARD_WIDTH_RATIO = 0.74;
 const FEATURED_CARD_MAX_WIDTH = 360;
 
 const HERO_HEIGHT = 200;
-const COMPACT_IMAGE_SIZE = 108;
 const TAG_SECTION_HEIGHT = 52;
 
 const COMPACT_PARENT_HORIZONTAL_PADDING = 32;
-const COMPACT_CARD_HORIZONTAL_PADDING = 20;
-const COMPACT_CONTENT_GAP = 12;
 
 const STANDARD_CONTENT_HORIZONTAL_PADDING = 12;
-const COMPACT_VISIBLE_TAG_COUNT = 2;
 
 /** Returns the card width for horizontal card presentations. */
 export function getBusinessCardWidth(
@@ -64,7 +60,7 @@ export function getBusinessCardWidth(
  *
  * Standard and featured variants use an edge-to-edge cover image followed by
  * padded business details, while the compact variant provides a denser row
- * presentation with secondary metadata and limited specialty tags.
+ * presentation with secondary metadata and wrapping specialty tags.
  */
 export default function BusinessCard({
   business,
@@ -75,6 +71,13 @@ export default function BusinessCard({
   recommendationReason = null,
 }: Props) {
   const { width: screenWidth } = useWindowDimensions();
+  const compactImageWidth = Math.min(
+    176,
+    Math.max(
+      128,
+      Math.round((screenWidth - COMPACT_PARENT_HORIZONTAL_PADDING) * 0.44),
+    ),
+  );
 
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
 
@@ -82,24 +85,12 @@ export default function BusinessCard({
 
   const standardCardWidth = getBusinessCardWidth(screenWidth, standardVariant);
 
-  const compactTagAvailableWidth =
-    screenWidth -
-    COMPACT_PARENT_HORIZONTAL_PADDING -
-    COMPACT_CARD_HORIZONTAL_PADDING -
-    COMPACT_IMAGE_SIZE -
-    COMPACT_CONTENT_GAP;
-
   const standardTagAvailableWidth =
     standardCardWidth - STANDARD_CONTENT_HORIZONTAL_PADDING * 2;
 
-  const tagAvailableWidth =
-    variant === "compact"
-      ? compactTagAvailableWidth
-      : standardTagAvailableWidth;
-
   const displayTags = arrangeSpecialtyTags(
     business.specialty_tags,
-    tagAvailableWidth,
+    standardTagAvailableWidth,
   );
 
   const overallVibeLabel = business.overall_vibe
@@ -111,12 +102,7 @@ export default function BusinessCard({
     : null;
 
   if (variant === "compact") {
-    const compactTags = displayTags.slice(0, COMPACT_VISIBLE_TAG_COUNT);
-
-    const remainingTagCount = Math.max(
-      displayTags.length - compactTags.length,
-      0,
-    );
+    const compactTags = business.specialty_tags;
 
     return (
       <SafePressable
@@ -129,7 +115,7 @@ export default function BusinessCard({
               `Interested in ${recommendationReason.label}.`
             : `Open ${business.business_name} business profile`
         }
-        className="w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
+        className="min-h-40 w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
         android_ripple={{
           color: "rgba(0,0,0,0.05)",
         }}
@@ -137,23 +123,22 @@ export default function BusinessCard({
         {/* Business image */}
         <View
           style={{
-            width: COMPACT_IMAGE_SIZE,
-            height: COMPACT_IMAGE_SIZE,
+            width: compactImageWidth,
           }}
-          className="relative shrink-0 overflow-hidden rounded-xl bg-surface-secondary"
+          className="relative min-h-40 shrink-0 self-stretch overflow-hidden bg-surface-muted"
         >
           {business.display_cover_photo_url ? (
             <Image
               source={{ uri: business.display_cover_photo_url }}
-              style={{
-                width: "100%",
-                height: "100%",
-              }}
+              style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={150}
             />
           ) : (
-            <View className="h-full w-full items-center justify-center bg-brand/8">
+            <View
+              style={StyleSheet.absoluteFill}
+              className="items-center justify-center bg-brand/8"
+            >
               <MaterialCommunityIcons
                 name={clusterIconName}
                 size={36}
@@ -175,11 +160,11 @@ export default function BusinessCard({
         </View>
 
         {/* Business details */}
-        <View className="min-w-0 flex-1 justify-between py-0.5 pl-3">
+        <View className="min-h-40 min-w-0 flex-1 justify-between p-3">
           <View>
             <AppText
               weight="bold"
-              className="text-[15px] leading-5 text-text-primary"
+              className="text-[13px] leading-5 text-text-primary"
               numberOfLines={2}
             >
               {business.business_name}
@@ -194,7 +179,7 @@ export default function BusinessCard({
 
               <AppText
                 weight="medium"
-                className="ml-1 min-w-0 flex-1 text-[11px] text-text-secondary"
+                className="ml-1 min-w-0 flex-1 text-[10px] text-text-secondary"
                 numberOfLines={1}
               >
                 {business.category.name}
@@ -209,7 +194,7 @@ export default function BusinessCard({
                   />
 
                   <AppText
-                    className="ml-1 text-[11px] text-text-tertiary"
+                    className="ml-1 text-[10px] text-text-tertiary"
                     numberOfLines={1}
                   >
                     {formatDistance(distance, distanceAccuracy)}
@@ -241,28 +226,17 @@ export default function BusinessCard({
 
           {/* Specialty tags */}
           {compactTags.length > 0 && (
-            <View className="mt-2 flex-row flex-wrap items-center overflow-hidden">
+            <View className="mt-2 flex-row flex-wrap items-center">
               {compactTags.map((tag) => (
                 <SpecialtyTagChip
                   key={tag.id}
                   tag={tag}
-                  size="small"
+                  size="xs"
                   isSelected={tag.is_vouched}
                   showVouchIndicator={tag.is_vouched}
                   showIcon
                 />
               ))}
-
-              {remainingTagCount > 0 && (
-                <View className="mb-1 mr-1 h-6 items-center justify-center rounded-full border border-border-primary bg-background px-2">
-                  <AppText
-                    weight="semibold"
-                    className="text-[10px] text-text-secondary"
-                  >
-                    +{remainingTagCount}
-                  </AppText>
-                </View>
-              )}
             </View>
           )}
         </View>

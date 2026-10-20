@@ -6,6 +6,19 @@ from apps.reviews.serializers.community_review_serializers import (
 from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 
 
+class MyReviewQuerySerializer(serializers.Serializer):
+    """Validates author-history filters and ordering."""
+
+    status = serializers.ChoiceField(
+        choices=["all", "published", "under_review", "not_published"],
+        default="all",
+    )
+    ordering = serializers.ChoiceField(
+        choices=["newest", "oldest"],
+        default="newest",
+    )
+
+
 class MyReviewBusinessResponseSerializer(serializers.Serializer):
     """Serializes compact business identity and availability for author history."""
 

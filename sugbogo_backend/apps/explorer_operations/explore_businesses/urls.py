@@ -57,6 +57,7 @@ from apps.explorer_operations.explore_businesses.views.visibility_event_views im
 from apps.explorer_operations.explore_businesses.views.vouch_history_views import (
     VouchHistoryView,
 )
+from .views.activity_timeline_views import ActivityTimelineView
 from django.urls import path
 from .views.route_intent_views import RouteIntentView
 from .views.pocket_collection_views import (
@@ -70,6 +71,11 @@ from .views.business_pocket_membership_views import (
 )
 
 urlpatterns = [
+    path(
+        "activity-timeline/",
+        ActivityTimelineView.as_view(),
+        name="activity-timeline",
+    ),
     path(
         "businesses/<int:business_id>/route-intent/",
         RouteIntentView.as_view(),

@@ -6,7 +6,7 @@ import { View } from "react-native";
 import { theme } from "@/constants/theme";
 import Avatar from "@/shared/components/Avatar";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
-import { GEM_ACCENT, GEM_FILL, GEM_ICON } from "@/shared/styles/hiddenGems";
+import { GEM_ACCENT } from "@/shared/styles/hiddenGems";
 
 type MapMarkerVariant =
   | "business"
@@ -38,8 +38,7 @@ const MARKERS: Record<MapMarkerVariant, MarkerConfig> = {
     color: theme.extends.colors.brand,
   },
   "hidden-gem": {
-    color: GEM_FILL,
-    icon: "diamond-stone",
+    color: theme.extends.colors.brand,
   },
   google: {
     color: "#4285F4",
@@ -130,7 +129,7 @@ export default function MapMarker({
   const usesCircularIdentity = isExplorer || isBusiness || isHiddenGem;
 
   if (usesCircularIdentity) {
-    const accent = isHiddenGem ? GEM_ACCENT : theme.extends.colors.brand;
+    const accent = theme.extends.colors.brand;
 
     return (
       <View
@@ -200,13 +199,8 @@ export default function MapMarker({
                 avatarKey={avatarKey}
                 size={IDENTITY_MARKER_SIZE}
               />
-            ) : isHiddenGem ? (
-              <MaterialCommunityIcons
-                name={marker.icon ?? "diamond-stone"}
-                size={18}
-                color={GEM_ICON}
-              />
-            ) : variant === "business" && clusterIcon !== undefined ? (
+            ) : (variant === "business" || isHiddenGem) &&
+              clusterIcon !== undefined ? (
               <MaterialCommunityIcons
                 name={
                   (clusterIcon ? CLUSTER_ICONS[clusterIcon] : undefined) ??
@@ -233,7 +227,7 @@ export default function MapMarker({
             )}
           </View>
 
-          {/* Hidden gem sparkle badge */}
+          {/* Hidden gem badge */}
           {isHiddenGem && (
             <View
               className="items-center justify-center rounded-full"
@@ -252,7 +246,7 @@ export default function MapMarker({
               }}
             >
               <MaterialCommunityIcons
-                name="star-four-points"
+                name="diamond-stone"
                 size={9}
                 color={GEM_ACCENT}
               />
@@ -268,9 +262,7 @@ export default function MapMarker({
             // Pull the stand up over the box's transparent bottom padding
             // so it touches the circle.
             marginTop: -(IDENTITY_BOX_SIZE - IDENTITY_OUTER_SIZE) / 2,
-            backgroundColor: isHiddenGem
-              ? GEM_ACCENT
-              : theme.extends.colors.text.secondary,
+            backgroundColor: theme.extends.colors.text.secondary,
           }}
         />
 

@@ -9,7 +9,6 @@ import Toast from "react-native-toast-message";
 import { theme } from "@/constants/theme";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
-import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -69,7 +68,6 @@ function parseCategoryIds(value: string | string[] | undefined) {
 export default function SearchFilterResultsScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const bottomSpacing = useTabBarSpacing();
 
   const filterSheetRef = useRef<BottomSheetModal | null>(null);
   const didOpenInitialFilters = useRef(false);
@@ -347,7 +345,7 @@ export default function SearchFilterResultsScreen() {
           ) : null
         }
         contentContainerStyle={{
-          paddingBottom: Math.max(bottomSpacing, insets.bottom + 24),
+          paddingBottom: insets.bottom,
         }}
         onEndReached={loadNextPage}
         onEndReachedThreshold={0.35}

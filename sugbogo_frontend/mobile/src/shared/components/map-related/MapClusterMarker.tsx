@@ -23,7 +23,7 @@ type Props = {
 const BADGE_SIZE = 18;
 
 // Fixed bounding box for every cluster so the native bitmap never resizes.
-const BOX_SIZE = 76;
+const BOX_SIZE = 84;
 const HALO_PADDING = 8;
 
 /**
@@ -31,10 +31,10 @@ const HALO_PADDING = 8;
  * denser clusters read as heavier without becoming huge.
  */
 function getCoreSize(count: number) {
-  if (count >= 100) return 52;
-  if (count >= 30) return 46;
-  if (count >= 10) return 40;
-  return 34;
+  if (count >= 100) return 58;
+  if (count >= 30) return 52;
+  if (count >= 10) return 46;
+  return 40;
 }
 
 function formatCount(count: number) {
@@ -44,7 +44,7 @@ function formatCount(count: number) {
 /**
  * Displays a cluster of nearby businesses on the discovery map.
  *
- * Brand-colored core with a white ring and a soft halo, sized by density.
+ * Brand-colored core with a soft halo, sized by density.
  * Tapping zooms into the cluster through the library's own `onPress`.
  */
 export default function MapClusterMarker({
@@ -114,8 +114,6 @@ export default function MapClusterMarker({
             height: coreSize,
             borderRadius: coreSize / 2,
             backgroundColor: tone,
-            borderWidth: 2.5,
-            borderColor: "#FFFFFF",
             alignItems: "center",
             justifyContent: "center",
             shadowColor: "#000",
@@ -147,8 +145,6 @@ export default function MapClusterMarker({
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: isAllGems ? "#FFFFFF" : GEM_FILL,
-              borderWidth: 2,
-              borderColor: isAllGems ? GEM_FILL : "#FFFFFF",
               elevation: 8,
               zIndex: 2,
             }}
