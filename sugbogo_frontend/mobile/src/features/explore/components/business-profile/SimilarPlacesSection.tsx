@@ -10,7 +10,7 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
 import useSimilarBusinesses from "../../hooks/useSimilarBusinesses";
-import BusinessCard from "../new-businesses/BusinessCard";
+import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
 import BusinessProfileSection from "./BusinessProfileSection";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";

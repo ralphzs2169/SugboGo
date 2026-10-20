@@ -9,7 +9,7 @@ import {
 
 import { theme } from "@/constants/theme";
 import CompactBusinessListSkeleton from "@/features/explore/components/CompactBusinessListSkeleton";
-import BusinessCard from "@/features/explore/components/new-businesses/BusinessCard";
+import BusinessCard from "../components/PocketBusinessCard";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";

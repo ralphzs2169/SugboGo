@@ -1,13 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
-import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import { handleSystemError } from "@/shared/utils/apiErrors";
-
-import useBusinessPocket from "../../hooks/useBusinessPocket";
+import { usePocketPicker } from "@/features/pockets/providers/PocketPickerContext";
 
 type Props = {
   businessId: number;
@@ -15,18 +11,15 @@ type Props = {
 };
 
 /**
- * Provides the business Pocket action with optimistic state feedback.
+ * Opens the shared Pocket picker from either business-profile placement.
  *
- * Pocketing triggers a brief bookmark pop and pulse animation, while removing
- * a business from Pocket transitions quietly back to the outlined state.
+ * A confirmed saved state triggers the existing bookmark pop and pulse.
  */
 export default function BusinessPocketButton({
   businessId,
   isPocketed,
 }: Props) {
-  const { pocket, isPending } = useBusinessPocket({
-    businessId,
-  });
+  const picker = usePocketPicker();
 
   const bookmarkScale = useRef(new Animated.Value(1)).current;
   const pulseScale = useRef(new Animated.Value(1)).current;
@@ -77,45 +70,14 @@ export default function BusinessPocketButton({
     ]).start();
   }, [isPocketed, bookmarkScale, pulseScale, pulseOpacity]);
 
-  const handlePress = async () => {
-    if (isPending) {
-      return;
-    }
-
-    try {
-      await pocket({
-        isPocketed,
-      });
-
-      Toast.show({
-        type: "info",
-        text1: isPocketed ? "Removed from Pocket" : "Added to Pocket",
-        visibilityTime: 1500,
-      });
-    } catch (error) {
-      const response = error as ApiResponse<unknown>;
-
-      if (!response.success) {
-        if (handleSystemError(response)) {
-          return;
-        }
-
-        Toast.show({
-          type: "error",
-          text1: "Unable to update Pocket",
-          text2: response.message || "Something went wrong. Please try again.",
-        });
-      }
-    }
-  };
-
   return (
     <Pressable
-      onPress={handlePress}
-      disabled={isPending}
+      onPress={() => picker?.openPocketPicker(businessId)}
+      disabled={!picker || picker.isOpen}
+      hitSlop={4}
       accessibilityRole="button"
       accessibilityLabel={
-        isPocketed ? "Remove business from Pocket" : "Add business to Pocket"
+        isPocketed ? "Edit Pocket collections" : "Save business to Pockets"
       }
       className="relative h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
       android_ripple={{

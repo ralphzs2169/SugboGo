@@ -16,7 +16,7 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
-import BusinessCard from "../components/new-businesses/BusinessCard";
+import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
 import ExploreCollectionEmptyState from "../components/explore-collection/ExploreCollectionEmptyState";
 import ExploreCollectionResultsHeader, {
   type ExploreAppliedFilter,

@@ -14,14 +14,16 @@ import type {
   PocketCollectionListResponse,
 } from "../../types/pockets.types";
 import {
+  getBusinessPocketMemberships,
   getPocketCollection,
   getPocketCollectionBusinesses,
   getPocketCollections,
+  replaceBusinessPocketMemberships,
 } from "../pockets.service";
 
 jest.mock("@/shared/api/apiClient.service", () => ({
   __esModule: true,
-  default: { get: jest.fn() },
+  default: { get: jest.fn(), put: jest.fn() },
 }));
 
 const emptyResponse: ApiSuccessWithData<PocketCollectionListResponse> = {
@@ -156,6 +158,74 @@ describe("Pocket collection list transport", () => {
     await expect(getPocketCollections()).resolves.toMatchObject({
       success: false,
       code: API_ERROR_CODE.UNKNOWN_ERROR,
+    });
+  });
+});
+
+describe("complete Pocket membership transport", () => {
+  beforeEach(() => {
+    jest.mocked(apiClient.get).mockReset();
+    jest.mocked(apiClient.put).mockReset();
+  });
+  it("reads all membership IDs without collection pagination", async () => {
+    const response = {
+      success: true,
+      message: "Pocket memberships retrieved successfully.",
+      data: { business_id: 42, pocket_ids: [20, 999], is_pocketed: true },
+    };
+    jest.mocked(apiClient.get).mockResolvedValue({ data: response });
+    await expect(getBusinessPocketMemberships(42)).resolves.toEqual(response);
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/explorer/explore/businesses/42/pockets/",
+    );
+  });
+  it.each([[20, 999], []].map((ids) => ({ ids })))(
+    "replaces the complete selection $ids",
+    async ({ ids }) => {
+      const response = {
+        success: true,
+        message: "Pocket memberships updated successfully.",
+        data: { business_id: 42, pocket_ids: ids, is_pocketed: ids.length > 0 },
+      };
+      jest.mocked(apiClient.put).mockResolvedValue({ data: response });
+      await expect(replaceBusinessPocketMemberships(42, ids)).resolves.toEqual(
+        response,
+      );
+      expect(apiClient.put).toHaveBeenCalledWith(
+        "/explorer/explore/businesses/42/pockets/",
+        { pocket_ids: ids },
+      );
+    },
+  );
+  it.each([400, 401, 403, 404, 429])(
+    "preserves HTTP %s failures from both membership methods",
+    async (status) => {
+      const response = {
+        success: false,
+        code: "API_ERROR",
+        message: "Request failed.",
+      };
+      const failure = {
+        isAxiosError: true,
+        response: { status, data: response },
+      };
+      jest.mocked(apiClient.get).mockRejectedValue(failure);
+      jest.mocked(apiClient.put).mockRejectedValue(failure);
+      await expect(getBusinessPocketMemberships(42)).resolves.toEqual(response);
+      await expect(replaceBusinessPocketMemberships(42, [])).resolves.toEqual(
+        response,
+      );
+    },
+  );
+  it("normalizes transport failures for replacement", async () => {
+    const error = new Error("Offline");
+    error.name = API_ERROR_CODE.NETWORK_ERROR;
+    jest.mocked(apiClient.put).mockRejectedValue(error);
+    await expect(
+      replaceBusinessPocketMemberships(42, [20]),
+    ).resolves.toMatchObject({
+      success: false,
+      code: API_ERROR_CODE.NETWORK_ERROR,
     });
   });
 });

@@ -25,6 +25,8 @@ type Props = {
   distance: number | null;
   distanceAccuracy: number | null;
   onPress: () => void;
+  onPocketPress?: () => void;
+  pocketActionDisabled?: boolean;
   variant?: "default" | "featured" | "compact";
   recommendationReason?: RecommendationReason | null;
 };
@@ -71,6 +73,8 @@ export default function BusinessCard({
   distance,
   distanceAccuracy,
   onPress,
+  onPocketPress,
+  pocketActionDisabled = false,
   variant = "default",
   recommendationReason = null,
 }: Props) {
@@ -110,6 +114,38 @@ export default function BusinessCard({
     ? OVERALL_REVIEW_VIBE_STYLES[business.overall_vibe]
     : null;
 
+  // A sibling action keeps bookmark taps separate from profile navigation.
+  const pocketAction = onPocketPress ? (
+    <SafePressable
+      onPress={onPocketPress}
+      disabled={pocketActionDisabled}
+      accessibilityRole="button"
+      accessibilityLabel={
+        business.is_pocketed
+          ? `Edit Pocket collections for ${business.business_name}`
+          : `Save ${business.business_name} to Pockets`
+      }
+      accessibilityState={{ disabled: pocketActionDisabled }}
+      className="absolute top-2 h-12 w-12 cursor-pointer items-center justify-center rounded-xl active:opacity-80"
+      style={
+        variant === "compact" ? { left: COMPACT_IMAGE_SIZE - 44 } : { right: 8 }
+      }
+    >
+      <View
+        pointerEvents="none"
+        className="h-8 w-8 items-center justify-center rounded-md bg-black/65"
+      >
+        <MaterialCommunityIcons
+          name={business.is_pocketed ? "bookmark" : "bookmark-outline"}
+          size={20}
+          color="#FFFFFF"
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      </View>
+    </SafePressable>
+  ) : null;
+
   if (variant === "compact") {
     const compactTags = displayTags.slice(0, COMPACT_VISIBLE_TAG_COUNT);
 
@@ -119,154 +155,157 @@ export default function BusinessCard({
     );
 
     return (
-      <SafePressable
-        onPress={onPress}
-        // style={shadows.subtle}
-        accessibilityRole="button"
-        accessibilityLabel={
-          recommendationReason
-            ? `Open ${business.business_name} business profile. ` +
-              `Interested in ${recommendationReason.label}.`
-            : `Open ${business.business_name} business profile`
-        }
-        className="w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
-        android_ripple={{
-          color: "rgba(0,0,0,0.05)",
-        }}
-      >
-        {/* Business image */}
-        <View
-          style={{
-            width: COMPACT_IMAGE_SIZE,
-            height: COMPACT_IMAGE_SIZE,
+      <View className="relative w-full">
+        <SafePressable
+          onPress={onPress}
+          // style={shadows.subtle}
+          accessibilityRole="button"
+          accessibilityLabel={
+            recommendationReason
+              ? `Open ${business.business_name} business profile. ` +
+                `Interested in ${recommendationReason.label}.`
+              : `Open ${business.business_name} business profile`
+          }
+          className="w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
+          android_ripple={{
+            color: "rgba(0,0,0,0.05)",
           }}
-          className="relative shrink-0 overflow-hidden rounded-xl bg-surface-secondary"
         >
-          {business.display_cover_photo_url ? (
-            <Image
-              source={{ uri: business.display_cover_photo_url }}
-              style={{
-                width: "100%",
-                height: "100%",
-              }}
-              contentFit="cover"
-              transition={150}
-            />
-          ) : (
-            <View className="h-full w-full items-center justify-center bg-brand/8">
-              <MaterialCommunityIcons
-                name={clusterIconName}
-                size={36}
-                color={theme.extends.colors.brand}
-                style={{ opacity: 0.4 }}
+          {/* Business image */}
+          <View
+            style={{
+              width: COMPACT_IMAGE_SIZE,
+              height: COMPACT_IMAGE_SIZE,
+            }}
+            className="relative shrink-0 overflow-hidden rounded-xl bg-surface-secondary"
+          >
+            {business.display_cover_photo_url ? (
+              <Image
+                source={{ uri: business.display_cover_photo_url }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                }}
+                contentFit="cover"
+                transition={150}
               />
-            </View>
-          )}
-
-          {business.is_pocketed && (
-            <View className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-md bg-black/65">
-              <MaterialCommunityIcons
-                name="bookmark"
-                size={15}
-                color="#FFFFFF"
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Business details */}
-        <View className="min-w-0 flex-1 justify-between py-0.5 pl-3">
-          <View>
-            <AppText
-              weight="bold"
-              className="text-[15px] leading-5 text-text-primary"
-              numberOfLines={2}
-            >
-              {business.business_name}
-            </AppText>
-
-            <View className="mt-1 flex-row items-center">
-              <MaterialCommunityIcons
-                name={clusterIconName}
-                size={12}
-                color={theme.extends.colors.text.tertiary}
-              />
-
-              <AppText
-                weight="medium"
-                className="ml-1 min-w-0 flex-1 text-[11px] text-text-secondary"
-                numberOfLines={1}
-              >
-                {business.category.name}
-              </AppText>
-
-              {distance !== null && (
-                <View className="ml-2 shrink-0 flex-row items-center">
-                  <MaterialCommunityIcons
-                    name="map-marker-outline"
-                    size={12}
-                    color={theme.extends.colors.text.tertiary}
-                  />
-
-                  <AppText
-                    className="ml-1 text-[11px] text-text-tertiary"
-                    numberOfLines={1}
-                  >
-                    {formatDistance(distance, distanceAccuracy)}
-                  </AppText>
-                </View>
-              )}
-            </View>
-
-            {recommendationReason && (
-              <View className="mt-1.5 min-w-0 flex-row items-center">
+            ) : (
+              <View className="h-full w-full items-center justify-center bg-brand/8">
                 <MaterialCommunityIcons
-                  name="creation"
-                  size={12}
+                  name={clusterIconName}
+                  size={36}
                   color={theme.extends.colors.brand}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
+                  style={{ opacity: 0.4 }}
                 />
+              </View>
+            )}
 
-                <AppText
-                  weight="medium"
-                  className="ml-1 min-w-0 flex-1 text-[11px] text-brand"
-                  numberOfLines={1}
-                >
-                  Interested in {recommendationReason.label}
-                </AppText>
+            {business.is_pocketed && !onPocketPress && (
+              <View className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-md bg-black/65">
+                <MaterialCommunityIcons
+                  name="bookmark"
+                  size={15}
+                  color="#FFFFFF"
+                />
               </View>
             )}
           </View>
 
-          {/* Specialty tags */}
-          {compactTags.length > 0 && (
-            <View className="mt-2 flex-row flex-wrap items-center overflow-hidden">
-              {compactTags.map((tag) => (
-                <SpecialtyTagChip
-                  key={tag.id}
-                  tag={tag}
-                  size="small"
-                  isSelected={tag.is_vouched}
-                  showVouchIndicator={tag.is_vouched}
-                  showIcon
-                />
-              ))}
+          {/* Business details */}
+          <View className="min-w-0 flex-1 justify-between py-0.5 pl-3">
+            <View>
+              <AppText
+                weight="bold"
+                className="text-[15px] leading-5 text-text-primary"
+                numberOfLines={2}
+              >
+                {business.business_name}
+              </AppText>
 
-              {remainingTagCount > 0 && (
-                <View className="mb-1 mr-1 h-6 items-center justify-center rounded-full border border-border-primary bg-background px-2">
+              <View className="mt-1 flex-row items-center">
+                <MaterialCommunityIcons
+                  name={clusterIconName}
+                  size={12}
+                  color={theme.extends.colors.text.tertiary}
+                />
+
+                <AppText
+                  weight="medium"
+                  className="ml-1 min-w-0 flex-1 text-[11px] text-text-secondary"
+                  numberOfLines={1}
+                >
+                  {business.category.name}
+                </AppText>
+
+                {distance !== null && (
+                  <View className="ml-2 shrink-0 flex-row items-center">
+                    <MaterialCommunityIcons
+                      name="map-marker-outline"
+                      size={12}
+                      color={theme.extends.colors.text.tertiary}
+                    />
+
+                    <AppText
+                      className="ml-1 text-[11px] text-text-tertiary"
+                      numberOfLines={1}
+                    >
+                      {formatDistance(distance, distanceAccuracy)}
+                    </AppText>
+                  </View>
+                )}
+              </View>
+
+              {recommendationReason && (
+                <View className="mt-1.5 min-w-0 flex-row items-center">
+                  <MaterialCommunityIcons
+                    name="creation"
+                    size={12}
+                    color={theme.extends.colors.brand}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+
                   <AppText
-                    weight="semibold"
-                    className="text-[10px] text-text-secondary"
+                    weight="medium"
+                    className="ml-1 min-w-0 flex-1 text-[11px] text-brand"
+                    numberOfLines={1}
                   >
-                    +{remainingTagCount}
+                    Interested in {recommendationReason.label}
                   </AppText>
                 </View>
               )}
             </View>
-          )}
-        </View>
-      </SafePressable>
+
+            {/* Specialty tags */}
+            {compactTags.length > 0 && (
+              <View className="mt-2 flex-row flex-wrap items-center overflow-hidden">
+                {compactTags.map((tag) => (
+                  <SpecialtyTagChip
+                    key={tag.id}
+                    tag={tag}
+                    size="small"
+                    isSelected={tag.is_vouched}
+                    showVouchIndicator={tag.is_vouched}
+                    showIcon
+                  />
+                ))}
+
+                {remainingTagCount > 0 && (
+                  <View className="mb-1 mr-1 h-6 items-center justify-center rounded-full border border-border-primary bg-background px-2">
+                    <AppText
+                      weight="semibold"
+                      className="text-[10px] text-text-secondary"
+                    >
+                      +{remainingTagCount}
+                    </AppText>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </SafePressable>
+        {pocketAction}
+      </View>
     );
   }
 
@@ -319,7 +358,7 @@ export default function BusinessCard({
             </View>
           )}
 
-          {business.is_pocketed && (
+          {business.is_pocketed && !onPocketPress && (
             <View className="absolute right-2.5 top-2.5 h-7 w-7 items-center justify-center rounded-md bg-black/65">
               <MaterialCommunityIcons
                 name="bookmark"
@@ -450,6 +489,7 @@ export default function BusinessCard({
           </View>
         </View>
       </SafePressable>
+      {pocketAction}
     </View>
   );
 }

@@ -10,7 +10,7 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import useRecommendations from "../../hooks/useRecommendations";
-import BusinessCard from "../new-businesses/BusinessCard";
+import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
 import ExploreSectionHeader from "../ExploreSectionHeader";
 import CompactBusinessListSkeleton from "../CompactBusinessListSkeleton";
 import ExploreSectionEmptyState from "../ExploreSectionEmptyState";

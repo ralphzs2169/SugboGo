@@ -14,3 +14,10 @@ export type PocketCollectionListResponse = {
   items: PocketCollection[];
   pagination: ExploreBusinessPagination;
 };
+
+/** Complete owned selection, independent of collection-list pagination. */
+export type BusinessPocketMemberships = {
+  business_id: number;
+  pocket_ids: number[];
+  is_pocketed: boolean;
+};

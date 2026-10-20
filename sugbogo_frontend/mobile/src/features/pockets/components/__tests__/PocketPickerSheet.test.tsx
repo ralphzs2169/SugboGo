@@ -1,0 +1,437 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
+import type { PropsWithChildren } from "react";
+import { BackHandler } from "react-native";
+import Toast from "react-native-toast-message";
+
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import type { User } from "@/features/users/types/user.types";
+import {
+  beginAuthSession,
+  getAuthSessionGeneration,
+} from "@/shared/api/authSessionGeneration.service";
+import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import {
+  getBusinessPocketMemberships,
+  getPocketCollections,
+  replaceBusinessPocketMemberships,
+} from "../../api/pockets.service";
+import { businessPocketMembershipsQueryKey } from "../../hooks/pocketQueryKeys";
+import type {
+  BusinessPocketMemberships,
+  PocketCollectionListResponse,
+} from "../../types/pockets.types";
+import PocketPickerSheet from "../PocketPickerSheet";
+
+jest.mock("../../api/pockets.service", () => ({
+  getBusinessPocketMemberships: jest.fn(),
+  getPocketCollections: jest.fn(),
+  replaceBusinessPocketMemberships: jest.fn(),
+}));
+jest.mock("@/shared/components/Skeleton", () => () => null);
+jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
+jest.mock("@/shared/utils/apiErrors", () => ({
+  handleSystemError: jest.fn(() => false),
+}));
+jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
+jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
+jest.mock("lottie-react-native", () => () => null);
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ bottom: 24 }),
+}));
+jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
+  presentBottomSheet: (ref: { current: { present: () => void } | null }) =>
+    ref.current?.present(),
+}));
+jest.mock("@gorhom/bottom-sheet", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { View, FlatList } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    BottomSheetModal: React.forwardRef(function MockBottomSheetModal(
+      {
+        children,
+        onDismiss,
+        onChange,
+        enablePanDownToClose,
+      }: {
+        children: React.ReactNode;
+        onDismiss: () => void;
+        onChange: (index: number) => void;
+        enablePanDownToClose: boolean;
+      },
+      ref,
+    ) {
+      React.useImperativeHandle(
+        ref,
+        () => ({ present: () => onChange(0), dismiss: onDismiss }),
+        [onChange, onDismiss],
+      );
+      return (
+        <View
+          testID="picker-modal"
+          accessibilityState={{ busy: !enablePanDownToClose }}
+        >
+          {children}
+        </View>
+      );
+    }),
+    BottomSheetFlatList: FlatList,
+    BottomSheetBackdrop: () => null,
+  };
+});
+
+const initialAuth = useAuthStore.getState();
+const user: User = {
+  id: 1,
+  first_name: "Pocket",
+  last_name: "Explorer",
+  gender: null,
+  email: "pocket@example.com",
+  role: "explorer",
+  status: "active",
+  has_completed_interest_selection: true,
+  has_custom_profile_picture: false,
+  has_oauth_accounts: false,
+};
+const failure = {
+  success: false as const,
+  code: "VALIDATION_ERROR",
+  message: "One or more Pockets could not be found.",
+};
+const membership = (ids: number[]): ApiResponse<BusinessPocketMemberships> => ({
+  success: true,
+  message: "Success.",
+  data: { business_id: 42, pocket_ids: ids, is_pocketed: ids.length > 0 },
+});
+function page(
+  ids = [20],
+  number = 1,
+  hasNext = false,
+): ApiResponse<PocketCollectionListResponse> {
+  return {
+    success: true,
+    message: "Success.",
+    data: {
+      items: ids.map((id) => ({
+        id,
+        name: id === 20 ? "Favorites" : `Pocket ${id}`,
+        is_default: id === 20,
+        business_count: 0,
+        created_at: "2026-10-20T01:00:00Z",
+        updated_at: "2026-10-20T01:00:00Z",
+      })),
+      pagination: {
+        page: number,
+        page_size: 1,
+        total_items: hasNext ? 2 : ids.length,
+        total_pages: hasNext ? 2 : ids.length ? number : 0,
+        has_next: hasNext,
+        has_previous: number > 1,
+      },
+    },
+  };
+}
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+describe("PocketPickerSheet", () => {
+  let client: QueryClient;
+  let serverIds: number[];
+  const dismissed = jest.fn();
+  beforeEach(() => {
+    beginAuthSession();
+    useAuthStore.setState({ user, isAuthenticated: true, isLoading: false });
+    serverIds = [20, 999];
+    jest
+      .mocked(getPocketCollections)
+      .mockReset()
+      .mockResolvedValue(page([20], 1, true));
+    jest
+      .mocked(getBusinessPocketMemberships)
+      .mockReset()
+      .mockImplementation(async () => membership(serverIds));
+    jest
+      .mocked(replaceBusinessPocketMemberships)
+      .mockReset()
+      .mockImplementation(async (_id, ids) => {
+        serverIds = [...ids];
+        return membership(ids);
+      });
+    client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { gcTime: Infinity },
+      },
+    });
+  });
+  afterEach(async () => {
+    await cleanup();
+    client.clear();
+    useAuthStore.setState(initialAuth);
+    jest.restoreAllMocks();
+  });
+  function Wrapper({ children }: PropsWithChildren) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  }
+  async function sheet() {
+    const screen = await render(
+      <PocketPickerSheet
+        businessId={42}
+        ownerId={1}
+        generation={getAuthSessionGeneration()}
+        onDismiss={dismissed}
+      />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Favorites" })).toBeTruthy(),
+    );
+    return screen;
+  }
+
+  it("waits for a fresh complete selection before enabling Done, even with cached data", async () => {
+    const pending = deferred<ApiResponse<BusinessPocketMemberships>>();
+    client.setQueryData(businessPocketMembershipsQueryKey(1, 42), {
+      business_id: 42,
+      pocket_ids: [],
+      is_pocketed: false,
+    });
+    jest
+      .mocked(getBusinessPocketMemberships)
+      .mockReturnValueOnce(pending.promise);
+    const screen = await render(
+      <PocketPickerSheet
+        businessId={42}
+        ownerId={1}
+        generation={getAuthSessionGeneration()}
+        onDismiss={dismissed}
+      />,
+      { wrapper: Wrapper },
+    );
+    expect(screen.getByTestId("pocket-picker-loading")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Done" }).props.accessibilityState
+        .disabled,
+    ).toBe(true);
+    await act(async () => pending.resolve(membership([20, 999])));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Favorites" }).props
+          .accessibilityState.checked,
+      ).toBe(true),
+    );
+  }, 15000);
+
+  it("retains off-page IDs and local edits through pagination, and writes the whole set only on Done", async () => {
+    jest
+      .mocked(getPocketCollections)
+      .mockResolvedValueOnce(page([20], 1, true))
+      .mockResolvedValueOnce(page([30], 2));
+    const screen = await sheet();
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Load more Pockets" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Pocket 30" })).toBeTruthy(),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Favorites" }).props
+        .accessibilityState.checked,
+    ).toBe(false);
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Pocket 30" }));
+    expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(dismissed).toHaveBeenCalledTimes(1));
+    expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(
+      42,
+      [30, 999],
+    );
+  });
+
+  it("submits an empty set to remove all memberships", async () => {
+    serverIds = [20];
+    const screen = await sheet();
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(dismissed).toHaveBeenCalled());
+    expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(42, []);
+  });
+
+  it.each(["Cancel", "Android Back"])(
+    "discards draft edits using %s without submitting",
+    async (action) => {
+      const back = jest.spyOn(BackHandler, "addEventListener");
+      const screen = await sheet();
+      await fireEvent.press(
+        screen.getByRole("checkbox", { name: "Favorites" }),
+      );
+      if (action === "Cancel")
+        await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+      else
+        await act(async () => {
+          expect(
+            back.mock.calls.at(-1)?.[1]({
+              type: "hardwareBackPress",
+              timeStamp: Date.now(),
+            }),
+          ).toBe(true);
+        });
+      expect(dismissed).toHaveBeenCalledTimes(1);
+      expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+      expect(serverIds).toEqual([20, 999]);
+    },
+  );
+
+  it("recovers from initial membership and collection errors without fabricating choices", async () => {
+    jest
+      .mocked(getPocketCollections)
+      .mockResolvedValueOnce(failure)
+      .mockResolvedValueOnce(page());
+    jest
+      .mocked(getBusinessPocketMemberships)
+      .mockResolvedValueOnce(failure)
+      .mockImplementation(async () => membership(serverIds));
+    const screen = await render(
+      <PocketPickerSheet
+        businessId={42}
+        ownerId={1}
+        generation={getAuthSessionGeneration()}
+        onDismiss={dismissed}
+      />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy(),
+    );
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    await fireEvent.press(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Favorites" })).toBeTruthy(),
+    );
+    expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+  });
+
+  it("retains selections after a failed page and explicitly retries that page", async () => {
+    jest
+      .mocked(getPocketCollections)
+      .mockResolvedValueOnce(page([20], 1, true))
+      .mockResolvedValueOnce(failure)
+      .mockResolvedValueOnce(page([30], 2));
+    const screen = await sheet();
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Load more Pockets" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy(),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Favorites" }).props
+        .accessibilityState.checked,
+    ).toBe(false);
+    await fireEvent.press(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Pocket 30" })).toBeTruthy(),
+    );
+    expect(getPocketCollections).toHaveBeenNthCalledWith(3, 2);
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(dismissed).toHaveBeenCalled());
+    expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(42, [999]);
+  });
+
+  it("keeps failed saves open with their draft and permits a successful retry", async () => {
+    jest
+      .mocked(replaceBusinessPocketMemberships)
+      .mockResolvedValueOnce(failure);
+    const screen = await sheet();
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(dismissed).not.toHaveBeenCalled();
+    expect(Toast.show).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "info" }),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Favorites" }).props
+        .accessibilityState.checked,
+    ).toBe(false);
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(dismissed).toHaveBeenCalledTimes(1));
+  });
+
+  it("blocks duplicate Done presses, Cancel, and Android Back while saving", async () => {
+    const pending = deferred<ApiResponse<BusinessPocketMemberships>>();
+    jest
+      .mocked(replaceBusinessPocketMemberships)
+      .mockReturnValueOnce(pending.promise);
+    const back = jest.spyOn(BackHandler, "addEventListener");
+    const screen = await sheet();
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      expect(
+        back.mock.calls.at(-1)?.[1]({
+          type: "hardwareBackPress",
+          timeStamp: Date.now(),
+        }),
+      ).toBe(true);
+    });
+    expect(replaceBusinessPocketMemberships).toHaveBeenCalledTimes(1);
+    expect(dismissed).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(membership(serverIds)));
+    await waitFor(() => expect(dismissed).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not report success after unmounting into another account", async () => {
+    const pending = deferred<ApiResponse<BusinessPocketMemberships>>();
+    jest
+      .mocked(replaceBusinessPocketMemberships)
+      .mockReturnValueOnce(pending.promise);
+    const screen = await sheet();
+    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await screen.unmount();
+    await act(async () => {
+      useAuthStore.setState({ user: { ...user, id: 2 } });
+      pending.resolve(membership([20]));
+    });
+    expect(dismissed).not.toHaveBeenCalled();
+    expect(Toast.show).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "info" }),
+    );
+  });
+
+  it("handles an empty collection response without inventing Favorites or creation controls", async () => {
+    serverIds = [];
+    jest.mocked(getPocketCollections).mockResolvedValue(page([]));
+    const screen = await render(
+      <PocketPickerSheet
+        businessId={42}
+        ownerId={1}
+        generation={getAuthSessionGeneration()}
+        onDismiss={dismissed}
+      />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() =>
+      expect(screen.getByText("No Pockets available yet.")).toBeTruthy(),
+    );
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /create/i })).toBeNull();
+  });
+});

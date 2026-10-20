@@ -26,6 +26,7 @@ import {
 } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import NotificationRealtimeSync from "@/features/notifications/components/NotificationRealtimeSync";
+import PocketPickerProvider from "@/features/pockets/providers/PocketPickerProvider";
 
 import "../../global.css";
 
@@ -67,36 +68,44 @@ export default function RootLayout() {
           <SafeAreaProvider initialMetrics={initialWindowMetrics}>
             <KeyboardProvider>
               <BottomSheetModalProvider>
-                {/* App navigation */}
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" options={{ animation: "none" }} />
-                  <Stack.Screen name="offline-routes" />
+                <PocketPickerProvider>
+                  {/* App navigation */}
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen
+                      name="index"
+                      options={{ animation: "none" }}
+                    />
+                    <Stack.Screen name="offline-routes" />
 
-                  <Stack.Screen name="(auth)" options={{ animation: "none" }} />
+                    <Stack.Screen
+                      name="(auth)"
+                      options={{ animation: "none" }}
+                    />
 
-                  <Stack.Screen
-                    name="(explorer)"
-                    options={{ animation: "none" }}
-                  />
+                    <Stack.Screen
+                      name="(explorer)"
+                      options={{ animation: "none" }}
+                    />
 
-                  <Stack.Screen
-                    name="(setup)"
-                    options={{ animation: "none" }}
-                  />
+                    <Stack.Screen
+                      name="(setup)"
+                      options={{ animation: "none" }}
+                    />
 
-                  <Stack.Screen
-                    name="(merchant)"
-                    options={{ animation: "none" }}
-                  />
+                    <Stack.Screen
+                      name="(merchant)"
+                      options={{ animation: "none" }}
+                    />
 
-                  <Stack.Screen
-                    name="notifications"
-                    options={{
-                      headerShown: false,
-                      animation: "slide_from_right",
-                    }}
-                  />
-                </Stack>
+                    <Stack.Screen
+                      name="notifications"
+                      options={{
+                        headerShown: false,
+                        animation: "slide_from_right",
+                      }}
+                    />
+                  </Stack>
+                </PocketPickerProvider>
               </BottomSheetModalProvider>
 
               {/* Global toast notifications */}
