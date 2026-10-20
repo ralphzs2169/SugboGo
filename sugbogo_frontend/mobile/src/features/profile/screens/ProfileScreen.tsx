@@ -91,11 +91,27 @@ export default function ProfileScreen() {
             avatarKey={user?.avatar_key ?? null}
             role={user?.role ?? "explorer"}
             onEditProfile={() => router.push("/profile/edit-profile")}
-          />
+          >
+            <ProfileActivitySummary className="mt-4" />
+          </ProfileHeader>
 
           {/* Explorer activity */}
-          <ProfileActivitySummary />
-          <ProfileMenuSection>
+          <ProfileMenuSection title="Your exploration">
+            <ProfileMenuItem
+              title="My Pockets"
+              icon="bookmark-outline"
+              onPress={() => router.push("/profile/my-pockets")}
+            />
+            <ProfileMenuItem
+              title="My Vouches"
+              icon="heart-outline"
+              onPress={() => router.push("/profile/vouch-history")}
+            />
+            <ProfileMenuItem
+              title="My Reviews"
+              icon="comment-text-outline"
+              onPress={() => router.push("/profile/reviews-submitted")}
+            />
             <ProfileMenuItem
               title="Activity Timeline"
               icon="history"

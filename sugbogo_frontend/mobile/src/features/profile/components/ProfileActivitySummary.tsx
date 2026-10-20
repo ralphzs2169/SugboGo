@@ -1,15 +1,17 @@
-import { router } from "expo-router";
 import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import SafePressable from "@/shared/components/SafePressable";
 
 import { useMyReviews } from "../hooks/useMyReviews";
 import useVouchHistory from "../hooks/useVouchHistory";
 
-/** Displays account activity totals and shortcuts without inventing missing counts. */
-export default function ProfileActivitySummary() {
+/** Displays non-interactive account activity totals without inventing missing counts. */
+export default function ProfileActivitySummary({
+  className = "mx-4 my-2",
+}: {
+  className?: string;
+}) {
   const reviews = useMyReviews();
   const vouches = useVouchHistory("newest");
   const hasError = Boolean(reviews.error || vouches.error);
@@ -18,51 +20,47 @@ export default function ProfileActivitySummary() {
       label: "Pockets",
       value: null,
       loading: false,
-      route: "/profile/my-pockets" as const,
     },
     {
       label: "Vouches",
       value: vouches.summary?.total_specialty_vouches ?? null,
       loading: vouches.isLoading,
-      route: "/profile/vouch-history" as const,
     },
     {
       label: "Reviews",
       value: reviews.data ? reviews.totalCount : null,
       loading: reviews.isLoading,
-      route: "/profile/reviews-submitted" as const,
     },
   ];
 
   return (
-    <View className="mt-1.5 rounded-md bg-surface py-4">
-      {/* Activity shortcuts */}
-      <AppText
-        weight="semibold"
-        className="mb-3 px-5 text-sm text-text-secondary"
-      >
-        Your Activity
-      </AppText>
-      <View className="flex-row px-2">
-        {metrics.map((metric) => (
-          <SafePressable
+    <View className={`rounded-card bg-surface ${className}`}>
+      {/* Account activity totals */}
+      <View className="flex-row items-center px-2">
+        {metrics.map((metric, index) => (
+          <View
             key={metric.label}
-            accessibilityRole="button"
+            className="min-w-0 flex-1 flex-row items-center"
+          >
+            {index > 0 && (
+              <View className="h-6 w-px bg-border-primary/60" />
+            )}
+            <View
+            accessible
             accessibilityLabel={`${metric.label}: ${
               metric.loading ? "loading" : (metric.value ?? "count unavailable")
             }`}
-            accessibilityHint={`Open My ${metric.label}`}
             accessibilityState={{ busy: metric.loading }}
-            onPress={() => router.push(metric.route)}
-            className="min-h-20 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-md px-1 py-2 active:bg-background"
+            className="my-1 min-h-14 min-w-0 flex-1 items-center justify-center px-1 py-1"
           >
-            <AppText weight="bold" className="text-2xl text-text-primary">
+            <AppText weight="bold" className="text-xl text-text-primary">
               {metric.loading ? "…" : (metric.value?.toLocaleString() ?? "—")}
             </AppText>
             <AppText className="mt-1 text-center text-xs text-text-secondary">
               {metric.label}
             </AppText>
-          </SafePressable>
+            </View>
+          </View>
         ))}
       </View>
 
