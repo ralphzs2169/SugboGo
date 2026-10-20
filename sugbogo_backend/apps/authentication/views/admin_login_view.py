@@ -9,11 +9,13 @@ from apps.authentication.utils.jwt import issue_tokens
 from apps.authentication.models import LoginEvent
 from apps.authentication.utils.login_history import track_login_failure
 from apps.users.models import User
+from django.db import transaction
 
 
 @api_view(["POST"])
 @throttle_classes([LoginThrottle])
 @track_login_failure(LoginEvent.Method.ADMIN)
+@transaction.atomic
 def admin_login_view(request):
     """Authenticates an allowed administrative account and records the outcome."""
     serializer = LoginSerializer(data=request.data)

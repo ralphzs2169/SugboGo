@@ -10,6 +10,7 @@ from apps.users.models import User
 from apps.authentication.models import LoginEvent
 from apps.authentication.services.login_history_service import LoginHistoryService
 from django.utils import timezone
+from apps.authentication.services.account_lockout_service import AccountLockoutService
 
 REMEMBER_ME_OFF_LIFETIME = timedelta(hours=12)
 
@@ -45,6 +46,7 @@ def issue_tokens(user, remember_me: bool, *, request=None, method=None):
     access = refresh.access_token
     access["exp"] = min(access["exp"], refresh["exp"])
     if request is not None:
+        AccountLockoutService.clear(account)
         account.last_login = timezone.now()
         account.save(update_fields=["last_login"])
         LoginHistoryService.record(

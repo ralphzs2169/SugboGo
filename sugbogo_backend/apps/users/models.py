@@ -165,6 +165,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     USER_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    USER_LOGIN_FAILURE_COUNT = models.PositiveSmallIntegerField(default=0)
+    USER_LOGIN_WINDOW_STARTED_AT = models.DateTimeField(null=True, blank=True)
+    USER_PASSWORD_LOCKED_UNTIL = models.DateTimeField(null=True, blank=True)
     USER_UPDATED_AT = models.DateTimeField(auto_now=True)
 
     is_staff = models.BooleanField(default=False)  # required for Django admin site access
