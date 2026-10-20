@@ -101,7 +101,7 @@ export default function PocketBusinessRemovalConfirmation({
           )}
         </View>
       }
-      confirmText="Remove business"
+      confirmText="Remove"
       destructive
       isLoading={removal.isPending}
       loadingText="Removing business..."

@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { type Href, router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useEffect, useRef, useState } from "react";
@@ -8,6 +9,7 @@ import {
 } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import { shadows } from "@/shared/styles/shadows";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import PocketCollectionActions from "@/features/pockets/components/PocketCollectionActions";
 import PocketCollectionCard from "@/features/pockets/components/PocketCollectionCard";
@@ -35,6 +37,7 @@ function CollectionSeparator() {
 export default function MyPocketsScreen() {
   const pockets = usePocketCollections();
   const insets = useSafeAreaInsets();
+  const [creationActionHeight, setCreationActionHeight] = useState(64);
   const requests = useRef({ armed: false, paging: false, refreshing: false });
   const [creatingFor, setCreatingFor] = useState<{
     ownerId: number;
@@ -156,26 +159,17 @@ export default function MyPocketsScreen() {
         ItemSeparatorComponent={CollectionSeparator}
         contentContainerClassName="px-4 pt-4"
         contentContainerStyle={{
-          paddingBottom: insets.bottom + 24,
+          paddingBottom:
+            insets.bottom +
+            (pockets.isEnabled ? creationActionHeight + 48 : 24),
           flexGrow: 1,
         }}
         ListHeaderComponent={
           pockets.isEnabled ? (
             <View className="mb-6">
-              <AppText className="mb-4 text-body text-text-secondary">
+              <AppText className="text-body text-text-secondary">
                 Keep your favorite places together, ready for your next visit.
               </AppText>
-              <Button
-                title="Create Pocket"
-                variant="primary"
-                onPress={() => {
-                  if (pockets.userId !== null)
-                    setCreatingFor({
-                      ownerId: pockets.userId,
-                      generation: getAuthSessionGeneration(),
-                    });
-                }}
-              />
             </View>
           ) : null
         }
@@ -275,6 +269,41 @@ export default function MyPocketsScreen() {
           />
         }
       />
+      {/* Collection creation stays reachable above the profile stack safe area. */}
+      {pockets.isEnabled && (
+        <View
+          testID="create-pocket-fab"
+          onLayout={({ nativeEvent }) =>
+            setCreationActionHeight(nativeEvent.layout.height)
+          }
+          className="absolute right-4 z-30 max-w-[90%] rounded-full bg-brand"
+          style={[{ bottom: insets.bottom + 16 }, shadows.floating]}
+        >
+          <Button
+            title="Create Pocket"
+            accessibilityLabel="Create Pocket"
+            onPress={() => {
+              if (pockets.userId !== null)
+                setCreatingFor({
+                  ownerId: pockets.userId,
+                  generation: getAuthSessionGeneration(),
+                });
+            }}
+            icon={
+              <MaterialCommunityIcons
+                name="plus"
+                size={18}
+                color="#FFFFFF"
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+            }
+            rounded="full"
+            className="px-5 py-3.5"
+            fontClassName="text-sm"
+          />
+        </View>
+      )}
       {pockets.isEnabled &&
         managing &&
         managing.ownerId === pockets.userId &&

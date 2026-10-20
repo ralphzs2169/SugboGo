@@ -149,9 +149,9 @@ describe("individual Pocket business removal", () => {
         .mocked(removePocketCollectionBusiness)
         .mockResolvedValue(success(saved));
       const screen = await confirmation();
-      await fireEvent.press(
-        screen.getByRole("button", { name: "Remove business" }),
-      );
+      expect(screen.getByText("Remove", { exact: true })).toBeTruthy();
+      expect(screen.queryByText("Remove business", { exact: true })).toBeNull();
+      await fireEvent.press(screen.getByRole("button", { name: "Remove" }));
       await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
       expect(removePocketCollectionBusiness).toHaveBeenCalledWith(30, 42);
       expect(
@@ -177,9 +177,7 @@ describe("individual Pocket business removal", () => {
   it("retains cards and saved flags after failure and permits retry", async () => {
     jest.mocked(removePocketCollectionBusiness).mockResolvedValueOnce(failure);
     const screen = await confirmation();
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Remove business" }),
-    );
+    await fireEvent.press(screen.getByRole("button", { name: "Remove" }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
     expect(close).not.toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalled();
@@ -187,9 +185,7 @@ describe("individual Pocket business removal", () => {
     expect(
       client.getQueryData(pocketCollectionBusinessesQueryKey(1, 30)),
     ).toEqual({ pages: [feed], pageParams: [1] });
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Remove business" }),
-    );
+    await fireEvent.press(screen.getByRole("button", { name: "Remove" }));
     await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
   });
   it("blocks duplicate removal and cancellation while pending", async () => {
@@ -200,12 +196,8 @@ describe("individual Pocket business removal", () => {
       }),
     );
     const screen = await confirmation();
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Remove business" }),
-    );
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Remove business" }),
-    );
+    await fireEvent.press(screen.getByRole("button", { name: "Remove" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Remove" }));
     await fireEvent.press(
       screen.getByRole("button", { name: "Cancel removal" }),
     );
@@ -223,9 +215,7 @@ describe("individual Pocket business removal", () => {
       }),
     );
     const screen = await confirmation();
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Remove business" }),
-    );
+    await fireEvent.press(screen.getByRole("button", { name: "Remove" }));
     await act(async () => {
       beginAuthSession();
       useAuthStore.setState({ user: { ...user, id: 2 } });

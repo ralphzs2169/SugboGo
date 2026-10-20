@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { Animated } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import PocketPickerSheet from "@/features/pockets/components/PocketPickerSheet";
@@ -16,6 +17,9 @@ import ExploreBusinessHero from "../ExploreBusinessHero";
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn(), back: jest.fn() },
+}));
+jest.mock("@expo/vector-icons", () => ({
+  MaterialCommunityIcons: jest.fn(() => null),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 24, left: 0 }),
@@ -74,6 +78,36 @@ describe("Business Profile Pocket controls", () => {
     await cleanup();
     useAuthStore.setState(initialAuth);
   });
+
+  it.each([false, true])(
+    "preserves the white circle and colors only the filled saved icon (saved=%s)",
+    async (saved) => {
+      const screen = await render(
+        <PocketPickerProvider>
+          <BusinessPocketButton businessId={42} isPocketed={saved} />
+        </PocketPickerProvider>,
+      );
+      const button = screen.getByRole("button", {
+        name: saved ? "Edit Pocket collections" : "Save business to Pockets",
+      });
+      expect(button.props.className).toContain("bg-white/95");
+      expect(
+        button.queryAll(
+          (node) =>
+            node.props.className ===
+            "absolute h-10 w-10 rounded-full bg-white/95",
+        ),
+      ).toHaveLength(1);
+      expect(MaterialCommunityIcons).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: saved ? "bookmark" : "bookmark-outline",
+          size: 22,
+          color: saved ? "#F27F0D" : undefined,
+        }),
+        undefined,
+      );
+    },
+  );
 
   it("opens one picker for the same business from the existing hero and sticky placements", async () => {
     const screen = await render(

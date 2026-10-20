@@ -16,6 +16,7 @@ import Toast from "react-native-toast-message";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import BusinessPocketButton from "@/features/explore/components/business-profile/BusinessPocketButton";
+import type { ExploreBusiness } from "@/features/explore/types/exploreBusiness.types";
 import type { User } from "@/features/users/types/user.types";
 import {
   beginAuthSession,
@@ -39,6 +40,7 @@ import type {
 } from "../../types/pockets.types";
 import PocketPickerSheet from "../PocketPickerSheet";
 import PocketPickerProvider from "../../providers/PocketPickerProvider";
+import PocketBusinessCard from "../PocketBusinessCard";
 
 jest.mock("../../api/pockets.service", () => ({
   getBusinessPocketMemberships: jest.fn(),
@@ -52,7 +54,23 @@ jest.mock("@/shared/utils/apiErrors", () => ({
   handleSystemError: jest.fn(() => false),
 }));
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
-jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
+jest.mock("expo-router", () => ({
+  useNavigation: () => ({ isFocused: () => true }),
+  router: { push: jest.fn() },
+}));
+jest.mock("@expo/vector-icons", () => ({
+  MaterialCommunityIcons: ({
+    name,
+    color,
+  }: {
+    name: string;
+    color?: string;
+  }) => {
+    const { Text } =
+      jest.requireActual<typeof import("react-native")>("react-native");
+    return <Text testID={`icon-${name}`} style={{ color }} />;
+  },
+}));
 jest.mock("lottie-react-native", () => () => null);
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ bottom: 24 }),
@@ -160,12 +178,42 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function BusinessBookmark() {
+const cardBusiness: ExploreBusiness = {
+  id: 42,
+  business_name: "Card Cafe",
+  is_pocketed: false,
+  cover_photo_url: null,
+  display_cover_photo_url: null,
+  review_count: 0,
+  overall_vibe: null,
+  cluster: { id: 1, name: "Culinary", icon: "utensils" },
+  category: { id: 1, name: "Cafe" },
+  specialty_tags: [],
+  location: {
+    address: "Cebu",
+    city: "Cebu City",
+    province: "Cebu",
+    latitude: 10.31,
+    longitude: 123.89,
+  },
+};
+
+function BusinessBookmark({ card = false }: { card?: boolean }) {
   const { data } = useQuery({
     queryKey: ["explore-business-detail", 42],
     queryFn: async () => ({ id: 42, is_pocketed: true }),
     enabled: false,
   });
+  if (card) {
+    return (
+      <PocketBusinessCard
+        business={{ ...cardBusiness, is_pocketed: data?.is_pocketed ?? false }}
+        distance={null}
+        distanceAccuracy={null}
+        onPress={jest.fn()}
+      />
+    );
+  }
   return (
     <BusinessPocketButton
       businessId={42}
@@ -658,4 +706,178 @@ describe("PocketPickerSheet", () => {
     expect(replaceBusinessPocketMemberships).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("pocket-picker-list")).toBeNull();
   });
+
+  it.each([false, true])(
+    "keeps the card gray for draft edits and Cancel, and updates only after a successful save (failure=%s)",
+    async (failure) => {
+      serverIds = [];
+      client.setQueryData(["explore-business-detail", 42], {
+        id: 42,
+        is_pocketed: false,
+      });
+      const result = deferred<ApiResponse<BusinessPocketMemberships>>();
+      jest
+        .mocked(replaceBusinessPocketMemberships)
+        .mockReturnValueOnce(result.promise);
+      const screen = await render(
+        <PocketPickerProvider>
+          <BusinessBookmark card />
+        </PocketPickerProvider>,
+        { wrapper: Wrapper },
+      );
+      const expectGray = () =>
+        expect(
+          screen
+            .getByRole("button", { name: "Save Card Cafe to Pockets" })
+            .queryAll((node) => node.props.pointerEvents === "none")[0].props
+            .className,
+        ).toContain("bg-gray-500");
+      const open = async () => {
+        await fireEvent.press(
+          screen.getByRole("button", { name: "Save Card Cafe to Pockets" }),
+        );
+        await waitFor(() =>
+          expect(
+            screen.getByRole("checkbox", { name: "Favorites" }),
+          ).toBeTruthy(),
+        );
+        await fireEvent.press(
+          screen.getByRole("checkbox", { name: "Favorites" }),
+        );
+      };
+      await open();
+      expectGray();
+      await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+      expectGray();
+      expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+      await open();
+      await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+      expectGray();
+      await act(async () =>
+        result.resolve(
+          failure
+            ? {
+                success: false,
+                code: "server_error",
+                message: "Please try again.",
+              }
+            : membership([20]),
+        ),
+      );
+      if (failure) {
+        await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+        expectGray();
+        await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+      } else {
+        await waitFor(() =>
+          expect(screen.queryByTestId("pocket-picker-list")).toBeNull(),
+        );
+        expect(
+          screen
+            .getByRole("button", {
+              name: "Edit Pocket collections for Card Cafe",
+            })
+            .queryAll((node) => node.props.pointerEvents === "none")[0].props
+            .className,
+        ).toContain("bg-brand");
+      }
+      expect(replaceBusinessPocketMemberships).toHaveBeenCalledTimes(1);
+      expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(42, [20]);
+    },
+  );
+
+  it.each([false, true])(
+    "updates the profile icon only after confirmed saving, preserving draft, Cancel and failure appearance (failure=%s)",
+    async (failure) => {
+      serverIds = [];
+      client.setQueryData(["explore-business-detail", 42], {
+        id: 42,
+        is_pocketed: false,
+      });
+      const result = deferred<ApiResponse<BusinessPocketMemberships>>();
+      jest
+        .mocked(replaceBusinessPocketMemberships)
+        .mockReturnValueOnce(result.promise);
+      const screen = await render(
+        <PocketPickerProvider>
+          <BusinessBookmark />
+        </PocketPickerProvider>,
+        { wrapper: Wrapper },
+      );
+      const expectUnsaved = () =>
+        expect(
+          screen.getByTestId("icon-bookmark-outline").props.style.color,
+        ).toBeUndefined();
+      const open = async () => {
+        await fireEvent.press(
+          screen.getByRole("button", { name: "Save business to Pockets" }),
+        );
+        await waitFor(() =>
+          expect(
+            screen.getByRole("checkbox", { name: "Favorites" }),
+          ).toBeTruthy(),
+        );
+        expectUnsaved();
+        await fireEvent.press(
+          screen.getByRole("checkbox", { name: "Favorites" }),
+        );
+        expectUnsaved();
+      };
+      await open();
+      await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
+      expectUnsaved();
+      expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+      await open();
+      await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+      expectUnsaved();
+      await act(async () =>
+        result.resolve(
+          failure
+            ? {
+                success: false,
+                code: "server_error",
+                message: "Please try again.",
+              }
+            : membership([20]),
+        ),
+      );
+      if (failure) {
+        await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+        expectUnsaved();
+      } else {
+        await waitFor(() =>
+          expect(screen.queryByTestId("pocket-picker-list")).toBeNull(),
+        );
+        expect(screen.getByTestId("icon-bookmark").props.style.color).toBe(
+          "#F27F0D",
+        );
+        // Removing the final membership restores the original outline and color.
+        serverIds = [20];
+        await fireEvent.press(
+          screen.getByRole("button", { name: "Edit Pocket collections" }),
+        );
+        await waitFor(() =>
+          expect(
+            screen.getByRole("checkbox", { name: "Favorites" }).props
+              .accessibilityState.checked,
+          ).toBe(true),
+        );
+        await fireEvent.press(
+          screen.getByRole("checkbox", { name: "Favorites" }),
+        );
+        expect(screen.getByTestId("icon-bookmark").props.style.color).toBe(
+          "#F27F0D",
+        );
+        await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+        await waitFor(() =>
+          expect(screen.queryByTestId("pocket-picker-list")).toBeNull(),
+        );
+        expectUnsaved();
+        expect(replaceBusinessPocketMemberships).toHaveBeenLastCalledWith(
+          42,
+          [],
+        );
+      }
+    },
+  );
 });

@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useEffect, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import BusinessCard from "../components/PocketBusinessCard";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
+import SafePressable from "@/shared/components/SafePressable";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -273,22 +275,35 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                   params: { businessId: String(item.id) },
                 })
               }
-            />
-            <Button
-              title="Remove from Pocket"
-              accessibilityLabel={`Remove ${item.business_name} from ${metadata.collection?.name}`}
-              variant="outline"
-              className="mt-2 min-h-12"
-              onPress={() => {
-                if (!canShowContents || metadata.userId === null || !isValidId)
-                  return;
-                setRemoving({
-                  collectionId,
-                  business: item,
-                  ownerId: metadata.userId,
-                  generation: getAuthSessionGeneration(),
-                });
-              }}
+              compactTrailingAction={
+                <SafePressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${item.business_name} from ${metadata.collection?.name}`}
+                  className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-muted"
+                  onPress={() => {
+                    if (
+                      !canShowContents ||
+                      metadata.userId === null ||
+                      !isValidId
+                    )
+                      return;
+                    setRemoving({
+                      collectionId,
+                      business: item,
+                      ownerId: metadata.userId,
+                      generation: getAuthSessionGeneration(),
+                    });
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="trash-can-outline"
+                    size={22}
+                    color={theme.extends.colors.text.secondary}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+                </SafePressable>
+              }
             />
           </View>
         )}

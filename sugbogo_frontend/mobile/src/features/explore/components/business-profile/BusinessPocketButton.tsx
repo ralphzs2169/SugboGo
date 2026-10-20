@@ -114,6 +114,7 @@ export default function BusinessPocketButton({
         <MaterialCommunityIcons
           name={isPocketed ? "bookmark" : "bookmark-outline"}
           size={22}
+          color={isPocketed ? theme.extends.colors.brand : undefined}
         />
       </Animated.View>
     </Pressable>

@@ -1,5 +1,7 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 import { router } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import SafePressable from "@/shared/components/SafePressable";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import PocketBusinessCard from "@/features/pockets/components/PocketBusinessCard";
@@ -14,6 +16,9 @@ import BusinessCard from "../BusinessCard";
 jest.mock("expo-router", () => ({
   useNavigation: () => ({ isFocused: () => true }),
   router: { push: jest.fn() },
+}));
+jest.mock("@expo/vector-icons", () => ({
+  MaterialCommunityIcons: jest.fn(() => null),
 }));
 jest.mock("@/features/pockets/components/PocketPickerSheet", () =>
   jest.fn(() => {
@@ -89,6 +94,19 @@ describe("Business card Pocket actions", () => {
               ? "Edit Pocket collections for Card Cafe"
               : "Save Card Cafe to Pockets",
           });
+          const background = action.queryAll(
+            (node) => node.props.pointerEvents === "none",
+          )[0];
+          expect(background.props.className).toContain(
+            isPocketed ? "bg-brand" : "bg-gray-500",
+          );
+          expect(MaterialCommunityIcons).toHaveBeenCalledWith(
+            expect.objectContaining({
+              name: isPocketed ? "bookmark" : "bookmark-outline",
+              color: "#FFFFFF",
+            }),
+            undefined,
+          );
           await fireEvent.press(action);
           expect(openPicker).toHaveBeenCalledTimes(1);
           expect(navigate).not.toHaveBeenCalled();
@@ -103,6 +121,44 @@ describe("Business card Pocket actions", () => {
       );
     },
   );
+
+  it("keeps a compact trailing action outside profile navigation and the bookmark", async () => {
+    const navigate = jest.fn();
+    const remove = jest.fn();
+    const picker = jest.fn();
+    const screen = await render(
+      <BusinessCard
+        business={business}
+        distance={null}
+        distanceAccuracy={null}
+        variant="compact"
+        onPress={navigate}
+        onPocketPress={picker}
+        compactTrailingAction={
+          <SafePressable
+            accessibilityRole="button"
+            accessibilityLabel="Remove Card Cafe"
+            onPress={remove}
+          />
+        }
+      />,
+    );
+    const navigation = screen.getByRole("button", {
+      name: "Open Card Cafe business profile",
+    });
+    const action = screen.getByRole("button", { name: "Remove Card Cafe" });
+    expect(
+      navigation.queryAll(
+        (node) => node.props.accessibilityLabel === "Remove Card Cafe",
+      ),
+    ).toHaveLength(0);
+    await fireEvent.press(action);
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(picker).not.toHaveBeenCalled();
+    await fireEvent.press(navigation);
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
 
   it("disables the bookmark while another picker is open without disabling the card body", async () => {
     const navigate = jest.fn();

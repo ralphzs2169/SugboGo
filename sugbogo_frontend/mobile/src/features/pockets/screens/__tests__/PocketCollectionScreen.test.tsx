@@ -84,7 +84,7 @@ jest.mock("@/shared/components/modals/ConfirmModal", () => {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
-            props.confirmText === "Remove business"
+            props.confirmText === "Remove"
               ? "Confirm removal"
               : "Confirm deletion"
           }
@@ -96,7 +96,7 @@ jest.mock("@/shared/components/modals/ConfirmModal", () => {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
-            props.confirmText === "Remove business"
+            props.confirmText === "Remove"
               ? "Cancel removal"
               : "Cancel deletion"
           }
@@ -702,6 +702,8 @@ describe("PocketCollectionScreen", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Remove Business 81 from Favorites" }),
     );
+    expect(screen.queryByText("Remove from Pocket")).toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
     expect(screen.getByText("Business 81")).toBeTruthy();
     expect(removePocketCollectionBusiness).not.toHaveBeenCalled();
     await fireEvent.press(
@@ -738,5 +740,47 @@ describe("PocketCollectionScreen", () => {
     );
     expect(screen.queryByText("Remove this business?")).toBeNull();
     expect(removePocketCollectionBusiness).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels and then confirms removal from a custom Pocket without navigating", async () => {
+    jest.mocked(getPocketCollection).mockResolvedValue(metadata(30));
+    jest
+      .mocked(removePocketCollectionBusiness)
+      .mockImplementationOnce(async () => {
+        jest.mocked(getPocketCollection).mockResolvedValue(metadata(30, 1));
+        jest.mocked(getPocketCollectionBusinesses).mockResolvedValue(page([7]));
+        return {
+          success: true,
+          message: "Removed.",
+          data: { business_id: 81, pocket_ids: [20], is_pocketed: true },
+        };
+      });
+    const screen = await render(<PocketCollectionScreen collectionId={30} />, {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(screen.getByText("Business 81")).toBeTruthy());
+    const openRemoval = async () =>
+      fireEvent.press(
+        screen.getByRole("button", {
+          name: "Remove Business 81 from Pocket 30",
+        }),
+      );
+    await openRemoval();
+    expect(router.push).not.toHaveBeenCalled();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Cancel removal" }),
+    );
+    expect(removePocketCollectionBusiness).not.toHaveBeenCalled();
+    expect(screen.getByText("Business 81")).toBeTruthy();
+    await openRemoval();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Confirm removal" }),
+    );
+    await waitFor(() => expect(screen.queryByText("Business 81")).toBeNull());
+    expect(removePocketCollectionBusiness).toHaveBeenCalledTimes(1);
+    expect(removePocketCollectionBusiness).toHaveBeenCalledWith(30, 81);
+    expect(screen.getByText("1 business")).toBeTruthy();
+    expect(screen.getByText("Business 7")).toBeTruthy();
+    expect(router.push).not.toHaveBeenCalled();
   });
 });

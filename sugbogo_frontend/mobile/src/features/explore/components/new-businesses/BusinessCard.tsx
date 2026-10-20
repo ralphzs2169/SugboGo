@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import type { ReactNode } from "react";
 import { useWindowDimensions, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -27,6 +28,7 @@ type Props = {
   onPress: () => void;
   onPocketPress?: () => void;
   pocketActionDisabled?: boolean;
+  compactTrailingAction?: ReactNode;
   variant?: "default" | "featured" | "compact";
   recommendationReason?: RecommendationReason | null;
 };
@@ -75,6 +77,7 @@ export default function BusinessCard({
   onPress,
   onPocketPress,
   pocketActionDisabled = false,
+  compactTrailingAction,
   variant = "default",
   recommendationReason = null,
 }: Props) {
@@ -91,7 +94,8 @@ export default function BusinessCard({
     COMPACT_PARENT_HORIZONTAL_PADDING -
     COMPACT_CARD_HORIZONTAL_PADDING -
     COMPACT_IMAGE_SIZE -
-    COMPACT_CONTENT_GAP;
+    COMPACT_CONTENT_GAP -
+    (compactTrailingAction ? 48 : 0);
 
   const standardTagAvailableWidth =
     standardCardWidth - STANDARD_CONTENT_HORIZONTAL_PADDING * 2;
@@ -133,7 +137,7 @@ export default function BusinessCard({
     >
       <View
         pointerEvents="none"
-        className="h-8 w-8 items-center justify-center rounded-md bg-black/65"
+        className={`h-8 w-8 items-center justify-center rounded-md ${business.is_pocketed ? "bg-brand" : "bg-gray-500"}`}
       >
         <MaterialCommunityIcons
           name={business.is_pocketed ? "bookmark" : "bookmark-outline"}
@@ -167,6 +171,7 @@ export default function BusinessCard({
               : `Open ${business.business_name} business profile`
           }
           className="w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5 active:opacity-90"
+          style={compactTrailingAction ? { paddingRight: 58 } : undefined}
           android_ripple={{
             color: "rgba(0,0,0,0.05)",
           }}
@@ -305,6 +310,11 @@ export default function BusinessCard({
           </View>
         </SafePressable>
         {pocketAction}
+        {compactTrailingAction && (
+          <View className="absolute bottom-0 right-2.5 top-0 justify-center">
+            {compactTrailingAction}
+          </View>
+        )}
       </View>
     );
   }
