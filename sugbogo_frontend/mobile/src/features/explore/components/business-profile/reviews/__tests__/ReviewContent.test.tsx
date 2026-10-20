@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react-native";
 
-import type { BusinessReview } from "../../../../types/review.types";
+import { businessReviewFixture } from "../../../../__tests__/review.fixtures";
 import ReviewContent from "../ReviewContent";
 
 jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => ({
@@ -8,7 +8,7 @@ jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => ({
   default: () => null,
 }));
 
-const baseReview = {
+const baseReview = businessReviewFixture({
   text: "The Lechon was great. Best LECHON in Cebu.",
   created_at: "2026-09-28T00:00:00Z",
   author: {
@@ -18,7 +18,7 @@ const baseReview = {
     avatar_url: null,
   },
   photos: [],
-} as BusinessReview;
+});
 
 describe("ReviewContent topic highlighting", () => {
   it("highlights every case-insensitive literal match with original casing", async () => {

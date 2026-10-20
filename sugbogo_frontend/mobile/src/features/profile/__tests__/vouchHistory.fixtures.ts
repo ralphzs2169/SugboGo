@@ -49,6 +49,7 @@ export function businessDetail(
     id: business.id,
     business_name: business.business_name,
     cover_photo_url: business.cover_photo_url,
+    display_cover_photo_url: business.cover_photo_url,
     category: business.category,
     specialty_tags: business.specialty_tags,
     review_count: 0,

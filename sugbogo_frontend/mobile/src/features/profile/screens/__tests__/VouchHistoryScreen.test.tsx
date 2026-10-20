@@ -19,6 +19,9 @@ import {
 import type { VouchHistoryBusiness } from "../../types/vouchHistory.types";
 import VouchHistoryScreen from "../VouchHistoryScreen";
 
+jest.mock("../../assets/businesses-vouched.svg", () => () => null);
+jest.mock("../../assets/specialty-vouches.svg", () => () => null);
+
 jest.mock("react-native/Libraries/Lists/FlatList", () => {
   const React = jest.requireActual("react");
   return {
@@ -262,10 +265,10 @@ describe("production Vouch History screen", () => {
     for (const id of [1, 2, 3, 4])
       expect(screen.getByText("Specialty " + id)).toBeTruthy();
     expect(screen.getByTestId("history-business-total").props.children).toBe(
-      25,
+      "25",
     );
     expect(screen.getByTestId("history-specialty-total").props.children).toBe(
-      60,
+      "60",
     );
   }, 15000);
 
@@ -311,7 +314,9 @@ describe("production Vouch History screen", () => {
     await waitFor(() =>
       expect(screen.getByTestId("vouch-history-empty")).toBeTruthy(),
     );
-    expect(screen.getByTestId("history-business-total").props.children).toBe(0);
+    expect(screen.getByTestId("history-business-total").props.children).toBe(
+      "0",
+    );
   });
 
   it("retries initial errors instead of presenting them as empty history", async () => {
@@ -499,7 +504,7 @@ describe("production Vouch History screen", () => {
     await fireEvent.press(screen.getByLabelText("Toggle Specialty 1"));
     await waitFor(() =>
       expect(screen.getByTestId("history-specialty-total").props.children).toBe(
-        1,
+        "1",
       ),
     );
     expect(screen.getByLabelText("Manage vouches for Business 1")).toBeTruthy();
@@ -520,7 +525,7 @@ describe("production Vouch History screen", () => {
     await fireEvent.press(screen.getByLabelText("Toggle Specialty 1"));
     await waitFor(() =>
       expect(screen.getByTestId("history-business-total").props.children).toBe(
-        0,
+        "0",
       ),
     );
     expect(screen.queryByLabelText("Manage vouches for Business 1")).toBeNull();
@@ -534,7 +539,7 @@ describe("production Vouch History screen", () => {
     await fireEvent.press(screen.getByLabelText("Toggle Specialty 3"));
     await waitFor(() =>
       expect(screen.getByTestId("history-business-total").props.children).toBe(
-        1,
+        "1",
       ),
     );
     expect(screen.getByText("Specialty 3")).toBeTruthy();
@@ -576,7 +581,7 @@ describe("production Vouch History screen", () => {
       ).toEqual([1, 2]),
     );
     expect(screen.getByTestId("history-specialty-total").props.children).toBe(
-      5,
+      "5",
     );
   });
 
@@ -600,7 +605,7 @@ describe("production Vouch History screen", () => {
       ).toMatchObject({ selected: true, disabled: false }),
     );
     expect(screen.getByTestId("history-specialty-total").props.children).toBe(
-      2,
+      "2",
     );
     expect(screen.getByTestId("manage-vouch-sheet")).toBeTruthy();
   });
@@ -688,7 +693,7 @@ describe("production Vouch History screen", () => {
         ).toMatchObject({ selected: outcome === "failure", disabled: false }),
       );
       expect(screen.getByTestId("history-specialty-total").props.children).toBe(
-        outcome === "success" ? 1 : 2,
+        outcome === "success" ? "1" : "2",
       );
       expect(client.getQueryData(["explore-business-detail", 1])).toMatchObject(
         {
@@ -746,7 +751,7 @@ describe("production Vouch History screen", () => {
     await act(async () => resolve(await removeOnServer(1, 1)));
     await waitFor(() =>
       expect(screen.getByTestId("history-specialty-total").props.children).toBe(
-        1,
+        "1",
       ),
     );
     expect(

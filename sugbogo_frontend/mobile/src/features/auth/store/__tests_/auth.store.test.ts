@@ -1,4 +1,18 @@
 import { useAuthStore } from "../auth.store";
+import type { User } from "@/features/users/types/user.types";
+
+const user: User = {
+  id: 1,
+  email: "test@test.com",
+  first_name: "Test",
+  last_name: "Explorer",
+  gender: null,
+  role: "explorer",
+  status: "active",
+  has_completed_interest_selection: false,
+  has_custom_profile_picture: false,
+  has_oauth_accounts: false,
+};
 
 /**
  * @file auth.store.test.ts
@@ -32,14 +46,6 @@ describe("auth.store", () => {
   });
 
   it("sets authenticated user", () => {
-    const user = {
-      id: 1,
-      email: "test@test.com",
-      role: "EXPLORER",
-      status: "ACTIVE",
-      has_completed_interest_selection: false,
-    };
-
     useAuthStore.getState().setUser(user);
 
     const state = useAuthStore.getState();
@@ -51,13 +57,7 @@ describe("auth.store", () => {
 
   it("clears authenticated user", () => {
     useAuthStore.setState({
-      user: {
-        id: 1,
-        email: "test@test.com",
-        role: "EXPLORER",
-        status: "ACTIVE",
-        has_completed_interest_selection: false,
-      },
+      user,
       isAuthenticated: true,
     });
 

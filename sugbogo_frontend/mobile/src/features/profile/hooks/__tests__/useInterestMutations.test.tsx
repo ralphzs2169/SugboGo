@@ -1,10 +1,10 @@
 import React, { type PropsWithChildren } from "react";
-import { act, renderHook } from "@testing-library/react-native";
+import { act, renderHook, waitFor } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { updateUserInterests } from "../../api/interest.service";
-import { useUpdateUserInterests } from "../useInterestMutations";
-import { USER_INTERESTS_QUERY_KEY } from "../useUserInterests";
+import { useUpdateUserInterests } from "../your-interests/useInterestMutations";
+import { USER_INTERESTS_QUERY_KEY } from "../your-interests/useUserInterests";
 
 jest.mock("../../api/interest.service", () => ({
   updateUserInterests: jest.fn(),
@@ -34,7 +34,7 @@ describe("interest mutations", () => {
       );
     }
 
-    const { result } = await renderHook(useUpdateUserInterests, {
+    const { result, unmount } = await renderHook(useUpdateUserInterests, {
       wrapper: Wrapper,
     });
 
@@ -45,9 +45,12 @@ describe("interest mutations", () => {
       });
     });
 
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(client.getQueryData(USER_INTERESTS_QUERY_KEY)).toBe(interests);
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ["explore-recommendations"],
     });
+    await unmount();
+    client.clear();
   });
 });
