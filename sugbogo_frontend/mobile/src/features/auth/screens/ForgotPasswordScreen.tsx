@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
@@ -26,10 +26,11 @@ const MASCOT_FORGOT_PASSWORD = require("@/shared/assets/mascot/mascot-forgot-pas
  */
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { email: initialEmail } = useLocalSearchParams<{ email?: string }>();
 
   const { handleForgotPassword, loading } = useForgotPassword();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [errors, setErrors] = useState<{ email?: string }>({});
 
   const clearEmailError = () => {

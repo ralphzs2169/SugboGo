@@ -11,12 +11,28 @@ from apps.users.serializers.profile_serializers import UserSerializer
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
     remember_me = serializers.BooleanField(default=False)
 
 
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Validates the authenticated password-change request shape."""
+
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    confirm_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        """Requires an exact confirmation of the replacement password."""
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+        return attrs
 
 
 class LoginResponseSerializer(serializers.Serializer):

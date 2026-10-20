@@ -2,6 +2,7 @@ from .admin_forgot_password import (
     admin_forgot_password_view as admin_forgot_password_view,
 )
 from .admin_login_view import admin_login_view as admin_login_view
+from .change_password import change_password_view as change_password_view
 from .admin_invitation import (
     complete_admin_invitation_view as complete_admin_invitation_view,
 )

@@ -301,6 +301,8 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
+    # Reject access tokens issued before the account's password changed.
+    "CHECK_REVOKE_TOKEN": True,
 
     "ALGORITHM": "HS256",
 

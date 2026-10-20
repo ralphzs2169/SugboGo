@@ -8,6 +8,7 @@ import {
   RefreshResponse,
   ForgotPasswordRequest,
   ResetPasswordRequest,
+  ChangePasswordRequest,
 } from "../types/auth.types";
 import {
   ApiMessageResponse,
@@ -181,5 +182,14 @@ export function resetPassword(
 ): Promise<ApiMessageResponse> {
   return request(
     authClient.post<ApiMessageResponse>("/auth/reset-password/", data),
+  );
+}
+
+/** Changes the signed-in account's password and invalidates its old sessions. */
+export function changePassword(
+  data: ChangePasswordRequest,
+): Promise<ApiResponse<null>> {
+  return request(
+    apiClient.post<ApiResponse<null>>("/auth/change-password/", data),
   );
 }
