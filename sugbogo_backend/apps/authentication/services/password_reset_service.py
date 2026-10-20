@@ -11,6 +11,7 @@ from apps.authentication.services.session_service import SessionService
 from apps.authentication.constants import Platform
 from apps.authentication.tokens import password_reset_token_generator
 from config import settings
+from apps.authentication.services.account_lockout_service import AccountLockoutService
 
 logger = logging.getLogger(__name__)
 
@@ -111,8 +112,17 @@ class PasswordResetService:
         if user is None:
             return None
 
+        # Recheck proof after acquiring the same lock used by sign-in and password changes.
+        try:
+            user = User.objects.select_for_update().get(pk=user.pk)
+        except User.DoesNotExist:
+            return None
+        if not password_reset_token_generator.check_token(user, token):
+            return None
+
         user.set_password(password)
         user.save(update_fields=["password"])
+        AccountLockoutService.clear(user)
 
         SessionService.revoke_all_sessions(user)
 

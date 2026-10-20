@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { TouchableOpacity, View } from "react-native";
 import Toast from "react-native-toast-message";
 
-import * as onboardingStorage from "@/shared/api/onboardingStorage.service";
-
 import AuthHeader from "@/features/auth/components/AuthHeader";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
@@ -43,53 +41,59 @@ export default function LoginScreen() {
     (state) => state.setPendingEmail,
   );
 
-  const sessionExpired = useAuthStore((state) => state.sessionExpired);
-  const setSessionExpired = useAuthStore((state) => state.setSessionExpired);
   const signingIn = useAuthStore((state) => state.isSigningIn);
 
   const [navigating, setNavigating] = useState(false);
   const [retryAfter, setRetryAfter] = useState(0);
+  const [retryUntil, setRetryUntil] = useState(0);
+  const [lockedEmail, setLockedEmail] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [errors, setErrors] = useState<LoginErrors>({});
-  const [formError, setFormError] = useState("");
+  const [formError, setFormError] = useState(() =>
+    useAuthStore.getState().sessionExpired
+      ? "Your session has expired. Please sign in again."
+      : "",
+  );
 
   const { handleLogin, loading } = useLogin();
   const { handleGoogleLogin } = useGoogleLogin();
   const { handleFacebookLogin } = useFacebookLogin();
 
-  const isRateLimited = retryAfter > 0;
+  const isRateLimited = retryAfter > 0 && lockedEmail === null;
+  const isAccountLocked =
+    retryAfter > 0 && lockedEmail === email.trim().toLowerCase();
   const isAuthenticating = loading || navigating || signingIn;
-  const isLoginDisabled = isAuthenticating || isRateLimited;
+  const isLoginDisabled = isAuthenticating || isRateLimited || isAccountLocked;
 
   useEffect(() => {
-    if (!sessionExpired) {
-      return;
+    const unsubscribe = useAuthStore.subscribe((state, previous) => {
+      if (state.sessionExpired && !previous.sessionExpired) {
+        setFormError("Your session has expired. Please sign in again.");
+        state.setSessionExpired(false);
+      }
+    });
+    if (useAuthStore.getState().sessionExpired) {
+      useAuthStore.getState().setSessionExpired(false);
     }
-
-    setFormError("Your session has expired. Please sign in again.");
-    setSessionExpired(false);
-  }, [sessionExpired, setSessionExpired]);
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
-    if (retryAfter <= 0) {
+    if (retryUntil <= 0) {
       return;
     }
 
     const timer = setInterval(() => {
-      setRetryAfter((previous) => Math.max(previous - 1, 0));
+      const seconds = Math.max(0, Math.ceil((retryUntil - Date.now()) / 1000));
+      setRetryAfter(seconds);
+      if (seconds === 0) clearInterval(timer);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [retryAfter]);
-
-  useEffect(() => {
-    if (retryAfter === 0 && formError.startsWith("Too many login attempts.")) {
-      setFormError("");
-    }
-  }, [retryAfter, formError]);
+  }, [retryUntil]);
 
   const clearFieldError = (field: keyof LoginErrors) => {
     setErrors((previous) => ({
@@ -130,10 +134,22 @@ export default function LoginScreen() {
           return;
         }
 
-        if (response.code === "RATE_LIMIT_EXCEEDED") {
+        if (
+          response.code === "RATE_LIMIT_EXCEEDED" ||
+          response.code === "ACCOUNT_LOCKED"
+        ) {
           const seconds = Number(response.errors?.retry_after ?? 0);
-
-          setRetryAfter(seconds);
+          const wait = Number.isFinite(seconds)
+            ? Math.max(0, Math.ceil(seconds))
+            : 0;
+          setLockedEmail(
+            response.code === "ACCOUNT_LOCKED"
+              ? email.trim().toLowerCase()
+              : null,
+          );
+          setRetryAfter(wait);
+          setRetryUntil(Date.now() + wait * 1000);
+          if (!wait) setFormError(response.message);
 
           return;
         }
@@ -237,7 +253,7 @@ export default function LoginScreen() {
       </View>
 
       {/* Login error */}
-      {isRateLimited ? (
+      {isRateLimited || isAccountLocked ? (
         <View className="mt-1 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
           <View className="flex-row items-start">
             <MaterialCommunityIcons
@@ -250,7 +266,9 @@ export default function LoginScreen() {
               weight="medium"
               className="ml-2 flex-1 text-sm leading-5 text-text-error"
             >
-              Too many login attempts. Please try again in {retryAfter} seconds.
+              {isAccountLocked
+                ? `Password sign-in is temporarily unavailable. Try again in ${retryAfter} seconds or use Forgot Password.`
+                : `Too many login attempts. Please try again in ${retryAfter} seconds.`}
             </AppText>
           </View>
         </View>
@@ -289,7 +307,7 @@ export default function LoginScreen() {
 
       <View className="">
         <SocialLoginButtons
-          disabled={isLoginDisabled}
+          disabled={isAuthenticating || isRateLimited}
           onGooglePress={handleGoogleLogin}
           onFacebookPress={handleFacebookLogin}
         />

@@ -5,6 +5,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.authentication.services.session_service import SessionService
 from apps.users.models import User
+from apps.authentication.services.account_lockout_service import AccountLockoutService
 
 
 class ChangePasswordService:
@@ -56,5 +57,6 @@ class ChangePasswordService:
 
         account.set_password(new_password)
         account.save(update_fields=["password", "USER_UPDATED_AT"])
+        AccountLockoutService.clear(account)
         SessionService.revoke_all_sessions(account)
         return account
