@@ -28,6 +28,7 @@ from .forgot_password import (
 )
 from .google_login import google_login_view as google_login_view
 from .login_view import login_view as login_view
+from .login_history import login_history_view as login_history_view
 from .logout import logout_view as logout_view
 from .password_reset import (
     reset_password_view as reset_password_view,

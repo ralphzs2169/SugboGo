@@ -7,12 +7,15 @@ from rest_framework_simplejwt.utils import datetime_from_epoch
 from rest_framework.exceptions import PermissionDenied
 
 from apps.users.models import User
+from apps.authentication.models import LoginEvent
+from apps.authentication.services.login_history_service import LoginHistoryService
+from django.utils import timezone
 
 REMEMBER_ME_OFF_LIFETIME = timedelta(hours=12)
 
 
 @transaction.atomic
-def issue_tokens(user, remember_me: bool):
+def issue_tokens(user, remember_me: bool, *, request=None, method=None):
     """
     Issues an access + refresh token pair for a user.
     If remember_me is False, the refresh token's lifetime is shortened
@@ -41,6 +44,13 @@ def issue_tokens(user, remember_me: bool):
 
     access = refresh.access_token
     access["exp"] = min(access["exp"], refresh["exp"])
+    if request is not None:
+        account.last_login = timezone.now()
+        account.save(update_fields=["last_login"])
+        LoginHistoryService.record(
+            request=request, method=method, user=account,
+            outcome=LoginEvent.Outcome.SUCCESS,
+        )
     return {
         "refresh": str(refresh),
         "access": str(access),

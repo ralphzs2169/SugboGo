@@ -34,6 +34,11 @@ export default function AccountSettingsScreen() {
         {/* Password management */}
         <ProfileMenuSection title="Security">
           <ProfileMenuItem
+            title="Login history"
+            icon="history"
+            onPress={() => router.push("/profile/login-history" as Href)}
+          />
+          <ProfileMenuItem
             title="Change email"
             icon="email-outline"
             onPress={() => router.push("/profile/change-email" as Href)}

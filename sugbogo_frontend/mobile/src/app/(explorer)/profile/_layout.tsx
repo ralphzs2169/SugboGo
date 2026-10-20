@@ -18,6 +18,14 @@ export default function ProfileLayout() {
 
       <Stack>
         <Stack.Screen
+          name="login-history"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Login History",
+          }}
+        />
+        <Stack.Screen
           name="index"
           options={{
             headerShown: false,
