@@ -37,6 +37,10 @@ from apps.notifications.services.notification_event_service import (
 )
 from apps.users.models import User
 from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
+from apps.merchant_application.services.duplicate_review_service import (
+    DuplicateReviewService,
+    lock_duplicate_approvals,
+)
 
 
 class ApplicationService:
@@ -247,7 +251,14 @@ class ApplicationService:
     
     @staticmethod
     @transaction.atomic
-    def reject_application(application_id, feedback, reviewer):
+    def reject_application(
+        application_id,
+        feedback,
+        reviewer,
+        *,
+        duplicate=False,
+        explanation="",
+    ):
         """
         Reject a submitted merchant application.
 
@@ -256,6 +267,8 @@ class ApplicationService:
         after future resubmissions.
         """
 
+        if duplicate:
+            lock_duplicate_approvals()
         application, _ = ApplicationService._get_locked_application(application_id)
         
         if (
@@ -265,6 +278,11 @@ class ApplicationService:
             raise ValidationError(
                 "Only submitted applications can be rejected.",
             )
+
+        if duplicate:
+            if not explanation.strip():
+                raise ValidationError("A duplicate rejection explanation is required.")
+            DuplicateReviewService.validate_duplicate_rejection(application)
 
         # Get the most recent submission for the application
         submission = (
@@ -294,6 +312,8 @@ class ApplicationService:
             MAREV_REVIEWED_AT=reviewed_at,
             MAREV_SLA_COMPLIANT=sla_compliant,
             MAREV_SECTION_FINGERPRINTS=get_section_fingerprints(application.pk),
+            MAREV_DUPLICATE_REJECTION=duplicate,
+            MAREV_DUPLICATE_EXPLANATION=explanation,
         )
 
         MerchantApplicationFeedback.objects.bulk_create(
@@ -336,6 +356,7 @@ class ApplicationService:
         and promotes the applicant to the merchant role.
         """
 
+        lock_duplicate_approvals()
         application, applicant = ApplicationService._get_locked_application(application_id)
 
         if (
@@ -385,6 +406,8 @@ class ApplicationService:
             identity.CTGRY_ID,
             identity.CLUS_ID_id,
         )
+
+        DuplicateReviewService.enforce_approval(application)
 
         reviewed_at = timezone.now()
 

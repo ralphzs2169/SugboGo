@@ -7,6 +7,7 @@ import type {
 import type {
   ApplicationFeedbackResponse,
   ApplicationFeedbackSection,
+  ApplicationDetailResponse,
 } from "@/features/merchant/types/registration/registrationApi.types";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import { useFormContext } from "react-hook-form";
@@ -18,8 +19,10 @@ import ReviewBusinessPhotos from "../review/sections/ReviewBusinessPhotos";
 import ReviewOperatingHours from "../review/sections/ReviewOperatingHours";
 import ReviewVerificationDocuments from "../review/sections/ReviewVerificationDocuments";
 import ResubmissionChecklist from "../ResubmissionChecklist";
+import DuplicateBusinessWarning from "../DuplicateBusinessWarning";
 
 type ReviewSubmitStepProps = {
+  application?: ApplicationDetailResponse | null;
   clusters: ClusterOption[];
   categories: CategoryOption[];
   onEditSection: (step: number) => void;
@@ -28,6 +31,7 @@ type ReviewSubmitStepProps = {
 };
 
 export default function ReviewSubmitStep({
+  application = null,
   clusters,
   categories,
   onEditSection,
@@ -61,6 +65,13 @@ export default function ReviewSubmitStep({
           isPageHeader
           showBorder={false}
         />
+
+        <View className="px-6">
+          <DuplicateBusinessWarning
+            application={application}
+            onReviewLocation={() => onEditSection(2)}
+          />
+        </View>
 
         {isResubmission && <ResubmissionChecklist feedback={feedback} />}
 

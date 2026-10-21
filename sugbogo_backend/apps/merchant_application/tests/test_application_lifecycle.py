@@ -54,11 +54,10 @@ class MerchantApplicationLifecycleTests(MerchantApplicationServiceMixin, APITest
             application.delete()
 
     def test_admin_can_reject_submitted_application_with_feedback(self):
-        application = MerchantApplication.objects.create(
-            USER_ID=self.merchant,
-            MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
-            MAPP_SUBMISSION_COUNT=1,
-        )
+        application = self._build_complete_application()
+        application.MAPP_STATUS = MerchantApplication.ApplicationStatus.SUBMITTED
+        application.MAPP_SUBMISSION_COUNT = 1
+        application.save(update_fields=["MAPP_STATUS", "MAPP_SUBMISSION_COUNT"])
 
         submission = MerchantApplicationSubmission.objects.create(
             MAPP_ID=application,

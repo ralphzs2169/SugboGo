@@ -183,6 +183,7 @@ export default function MerchantPortalScreen() {
         {/* Rejected application */}
         {config.sections.feedback && (
           <RejectionApplicationSection
+            duplicateDisposition={application?.duplicate_disposition}
             reviewedAt={formatDate(application?.reviewed_at)}
             feedback={application?.latest_review?.feedback ?? []}
           />

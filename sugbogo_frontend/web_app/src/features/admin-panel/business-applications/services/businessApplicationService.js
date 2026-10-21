@@ -56,3 +56,29 @@ export async function rejectBusinessApplication(applicationId, feedback) {
 
   return response.data.data;
 }
+
+/** Reads live duplicate candidates without changing the application. */
+export async function fetchApplicationDuplicates(applicationId) {
+  const response = await apiClient.get(
+    `/admin/businesses/applications/${applicationId}/duplicates/`,
+  );
+  return response.data.data;
+}
+
+/** Records an assessment or reconsideration against current evidence. */
+export async function saveApplicationDuplicateReview(applicationId, payload) {
+  const response = await apiClient.post(
+    `/admin/businesses/applications/${applicationId}/duplicates/`,
+    payload,
+  );
+  return response.data.data;
+}
+
+/** Rejects a confirmed duplicate without fabricating section corrections. */
+export async function rejectDuplicateApplication(applicationId, explanation) {
+  const response = await apiClient.post(
+    `/admin/businesses/applications/${applicationId}/reject/`,
+    { disposition: "duplicate", explanation },
+  );
+  return response.data.data;
+}

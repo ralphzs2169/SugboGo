@@ -126,10 +126,17 @@ class MerchantApplicationRejectView(APIView):
         )
         serializer.is_valid(raise_exception=True)
 
+        duplicate_options = {}
+        if serializer.validated_data["disposition"] == "duplicate":
+            duplicate_options = {
+                "duplicate": True,
+                "explanation": serializer.validated_data["explanation"],
+            }
         application = ApplicationService.reject_application(
             application_id=application_id,
-            feedback=serializer.validated_data["feedback"],
+            feedback=serializer.validated_data.get("feedback", []),
             reviewer=request.user,
+            **duplicate_options,
         )
 
         return success_response(

@@ -98,6 +98,7 @@ class MerchantApplicationSubmission(models.Model):
     MASUB_SUBMISSION_NUMBER = models.PositiveIntegerField()
 
     MASUB_SUBMITTED_AT = models.DateTimeField()
+    MASUB_DUPLICATE_EVIDENCE = models.JSONField(default=list, blank=True)
 
     class Meta:
         db_table = "MERCHANT_APPLICATION_SUBMISSION"
@@ -135,6 +136,8 @@ class MerchantApplicationReview(models.Model):
         blank=True,
     )
     MAREV_SECTION_FINGERPRINTS = models.JSONField(default=dict, blank=True)
+    MAREV_DUPLICATE_REJECTION = models.BooleanField(default=False)
+    MAREV_DUPLICATE_EXPLANATION = models.TextField(blank=True, default="")
 
     MAPP_ID = models.ForeignKey(
         MerchantApplication,
@@ -398,5 +401,68 @@ class MerchantApplicationDocument(models.Model):
 
     def __str__(self):
         return f"{self.MDOC_DOCUMENT_TYPE} for application #{self.MAPP_ID_id}"
+
+
+class MerchantApplicationDuplicateAssessment(models.Model):
+    """Append-only administrator assessments bound to submission and matching evidence."""
+
+    class Decision(models.TextChoices):
+        UNRESOLVED = "unresolved", "Unresolved"
+        DUPLICATE = "confirmed_duplicate", "Confirmed duplicate"
+        LEGITIMATE = "legitimate", "Legitimate separate business / branch"
+        OWNERSHIP = "ownership_conflict", "Ownership conflict"
+
+    MDAS_ID = models.AutoField(primary_key=True)
+    MASUB_ID = models.ForeignKey(
+        MerchantApplicationSubmission,
+        on_delete=models.CASCADE,
+        db_column="MASUB_ID",
+        related_name="duplicate_assessments",
+    )
+    MDAS_CANDIDATE_KEY = models.CharField(max_length=80)
+    MDAS_FINGERPRINT = models.CharField(max_length=64)
+    MDAS_EVIDENCE = models.JSONField()
+    MDAS_DECISION = models.CharField(max_length=30, choices=Decision.choices)
+    MDAS_EXPLANATION = models.TextField(blank=True, default="")
+    USER_ID = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        db_column="USER_ID",
+        related_name="merchant_duplicate_assessments",
+    )
+    MDAS_CREATED_AT = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "MERCHANT_APPLICATION_DUPLICATE_ASSESSMENT"
+        ordering = ["-MDAS_ID"]
+        indexes = [
+            models.Index(
+                fields=["MASUB_ID", "MDAS_CANDIDATE_KEY"],
+                name="merchant_duplicate_lookup",
+            ),
+        ]
+
+
+class MerchantApplicationDuplicateReconsideration(models.Model):
+    """Record administrator clearance of a duplicate rejection without rewriting history."""
+
+    MDRC_ID = models.AutoField(primary_key=True)
+    MAREV_ID = models.OneToOneField(
+        MerchantApplicationReview,
+        on_delete=models.CASCADE,
+        db_column="MAREV_ID",
+        related_name="duplicate_reconsideration",
+    )
+    USER_ID = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        db_column="USER_ID",
+        related_name="merchant_duplicate_reconsiderations",
+    )
+    MDRC_EXPLANATION = models.TextField()
+    MDRC_CREATED_AT = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "MERCHANT_APPLICATION_DUPLICATE_RECONSIDERATION"
 
 

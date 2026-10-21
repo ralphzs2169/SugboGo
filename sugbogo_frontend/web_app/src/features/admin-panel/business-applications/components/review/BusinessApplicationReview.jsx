@@ -14,6 +14,8 @@ import { fetchBusinessApplicationDocumentPreview } from "../../services/business
 
 import Button from "@/shared/components/Button";
 import useApproveBusinessApplication from "../../hooks/useApproveBusinessApplication";
+import useApplicationDuplicates from "../../hooks/useApplicationDuplicates";
+import PossibleDuplicatesReview from "./PossibleDuplicatesReview";
 
 /**
  * Composes the submitted merchant application into the complete
@@ -28,6 +30,13 @@ export default function BusinessApplicationReview({
   onApplicationApproved,
 }) {
   const reviewHeaderRef = useRef(null);
+  const duplicates = useApplicationDuplicates(application.id);
+  const duplicateApprovalBlocked =
+    !duplicates.query.data ||
+    duplicates.query.isFetching ||
+    duplicates.query.isError ||
+    duplicates.mutation.isPending ||
+    duplicates.query.data.approval_blocked;
   const [showContextBar, setShowContextBar] = useState(false);
 
   const [documentPreviewUrls, setDocumentPreviewUrls] = useState({});
@@ -135,6 +144,7 @@ export default function BusinessApplicationReview({
 
       onApplicationApproved?.();
     } catch (error) {
+      void duplicates.query.refetch();
       console.error("Failed to approve application:", error);
 
       toast.error(
@@ -198,6 +208,13 @@ export default function BusinessApplicationReview({
         isResubmission={isResubmission}
       />
 
+      <PossibleDuplicatesReview
+        application={application}
+        query={duplicates.query}
+        mutation={duplicates.mutation}
+        onRejected={onApplicationRejected}
+      />
+
       {!isResolved && (
         <>
           {/* Fixed decision area */}
@@ -237,6 +254,7 @@ export default function BusinessApplicationReview({
                 <Button
                   type="button"
                   variant="success"
+                  disabled={duplicateApprovalBlocked}
                   onClick={() => setIsApproveConfirmationOpen(true)}
                 >
                   Approve Application

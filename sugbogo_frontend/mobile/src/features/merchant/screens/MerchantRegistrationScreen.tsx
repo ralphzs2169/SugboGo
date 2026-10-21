@@ -1,5 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
 import RegistrationFooter from "../components/registration/RegistartionFooter";
@@ -16,7 +22,6 @@ import useCategories from "../hooks/registration/useCategories";
 import useClusters from "../hooks/registration/useClusters";
 import useRegistrationValidation from "../hooks/registration/useRegistrationValidation";
 
-import { useEffect } from "react";
 import { BackHandler } from "react-native";
 import ReviewCelebration from "../components/registration/ReviewCelebration";
 import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "../constants/registration/defaultValues.constants";
@@ -69,6 +74,8 @@ import {
 } from "../utils/merchant-application/normalizers/normalizeOperatingHours.utils";
 import useRegistrationErrorScroll from "../hooks/registration/useRegistrationErrorScroll";
 import Toast from "react-native-toast-message";
+import DuplicateRejectionNotice from "../components/registration/DuplicateRejectionNotice";
+import useRegistrationUnsavedChanges from "../hooks/registration/useRegistrationUnsavedChanges";
 
 /**
  * Merchant registration wizard screen.
@@ -145,7 +152,10 @@ export default function MerchantRegistrationScreen() {
 
   const isResubmission = application?.status === "rejected";
   const canResubmit =
-    !isResubmission || feedback.every((item) => item.is_changed);
+    !isResubmission ||
+    (feedback.every((item) => item.is_changed) &&
+      (!application?.duplicate_disposition ||
+        application.duplicate_disposition.reconsidered));
 
   // Mutations
   const { saveIdentity, isSaving: isSavingIdentity } = useSaveIdentity();
@@ -241,6 +251,14 @@ export default function MerchantRegistrationScreen() {
     defaultValues: MERCHANT_REGISTRATION_DEFAULT_VALUES,
   });
 
+  const hasUnsavedChanges = useRegistrationUnsavedChanges(form.control, {
+    lastSavedIdentity,
+    lastSavedLocation,
+    lastSavedOperatingHours,
+    lastSavedPhotos,
+    lastSavedDocuments,
+  });
+
   // Helper Functions
 
   const requestExit = useCallback(
@@ -270,6 +288,8 @@ export default function MerchantRegistrationScreen() {
       lastSavedOperatingHours,
       lastSavedPhotos,
       lastSavedDocuments,
+      setShowDiscardChangesModal,
+      setUnsavedSections,
     ],
   );
 
@@ -687,6 +707,7 @@ export default function MerchantRegistrationScreen() {
       handleBack,
       requestExit,
       isSavingCurrentStep,
+      REVIEW_STEP,
     ]),
   );
 
@@ -755,6 +776,7 @@ export default function MerchantRegistrationScreen() {
               isSubmitting={isSavingCurrentStep}
               isResubmission={isResubmission}
               canResubmit={canResubmit}
+              hasChanges={hasUnsavedChanges}
             />
           }
 
@@ -773,6 +795,7 @@ export default function MerchantRegistrationScreen() {
           )}
 
           <RegistrationStepContent
+            application={application}
             currentStep={currentStep}
             clusters={clusters}
             categories={categories}
@@ -791,6 +814,11 @@ export default function MerchantRegistrationScreen() {
             feedback={feedback}
             registerErrorScrollTarget={registerErrorScrollTarget}
           />
+          {isResubmission && (
+            <DuplicateRejectionNotice
+              disposition={application?.duplicate_disposition}
+            />
+          )}
         </RegistrationLayout>
       </FormProvider>
 

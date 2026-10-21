@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react-native";
+import { useEffect as mockUseEffect } from "react";
 
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
@@ -31,7 +32,9 @@ let mockPortalState = {
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
-  useFocusEffect: (callback: () => void) => callback(),
+  useFocusEffect: (callback: () => void) => {
+    mockUseEffect(callback, [callback]);
+  },
 }));
 jest.mock("../../hooks/useMerchantPortalState", () => ({
   useMerchantPortalState: () => mockPortalState,
@@ -54,9 +57,18 @@ jest.mock("@/shared/components/ErrorState", () => ({
 }));
 jest.mock("@/shared/components/LoadingScreen", () => () => null);
 jest.mock("../../components/portal/ResumeApplicationSection", () => () => null);
-jest.mock("../../components/portal/SubmittedApplicationSection", () => () => null);
-jest.mock("../../components/portal/RejectedApplicationSection", () => () => null);
-jest.mock("../../components/portal/ApprovedApplicationSection", () => () => null);
+jest.mock(
+  "../../components/portal/SubmittedApplicationSection",
+  () => () => null,
+);
+jest.mock(
+  "../../components/portal/RejectedApplicationSection",
+  () => () => null,
+);
+jest.mock(
+  "../../components/portal/ApprovedApplicationSection",
+  () => () => null,
+);
 jest.mock("../../components/portal/MerchantBenefits", () => () => null);
 jest.mock("../../components/portal/MerchantRequirements", () => () => null);
 jest.mock("../../components/portal/MerchantHero", () => () => null);

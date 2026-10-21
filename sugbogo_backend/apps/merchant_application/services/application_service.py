@@ -13,6 +13,9 @@ from apps.merchant_application.models import (
 )
 from apps.users.models import User
 from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
+from apps.merchant_application.services.duplicate_detection_service import (
+    DuplicateDetectionService,
+)
 
 
 class ApplicationService:
@@ -295,6 +298,16 @@ class ApplicationService:
             )
 
             if latest_review:
+                if (
+                    latest_review.MAREV_DUPLICATE_REJECTION
+                    and not hasattr(latest_review, "duplicate_reconsideration")
+                ):
+                    raise ValidationError({
+                        "duplicates": (
+                            "This duplicate rejection requires administrator reconsideration "
+                            "before resubmission. Accurate business details do not need to change."
+                        ),
+                    })
                 changed_sections = ApplicationService.get_changed_sections(latest_review)
                 incomplete_feedback = [
                     feedback
@@ -345,6 +358,7 @@ class ApplicationService:
             MAPP_ID=application,
             MASUB_SUBMISSION_NUMBER=submission_number,
             MASUB_SUBMITTED_AT=submitted_at,
+            MASUB_DUPLICATE_EVIDENCE=DuplicateDetectionService.find_candidates(application),
         )
 
         return application

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from apps.merchant_application.services.duplicate_review_service import DuplicateReviewService
 
 from apps.merchant_application.constants import get_review_sla_business_days
 from apps.merchant_application.models import (
@@ -147,6 +148,14 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     )
 
     latest_review = serializers.SerializerMethodField()
+    duplicate_disposition = serializers.SerializerMethodField()
+
+    def get_duplicate_disposition(
+        self,
+        application,
+    ):
+        """Keep ownership adjudication separate from ordinary section change indicators."""
+        return DuplicateReviewService.disposition(application)
 
     created_at = serializers.DateTimeField(
         source="MAPP_CREATED_AT",
@@ -197,6 +206,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "submission_count",
             "latest_review",
+            "duplicate_disposition",
             "created_at",
             "updated_at",
             "identity",

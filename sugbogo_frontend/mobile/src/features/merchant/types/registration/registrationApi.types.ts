@@ -184,6 +184,7 @@ export interface ApplicationDetailResponse {
   submission_count: number;
 
   latest_review: ApplicationReviewResponse | null;
+  duplicate_disposition?: DuplicateDisposition | null;
 
   created_at: string;
   updated_at: string;
@@ -196,6 +197,18 @@ export interface ApplicationDetailResponse {
 
   review_sla_min_business_days: number;
   review_sla_max_business_days: number;
+}
+
+export interface DuplicateDisposition {
+  review_id: number;
+  explanation: string;
+  reconsidered: boolean;
+  reconsideration_explanation: string | null;
+}
+
+export interface DuplicateWarningResponse {
+  evaluated: boolean;
+  possible_duplicate: boolean;
 }
 
 // export interface ApplicationStatusResponse {

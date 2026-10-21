@@ -174,7 +174,12 @@ export default function ReviewBusinessIdentity({
           ) : selectedSpecialtyTags.length > 0 ? (
             <View className="flex-row flex-wrap">
               {selectedSpecialtyTags.map((tag) => (
-                <SpecialtyTagChip key={tag.id} tag={tag} showIcon />
+                <SpecialtyTagChip
+                  key={tag.id}
+                  tag={tag}
+                  showIcon
+                  size="medium"
+                />
               ))}
             </View>
           ) : (

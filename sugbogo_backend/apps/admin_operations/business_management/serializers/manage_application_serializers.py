@@ -359,8 +359,26 @@ class AdminMerchantApplicationRejectSerializer(serializers.Serializer):
 
     feedback = AdminMerchantApplicationFeedbackInputSerializer(
         many=True,
-        allow_empty=False,
+        required=False,
+        allow_empty=True,
     )
+    disposition = serializers.ChoiceField(
+        choices=("corrections", "duplicate"),
+        default="corrections",
+    )
+    explanation = serializers.CharField(required=False, allow_blank=True, max_length=4000)
+
+    def validate(
+        self,
+        attrs,
+    ):
+        """Allow feedback-free rejection only for an explicit duplicate disposition."""
+        if attrs["disposition"] == "duplicate":
+            if not attrs.get("explanation"):
+                raise serializers.ValidationError({"explanation": "An explanation is required."})
+        elif not attrs.get("feedback"):
+            raise serializers.ValidationError({"feedback": "At least one feedback item is required."})
+        return attrs
 
     def validate_feedback(self, feedback):
         sections = [item["section"] for item in feedback]

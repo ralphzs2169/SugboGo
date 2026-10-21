@@ -6,12 +6,17 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 
 import rejectedApplicationAnimation from "../../assets/animations/changes-required.json";
-import type { ApplicationFeedbackResponse } from "../../types/registration/registrationApi.types";
+import type {
+  ApplicationFeedbackResponse,
+  DuplicateDisposition,
+} from "../../types/registration/registrationApi.types";
 import ResubmissionChecklist from "../registration/ResubmissionChecklist";
+import DuplicateRejectionNotice from "../registration/DuplicateRejectionNotice";
 
 type RejectionApplicationSectionProps = {
   feedback: ApplicationFeedbackResponse[];
   reviewedAt: string;
+  duplicateDisposition?: DuplicateDisposition | null;
 };
 
 /**
@@ -23,6 +28,7 @@ type RejectionApplicationSectionProps = {
 export default function RejectionApplicationSection({
   feedback,
   reviewedAt,
+  duplicateDisposition,
 }: RejectionApplicationSectionProps) {
   return (
     <View className="bg-surface px-6 pb-6">
@@ -40,7 +46,7 @@ export default function RejectionApplicationSection({
             weight="bold"
             className="text-xs uppercase tracking-wide text-text-error"
           >
-            Changes Required
+            {duplicateDisposition ? "Duplicate Review" : "Changes Required"}
           </AppText>
         </View>
 
@@ -48,11 +54,15 @@ export default function RejectionApplicationSection({
           weight="bold"
           className="mt-3 text-center text-2xl text-text-primary"
         >
-          Your application needs some changes
+          {duplicateDisposition
+            ? "Your registration needs duplicate review"
+            : "Your application needs some changes"}
         </AppText>
 
         <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
-          Review the feedback, make the required changes, and resubmit.
+          {duplicateDisposition
+            ? "Review the duplicate decision below. Accurate details do not need to change."
+            : "Review the feedback, make the required changes, and resubmit."}
         </AppText>
       </View>
 
@@ -78,6 +88,7 @@ export default function RejectionApplicationSection({
         </View>
       </View>
 
+      <DuplicateRejectionNotice disposition={duplicateDisposition} />
       {/* Administrator feedback */}
       <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 pt-5">
         <AppText weight="bold" className="mb-1 text-sm text-text-primary">
