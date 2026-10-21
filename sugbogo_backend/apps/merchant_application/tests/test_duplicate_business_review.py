@@ -212,6 +212,143 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
         location.save()
         self.assertEqual(DuplicateDetectionService.find_candidates(self.application), [])
 
+    def test_full_width_candidate_uses_canonical_fuzzy_names_on_both_sides(self):
+        for subject_name, candidate_name in (
+            ("cebu lechon house", "Ｃｅｂｕ Ｌｅｃｈｏｎ Ｈａｕｓ"),
+            ("Ｃｅｂｕ Ｌｅｃｈｏｎ Ｈｏｕｓｅ", "cebu lechon haus"),
+            ("  CEBU   LECHON HOUSE  ", "Ｃｅｂｕ　Ｌｅｃｈｏｎ　Ｈａｕｓ"),
+        ):
+            with self.subTest(
+                subject_name=subject_name,
+                candidate_name=candidate_name,
+            ):
+                identity = self.application.identity
+                identity.MIDN_BUSINESS_NAME = subject_name
+                identity.save()
+                target_identity = self.target.identity
+                target_identity.MIDN_BUSINESS_NAME = candidate_name
+                target_identity.save()
+                candidates = DuplicateDetectionService.find_candidates(self.application)
+                self.assertEqual(len(candidates), 1)
+                self.assertIn("similar_business_name", candidates[0]["reasons"])
+                self.assertEqual(
+                    candidates[0]["evidence"]["subject"]["name"],
+                    "cebu lechon house",
+                )
+                self.assertEqual(
+                    candidates[0]["evidence"]["candidate"]["name"],
+                    "cebu lechon haus",
+                )
+
+    def test_full_width_business_candidate_matches_active_and_suspended(self):
+        identity = self.application.identity
+        identity.MIDN_BUSINESS_NAME = "cebu lechon house"
+        identity.save()
+        self.target.MAPP_STATUS = "draft"
+        self.target.save()
+        location = Location.objects.create(
+            LOCT_POINT=self.target.location.MLOC_POINT,
+            LOCT_ADDRESS="Different street",
+            LOCT_CITY="Cebu City",
+            LOCT_PROVINCE="Cebu",
+        )
+        business = Business.objects.create(
+            BUSN_NAME="Ｃｅｂｕ Ｌｅｃｈｏｎ Ｈａｕｓ",
+            BUSN_CONTACT_NUMBER="09123456789",
+            USER_ID=self.target.USER_ID,
+            CTGRY_ID=self.category,
+            LOCT_ID=location,
+        )
+        for status in ("active", "suspended"):
+            with self.subTest(status=status):
+                business.BUSN_STATUS = status
+                business.save()
+                candidates = DuplicateDetectionService.find_candidates(self.application)
+                self.assertEqual(len(candidates), 1)
+                self.assertEqual(candidates[0]["record_type"], "business")
+                self.assertEqual(
+                    candidates[0]["reasons"],
+                    ["similar_business_name", "nearby_location"],
+                )
+
+    def test_canonical_names_still_require_matching_location(self):
+        identity = self.application.identity
+        identity.MIDN_BUSINESS_NAME = "cebu lechon house"
+        identity.save()
+        location = self.target.location
+        location.MLOC_STREET_ADDRESS = "Different distant street"
+        location.MLOC_POINT = Point(123.90, 10.33, srid=4326)
+        location.save()
+        for name in (
+            "Ｃｅｂｕ Ｌｅｃｈｏｎ Ｈａｕｓ",
+            "Ｃｅｂｕ Ｌｅｃｈｏｎ Ｈｏｕｓｅ",
+        ):
+            with self.subTest(name=name):
+                identity = self.target.identity
+                identity.MIDN_BUSINESS_NAME = name
+                identity.save()
+                self.assertEqual(
+                    DuplicateDetectionService.find_candidates(self.application),
+                    [],
+                )
+
+    def test_exact_candidates_precede_fuzzy_candidates_without_duplicates(self):
+        identity = self.application.identity
+        identity.MIDN_BUSINESS_NAME = "cebu lechon house"
+        identity.save()
+        target_identity = self.target.identity
+        target_identity.MIDN_BUSINESS_NAME = "Ｃｅｂｕ Ｌｅｃｈｏｎ Ｈａｕｓ"
+        target_identity.save()
+        location = Location.objects.create(
+            LOCT_POINT=self.target.location.MLOC_POINT,
+            LOCT_ADDRESS="Different street",
+            LOCT_CITY="Cebu City",
+            LOCT_PROVINCE="Cebu",
+        )
+        Business.objects.create(
+            BUSN_NAME="Ｃｅｂｕ Ｌｅｃｈｏｎ Ｈｏｕｓｅ",
+            BUSN_CONTACT_NUMBER="09123456789",
+            USER_ID=self.admin,
+            CTGRY_ID=self.category,
+            LOCT_ID=location,
+        )
+        candidates = DuplicateDetectionService.find_candidates(self.application)
+        self.assertEqual(len(candidates), 2)
+        self.assertNotIn("similar_business_name", candidates[0]["reasons"])
+        self.assertEqual(candidates[0]["record_type"], "business")
+        self.assertIn("exact_name_and_nearby_location", candidates[0]["reasons"])
+        self.assertIn("similar_business_name", candidates[1]["reasons"])
+        self.assertEqual(len({candidate["key"] for candidate in candidates}), 2)
+
+    def test_normalization_rule_version_change_requires_fresh_assessment(self):
+        identity = self.target.identity
+        identity.MIDN_BUSINESS_NAME = "Sugbo Bistrot"
+        identity.save()
+        with patch.object(
+            DuplicateDetectionService,
+            "RULE_VERSION",
+            "trigram-name-location-v2",
+        ):
+            self.assess()
+            before = DuplicateReviewService.review_state(self.application)
+            self.assertTrue(before["candidates"][0]["resolved"])
+        after = DuplicateReviewService.review_state(self.application)
+        self.assertEqual(
+            after["candidates"][0]["evidence"]["rule_version"],
+            "trigram-name-location-v3",
+        )
+        self.assertTrue(after["candidates"][0]["stale"])
+        self.assertTrue(after["approval_blocked"])
+        with self.assertRaises(ValidationError):
+            AdminApplicationService.approve_application(
+                self.application.pk,
+                self.admin,
+            )
+        self.assess()
+        self.assertFalse(
+            DuplicateReviewService.review_state(self.application)["approval_blocked"],
+        )
+
     def test_fuzzy_match_requires_current_assessment_before_approval(self):
         identity = self.target.identity
         identity.MIDN_BUSINESS_NAME = "Sugbo Bistrot"

@@ -23,7 +23,7 @@ def normalize_duplicate_text(value):
 class DuplicateDetectionService:
     """Compare saved applications with submitted applications and permanent businesses."""
 
-    RULE_VERSION = "trigram-name-location-v2"
+    RULE_VERSION = "trigram-name-location-v3"
 
     @staticmethod
     def application_snapshot(application):
@@ -100,12 +100,6 @@ class DuplicateDetectionService:
             .filter(MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED)
             .exclude(pk=application.pk)
             .select_related("identity", "location")
-            .annotate(
-                duplicate_name_similarity=TrigramSimilarity(
-                    "identity__MIDN_BUSINESS_NAME",
-                    Value(subject["name"]),
-                ),
-            )
         )
         businesses = (
             Business.objects
@@ -114,24 +108,35 @@ class DuplicateDetectionService:
                 Business.BusinessStatus.SUSPENDED,
             ))
             .select_related("LOCT_ID", "merchant_application")
-            .annotate(
-                duplicate_name_similarity=TrigramSimilarity(
-                    "BUSN_NAME",
-                    Value(subject["name"]),
-                ),
-            )
         )
         if application.BUSN_ID_id:
             businesses = businesses.exclude(pk=application.BUSN_ID_id)
 
+        applications = list(applications)
+        businesses = list(businesses)
+        candidate_names = {
+            normalize_duplicate_text(candidate.identity.MIDN_BUSINESS_NAME)
+            for candidate in applications
+            if getattr(candidate, "identity", None) is not None
+        }
+        candidate_names.update(
+            normalize_duplicate_text(business.BUSN_NAME)
+            for business in businesses
+        )
+        similarities = DuplicateDetectionService._name_similarities(
+            application,
+            subject["name"],
+            candidate_names,
+        )
+
         # Preserve Unicode-normalized exact matches independently of trigram scores.
-        for candidate in applications.iterator():
+        for candidate in applications:
             target = DuplicateDetectionService.application_snapshot(candidate)
             if target is None:
                 continue
             if (
                 target["name"] != subject["name"]
-                and candidate.duplicate_name_similarity < similarity_threshold
+                and similarities[target["name"]] < similarity_threshold
             ):
                 continue
             distance = DuplicateDetectionService._distance(
@@ -165,10 +170,11 @@ class DuplicateDetectionService:
             if result:
                 candidates.append(result)
 
-        for business in businesses.iterator():
+        for business in businesses:
+            normalized_name = normalize_duplicate_text(business.BUSN_NAME)
             if (
-                normalize_duplicate_text(business.BUSN_NAME) != subject["name"]
-                and business.duplicate_name_similarity < similarity_threshold
+                normalized_name != subject["name"]
+                and similarities[normalized_name] < similarity_threshold
             ):
                 continue
             location = business.LOCT_ID
@@ -218,6 +224,36 @@ class DuplicateDetectionService:
             unique_candidates.values(),
             key=lambda candidate: "similar_business_name" in candidate["reasons"],
         )
+
+    @staticmethod
+    def _name_similarities(
+        application,
+        subject_name,
+        candidate_names,
+    ):
+        """Score canonical names in PostgreSQL without changing Python normalization semantics."""
+        names = sorted(candidate_names - {subject_name})
+        similarities = {subject_name: 1.0}
+        # Bound the SELECT width and avoid a separate database query per name.
+        for offset in range(0, len(names), 100):
+            batch = names[offset:offset + 100]
+            expressions = {
+                f"name_score_{index}": TrigramSimilarity(
+                    Value(subject_name),
+                    Value(name),
+                )
+                for index, name in enumerate(batch)
+            }
+            scores = (
+                MerchantApplication.objects
+                .filter(pk=application.pk)
+                .annotate(**expressions)
+                .values(*expressions)
+                .get()
+            )
+            for index, name in enumerate(batch):
+                similarities[name] = scores[f"name_score_{index}"]
+        return similarities
 
     @staticmethod
     def _distance(
