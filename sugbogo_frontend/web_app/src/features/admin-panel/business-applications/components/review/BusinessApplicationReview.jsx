@@ -8,7 +8,13 @@ import BusinessPhotosReview from "./BusinessPhotosReview";
 import ApplicationReviewContextBar from "./ReviewContextBar";
 import RejectApplicationDrawer from "./RejectApplicationDrawer";
 import ApproveApplicationConfirmationModal from "./ApproveApplicationConfirmationModal";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import { fetchBusinessApplicationDocumentPreview } from "../../services/businessApplicationService";
@@ -36,11 +42,30 @@ export default function BusinessApplicationReview({
   const decisionFooterRef = useRef(null);
   const duplicateReviewRef = useRef(null);
   const duplicates = useApplicationDuplicates(application.id);
+  const [assessmentDrafts, setAssessmentDrafts] = useState({});
+  const onAssessmentDirtyChange = useCallback((key, dirty) => {
+    setAssessmentDrafts((current) => {
+      if (Boolean(current[key]) === dirty) return current;
+      const next = { ...current };
+      if (dirty) next[key] = true;
+      else delete next[key];
+      return next;
+    });
+  }, []);
+  const hasUnsavedAssessments = Object.keys(assessmentDrafts).some((key) =>
+    key.startsWith(`${application.latest_submission_id}:`),
+  );
+  const assessmentBlockReason = hasUnsavedAssessments
+    ? "Save or discard assessment changes first."
+    : duplicates.mutation.isPending
+      ? "Saving assessment..."
+      : null;
   const duplicateSummary = getDuplicateReviewStatus(
     duplicates.query,
     application.latest_submission_id,
   );
   const duplicateApprovalBlocked =
+    hasUnsavedAssessments ||
     !["empty", "matches"].includes(duplicateSummary.state) ||
     !duplicates.query.data ||
     duplicates.query.isFetching ||
@@ -48,8 +73,8 @@ export default function BusinessApplicationReview({
     duplicates.mutation.isPending ||
     duplicates.query.data.approval_blocked ||
     duplicates.query.data.submission_id !== application.latest_submission_id;
-  const duplicateBlockReason = duplicates.mutation.isPending
-    ? "Saving assessment�"
+  const duplicateBlockReason = assessmentBlockReason
+    ? assessmentBlockReason
     : duplicateSummary.state === "matches"
       ? duplicates.query.data.approval_blocked
         ? `Approval blocked: ${duplicateSummary.message}`
@@ -195,6 +220,13 @@ export default function BusinessApplicationReview({
 
   // Handle approval confirmation
   async function handleConfirmApproval() {
+    if (duplicateApprovalBlocked) {
+      toast.error(
+        duplicateBlockReason ||
+          "Resolve current duplicate matches before approval.",
+      );
+      return;
+    }
     try {
       await approveApplication(application.id, approvalSubmissionId);
 
@@ -287,6 +319,7 @@ export default function BusinessApplicationReview({
           application={application}
           query={duplicates.query}
           mutation={duplicates.mutation}
+          onDirtyChange={onAssessmentDirtyChange}
         />
       </div>
 
@@ -344,7 +377,10 @@ export default function BusinessApplicationReview({
                 <Button
                   type="button"
                   variant="danger"
+                  disabled={!!assessmentBlockReason}
+                  disabledTooltip={assessmentBlockReason}
                   onClick={() => {
+                    if (assessmentBlockReason) return;
                     setRejectionSubmissionId(application.latest_submission_id);
                     setRejectionSession((session) => session + 1);
                     setIsRejectDrawerOpen(true);
@@ -380,6 +416,7 @@ export default function BusinessApplicationReview({
         businessName={businessName}
         expectedSubmissionId={rejectionSubmissionId}
         duplicateQuery={duplicates.query}
+        assessmentBlockReason={assessmentBlockReason}
       />
 
       {/* Approval Confirmation */}

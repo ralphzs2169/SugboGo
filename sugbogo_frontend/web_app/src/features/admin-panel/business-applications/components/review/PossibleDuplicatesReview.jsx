@@ -48,6 +48,14 @@ function CandidateCover({ url, name }) {
 
 const DECISIONS = assessmentDecisions;
 
+function assessmentSnapshot(candidate) {
+  return {
+    decision: selectedAssessmentDecision(candidate.assessment?.decision),
+    explanation: candidate.assessment?.explanation || "",
+    revision: JSON.stringify([candidate.fingerprint, candidate.assessment]),
+  };
+}
+
 /** Presents a compact, responsive candidate card while retaining drafts when collapsed or refreshed. */
 function CandidateAssessment({
   candidate,
@@ -57,16 +65,33 @@ function CandidateAssessment({
   checking,
   collapsible,
   initiallyExpanded,
+  onDirtyChange,
 }) {
-  const [decision, setDecision] = useState(
-    selectedAssessmentDecision(candidate.assessment?.decision),
-  );
-  const [explanation, setExplanation] = useState(
-    candidate.assessment?.explanation || "",
-  );
+  const saved = assessmentSnapshot(candidate);
+  const [draft, setDraft] = useState(() => ({ ...saved, baseline: saved }));
   const dirty =
-    decision !== selectedAssessmentDecision(candidate.assessment?.decision) ||
-    explanation !== (candidate.assessment?.explanation || "");
+    draft.decision !== draft.baseline.decision ||
+    draft.explanation !== draft.baseline.explanation;
+  // Sync pristine controls without a stale render or remounting the candidate.
+  if (!dirty && draft.baseline.revision !== saved.revision) {
+    setDraft({ ...saved, baseline: saved });
+  }
+  const { decision, explanation } = draft;
+  const remoteConflict = dirty && draft.baseline.revision !== saved.revision;
+  const setDecision = (value) =>
+    setDraft((current) => ({ ...current, decision: value }));
+  const setExplanation = (value) =>
+    setDraft((current) => ({
+      ...current,
+      explanation:
+        typeof value === "function" ? value(current.explanation) : value,
+    }));
+  const loadLatest = () => setDraft({ ...saved, baseline: saved });
+  const draftKey = `${submissionId}:${candidate.key}`;
+  useEffect(() => {
+    onDirtyChange?.(draftKey, editable && dirty);
+    return () => onDirtyChange?.(draftKey, false);
+  }, [draftKey, dirty, editable, onDirtyChange]);
   const disabled = !editable || mutation.isPending || checking;
   const id = `duplicate-${candidate.key.replace(":", "-")}`;
   const href =
@@ -165,7 +190,8 @@ function CandidateAssessment({
               >
                 {{
                   exact_name_and_address: "Exact name + complete address",
-                  exact_name_and_nearby_location: "Exact name + nearby location",
+                  exact_name_and_nearby_location:
+                    "Exact name + nearby location",
                   similar_business_name: "Similar business name",
                   matching_address: "Matching complete address",
                   nearby_location: "Nearby location",
@@ -219,6 +245,19 @@ function CandidateAssessment({
             ))}
           </div>
         </fieldset>
+        {remoteConflict && (
+          <div role="alert" className="space-y-2 text-sm text-warning">
+            <p>
+              The saved assessment changed while you were editing. Discard your
+              edits to load it, or save over the latest assessment after
+              reviewing it.
+            </p>
+            <p className="whitespace-pre-wrap text-text-secondary">
+              Latest saved explanation:{" "}
+              {saved.explanation || "No explanation recorded."}
+            </p>
+          </div>
+        )}
         <TextArea
           id={`${id}-explanation`}
           label="Internal explanation"
@@ -284,32 +323,59 @@ function CandidateAssessment({
             Internal only; this does not reject the application.
           </p>
           {editable && (
-            <Button
-              size="sm"
-              className="ml-auto shrink-0"
-              loading={
-                mutation.isPending &&
-                mutation.variables?.candidate_key === candidate.key
-              }
-              disabled={
-                disabled ||
-                !decision ||
-                explanation.trim().length < MIN_FEEDBACK_LENGTH ||
-                (!!candidate.assessment && !dirty && !candidate.stale)
-              }
-              onClick={() =>
-                mutation.mutate({
-                  action: "assess",
-                  submission_id: submissionId,
-                  candidate_key: candidate.key,
-                  fingerprint: candidate.fingerprint,
-                  decision,
-                  explanation,
-                })
-              }
-            >
-              Save Assessment
-            </Button>
+            <>
+              {dirty && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={disabled}
+                  onClick={loadLatest}
+                >
+                  Discard assessment changes
+                </Button>
+              )}
+              <Button
+                size="sm"
+                className="ml-auto shrink-0"
+                loading={
+                  mutation.isPending &&
+                  mutation.variables?.candidate_key === candidate.key
+                }
+                disabled={
+                  disabled ||
+                  !decision ||
+                  explanation.trim().length < MIN_FEEDBACK_LENGTH ||
+                  (!!candidate.assessment && !dirty && !candidate.stale)
+                }
+                onClick={() =>
+                  mutation.mutate(
+                    {
+                      action: "assess",
+                      submission_id: submissionId,
+                      candidate_key: candidate.key,
+                      fingerprint: candidate.fingerprint,
+                      decision,
+                      explanation,
+                    },
+                    {
+                      onSuccess: (state) => {
+                        const updated = state?.candidates?.find(
+                          (item) => item.key === candidate.key,
+                        );
+                        if (updated && state.submission_id === submissionId) {
+                          const latest = assessmentSnapshot(updated);
+                          setDraft({ ...latest, baseline: latest });
+                        }
+                      },
+                    },
+                  )
+                }
+              >
+                {remoteConflict
+                  ? "Save over latest assessment"
+                  : "Save Assessment"}
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -350,6 +416,7 @@ export default function PossibleDuplicatesReview({
   application,
   query,
   mutation,
+  onDirtyChange,
 }) {
   const state = query.data;
   const disposition = state?.disposition;
@@ -418,7 +485,7 @@ export default function PossibleDuplicatesReview({
           <div className="space-y-3">
             {state.candidates.map((candidate, index) => (
               <CandidateAssessment
-                key={`${state.submission_id}-${candidate.key}-${candidate.fingerprint}`}
+                key={`${state.submission_id}-${candidate.key}`}
                 candidate={candidate}
                 submissionId={state.submission_id}
                 mutation={mutation}
@@ -426,6 +493,7 @@ export default function PossibleDuplicatesReview({
                 checking={checking}
                 collapsible={state.candidates.length > 1}
                 initiallyExpanded={index === 0}
+                onDirtyChange={onDirtyChange}
               />
             ))}
           </div>

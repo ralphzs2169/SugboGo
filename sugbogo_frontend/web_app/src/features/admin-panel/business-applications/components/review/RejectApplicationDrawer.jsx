@@ -41,6 +41,7 @@ export default function RejectApplicationDrawer({
   businessName,
   expectedSubmissionId,
   duplicateQuery,
+  assessmentBlockReason = null,
 }) {
   const [rejectionType, setRejectionType] = useState(() =>
     initialRejectionFlow(duplicateQuery, expectedSubmissionId),
@@ -64,10 +65,13 @@ export default function RejectApplicationDrawer({
   const assessmentStateChanged =
     currentAssessmentSignature !== reviewedAssessmentSignature;
   const decisionBlocked =
-    duplicateSelectionUnavailable || assessmentStateChanged;
+    duplicateSelectionUnavailable ||
+    assessmentStateChanged ||
+    !!assessmentBlockReason;
   const showCorrections =
     displayedRejectionType === "corrections" || includeCorrections;
   const duplicateUnavailableMessage =
+    assessmentBlockReason ||
     "The saved duplicate assessment state changed or is being rechecked. Review the current state before continuing with rejection.";
   const [selectedSections, setSelectedSections] = useState([]);
   const [feedback, setFeedback] = useState({});
@@ -480,7 +484,6 @@ export default function RejectApplicationDrawer({
                   <p className="mb-4 text-sm text-red-600">{errors.general}</p>
                 )}
               </div>
-
             </div>
 
             {/* Fixed footer actions */}

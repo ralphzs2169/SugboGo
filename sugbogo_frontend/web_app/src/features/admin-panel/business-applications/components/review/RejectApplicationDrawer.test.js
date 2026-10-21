@@ -59,7 +59,7 @@ test("saved confirmation opens duplicate workflow directly without a rejection s
   assert.match(html, /Explanation shown to merchant/);
   assert.match(html, /Business already registered/);
   assert.match(html, /Also require section corrections/);
-  assert.match(html, /Request corrections instead/);
+  assert.doesNotMatch(html, /Request corrections instead/);
   assert.doesNotMatch(html, /name="rejection-type"/);
 });
 test("unassessed, legitimate, ownership and stale candidates open ordinary corrections", () => {
