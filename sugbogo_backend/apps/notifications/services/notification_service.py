@@ -23,14 +23,18 @@ class NotificationService:
         dedup_key,
         target_type="",
         target_id=None,
+        metadata=None,
     ):
         """Create an event once per recipient without replacing existing content."""
+        if metadata is None:
+            metadata = {}
         values = {
             "NOTF_TYPE": event_type,
             "NOTF_TITLE": title,
             "NOTF_BODY": body,
             "NOTF_TARGET_TYPE": target_type,
             "NOTF_TARGET_ID": target_id,
+            "NOTF_METADATA": metadata,
         }
         candidate = Notification(
             USER_ID=recipient,

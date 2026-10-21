@@ -3,6 +3,26 @@
 from rest_framework import serializers
 
 from .premium_analytics_serializers import PremiumVisibilityQuerySerializer
+from .peer_report_serializers import MerchantReportSerializer
+from .discovery_sources_serializers import DiscoverySourcesSerializer
+from .route_planning_serializers import RoutePlanningAnalyticsSerializer
+from .engagement_heatmap_serializers import EngagementHeatmapSerializer
+from .aged_unanswered_reviews_serializers import AgedUnansweredReviewsSerializer
+
+
+class ExportSectionsSerializer(serializers.Serializer):
+    """Allow only existing aggregate contracts in the expanded PDF."""
+
+    discovery_sources = DiscoverySourcesSerializer()
+    route_planning = RoutePlanningAnalyticsSerializer()
+    profile_timing = EngagementHeatmapSerializer()
+    unanswered_reviews = AgedUnansweredReviewsSerializer()
+
+
+class MerchantExportReportSerializer(MerchantReportSerializer):
+    """Extend PDF evidence without changing the composed JSON report contract."""
+
+    export_sections = ExportSectionsSerializer()
 
 
 class ReportExportQuerySerializer(PremiumVisibilityQuerySerializer):

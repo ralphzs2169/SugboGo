@@ -96,7 +96,7 @@ export default function FormTextArea({
         {...props}
         multiline
         textAlignVertical="top"
-        className="min-h-[120px] flex-1 py-[14px] text-body text-text-primary"
+        className="min-h-[120px] flex-1 py-[14px] font-nunito text-body text-text-primary"
         placeholderTextColor={theme.extends.colors.text.tertiary}
         value={value}
       />

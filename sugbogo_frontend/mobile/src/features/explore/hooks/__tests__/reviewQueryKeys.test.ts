@@ -6,9 +6,9 @@ import {
 
 describe("filteredBusinessReviewsKey", () => {
   it("reuses the unfiltered key for default criteria", () => {
-    expect(filteredBusinessReviewsKey(20, DEFAULT_BUSINESS_REVIEW_FILTERS)).toEqual(
-      businessReviewsKey(20),
-    );
+    expect(
+      filteredBusinessReviewsKey(20, DEFAULT_BUSINESS_REVIEW_FILTERS),
+    ).toEqual(businessReviewsKey(20));
   });
 
   it("separates every server-side review criterion", () => {
@@ -19,6 +19,7 @@ describe("filteredBusinessReviewsKey", () => {
       filteredBusinessReviewsKey(20, { ...base, topic: "Friendly service" }),
       filteredBusinessReviewsKey(20, { ...base, hasPhotos: true }),
       filteredBusinessReviewsKey(20, { ...base, merchantReplied: true }),
+      filteredBusinessReviewsKey(20, { ...base, needsReply: true }),
       filteredBusinessReviewsKey(20, { ...base, ordering: "oldest" }),
       filteredBusinessReviewsKey(20, { ...base, ordering: "most_liked" }),
       filteredBusinessReviewsKey(21, base),

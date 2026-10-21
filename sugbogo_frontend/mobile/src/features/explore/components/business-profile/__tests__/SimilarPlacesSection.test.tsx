@@ -138,6 +138,7 @@ describe("Similar Places", () => {
       pathname: "/(explorer)/business/[businessId]",
       params: {
         businessId: "42",
+        profileSource: "SIMILAR_BUSINESSES",
         distance: "",
         distanceAccuracy: "",
       },
@@ -153,7 +154,7 @@ describe("Similar Places", () => {
       refetch: jest.fn(),
     });
     const loading = await render(<SimilarPlacesSection businessId={20} />);
-    expect(loading.getByTestId("similar-places-loading")).toBeTruthy();
+    expect(await loading.findByTestId("similar-places-loading")).toBeTruthy();
     await loading.unmount();
 
     (useSimilarBusinesses as jest.Mock).mockReturnValue({

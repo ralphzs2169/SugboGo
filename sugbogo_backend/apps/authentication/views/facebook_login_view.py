@@ -14,10 +14,13 @@ from apps.authentication.services.oauth.facebook import (
 )
 from apps.authentication.throttles import OAuthLoginThrottle
 from apps.authentication.utils.jwt import issue_tokens
+from apps.authentication.models import LoginEvent
+from apps.authentication.utils.login_history import track_login_failure
 
 
 @api_view(["POST"])
 @throttle_classes([OAuthLoginThrottle])
+@track_login_failure(LoginEvent.Method.FACEBOOK)
 def facebook_login_view(request):
     """Exchange a verified Facebook identity for an allowed mobile session."""
     serializer = FacebookLoginSerializer(data=request.data)
@@ -42,11 +45,14 @@ def facebook_login_view(request):
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
+    request.verified_login_identity = oauth_user
     user = OAuthAccountService.get_or_create_user(oauth_user)
 
     tokens = issue_tokens(
         user=user,
         remember_me=True,
+        request=request,
+        method=LoginEvent.Method.FACEBOOK,
     )
 
     response = LoginResponseSerializer(

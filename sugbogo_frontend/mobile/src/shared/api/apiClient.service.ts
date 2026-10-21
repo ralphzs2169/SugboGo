@@ -1,4 +1,4 @@
-import axios, { type InternalAxiosRequestConfig } from "axios";
+import { create, isAxiosError, type InternalAxiosRequestConfig } from "axios";
 import { router } from "expo-router";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import {
@@ -25,7 +25,7 @@ import { queryClient } from "@/shared/query/queryClient";
  * transparently refreshes expired access tokens. It should be used for
  * endpoints that require an authenticated session.
  */
-const apiClient = axios.create({
+const apiClient = create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
   timeout: 15000,
   headers: {
@@ -110,7 +110,7 @@ apiClient.interceptors.response.use(
     // Transport-level failures do not receive an HTTP response.
     // Convert them into standardized API errors so request.ts can
     // normalize them into the application's standard API response format.
-    if (axios.isAxiosError(error) && !error.response) {
+    if (isAxiosError(error) && !error.response) {
       const isTimeout = error.code === "ECONNABORTED";
 
       const errorName = isTimeout
@@ -160,6 +160,14 @@ apiClient.interceptors.response.use(
         // Transport failures leave the current credentials available for retry.
         if (isTransportError(refreshError)) {
           return Promise.reject(createApiError(API_ERROR_CODE.NETWORK_ERROR));
+        }
+
+        if (
+          isAxiosError(refreshError) &&
+          (refreshError.response?.status === 429 ||
+            (refreshError.response?.status ?? 0) >= 500)
+        ) {
+          return Promise.reject(refreshError);
         }
 
         // Refreshing failed, meaning the session is no longer valid.

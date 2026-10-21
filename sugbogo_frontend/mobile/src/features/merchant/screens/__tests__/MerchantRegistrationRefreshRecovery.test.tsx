@@ -3,12 +3,21 @@ import { render } from "@testing-library/react-native";
 import ErrorState from "@/shared/components/ErrorState";
 import RegistrationLayout from "../../components/registration/RegistrationLayout";
 import MerchantRegistrationScreen from "../MerchantRegistrationScreen";
+import type { DuplicateDisposition } from "../../types/registration/registrationApi.types";
 
 const mockRefetchApplication = jest.fn();
+
+jest.mock(
+  "../../utils/merchant-application/comparisons/getUnsavedSections.utils",
+  () => ({
+    getUnsavedSections: () => [],
+  }),
+);
 
 let mockApplicationState = {
   application: {
     status: "rejected",
+    duplicate_disposition: null as DuplicateDisposition | null,
     highest_completed_step: 5,
     operating_hours: [],
     latest_review: {
@@ -108,22 +117,34 @@ jest.mock("../../hooks/registration/useSubmitApplication", () => ({
   __esModule: true,
   default: () => ({ isSubmitting: false }),
 }));
-jest.mock("../../utils/merchant-application/mappers/mapApplicationToForm.utils", () => ({
-  mapApplicationToForm: jest.fn(() => ({})),
-}));
-jest.mock("../../utils/merchant-application/mappers/mapApplicationToStore.utils", () => ({
-  mapApplicationToStore: jest.fn(() => ({
-    selectedLocation: null,
-    selectedAddress: null,
-    selectedLandmarks: [],
-  })),
-}));
-jest.mock("../../utils/merchant-application/normalizers/normalizeIdentity.utils", () => ({
-  normalizeIdentity: jest.fn(() => ({})),
-}));
-jest.mock("../../utils/merchant-application/normalizers/normalizeLocation.utils", () => ({
-  normalizeLocation: jest.fn(() => ({})),
-}));
+jest.mock(
+  "../../utils/merchant-application/mappers/mapApplicationToForm.utils",
+  () => ({
+    mapApplicationToForm: jest.fn(() => ({})),
+  }),
+);
+jest.mock(
+  "../../utils/merchant-application/mappers/mapApplicationToStore.utils",
+  () => ({
+    mapApplicationToStore: jest.fn(() => ({
+      selectedLocation: null,
+      selectedAddress: null,
+      selectedLandmarks: [],
+    })),
+  }),
+);
+jest.mock(
+  "../../utils/merchant-application/normalizers/normalizeIdentity.utils",
+  () => ({
+    normalizeIdentity: jest.fn(() => ({})),
+  }),
+);
+jest.mock(
+  "../../utils/merchant-application/normalizers/normalizeLocation.utils",
+  () => ({
+    normalizeLocation: jest.fn(() => ({})),
+  }),
+);
 jest.mock("@/shared/components/ErrorState", () => ({
   __esModule: true,
   default: jest.fn(() => null),
@@ -137,8 +158,14 @@ jest.mock("../../components/registration/RegistartionFooter", () => ({
   __esModule: true,
   default: jest.fn(() => null),
 }));
-jest.mock("../../components/registration/RegistrationStepper", () => () => null);
-jest.mock("../../components/registration/RegistrationStepContent", () => () => null);
+jest.mock(
+  "../../components/registration/RegistrationStepper",
+  () => () => null,
+);
+jest.mock(
+  "../../components/registration/RegistrationStepContent",
+  () => () => null,
+);
 jest.mock("@/shared/components/modals/ConfirmModal", () => () => null);
 
 describe("MerchantRegistrationScreen rejected refresh recovery", () => {
@@ -147,6 +174,7 @@ describe("MerchantRegistrationScreen rejected refresh recovery", () => {
     mockApplicationState = {
       application: {
         status: "rejected",
+        duplicate_disposition: null as DuplicateDisposition | null,
         highest_completed_step: 5,
         operating_hours: [],
         latest_review: {
@@ -169,8 +197,9 @@ describe("MerchantRegistrationScreen rejected refresh recovery", () => {
       }),
       undefined,
     );
-    expect((RegistrationLayout as jest.Mock).mock.lastCall[0].footer.props)
-      .toEqual(expect.objectContaining({ canResubmit: false }));
+    expect(
+      (RegistrationLayout as jest.Mock).mock.lastCall[0].footer.props,
+    ).toEqual(expect.objectContaining({ canResubmit: false }));
 
     const retry = (ErrorState as jest.Mock).mock.lastCall[0].onPrimaryAction;
     retry();
@@ -188,8 +217,47 @@ describe("MerchantRegistrationScreen rejected refresh recovery", () => {
     };
     await screen.rerender(<MerchantRegistrationScreen />);
 
-    expect((RegistrationLayout as jest.Mock).mock.lastCall[0].footer.props)
-      .toEqual(expect.objectContaining({ canResubmit: true }));
+    expect(
+      (RegistrationLayout as jest.Mock).mock.lastCall[0].footer.props,
+    ).toEqual(expect.objectContaining({ canResubmit: true }));
     screen.unmount();
+  });
+  it("allows duplicate-only unchanged resubmission and still gates combined corrections", async () => {
+    mockApplicationState = {
+      ...mockApplicationState,
+      error: false,
+      application: {
+        ...mockApplicationState.application,
+        duplicate_disposition: {
+          review_id: 9,
+          explanation: "Same business",
+          reconsidered: false,
+          reconsideration_explanation: null,
+        },
+        latest_review: { feedback: [] },
+      },
+    };
+    const screen = await render(<MerchantRegistrationScreen />);
+    expect(
+      (RegistrationLayout as jest.Mock).mock.lastCall[0].footer.props
+        .canResubmit,
+    ).toBe(true);
+    mockApplicationState.application.latest_review.feedback = [
+      { section: "identity", is_changed: false },
+    ];
+    await screen.rerender(<MerchantRegistrationScreen />);
+    expect(
+      (RegistrationLayout as jest.Mock).mock.lastCall[0].footer.props
+        .canResubmit,
+    ).toBe(false);
+    mockApplicationState.application.latest_review.feedback = [
+      { section: "identity", is_changed: true },
+    ];
+    await screen.rerender(<MerchantRegistrationScreen />);
+    expect(
+      (RegistrationLayout as jest.Mock).mock.lastCall[0].footer.props
+        .canResubmit,
+    ).toBe(true);
+    await screen.unmount();
   });
 });

@@ -2,7 +2,11 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { invalidateAuthSession } from "@/shared/api/authSessionGeneration.service";
-import { clearSessionTokens } from "@/shared/api/storage.service";
+import {
+  clearSessionTokens,
+  getRefreshToken,
+} from "@/shared/api/storage.service";
+import { revokeRefreshToken } from "../api/token.service";
 import { useAuthStore } from "../store/auth.store";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import { clearSavedJourneys } from "@/features/offline-routes/services/savedJourneys.service";
@@ -11,8 +15,8 @@ import Toast from "react-native-toast-message";
 /**
  * Handles user logout.
  *
- * Removes stored authentication tokens, clears server-state cache,
- * and resets the global authentication state.
+ * Captures the refresh token for best-effort server revocation, removes local
+ * credentials, clears server-state cache, and resets authentication state.
  */
 export function useLogout() {
   const clearUser = useAuthStore((state) => state.clearUser);
@@ -20,6 +24,7 @@ export function useLogout() {
 
   async function logout() {
     const ownerId = useAuthStore.getState().user?.id;
+    const refreshToken = getRefreshToken();
     let removedSavedGuidance = true;
     const cleanupGeneration = invalidateAuthSession();
 
@@ -27,6 +32,11 @@ export function useLogout() {
     useAppModeStore.getState().resetActiveMode();
     queryClient.clear();
     useMerchantRegistrationStore.getState().reset();
+
+    // Capture the old token before cleanup; unavailable servers never block local logout.
+    void refreshToken
+      .then((token) => (token ? revokeRefreshToken(token) : undefined))
+      .catch(() => undefined);
 
     try {
       await Promise.all([

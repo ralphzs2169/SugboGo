@@ -25,6 +25,32 @@ class EmailService:
     """Service for sending transactional emails via Resend."""
 
     @staticmethod
+    def send_email_change_verification(user, recipient, verification_link):
+        """Sends new-address proof without changing the account's current email."""
+        return EmailService.send_email(
+            subject="Confirm your SugboGo email change",
+            recipient=recipient,
+            html_template_name="emails/change_email.html",
+            text_template_name="emails/change_email.txt",
+            context={
+                "user": user,
+                "verification_link": verification_link,
+                "expiry_minutes": settings.EMAIL_CHANGE_TIMEOUT_SECONDS // 60,
+            },
+        )
+
+    @staticmethod
+    def send_email_changed_notice(user, previous_email):
+        """Notifies the previous inbox after a verified email change is committed."""
+        return EmailService.send_email(
+            subject="Your SugboGo email address changed",
+            recipient=previous_email,
+            html_template_name="emails/email_changed.html",
+            text_template_name="emails/email_changed.txt",
+            context={"user": user},
+        )
+
+    @staticmethod
     def send_email(
         subject: str,
         recipient: str,

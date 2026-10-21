@@ -2,6 +2,14 @@ from .admin_forgot_password import (
     admin_forgot_password_view as admin_forgot_password_view,
 )
 from .admin_login_view import admin_login_view as admin_login_view
+from .change_password import change_password_view as change_password_view
+from .deactivate_account import deactivate_account_view as deactivate_account_view
+from .change_email import (
+    request_email_change_view as request_email_change_view,
+    email_change_status_view as email_change_status_view,
+    cancel_email_change_view as cancel_email_change_view,
+    confirm_email_change_view as confirm_email_change_view,
+)
 from .admin_invitation import (
     complete_admin_invitation_view as complete_admin_invitation_view,
 )
@@ -20,6 +28,7 @@ from .forgot_password import (
 )
 from .google_login import google_login_view as google_login_view
 from .login_view import login_view as login_view
+from .login_history import login_history_view as login_history_view
 from .logout import logout_view as logout_view
 from .password_reset import (
     reset_password_view as reset_password_view,

@@ -1,18 +1,33 @@
 from core.responses import error_response
 from rest_framework import status
+from django.db import transaction
+from django.utils import timezone
 
 from apps.authentication.models import OAuthAccount
 from apps.users.models import User
+from apps.authentication.services.account_lockout_service import AccountLockoutService
 
 
 class LoginService:
     @staticmethod
+    @transaction.atomic
     def authenticate(email: str, password: str):
         """Authenticate an active user whose email ownership is verified."""
         try:
-            user = User.objects.get(USER_EMAIL=email)
+            user = User.objects.select_for_update().get(USER_EMAIL__iexact=email)
         except User.DoesNotExist:
             user = None
+
+        count_failures = (
+            user is not None and user.is_active
+            and user.EMAIL_VERIFIED and user.has_usable_password()
+        )
+        now = timezone.now()
+        if count_failures:
+            AccountLockoutService.prepare(user, now)
+            locked = AccountLockoutService.response(user, now)
+            if locked is not None:
+                return locked, None
 
         if user is not None and not user.has_usable_password():
             oauth_account = OAuthAccount.objects.filter(USER=user).first()
@@ -34,6 +49,11 @@ class LoginService:
                 )
 
         if user is None or not user.check_password(password):
+            if count_failures:
+                AccountLockoutService.failure(user, now)
+                locked = AccountLockoutService.response(user, now)
+                if locked is not None:
+                    return locked, None
             return (
                 error_response(
                     message="Invalid email or password.",

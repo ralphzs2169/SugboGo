@@ -11,12 +11,41 @@ from apps.users.serializers.profile_serializers import UserSerializer
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
     remember_me = serializers.BooleanField(default=False)
 
 
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Validates the authenticated password-change request shape."""
+
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    confirm_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        """Requires an exact confirmation of the replacement password."""
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+        return attrs
+
+
+class DeactivateAccountSerializer(serializers.Serializer):
+    """Requires current-password proof and explicit account-deactivation consent."""
+
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    confirm_deactivation = serializers.BooleanField()
+
+    def validate_confirm_deactivation(self, value):
+        """Rejects a request that does not explicitly confirm deactivation."""
+        if not value:
+            raise serializers.ValidationError("Confirm that you want to deactivate your account.")
+        return value
 
 
 class LoginResponseSerializer(serializers.Serializer):
@@ -27,7 +56,7 @@ class LoginResponseSerializer(serializers.Serializer):
 
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
     first_name = serializers.CharField(max_length=50)
     last_name = serializers.CharField(max_length=50)
     
@@ -55,8 +84,8 @@ class ForgotPasswordSerializer(serializers.Serializer):
 class ResetPasswordSerializer(serializers.Serializer):
     uid = serializers.CharField()
     token = serializers.CharField()
-    password = serializers.CharField(write_only=True)
-    confirm_password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    confirm_password = serializers.CharField(write_only=True, trim_whitespace=False)
 
     def validate(self, attrs):
         """Validate matching passwords with the target user's context."""

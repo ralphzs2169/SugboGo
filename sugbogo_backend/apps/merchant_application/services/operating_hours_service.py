@@ -1,6 +1,6 @@
 from django.db import transaction
 
-from apps.merchant_application.models import MerchantApplicationOperatingHours
+from apps.merchant_application.models import MerchantApplication, MerchantApplicationOperatingHours
 from apps.merchant_application.services.application_service import ApplicationService
 
 
@@ -15,6 +15,7 @@ class OperatingHoursService:
         and marks Step 3 as completed.
         """
 
+        application = MerchantApplication.objects.select_for_update().get(pk=application.pk)
         ApplicationService.validate_step_access(
             application,
             OperatingHoursService.STEP,

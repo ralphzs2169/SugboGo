@@ -81,8 +81,8 @@ export default function DocumentUploadCard({
 
   return (
     <View
-      className={`rounded-md border px-4 py-4 ${
-        error ? "border-border-error bg-error" : "border-border-primary"
+      className={`gap-3 ${
+        error ? "rounded-md border border-border-error bg-error p-4" : ""
       }`}
     >
       {currentDocuments.length > 0 && (
@@ -101,7 +101,7 @@ export default function DocumentUploadCard({
         <Pressable
           onPress={handleAddDocument}
           disabled={isPicking}
-          className="mt-3 items-center justify-center rounded-lg border border-dashed border-border-secondary py-5"
+          className="items-center justify-center rounded-lg border border-dashed border-border-secondary py-5"
         >
           {isPicking ? (
             <ActivityIndicator color={theme.extends.colors.brand} />
@@ -127,8 +127,7 @@ export default function DocumentUploadCard({
           )}
         </Pressable>
       )}
-      <Text className="mt-1 text-xs text-text-secondary">PDF, JPG, or PNG</Text>
-      {error && <Text className="mt-2 text-sm text-text-error">{error}</Text>}
+      {error && <Text className="text-sm text-text-error">{error}</Text>}
     </View>
   );
 }

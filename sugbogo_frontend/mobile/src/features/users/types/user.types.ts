@@ -18,4 +18,5 @@ export interface User {
   has_completed_interest_selection: boolean;
   has_custom_profile_picture: boolean;
   has_oauth_accounts: boolean;
+  has_usable_password?: boolean;
 }

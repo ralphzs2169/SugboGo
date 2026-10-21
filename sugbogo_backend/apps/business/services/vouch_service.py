@@ -7,12 +7,36 @@ from apps.business.models import (
     BusinessVouch,
     SpecialtyTag,
 )
+from apps.notifications.services.notification_event_service import (
+    NotificationEventService,
+)
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
 
 
 class VouchService:
     """Handles creating, removing, and checking user vouches."""
+
+    @staticmethod
+    def get_retained_vouches(
+        business_id,
+        *,
+        as_of,
+    ):
+        """Select surviving valid evidence on specialties active at the current read."""
+        active_link = BusinessSpecialtyTag.objects.filter(
+            BUSN_ID=business_id,
+            TAG_ID=models.OuterRef("TAG_ID"),
+            BST_IS_ACTIVE=True,
+            BST_CREATED_AT__lte=as_of,
+        )
+        return BusinessVouch.objects.filter(
+            BUSN_ID=business_id,
+            VOUCH_EVIDENCE_IS_VALID=True,
+            VOUCH_CREATED_AT__lte=as_of,
+        ).filter(
+            models.Exists(active_link),
+        )
 
     @staticmethod
     def get_current_specialty_support(business_id, *, as_of):
@@ -43,6 +67,7 @@ class VouchService:
         tag_id: int,
         installation_id: str | None = None,
     ) -> BusinessVouch:
+        """Create a validated specialty vouch and notify its owner atomically."""
         try:
             locked_user = (
                 User.objects
@@ -139,6 +164,8 @@ class VouchService:
             business_id=business.BUSN_ID,
             specialty_tag_id=tag.TAG_ID,
         )
+
+        NotificationEventService.business_vouch_received(vouch)
 
         return vouch
 

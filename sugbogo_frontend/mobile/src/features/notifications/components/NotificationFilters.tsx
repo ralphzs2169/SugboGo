@@ -1,6 +1,6 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 
-import AppText from "@/shared/components/AppText";
+import FilterChip from "@/shared/components/FilterChip";
 
 import type { NotificationFilter } from "../types/notification.types";
 
@@ -32,28 +32,15 @@ export default function NotificationFilters({
             : "";
 
         return (
-          <Pressable
+          <FilterChip
             key={option.value}
+            label={option.label}
+            count={option.value === "unread" ? unreadCount : undefined}
+            selected={selected}
+            showSelectedCheck
             onPress={() => onChange(option.value)}
-            accessibilityRole="button"
-            accessibilityLabel={`${option.label}${countLabel}`}
-            accessibilityState={{ selected }}
-            className={`min-h-11 cursor-pointer items-center justify-center rounded-full border px-4 active:opacity-70 ${
-              selected
-                ? "border-brand bg-brand/10"
-                : "border-border-primary bg-surface"
-            }`}
-          >
-            <AppText
-              weight="semibold"
-              className={`text-sm ${
-                selected ? "text-brand" : "text-text-secondary"
-              }`}
-            >
-              {option.label}
-              {countLabel}
-            </AppText>
-          </Pressable>
+            accessibilityLabel={option.label + countLabel}
+          />
         );
       })}
     </View>

@@ -9,6 +9,7 @@ export default function ApplicationReviewSection({
   icon: Icon,
   title,
   description,
+  headerAction,
   children,
 }) {
   return (
@@ -21,7 +22,7 @@ export default function ApplicationReviewSection({
           </div>
         )}
 
-        <div>
+        <div className="min-w-0 flex-1">
           <h2 className="text-xl font-bold leading-8 text-text-primary">
             {title}
           </h2>
@@ -30,6 +31,7 @@ export default function ApplicationReviewSection({
             <p className="mt-1 text-sm text-text-secondary">{description}</p>
           )}
         </div>
+        {headerAction}
       </div>
 
       {/* Section content */}

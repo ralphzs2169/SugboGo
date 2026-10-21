@@ -10,7 +10,7 @@ import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
 type SpecialtyTagChipProps = {
   tag: SpecialtyTag;
   mode?: "display" | "registration" | "filter";
-  size?: "default" | "medium" | "small";
+  size?: "default" | "medium" | "small" | "xs";
   isSelected?: boolean;
   isDisabled?: boolean;
   onPress?: () => void;
@@ -49,6 +49,7 @@ export default function SpecialtyTagChip({
   const specialtyIcon = getSpecialtyTagIcon(tag.icon);
 
   const isSmall = size === "small";
+  const isExtraSmall = size === "xs";
   const isMedium = size === "medium";
   const isDisplayMode = mode === "display";
   const isSelectionMode = mode === "registration" || mode === "filter";
@@ -56,15 +57,25 @@ export default function SpecialtyTagChip({
 
   const useDisabledStyle = isSelectionMode && isDisabled && showDisabledStyle;
 
-  const sizeClassName = isSmall
-    ? "px-2.5 py-1"
-    : isMedium
-      ? "px-4 py-2"
-      : "min-h-12 px-3.5 py-1.5";
+  const sizeClassName = isExtraSmall
+    ? "px-2 py-0.5"
+    : isSmall
+      ? "px-2.5 py-1"
+      : isMedium
+        ? "px-4 py-2"
+        : "min-h-12 px-3.5 py-1.5";
 
-  const textSizeClassName = isSmall ? "text-[10px]" : "text-sm";
-  const countSizeClassName = isSmall ? "text-[10px]" : "text-xs";
-  const iconSize = isSmall ? 13 : isMedium ? 15 : 16;
+  const textSizeClassName = isExtraSmall
+    ? "text-[9px]"
+    : isSmall
+      ? "text-[10px]"
+      : "text-sm";
+  const countSizeClassName = isExtraSmall
+    ? "text-[9px]"
+    : isSmall
+      ? "text-[10px]"
+      : "text-xs";
+  const iconSize = isExtraSmall ? 11 : isSmall ? 13 : isMedium ? 15 : 16;
 
   const textColor = useDisabledStyle
     ? "text-gray-400"
@@ -107,7 +118,7 @@ export default function SpecialtyTagChip({
             }
           : {}),
       })}
-      className={`mb-2 mr-2 flex-row items-center justify-center rounded-full ${
+      className={`${isExtraSmall ? "mb-1 mr-1" : "mb-2 mr-2"} flex-row items-center justify-center rounded-full ${
         isInteractive ? "cursor-pointer" : ""
       } ${sizeClassName} ${backgroundClassName}`}
     >
@@ -117,7 +128,7 @@ export default function SpecialtyTagChip({
           name={specialtyIcon}
           size={iconSize}
           color={iconColor}
-          style={{ marginRight: 5 }}
+          style={{ marginRight: isExtraSmall ? 3 : 5 }}
         />
       )}
 
@@ -136,7 +147,7 @@ export default function SpecialtyTagChip({
           name="check-circle"
           size={iconSize}
           color={iconColor}
-          style={{ marginLeft: 5 }}
+          style={{ marginLeft: isExtraSmall ? 3 : 5 }}
         />
       )}
 
@@ -146,7 +157,7 @@ export default function SpecialtyTagChip({
           name="heart"
           size={iconSize}
           color={iconColor}
-          style={{ marginLeft: 5 }}
+          style={{ marginLeft: isExtraSmall ? 3 : 5 }}
         />
       )}
 

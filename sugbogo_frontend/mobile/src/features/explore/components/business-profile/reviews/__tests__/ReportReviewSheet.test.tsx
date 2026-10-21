@@ -17,8 +17,8 @@ jest.mock("../../../../hooks/useBusinessReviews", () => ({
   }),
 }));
 jest.mock("@gorhom/bottom-sheet", () => {
-  const React = require("react");
-  const { TextInput, View } = require("react-native");
+  const React = jest.requireActual("react");
+  const { TextInput, View } = jest.requireActual("react-native");
   const MockBottomSheetModal = React.forwardRef(
     (
       props: { children: React.ReactNode; onChange?: (index: number) => void },
@@ -44,13 +44,18 @@ jest.mock("@gorhom/bottom-sheet", () => {
 });
 jest.mock("@/shared/components/Button", () => ({
   __esModule: true,
-  default: ({ title, onPress, disabled, loading }: {
+  default: ({
+    title,
+    onPress,
+    disabled,
+    loading,
+  }: {
     title: string;
     onPress: () => void;
     disabled?: boolean;
     loading?: boolean;
   }) => {
-    const { Pressable, Text } = require("react-native");
+    const { Pressable, Text } = jest.requireActual("react-native");
     return (
       <Pressable
         accessibilityRole="button"
@@ -77,13 +82,19 @@ function renderSheet() {
   );
 }
 
-async function selectReason(screen: Awaited<ReturnType<typeof renderSheet>>, label: string) {
+async function selectReason(
+  screen: Awaited<ReturnType<typeof renderSheet>>,
+  label: string,
+) {
   await act(async () => {
     fireEvent.press(screen.getByRole("radio", { name: label }));
   });
 }
 
-async function enterDetails(screen: Awaited<ReturnType<typeof renderSheet>>, value: string) {
+async function enterDetails(
+  screen: Awaited<ReturnType<typeof renderSheet>>,
+  value: string,
+) {
   await act(async () => {
     fireEvent.changeText(screen.getByLabelText("Additional details"), value);
   });
@@ -130,16 +141,26 @@ describe("ReportReviewSheet", () => {
     const screen = await renderSheet();
     await selectReason(screen, "Other");
     expect(screen.getByText("Additional details (Required)")).toBeTruthy();
-    expect(screen.queryByText("Please explain why you are reporting this review.")).toBeNull();
+    expect(
+      screen.queryByText("Please explain why you are reporting this review."),
+    ).toBeNull();
     await submit(screen);
-    expect(screen.getByText("Please explain why you are reporting this review.")).toBeTruthy();
+    expect(
+      screen.getByText("Please explain why you are reporting this review."),
+    ).toBeTruthy();
     await enterDetails(screen, "   ");
-    expect(screen.queryByText("Please explain why you are reporting this review.")).toBeNull();
+    expect(
+      screen.queryByText("Please explain why you are reporting this review."),
+    ).toBeNull();
     await submit(screen);
-    expect(screen.getByText("Please explain why you are reporting this review.")).toBeTruthy();
+    expect(
+      screen.getByText("Please explain why you are reporting this review."),
+    ).toBeTruthy();
     await enterDetails(screen, "Details to keep");
     await selectReason(screen, "Spam");
-    expect(screen.getByLabelText("Additional details").props.value).toBe("Details to keep");
+    expect(screen.getByLabelText("Additional details").props.value).toBe(
+      "Details to keep",
+    );
     screen.unmount();
   });
 
@@ -148,19 +169,25 @@ describe("ReportReviewSheet", () => {
     await selectReason(screen, "Other");
     await enterDetails(screen, `  ${"x".repeat(500)}`);
     expect(screen.getByText("498/10")).toBeTruthy();
-    expect(screen.getByLabelText("Additional details").props.maxLength).toBe(500);
+    expect(screen.getByLabelText("Additional details").props.maxLength).toBe(
+      500,
+    );
 
     await enterDetails(screen, "  This is concerning.  ");
     await submit(screen);
-    await waitFor(() => expect(mockReportReview).toHaveBeenCalledWith({
-      reviewId: 74,
-      reportType: "other",
-      explanation: "This is concerning.",
-    }));
+    await waitFor(() =>
+      expect(mockReportReview).toHaveBeenCalledWith({
+        reviewId: 74,
+        reportType: "other",
+        explanation: "This is concerning.",
+      }),
+    );
     expect(mockDismiss).toHaveBeenCalledTimes(1);
-    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({
-      text1: "Review reported",
-    }));
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text1: "Review reported",
+      }),
+    );
     screen.unmount();
   });
 
@@ -168,11 +195,13 @@ describe("ReportReviewSheet", () => {
     const screen = await renderSheet();
     await selectReason(screen, "Off-topic or Irrelevant");
     await submit(screen);
-    await waitFor(() => expect(mockReportReview).toHaveBeenCalledWith({
-      reviewId: 74,
-      reportType: "off_topic",
-      explanation: undefined,
-    }));
+    await waitFor(() =>
+      expect(mockReportReview).toHaveBeenCalledWith({
+        reviewId: 74,
+        reportType: "off_topic",
+        explanation: undefined,
+      }),
+    );
     screen.unmount();
   });
 
@@ -181,17 +210,24 @@ describe("ReportReviewSheet", () => {
     await selectReason(screen, "Spam");
     await enterDetails(screen, "  123456789  ");
     expect(screen.getByText("9/10")).toBeTruthy();
-    expect(screen.queryByText("Explanation must be at least 10 characters long.")).toBeNull();
     expect(
-      screen.getByText("Submit Report").parent?.props.accessibilityState.disabled,
+      screen.queryByText("Explanation must be at least 10 characters long."),
+    ).toBeNull();
+    expect(
+      screen.getByText("Submit Report").parent?.props.accessibilityState
+        .disabled,
     ).toBe(false);
     await submit(screen);
-    expect(screen.getByText("Explanation must be at least 10 characters long.")).toBeTruthy();
+    expect(
+      screen.getByText("Explanation must be at least 10 characters long."),
+    ).toBeTruthy();
     expect(mockReportReview).not.toHaveBeenCalled();
 
     await enterDetails(screen, "  1234567890  ");
     expect(screen.getByText("10/10")).toBeTruthy();
-    expect(screen.queryByText("Explanation must be at least 10 characters long.")).toBeNull();
+    expect(
+      screen.queryByText("Explanation must be at least 10 characters long."),
+    ).toBeNull();
     await selectReason(screen, "Other");
     expect(screen.getByText("10/10")).toBeTruthy();
     screen.unmount();
@@ -211,7 +247,9 @@ describe("ReportReviewSheet", () => {
     );
     const backHandler = addBackListener.mock.calls.at(-1)?.[1];
     await act(async () => {
-      expect(backHandler?.()).toBe(true);
+      expect(
+        backHandler?.({ type: "hardwareBackPress", timeStamp: Date.now() }),
+      ).toBe(true);
     });
     expect(mockDismiss).toHaveBeenCalledTimes(1);
     screen.unmount();
@@ -227,12 +265,18 @@ describe("ReportReviewSheet", () => {
     await enterDetails(screen, "My context");
     await submit(screen);
 
-    await waitFor(() => expect(screen.getByText("Service unavailable.")).toBeTruthy());
-    expect(screen.getByLabelText("Additional details").props.value).toBe("My context");
+    await waitFor(() =>
+      expect(screen.getByText("Service unavailable.")).toBeTruthy(),
+    );
+    expect(screen.getByLabelText("Additional details").props.value).toBe(
+      "My context",
+    );
     expect(mockDismiss).not.toHaveBeenCalled();
-    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({
-      type: "error",
-    }));
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "error",
+      }),
+    );
     screen.unmount();
   });
 
@@ -271,7 +315,8 @@ describe("ReportReviewSheet", () => {
     await submit(screen);
     expect(mockReportReview).not.toHaveBeenCalled();
     expect(
-      screen.getByText("Submit Report").parent?.props.accessibilityState.disabled,
+      screen.getByText("Submit Report").parent?.props.accessibilityState
+        .disabled,
     ).toBe(true);
     screen.unmount();
   });

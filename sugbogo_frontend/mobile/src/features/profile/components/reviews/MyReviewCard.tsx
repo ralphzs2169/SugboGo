@@ -9,6 +9,7 @@ import MerchantReviewResponse from "@/features/explore/components/business-profi
 import ReviewContent from "@/features/explore/components/business-profile/reviews/ReviewContent";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
+import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 
 import type { MyReview } from "../../types/myReview.types";
 
@@ -30,7 +31,9 @@ const statusPresentation: Record<MyReview["status"], StatusPresentation> = {
   published: {
     label: "Published",
     icon: "check-circle-outline",
-    ...mutedStatus,
+    pillClassName: getSpecialtyTagColor("green").softBackground,
+    textClassName: getSpecialtyTagColor("green").softText,
+    iconColor: getSpecialtyTagColor("green").softIcon,
   },
   under_review: {
     label: "Under review",

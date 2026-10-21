@@ -146,6 +146,7 @@ describe("real React Query visibility mutations", () => {
   it("preserves the existing optimistic Pocket mutation without producing visibility writes", async () => {
     (service.pocketBusiness as jest.Mock).mockResolvedValue(success);
     const { client, wrapper } = setupClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
     client.setQueryData(["explore-business-detail", 1], {
       id: 1,
       is_pocketed: false,
@@ -161,6 +162,9 @@ describe("real React Query visibility mutations", () => {
       await result.current.pocket({ isPocketed: false });
     });
     expect(service.pocketBusiness).toHaveBeenCalledWith(1);
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["activity-timeline"],
+    });
     expect(client.getQueryData(["explore-business-detail", 1])).toMatchObject({
       is_pocketed: true,
     });
@@ -224,7 +228,7 @@ describe("displayed profile lifecycle", () => {
     expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
     await rerender({ id: 2, owned: false });
     await waitFor(() =>
-      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2),
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2, "UNKNOWN"),
     );
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1);
   });
@@ -239,7 +243,7 @@ describe("displayed profile lifecycle", () => {
     expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
     await rerender({ id: 1, displayed: 1 });
     await waitFor(() =>
-      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(1),
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(1, "UNKNOWN"),
     );
     await rerender({ id: 1, displayed: 1 });
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(1);
@@ -254,7 +258,7 @@ describe("displayed profile lifecycle", () => {
     expect(recordBusinessProfileVisit).toHaveBeenCalledTimes(2);
     await rerender({ id: 2, displayed: 2 });
     await waitFor(() =>
-      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2),
+      expect(recordBusinessProfileVisit).toHaveBeenCalledWith(2, "UNKNOWN"),
     );
   });
 

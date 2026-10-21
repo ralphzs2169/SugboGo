@@ -1,6 +1,14 @@
 import { fireEvent, render } from "@testing-library/react-native";
 
 import BusinessVisitInfoContent from "../BusinessVisitInfoContent";
+import useUserLocation from "@/shared/hooks/useUserLocation";
+import useDirectJourneys from "../../../hooks/useDirectJourneys";
+
+jest.mock("@/shared/hooks/useUserLocation");
+jest.mock("../../../hooks/useDirectJourneys");
+jest.mock("expo-router", () => ({
+  useNavigation: () => ({ isFocused: () => true }),
+}));
 
 jest.mock("../../../utils/businessHours.utils", () => ({
   getBusinessHoursSummary: () => ({
@@ -9,16 +17,21 @@ jest.mock("../../../utils/businessHours.utils", () => ({
   }),
   formatTime: (value: string) => value,
 }));
-jest.mock(
-  "../../../assets/getting-there-icons/jeepney-option.svg",
-  () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { View } = require("react-native");
+jest.mock("../../../assets/getting-there-icons/jeep-route-option.svg", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require("react-native");
 
-    return function MockJeepneyIcon() {
-      return <View />;
-    };
-  },
+  return function MockJeepneyIcon() {
+    return <View />;
+  };
+});
+jest.mock(
+  "../../../assets/getting-there-icons/route-map-option.svg",
+  () => () => null,
+);
+jest.mock(
+  "../../../assets/getting-there-icons/book-ride-option.svg",
+  () => () => null,
 );
 
 const defaultProps = {
@@ -47,10 +60,11 @@ describe("BusinessVisitInfoContent", () => {
   it("shows contextual Route, Jeepney, and Ride actions", async () => {
     const screen = await render(<BusinessVisitInfoContent {...defaultProps} />);
 
-    expect(screen.getByText("Getting there")).toBeTruthy();
-    expect(screen.getByText("Route")).toBeTruthy();
+    expect(screen.getByText("Road Route")).toBeTruthy();
     expect(screen.getByText("Jeepney")).toBeTruthy();
-    expect(screen.getByText("Ride")).toBeTruthy();
+    expect(screen.getByText("Book a ride")).toBeTruthy();
+    expect(useUserLocation).not.toHaveBeenCalled();
+    expect(useDirectJourneys).not.toHaveBeenCalled();
 
     await fireEvent.press(screen.getByLabelText("View road route"));
     await fireEvent.press(screen.getByLabelText("Open jeepney guide"));
@@ -66,9 +80,8 @@ describe("BusinessVisitInfoContent", () => {
       <BusinessVisitInfoContent {...defaultProps} isOwnBusiness />,
     );
 
-    expect(screen.queryByText("Getting there")).toBeNull();
-    expect(screen.queryByText("Route")).toBeNull();
-    expect(screen.queryByText("Jeepney")).toBeNull();
-    expect(screen.queryByText("Ride")).toBeNull();
+    expect(screen.queryByLabelText("View road route")).toBeNull();
+    expect(screen.queryByLabelText("Open jeepney guide")).toBeNull();
+    expect(screen.queryByLabelText("Choose a ride provider")).toBeNull();
   });
 });

@@ -29,12 +29,18 @@ def application_review_view(request, application_id):
         AdminApplicationService.approve_application(
             application_id=application_id,
             reviewer=request.user,
+            expected_submission_id=serializer.validated_data.get(
+                "expected_submission_id",
+            ),
         )
     else:
         AdminApplicationService.reject_application(
             application_id=application_id,
             feedback=serializer.validated_data["feedback"],
             reviewer=request.user,
+            expected_submission_id=serializer.validated_data.get(
+                "expected_submission_id",
+            ),
         )
 
     application = AdminApplicationService.get_application_for_review(

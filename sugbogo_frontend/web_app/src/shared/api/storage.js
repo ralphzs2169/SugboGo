@@ -3,6 +3,13 @@
  * These functions provide a simple interface for getting, setting, and clearing access and refresh tokens.
  */
 
+let sessionGeneration = 0;
+
+/** Identifies the current tab's login without changing during token rotation. */
+export function getSessionGeneration() {
+  return sessionGeneration;
+}
+
 export function getAccessToken() {
   return localStorage.getItem("access_token");
 }
@@ -11,12 +18,14 @@ export function getRefreshToken() {
   return localStorage.getItem("refresh_token");
 }
 
-export function setTokens({ access, refresh }) {
+export function setTokens({ access, refresh }, { preserveSession = false } = {}) {
+  if (!preserveSession) sessionGeneration += 1;
   localStorage.setItem("access_token", access);
   localStorage.setItem("refresh_token", refresh);
 }
 
 export function clearTokens() {
+  sessionGeneration += 1;
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
 }

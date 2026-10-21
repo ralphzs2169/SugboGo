@@ -17,6 +17,7 @@ export const filteredBusinessReviewsKey = (
     !filters.topic &&
     !filters.hasPhotos &&
     !filters.merchantReplied &&
+    !filters.needsReply &&
     filters.ordering === "newest"
   ) {
     return baseKey;
@@ -30,6 +31,7 @@ export const filteredBusinessReviewsKey = (
       hasPhotos: filters.hasPhotos,
       merchantReplied: filters.merchantReplied,
       ordering: filters.ordering,
+      ...(filters.needsReply ? { needsReply: true } : {}),
     },
   ] as const;
 };

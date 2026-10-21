@@ -26,6 +26,7 @@ export default function CommunityBusinessLink({ business }: Props) {
       pathname: "/(explorer)/business/[businessId]",
       params: {
         businessId: String(business.id),
+        profileSource: "COMMUNITY",
       },
     });
   };

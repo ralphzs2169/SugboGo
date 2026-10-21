@@ -61,3 +61,16 @@ export interface ResetPasswordRequest {
   password: string;
   confirm_password: string;
 }
+
+/** Authenticated password replacement after current-password verification. */
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+/** Password proof and explicit consent for account deactivation. */
+export interface DeactivateAccountRequest {
+  current_password: string;
+  confirm_deactivation: true;
+}

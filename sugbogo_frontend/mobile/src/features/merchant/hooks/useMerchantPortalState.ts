@@ -34,10 +34,23 @@ export function useMerchantPortalState() {
     }
   }, [application]);
 
-  const config = useMemo(
-    () => portalConfig[registrationStatus],
-    [registrationStatus],
-  );
+  const config = useMemo(() => {
+    const current = portalConfig[registrationStatus];
+    if (
+      registrationStatus !== MerchantRegistrationStatus.REJECTED ||
+      !application?.duplicate_disposition
+    )
+      return current;
+    return {
+      ...current,
+      profileCard: {
+        ...current.profileCard,
+        title: "Application Rejected",
+        description:
+          "Review the duplicate registration reason and any required corrections before resubmitting.",
+      },
+    };
+  }, [registrationStatus, application?.duplicate_disposition]);
 
   return {
     registrationStatus,

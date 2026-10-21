@@ -257,6 +257,17 @@ class AdminMerchantApplicationDetailSerializer(
         read_only=True,
     )
 
+    latest_submission_id = serializers.SerializerMethodField()
+
+    def get_latest_submission_id(
+        self,
+        application,
+    ):
+        """Identify the submission reviewed by final-decision callers."""
+        return application.submissions.order_by(
+            "-MASUB_SUBMISSION_NUMBER",
+        ).values_list("pk", flat=True).first()
+
     submission_count = serializers.IntegerField(
         source="MAPP_SUBMISSION_COUNT",
         read_only=True,
@@ -326,6 +337,7 @@ class AdminMerchantApplicationDetailSerializer(
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",
+            "latest_submission_id",
             "submission_count",
             "time_in_queue_business_days",
             "queue_status",
@@ -354,13 +366,40 @@ class AdminMerchantApplicationFeedbackInputSerializer(serializers.Serializer):
     )
 
 
-class AdminMerchantApplicationRejectSerializer(serializers.Serializer):
+class AdminMerchantApplicationDecisionSerializer(serializers.Serializer):
+    """Validate the submission identity included in final review decisions."""
+
+    expected_submission_id = serializers.IntegerField(
+        required=False,
+        min_value=1,
+    )
+
+
+class AdminMerchantApplicationRejectSerializer(AdminMerchantApplicationDecisionSerializer):
     """Validates administrator feedback submitted when rejecting an application."""
 
     feedback = AdminMerchantApplicationFeedbackInputSerializer(
         many=True,
-        allow_empty=False,
+        required=False,
+        allow_empty=True,
     )
+    disposition = serializers.ChoiceField(
+        choices=("corrections", "duplicate"),
+        default="corrections",
+    )
+    explanation = serializers.CharField(required=False, allow_blank=True, max_length=4000)
+
+    def validate(
+        self,
+        attrs,
+    ):
+        """Allow feedback-free rejection only for an explicit duplicate disposition."""
+        if attrs["disposition"] == "duplicate":
+            if not attrs.get("explanation"):
+                raise serializers.ValidationError({"explanation": "An explanation is required."})
+        elif not attrs.get("feedback"):
+            raise serializers.ValidationError({"feedback": "At least one feedback item is required."})
+        return attrs
 
     def validate_feedback(self, feedback):
         sections = [item["section"] for item in feedback]
@@ -425,28 +464,11 @@ class AdminMerchantApplicationReviewSerializer(serializers.ModelSerializer):
         )
 
     def get_changed_sections(self, obj):
-        application = obj.MAPP_ID
-        reviewed_at = obj.MAREV_REVIEWED_AT
-
-        sections = (
-            MerchantApplicationFeedback.Section.IDENTITY,
-            MerchantApplicationFeedback.Section.LOCATION,
-            MerchantApplicationFeedback.Section.OPERATING_HOURS,
-            MerchantApplicationFeedback.Section.PHOTOS,
-            MerchantApplicationFeedback.Section.DOCUMENTS,
+        """Use the same content comparison as merchant feedback and submission."""
+        return ApplicationService.get_changed_sections(
+            obj,
+            fingerprint_cache=self.context.setdefault("_merchant_section_fingerprints", {}),
         )
-
-        return [
-            section
-            for section in sections
-            if (
-                section_updated_at := ApplicationService.get_section_updated_at(
-                    application,
-                    section,
-                )
-            ) is not None
-            and section_updated_at > reviewed_at
-        ]
 
 
 

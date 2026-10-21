@@ -22,20 +22,6 @@ type Props = {
   onHeaderLayout?: (bottom: number) => void;
 };
 
-/** Adds transparency to a 6-digit hex color; other formats pass through. */
-function withAlpha(color: string, alpha: number) {
-  const hex = color.replace("#", "");
-  if (hex.length !== 6) {
-    return color;
-  }
-
-  const channel = Math.round(alpha * 255)
-    .toString(16)
-    .padStart(2, "0");
-
-  return `#${hex}${channel}`;
-}
-
 const BRAND = theme.extends.colors.brand;
 
 // Each quick filter owns its accent so Hidden Gems matches the map's gem color.
@@ -46,7 +32,6 @@ const QUICK_FILTERS = [
     icon: "diamond-stone",
     accent: GEM_ACCENT,
     border: GEM_FILL,
-    tint: withAlpha(GEM_FILL, 0.12),
   },
   {
     key: "openNow",
@@ -54,7 +39,6 @@ const QUICK_FILTERS = [
     icon: "clock-outline",
     accent: BRAND,
     border: BRAND,
-    tint: withAlpha(BRAND, 0.1),
   },
 ] as const;
 
@@ -126,7 +110,7 @@ export default function MapSearchOverlay({
           accessibilityRole="button"
           accessibilityLabel={`Map filters${advancedFilterCount ? `, ${advancedFilterCount} active` : ""}`}
           accessibilityState={{ selected: advancedFilterCount > 0 }}
-          className="h-12 w-12 items-center justify-center active:bg-surface-secondary"
+          className={`h-12 w-12 items-center justify-center active:opacity-70 ${advancedFilterCount > 0 ? "bg-brand/10" : ""}`}
         >
           <MaterialCommunityIcons
             name="tune-variant"
@@ -187,7 +171,7 @@ export default function MapSearchOverlay({
                   CHIP_SHADOW,
                   {
                     backgroundColor: isActive
-                      ? filter.tint
+                      ? filter.border
                       : theme.extends.colors.surface,
                     borderColor: isActive
                       ? filter.border
@@ -196,18 +180,29 @@ export default function MapSearchOverlay({
                 ]}
               >
                 <MaterialCommunityIcons
-                  name={isActive ? "check-circle" : filter.icon}
+                  name={filter.icon}
                   size={18}
-                  color={filter.accent}
+                  color={
+                    isActive ? theme.extends.colors.surface : filter.accent
+                  }
                   accessibilityElementsHidden
                   importantForAccessibility="no"
                 />
                 <AppText
                   weight="semibold"
-                  className="text-sm text-text-primary"
+                  className={`text-sm ${isActive ? "text-white" : "text-text-primary"}`}
                 >
                   {filter.label}
                 </AppText>
+                {isActive && (
+                  <MaterialCommunityIcons
+                    name="check"
+                    size={15}
+                    color={theme.extends.colors.surface}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+                )}
               </Pressable>
             );
           })}

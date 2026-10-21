@@ -1,12 +1,9 @@
 import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
+import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
 
 import type { OverallReviewVibe } from "../../../types/exploreBusiness.types";
-import {
-  OVERALL_REVIEW_VIBE_LABELS,
-  OVERALL_REVIEW_VIBE_STYLES,
-} from "../../../utils/reviewVibe.utils";
 
 type Props = {
   recentCount: number;
@@ -25,14 +22,10 @@ export default function ReviewInsightsHeader({
   overallVibe = null,
   compact = false,
 }: Props) {
-  const overallVibeStyle = overallVibe
-    ? OVERALL_REVIEW_VIBE_STYLES[overallVibe]
-    : null;
-
   return (
     <View>
       {/* Heading and overall vibe */}
-      <View className="flex-row items-center justify-between gap-3">
+      <View className="flex-row flex-wrap items-center justify-between gap-3">
         <AppText
           weight="bold"
           className={`min-w-0 flex-1 text-text-primary ${
@@ -42,25 +35,12 @@ export default function ReviewInsightsHeader({
           Recent Review Insights
         </AppText>
 
-        {overallVibe && overallVibeStyle && (
-          <View
-            testID={
-              compact ? "preview-overall-review-vibe" : "overall-review-vibe"
-            }
-            className={`shrink-0 flex-row items-center rounded-full px-2.5 py-1.5 ${overallVibeStyle.containerClassName}`}
-          >
-            <View
-              className={`mr-1.5 h-1.5 w-1.5 rounded-full ${overallVibeStyle.dotClassName}`}
-            />
-
-            <AppText
-              weight="semibold"
-              className={`text-[11px] ${overallVibeStyle.textClassName}`}
-            >
-              {OVERALL_REVIEW_VIBE_LABELS[overallVibe]}
-            </AppText>
-          </View>
-        )}
+        <ReviewVibeBadge
+          vibe={overallVibe}
+          testID={
+            compact ? "preview-overall-review-vibe" : "overall-review-vibe"
+          }
+        />
       </View>
 
       {/* Rolling-window context */}

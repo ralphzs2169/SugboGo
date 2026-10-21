@@ -36,6 +36,14 @@ from apps.notifications.services.notification_event_service import (
     NotificationEventService,
 )
 from apps.users.models import User
+from apps.merchant_application.services.review_submission_service import (
+    validate_review_submission,
+)
+from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
+from apps.merchant_application.services.duplicate_review_service import (
+    DuplicateReviewService,
+    lock_duplicate_approvals,
+)
 
 
 class ApplicationService:
@@ -246,7 +254,15 @@ class ApplicationService:
     
     @staticmethod
     @transaction.atomic
-    def reject_application(application_id, feedback, reviewer):
+    def reject_application(
+        application_id,
+        feedback,
+        reviewer,
+        *,
+        duplicate=False,
+        explanation="",
+        expected_submission_id=None,
+    ):
         """
         Reject a submitted merchant application.
 
@@ -255,17 +271,9 @@ class ApplicationService:
         after future resubmissions.
         """
 
-        application = (
-            MerchantApplication.objects
-            .select_for_update()
-            .filter(MAPP_ID=application_id)
-            .first()
-        )
-
-        if application is None:
-            raise NotFound(
-                "The application could not be found.",
-            )
+        if duplicate:
+            lock_duplicate_approvals()
+        application, _ = ApplicationService._get_locked_application(application_id)
         
         if (
             application.MAPP_STATUS
@@ -288,6 +296,17 @@ class ApplicationService:
                 "The application's submission history could not be found.",
             )
 
+        validate_review_submission(
+            application,
+            submission,
+            expected_submission_id,
+        )
+
+        if duplicate:
+            if not explanation.strip():
+                raise ValidationError("A duplicate rejection explanation is required.")
+            DuplicateReviewService.validate_duplicate_rejection(application)
+
         reviewed_at = timezone.now()
 
         sla_compliant = is_review_sla_compliant(
@@ -302,6 +321,9 @@ class ApplicationService:
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=reviewed_at,
             MAREV_SLA_COMPLIANT=sla_compliant,
+            MAREV_SECTION_FINGERPRINTS=get_section_fingerprints(application.pk),
+            MAREV_DUPLICATE_REJECTION=duplicate,
+            MAREV_DUPLICATE_EXPLANATION=explanation,
         )
 
         MerchantApplicationFeedback.objects.bulk_create(
@@ -335,7 +357,12 @@ class ApplicationService:
 
     @staticmethod
     @transaction.atomic
-    def approve_application(application_id, reviewer):
+    def approve_application(
+        application_id,
+        reviewer,
+        *,
+        expected_submission_id=None,
+    ):
         """
         Approve a submitted merchant application.
 
@@ -344,17 +371,8 @@ class ApplicationService:
         and promotes the applicant to the merchant role.
         """
 
-        application = (
-            MerchantApplication.objects
-            .select_for_update()
-            .filter(MAPP_ID=application_id)
-            .first()
-        )
-
-        if application is None:
-            raise NotFound(
-                "The application could not be found.",
-            )
+        lock_duplicate_approvals()
+        application, applicant = ApplicationService._get_locked_application(application_id)
 
         if (
             application.MAPP_STATUS
@@ -363,6 +381,15 @@ class ApplicationService:
             raise ValidationError(
                 "Only submitted applications can be approved.",
             )
+
+        if not applicant.is_active or not applicant.EMAIL_VERIFIED:
+            raise ValidationError(
+                "The applicant must have an active, verified account before approval."
+            )
+        if applicant.USER_ROLE not in (User.UserRole.EXPLORER, User.UserRole.MERCHANT):
+            raise ValidationError("Only Explorer or Merchant accounts can be approved.")
+        if Business.objects.filter(USER_ID=applicant).exists():
+            raise ValidationError("The applicant already owns a business.")
 
         submission = (
             MerchantApplicationSubmission.objects
@@ -375,6 +402,12 @@ class ApplicationService:
             raise ValidationError(
                 "The application's submission history could not be found.",
             )
+
+        validate_review_submission(
+            application,
+            submission,
+            expected_submission_id,
+        )
 
         try:
             identity = application.identity
@@ -394,6 +427,8 @@ class ApplicationService:
             identity.CTGRY_ID,
             identity.CLUS_ID_id,
         )
+
+        DuplicateReviewService.enforce_approval(application)
 
         reviewed_at = timezone.now()
 
@@ -530,8 +565,6 @@ class ApplicationService:
 
         # Promote the applicant to merchant.
 
-        applicant = application.USER_ID
-
         applicant.USER_ROLE = User.UserRole.MERCHANT
         applicant.save(
             update_fields=[
@@ -543,3 +576,16 @@ class ApplicationService:
         NotificationEventService.merchant_application_resolved(review)
 
         return application
+
+    @staticmethod
+    def _get_locked_application(application_id):
+        """Lock the applicant before the application for every review decision."""
+        try:
+            applicant_id = MerchantApplication.objects.values_list(
+                "USER_ID_id", flat=True,
+            ).get(pk=application_id)
+            applicant = User.objects.select_for_update().get(pk=applicant_id)
+            application = MerchantApplication.objects.select_for_update().get(pk=application_id)
+        except (MerchantApplication.DoesNotExist, User.DoesNotExist) as exc:
+            raise NotFound("The application could not be found.") from exc
+        return application, applicant

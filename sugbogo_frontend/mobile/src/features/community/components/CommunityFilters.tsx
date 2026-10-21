@@ -1,8 +1,6 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView } from "react-native";
 
-import { theme } from "@/constants/theme";
-import AppText from "@/shared/components/AppText";
+import FilterChip from "@/shared/components/FilterChip";
 
 import type { CommunityReviewFilters } from "../types/communityReview.types";
 
@@ -14,61 +12,6 @@ type Props = {
   onToggleMostHelpful: () => void;
   onClear: () => void;
 };
-
-type ChipProps = {
-  label: string;
-  selected?: boolean;
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
-  count?: number;
-  accessibilityLabel?: string;
-  onPress: () => void;
-};
-
-function Chip({
-  label,
-  selected = false,
-  icon,
-  count = 0,
-  accessibilityLabel,
-  onPress,
-}: ChipProps) {
-  const foreground = selected ? "#fff" : theme.extends.colors.text.primary;
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ selected }}
-      hitSlop={6}
-      className={`h-9 flex-row items-center rounded-full border px-3 active:opacity-70 ${
-        selected ? "border-brand bg-brand" : "border-border-primary bg-surface"
-      }`}
-    >
-      {icon && (
-        <MaterialCommunityIcons
-          name={icon}
-          size={16}
-          color={foreground}
-          style={{ marginRight: 6 }}
-        />
-      )}
-      <AppText
-        weight="semibold"
-        className={`text-sm ${selected ? "text-white" : "text-text-primary"}`}
-      >
-        {label}
-      </AppText>
-      {count > 0 && (
-        <View className="ml-2 min-w-5 items-center rounded-full bg-brand px-1.5 py-0.5">
-          <AppText weight="bold" className="text-xs text-white">
-            {count}
-          </AppText>
-        </View>
-      )}
-    </Pressable>
-  );
-}
 
 /**
  * Quick controls under the Community title.
@@ -97,12 +40,14 @@ export default function CommunityFilters({
       contentContainerStyle={{
         gap: 8,
         paddingHorizontal: 16,
+        paddingTop: 6,
         paddingBottom: 12,
       }}
       keyboardShouldPersistTaps="handled"
     >
-      <Chip
+      <FilterChip
         label="Filters"
+        selected={sheetFilterCount > 0}
         icon="tune-variant"
         count={sheetFilterCount}
         accessibilityLabel={`Filters${
@@ -110,20 +55,20 @@ export default function CommunityFilters({
         }`}
         onPress={onOpenFilters}
       />
-      <Chip
+      <FilterChip
         label="With photos"
         icon="image-outline"
         selected={filters.hasPhotos}
         onPress={onTogglePhotos}
       />
-      <Chip
+      <FilterChip
         label="Most helpful"
         icon="thumb-up-outline"
         selected={filters.ordering === "most_helpful"}
         onPress={onToggleMostHelpful}
       />
       {hasContentFilters && (
-        <Chip label="Clear" icon="close" onPress={onClear} />
+        <FilterChip label="Clear" icon="close" selected={false} onPress={onClear} />
       )}
     </ScrollView>
   );

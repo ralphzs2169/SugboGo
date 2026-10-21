@@ -57,9 +57,52 @@ from apps.explorer_operations.explore_businesses.views.visibility_event_views im
 from apps.explorer_operations.explore_businesses.views.vouch_history_views import (
     VouchHistoryView,
 )
+from .views.activity_timeline_views import ActivityTimelineView
 from django.urls import path
+from .views.route_intent_views import RouteIntentView
+from .views.pocket_collection_views import (
+    PocketCollectionBusinessesView,
+    PocketCollectionDetailView,
+    PocketCollectionListView,
+)
+from .views.business_pocket_membership_views import (
+    BusinessPocketMembershipView,
+    PocketBusinessMembershipView,
+)
 
 urlpatterns = [
+    path(
+        "activity-timeline/",
+        ActivityTimelineView.as_view(),
+        name="activity-timeline",
+    ),
+    path(
+        "businesses/<int:business_id>/route-intent/",
+        RouteIntentView.as_view(),
+        name="business-route-intent",
+    ),
+
+    path("pockets/", PocketCollectionListView.as_view(), name="pocket-collections"),
+    path(
+        "pockets/<int:collection_id>/",
+        PocketCollectionDetailView.as_view(),
+        name="pocket-collection-detail",
+    ),
+    path(
+        "pockets/<int:collection_id>/businesses/",
+        PocketCollectionBusinessesView.as_view(),
+        name="pocket-collection-businesses",
+    ),
+    path(
+        "businesses/<int:business_id>/pockets/",
+        BusinessPocketMembershipView.as_view(),
+        name="business-pocket-memberships",
+    ),
+    path(
+        "pockets/<int:collection_id>/businesses/<int:business_id>/",
+        PocketBusinessMembershipView.as_view(),
+        name="pocket-business-membership",
+    ),
 
     path(
         "journey-origins/places/search/",

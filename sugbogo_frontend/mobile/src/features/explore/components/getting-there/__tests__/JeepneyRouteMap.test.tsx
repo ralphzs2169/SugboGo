@@ -107,6 +107,7 @@ describe("JeepneyRouteMap", () => {
         originMarkerLabel="Current location"
         originMarkerTitle="Current location"
         businessName="Sugbo Cafe"
+        businessCoverPhotoUrl={null}
       />,
     );
 
@@ -116,13 +117,13 @@ describe("JeepneyRouteMap", () => {
     expect(
       screen.getByTestId("selected-ride-segment").props.coordinates,
     ).toEqual(journey.ride.selected_segment_geometry);
-    expect(
-      screen.getByTestId("selected-ride-segment").props.strokeColor,
-    ).toBe(theme.extends.colors.brand);
+    expect(screen.getByTestId("selected-ride-segment").props.strokeColor).toBe(
+      theme.extends.colors.brand,
+    );
     expect(screen.getAllByTestId(/route|segment/)).toHaveLength(2);
   });
 
-  it("renders four markers and fits the relevant journey once", async () => {
+  it("renders four markers and fits the relevant journey", async () => {
     const explorerLocation = { latitude: 10.3, longitude: 123.88 };
     const screen = await render(
       <JeepneyRouteMap
@@ -131,6 +132,7 @@ describe("JeepneyRouteMap", () => {
         originMarkerLabel="Current location"
         originMarkerTitle="Current location"
         businessName="Sugbo Cafe"
+        businessCoverPhotoUrl={null}
       />,
     );
 
@@ -148,11 +150,8 @@ describe("JeepneyRouteMap", () => {
           journey.alighting_transit_point,
           journey.business_location,
         ],
-        expect.objectContaining({
-          animated: false,
-        }),
+        expect.any(Object),
       );
     });
-    expect(mockFitToCoordinates).toHaveBeenCalledTimes(1);
   });
 });

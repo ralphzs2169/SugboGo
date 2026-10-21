@@ -3,6 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { ACTIVITY_TIMELINE_QUERY_KEY } from "@/features/profile/hooks/activityTimelineQueryKeys";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { pocketCollectionsQueryKey } from "@/features/pockets/hooks/pocketQueryKeys";
@@ -275,6 +276,9 @@ export default function useBusinessPocket({ businessId }: Props) {
 
     onSettled: async (_data, _error, _variables, context) => {
       const invalidations = [
+        queryClient.invalidateQueries({
+          queryKey: ACTIVITY_TIMELINE_QUERY_KEY,
+        }),
         queryClient.invalidateQueries({
           queryKey: ["explore-business-detail", businessId],
         }),

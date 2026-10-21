@@ -291,6 +291,9 @@ describe("useBusinessReviews", () => {
 
     expect(deleteReview).toHaveBeenCalledWith(8);
     expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["activity-timeline"],
+    });
+    expect(invalidate).toHaveBeenCalledWith({
       queryKey: businessReviewPreviewKey(20),
     });
     expect(invalidate).toHaveBeenCalledWith({

@@ -18,6 +18,14 @@ export default function ProfileLayout() {
 
       <Stack>
         <Stack.Screen
+          name="login-history"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Login History",
+          }}
+        />
+        <Stack.Screen
           name="index"
           options={{
             headerShown: false,
@@ -56,6 +64,30 @@ export default function ProfileLayout() {
             ...defaultStackScreenOptions,
             ...slideFromRight,
             title: "Your Interests",
+          }}
+        />
+        <Stack.Screen
+          name="change-password"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Password",
+          }}
+        />
+        <Stack.Screen
+          name="deactivate-account"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Deactivate Account",
+          }}
+        />
+        <Stack.Screen
+          name="change-email"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Change Email",
           }}
         />
 

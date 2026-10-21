@@ -29,6 +29,10 @@ urlpatterns = [
 
     
     # Merchant Operations
+    path(
+        'api/merchant/dashboard/',
+        include('apps.merchant_operations.dashboard.urls'),
+    ),
     path('api/merchant/analytics/', include('apps.merchant_operations.merchant_analytics.urls')),
     path('api/merchant/plus/', include('apps.merchant_operations.merchant_analytics.plus_urls')),
     path('api/merchant/business-profile/', include('apps.merchant_operations.business_profile.urls')),

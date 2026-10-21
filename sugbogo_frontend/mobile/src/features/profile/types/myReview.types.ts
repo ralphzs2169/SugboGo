@@ -27,6 +27,16 @@ export type MyReview = Pick<
 };
 
 export type MyReviewPage = {
+  summary?: {
+    total: number;
+    published: number;
+    under_review: number;
+    not_published: number;
+  };
   items: MyReview[];
   pagination: ExploreBusinessPagination;
 };
+
+export type MyReviewFilter =
+  "all" | "published" | "under_review" | "not_published";
+export type MyReviewOrdering = "newest" | "oldest";

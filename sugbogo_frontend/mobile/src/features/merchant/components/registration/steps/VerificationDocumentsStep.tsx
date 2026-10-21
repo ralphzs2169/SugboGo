@@ -1,4 +1,6 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import AppText from "@/shared/components/AppText";
+import InfoBanner from "@/shared/components/InfoBanner";
 import { useFormContext } from "react-hook-form";
 
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
@@ -29,6 +31,12 @@ export default function VerificationDocumentsStep({
 
   return (
     <View className="bg-background">
+      {/* Shared upload guidance for every document section */}
+      <InfoBanner title="Supported document formats">
+        <AppText className="text-sm leading-5 text-text-secondary">
+          Upload PDF, JPG, or PNG files in any document section below.
+        </AppText>
+      </InfoBanner>
       <RegistrationSection
         icon="file-document-outline"
         title="Business Registration"

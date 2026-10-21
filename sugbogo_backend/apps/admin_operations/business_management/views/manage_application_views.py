@@ -12,6 +12,7 @@ from apps.admin_operations.business_management.serializers.manage_application_se
     AdminMerchantApplicationDetailSerializer,
     AdminMerchantApplicationListSerializer,
     AdminMerchantApplicationRejectSerializer,
+    AdminMerchantApplicationDecisionSerializer,
 )
 from apps.admin_operations.business_management.services.manage_application_service import (
     ApplicationService,
@@ -126,10 +127,20 @@ class MerchantApplicationRejectView(APIView):
         )
         serializer.is_valid(raise_exception=True)
 
+        duplicate_options = {}
+        if serializer.validated_data["disposition"] == "duplicate":
+            duplicate_options = {
+                "duplicate": True,
+                "explanation": serializer.validated_data["explanation"],
+            }
         application = ApplicationService.reject_application(
             application_id=application_id,
-            feedback=serializer.validated_data["feedback"],
+            feedback=serializer.validated_data.get("feedback", []),
             reviewer=request.user,
+            expected_submission_id=serializer.validated_data.get(
+                "expected_submission_id",
+            ),
+            **duplicate_options,
         )
 
         return success_response(
@@ -151,9 +162,15 @@ class MerchantApplicationApproveView(APIView):
     def post(self, request, application_id):
         """Approve a submitted merchant application."""
 
+        serializer = AdminMerchantApplicationDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         application = ApplicationService.approve_application(
             application_id=application_id,
             reviewer=request.user,
+            expected_submission_id=serializer.validated_data.get(
+                "expected_submission_id",
+            ),
         )
 
         return success_response(

@@ -87,6 +87,7 @@ export type BusinessReviewFilters = {
   topic: string | null;
   hasPhotos: boolean;
   merchantReplied: boolean;
+  needsReply?: boolean;
   ordering: ReviewOrdering;
 };
 

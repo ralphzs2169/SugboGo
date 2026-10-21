@@ -3,17 +3,20 @@ import { useIsFocused } from "expo-router";
 import { AppState } from "react-native";
 
 import { useRecordBusinessProfileVisit } from "./useVisibilityMutations";
+import { normalizeDiscoverySource } from "../constants/discoverySources";
 
 /** Records displayed profile content once per business/focus experience. */
 export default function useBusinessProfileVisit(
   businessId: number,
   displayedBusinessId: number | undefined,
   isOwnBusiness = false,
+  profileSource: unknown = "UNKNOWN",
 ) {
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState(AppState.currentState);
   const attemptedId = useRef<number | null>(null);
   const { mutate } = useRecordBusinessProfileVisit();
+  const discoverySource = normalizeDiscoverySource(profileSource);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", setAppState);
@@ -38,6 +41,14 @@ export default function useBusinessProfileVisit(
     }
 
     attemptedId.current = businessId;
-    mutate(businessId);
-  }, [appState, businessId, displayedBusinessId, isFocused, isOwnBusiness, mutate]);
+    mutate({ businessId, discoverySource });
+  }, [
+    appState,
+    businessId,
+    displayedBusinessId,
+    isFocused,
+    isOwnBusiness,
+    mutate,
+    discoverySource,
+  ]);
 }

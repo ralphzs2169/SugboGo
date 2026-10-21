@@ -1,3 +1,4 @@
+import QuickReasonChips from "./QuickReasonChips";
 import TextArea from "@/shared/components/forms/TextArea";
 
 /**
@@ -49,18 +50,10 @@ export default function RejectApplicationSection({
         <div className="overflow-hidden">
           <div className="pl-7">
             {/* Quick-reason templates */}
-            <div className="mb-4 flex flex-wrap gap-2">
-              {section.templates.map((template) => (
-                <button
-                  key={template}
-                  type="button"
-                  onClick={() => onTemplateClick(section.value, template)}
-                  className="cursor-pointer rounded-full bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary shadow-sm ring-1 ring-inset ring-stroke transition-all hover:bg-surface-hover hover:text-text-primary hover:ring-stroke-strong"
-                >
-                  {template}
-                </button>
-              ))}
-            </div>
+            <QuickReasonChips
+              reasons={section.templates}
+              onSelect={(template) => onTemplateClick(section.value, template)}
+            />
 
             <TextArea
               id={textareaId}

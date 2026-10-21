@@ -25,7 +25,9 @@ class ClusterOptionsViewTests(
             CLUS_ID=1,
             CLUS_NAME="Food & Beverage",
             CLUS_DESCRIPTION="Food and beverage businesses.",
+            CLUS_ICON="utensils",
             CLUS_CREATED_AT="2026-08-01T10:00:00Z",
+            CLUS_UPDATED_AT="2026-08-01T10:00:00Z",
             category_count=3,
         )
 
@@ -33,7 +35,9 @@ class ClusterOptionsViewTests(
             CLUS_ID=2,
             CLUS_NAME="Accommodation",
             CLUS_DESCRIPTION="Accommodation businesses.",
+            CLUS_ICON="bed",
             CLUS_CREATED_AT="2026-08-01T11:00:00Z",
+            CLUS_UPDATED_AT="2026-08-01T11:00:00Z",
             category_count=2,
         )
 
@@ -56,14 +60,18 @@ class ClusterOptionsViewTests(
                     "id": 1,
                     "name": "Food & Beverage",
                     "description": "Food and beverage businesses.",
+                    "icon": "utensils",
                     "category_count": 3,
+                    "updated_at": "2026-08-01T10:00:00Z",
                     "created_at": "2026-08-01T10:00:00Z",
                 },
                 {
                     "id": 2,
                     "name": "Accommodation",
                     "description": "Accommodation businesses.",
+                    "icon": "bed",
                     "category_count": 2,
+                    "updated_at": "2026-08-01T11:00:00Z",
                     "created_at": "2026-08-01T11:00:00Z",
                 },
             ],

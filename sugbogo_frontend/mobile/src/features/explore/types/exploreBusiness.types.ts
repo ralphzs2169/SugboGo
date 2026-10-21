@@ -1,3 +1,4 @@
+import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
 import type {
   SpecialtyTagColor,
   SpecialtyTagIcon,
@@ -171,8 +172,7 @@ export type FrequentMention = {
   count: number;
 };
 
-export type OverallReviewVibe =
-  "mostly_positive" | "mostly_neutral" | "mostly_negative" | "mixed";
+export type OverallReviewVibe = ReviewVibe;
 
 export type BusinessReviewInsights = {
   state: "pending" | "insufficient_reviews" | "ready" | "outdated";

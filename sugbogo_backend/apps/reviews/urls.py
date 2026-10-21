@@ -1,5 +1,6 @@
 from django.urls import path
 
+from apps.reviews.views.merchant_review_focus_views import MerchantReviewFocusView
 from apps.reviews.views.community_review_views import CommunityReviewListView
 from apps.reviews.views.my_review_views import MyReviewListView
 from apps.reviews.views.reply_template_views import (
@@ -36,6 +37,11 @@ urlpatterns = [
     ),
 
     # Business Review Endpoints
+    path(
+        "business/<int:business_id>/focus/<int:review_id>/",
+        MerchantReviewFocusView.as_view(),
+        name="merchant-review-focus",
+    ),
     path("business/<int:business_id>/", ReviewView.as_view(), name="review-preview"),
     path("business/<int:business_id>/all/", ReviewListView.as_view(), name="review-list"),
 

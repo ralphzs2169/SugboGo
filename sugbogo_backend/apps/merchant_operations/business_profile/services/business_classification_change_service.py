@@ -504,6 +504,7 @@ class BusinessClassificationChangeService:
             request_id=change_request.pk,
             request_type="business_classification_change",
             outcome=change_request.BCCR_STATUS,
+            business_name=business.BUSN_NAME,
         )
         return BusinessClassificationChangeService.get_for_admin(request_id)
 
@@ -558,5 +559,6 @@ class BusinessClassificationChangeService:
             request_id=change_request.pk,
             request_type="business_classification_change",
             outcome=change_request.BCCR_STATUS,
+            business_name=change_request.BUSN_ID.BUSN_NAME,
         )
         return BusinessClassificationChangeService.get_for_admin(request_id)

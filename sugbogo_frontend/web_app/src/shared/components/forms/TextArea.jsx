@@ -20,6 +20,8 @@ export default function TextArea({
   maxLength,
   disabled = false,
   showCharacterCount = false,
+  characterCountMode = "maximum",
+  beforeInput,
 }) {
   const characterCount = value?.trim().length ?? 0;
 
@@ -36,6 +38,8 @@ export default function TextArea({
 
         {required && <span className="ml-1 text-danger">*</span>}
       </label>
+
+      {beforeInput}
 
       <textarea
         id={id}
@@ -91,7 +95,11 @@ export default function TextArea({
                   />
                 </span>
               )}
-              {characterCount}/{maxLength ?? minLength}
+              {characterCountMode === "minimum"
+                ? isValid
+                  ? "Minimum met"
+                  : `Minimum ${minLength} character${minLength === 1 ? "" : "s"}`
+                : `${characterCount}/${maxLength ?? minLength}`}
             </span>
           )}
       </div>

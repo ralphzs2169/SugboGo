@@ -4,18 +4,21 @@ import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, RefreshControl, View } from "react-native";
+import { FlatList, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import ReviewComposerSheet from "@/features/explore/components/business-profile/ReviewComposerSheet";
 import { ReviewDerivedDataSyncProvider } from "@/features/explore/hooks/ReviewDerivedDataSyncProvider";
+import MerchantMetricCard from "@/features/merchant/components/MerchantMetricCard";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
+import FilterChip from "@/shared/components/FilterChip";
+import SafePressable from "@/shared/components/SafePressable";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import {
   defaultStackScreenOptions,
@@ -27,7 +30,32 @@ import MyReviewCard from "../components/reviews/MyReviewCard";
 import MyReviewDeleteConfirmation from "../components/reviews/MyReviewDeleteConfirmation";
 import MyReviewsSkeleton from "../components/reviews/MyReviewsSkeleton";
 import { useMyReviews } from "../hooks/useMyReviews";
-import type { MyReview } from "../types/myReview.types";
+import type { MyReview, MyReviewOrdering } from "../types/myReview.types";
+
+type ReviewFilter = "all" | "published" | "under_review" | "not_published";
+
+const REVIEW_FILTERS: {
+  value: ReviewFilter;
+  label: string;
+  accessibilityLabel: string;
+}[] = [
+  { value: "all", label: "All", accessibilityLabel: "Show all reviews" },
+  {
+    value: "published",
+    label: "Published",
+    accessibilityLabel: "Show published reviews",
+  },
+  {
+    value: "under_review",
+    label: "Under review",
+    accessibilityLabel: "Show reviews under review",
+  },
+  {
+    value: "not_published",
+    label: "Not published",
+    accessibilityLabel: "Show reviews that are not published",
+  },
+];
 
 type SelectedReview = { userId: number; review: MyReview };
 
@@ -40,13 +68,16 @@ const SIGN_IN_ROUTE = "/(auth)/login";
  * synchronization while preserving the existing SugboGo interaction patterns.
  */
 export default function ReviewsSubmittedScreen() {
-  const history = useMyReviews();
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+  const [ordering, setOrdering] = useState<MyReviewOrdering>("newest");
+  const history = useMyReviews(reviewFilter, ordering);
   const insets = useSafeAreaInsets();
 
   const paginationArmed = useRef(false);
   const paginationPending = useRef(false);
   const actionsRef = useRef<BottomSheetModal | null>(null);
   const composerRef = useRef<BottomSheetModal | null>(null);
+  const sortRef = useRef<BottomSheetModal | null>(null);
 
   const [actionReview, setActionReview] = useState<SelectedReview | null>(null);
   const [deletingReview, setDeletingReview] = useState<SelectedReview | null>(
@@ -97,11 +128,15 @@ export default function ReviewsSubmittedScreen() {
   );
 
   const renderReview = useCallback(
-    ({ item }: { item: MyReview }) => (
-      <MyReviewCard
-        review={item}
-        onActions={canManage(item) ? openActions : undefined}
-      />
+    ({ item, index }: { item: MyReview; index: number }) => (
+      <View
+        className={index === 0 ? "border-t border-border-primary" : undefined}
+      >
+        <MyReviewCard
+          review={item}
+          onActions={canManage(item) ? openActions : undefined}
+        />
+      </View>
     ),
     [canManage, openActions],
   );
@@ -156,7 +191,7 @@ export default function ReviewsSubmittedScreen() {
   useEffect(() => {
     paginationArmed.current = false;
     paginationPending.current = false;
-  }, [userId]);
+  }, [userId, reviewFilter, ordering]);
 
   useQueryErrorNotification({
     error: history.error,
@@ -188,6 +223,13 @@ export default function ReviewsSubmittedScreen() {
   const initialLoading =
     history.isAuthLoading || (isEnabled && history.isPending);
   const hasReviews = history.reviews.length > 0;
+  const reviewCounts = history.summary;
+  const filteredEmptyLabel =
+    reviewFilter === "under_review"
+      ? "reviews under review"
+      : reviewFilter === "not_published"
+        ? "unpublished reviews"
+        : "published reviews";
 
   return (
     <View className="flex-1 bg-surface">
@@ -202,31 +244,80 @@ export default function ReviewsSubmittedScreen() {
 
       {/* Full-width review history */}
       <FlatList
-        key={userId ?? "signed-out"}
+        key={`${userId ?? "signed-out"}:${reviewFilter}:${ordering}`}
         testID="my-reviews-list"
         data={history.reviews}
         keyExtractor={(review) => String(review.id)}
         renderItem={renderReview}
-        className="flex-1 bg-background"
+        className="flex-1 bg-surface"
         contentContainerStyle={{
-          paddingBottom: insets.bottom + 24,
+          paddingBottom: insets.bottom,
           flexGrow: 1,
         }}
         ItemSeparatorComponent={ReviewSeparator}
         ListHeaderComponent={
-          hasReviews ? (
-            <View className="px-4 pb-3 pt-5">
-              <AppText
-                accessibilityRole="header"
-                weight="bold"
-                className="text-xl text-text-primary"
+          isEnabled ? (
+            <View className="gap-4 px-4 pb-4 pt-5">
+              <View className="flex-row gap-3">
+                <MerchantMetricCard
+                  icon="comment-text-outline"
+                  label="Total reviews"
+                  value={reviewCounts?.total.toLocaleString() ?? "—"}
+                  stacked={false}
+                />
+                <MerchantMetricCard
+                  icon="check-circle-outline"
+                  label="Published"
+                  value={reviewCounts?.published.toLocaleString() ?? "—"}
+                  stacked={false}
+                />
+              </View>
+              <View className="flex-row gap-3">
+                <MerchantMetricCard
+                  icon="clock-outline"
+                  label="Under review"
+                  value={reviewCounts?.under_review.toLocaleString() ?? "—"}
+                  stacked={false}
+                />
+                <MerchantMetricCard
+                  icon="eye-off-outline"
+                  label="Not published"
+                  value={reviewCounts?.not_published.toLocaleString() ?? "—"}
+                  stacked={false}
+                />
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 6 }}
               >
-                {history.totalCount}{" "}
-                {history.totalCount === 1 ? "review" : "reviews"}
-              </AppText>
-              <AppText className="mt-0.5 text-sm text-text-secondary">
-                Newest first · Includes unpublished
-              </AppText>
+                {REVIEW_FILTERS.map((option) => (
+                  <FilterChip
+                    key={option.value}
+                    label={option.label}
+                    selected={reviewFilter === option.value}
+                    accessibilityLabel={option.accessibilityLabel}
+                    onPress={() => setReviewFilter(option.value)}
+                  />
+                ))}
+              </ScrollView>
+              <View className="flex-row items-center justify-end gap-2">
+                <SafePressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Sort reviews: ${ordering === "oldest" ? "Oldest first" : "Newest first"}`}
+                  onPress={() => presentBottomSheet(sortRef)}
+                  className="min-h-11 flex-row items-center gap-1 active:opacity-75"
+                >
+                  <AppText className="text-sm text-text-secondary">
+                    {ordering === "oldest" ? "Oldest first" : "Newest first"}
+                  </AppText>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={18}
+                    color={theme.extends.colors.text.secondary}
+                  />
+                </SafePressable>
+              </View>
             </View>
           ) : null
         }
@@ -271,6 +362,18 @@ export default function ReviewsSubmittedScreen() {
               primaryActionTitle="Retry"
               onPrimaryAction={() => void history.refetch()}
             />
+          ) : reviewFilter !== "all" ? (
+            <View className="items-center px-4 py-10">
+              <AppText
+                weight="semibold"
+                className="text-center text-base text-text-primary"
+              >
+                No {filteredEmptyLabel} found
+              </AppText>
+              <AppText className="mt-1 text-center text-sm text-text-secondary">
+                Try another status filter.
+              </AppText>
+            </View>
           ) : (
             <View testID="my-reviews-empty" className="items-center px-4 py-10">
               <Image
@@ -351,6 +454,14 @@ export default function ReviewsSubmittedScreen() {
       />
 
       {/* Contextual edit and delete actions */}
+      <ActionBottomSheet
+        sheetRef={sortRef}
+        options={[
+          { label: "Newest first", value: "newest" },
+          { label: "Oldest first", value: "oldest" },
+        ]}
+        onSelect={(value) => setOrdering(value as MyReviewOrdering)}
+      />
       <ActionBottomSheet
         key={`review-actions-${userId ?? "signed-out"}`}
         sheetRef={actionsRef}

@@ -181,6 +181,11 @@ class Review(models.Model):
         auto_now_add=True,
     )
 
+    REVW_PUBLISHED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     REVW_UPDATED_AT = models.DateTimeField(
         auto_now=True,
     )
@@ -603,26 +608,13 @@ class BusinessReviewSummary(models.Model):
     @property
     def overall_vibe(self):
         """Derives the dominant review vibe when classified data is sufficient."""
-        from apps.shared.analytics.policy import current_policy
+        from apps.shared.analytics.review_vibe import classify_review_vibe
 
-        if (
-            self.BRSU_CLASSIFIED_REVIEW_COUNT
-            < current_policy()["sentiment_min_classified_reviews"]
-        ):
-            return None
-
-        ranked_sentiments = sorted(
-            self.sentiment_percentages.items(),
-            key=lambda item: item[1],
-            reverse=True,
+        return classify_review_vibe(
+            counts={
+                "positive": self.BRSU_POSITIVE_COUNT,
+                "neutral": self.BRSU_NEUTRAL_COUNT,
+                "negative": self.BRSU_NEGATIVE_COUNT,
+            },
+            classified_count=self.BRSU_CLASSIFIED_REVIEW_COUNT,
         )
-        top_label, top_percentage = ranked_sentiments[0]
-        second_percentage = ranked_sentiments[1][1]
-
-        if (
-            top_percentage >= 55
-            and top_percentage - second_percentage >= 15
-        ):
-            return f"mostly_{top_label}"
-
-        return "mixed"

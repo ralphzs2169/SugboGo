@@ -17,7 +17,7 @@ export default function DocumentGroup({
   const count = documents?.length ?? (document ? 1 : 0);
 
   return (
-    <View className="mb-5">
+    <View className="mb-3 rounded-xl bg-surface-muted p-4">
       <View className="mb-3 flex-row items-center justify-between">
         <AppText weight="semibold" className="text-sm  text-text-primary">
           {title}
@@ -29,8 +29,6 @@ export default function DocumentGroup({
         )}
       </View>
 
-      <View className="-mt-2 mb-3 border-t border-border-primary" />
-
       {documents ? (
         <View className="gap-2">
           {documents.map((item, index) => (
@@ -38,11 +36,16 @@ export default function DocumentGroup({
               key={`${item.uri}-${index}`}
               document={item}
               showRemove={false}
+              className="bg-surface"
             />
           ))}
         </View>
       ) : document ? (
-        <DocumentPreview document={document} showRemove={false} />
+        <DocumentPreview
+          document={document}
+          showRemove={false}
+          className="bg-surface"
+        />
       ) : (
         <View className="items-center justify-center rounded-lg border border-dashed border-border-primary py-4">
           <AppText className="text-sm text-text-secondary">

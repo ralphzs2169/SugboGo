@@ -1,6 +1,54 @@
 import { resolveNotificationDestination } from "../notificationDestination";
 
 describe("notification destinations", () => {
+  it("opens a specific review in the existing Merchant Reviews tab", () => {
+    const resolution = resolveNotificationDestination({
+      target_type: "business_review",
+      target_id: 42,
+    });
+    expect(resolution).toEqual({
+      kind: "destination",
+      destination: {
+        href: {
+          pathname: "/(merchant)/(tabs)/reviews",
+          params: { reviewId: "42", filter: "all", ordering: "newest" },
+        },
+        label: "review",
+        requiredMode: "merchant",
+        targetType: "business_review",
+      },
+    });
+  });
+
+  it("opens the account-scoped application summary in Explorer mode", () => {
+    expect(
+      resolveNotificationDestination({
+        target_type: "merchant_application",
+        target_id: 42,
+      }),
+    ).toEqual({
+      kind: "destination",
+      destination: {
+        href: "/(explorer)/merchant-registration/submitted-application",
+        label: "merchant application",
+        requiredMode: "explorer",
+        targetType: "merchant_application",
+      },
+    });
+  });
+
+  it.each(["", "review", "review_report", "review_report_closed_by_author"])(
+    "keeps unsupported target %s informational",
+    (targetType) => {
+      expect(
+        resolveNotificationDestination({
+          target_type: targetType,
+          target_id: 42,
+        }),
+      ).toEqual({ kind: "informational" });
+    },
+  );
+
   it.each([
     ["review_dispute", "/(merchant)/review-disputes/[disputeId]", "disputeId"],
     [

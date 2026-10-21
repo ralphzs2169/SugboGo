@@ -1,6 +1,7 @@
 import apiClient from "@/shared/api/apiClient.service";
 import { request } from "@/shared/api/request.service";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
+import type { DiscoverySource } from "../constants/discoverySources";
 
 import type {
   ExploreBusiness,
@@ -202,13 +203,26 @@ export async function recordBusinessImpressions(businessIds: number[]): Promise<
   );
 }
 
-export async function recordBusinessProfileVisit(businessId: number): Promise<
+export async function recordBusinessProfileVisit(
+  businessId: number,
+  discoverySource?: DiscoverySource,
+): Promise<
   ApiResponse<{
     business_id: number;
     recorded: boolean;
     duplicate: boolean;
   }>
 > {
+  if (discoverySource !== undefined) {
+    return request(
+      apiClient.post(
+        `/explorer/explore/businesses/${businessId}/profile-visit/`,
+        {
+          discovery_source: discoverySource,
+        },
+      ),
+    );
+  }
   return request(
     apiClient.post(`/explorer/explore/businesses/${businessId}/profile-visit/`),
   );

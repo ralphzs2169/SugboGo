@@ -12,12 +12,15 @@ export default function useApproveBusinessApplication() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  async function approveApplication(applicationId) {
+  async function approveApplication(applicationId, expectedSubmissionId) {
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const response = await approveBusinessApplication(applicationId);
+      const response = await approveBusinessApplication(
+        applicationId,
+        expectedSubmissionId,
+      );
 
       return response;
     } catch (error) {

@@ -1,6 +1,7 @@
 import apiClient from "@/shared/api/apiClient.service";
 import { request } from "@/shared/api/request.service";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
+import type { DuplicateWarningResponse } from "../types/registration/registrationApi.types";
 import {
   CategoryOption,
   ClusterOption,
@@ -21,6 +22,15 @@ import {
 } from "../types/registration/registrationApi.types";
 
 // Registration options
+
+/** Checks saved identity and location without exposing matching records. */
+export async function getDuplicateWarning(
+  signal?: AbortSignal,
+): Promise<ApiResponse<DuplicateWarningResponse>> {
+  return request(
+    apiClient.get("/merchant/application/duplicate-warning/", { signal }),
+  );
+}
 
 export async function getClusters(): Promise<ApiResponse<ClusterOption[]>> {
   return request(apiClient.get("/merchant/application/clusters/"));

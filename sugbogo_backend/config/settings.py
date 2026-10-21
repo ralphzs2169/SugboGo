@@ -155,6 +155,11 @@ PASSWORD_RESET_URL = os.getenv(
 
 # Email verification / password reset token lifetime (24 hours)
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
+EMAIL_CHANGE_TIMEOUT_SECONDS = 30 * 60
+LOGIN_HISTORY_RETENTION_DAYS = 90
+LOGIN_LOCKOUT_THRESHOLD = 5
+LOGIN_LOCKOUT_WINDOW_SECONDS = 15 * 60
+LOGIN_LOCKOUT_DURATION_SECONDS = 15 * 60
 
 # Cloudinary Configuration
 cloudinary.config(
@@ -180,6 +185,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.gis',
+    'django.contrib.postgres',
 
     'corsheaders',
 
@@ -278,6 +284,8 @@ REST_FRAMEWORK = {
         "oauth_login": "5/min",
         "resend_verification": "10/hour",
         "forgot_password": "10/hour",
+        "email_change": "5/hour",
+        "email_change_confirm": "5/min",
 
         "register": "5/hour",
 
@@ -300,6 +308,8 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
+    # Reject access tokens issued before the account's password changed.
+    "CHECK_REVOKE_TOKEN": True,
 
     "ALGORITHM": "HS256",
 
@@ -337,6 +347,13 @@ CHANNEL_LAYERS = {
 
 
 # Database
+MERCHANT_DUPLICATE_RADIUS_METRES = float(
+    os.environ.get("MERCHANT_DUPLICATE_RADIUS_METRES", "50"),
+)
+MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD = float(
+    os.environ.get("MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD", "0.59"),
+)
+
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
@@ -356,6 +373,9 @@ DATABASES = {
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'apps.authentication.password_validators.NonBlankPasswordValidator',
+    },
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
         'OPTIONS': {
@@ -399,6 +419,10 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
+    "daily-login-history-pruning": {
+        "task": "apps.authentication.tasks.prune_login_history",
+        "schedule": crontab(minute=0, hour=4),
+    },
     "recover-review-media-cleanup": {
         "task": "apps.reviews.tasks.recover_review_media_cleanup",
         "schedule": crontab(minute="*/5"),

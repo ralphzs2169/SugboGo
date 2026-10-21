@@ -6,6 +6,7 @@ from apps.business.services.serviceable_boundary_service import (
     ServiceableBoundaryService,
 )
 from apps.merchant_application.models import (
+    MerchantApplication,
     MerchantApplicationLandmark,
     MerchantApplicationLocation,
 )
@@ -49,6 +50,7 @@ class LocationService:
         in the request.
         """
 
+        application = MerchantApplication.objects.select_for_update().get(pk=application.pk)
         ApplicationService.validate_step_access(
             application,
             LocationService.STEP,

@@ -5,6 +5,7 @@ import RoleBadge from "@/shared/components/RoleBadge";
 import AppText from "@/shared/components/AppText";
 import { Feather } from "@expo/vector-icons";
 import type { AvatarKey } from "@/shared/constants/avatars";
+import type { ReactNode } from "react";
 type ProfileHeaderProps = {
   firstname: string;
   lastname: string;
@@ -13,6 +14,7 @@ type ProfileHeaderProps = {
   avatarKey?: AvatarKey | null;
   role: "explorer" | "merchant";
   onEditProfile?: () => void;
+  children?: ReactNode;
 };
 
 /**
@@ -26,6 +28,7 @@ export default function ProfileHeader({
   avatarKey,
   onEditProfile,
   role,
+  children,
 }: ProfileHeaderProps) {
   return (
     <View className="relative rounded-md bg-surface p-5">
@@ -43,28 +46,29 @@ export default function ProfileHeader({
         </TouchableOpacity>
       )}
 
-      <View className="flex-row items-center">
-        <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={100} />
+      <View className="items-center px-6">
+        <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={80} />
 
-        <View className="ml-3 flex-1 pr-12">
+        <View className="mt-3 w-full items-center">
           <AppText
             weight="bold"
-            className="text-md  text-text-primary truncate"
-            numberOfLines={1}
+            className="text-center text-md text-text-primary"
           >
             {firstname} {lastname}
           </AppText>
 
           <AppText
-            className="mt-1 text-xs text-text-secondary"
-            numberOfLines={1}
+            className="mt-1 text-center text-xs text-text-secondary"
           >
             {email}
           </AppText>
 
-          <RoleBadge role={role} />
+          <View className="items-center">
+            <RoleBadge role={role} />
+          </View>
         </View>
       </View>
+      {children}
     </View>
   );
 }

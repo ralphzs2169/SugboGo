@@ -28,7 +28,10 @@ class NotificationViewTests(NotificationFixtures, TestCase):
     def test_list_pagination_filter_and_private_field_exclusion(self):
         read = self.create_notification(key="read")
         NotificationService.mark_read(self.user, read.pk)
-        unread = self.create_notification(key="unread")
+        unread = self.create_notification(
+            key="unread",
+            metadata={"vouch_ids": [42], "actor_id": self.other.pk},
+        )
         self.create_notification(self.other)
         response = self.client.get(self.list_url, {"is_read": "false", "page_size": 1})
         self.assertEqual(response.status_code, 200)
@@ -40,6 +43,8 @@ class NotificationViewTests(NotificationFixtures, TestCase):
         self.assertIsNone(data["items"][0]["read_at"])
         self.assertNotIn("USER_ID", str(data))
         self.assertNotIn("dedup_key", str(data))
+        self.assertNotIn("metadata", str(data).lower())
+        self.assertNotIn("vouch_ids", str(data))
         self.assertNotIn(self.user.USER_EMAIL, str(data))
         read_response = self.client.get(self.list_url, {"is_read": "true"})
         self.assertEqual(read_response.data["data"]["items"][0]["id"], read.pk)

@@ -1,0 +1,12 @@
+Hi {{ user.USER_FNAME }},
+
+You requested a new email address for your SugboGo account.
+Open this link in SugboGo and enter your current password to confirm:
+
+{{ verification_link }}
+
+This link expires in {{ expiry_minutes }} minutes. Only the latest link works.
+Your current email stays unchanged until you confirm.
+If you did not request this, ignore this message and secure your account.
+
+The SugboGo Team

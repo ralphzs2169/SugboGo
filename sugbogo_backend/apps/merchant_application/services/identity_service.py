@@ -31,6 +31,7 @@ class IdentityService:
         application, _ = MerchantApplication.objects.get_or_create(
             USER_ID=locked_user
         )
+        application = MerchantApplication.objects.select_for_update().get(pk=application.pk)
 
         ApplicationService.validate_application_editable(application)
 

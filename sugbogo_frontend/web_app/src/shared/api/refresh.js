@@ -1,5 +1,5 @@
 import authClient from "./authClient";
-import { getRefreshToken, setTokens } from "./storage";
+import { getRefreshToken, getSessionGeneration, setTokens } from "./storage";
 
 // Tracks an in-flight refresh so concurrent 401s share one request
 // instead of each independently calling the refresh endpoint.
@@ -19,32 +19,49 @@ let inFlightRefresh = null;
  * @returns {Promise<string>} The new access token.
  */
 export async function refreshSession() {
-  if (inFlightRefresh) {
-    return inFlightRefresh;
+  const generation = getSessionGeneration();
+  const refresh = getRefreshToken();
+  if (!refresh) {
+    throw new Error("No refresh token available.");
+  }
+  if (inFlightRefresh?.generation === generation) {
+    return inFlightRefresh.promise;
   }
 
-  inFlightRefresh = (async () => {
+  const operation = (async () => {
     try {
-      const refresh = getRefreshToken();
-
-      if (!refresh) {
-        throw new Error("No refresh token available.");
-      }
-
       const response = await authClient.post("/auth/refresh/", {
         refresh,
       });
+      if (getSessionGeneration() !== generation || getRefreshToken() !== refresh) {
+        throw staleSessionError();
+      }
+      if (typeof response.data.access !== "string" || !response.data.access) {
+        throw new Error("Invalid refresh response.");
+      }
 
       setTokens({
         access: response.data.access,
         refresh: response.data.refresh ?? refresh,
-      });
+      }, { preserveSession: true });
 
       return response.data.access;
-    } finally {
-      inFlightRefresh = null;
+    } catch (error) {
+      if (getSessionGeneration() !== generation || getRefreshToken() !== refresh) throw staleSessionError();
+      throw error;
     }
   })();
+  inFlightRefresh = { generation, promise: operation };
+  try {
+    return await operation;
+  } finally {
+    if (inFlightRefresh?.promise === operation) inFlightRefresh = null;
+  }
+}
 
-  return inFlightRefresh;
+/** Identifies obsolete refresh work without expiring a newer account session. */
+export function staleSessionError() {
+  const error = new Error("Authentication session changed.");
+  error.name = "STALE_AUTH_SESSION";
+  return error;
 }

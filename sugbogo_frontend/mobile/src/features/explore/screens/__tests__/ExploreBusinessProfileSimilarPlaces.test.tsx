@@ -5,6 +5,11 @@ import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import ExploreBusinessProfileScreen from "../ExploreBusinessProfileScreen";
 import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
+const mockRecordRouteIntent = jest.fn();
+jest.mock("../../hooks/useRoutePlanningIntent", () => ({
+  __esModule: true,
+  default: () => mockRecordRouteIntent,
+}));
 
 jest.mock("expo-router", () => ({
   router: {
@@ -233,6 +238,7 @@ describe("Explore Business Profile actions and section placement", () => {
     );
 
     await fireEvent.press(screen.getByTestId("route-action"));
+    expect(mockRecordRouteIntent).toHaveBeenLastCalledWith("ROAD_ROUTE");
 
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]/road-route",
@@ -242,6 +248,7 @@ describe("Explore Business Profile actions and section placement", () => {
     });
 
     await fireEvent.press(screen.getByTestId("jeepney-action"));
+    expect(mockRecordRouteIntent).toHaveBeenLastCalledWith("JEEPNEY");
 
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]/jeepney-guide",
@@ -265,6 +272,7 @@ describe("Explore Business Profile actions and section placement", () => {
 
     expect(presentBottomSheet).toHaveBeenCalledTimes(2);
     expect(screen.queryByText("Manage My Business")).toBeNull();
+    expect(mockRecordRouteIntent).not.toHaveBeenCalled();
   });
 
   it("preserves the owner footer and hides Explorer actions", async () => {

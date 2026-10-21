@@ -26,6 +26,7 @@ from apps.notifications.services.notification_realtime_service import (
     NotificationRealtimeService,
 )
 from apps.users.models import User
+from apps.merchant_application.services.identity_service import IdentityService
 
 
 class MerchantApplicationNotificationTests(
@@ -97,7 +98,8 @@ class MerchantApplicationNotificationTests(
         self.assertEqual(
             notification.NOTF_BODY,
             (
-                "Your merchant application has been approved. "
+                f"Your merchant application for {application.identity.MIDN_BUSINESS_NAME} "
+                "has been approved. "
                 "You can now access Merchant mode."
             ),
         )
@@ -105,8 +107,8 @@ class MerchantApplicationNotificationTests(
             notification.NOTF_DEDUP_KEY,
             f"merchant-application-submission:{submission.pk}:resolved",
         )
-        self.assertEqual(notification.NOTF_TARGET_TYPE, "")
-        self.assertIsNone(notification.NOTF_TARGET_ID)
+        self.assertEqual(notification.NOTF_TARGET_TYPE, "merchant_application")
+        self.assertEqual(notification.NOTF_TARGET_ID, application.pk)
 
     def test_rejection_notifies_applicant_preserves_feedback_and_publishes(self):
         application = self._submit_complete_application()
@@ -146,7 +148,8 @@ class MerchantApplicationNotificationTests(
         self.assertEqual(
             notification.NOTF_BODY,
             (
-                "Your merchant application was not approved. "
+                f"Your merchant application for {application.identity.MIDN_BUSINESS_NAME} "
+                "was not approved. "
                 "Review the feedback for more details."
             ),
         )
@@ -154,8 +157,8 @@ class MerchantApplicationNotificationTests(
             notification.NOTF_DEDUP_KEY,
             f"merchant-application-submission:{submission.pk}:resolved",
         )
-        self.assertEqual(notification.NOTF_TARGET_TYPE, "")
-        self.assertIsNone(notification.NOTF_TARGET_ID)
+        self.assertEqual(notification.NOTF_TARGET_TYPE, "merchant_application")
+        self.assertEqual(notification.NOTF_TARGET_ID, application.pk)
 
     def test_repeated_decision_attempt_does_not_duplicate_notification(self):
         application = self._submit_complete_application()
@@ -202,6 +205,7 @@ class MerchantApplicationNotificationTests(
             update_fields=["MAPP_IDENTITY_UPDATED_AT", "MAPP_UPDATED_AT"],
         )
 
+        IdentityService.save_identity(self.user, {"MIDN_BUSINESS_NAME": "Corrected Bistro"})
         application = MerchantApplicationService.submit_application(application)
         second_submission = self._latest_submission(application)
         AdminApplicationService.reject_application(

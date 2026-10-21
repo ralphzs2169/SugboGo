@@ -14,8 +14,14 @@ from rest_framework import status
 from rest_framework.exceptions import APIException, NotFound, ValidationError
 
 from apps.business.models import Business
+from apps.business.services.discovery_source import (
+    DISCOVERY_SOURCE_LABELS,
+    DiscoverySource,
+    normalize_discovery_source,
+)
 from apps.shared.analytics.date_ranges import MANILA
 from apps.shared.services.mongodb_service import MongoDBService
+from apps.business.services.visibility_coverage_service import VisibilityCoverageService
 
 logger = logging.getLogger(__name__)
 
@@ -269,7 +275,55 @@ class VisibilityEventService:
         explorer_id: int,
         business_ids: Iterable[int],
         occurred_at: datetime,
+        *,
+        discovery_source=None,
     ) -> VisibilityEventWriteResult:
+        """Monitor eligible server-side attempts while preserving ingestion and deduplication."""
+        business_ids = cls._normalize_business_ids(business_ids)
+        try:
+            result = cls._persist_events(
+                event_type=event_type,
+                explorer_id=explorer_id,
+                business_ids=business_ids,
+                occurred_at=occurred_at,
+                discovery_source=discovery_source,
+            )
+        except Exception as error:
+            if business_ids:
+                reason = "persistence_failed"
+                if isinstance(error, VisibilityTrackingUnavailable):
+                    if error.cooldown_short_circuit:
+                        reason = "ingestion_cooldown"
+                VisibilityCoverageService.observe(
+                    event_type=event_type,
+                    business_ids=business_ids,
+                    occurred_at=occurred_at,
+                    outcome="failed",
+                    reason=reason,
+                )
+            raise
+        if business_ids:
+            VisibilityCoverageService.observe(
+                event_type=event_type,
+                business_ids=business_ids,
+                occurred_at=occurred_at,
+                outcome="accepted",
+                recorded_count=result.recorded_count,
+                duplicate_count=result.duplicate_count,
+            )
+        return result
+
+    @classmethod
+    def _persist_events(
+        cls,
+        event_type: VisibilityEventType,
+        explorer_id: int,
+        business_ids: Iterable[int],
+        occurred_at: datetime,
+        *,
+        discovery_source=None,
+    ) -> VisibilityEventWriteResult:
+        """Preserve daily identity and attach opening context only on profile inserts."""
         normalized_business_ids = cls._normalize_business_ids(
             business_ids,
         )
@@ -304,6 +358,10 @@ class VisibilityEventService:
                     "dedupe_key": dedupe_key,
                 },
             )
+            if event_type == VisibilityEventType.PROFILE_VISIT:
+                documents[-1]["discovery_source"] = normalize_discovery_source(
+                    discovery_source,
+                )
 
         operations = [
             UpdateOne(
@@ -335,9 +393,13 @@ class VisibilityEventService:
                 [],
             )
 
-            if not write_errors or any(
-                error.get("code") != 11000
-                for error in write_errors
+            if (
+                error_details.get("writeConcernErrors")
+                or not write_errors
+                or any(
+                    error.get("code") != 11000
+                    for error in write_errors
+                )
             ):
                 cls._mark_temporarily_unavailable()
                 logger.exception(
@@ -396,6 +458,8 @@ class VisibilityEventService:
         cls,
         explorer_id: int,
         business_id: int,
+        *,
+        discovery_source=None,
     ) -> VisibilityEventWriteResult:
         """Records a visibility profile visit for a single business."""
 
@@ -412,6 +476,7 @@ class VisibilityEventService:
                 else []
             ),
             occurred_at=cls._get_current_time(),
+            discovery_source=discovery_source,
         )
 
     @classmethod
@@ -620,6 +685,64 @@ class VisibilityEventService:
         return rows
 
     @classmethod
+    def get_recent_save_days(
+        cls,
+        *,
+        business_id,
+        as_of,
+        limit,
+    ):
+        """Return anonymous daily distinct-saver counts from recorded events only."""
+        if (
+            type(limit) is not int
+            or limit < 1
+            or limit > 5
+            or not isinstance(as_of, datetime)
+            or timezone.is_naive(as_of)
+        ):
+            raise ValidationError("Use an aware cutoff and a limit from one to five.")
+        match = cls._analytics_match([business_id], VisibilityEventType.SAVE)
+        match["occurred_at"] = {"$lte": as_of.astimezone(UTC)}
+        match["explorer_id"] = {"$type": "number", "$gt": 0}
+        day = {
+            "$dateToString": {
+                "date": "$occurred_at",
+                "format": "%Y-%m-%d",
+                "timezone": "Asia/Manila",
+            },
+        }
+        rows = cls._read_analytics([
+            {"$match": match},
+            {
+                "$group": {
+                    "_id": {"date": day, "explorer": "$explorer_id"},
+                    "occurred_at": {"$max": "$occurred_at"},
+                },
+            },
+            {
+                "$group": {
+                    "_id": "$_id.date",
+                    "count": {"$sum": 1},
+                    "occurred_at": {"$max": "$occurred_at"},
+                },
+            },
+            {"$sort": {"occurred_at": -1, "_id": -1}},
+            {"$limit": limit},
+        ])
+        result = []
+        for row in rows:
+            occurred_at = row["occurred_at"]
+            # PyMongo may decode UTC storage as a naive datetime.
+            if timezone.is_naive(occurred_at):
+                occurred_at = occurred_at.replace(tzinfo=UTC)
+            result.append({
+                "date": row["_id"],
+                "count": row["count"],
+                "occurred_at": occurred_at,
+            })
+        return result
+
+    @classmethod
     def get_profile_visit_timing(cls, *, business_ids, start_time, end_time):
         """Count scoped recorded profile visits by ISO weekday and hour in Manila time."""
         if business_ids is None:
@@ -641,6 +764,50 @@ class VisibilityEventService:
             {"$sort": {"_id.weekday": 1, "_id.hour": 1}},
         ])
         return [{**row["_id"], "count": row["count"]} for row in rows]
+
+    @classmethod
+    def get_profile_visit_sources(
+        cls,
+        *,
+        business_ids,
+        start_time,
+        end_time,
+    ):
+        """Classify every recorded visit, including legacy unknowns, in one read."""
+        if business_ids is None:
+            raise ValidationError({
+                "business_ids": "An explicit business scope is required.",
+            })
+        match = cls._analytics_match(business_ids, "PROFILE_VISIT")
+        match["occurred_at"] = cls._analytics_window(start_time, end_time)
+        source = {"$ifNull": ["$discovery_source", DiscoverySource.UNKNOWN.value]}
+        rows = cls._read_analytics([
+            {"$match": match},
+            {"$group": {
+                "_id": {
+                    "$cond": [
+                        {"$in": [source, list(DISCOVERY_SOURCE_LABELS)]},
+                        source,
+                        DiscoverySource.UNKNOWN.value,
+                    ],
+                },
+                "count": {"$sum": 1},
+            }},
+        ])
+        counts = {
+            source_id: 0
+            for source_id in DISCOVERY_SOURCE_LABELS
+        }
+        for row in rows:
+            counts[row["_id"]] += row["count"]
+        return [
+            {
+                "source": source_id.value,
+                "label": label,
+                "count": counts[source_id],
+            }
+            for source_id, label in DISCOVERY_SOURCE_LABELS.items()
+        ]
 
     @classmethod
     def get_analytics_totals(cls, *, start_time, end_time, business_ids=None):

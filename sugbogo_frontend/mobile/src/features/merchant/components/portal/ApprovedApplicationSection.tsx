@@ -1,15 +1,19 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import { View } from "react-native";
+import { Image } from "expo-image";
+import { useState } from "react";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 
 import approvedApplicationAnimation from "../../assets/animations/approved-application.json";
+import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
 
 type ApprovedApplicationSectionProps = {
   businessName: string;
   approvedAt: string;
+  coverPhotoUrl?: string | null;
 };
 
 /**
@@ -22,7 +26,14 @@ type ApprovedApplicationSectionProps = {
 export default function ApprovedApplicationSection({
   businessName,
   approvedAt,
+  coverPhotoUrl,
 }: ApprovedApplicationSectionProps) {
+  const { business } = useMerchantBusinessProfile();
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  const cover =
+    business?.display_cover_photo_url ||
+    business?.cover_photo_url ||
+    coverPhotoUrl;
   return (
     <View className="bg-surface px-6 pb-6">
       {/* Approval status hero */}
@@ -57,14 +68,29 @@ export default function ApprovedApplicationSection({
       </View>
 
       {/* Approval details */}
-      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 py-1">
+      <View className="mt-4 rounded-card border border-border-primary bg-surface px-5 py-1">
         {/* Business */}
         <View className="flex-row items-center border-b border-border-primary/60 py-4">
-          <MaterialCommunityIcons
-            name="storefront-outline"
-            size={25}
-            color={theme.extends.colors.text.secondary}
-          />
+          {cover && failedCover !== cover ? (
+            <Image
+              source={{ uri: cover }}
+              style={{ width: 48, height: 48, borderRadius: 12, flexShrink: 0 }}
+              contentFit="cover"
+              accessibilityLabel={`${businessName} cover photo`}
+              onError={() => setFailedCover(cover)}
+            />
+          ) : (
+            <View
+              style={{ width: 48, height: 48, flexShrink: 0 }}
+              className="items-center justify-center rounded-xl bg-surface-muted"
+            >
+              <MaterialCommunityIcons
+                name="image-outline"
+                size={25}
+                color={theme.extends.colors.text.secondary}
+              />
+            </View>
+          )}
 
           <View className="ml-3 flex-1">
             <AppText
@@ -86,11 +112,16 @@ export default function ApprovedApplicationSection({
 
         {/* Approval date */}
         <View className="flex-row items-center py-4">
-          <MaterialCommunityIcons
-            name="calendar-check-outline"
-            size={25}
-            color={theme.extends.colors.text.secondary}
-          />
+          <View
+            style={{ width: 48, height: 48, flexShrink: 0 }}
+            className="items-center justify-center rounded-xl bg-transparent"
+          >
+            <MaterialCommunityIcons
+              name="calendar-check-outline"
+              size={25}
+              color={theme.extends.colors.text.secondary}
+            />
+          </View>
 
           <View className="ml-3 flex-1">
             <AppText

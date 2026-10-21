@@ -2,7 +2,6 @@ import LottieView from "lottie-react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
 
-import { theme } from "@/constants/theme";
 import resumeAnimation from "../../assets/animations/FbpImPYySG.json";
 import AppText from "@/shared/components/AppText";
 
@@ -41,7 +40,7 @@ export default function ResumeApplicationSection({
   return (
     <View className="bg-surface px-6 pb-6">
       {/* Draft status hero */}
-      <View className="items-center rounded-3xl bg-surface px-6 py-7">
+      <View className="items-center rounded-3xl bg-surface px-6 py-4">
         <View className="h-20 w-20 items-center justify-center">
           <LottieView
             source={resumeAnimation}
@@ -73,7 +72,7 @@ export default function ResumeApplicationSection({
       </View>
 
       {/* Registration progress */}
-      <View className="mt-4 rounded-2xl border border-border-primary bg-surface px-5 py-5">
+      <View className="rounded-card border border-border-primary bg-surface px-5 py-5">
         <View className="flex-row items-center gap-3">
           <View className="h-10 w-10 items-center justify-center rounded-xl bg-brand/90">
             <MaterialCommunityIcons
@@ -117,32 +116,9 @@ export default function ResumeApplicationSection({
         </AppText>
       </View>
 
-      {/* Last updated */}
-      <View className="mt-4 flex-row items-center rounded-2xl border border-border-primary bg-surface px-4 py-4">
-        <View className="h-10 w-10 items-center justify-center rounded-xl bg-background">
-          <MaterialCommunityIcons
-            name="history"
-            size={21}
-            color={theme.extends.colors.text.secondary ?? "#9CA3AF"}
-          />
-        </View>
-
-        <View className="ml-3 flex-1">
-          <AppText
-            weight="semibold"
-            className="text-xs  uppercase tracking-wide text-text-secondary"
-          >
-            Last Updated
-          </AppText>
-
-          <AppText
-            weight="bold"
-            className="mt-0.5 text-base  text-text-primary"
-          >
-            {lastUpdated}
-          </AppText>
-        </View>
-      </View>
+      <AppText className="mt-2 text-right text-xs text-text-secondary">
+        Last updated {lastUpdated}
+      </AppText>
     </View>
   );
 }

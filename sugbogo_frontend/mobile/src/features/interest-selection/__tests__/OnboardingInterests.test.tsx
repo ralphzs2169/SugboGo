@@ -2,7 +2,7 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import Interests from "@/app/(setup)/interests";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useCompleteOnboardingInterests } from "@/features/profile/hooks/your-interests/useInterestMutations";
-import useUserInterests from "@/features/interests/hooks/useUserInterests";
+import useUserInterests from "@/features/profile/hooks/your-interests/useUserInterests";
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ replace: jest.fn() }),
@@ -11,8 +11,8 @@ jest.mock("expo-router", () => ({
 jest.mock("@/features/auth/store/auth.store", () => ({
   useAuthStore: jest.fn(),
 }));
-jest.mock("@/features/interests/hooks/useUserInterests");
-jest.mock("@/features/interests/hooks/useInterestMutations");
+jest.mock("@/features/profile/hooks/your-interests/useUserInterests");
+jest.mock("@/features/profile/hooks/your-interests/useInterestMutations");
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 
 const tags = [
@@ -54,18 +54,18 @@ describe("onboarding interests", () => {
     });
   });
 
-  it("uses authoritative colors and enforces the optional three-tag limit", async () => {
+  it("tracks selections and enforces the optional three-tag limit", async () => {
     const screen = await render(<Interests />);
     const coffee = screen.getByLabelText("Local Coffee");
 
-    expect(coffee.props.className).toContain("bg-white");
+    expect(coffee.props.accessibilityState.selected).toBe(false);
     await fireEvent.press(coffee);
     expect(
       screen.getByTestId("interest-selection-progress").props.children,
     ).toEqual([1, " / 3 selected"]);
-    expect(screen.getByLabelText("Local Coffee").props.className).toContain(
-      "bg-blue-500",
-    );
+    expect(
+      screen.getByLabelText("Local Coffee").props.accessibilityState.selected,
+    ).toBe(true);
 
     await fireEvent.press(screen.getByLabelText("Traditional Food"));
     await fireEvent.press(screen.getByLabelText("Handmade Crafts"));
@@ -108,7 +108,9 @@ describe("onboarding interests", () => {
     });
     const screen = await render(<Interests />);
 
-    await fireEvent.press(screen.getByText("Retry"));
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Tap to retry/i }),
+    );
 
     expect(refetch).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Local Coffee")).toBeNull();

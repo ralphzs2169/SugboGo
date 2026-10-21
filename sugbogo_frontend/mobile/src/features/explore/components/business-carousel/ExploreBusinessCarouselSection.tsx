@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { ScrollView, View } from "react-native";
 
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
+import AppText from "@/shared/components/AppText";
 
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
@@ -15,6 +16,8 @@ type Props = {
   title: string;
   subtitle: string;
   titleIcon?: ComponentProps<typeof MaterialCommunityIcons>["name"];
+  showHeading?: boolean;
+  compactHeading?: boolean;
   businesses: ExploreBusiness[];
   impressions: BusinessImpressionObservation;
   userLocation: LocationObject | null;
@@ -41,6 +44,8 @@ export default function ExploreBusinessCarousel({
   title,
   subtitle,
   titleIcon,
+  showHeading = true,
+  compactHeading = false,
   businesses,
   impressions,
   userLocation,
@@ -65,17 +70,28 @@ export default function ExploreBusinessCarousel({
   return (
     <View
       testID={sectionTestID}
-      className="py-6 bg-surface"
+      className={`bg-surface ${showHeading ? "py-6" : "pb-6 pt-3"}`}
       onLayout={impressions.onSectionLayout}
     >
       {/* Section heading */}
-      <ExploreSectionHeader
-        title={title}
-        subtitle={subtitle}
-        titleIcon={titleIcon}
-        onSeeAll={onSeeAll}
-        seeAllAccessibilityLabel={seeAllAccessibilityLabel}
-      />
+      {showHeading && compactHeading && (
+        <AppText
+          weight="semibold"
+          accessibilityRole="header"
+          className="mb-3 px-4 text-base text-text-primary"
+        >
+          {title}
+        </AppText>
+      )}
+      {showHeading && !compactHeading && (
+        <ExploreSectionHeader
+          title={title}
+          subtitle={subtitle}
+          titleIcon={titleIcon}
+          onSeeAll={onSeeAll}
+          seeAllAccessibilityLabel={seeAllAccessibilityLabel}
+        />
+      )}
 
       {/* Business carousel */}
       <ScrollView

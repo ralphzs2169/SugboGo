@@ -1,4 +1,5 @@
 from django.urls import path
+from apps.merchant_application.views.duplicate_views import AdminDuplicateReviewView
 
 from apps.admin_operations.business_management.views.manage_business_classification_change_views import (
     AdminBusinessClassificationChangeApproveView,
@@ -35,6 +36,11 @@ from apps.admin_operations.business_management.views.manage_business_views impor
 )
 
 urlpatterns = [
+    path(
+        "applications/<int:application_id>/duplicates/",
+        AdminDuplicateReviewView.as_view(),
+        name="merchant-application-duplicates",
+    ),
     path(
         "update-requests/location/",
         AdminBusinessLocationChangeListView.as_view(),

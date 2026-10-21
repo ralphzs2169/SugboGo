@@ -6,16 +6,23 @@ from apps.authentication.serializers import LoginResponseSerializer, LoginSerial
 from apps.authentication.services.login_service import LoginService
 from apps.authentication.throttles import LoginThrottle
 from apps.authentication.utils.jwt import issue_tokens
+from apps.authentication.models import LoginEvent
+from apps.authentication.utils.login_history import track_login_failure
 from apps.users.models import User
+from django.db import transaction
 
 
 @api_view(["POST"])
 @throttle_classes([LoginThrottle])
+@track_login_failure(LoginEvent.Method.PASSWORD)
+@transaction.atomic
 def login_view(request):
+    """Authenticates an allowed mobile account and records the final outcome."""
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
     email = serializer.validated_data["email"]
+    request.login_history_email = email
     password = serializer.validated_data["password"]
     remember_me = serializer.validated_data["remember_me"]
 
@@ -37,7 +44,9 @@ def login_view(request):
             status_code=status.HTTP_403_FORBIDDEN,
         )
 
-    tokens = issue_tokens(user, remember_me)
+    tokens = issue_tokens(
+        user, remember_me, request=request, method=LoginEvent.Method.PASSWORD,
+    )
 
     response = LoginResponseSerializer(
         {

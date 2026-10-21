@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 
 import Skeleton from "@/shared/components/Skeleton";
 
@@ -19,17 +19,27 @@ export default function CompactBusinessListSkeleton({
   testID,
   applyXPadding = true,
 }: Props) {
+  const { width } = useWindowDimensions();
+  const imageWidth = Math.min(
+    176,
+    Math.max(128, Math.round((width - 32) * 0.44)),
+  );
   return (
     <View className="pt-1" testID={testID}>
       {/* Compact business placeholders */}
       {Array.from({ length: count }).map((_, index) => (
         <View key={index} className={`mb-3 ${applyXPadding ? "px-4" : ""}`}>
-          <View className="w-full flex-row overflow-hidden rounded-card border border-border-primary bg-surface p-2.5">
+          <View className="h-40 w-full flex-row overflow-hidden rounded-card border border-border-primary bg-surface">
             {/* Business image */}
-            <Skeleton className="h-[108px] w-[108px] shrink-0 rounded-xl" />
+            <View
+              style={{ width: imageWidth }}
+              className="shrink-0 self-stretch"
+            >
+              <Skeleton className="w-full flex-1" />
+            </View>
 
             {/* Business information */}
-            <View className="min-w-0 flex-1 justify-between py-0.5 pl-3">
+            <View className="min-w-0 flex-1 justify-between p-3">
               <View>
                 {/* Business identity */}
                 <Skeleton className="h-4 w-4/5 rounded-md" />
@@ -44,9 +54,9 @@ export default function CompactBusinessListSkeleton({
 
               {/* Specialty tags */}
               <View className="mt-2 flex-row flex-wrap gap-1">
-                <Skeleton className="h-6 w-16 rounded-full" />
-                <Skeleton className="h-6 w-20 rounded-full" />
                 <Skeleton className="h-6 w-14 rounded-full" />
+                <Skeleton className="h-6 w-16 rounded-full" />
+                <Skeleton className="h-6 w-12 rounded-full" />
               </View>
             </View>
           </View>

@@ -20,23 +20,35 @@ function LoginForm() {
   const [password, setPassword] = useState("");
 
   const [errors, setErrors] = useState({});
-  const [formError, setFormError] = useState("");
+  const [formError, setFormError] = useState(() =>
+    typeof window !== "undefined" && getSessionExpired()
+      ? "Your session has expired. Please log in again."
+      : "",
+  );
   const [retryAfter, setRetryAfter] = useState(0);
+  const [retryUntil, setRetryUntil] = useState(0);
+  const [lockedEmail, setLockedEmail] = useState(null);
+  const isAccountLocked =
+    retryAfter > 0 && lockedEmail === email.trim().toLowerCase();
+  const isRateLimited = retryAfter > 0 && lockedEmail === null;
+  const isLoginDisabled = loading || isAccountLocked || isRateLimited;
 
   const navigate = useNavigate();
 
   // Run a live countdown while the login request is rate limited.
   useEffect(() => {
-    if (retryAfter <= 0) {
+    if (retryUntil <= 0) {
       return;
     }
 
     const timer = setInterval(() => {
-      setRetryAfter((previous) => Math.max(previous - 1, 0));
+      const seconds = Math.max(0, Math.ceil((retryUntil - Date.now()) / 1000));
+      setRetryAfter(seconds);
+      if (seconds === 0) clearInterval(timer);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [retryAfter]);
+  }, [retryUntil]);
 
   // Clear specific field errors when the user focuses on the input.
   const clearFieldError = (field) => {
@@ -52,7 +64,7 @@ function LoginForm() {
   async function onSubmit(event) {
     event.preventDefault();
 
-    if (loading || retryAfter > 0) {
+    if (isLoginDisabled) {
       return;
     }
 
@@ -73,13 +85,23 @@ function LoginForm() {
       return;
     }
 
-    if (result.code === "RATE_LIMIT_EXCEEDED") {
-      setRetryAfter(result.errors?.retry_after ?? 0);
+    if (
+      result.code === "RATE_LIMIT_EXCEEDED" ||
+      result.code === "ACCOUNT_LOCKED"
+    ) {
+      const seconds = Number(result.errors?.retry_after ?? 0);
+      const wait = Number.isFinite(seconds)
+        ? Math.max(0, Math.ceil(seconds))
+        : 0;
+      setLockedEmail(
+        result.code === "ACCOUNT_LOCKED" ? email.trim().toLowerCase() : null,
+      );
+      setRetryAfter(wait);
+      setRetryUntil(Date.now() + wait * 1000);
       setFormError("");
+      if (!wait) setFormError(result.message);
       return;
     }
-
-    setRetryAfter(0);
 
     if (result.errors) {
       setErrors({
@@ -98,12 +120,12 @@ function LoginForm() {
       return;
     }
 
-    setFormError("Your session has expired. Please log in again.");
     clearSessionExpired();
   }, []);
 
-  const displayedFormError =
-    retryAfter > 0
+  const displayedFormError = isAccountLocked
+    ? `Password sign-in is temporarily unavailable. Try again in ${retryAfter} seconds or use Forgot Password.`
+    : isRateLimited
       ? `Too many login attempts. Please try again in ${retryAfter} seconds.`
       : formError;
 
@@ -183,7 +205,7 @@ function LoginForm() {
         <PrimaryButton
           type="submit"
           loading={loading}
-          disabled={loading || retryAfter > 0}
+          disabled={isLoginDisabled}
           icon={<LogIn className="h-5 w-5" />}
         >
           Log In

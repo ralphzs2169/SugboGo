@@ -4,10 +4,17 @@ from . import views
 
 urlpatterns = [
     path('login/', views.login_view, name='login'),
+    path('login-history/', views.login_history_view, name='login_history'),
     path('admin/login/', views.admin_login_view, name='admin_login'),
 
     path('register/', views.register_view, name='register'),
     path('logout/', views.logout_view, name='logout'),
+    path('change-password/', views.change_password_view, name='change_password'),
+    path('deactivate-account/', views.deactivate_account_view, name='deactivate_account'),
+    path('change-email/', views.request_email_change_view, name='request_email_change'),
+    path('change-email/status/', views.email_change_status_view, name='email_change_status'),
+    path('change-email/cancel/', views.cancel_email_change_view, name='cancel_email_change'),
+    path('change-email/confirm/', views.confirm_email_change_view, name='confirm_email_change'),
     path('refresh/', views.token_refresh_view, name='token_refresh'),
 
     path("verify-email/", views.verify_email_view, name="verify_email"),

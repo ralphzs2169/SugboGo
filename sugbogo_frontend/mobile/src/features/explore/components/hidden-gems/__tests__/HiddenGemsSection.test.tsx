@@ -101,6 +101,7 @@ describe("HiddenGemsSection", () => {
         error={null}
         refetch={jest.fn()}
         impressions={createImpressions()}
+        spotlightImpressions={createImpressions()}
         userLocation={{
           coords: {
             latitude: 10.3157,
@@ -145,6 +146,7 @@ describe("HiddenGemsSection", () => {
         error={null}
         refetch={jest.fn()}
         impressions={createImpressions()}
+        spotlightImpressions={createImpressions()}
         userLocation={null}
         onBusinessPress={jest.fn()}
       />,
@@ -163,6 +165,7 @@ describe("HiddenGemsSection", () => {
         error={new Error("Unavailable")}
         refetch={refetch}
         impressions={createImpressions()}
+        spotlightImpressions={createImpressions()}
         userLocation={null}
         onBusinessPress={jest.fn()}
       />,
@@ -181,6 +184,7 @@ describe("HiddenGemsSection", () => {
         error={null}
         refetch={jest.fn()}
         impressions={createImpressions()}
+        spotlightImpressions={createImpressions()}
         userLocation={null}
         onBusinessPress={jest.fn()}
       />,

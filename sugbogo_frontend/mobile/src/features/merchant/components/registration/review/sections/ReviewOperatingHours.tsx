@@ -5,8 +5,6 @@ import { DAYS } from "@/features/merchant/constants/registration/operatingHours.
 import { merchantRegistrationSchema } from "@/features/merchant/validation/merchantRegistration.schema";
 
 import ReviewSection from "../ReviewSection";
-import ReviewRow from "../ReviewRow";
-import StatusBadge from "../../../operating-hours/StatusBadge";
 import { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
 import ReviewSectionFeedback from "../ReviewSectionFeedback";
 import AppText from "@/shared/components/AppText";
@@ -30,6 +28,7 @@ const formatTime = (time: string) => {
   return `${displayHour}:${minutes} ${period}`;
 };
 
+/** Displays each day’s operating hours while preserving review feedback and editing. */
 export default function ReviewOperatingHours({
   form,
   onEdit,
@@ -40,35 +39,52 @@ export default function ReviewOperatingHours({
   return (
     <ReviewSection icon="clock-outline" title="Operating Hours" onEdit={onEdit}>
       <ReviewSectionFeedback feedback={feedback} />
+      {/* Daily operating schedules */}
       <View className="gap-2">
-        {DAYS.map((day) => {
-          const schedule = operatingHours[day];
-
-          let value = "—";
-
-          if (schedule.isOpen) {
-            value = schedule.is24Hours
-              ? "Open 24 hours"
-              : `${formatTime(schedule.openTime)} – ${formatTime(
-                  schedule.closeTime,
-                )}`;
-          }
-
-          return (
-            <ReviewRow
-              key={day}
-              label={
-                <View className="flex-row items-center gap-2">
-                  <AppText className="text-sm text-text-secondary">
-                    {formatDay(day)}
+        {DAYS.map((day) => (
+          <View
+            key={day}
+            className="flex-row items-center justify-between gap-4 rounded-xl bg-surface-muted px-4 py-4"
+          >
+            <View className="min-w-0 flex-1">
+              <AppText weight="semibold" className="text-sm text-text-primary">
+                {formatDay(day)}
+              </AppText>
+            </View>
+            <View className="max-w-[60%] items-end">
+              <View className="flex-row items-center gap-1.5">
+                {!operatingHours[day].isOpen && (
+                  <View
+                    accessible={false}
+                    className="h-1.5 w-1.5 rounded-full bg-text-error"
+                  />
+                )}
+                <AppText
+                  weight={operatingHours[day].isOpen ? "semibold" : "regular"}
+                  className="shrink text-right text-sm text-text-primary"
+                >
+                  {!operatingHours[day].isOpen
+                    ? "Closed"
+                    : operatingHours[day].is24Hours
+                      ? "Open 24 hours"
+                      : formatTime(operatingHours[day].openTime) +
+                        " – " +
+                        formatTime(operatingHours[day].closeTime)}
+                </AppText>
+              </View>
+              {operatingHours[day].isOpen &&
+                !operatingHours[day].is24Hours &&
+                Boolean(operatingHours[day].openTime) &&
+                Boolean(operatingHours[day].closeTime) &&
+                operatingHours[day].closeTime <
+                  operatingHours[day].openTime && (
+                  <AppText className="mt-1 text-right text-xs text-text-secondary">
+                    Closes the following day
                   </AppText>
-                  <StatusBadge isOpen={schedule.isOpen} />
-                </View>
-              }
-              value={value}
-            />
-          );
-        })}
+                )}
+            </View>
+          </View>
+        ))}
       </View>
     </ReviewSection>
   );

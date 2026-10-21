@@ -1,4 +1,5 @@
 from django.urls import path
+from .views.duplicate_views import MerchantDuplicateWarningView
 
 from .views.application_location_views import (
     location_save_view,
@@ -24,6 +25,11 @@ from .views.review_views import application_review_view
 from .views.tag_options_views import SpecialtyTagOptionsView
 
 urlpatterns = [
+    path(
+        "duplicate-warning/",
+        MerchantDuplicateWarningView.as_view(),
+        name="merchant-duplicate-warning",
+    ),
     # Merchant Application Options endpoints
     path("clusters/", ClusterOptionsView.as_view(), name="cluster-options"),
     path("categories/", CategoryOptionsView.as_view(), name="category-options"),

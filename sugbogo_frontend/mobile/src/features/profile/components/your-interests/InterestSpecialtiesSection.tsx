@@ -21,12 +21,13 @@ export default function InterestSpecialtiesSection({
   return (
     <View className="py-4">
       {/* Specialty choices */}
-      <View className="flex-row flex-wrap justify-center">
+      <View className="flex-row flex-wrap justify-start">
         {availableSpecialtyTags.map((tag) => (
           <SpecialtyTagChip
             key={tag.id}
             tag={tag}
             mode="filter"
+            size="small"
             isSelected={selectedSpecialtyTagIds.includes(tag.id)}
             showSelectionIndicator
             onPress={() => onToggleSpecialty(tag.id)}

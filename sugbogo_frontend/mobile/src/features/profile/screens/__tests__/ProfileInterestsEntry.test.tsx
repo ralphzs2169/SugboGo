@@ -39,6 +39,22 @@ jest.mock("../../hooks/useApplicationStatus", () => ({
 jest.mock("@/features/auth/hooks/useLogout", () => ({
   useLogout: () => ({ logout: jest.fn() }),
 }));
+jest.mock("../../hooks/useMyReviews", () => ({
+  useMyReviews: () => ({
+    data: {},
+    totalCount: 8,
+    isLoading: false,
+    error: null,
+  }),
+}));
+jest.mock("../../hooks/useVouchHistory", () => ({
+  __esModule: true,
+  default: () => ({
+    summary: { total_specialty_vouches: 12 },
+    isLoading: false,
+    error: null,
+  }),
+}));
 jest.mock("../../components/ProfileHeader", () => () => null);
 jest.mock("../../components/MerchantPortalCard", () => () => null);
 jest.mock("../../components/AppVersion", () => () => null);
@@ -49,10 +65,29 @@ jest.mock("../../components/ProfileScrollView", () => ({
 }));
 
 describe("Profile interests entry", () => {
+  it("opens activity from the summary and uses available totals", async () => {
+    const screen = await render(<ProfileScreen />);
+
+    await fireEvent.press(screen.getByLabelText("Pockets: count unavailable"));
+    expect(router.push).toHaveBeenLastCalledWith("/profile/my-pockets");
+    await fireEvent.press(screen.getByLabelText("Vouches: 12"));
+    expect(router.push).toHaveBeenLastCalledWith("/profile/vouch-history");
+    await fireEvent.press(screen.getByLabelText("Reviews: 8"));
+    expect(router.push).toHaveBeenLastCalledWith("/profile/reviews-submitted");
+
+    expect(screen.queryByText("My Pockets")).toBeNull();
+    expect(screen.getByText("Activity Timeline")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Activity Timeline"));
+    expect(router.push).toHaveBeenLastCalledWith("/profile/activity-timeline");
+    expect(screen.queryByText("My Impact")).toBeNull();
+    expect(screen.getByText("Language")).toBeTruthy();
+    expect(screen.queryByText("Sync Now")).toBeNull();
+  });
+
   it("navigates from Your Interests to the profile editor route", async () => {
     const screen = await render(<ProfileScreen />);
 
-    await fireEvent.press(screen.getByText("Your Interests"));
+    await fireEvent.press(screen.getByText("My Interests"));
 
     expect(router.push).toHaveBeenCalledWith("/profile/your-interests");
   });

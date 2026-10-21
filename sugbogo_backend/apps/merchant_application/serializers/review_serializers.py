@@ -9,6 +9,10 @@ class MerchantApplicationFeedbackInputSerializer(serializers.Serializer):
 
 
 class MerchantApplicationReviewSerializer(serializers.Serializer):
+    expected_submission_id = serializers.IntegerField(
+        required=False,
+        min_value=1,
+    )
     action = serializers.ChoiceField(choices=("approve", "reject"))
     rejection_reason = serializers.CharField(
         required=False,

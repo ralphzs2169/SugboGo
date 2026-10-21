@@ -7,6 +7,7 @@ import { getExploreBusinessDetail } from "../../api/exploreBusiness.service";
 import { getBusinessReviewPreview } from "../../api/reviewBusiness.service";
 import type { ExploreBusinessDetail } from "../../types/exploreBusiness.types";
 import type { BusinessReviewPreview } from "../../types/review.types";
+import { businessReviewFixture } from "../../__tests__/review.fixtures";
 import {
   ReviewDerivedDataSyncProvider,
   useReviewDerivedDataSyncActions,
@@ -156,12 +157,12 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       data: {
         reviews: [],
         total_count: 1,
-        user_review: {
+        user_review: businessReviewFixture({
           id: 18,
           sentiment_label: null,
           sentiment_score: null,
-        },
-      } as BusinessReviewPreview,
+        }),
+      } satisfies BusinessReviewPreview,
     });
     (getExploreBusinessDetail as jest.Mock).mockResolvedValue({
       success: true,
@@ -236,12 +237,12 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       data: {
         reviews: [],
         total_count: 1,
-        user_review: {
+        user_review: businessReviewFixture({
           id: 18,
           sentiment_label: "positive",
           sentiment_score: 0.8,
-        },
-      } as BusinessReviewPreview,
+        }),
+      } satisfies BusinessReviewPreview,
     });
     (getExploreBusinessDetail as jest.Mock)
       .mockResolvedValueOnce({

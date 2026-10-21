@@ -225,7 +225,7 @@ it("selects real identity, navigates to the existing profile, and restores contr
   );
   expect(router.push).toHaveBeenCalledWith({
     pathname: "/(explorer)/business/[businessId]",
-    params: { businessId: "42" },
+    params: { businessId: "42", profileSource: "MAP" },
   });
   await fireEvent.press(
     screen.getByRole("button", { name: "Close business preview" }),

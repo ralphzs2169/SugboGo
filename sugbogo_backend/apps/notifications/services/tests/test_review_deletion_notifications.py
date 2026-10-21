@@ -82,6 +82,7 @@ class ReviewDeletionNotificationTests(TestCase):
     ):
         notice = Notification.objects.get(USER_ID=recipient, NOTF_TYPE=event_type)
         self.assertEqual(notice.NOTF_TITLE, title)
+        self.assertIn(self.business.BUSN_NAME, notice.NOTF_BODY)
         self.assertIn("removed by its author", notice.NOTF_BODY)
         self.assertIn("closed without an Admin decision", notice.NOTF_BODY)
         self.assertEqual(notice.NOTF_TARGET_TYPE, "")

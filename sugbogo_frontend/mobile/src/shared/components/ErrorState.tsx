@@ -3,12 +3,15 @@ import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import SafePressable from "@/shared/components/SafePressable";
 
 type ErrorStateProps = {
   title: string;
   description: string;
 
   size?: "default" | "small" | "section";
+  /** Centered analytics recovery card, matching chart unavailable states. */
+  variant?: "default" | "analytics";
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 
   primaryActionTitle?: string;
@@ -28,6 +31,7 @@ export default function ErrorState({
   title,
   description,
   size = "default",
+  variant = "default",
   icon = "cloud-off-outline",
   primaryActionTitle,
   onPrimaryAction,
@@ -48,8 +52,6 @@ export default function ErrorState({
     ? "mx-4 items-center rounded-card border border-border-primary px-4 py-4"
     : `flex-1 items-center justify-center ${isSmall ? "px-5" : "px-8"}`;
 
-  const iconSize = isDefault ? 88 : isSmall ? 48 : 28;
-
   const titleClassName = isDefault
     ? "mt-6 text-2xl"
     : isSmall
@@ -62,15 +64,72 @@ export default function ErrorState({
       ? "mt-1 text-sm leading-5"
       : "mt-1 text-xs leading-4";
 
+  if (variant === "analytics") {
+    return (
+      <View
+        testID="analytics-error-state"
+        style={{ minHeight: 184 }}
+        className="items-center justify-center rounded-card border border-border-primary/60 bg-surface-muted/50 px-6 py-8"
+      >
+        <MaterialCommunityIcons
+          name={icon}
+          size={32}
+          color={theme.extends.colors.text.tertiary}
+          accessible={false}
+        />
+        <AppText
+          accessibilityRole="header"
+          weight="semibold"
+          className="mt-3 text-center text-base text-text-primary"
+        >
+          {title}
+        </AppText>
+        <AppText className="mt-1.5 max-w-72 text-center text-sm leading-5 text-text-secondary">
+          {description}
+        </AppText>
+        {(hasPrimaryAction || hasSecondaryAction) && (
+          <View className="mt-4 flex-row flex-wrap items-center justify-center gap-2">
+            {hasSecondaryAction && (
+              <SafePressable
+                accessibilityRole="button"
+                accessibilityLabel={`${title}. ${secondaryActionTitle}`}
+                onPress={onSecondaryAction}
+                className="min-h-11 cursor-pointer items-center justify-center rounded-full border border-border-primary bg-surface px-4 py-2 active:opacity-70"
+              >
+                <AppText
+                  weight="semibold"
+                  className="text-sm text-text-primary"
+                >
+                  {secondaryActionTitle}
+                </AppText>
+              </SafePressable>
+            )}
+            {hasPrimaryAction && (
+              <SafePressable
+                accessibilityRole="button"
+                accessibilityLabel={`${title}. ${primaryActionTitle}`}
+                onPress={onPrimaryAction}
+                className="min-h-11 cursor-pointer flex-row items-center justify-center gap-2 rounded-full border border-border-primary bg-surface px-4 py-2 active:opacity-70"
+              >
+                <MaterialCommunityIcons
+                  name="refresh"
+                  size={16}
+                  color={theme.extends.colors.brand}
+                  accessible={false}
+                />
+                <AppText weight="semibold" className="text-sm text-brand">
+                  {primaryActionTitle}
+                </AppText>
+              </SafePressable>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  }
+
   const content = (
     <>
-      {/* Error identity */}
-      {/* <MaterialCommunityIcons
-        name={icon}
-        size={iconSize}
-        color={theme.extends.colors.text.tertiary}
-      /> */}
-
       <AppText
         weight="bold"
         className={`text-center text-text-primary ${titleClassName}`}

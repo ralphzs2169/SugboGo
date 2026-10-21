@@ -34,6 +34,7 @@ from apps.reviews.services.business_review_summary_service import (
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.services.review_moderation_service import ReviewModerationService
 from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
+from apps.reviews.services.review_reply_eligibility import actionable_unanswered_reviews
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
@@ -177,7 +178,11 @@ class ReviewService:
 
     @staticmethod
     def _apply_published_effects(review: Review) -> None:
-        """Apply the count, reputation, and sentiment effects of publication."""
+        """Apply owner notification, count, reputation, and sentiment publication effects."""
+        if review.REVW_PUBLISHED_AT is None:
+            review.REVW_PUBLISHED_AT = timezone.now()
+            review.save(update_fields=["REVW_PUBLISHED_AT"])
+        NotificationEventService.business_review_received(review)
         Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
             BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
         )
@@ -765,10 +770,11 @@ class ReviewService:
         merchant_replied: bool = False,
         topic: str | None = None,
         ordering: str | None = None,
+        needs_reply: bool = False,
     ):
         """Build a filterable and deterministically ordered review queryset."""
         try:
-            Business.objects.get(
+            business = Business.objects.get(
                 BUSN_ID=business_id,
             )
         except Business.DoesNotExist:
@@ -780,6 +786,30 @@ class ReviewService:
             business_id,
             user,
         )
+
+        if needs_reply:
+            if (
+                user.USER_ROLE != User.UserRole.MERCHANT
+                or business.USER_ID_id != user.USER_ID
+            ):
+                raise PermissionDenied(
+                    "You can only manage unanswered reviews for your own business.",
+                )
+            if merchant_replied:
+                raise ValidationError(
+                    {
+                        "needs_reply": (
+                            "Cannot combine needs_reply with merchant_replied=true."
+                        ),
+                    },
+                )
+            pending = actionable_unanswered_reviews(
+                business_id,
+                timezone.now(),
+            )
+            reviews = reviews.filter(
+                REVW_ID__in=pending.order_by().values("REVW_ID"),
+            )
 
         if sentiment is not None:
             reviews = reviews.filter(REVW_SENTIMENT_LABEL=sentiment)
@@ -854,6 +884,7 @@ class ReviewService:
         merchant_replied: bool = False,
         topic: str | None = None,
         ordering: str | None = None,
+        needs_reply: bool = False,
     ):
         """List reviews with attached vouches for existing service callers."""
         reviews = ReviewService.list_reviews_queryset(
@@ -864,6 +895,7 @@ class ReviewService:
             merchant_replied=merchant_replied,
             topic=topic,
             ordering=ordering,
+            needs_reply=needs_reply,
         )
 
         return ReviewService._attach_vouched_specialties(reviews)
@@ -1340,6 +1372,7 @@ class ReviewService:
             author_id=review.USER_ID_id,
             pending_reports=pending_reports,
             pending_disputes=pending_disputes,
+            business_name=review.BUSN_ID.BUSN_NAME,
         )
 
     @staticmethod

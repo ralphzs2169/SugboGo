@@ -1,4 +1,6 @@
 import Button from "@/shared/components/Button";
+import AppText from "@/shared/components/AppText";
+import { theme } from "@/constants/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
 type RegistrationFooterProps = {
@@ -11,6 +13,7 @@ type RegistrationFooterProps = {
   isEditing?: boolean;
   isResubmission: boolean;
   canResubmit?: boolean;
+  hasChanges?: boolean;
 };
 
 /**
@@ -34,9 +37,25 @@ export default function RegistrationFooter({
   isEditing = false,
   isResubmission,
   canResubmit = true,
+  hasChanges = false,
 }: RegistrationFooterProps) {
   const isFirstStep = currentStep === 1;
   const isLastStep = currentStep === totalSteps;
+  const unsavedIndicator = hasChanges ? (
+    <View
+      className="mb-2 flex-row items-center justify-center"
+      accessibilityLiveRegion="polite"
+    >
+      <MaterialCommunityIcons
+        name="circle-small"
+        size={18}
+        color={theme.extends.colors.brand}
+      />
+      <AppText className="text-xs text-text-secondary">
+        You have unsaved changes
+      </AppText>
+    </View>
+  ) : null;
 
   /*
    * When editing an existing section, the footer intentionally replaces
@@ -45,7 +64,10 @@ export default function RegistrationFooter({
    */
   if (isEditing) {
     return (
-      <View className="border-t border-border-primary bg-surface px-6 py-5">
+      <View
+        className={`border-t border-border-primary bg-surface px-6 pb-5 ${hasChanges ? "pt-2" : "pt-5"}`}
+      >
+        {unsavedIndicator}
         <Button
           title="Save & Review"
           className="w-full"
@@ -66,7 +88,10 @@ export default function RegistrationFooter({
     : "Save & Continue";
 
   return (
-    <View className="border-t border-border-primary bg-surface px-6 py-5">
+    <View
+      className={`border-t border-border-primary bg-surface px-6 pb-5 ${hasChanges ? "pt-2" : "pt-5"}`}
+    >
+      {unsavedIndicator}
       <View className="flex-row gap-3">
         {!isFirstStep && !isLastStep && (
           <Button

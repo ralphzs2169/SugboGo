@@ -1,0 +1,334 @@
+"""Find exact and similar-name business conflicts without changing registration state."""
+
+import hashlib
+import json
+import unicodedata
+
+from django.conf import settings
+from django.contrib.gis.db.models import PointField
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.postgres.search import TrigramSimilarity
+from django.db.models import Value
+from django.db.models.functions import Cast
+
+from apps.business.models import Business
+from apps.merchant_application.models import MerchantApplication
+
+
+def normalize_duplicate_text(value):
+    """Normalize case and whitespace while preserving punctuation and branch labels."""
+    return " ".join(unicodedata.normalize("NFKC", value or "").casefold().split())
+
+
+class DuplicateDetectionService:
+    """Compare saved applications with submitted applications and permanent businesses."""
+
+    RULE_VERSION = "trigram-name-location-v3"
+
+    @staticmethod
+    def application_snapshot(application):
+        """Read only the identity and location evidence relevant to duplicate matching."""
+        identity = getattr(application, "identity", None)
+        location = getattr(application, "location", None)
+        if identity is None or location is None:
+            return None
+
+        required = (
+            identity.MIDN_BUSINESS_NAME,
+            location.MLOC_PROVINCE,
+            location.MLOC_CITY,
+            location.MLOC_BARANGAY,
+            location.MLOC_STREET_ADDRESS,
+            location.MLOC_POINT,
+        )
+        if not all(required):
+            return None
+
+        address = ", ".join(
+            part.strip()
+            for part in (
+                location.MLOC_STREET_ADDRESS,
+                location.MLOC_UNIT,
+                location.MLOC_BARANGAY,
+            )
+            if part and part.strip()
+        )
+        return DuplicateDetectionService._snapshot(
+            identity.MIDN_BUSINESS_NAME,
+            address,
+            location.MLOC_CITY,
+            location.MLOC_PROVINCE,
+            location.MLOC_POINT,
+        )
+
+    @staticmethod
+    def _snapshot(
+        name,
+        address,
+        city,
+        province,
+        point,
+    ):
+        """Produce comparable evidence for both application and Business locations."""
+        return {
+            "name": normalize_duplicate_text(name),
+            "address": normalize_duplicate_text(address),
+            "city": normalize_duplicate_text(city),
+            "province": normalize_duplicate_text(province),
+            "coordinates": list(point.coords),
+        }
+
+    @staticmethod
+    def find_candidates(application):
+        """Return material matches using geodesic geography distances measured in metres."""
+        # Reload relations so stale caller instances and prefetch caches cannot grant clearance.
+        application = (
+            MerchantApplication.objects
+            .select_related("identity", "location")
+            .get(pk=application.pk)
+        )
+        subject = DuplicateDetectionService.application_snapshot(application)
+        if subject is None:
+            return []
+
+        radius = settings.MERCHANT_DUPLICATE_RADIUS_METRES
+        similarity_threshold = settings.MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD
+        point = application.location.MLOC_POINT
+        candidates = []
+        applications = (
+            MerchantApplication.objects
+            .filter(MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED)
+            .exclude(pk=application.pk)
+            .select_related("identity", "location")
+        )
+        businesses = (
+            Business.objects
+            .filter(BUSN_STATUS__in=(
+                Business.BusinessStatus.ACTIVE,
+                Business.BusinessStatus.SUSPENDED,
+            ))
+            .select_related("LOCT_ID", "merchant_application")
+        )
+        if application.BUSN_ID_id:
+            businesses = businesses.exclude(pk=application.BUSN_ID_id)
+
+        applications = list(applications)
+        businesses = list(businesses)
+        candidate_names = {
+            normalize_duplicate_text(candidate.identity.MIDN_BUSINESS_NAME)
+            for candidate in applications
+            if getattr(candidate, "identity", None) is not None
+        }
+        candidate_names.update(
+            normalize_duplicate_text(business.BUSN_NAME)
+            for business in businesses
+        )
+        similarities = DuplicateDetectionService._name_similarities(
+            application,
+            subject["name"],
+            candidate_names,
+        )
+
+        # Preserve Unicode-normalized exact matches independently of trigram scores.
+        for candidate in applications:
+            target = DuplicateDetectionService.application_snapshot(candidate)
+            if target is None:
+                continue
+            if (
+                target["name"] != subject["name"]
+                and similarities[target["name"]] < similarity_threshold
+            ):
+                continue
+            distance = DuplicateDetectionService._distance(
+                MerchantApplication.objects.filter(pk=candidate.pk),
+                "location__MLOC_POINT",
+                point,
+            )
+            result = DuplicateDetectionService._candidate(
+                subject,
+                target,
+                f"application:{candidate.pk}",
+                "application",
+                candidate.pk,
+                candidate.identity.MIDN_BUSINESS_NAME,
+                candidate.MAPP_STATUS,
+                distance,
+                radius,
+                similarity_threshold=similarity_threshold,
+                display_address=", ".join(
+                    part.strip()
+                    for part in (
+                        candidate.location.MLOC_STREET_ADDRESS,
+                        candidate.location.MLOC_UNIT,
+                        candidate.location.MLOC_BARANGAY,
+                        candidate.location.MLOC_CITY,
+                        candidate.location.MLOC_PROVINCE,
+                    )
+                    if part and part.strip()
+                ),
+            )
+            if result:
+                candidates.append(result)
+
+        for business in businesses:
+            normalized_name = normalize_duplicate_text(business.BUSN_NAME)
+            if (
+                normalized_name != subject["name"]
+                and similarities[normalized_name] < similarity_threshold
+            ):
+                continue
+            location = business.LOCT_ID
+            target = DuplicateDetectionService._snapshot(
+                business.BUSN_NAME,
+                location.LOCT_ADDRESS,
+                location.LOCT_CITY,
+                location.LOCT_PROVINCE,
+                location.LOCT_POINT,
+            )
+            origin = getattr(business, "merchant_application", None)
+            if origin is not None:
+                key = f"application:{origin.pk}"
+            else:
+                key = f"business:{business.pk}"
+            distance = DuplicateDetectionService._distance(
+                Business.objects.filter(pk=business.pk),
+                "LOCT_ID__LOCT_POINT",
+                point,
+            )
+            result = DuplicateDetectionService._candidate(
+                subject,
+                target,
+                key,
+                "business",
+                business.pk,
+                business.BUSN_NAME,
+                business.BUSN_STATUS,
+                distance,
+                radius,
+                similarity_threshold=similarity_threshold,
+                display_address=", ".join((
+                    location.LOCT_ADDRESS,
+                    location.LOCT_CITY,
+                    location.LOCT_PROVINCE,
+                )),
+            )
+            if result:
+                candidates.append(result)
+
+        # A linked application and Business are one stable candidate lineage.
+        unique_candidates = {
+            candidate["key"]: candidate
+            for candidate in candidates
+        }
+        return sorted(
+            unique_candidates.values(),
+            key=lambda candidate: "similar_business_name" in candidate["reasons"],
+        )
+
+    @staticmethod
+    def _name_similarities(
+        application,
+        subject_name,
+        candidate_names,
+    ):
+        """Score canonical names in PostgreSQL without changing Python normalization semantics."""
+        names = sorted(candidate_names - {subject_name})
+        similarities = {subject_name: 1.0}
+        # Bound the SELECT width and avoid a separate database query per name.
+        for offset in range(0, len(names), 100):
+            batch = names[offset:offset + 100]
+            expressions = {
+                f"name_score_{index}": TrigramSimilarity(
+                    Value(subject_name),
+                    Value(name),
+                )
+                for index, name in enumerate(batch)
+            }
+            scores = (
+                MerchantApplication.objects
+                .filter(pk=application.pk)
+                .annotate(**expressions)
+                .values(*expressions)
+                .get()
+            )
+            for index, name in enumerate(batch):
+                similarities[name] = scores[f"name_score_{index}"]
+        return similarities
+
+    @staticmethod
+    def _distance(
+        queryset,
+        field,
+        point,
+    ):
+        """Cast WGS84 geometry to geography so PostGIS computes spheroidal metres."""
+        result = queryset.annotate(
+            duplicate_distance=Distance(
+                Cast(
+                    field,
+                    output_field=PointField(srid=4326, geography=True),
+                ),
+                point,
+            ),
+        ).values_list("duplicate_distance", flat=True).get()
+        return result.m
+
+    @staticmethod
+    def _candidate(
+        subject,
+        target,
+        key,
+        record_type,
+        record_id,
+        name,
+        status,
+        distance,
+        radius,
+        *,
+        similarity_threshold,
+        display_address,
+    ):
+        """Build explainable evidence without treating location alone as a conflict."""
+        reasons = []
+        exact_name = subject["name"] == target["name"]
+        address_fields = ("address", "city", "province")
+        if all(
+            subject[field] == target[field]
+            for field in address_fields
+        ):
+            reasons.append(
+                "exact_name_and_address" if exact_name else "matching_address",
+            )
+        if distance <= radius:
+            reasons.append(
+                "exact_name_and_nearby_location" if exact_name else "nearby_location",
+            )
+        if not reasons:
+            return None
+        if not exact_name:
+            reasons.insert(0, "similar_business_name")
+
+        evidence = {
+            "subject": subject,
+            "candidate": target,
+            "rule_version": DuplicateDetectionService.RULE_VERSION,
+            "radius_metres": radius,
+            "reasons": reasons,
+        }
+        if not exact_name:
+            evidence["name_similarity_threshold"] = similarity_threshold
+        fingerprint = hashlib.sha256(
+            json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode(),
+        ).hexdigest()
+        return {
+            "key": key,
+            "record_type": record_type,
+            "record_id": record_id,
+            "business_name": name,
+            "address": display_address,
+            "status": status,
+            "distance_metres": round(distance, 1),
+            "reasons": reasons,
+            "evidence": evidence,
+            "fingerprint": fingerprint,
+        }
