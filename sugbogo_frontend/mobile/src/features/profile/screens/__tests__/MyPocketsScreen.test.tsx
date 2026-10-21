@@ -237,6 +237,28 @@ describe("MyPocketsScreen", () => {
     await fireEvent(screen.getByTestId("my-pockets-list"), "endReached");
   }
 
+  it("floats one accessible Create Pocket action and reserves space for its measured height", async () => {
+    const screen = await loadedOverview();
+    expect(
+      screen.getAllByRole("button", { name: "Create Pocket" }),
+    ).toHaveLength(1);
+    expect(screen.getByTestId("create-pocket-fab").props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ bottom: 40 })]),
+    );
+    await fireEvent(screen.getByTestId("create-pocket-fab"), "layout", {
+      nativeEvent: { layout: { height: 100, width: 240, x: 0, y: 0 } },
+    });
+    expect(
+      screen.getByTestId("my-pockets-list").props.contentContainerStyle
+        .paddingBottom,
+    ).toBe(172);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    expect(screen.getByLabelText("Pocket name")).toBeTruthy();
+    expect(createPocketCollection).not.toHaveBeenCalled();
+  });
+
   // Allow the first native list mount to complete on a cold Jest run.
   it("keeps the initial skeleton until real collections arrive", async () => {
     const response = pendingResponse();
