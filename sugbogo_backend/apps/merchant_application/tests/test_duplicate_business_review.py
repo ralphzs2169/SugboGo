@@ -122,6 +122,126 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
         self.assertGreater(candidate["distance_metres"], 10)
         self.assertLess(candidate["distance_metres"], 12)
 
+    def test_similar_names_match_nearby_without_exact_addresses(self):
+        location = self.target.location
+        location.MLOC_STREET_ADDRESS = "Another street"
+        location.MLOC_POINT = Point(123.8855, 10.3157, srid=4326)
+        location.save()
+        for subject_name, target_name in (
+            ("Serenity Cove Resort & Spa", "Serenity Cove Resort and Spa"),
+            ("Juan's Coffee Shop", "Juans Coffee Shop"),
+            ("Cebu Lechon House", "Cebu Lechon Haus"),
+        ):
+            with self.subTest(target_name=target_name):
+                identity = self.application.identity
+                identity.MIDN_BUSINESS_NAME = subject_name
+                identity.save()
+                target_identity = self.target.identity
+                target_identity.MIDN_BUSINESS_NAME = target_name
+                target_identity.save()
+                candidates = DuplicateDetectionService.find_candidates(self.application)
+                self.assertEqual(len(candidates), 1)
+                self.assertEqual(
+                    candidates[0]["reasons"],
+                    ["similar_business_name", "nearby_location"],
+                )
+
+    def test_similar_name_requires_matching_address_or_proximity(self):
+        identity = self.target.identity
+        identity.MIDN_BUSINESS_NAME = "Sugbo Bistrot"
+        identity.save()
+        location = self.target.location
+        location.MLOC_POINT = Point(123.90, 10.33, srid=4326)
+        location.save()
+        candidate = DuplicateDetectionService.find_candidates(self.application)[0]
+        self.assertEqual(
+            candidate["reasons"],
+            ["similar_business_name", "matching_address"],
+        )
+        location.MLOC_STREET_ADDRESS = "Different distant address"
+        location.save()
+        self.assertEqual(DuplicateDetectionService.find_candidates(self.application), [])
+
+    def test_fuzzy_match_requires_current_assessment_before_approval(self):
+        identity = self.target.identity
+        identity.MIDN_BUSINESS_NAME = "Sugbo Bistrot"
+        identity.save()
+        with self.assertRaises(ValidationError):
+            AdminApplicationService.approve_application(
+                self.application.pk,
+                self.admin,
+            )
+        self.assertFalse(self.application.reviews.exists())
+        self.assess()
+        AdminApplicationService.approve_application(
+            self.application.pk,
+            self.admin,
+        )
+        self.assertTrue(Business.objects.filter(USER_ID=self.user).exists())
+
+    def test_changed_fuzzy_evidence_invalidates_saved_assessment(self):
+        identity = self.target.identity
+        identity.MIDN_BUSINESS_NAME = "Sugbo Bistrot"
+        identity.save()
+        self.assess()
+        identity.MIDN_BUSINESS_NAME = "Sugbo Bistro Cafe"
+        identity.save()
+        state = DuplicateReviewService.review_state(self.application)
+        self.assertTrue(state["candidates"][0]["stale"])
+        self.assertTrue(state["approval_blocked"])
+        with self.assertRaises(ValidationError):
+            AdminApplicationService.approve_application(
+                self.application.pk,
+                self.admin,
+            )
+
+    def test_fuzzy_threshold_changes_invalidate_supporting_evidence(self):
+        identity = self.target.identity
+        identity.MIDN_BUSINESS_NAME = "Sugbo Bistrot"
+        identity.save()
+        self.assess()
+        with override_settings(MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD=0.61):
+            state = DuplicateReviewService.review_state(self.application)
+            self.assertTrue(state["candidates"][0]["stale"])
+            self.assertTrue(state["approval_blocked"])
+
+    def test_fuzzy_submission_evidence_and_business_transition(self):
+        identity = self.target.identity
+        identity.MIDN_BUSINESS_NAME = "Sugbo Bistrot"
+        identity.save()
+        self.application.MAPP_STATUS = "draft"
+        self.application.save()
+        ApplicationService.submit_application(self.application)
+        submission = self.application.submissions.last()
+        self.assertIn(
+            "similar_business_name",
+            submission.MASUB_DUPLICATE_EVIDENCE[0]["reasons"],
+        )
+        self.assess()
+        before = DuplicateReviewService.review_state(self.application)["candidates"][0]
+        self.assess(application=self.target)
+        AdminApplicationService.approve_application(self.target.pk, self.admin)
+        self.target.refresh_from_db()
+        for status in ("active", "suspended"):
+            with self.subTest(status=status):
+                self.target.BUSN_ID.BUSN_STATUS = status
+                self.target.BUSN_ID.save()
+                after = DuplicateReviewService.review_state(self.application)["candidates"]
+                self.assertEqual(len(after), 1)
+                self.assertEqual(after[0]["record_type"], "business")
+                self.assertEqual(after[0]["fingerprint"], before["fingerprint"])
+                self.assertTrue(after[0]["resolved"])
+
+    @override_settings(MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD=0.99)
+    def test_configurable_threshold_does_not_weaken_exact_matching(self):
+        identity = self.target.identity
+        identity.MIDN_BUSINESS_NAME = "Sugbo Bistrot"
+        identity.save()
+        self.assertEqual(DuplicateDetectionService.find_candidates(self.application), [])
+        identity.MIDN_BUSINESS_NAME = "  SUGBO   BISTRO  "
+        identity.save()
+        self.assertEqual(len(DuplicateDetectionService.find_candidates(self.application)), 1)
+
     @override_settings(MERCHANT_DUPLICATE_RADIUS_METRES=5)
     def test_configured_radius_is_measured_in_metres(self):
         location = self.target.location

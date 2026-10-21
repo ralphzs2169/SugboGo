@@ -163,9 +163,13 @@ function CandidateAssessment({
                 key={reason}
                 className="rounded-md bg-surface-muted px-2.5 py-1 text-sm text-text-secondary"
               >
-                {reason === "exact_name_and_address"
-                  ? "Exact name + complete address"
-                  : "Exact name + nearby location"}
+                {{
+                  exact_name_and_address: "Exact name + complete address",
+                  exact_name_and_nearby_location: "Exact name + nearby location",
+                  similar_business_name: "Similar business name",
+                  matching_address: "Matching complete address",
+                  nearby_location: "Nearby location",
+                }[reason] || reason}
               </li>
             ))}
           </ul>

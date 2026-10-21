@@ -1,4 +1,4 @@
-"""Find exact-name business conflicts without changing registration state."""
+"""Find exact and similar-name business conflicts without changing registration state."""
 
 import hashlib
 import json
@@ -7,6 +7,8 @@ import unicodedata
 from django.conf import settings
 from django.contrib.gis.db.models import PointField
 from django.contrib.gis.db.models.functions import Distance
+from django.contrib.postgres.search import TrigramSimilarity
+from django.db.models import Value
 from django.db.models.functions import Cast
 
 from apps.business.models import Business
@@ -21,7 +23,7 @@ def normalize_duplicate_text(value):
 class DuplicateDetectionService:
     """Compare saved applications with submitted applications and permanent businesses."""
 
-    RULE_VERSION = "exact-name-location-v1"
+    RULE_VERSION = "trigram-name-location-v2"
 
     @staticmethod
     def application_snapshot(application):
@@ -90,6 +92,7 @@ class DuplicateDetectionService:
             return []
 
         radius = settings.MERCHANT_DUPLICATE_RADIUS_METRES
+        similarity_threshold = settings.MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD
         point = application.location.MLOC_POINT
         candidates = []
         applications = (
@@ -97,6 +100,12 @@ class DuplicateDetectionService:
             .filter(MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED)
             .exclude(pk=application.pk)
             .select_related("identity", "location")
+            .annotate(
+                duplicate_name_similarity=TrigramSimilarity(
+                    "identity__MIDN_BUSINESS_NAME",
+                    Value(subject["name"]),
+                ),
+            )
         )
         businesses = (
             Business.objects
@@ -105,15 +114,25 @@ class DuplicateDetectionService:
                 Business.BusinessStatus.SUSPENDED,
             ))
             .select_related("LOCT_ID", "merchant_application")
+            .annotate(
+                duplicate_name_similarity=TrigramSimilarity(
+                    "BUSN_NAME",
+                    Value(subject["name"]),
+                ),
+            )
         )
         if application.BUSN_ID_id:
             businesses = businesses.exclude(pk=application.BUSN_ID_id)
 
-        # Unicode casefolding cannot be delegated to database lower(). Only exact
-        # normalized-name matches proceed to the metric distance calculation.
+        # Preserve Unicode-normalized exact matches independently of trigram scores.
         for candidate in applications.iterator():
             target = DuplicateDetectionService.application_snapshot(candidate)
-            if target is None or target["name"] != subject["name"]:
+            if target is None:
+                continue
+            if (
+                target["name"] != subject["name"]
+                and candidate.duplicate_name_similarity < similarity_threshold
+            ):
                 continue
             distance = DuplicateDetectionService._distance(
                 MerchantApplication.objects.filter(pk=candidate.pk),
@@ -130,6 +149,7 @@ class DuplicateDetectionService:
                 candidate.MAPP_STATUS,
                 distance,
                 radius,
+                similarity_threshold=similarity_threshold,
                 display_address=", ".join(
                     part.strip()
                     for part in (
@@ -146,7 +166,10 @@ class DuplicateDetectionService:
                 candidates.append(result)
 
         for business in businesses.iterator():
-            if normalize_duplicate_text(business.BUSN_NAME) != subject["name"]:
+            if (
+                normalize_duplicate_text(business.BUSN_NAME) != subject["name"]
+                and business.duplicate_name_similarity < similarity_threshold
+            ):
                 continue
             location = business.LOCT_ID
             target = DuplicateDetectionService._snapshot(
@@ -176,6 +199,7 @@ class DuplicateDetectionService:
                 business.BUSN_STATUS,
                 distance,
                 radius,
+                similarity_threshold=similarity_threshold,
                 display_address=", ".join((
                     location.LOCT_ADDRESS,
                     location.LOCT_CITY,
@@ -186,7 +210,14 @@ class DuplicateDetectionService:
                 candidates.append(result)
 
         # A linked application and Business are one stable candidate lineage.
-        return list({candidate["key"]: candidate for candidate in candidates}.values())
+        unique_candidates = {
+            candidate["key"]: candidate
+            for candidate in candidates
+        }
+        return sorted(
+            unique_candidates.values(),
+            key=lambda candidate: "similar_business_name" in candidate["reasons"],
+        )
 
     @staticmethod
     def _distance(
@@ -218,20 +249,28 @@ class DuplicateDetectionService:
         distance,
         radius,
         *,
+        similarity_threshold,
         display_address,
     ):
         """Build explainable evidence without treating location alone as a conflict."""
         reasons = []
+        exact_name = subject["name"] == target["name"]
         address_fields = ("address", "city", "province")
         if all(
             subject[field] == target[field]
             for field in address_fields
         ):
-            reasons.append("exact_name_and_address")
+            reasons.append(
+                "exact_name_and_address" if exact_name else "matching_address",
+            )
         if distance <= radius:
-            reasons.append("exact_name_and_nearby_location")
+            reasons.append(
+                "exact_name_and_nearby_location" if exact_name else "nearby_location",
+            )
         if not reasons:
             return None
+        if not exact_name:
+            reasons.insert(0, "similar_business_name")
 
         evidence = {
             "subject": subject,
@@ -240,6 +279,8 @@ class DuplicateDetectionService:
             "radius_metres": radius,
             "reasons": reasons,
         }
+        if not exact_name:
+            evidence["name_similarity_threshold"] = similarity_threshold
         fingerprint = hashlib.sha256(
             json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode(),
         ).hexdigest()

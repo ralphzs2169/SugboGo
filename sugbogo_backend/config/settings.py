@@ -350,6 +350,9 @@ CHANNEL_LAYERS = {
 MERCHANT_DUPLICATE_RADIUS_METRES = float(
     os.environ.get("MERCHANT_DUPLICATE_RADIUS_METRES", "50"),
 )
+MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD = float(
+    os.environ.get("MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD", "0.59"),
+)
 
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
