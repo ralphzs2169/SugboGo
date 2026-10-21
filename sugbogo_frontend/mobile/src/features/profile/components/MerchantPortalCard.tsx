@@ -24,7 +24,7 @@ const STATUS_BADGE_CONFIG = {
     color: "#D97706",
   },
   rejected: {
-    label: "Changes Required",
+    label: "Rejected",
     icon: "alert-circle-outline" as const,
     color: theme.extends.colors.error,
   },

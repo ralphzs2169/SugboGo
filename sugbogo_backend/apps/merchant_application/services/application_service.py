@@ -13,6 +13,9 @@ from apps.merchant_application.models import (
 )
 from apps.users.models import User
 from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
+from apps.merchant_application.services.duplicate_detection_service import (
+    DuplicateDetectionService,
+)
 
 
 class ApplicationService:
@@ -345,6 +348,7 @@ class ApplicationService:
             MAPP_ID=application,
             MASUB_SUBMISSION_NUMBER=submission_number,
             MASUB_SUBMITTED_AT=submitted_at,
+            MASUB_DUPLICATE_EVIDENCE=DuplicateDetectionService.find_candidates(application),
         )
 
         return application

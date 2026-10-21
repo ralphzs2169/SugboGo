@@ -10,10 +10,14 @@ import type {
   CategoryOption,
   ClusterOption,
 } from "@/features/merchant/types/registration/registrationOption.types";
-import type { ApplicationFeedbackResponse } from "@/features/merchant/types/registration/registrationApi.types";
+import type {
+  ApplicationFeedbackResponse,
+  ApplicationDetailResponse,
+} from "@/features/merchant/types/registration/registrationApi.types";
 import { ApiError } from "@/shared/types/apiResponse.types";
 
 type RegistrationStepContentProps = {
+  application?: ApplicationDetailResponse | null;
   currentStep: number;
   clusters: ClusterOption[];
   categories: CategoryOption[];
@@ -32,6 +36,7 @@ type RegistrationStepContentProps = {
 };
 
 export default function RegistrationStepContent({
+  application = null,
   currentStep,
   clusters,
   categories,
@@ -65,6 +70,7 @@ export default function RegistrationStepContent({
     case 2:
       return (
         <BusinessLocationStep
+          application={application}
           registerErrorScrollTarget={registerErrorScrollTarget}
         />
       );
@@ -93,6 +99,7 @@ export default function RegistrationStepContent({
     case 6:
       return (
         <ReviewSubmitStep
+          application={application}
           clusters={clusters}
           categories={categories}
           onEditSection={onEditSection}

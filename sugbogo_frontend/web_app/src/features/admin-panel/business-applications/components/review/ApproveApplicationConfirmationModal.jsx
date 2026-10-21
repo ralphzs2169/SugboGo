@@ -15,6 +15,7 @@ export default function ApproveApplicationConfirmationModal({
   onClose,
   onConfirm,
   loading = false,
+  blockedReason = null,
 }) {
   const businessName = identity?.business_name || "Unnamed Business";
   const clusterName = identity?.business_cluster_name;
@@ -103,6 +104,11 @@ export default function ApproveApplicationConfirmationModal({
           </p>
         </div>
 
+        {blockedReason && (
+          <p role="alert" className="text-sm text-danger">
+            {blockedReason}
+          </p>
+        )}
         {/* Confirmation actions */}
         <div className="flex justify-end gap-3 border-t border-stroke pt-4">
           <Button
@@ -119,6 +125,7 @@ export default function ApproveApplicationConfirmationModal({
             variant="success"
             onClick={onConfirm}
             loading={loading}
+            disabled={!!blockedReason}
           >
             Approve Application
           </Button>

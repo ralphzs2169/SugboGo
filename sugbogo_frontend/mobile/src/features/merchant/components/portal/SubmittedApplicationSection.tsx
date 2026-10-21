@@ -47,7 +47,7 @@ export default function SubmittedApplicationSection({
   return (
     <View className="bg-surface px-6 pb-6">
       {/* Status hero */}
-      <View className="items-center rounded-3xl bg-surface px-6 pb-7">
+      <View className="items-center rounded-3xl bg-surface px-6 pb-4">
         <LottieView
           source={underReviewAnimation}
           autoPlay
@@ -75,32 +75,16 @@ export default function SubmittedApplicationSection({
           Our team is carefully reviewing your submitted documents. We'll notify
           you once a decision has been made.
         </AppText>
-      </View>
-
-      {/* Review SLA */}
-      <View className="mt-4 flex-row items-center rounded-md border border-border-primary bg-surface px-4 py-4">
-        <MaterialCommunityIcons
-          name="clock-fast"
-          size={25}
-          color={theme.extends.colors.text.secondary}
-        />
-
-        <View className="ml-3 flex-1">
-          <AppText
-            weight="semibold"
-            className="text-xs uppercase tracking-wide text-text-secondary"
-          >
-            Estimated Review Time
-          </AppText>
-
-          <AppText weight="bold" className="mt-0.5 text-base text-text-primary">
-            {estimatedReview ?? "Review in progress"}
-          </AppText>
-        </View>
+        <AppText
+          weight="semibold"
+          className="mt-2 text-center text-sm text-text-secondary"
+        >
+          Estimated review time: {estimatedReview ?? "Review in progress"}
+        </AppText>
       </View>
 
       {/* Application timeline */}
-      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 py-5">
+      <View className="rounded-card border border-border-primary bg-surface px-5 py-5">
         <AppText weight="bold" className="mb-5 text-sm text-text-primary">
           Application Progress
         </AppText>

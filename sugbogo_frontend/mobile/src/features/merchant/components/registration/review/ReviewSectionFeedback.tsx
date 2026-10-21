@@ -26,10 +26,10 @@ export default function ReviewSectionFeedback({
     <View className="relative mb-5">
       {/* Feedback container */}
       <View
-        className={`rounded-md border p-4 pr-10 ${
+        className={`rounded-md p-4 pr-10 ${
           isChanged
-            ? "border-border-success bg-green-50"
-            : "border-border-error bg-red-50"
+            ? "bg-green-50"
+            : "bg-red-50"
         }`}
       >
         {/* Status indicator */}

@@ -1,5 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
 import RegistrationFooter from "../components/registration/RegistartionFooter";
@@ -16,8 +22,9 @@ import useCategories from "../hooks/registration/useCategories";
 import useClusters from "../hooks/registration/useClusters";
 import useRegistrationValidation from "../hooks/registration/useRegistrationValidation";
 
-import { useEffect } from "react";
-import { BackHandler } from "react-native";
+import { BackHandler, Pressable } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { theme } from "@/constants/theme";
 import ReviewCelebration from "../components/registration/ReviewCelebration";
 import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "../constants/registration/defaultValues.constants";
 import useRegistrationNavigation from "../hooks/registration/useRegistrationNavigation";
@@ -48,13 +55,11 @@ import { mapApplicationPhotos } from "../utils/merchant-application/mappers/mapA
 import { mapApplicationToStore } from "../utils/merchant-application/mappers/mapApplicationToStore.utils";
 
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
-import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
 import { buildDocumentUploadFormData } from "../utils/merchant-application/builders/buildDocumentUploadFormData.utils";
 import { buildPhotoUploadFormData } from "../utils/merchant-application/builders/buildPhotoUploadFormData.utils";
 import { getUnsavedSections } from "../utils/merchant-application/comparisons/getUnsavedSections.utils";
 import DiscardChangesMessage from "../utils/merchant-application/discardChangesMessage.utils";
 
-import ResubmissionConfirmationMessage from "../components/registration/ResubmissionConfirmationMessage";
 import {
   NormalizedIdentity,
   normalizeIdentity,
@@ -69,6 +74,7 @@ import {
 } from "../utils/merchant-application/normalizers/normalizeOperatingHours.utils";
 import useRegistrationErrorScroll from "../hooks/registration/useRegistrationErrorScroll";
 import Toast from "react-native-toast-message";
+import useRegistrationUnsavedChanges from "../hooks/registration/useRegistrationUnsavedChanges";
 
 /**
  * Merchant registration wizard screen.
@@ -164,11 +170,8 @@ export default function MerchantRegistrationScreen() {
     useSubmitApplication();
 
   const [showDiscardChangesModal, setShowDiscardChangesModal] = useState(false);
-
+  const [showLeaveReviewModal, setShowLeaveReviewModal] = useState(false);
   const [showReviewCelebration, setShowReviewCelebration] = useState(false);
-
-  const [showResubmissionReminderModal, setShowResubmissionReminderModal] =
-    useState(false);
 
   const [restoreError, setRestoreError] = useState(false);
 
@@ -241,10 +244,18 @@ export default function MerchantRegistrationScreen() {
     defaultValues: MERCHANT_REGISTRATION_DEFAULT_VALUES,
   });
 
+  const hasUnsavedChanges = useRegistrationUnsavedChanges(form.control, {
+    lastSavedIdentity,
+    lastSavedLocation,
+    lastSavedOperatingHours,
+    lastSavedPhotos,
+    lastSavedDocuments,
+  });
+
   // Helper Functions
 
   const requestExit = useCallback(
-    (action: () => void) => {
+    (action: () => void, confirmReview = false) => {
       const sections = getUnsavedSections({
         values: form.getValues(),
         lastSavedIdentity,
@@ -255,7 +266,11 @@ export default function MerchantRegistrationScreen() {
       });
 
       if (sections.length === 0) {
-        action();
+        if (confirmReview) {
+          setShowLeaveReviewModal(true);
+        } else {
+          action();
+        }
         return;
       }
 
@@ -270,6 +285,8 @@ export default function MerchantRegistrationScreen() {
       lastSavedOperatingHours,
       lastSavedPhotos,
       lastSavedDocuments,
+      setShowDiscardChangesModal,
+      setUnsavedSections,
     ],
   );
 
@@ -278,6 +295,28 @@ export default function MerchantRegistrationScreen() {
     resetMerchantRegistrationStore();
     pendingExitAction.current?.();
     pendingExitAction.current = null;
+  };
+
+  /** Routes review exits through saved-data confirmation or the existing unsaved-change guard. */
+  const requestReviewExit = useCallback(() => {
+    if (isSavingCurrentStep) {
+      return;
+    }
+    requestExit(
+      () => router.dismissTo("/(explorer)/profile/merchant-portal"),
+      true,
+    );
+  }, [isSavingCurrentStep, requestExit]);
+
+  /** Leaves review without deleting saved application details, rechecking local edits first. */
+  const exitReviewToPortal = () => {
+    if (isSavingCurrentStep) {
+      return;
+    }
+    setShowLeaveReviewModal(false);
+    requestExit(() => {
+      router.dismissTo("/(explorer)/profile/merchant-portal");
+    });
   };
   // Persist the current address in the registration store when leaving Step 2.
   const persistCurrentAddress = () => {
@@ -296,16 +335,35 @@ export default function MerchantRegistrationScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <HeaderBackButton
-          onPress={() =>
-            requestExit(() => {
-              router.back();
-            })
-          }
-        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          disabled={isSavingCurrentStep}
+          className="min-h-12 min-w-12 cursor-pointer items-center justify-center active:opacity-70"
+          onPress={() => {
+            if (currentStep === REVIEW_STEP) {
+              requestReviewExit();
+              return;
+            }
+            requestExit(() => router.back());
+          }}
+        >
+          <MaterialCommunityIcons
+            name="chevron-left"
+            size={28}
+            color={theme.extends.colors.text.primary}
+          />
+        </Pressable>
       ),
     });
-  }, [navigation, requestExit]);
+  }, [
+    navigation,
+    requestExit,
+    requestReviewExit,
+    currentStep,
+    REVIEW_STEP,
+    isSavingCurrentStep,
+  ]);
 
   /**
    * Restores a previously saved merchant application.
@@ -598,11 +656,6 @@ export default function MerchantRegistrationScreen() {
     }
 
     if (currentStep === REVIEW_STEP) {
-      if (isResubmission && feedback.length > 0) {
-        setShowResubmissionReminderModal(true);
-        return;
-      }
-
       await handleSubmitApplication();
       return;
     }
@@ -657,13 +710,14 @@ export default function MerchantRegistrationScreen() {
             return true;
           }
 
-          // While editing a section, Android Back is disabled.
-          if (editingStep !== null) {
+          // Leave review through the same confirmation as the visible header.
+          if (currentStep === REVIEW_STEP) {
+            requestReviewExit();
             return true;
           }
 
-          // Review is the final checkpoint.
-          if (currentStep === REVIEW_STEP) {
+          // While editing a section, Android Back is disabled.
+          if (editingStep !== null) {
             return true;
           }
 
@@ -686,7 +740,9 @@ export default function MerchantRegistrationScreen() {
       currentStep,
       handleBack,
       requestExit,
+      requestReviewExit,
       isSavingCurrentStep,
+      REVIEW_STEP,
     ]),
   );
 
@@ -740,7 +796,11 @@ export default function MerchantRegistrationScreen() {
               totalSteps={REVIEW_STEP}
               editingStep={editingStep}
               highestCompletedStep={highestCompletedStep}
-              title={REGISTRATION_STEPS[currentStep - 1].title}
+              title={
+                currentStep === REVIEW_STEP && isResubmission
+                  ? "Review & Resubmit"
+                  : REGISTRATION_STEPS[currentStep - 1].title
+              }
               isResubmission={isResubmission}
             />
           }
@@ -755,6 +815,7 @@ export default function MerchantRegistrationScreen() {
               isSubmitting={isSavingCurrentStep}
               isResubmission={isResubmission}
               canResubmit={canResubmit}
+              hasChanges={hasUnsavedChanges}
             />
           }
 
@@ -773,6 +834,7 @@ export default function MerchantRegistrationScreen() {
           )}
 
           <RegistrationStepContent
+            application={application}
             currentStep={currentStep}
             clusters={clusters}
             categories={categories}
@@ -795,31 +857,26 @@ export default function MerchantRegistrationScreen() {
       </FormProvider>
 
       <ConfirmModal
+        visible={showLeaveReviewModal}
+        title="Leave application review?"
+        message="Your saved application details will be kept. You can return and submit later."
+        confirmText="Exit to Portal"
+        cancelText="Stay Here"
+        onConfirm={exitReviewToPortal}
+        onCancel={() => setShowLeaveReviewModal(false)}
+      />
+
+      <ConfirmModal
         visible={showDiscardChangesModal}
         title="Discard changes?"
         destructive
         message={<DiscardChangesMessage sections={unsavedSections} />}
-        confirmText="Discard Changes"
+        confirmText="Discard"
         cancelText="Stay"
         onConfirm={handleDiscardChanges}
         onCancel={() => {
           setShowDiscardChangesModal(false);
           pendingExitAction.current = null;
-        }}
-      />
-
-      <ConfirmModal
-        visible={showResubmissionReminderModal}
-        title="Ready to resubmit?"
-        message={<ResubmissionConfirmationMessage />}
-        confirmText="Submit Application"
-        cancelText="Review"
-        onConfirm={async () => {
-          setShowResubmissionReminderModal(false);
-          await handleSubmitApplication();
-        }}
-        onCancel={() => {
-          setShowResubmissionReminderModal(false);
         }}
       />
     </>

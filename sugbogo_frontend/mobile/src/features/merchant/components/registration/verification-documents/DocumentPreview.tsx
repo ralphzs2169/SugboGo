@@ -11,12 +11,14 @@ type DocumentPreviewProps = {
   document: BusinessDocument;
   onRemove?: () => void;
   showRemove?: boolean;
+  className?: string;
 };
 
 export default function DocumentPreview({
   document,
   onRemove,
   showRemove = true,
+  className = "",
 }: DocumentPreviewProps) {
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
 
@@ -33,7 +35,9 @@ export default function DocumentPreview({
 
   return (
     <>
-      <View className="relative flex-row items-center rounded-lg border border-border-primary p-2">
+      <View
+        className={`relative flex-row items-center rounded-lg border border-border-primary p-2 ${className}`}
+      >
         <Pressable
           onPress={handlePreview}
           className="flex-row flex-1 items-center pressed:opacity-70"

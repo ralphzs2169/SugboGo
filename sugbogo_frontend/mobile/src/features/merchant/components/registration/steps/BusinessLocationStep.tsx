@@ -11,8 +11,11 @@ import AddressLoadFailedState from "../location/AddressFailedLoadState";
 import LocationPickerMap from "../location/LocationPickerMap";
 import RegistrationSection from "../RegistrationSection";
 import useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";
+import type { ApplicationDetailResponse } from "../../../types/registration/registrationApi.types";
+import DuplicateBusinessWarning from "../DuplicateBusinessWarning";
 
 type BusinessLocationStepProps = {
+  application?: ApplicationDetailResponse | null;
   registerErrorScrollTarget: ReturnType<
     typeof useRegistrationErrorScroll
   >["registerErrorScrollTarget"];
@@ -38,6 +41,7 @@ type BusinessLocationStepProps = {
  * only after the user attempts to continue.
  */
 export default function BusinessLocationStep({
+  application = null,
   registerErrorScrollTarget,
 }: BusinessLocationStepProps) {
   const {
@@ -156,6 +160,7 @@ export default function BusinessLocationStep({
         description="Place the pin as close as possible to your actual business location."
         showBorder={false}
       >
+        <DuplicateBusinessWarning application={application} />
         <View
           {...registerErrorScrollTarget("latitude", "longitude")}
           className={`overflow-hidden rounded-2xl border ${

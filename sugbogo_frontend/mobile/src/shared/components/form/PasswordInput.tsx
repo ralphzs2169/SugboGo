@@ -34,7 +34,7 @@ export default function PasswordInput({
       editable={editable}
     >
       <TextInput
-        className="flex-1 py-[14px] text-body text-text-primary"
+        className="flex-1 py-[14px] font-nunito text-body text-text-primary"
         placeholderTextColor={theme.extends.colors.text.tertiary}
         secureTextEntry={!showPassword}
         accessibilityLabel={accessibilityLabel ?? label}

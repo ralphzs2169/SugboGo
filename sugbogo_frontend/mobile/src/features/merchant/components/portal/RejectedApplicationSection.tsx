@@ -1,17 +1,22 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import { View } from "react-native";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import DuplicateResubmissionWarning from "../registration/DuplicateResubmissionWarning";
 
 import rejectedApplicationAnimation from "../../assets/animations/changes-required.json";
-import type { ApplicationFeedbackResponse } from "../../types/registration/registrationApi.types";
+import type {
+  ApplicationFeedbackResponse,
+  DuplicateDisposition,
+} from "../../types/registration/registrationApi.types";
 import ResubmissionChecklist from "../registration/ResubmissionChecklist";
+import DuplicateRejectionNotice from "../registration/DuplicateRejectionNotice";
+import RejectionCardIndicator from "../registration/RejectionCardIndicator";
 
 type RejectionApplicationSectionProps = {
   feedback: ApplicationFeedbackResponse[];
   reviewedAt: string;
+  duplicateDisposition?: DuplicateDisposition | null;
 };
 
 /**
@@ -23,11 +28,15 @@ type RejectionApplicationSectionProps = {
 export default function RejectionApplicationSection({
   feedback,
   reviewedAt,
+  duplicateDisposition,
 }: RejectionApplicationSectionProps) {
+  const combinedRejection = !!duplicateDisposition && feedback.length > 0;
+  const correctionsComplete =
+    feedback.length > 0 && feedback.every((item) => item.is_changed);
   return (
     <View className="bg-surface px-6 pb-6">
       {/* Status hero */}
-      <View className="items-center rounded-3xl bg-surface px-6 py-7">
+      <View className="items-center rounded-3xl bg-surface px-6 py-4">
         <LottieView
           source={rejectedApplicationAnimation}
           autoPlay
@@ -40,7 +49,7 @@ export default function RejectionApplicationSection({
             weight="bold"
             className="text-xs uppercase tracking-wide text-text-error"
           >
-            Changes Required
+            {duplicateDisposition ? "Rejected" : "Changes Required"}
           </AppText>
         </View>
 
@@ -48,44 +57,38 @@ export default function RejectionApplicationSection({
           weight="bold"
           className="mt-3 text-center text-2xl text-text-primary"
         >
-          Your application needs some changes
+          {duplicateDisposition ? "Application Rejected" : "Changes Required"}
         </AppText>
 
         <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
-          Review the feedback, make the required changes, and resubmit.
+          Reviewed {reviewedAt}
         </AppText>
       </View>
 
-      {/* Review information */}
-      <View className="mt-4 flex-row items-center rounded-md border border-border-primary bg-surface px-4 py-4">
-        <MaterialCommunityIcons
-          name="calendar-check-outline"
-          size={25}
-          color={theme.extends.colors.text.secondary}
-        />
-
-        <View className="ml-3 flex-1">
-          <AppText
-            weight="semibold"
-            className="text-xs uppercase tracking-wide text-text-secondary"
-          >
-            Reviewed
-          </AppText>
-
-          <AppText weight="bold" className="mt-0.5 text-base text-text-primary">
-            {reviewedAt}
-          </AppText>
-        </View>
-      </View>
-
+      <DuplicateRejectionNotice
+        disposition={duplicateDisposition}
+        showIndicator={!correctionsComplete}
+      >
+        {combinedRejection && (
+          <ResubmissionChecklist
+            feedback={feedback}
+            isInMerchantPortal
+            embedded
+          />
+        )}
+      </DuplicateRejectionNotice>
+      {duplicateDisposition && <DuplicateResubmissionWarning />}
       {/* Administrator feedback */}
-      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 pt-5">
-        <AppText weight="bold" className="mb-1 text-sm text-text-primary">
-          Administrator Feedback
-        </AppText>
+      {feedback.length > 0 && !duplicateDisposition && (
+        <View className="relative rounded-card border border-border-primary bg-surface px-4 pt-4">
+          {!correctionsComplete && <RejectionCardIndicator />}
+          <AppText weight="bold" className="mb-1 text-sm text-text-primary">
+            Administrator Feedback
+          </AppText>
 
-        <ResubmissionChecklist feedback={feedback} isInMerchantPortal />
-      </View>
+          <ResubmissionChecklist feedback={feedback} isInMerchantPortal />
+        </View>
+      )}
     </View>
   );
 }

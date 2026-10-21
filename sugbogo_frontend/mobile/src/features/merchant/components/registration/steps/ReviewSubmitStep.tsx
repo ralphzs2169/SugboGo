@@ -7,19 +7,21 @@ import type {
 import type {
   ApplicationFeedbackResponse,
   ApplicationFeedbackSection,
+  ApplicationDetailResponse,
 } from "@/features/merchant/types/registration/registrationApi.types";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import { useFormContext } from "react-hook-form";
 
-import ReviewSection from "../review/ReviewSection";
 import ReviewBusinessIdentity from "../review/sections/ReviewBusinessIdentity";
 import ReviewBusinessLocation from "../review/sections/ReviewBusinessLocation";
 import ReviewBusinessPhotos from "../review/sections/ReviewBusinessPhotos";
 import ReviewOperatingHours from "../review/sections/ReviewOperatingHours";
 import ReviewVerificationDocuments from "../review/sections/ReviewVerificationDocuments";
 import ResubmissionChecklist from "../ResubmissionChecklist";
+import DuplicateBusinessWarning from "../DuplicateBusinessWarning";
 
 type ReviewSubmitStepProps = {
+  application?: ApplicationDetailResponse | null;
   clusters: ClusterOption[];
   categories: CategoryOption[];
   onEditSection: (step: number) => void;
@@ -28,6 +30,7 @@ type ReviewSubmitStepProps = {
 };
 
 export default function ReviewSubmitStep({
+  application = null,
   clusters,
   categories,
   onEditSection,
@@ -36,7 +39,8 @@ export default function ReviewSubmitStep({
 }: ReviewSubmitStepProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
   const form = watch();
-
+  const duplicateRejected =
+    isResubmission && !!application?.duplicate_disposition;
   const getSectionFeedback = (section: ApplicationFeedbackSection) => {
     if (!isResubmission) {
       return undefined;
@@ -48,21 +52,17 @@ export default function ReviewSubmitStep({
   return (
     <>
       <View className="">
-        <ReviewSection
-          icon="check-circle-outline"
-          title={
-            isResubmission ? "Review Your Changes" : "Review Your Application"
-          }
-          description={
-            isResubmission
-              ? "Review your updates before resubmitting your application."
-              : "Check your information before submitting your application."
-          }
-          isPageHeader
-          showBorder={false}
-        />
+        <View className="w-full">
+          <DuplicateBusinessWarning
+            application={application}
+            duplicateRejected={duplicateRejected}
+            onReviewLocation={() => onEditSection(2)}
+          />
+        </View>
 
-        {isResubmission && <ResubmissionChecklist feedback={feedback} />}
+        {isResubmission && (
+          <ResubmissionChecklist feedback={feedback} isReviewStep />
+        )}
 
         <ReviewBusinessIdentity
           form={form}

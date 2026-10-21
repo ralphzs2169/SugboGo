@@ -96,6 +96,7 @@ export default function SpecialtyTagsBottomSheet({
               <SpecialtyTagChip
                 key={tag.id}
                 tag={tag}
+                size="medium"
                 isSelected={isSelected}
                 isDisabled={isDisabled}
                 onPress={() => onToggleTag(tag.id)}

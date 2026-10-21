@@ -33,7 +33,6 @@ export default function MerchantPortalScreen() {
 
   const { registrationStatus, config, application, isLoading, error, refetch } =
     useMerchantPortalState();
-
   const { mutateAsync: acknowledgeMerchantMode, isPending: isAcknowledging } =
     useAcknowledgeMerchantMode();
 
@@ -142,7 +141,14 @@ export default function MerchantPortalScreen() {
 
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-surface">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        key={registrationStatus}
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        // The retained portal can change status while registration covers it.
+        // Keep its content attached when returning from the success screen.
+        removeClippedSubviews={false}
+      >
         {/* Refresh error */}
         {error && application && (
           <ErrorState
@@ -183,6 +189,7 @@ export default function MerchantPortalScreen() {
         {/* Rejected application */}
         {config.sections.feedback && (
           <RejectionApplicationSection
+            duplicateDisposition={application?.duplicate_disposition}
             reviewedAt={formatDate(application?.reviewed_at)}
             feedback={application?.latest_review?.feedback ?? []}
           />
@@ -191,6 +198,11 @@ export default function MerchantPortalScreen() {
         {/* Approved application */}
         {config.sections.dashboard && (
           <ApprovedApplicationSection
+            coverPhotoUrl={
+              application?.photos.find(
+                (photo) => photo.category === "storefront",
+              )?.photo_url
+            }
             businessName={
               application?.identity?.business_name ?? "Your business"
             }
@@ -202,13 +214,13 @@ export default function MerchantPortalScreen() {
         {(config.sections.benefits || config.sections.requirements) && (
           <View className="gap-2 bg-background py-2">
             {config.sections.benefits && (
-              <View className="overflow-hidden rounded-md bg-surface">
+              <View className="overflow-hidden rounded-card bg-surface">
                 <MerchantBenefits />
               </View>
             )}
 
             {config.sections.requirements && (
-              <View className="overflow-hidden rounded-md bg-surface">
+              <View className="overflow-hidden rounded-card bg-surface">
                 <MerchantRequirements />
               </View>
             )}

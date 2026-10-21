@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from apps.merchant_application.services.duplicate_review_service import DuplicateReviewService
 
 from apps.merchant_application.constants import get_review_sla_business_days
 from apps.merchant_application.models import (
@@ -141,12 +142,31 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    latest_submission_id = serializers.SerializerMethodField()
+
+    def get_latest_submission_id(
+        self,
+        application,
+    ):
+        """Identify the submission reviewed by final-decision callers."""
+        return application.submissions.order_by(
+            "-MASUB_SUBMISSION_NUMBER",
+        ).values_list("pk", flat=True).first()
+
     submission_count = serializers.IntegerField(
         source="MAPP_SUBMISSION_COUNT",
         read_only=True,
     )
 
     latest_review = serializers.SerializerMethodField()
+    duplicate_disposition = serializers.SerializerMethodField()
+
+    def get_duplicate_disposition(
+        self,
+        application,
+    ):
+        """Keep ownership adjudication separate from ordinary section change indicators."""
+        return DuplicateReviewService.disposition(application)
 
     created_at = serializers.DateTimeField(
         source="MAPP_CREATED_AT",
@@ -195,8 +215,10 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",
+            "latest_submission_id",
             "submission_count",
             "latest_review",
+            "duplicate_disposition",
             "created_at",
             "updated_at",
             "identity",
