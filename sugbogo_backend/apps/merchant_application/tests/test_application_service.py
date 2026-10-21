@@ -16,6 +16,8 @@ from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
 from apps.users.models import User
+from apps.merchant_application.services.identity_service import IdentityService
+from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -349,6 +351,7 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             USER_ID=self.user,
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=reviewed_at,
+            MAREV_SECTION_FINGERPRINTS=get_section_fingerprints(application.pk),
         )
 
         MerchantApplicationFeedback.objects.create(
@@ -387,6 +390,7 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             USER_ID=self.user,
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=reviewed_at,
+            MAREV_SECTION_FINGERPRINTS=get_section_fingerprints(application.pk),
         )
 
         MerchantApplicationFeedback.objects.create(
@@ -405,6 +409,8 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
                 "MAPP_UPDATED_AT",
             ]
         )
+
+        IdentityService.save_identity(self.user, {"MIDN_BUSINESS_NAME": "Corrected Bistro"})
 
         submitted_application = ApplicationService.submit_application(
             application,
@@ -638,6 +644,7 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             USER_ID=self.user,
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=first_reviewed_at,
+            MAREV_SECTION_FINGERPRINTS=get_section_fingerprints(submitted_application.pk),
         )
 
         MerchantApplicationFeedback.objects.create(
@@ -670,6 +677,8 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
         )
 
         # Resubmit
+        IdentityService.save_identity(self.user, {"MIDN_BUSINESS_NAME": "Corrected Bistro"})
+
         resubmitted_application = ApplicationService.submit_application(
             submitted_application,
         )
@@ -819,6 +828,8 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
         )
 
         # Resubmit through the actual service
+        IdentityService.save_identity(self.user, {"MIDN_BUSINESS_NAME": "Corrected Bistro"})
+
         resubmitted_application = ApplicationService.submit_application(
             rejected_application,
         )

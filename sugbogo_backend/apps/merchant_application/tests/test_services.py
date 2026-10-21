@@ -38,6 +38,7 @@ class MerchantApplicationServiceMixin:
             USER_LNAME="Owner",
             USER_ROLE=User.UserRole.MERCHANT,
             USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
         )
 
         self.cluster = Cluster.objects.create(

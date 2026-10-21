@@ -12,6 +12,7 @@ from apps.merchant_application.models import (
     MerchantApplicationSubmission,
 )
 from apps.users.models import User
+from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
 
 
 class ApplicationService:
@@ -294,12 +295,11 @@ class ApplicationService:
             )
 
             if latest_review:
+                changed_sections = ApplicationService.get_changed_sections(latest_review)
                 incomplete_feedback = [
                     feedback
                     for feedback in latest_review.feedback.all()
-                    if not ApplicationService.has_section_changed_after_review(
-                        feedback
-                    )
+                    if feedback.MAPF_SECTION not in changed_sections
                 ]
 
                 if incomplete_feedback:
@@ -373,19 +373,18 @@ class ApplicationService:
 
     @staticmethod
     def has_section_changed_after_review(feedback):
-        """
-        Determine whether the application section associated with this
-        feedback was modified after the review that requested the change.
-        """
-        application = feedback.MAREV_ID.MAPP_ID
-        reviewed_at = feedback.MAREV_ID.MAREV_REVIEWED_AT
-        section = feedback.MAPF_SECTION
+        """Compare current saved content with the section rejected by the reviewer."""
+        return feedback.MAPF_SECTION in ApplicationService.get_changed_sections(feedback.MAREV_ID)
 
-        section_updated_at = ApplicationService.get_section_updated_at(
-            application, section
-        )
-
-        return (
-            section_updated_at is not None
-            and section_updated_at > reviewed_at
-        )
+    @staticmethod
+    def get_changed_sections(review, *, fingerprint_cache=None):
+        """Return content changes, optionally sharing reads within one response."""
+        baseline = review.MAREV_SECTION_FINGERPRINTS
+        if not baseline:
+            return []
+        cache = fingerprint_cache if fingerprint_cache is not None else {}
+        key = (review._state.db, review.MAPP_ID_id)
+        if key not in cache:
+            cache[key] = get_section_fingerprints(review.MAPP_ID_id, using=review._state.db)
+        return [section for section, fingerprint in baseline.items()
+                if cache[key].get(section) != fingerprint]

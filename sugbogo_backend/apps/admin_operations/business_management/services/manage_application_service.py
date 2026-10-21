@@ -36,6 +36,7 @@ from apps.notifications.services.notification_event_service import (
     NotificationEventService,
 )
 from apps.users.models import User
+from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
 
 
 class ApplicationService:
@@ -255,17 +256,7 @@ class ApplicationService:
         after future resubmissions.
         """
 
-        application = (
-            MerchantApplication.objects
-            .select_for_update()
-            .filter(MAPP_ID=application_id)
-            .first()
-        )
-
-        if application is None:
-            raise NotFound(
-                "The application could not be found.",
-            )
+        application, _ = ApplicationService._get_locked_application(application_id)
         
         if (
             application.MAPP_STATUS
@@ -302,6 +293,7 @@ class ApplicationService:
             MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
             MAREV_REVIEWED_AT=reviewed_at,
             MAREV_SLA_COMPLIANT=sla_compliant,
+            MAREV_SECTION_FINGERPRINTS=get_section_fingerprints(application.pk),
         )
 
         MerchantApplicationFeedback.objects.bulk_create(
@@ -344,17 +336,7 @@ class ApplicationService:
         and promotes the applicant to the merchant role.
         """
 
-        application = (
-            MerchantApplication.objects
-            .select_for_update()
-            .filter(MAPP_ID=application_id)
-            .first()
-        )
-
-        if application is None:
-            raise NotFound(
-                "The application could not be found.",
-            )
+        application, applicant = ApplicationService._get_locked_application(application_id)
 
         if (
             application.MAPP_STATUS
@@ -363,6 +345,15 @@ class ApplicationService:
             raise ValidationError(
                 "Only submitted applications can be approved.",
             )
+
+        if not applicant.is_active or not applicant.EMAIL_VERIFIED:
+            raise ValidationError(
+                "The applicant must have an active, verified account before approval."
+            )
+        if applicant.USER_ROLE not in (User.UserRole.EXPLORER, User.UserRole.MERCHANT):
+            raise ValidationError("Only Explorer or Merchant accounts can be approved.")
+        if Business.objects.filter(USER_ID=applicant).exists():
+            raise ValidationError("The applicant already owns a business.")
 
         submission = (
             MerchantApplicationSubmission.objects
@@ -530,8 +521,6 @@ class ApplicationService:
 
         # Promote the applicant to merchant.
 
-        applicant = application.USER_ID
-
         applicant.USER_ROLE = User.UserRole.MERCHANT
         applicant.save(
             update_fields=[
@@ -543,3 +532,16 @@ class ApplicationService:
         NotificationEventService.merchant_application_resolved(review)
 
         return application
+
+    @staticmethod
+    def _get_locked_application(application_id):
+        """Lock the applicant before the application for every review decision."""
+        try:
+            applicant_id = MerchantApplication.objects.values_list(
+                "USER_ID_id", flat=True,
+            ).get(pk=application_id)
+            applicant = User.objects.select_for_update().get(pk=applicant_id)
+            application = MerchantApplication.objects.select_for_update().get(pk=application_id)
+        except (MerchantApplication.DoesNotExist, User.DoesNotExist) as exc:
+            raise NotFound("The application could not be found.") from exc
+        return application, applicant

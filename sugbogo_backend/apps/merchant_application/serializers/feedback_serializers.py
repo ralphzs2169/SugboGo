@@ -24,4 +24,9 @@ class MerchantApplicationFeedbackSerializer(serializers.ModelSerializer):
         )
 
     def get_is_changed(self, obj):
-        return ApplicationService.has_section_changed_after_review(obj)
+        """Share content reads with other feedback in this response."""
+        changed = ApplicationService.get_changed_sections(
+            obj.MAREV_ID,
+            fingerprint_cache=self.context.setdefault("_merchant_section_fingerprints", {}),
+        )
+        return obj.MAPF_SECTION in changed

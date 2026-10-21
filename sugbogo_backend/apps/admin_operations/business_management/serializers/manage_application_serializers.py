@@ -425,28 +425,11 @@ class AdminMerchantApplicationReviewSerializer(serializers.ModelSerializer):
         )
 
     def get_changed_sections(self, obj):
-        application = obj.MAPP_ID
-        reviewed_at = obj.MAREV_REVIEWED_AT
-
-        sections = (
-            MerchantApplicationFeedback.Section.IDENTITY,
-            MerchantApplicationFeedback.Section.LOCATION,
-            MerchantApplicationFeedback.Section.OPERATING_HOURS,
-            MerchantApplicationFeedback.Section.PHOTOS,
-            MerchantApplicationFeedback.Section.DOCUMENTS,
+        """Use the same content comparison as merchant feedback and submission."""
+        return ApplicationService.get_changed_sections(
+            obj,
+            fingerprint_cache=self.context.setdefault("_merchant_section_fingerprints", {}),
         )
-
-        return [
-            section
-            for section in sections
-            if (
-                section_updated_at := ApplicationService.get_section_updated_at(
-                    application,
-                    section,
-                )
-            ) is not None
-            and section_updated_at > reviewed_at
-        ]
 
 
 

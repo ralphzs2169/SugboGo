@@ -26,6 +26,7 @@ from apps.notifications.services.notification_realtime_service import (
     NotificationRealtimeService,
 )
 from apps.users.models import User
+from apps.merchant_application.services.identity_service import IdentityService
 
 
 class MerchantApplicationNotificationTests(
@@ -204,6 +205,7 @@ class MerchantApplicationNotificationTests(
             update_fields=["MAPP_IDENTITY_UPDATED_AT", "MAPP_UPDATED_AT"],
         )
 
+        IdentityService.save_identity(self.user, {"MIDN_BUSINESS_NAME": "Corrected Bistro"})
         application = MerchantApplicationService.submit_application(application)
         second_submission = self._latest_submission(application)
         AdminApplicationService.reject_application(
