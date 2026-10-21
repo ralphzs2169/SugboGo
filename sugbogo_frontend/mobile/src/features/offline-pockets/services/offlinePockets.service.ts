@@ -6,7 +6,10 @@ import {
   isAuthSessionCurrent,
 } from "@/shared/api/authSessionGeneration.service";
 
-import { OFFLINE_POCKETS_API_SCOPE } from "../constants/offlinePockets.constants";
+import {
+  OFFLINE_BUSINESS_SNAPSHOT_VERSION,
+  OFFLINE_POCKETS_API_SCOPE,
+} from "../constants/offlinePockets.constants";
 import type {
   OfflinePocketContext,
   OfflinePocketControl,
@@ -14,6 +17,12 @@ import type {
   OfflinePocketOperation,
   OfflinePocketWorkStatus,
 } from "../types/offlinePockets.types";
+import {
+  parseOfflineBusinessSnapshot,
+  serializeOfflineBusinessSnapshot,
+  type OfflineBusinessSnapshotEntry,
+  type OfflineBusinessSnapshotRead,
+} from "../validation/offlineBusinessSnapshot";
 import { withOfflinePocketsTransaction } from "./offlinePocketsDatabase";
 
 const CONTROL_COLUMNS = `
@@ -240,7 +249,7 @@ export function requestOfflinePocketRestore(
   return enqueue(context, businessId, "restore");
 }
 
-/** Invalidates all previous intentions without claiming to delete payloads or backend memberships. */
+/** Atomically suppresses previous intentions and removes this account's business snapshots. */
 export async function clearOfflinePocketControlState(
   context: OfflinePocketContext,
 ): Promise<OfflinePocketContext> {
@@ -260,6 +269,11 @@ export async function clearOfflinePocketControlState(
         next_retry_at = NULL, last_error_code = NULL, cached_at = NULL
         WHERE api_scope = ? AND owner_id = ?`,
       generation,
+      pinned.apiScope,
+      pinned.ownerId,
+    );
+    await tx.runAsync(
+      "DELETE FROM offline_business_snapshots WHERE api_scope = ? AND owner_id = ?",
       pinned.apiScope,
       pinned.ownerId,
     );
@@ -321,7 +335,7 @@ export function startOfflinePocketWork(
   );
 }
 
-/** Records work completion only; actual snapshot availability belongs to future payload storage. */
+/** Records work completion only; snapshot availability must be read from snapshot storage. */
 export function completeOfflinePocketWork(
   operation: OfflinePocketOperation,
 ): Promise<void> {
@@ -393,6 +407,172 @@ export async function recoverOfflinePocketWork(
         WHERE api_scope = ? AND owner_id = ? AND work_status = 'running'`,
       pinned.apiScope,
       pinned.ownerId,
+    );
+  });
+}
+
+type SnapshotRow = {
+  businessId: number;
+  formatVersion: number;
+  fetchedAt: number;
+  json: string;
+};
+
+const SNAPSHOT_COLUMNS = `
+  s.business_id AS businessId, s.format_version AS formatVersion,
+  s.fetched_at AS fetchedAt, s.snapshot AS json
+`;
+const AVAILABLE_SNAPSHOTS = `
+  FROM offline_business_snapshots s
+  INNER JOIN offline_pocket_controls c
+    ON c.api_scope = s.api_scope AND c.owner_id = s.owner_id
+      AND c.business_id = s.business_id
+  WHERE s.api_scope = ? AND s.owner_id = ? AND s.clear_generation = ?
+    AND c.clear_generation = s.clear_generation
+    AND c.cache_intent IN ('automatic', 'restore')
+    AND c.work_status != 'invalidated'
+`;
+
+/** Checks payload format and row identity without returning unusable JSON to presentation code. */
+function snapshotEntry(row: SnapshotRow): OfflineBusinessSnapshotEntry {
+  if (row.formatVersion !== OFFLINE_BUSINESS_SNAPSHOT_VERSION) {
+    return {
+      businessId: row.businessId,
+      status: "unsupported",
+      snapshot: null,
+    };
+  }
+  const parsed = parseOfflineBusinessSnapshot(row.json);
+  if (
+    parsed.status === "available" &&
+    (parsed.snapshot.business.id !== row.businessId ||
+      Date.parse(parsed.snapshot.fetchedAt) !== row.fetchedAt)
+  ) {
+    return { businessId: row.businessId, status: "corrupt", snapshot: null };
+  }
+  return { businessId: row.businessId, ...parsed };
+}
+
+/** Publishes validated data and freshness under the current running intention in one transaction. */
+export async function publishOfflineBusinessSnapshot(
+  operationInput: OfflinePocketOperation,
+  input: unknown,
+): Promise<void> {
+  const operation = Object.freeze({ ...operationInput });
+  const { snapshot, json } = serializeOfflineBusinessSnapshot(input);
+  if (snapshot.business.id !== operation.businessId) {
+    throw new Error(
+      "The business snapshot does not match its cache operation.",
+    );
+  }
+  const fetchedAt = Date.parse(snapshot.fetchedAt);
+  await withOwnedPolicy(operation, async (tx) => {
+    const control = await currentOperation(tx, operation);
+    if (control.workStatus !== "running") {
+      throw new Error(
+        "Offline Pocket work must be running to publish a snapshot.",
+      );
+    }
+    const previous = await tx.getFirstAsync<SnapshotRow>(
+      `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS} AND s.business_id = ?`,
+      operation.apiScope,
+      operation.ownerId,
+      operation.clearGeneration,
+      operation.businessId,
+    );
+    if (
+      previous &&
+      snapshotEntry(previous).status === "available" &&
+      fetchedAt < previous.fetchedAt
+    ) {
+      throw new Error(
+        "An older fetch cannot replace a newer business snapshot.",
+      );
+    }
+    await tx.runAsync(
+      `INSERT INTO offline_business_snapshots (
+        api_scope, owner_id, business_id, clear_generation, format_version, fetched_at, snapshot
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (api_scope, owner_id, business_id) DO UPDATE SET
+        clear_generation = excluded.clear_generation, format_version = excluded.format_version,
+        fetched_at = excluded.fetched_at, snapshot = excluded.snapshot`,
+      operation.apiScope,
+      operation.ownerId,
+      operation.businessId,
+      operation.clearGeneration,
+      snapshot.formatVersion,
+      fetchedAt,
+      json,
+    );
+    await tx.runAsync(
+      `UPDATE offline_pocket_controls SET cached_at = ?
+        WHERE api_scope = ? AND owner_id = ? AND business_id = ?`,
+      fetchedAt,
+      operation.apiScope,
+      operation.ownerId,
+      operation.businessId,
+    );
+  });
+}
+
+/** Reads and validates one snapshot locally, including explicit corruption and unsupported states. */
+export async function getOfflineBusinessSnapshot(
+  context: OfflinePocketContext,
+  businessId: number,
+): Promise<OfflineBusinessSnapshotRead> {
+  assertInteger(businessId, 1);
+  return withOwnedPolicy(context, async (tx, pinned) => {
+    const row = await tx.getFirstAsync<SnapshotRow>(
+      `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS} AND s.business_id = ?`,
+      pinned.apiScope,
+      pinned.ownerId,
+      pinned.clearGeneration,
+      businessId,
+    );
+    if (!row) {
+      return { businessId, status: "missing", snapshot: null };
+    }
+    return snapshotEntry(row);
+  });
+}
+
+/** Lists valid and damaged local entries without treating failed or absent rows as cached data. */
+export async function listOfflineBusinessSnapshots(
+  context: OfflinePocketContext,
+): Promise<OfflineBusinessSnapshotEntry[]> {
+  return withOwnedPolicy(context, async (tx, pinned) => {
+    const rows = await tx.getAllAsync<SnapshotRow>(
+      `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS}
+        ORDER BY s.fetched_at DESC, s.business_id`,
+      pinned.apiScope,
+      pinned.ownerId,
+      pinned.clearGeneration,
+    );
+    return rows.map(snapshotEntry);
+  });
+}
+
+/** Removes even unreadable snapshots and invalidates in-flight work without removing backend saves. */
+export async function removeOfflineBusinessSnapshot(
+  context: OfflinePocketContext,
+  businessId: number,
+): Promise<void> {
+  assertInteger(businessId, 1);
+  await withOwnedPolicy(context, async (tx, pinned) => {
+    await tx.runAsync(
+      `UPDATE offline_pocket_controls SET cache_intent = 'suppressed',
+        work_status = 'invalidated', operation_version = operation_version + 1,
+        cached_at = NULL, next_retry_at = NULL, last_error_code = NULL
+        WHERE api_scope = ? AND owner_id = ? AND business_id = ?`,
+      pinned.apiScope,
+      pinned.ownerId,
+      businessId,
+    );
+    await tx.runAsync(
+      "DELETE FROM offline_business_snapshots WHERE api_scope = ? AND owner_id = ? AND business_id = ?",
+      pinned.apiScope,
+      pinned.ownerId,
+      businessId,
     );
   });
 }

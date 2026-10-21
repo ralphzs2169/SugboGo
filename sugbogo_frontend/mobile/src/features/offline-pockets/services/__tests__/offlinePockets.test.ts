@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { SQLiteDatabase } from "expo-sqlite";
+import { snapshotFixture } from "../../validation/__tests__/snapshotFixture";
 
 const sqlite = jest.requireActual(
   "node:sqlite",
@@ -21,6 +22,7 @@ let databasePath: string;
 let mockApiScope = "https://api-a.example";
 let mockFailSql: string | null = null;
 let mockFailMigration = false;
+let mockFailSnapshotMigration = false;
 const mockConnections = new Set<DatabaseSync>();
 const mockOpenedNames: string[] = [];
 let mockPause: {
@@ -36,6 +38,13 @@ function mockOpenDatabase(name: string): SQLiteDatabase {
   mockConnections.add(native);
   const adapter = {
     execAsync: async (sql: string) => {
+      if (
+        mockFailSnapshotMigration &&
+        sql.includes("PRAGMA user_version = 2")
+      ) {
+        mockFailSnapshotMigration = false;
+        throw new Error("Snapshot migration failed");
+      }
       if (mockFailMigration && sql.includes("PRAGMA user_version = 1")) {
         mockFailMigration = false;
         throw new Error("Migration failed");
@@ -82,13 +91,17 @@ function mockOpenDatabase(name: string): SQLiteDatabase {
 jest.mock("../sqliteDriver", () => ({
   openDatabaseAsync: jest.fn(async (name: string) => mockOpenDatabase(name)),
 }));
-jest.mock("../../constants/offlinePockets.constants", () => ({
-  get OFFLINE_POCKETS_API_SCOPE() {
-    return mockApiScope;
-  },
-  OFFLINE_POCKETS_DATABASE: "sugbogo_offline_pockets.db",
-  OFFLINE_POCKETS_SCHEMA_VERSION: 1,
-}));
+jest.mock("../../constants/offlinePockets.constants", () => {
+  const constants = {
+    ...jest.requireActual("../../constants/offlinePockets.constants"),
+  };
+  // Preserve a live getter; transpiled object spread would snapshot its value.
+  Object.defineProperty(constants, "OFFLINE_POCKETS_API_SCOPE", {
+    enumerable: true,
+    get: () => mockApiScope,
+  });
+  return constants;
+});
 
 function signIn(ownerId = 7) {
   session.beginAuthSession();
@@ -142,6 +155,7 @@ describe("Offline Pocket SQLite control foundation", () => {
     mockApiScope = "https://api-a.example";
     mockFailSql = null;
     mockFailMigration = false;
+    mockFailSnapshotMigration = false;
     mockPause = null;
     mockOpenedNames.length = 0;
     loadRepository();
@@ -171,7 +185,7 @@ describe("Offline Pocket SQLite control foundation", () => {
     expect(first.clearGeneration).toBe(0);
     expect(mockOpenedNames).toEqual(["sugbogo_offline_pockets.db"]);
     expect(nativeDatabase().prepare("PRAGMA user_version").get()).toEqual({
-      user_version: 1,
+      user_version: 2,
     });
     expect(nativeDatabase().prepare("PRAGMA journal_mode").get()).toEqual({
       journal_mode: "wal",
@@ -181,7 +195,7 @@ describe("Offline Pocket SQLite control foundation", () => {
     });
   });
 
-  it("migrates version zero and reopens version one without losing intentions", async () => {
+  it("migrates version zero and reopens without losing intentions", async () => {
     const context = await api.captureOfflinePocketContext();
     await api.enqueueConfirmedPocketSave(context, 21);
     reopenRepository();
@@ -575,6 +589,420 @@ describe("Offline Pocket SQLite control foundation", () => {
     await expect(api.enqueueConfirmedPocketSave(context, 1.5)).rejects.toThrow(
       "Invalid",
     );
+  });
+
+  async function runningSnapshot(id = 21) {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, id);
+    await api.startOfflinePocketWork(operation);
+    await api.publishOfflineBusinessSnapshot(operation, snapshotFixture(id));
+    return { context, operation };
+  }
+
+  it("upgrades version one while preserving suppression and control records", async () => {
+    const context = await api.captureOfflinePocketContext();
+    await api.enqueueConfirmedPocketSave(context, 21);
+    await api.clearOfflinePocketControlState(context);
+    nativeDatabase().exec(
+      "DROP TABLE offline_business_snapshots; PRAGMA user_version = 1",
+    );
+    reopenRepository();
+    const current = await api.captureOfflinePocketContext();
+    expect(current.clearGeneration).toBe(1);
+    expect(await api.getOfflinePocketControl(current, 21)).toMatchObject({
+      intent: "suppressed",
+    });
+    expect(await api.listOfflineBusinessSnapshots(current)).toEqual([]);
+    expect(nativeDatabase().prepare("PRAGMA user_version").get()).toEqual({
+      user_version: 2,
+    });
+  });
+
+  it("rolls back the version two migration and retries without resetting version one", async () => {
+    const context = await api.captureOfflinePocketContext();
+    await api.enqueueConfirmedPocketSave(context, 21);
+    nativeDatabase().exec(
+      "DROP TABLE offline_business_snapshots; PRAGMA user_version = 1",
+    );
+    reopenRepository();
+    mockFailSnapshotMigration = true;
+    await expect(api.captureOfflinePocketContext()).rejects.toThrow(
+      "Snapshot migration failed",
+    );
+    const probe = new sqlite.DatabaseSync(databasePath);
+    expect(probe.prepare("PRAGMA user_version").get()).toEqual({
+      user_version: 1,
+    });
+    expect(
+      probe
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE name = 'offline_business_snapshots'",
+        )
+        .get(),
+    ).toBeUndefined();
+    probe.close();
+    const current = await api.captureOfflinePocketContext();
+    expect(await api.getOfflinePocketControl(current, 21)).toMatchObject({
+      intent: "automatic",
+    });
+    expect(await api.listOfflineBusinessSnapshots(current)).toEqual([]);
+  });
+
+  it("round trips a snapshot after reopening and keeps freshness separate from work", async () => {
+    const { context } = await runningSnapshot();
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      workStatus: "running",
+      cachedAt: Date.parse(snapshotFixture().fetchedAt),
+      lastCompletedAt: null,
+    });
+    reopenRepository();
+    const current = await api.captureOfflinePocketContext();
+    expect(await api.getOfflineBusinessSnapshot(current, 21)).toEqual({
+      status: "available",
+      businessId: 21,
+      snapshot: snapshotFixture(),
+    });
+    expect(await api.listOfflineBusinessSnapshots(current)).toHaveLength(1);
+    const script =
+      "const {DatabaseSync}=require('node:sqlite'); const db=new DatabaseSync(process.argv[1]); console.log(db.prepare('SELECT COUNT(*) AS count FROM offline_business_snapshots').get().count); db.close();";
+    expect(
+      execFileSync(process.execPath, ["-e", script, databasePath], {
+        encoding: "utf8",
+      }).trim(),
+    ).toBe("1");
+  });
+
+  it("atomically replaces the same business, rejects older fetches, and preserves valid data on failure", async () => {
+    const { context, operation } = await runningSnapshot();
+    const replacement = snapshotFixture(21, "2026-10-23T01:00:00Z");
+    replacement.business.business_name = "Updated cafe";
+    await api.publishOfflineBusinessSnapshot(operation, replacement);
+    expect(await api.listOfflineBusinessSnapshots(context)).toHaveLength(1);
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow("older fetch");
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, {
+        ...replacement,
+        business: { ...replacement.business, business_name: undefined },
+      }),
+    ).rejects.toThrow();
+    mockFailSql = "UPDATE offline_pocket_controls SET cached_at";
+    await expect(
+      api.publishOfflineBusinessSnapshot(
+        operation,
+        snapshotFixture(21, "2026-10-24T00:00:00Z"),
+      ),
+    ).rejects.toThrow("Write failed");
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      snapshot: replacement,
+    });
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      cachedAt: Date.parse(replacement.fetchedAt),
+    });
+  });
+
+  it("retains a usable snapshot through pending, failed, retried and recovered refreshes", async () => {
+    const { context, operation } = await runningSnapshot();
+    await api.completeOfflinePocketWork(operation);
+    const refresh = await api.requestOfflinePocketRestore(context, 21);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow();
+    await api.startOfflinePocketWork(refresh);
+    await api.failOfflinePocketWork(refresh, "FETCH_FAILED", 0);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+    const retry = await api.retryOfflinePocketWork(refresh);
+    await api.startOfflinePocketWork(retry);
+    await api.recoverOfflinePocketWork(context);
+    await expect(
+      api.publishOfflineBusinessSnapshot(retry, snapshotFixture()),
+    ).rejects.toThrow();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it("never infers snapshot availability or enqueues work from local reads", async () => {
+    const context = await api.captureOfflinePocketContext();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "missing",
+    });
+    expect(await api.listOfflinePocketControls(context)).toEqual([]);
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow("running");
+    await api.startOfflinePocketWork(operation);
+    await api.completeOfflinePocketWork(operation);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "missing",
+    });
+    expect(await api.listOfflineBusinessSnapshots(context)).toEqual([]);
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow("running");
+  });
+
+  it.each([
+    ["snapshot = '{'", "corrupt"],
+    ["format_version = 99", "unsupported"],
+    ["snapshot = '{\"formatVersion\":99}'", "unsupported"],
+    ["snapshot = '{\"formatVersion\":1}'", "corrupt"],
+    ["fetched_at = 1", "corrupt"],
+  ])(
+    "reports damaged rows (%s), retains healthy rows, and permits explicit cleanup",
+    async (assignment, status) => {
+      const { context, operation } = await runningSnapshot();
+      await runningSnapshot(22);
+      nativeDatabase().exec(
+        `UPDATE offline_business_snapshots SET ${assignment} WHERE business_id = 21`,
+      );
+      expect(await api.getOfflineBusinessSnapshot(context, 21)).toEqual({
+        businessId: 21,
+        status,
+        snapshot: null,
+      });
+      expect(await api.listOfflineBusinessSnapshots(context)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ businessId: 21, status }),
+          expect.objectContaining({ businessId: 22, status: "available" }),
+        ]),
+      );
+      await api.removeOfflineBusinessSnapshot(context, 21);
+      expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+        status: "missing",
+      });
+      expect(
+        nativeDatabase()
+          .prepare(
+            "SELECT * FROM offline_business_snapshots WHERE business_id = 21",
+          )
+          .get(),
+      ).toBeUndefined();
+      await expect(
+        api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+      ).rejects.toThrow();
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        intent: "suppressed",
+      });
+    },
+  );
+
+  it("rejects mismatched business identity and identifies stored identity corruption", async () => {
+    const { context, operation } = await runningSnapshot();
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture(22)),
+    ).rejects.toThrow("does not match");
+    nativeDatabase()
+      .prepare(
+        "UPDATE offline_business_snapshots SET snapshot = ? WHERE business_id = 21",
+      )
+      .run(JSON.stringify(snapshotFixture(22)));
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "corrupt",
+    });
+    await api.publishOfflineBusinessSnapshot(operation, snapshotFixture());
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it("isolates reads, publication, individual removal and clearing across accounts and API scopes", async () => {
+    const { context, operation } = await runningSnapshot();
+    signIn(8);
+    const other = await api.captureOfflinePocketContext();
+    expect(await api.getOfflineBusinessSnapshot(other, 21)).toMatchObject({
+      status: "missing",
+    });
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow("Sign in");
+    await runningSnapshot();
+    await api.removeOfflineBusinessSnapshot(other, 21);
+    signIn(7);
+    mockApiScope = "https://api-b.example";
+    const scopeB = await api.captureOfflinePocketContext();
+    expect(await api.listOfflineBusinessSnapshots(scopeB)).toEqual([]);
+    await expect(api.listOfflineBusinessSnapshots(context)).rejects.toThrow(
+      "Sign in",
+    );
+    await runningSnapshot();
+    await api.clearOfflinePocketControlState(scopeB);
+    mockApiScope = "https://api-a.example";
+    const original = await api.captureOfflinePocketContext();
+    expect(await api.getOfflineBusinessSnapshot(original, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it("deletes snapshots and persists suppression after clearing and reopening", async () => {
+    const { context, operation } = await runningSnapshot();
+    const cleared = await api.clearOfflinePocketControlState(context);
+    expect(await api.listOfflineBusinessSnapshots(cleared)).toEqual([]);
+    expect(
+      nativeDatabase()
+        .prepare("SELECT COUNT(*) AS count FROM offline_business_snapshots")
+        .get(),
+    ).toEqual({ count: 0 });
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow();
+    reopenRepository();
+    const current = await api.captureOfflinePocketContext();
+    expect(await api.getOfflineBusinessSnapshot(current, 21)).toMatchObject({
+      status: "missing",
+    });
+    expect(await api.getOfflinePocketOperation(current, 21)).toBeNull();
+    const restore = await api.requestOfflinePocketRestore(current, 21);
+    await api.startOfflinePocketWork(restore);
+    await api.publishOfflineBusinessSnapshot(restore, snapshotFixture());
+    expect(await api.getOfflineBusinessSnapshot(current, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it.each([true, false])(
+    "serializes clear versus publication (clear first: %s)",
+    async (clearFirst) => {
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      await api.startOfflinePocketWork(operation);
+      if (clearFirst) {
+        const clearing = api.clearOfflinePocketControlState(context);
+        const publishing = api.publishOfflineBusinessSnapshot(
+          operation,
+          snapshotFixture(),
+        );
+        const results = await Promise.allSettled([clearing, publishing]);
+        expect(results.map((result) => result.status)).toEqual([
+          "fulfilled",
+          "rejected",
+        ]);
+      } else {
+        const publishing = api.publishOfflineBusinessSnapshot(
+          operation,
+          snapshotFixture(),
+        );
+        const clearing = api.clearOfflinePocketControlState(context);
+        await Promise.all([publishing, clearing]);
+      }
+      const current = await api.captureOfflinePocketContext();
+      expect(await api.listOfflineBusinessSnapshots(current)).toEqual([]);
+      expect(await api.getOfflinePocketControl(current, 21)).toMatchObject({
+        intent: "suppressed",
+      });
+    },
+  );
+
+  it("rolls back a failed clear together with snapshot deletion and allows retry", async () => {
+    const { context } = await runningSnapshot();
+    mockFailSql = "DELETE FROM offline_business_snapshots";
+    await expect(api.clearOfflinePocketControlState(context)).rejects.toThrow(
+      "Write failed",
+    );
+    expect(await api.captureOfflinePocketContext()).toEqual(context);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+    const current = await api.clearOfflinePocketControlState(context);
+    expect(await api.listOfflineBusinessSnapshots(current)).toEqual([]);
+  });
+
+  it("hides residual invalidated rows even before explicit deletion", async () => {
+    const { context } = await runningSnapshot();
+    nativeDatabase().exec(
+      "UPDATE offline_pocket_controls SET cache_intent = 'suppressed', work_status = 'invalidated'",
+    );
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "missing",
+    });
+    await api.removeOfflineBusinessSnapshot(context, 21);
+    expect(
+      nativeDatabase()
+        .prepare("SELECT COUNT(*) AS count FROM offline_business_snapshots")
+        .get(),
+    ).toEqual({ count: 0 });
+  });
+
+  it("keeps generation-mismatched residual snapshots hidden after restoration", async () => {
+    const { context } = await runningSnapshot();
+    const cleared = await api.clearOfflinePocketControlState(context);
+    await api.requestOfflinePocketRestore(cleared, 21);
+    nativeDatabase()
+      .prepare(
+        `INSERT INTO offline_business_snapshots
+      (api_scope, owner_id, business_id, clear_generation, format_version, fetched_at, snapshot)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        cleared.apiScope,
+        cleared.ownerId,
+        21,
+        context.clearGeneration,
+        1,
+        Date.parse(snapshotFixture().fetchedAt),
+        JSON.stringify(snapshotFixture()),
+      );
+    expect(await api.getOfflineBusinessSnapshot(cleared, 21)).toMatchObject({
+      status: "missing",
+    });
+    expect(await api.listOfflineBusinessSnapshots(cleared)).toEqual([]);
+    await api.removeOfflineBusinessSnapshot(cleared, 21);
+  });
+
+  it("rolls back failed individual removal and invalidates an active refresh on successful removal", async () => {
+    const { context, operation } = await runningSnapshot();
+    mockFailSql = "DELETE FROM offline_business_snapshots";
+    await expect(
+      api.removeOfflineBusinessSnapshot(context, 21),
+    ).rejects.toThrow("Write failed");
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+    await api.publishOfflineBusinessSnapshot(operation, snapshotFixture());
+    await api.removeOfflineBusinessSnapshot(context, 21);
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "missing",
+    });
+  });
+
+  it("rolls back delayed publication across logout and same-user login without deleting valid data", async () => {
+    const { operation } = await runningSnapshot();
+    const started = deferred();
+    const release = deferred();
+    mockPause = {
+      sql: "INSERT INTO offline_business_snapshots",
+      started: started.resolve,
+      release: release.promise,
+    };
+    const publishing = api
+      .publishOfflineBusinessSnapshot(
+        operation,
+        snapshotFixture(21, "2026-10-23T00:00:00Z"),
+      )
+      .catch((error: unknown) => error);
+    await started.promise;
+    session.invalidateAuthSession();
+    auth.getState().clearUser();
+    signIn();
+    release.resolve();
+    expect(await publishing).toEqual(expect.any(Error));
+    const current = await api.captureOfflinePocketContext();
+    expect(await api.getOfflineBusinessSnapshot(current, 21)).toMatchObject({
+      snapshot: snapshotFixture(),
+    });
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow("Sign in");
   });
 
   it("rejects web before opening a native database", async () => {
