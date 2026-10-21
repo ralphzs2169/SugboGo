@@ -30,7 +30,9 @@ export default function NotificationRow({
   destinationLabel,
   onPress,
 }: Props) {
-  const { icon } = getNotificationPresentation(notification.type);
+  const { icon, category } = getNotificationPresentation(notification.type);
+  const iconColor =
+    category === "vouch" ? "#DC2626" : theme.extends.colors.text.secondary;
   const timestamp = formatNotificationTime(notification.created_at);
   const isActionable = !notification.is_read || isNavigable || isUnavailable;
 
@@ -45,7 +47,7 @@ export default function NotificationRow({
         <MaterialCommunityIcons
           name={icon}
           size={20}
-          color={theme.extends.colors.text.secondary}
+          color={iconColor}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />

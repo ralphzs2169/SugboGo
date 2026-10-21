@@ -1,11 +1,30 @@
 import { fireEvent, render } from "@testing-library/react-native";
 
 import ExploreTopBar from "../ExploreTopBar";
+jest.mock("react-native-reanimated", () => ({
+  __esModule: true,
+  default: { View: jest.requireActual("react-native").View },
+  cancelAnimation: jest.fn(),
+  Easing: { inOut: () => undefined, quad: undefined },
+  ReduceMotion: { System: "system" },
+  useAnimatedStyle: () => ({}),
+  useReducedMotion: jest.fn(() => false),
+  useSharedValue: (initial: number) => {
+    const value = jest.requireActual("react").useRef({
+      value: initial,
+      set: jest.fn(),
+    });
+    return value.current;
+  },
+  withSequence: jest.fn(() => 0),
+  withTiming: jest.fn((value: number) => value),
+}));
 
 const mockPush = jest.fn();
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush }),
+  useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
 }));
 

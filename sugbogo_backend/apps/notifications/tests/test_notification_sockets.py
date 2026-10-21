@@ -185,7 +185,11 @@ class NotificationSocketTests(NotificationFixtures, TransactionTestCase):
         socket = await self.open_socket()
         await self.ready(socket)
         notification = await database_sync_to_async(self.create_notification)()
-        self.assertEqual((await socket.receive_json_from())["type"], "inbox.changed")
+        self.assertEqual(await socket.receive_json_from(), {
+            "type": "notification.created",
+            "notification_id": notification.pk,
+            "sync_required": True,
+        })
         await database_sync_to_async(NotificationService.mark_read)(self.user, notification.pk)
         self.assertEqual((await socket.receive_json_from())["type"], "inbox.changed")
         await database_sync_to_async(NotificationService.mark_read)(self.user, notification.pk)
