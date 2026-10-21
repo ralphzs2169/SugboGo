@@ -1,4 +1,6 @@
 import { ENV } from "@/config/env";
+import { isAxiosError } from "axios";
+import { isTransportError } from "@/shared/utils/isTransportError";
 import {
   isAuthSessionCurrent,
   isStaleAuthSessionError,
@@ -387,7 +389,20 @@ export class NotificationWebSocketService {
         this.ensureConnected();
       }
     } catch (error) {
-      if (isStaleAuthSessionError(error)) {
+      if (isStaleAuthSessionError(error) || !this.isCurrentSession(sessionEpoch)) {
+        return;
+      }
+
+      // A failed connection or unavailable server does not invalidate credentials.
+      // Allow authentication recovery again after the reconnect backoff.
+      if (
+        isTransportError(error) ||
+        (isAxiosError(error) &&
+          (error.response?.status === 429 ||
+            (error.response?.status ?? 0) >= 500))
+      ) {
+        this.refreshAttempted = false;
+        this.scheduleReconnect();
         return;
       }
 

@@ -8,6 +8,9 @@ import {
   getAuthSessionGeneration,
   StaleAuthSessionError,
 } from "@/shared/api/authSessionGeneration.service";
+import { AxiosError } from "axios";
+import { createApiError } from "@/shared/utils/apiErrors";
+import { API_ERROR_CODE } from "@/shared/constants/errorCodes";
 
 class MockSocket {
   onopen: (() => void) | null = null;
@@ -212,7 +215,42 @@ describe("NotificationWebSocketService", () => {
     expect(harness.sockets).toHaveLength(2);
   });
 
-  it("expires the session when token refresh fails", async () => {
+  it.each([
+    createApiError(API_ERROR_CODE.NETWORK_ERROR),
+    createApiError(API_ERROR_CODE.REQUEST_TIMEOUT),
+    new AxiosError("Network Error", "ERR_NETWORK"),
+    ...[429, 500, 503].map((status) =>
+      Object.assign(new AxiosError("Server unavailable"), {
+        response: { status },
+      }),
+    ),
+  ])("retries temporary refresh failures without expiring the session: %s", async (error) => {
+    const harness = createHarness();
+    harness.refreshSession.mockRejectedValueOnce(error);
+    harness.start();
+    await flushPromises();
+    harness.sockets[0].serverClose(4401);
+    await flushPromises();
+
+    expect(harness.onSessionExpired).not.toHaveBeenCalled();
+    expect(harness.sockets).toHaveLength(1);
+    jest.advanceTimersByTime(1_000);
+    await flushPromises();
+    expect(harness.sockets).toHaveLength(2);
+
+    // The retry must be allowed to refresh again after a temporary failure.
+    harness.getAccessToken
+      .mockResolvedValueOnce("access-one")
+      .mockResolvedValue("access-two");
+    harness.sockets[1].serverClose(4401);
+    await flushPromises();
+    expect(harness.refreshSession).toHaveBeenCalledTimes(2);
+    expect(harness.sockets).toHaveLength(3);
+    expect(harness.onSessionExpired).not.toHaveBeenCalled();
+    harness.service.stop();
+  });
+
+  it("expires the session when token refresh is rejected", async () => {
     const harness = createHarness();
     harness.refreshSession.mockRejectedValue(new Error("refresh rejected"));
     harness.start();
